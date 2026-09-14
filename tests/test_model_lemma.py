@@ -176,6 +176,39 @@ def test_an_answer_cut_off_is_asked_again_in_halves(tmp_path: Path) -> None:
     assert set(words) == {s.id for s in segments}
 
 
+def test_a_run_that_fails_partway_keeps_what_it_paid_for(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A book is an hour of batches. When one call failed — credit ran out at 11:41 on
+    2026-09-14 — every batch already answered was thrown away with it, about $3. Kept as
+    each batch returns, the rerun asks only for the batches that never came back."""
+    from targum.errors import ProviderError
+
+    class FailsOnSecond(FakeModel):
+        def create(self, **kwargs: Any) -> Answer:
+            if len(self.asked) == 1:
+                self.asked.append(kwargs["messages"][0]["content"])
+                raise ProviderError("Anthropic API error 400 while reading the words.")
+            return super().create(**kwargs)
+
+    monkeypatch.setattr(model_lemma, "BATCH_SEGMENTS", 1)
+    first, second = segment(0, "Le chat dort."), segment(1, "L'homme mange.")
+    failing = FailsOnSecond()
+    with pytest.raises(ProviderError):
+        reader(tmp_path, failing, buy=True).lemmas([first, second], "fr")
+    assert len(failing.asked) == 2
+
+    # Read from the cache alone: the first batch is there, under the key it always had.
+    kept = reader(tmp_path, FakeModel()).lemmas([first, second], "fr")
+    assert set(kept) == {first.id}
+
+    fresh = FakeModel()
+    words = reader(tmp_path, fresh, buy=True).lemmas([first, second], "fr")
+    assert set(words) == {first.id, second.id}
+    assert len(fresh.asked) == 1
+    assert "homme" in fresh.asked[0] and "chat" not in fresh.asked[0]
+
+
 def test_a_language_it_does_not_read_is_refused(tmp_path: Path) -> None:
     with pytest.raises(TargumError, match="does not read"):
         reader(tmp_path, FakeModel(), buy=True).lemmas([segment(0, "שלום עולם.")], "he")
