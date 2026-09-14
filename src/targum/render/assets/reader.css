@@ -3489,7 +3489,11 @@ html:fullscreen { background: var(--paper); }
   }
   /* Over the strip (28) and the tab (29), which do not ride up for an overlay and are
      under it while it is up. */
-  .gloss-card, .pick-card { z-index: 30; }
+  .gloss-card, .pick-card, .bar-more.open { z-index: 30; }
+  /* The menu is drawn inside the bar, whose own z-index makes it a stacking context: at
+     16 the menu stood under the sheet, the strip and the tab it is meant to cover. The
+     bar rises with it for as long as it is open. */
+  .bar:has(.bar-more.open) { z-index: 30; }
   .list {
     max-block-size: 42svh;
     padding: 0.9rem 1rem 1.5rem;

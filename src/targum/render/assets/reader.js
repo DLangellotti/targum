@@ -2838,7 +2838,7 @@ var targumReader = function () {
   var videoPanel = document.getElementById("video");
 
   function residents() {
-    return [listBox, keysCard, more, videoPanel];
+    return [listBox, keysCard, videoPanel];
   }
 
   /* Whether a resident stands at the foot, which is what the band is made of. All of
@@ -2855,12 +2855,15 @@ var targumReader = function () {
     );
   }
 
+  // The menu behind ⋯ joined them on 2026-09-14, for the card's reason: it is a visit,
+  // and opening it cut Genesis 1 from 26 pages into 31 on a phone (targum-internal#273).
+  // A setting inside it that changes the page lays the page out itself.
   function overlays() {
-    return [card, chip];
+    return [card, chip, more];
   }
 
   function overlay(which) {
-    return which === "card" || which === "chip";
+    return which === "card" || which === "chip" || which === "more";
   }
 
   // Where a thing at the foot will stand once it has stopped moving. The strip, the
