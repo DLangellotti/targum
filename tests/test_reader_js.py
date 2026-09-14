@@ -684,6 +684,24 @@ def test_finishing_names_the_language_on_a_record_born_without_one() -> None:
     assert done["language"] == "he", "the ledger can place it now"
 
 
+def test_the_count_of_finished_targums_is_this_languages() -> None:
+    """A first Italian text said "Your 17th" because sixteen Hebrew ones were finished.
+    The foot's words are this language's and Your Progress counts finished targums per
+    language, so the celebration counts this language's too (2026-09-14)."""
+    words, lemmas = chapter(["a"])
+    others = {
+        "hebrew-one": {"language": "he", "done": 1},
+        "hebrew-two": {"language": "he", "done": 1},
+        "italian-one": {"language": "it", "done": 1},
+        "placeless": {"language": "", "done": 1},
+    }
+    done = run([], chapter=words, lemmas=lemmas, language="it", docs=others, finish=[True])[
+        "finished"
+    ]
+    assert done["tally"] == 2, "the Italian one before it and this one, not the Hebrew"
+    assert "2nd" in done["said"]
+
+
 def test_finishing_survives_everything_else_the_reader_writes() -> None:
     """`updateDocs` rewrites the text's record on every change to a word."""
     words, lemmas = chapter(["a", "b"])

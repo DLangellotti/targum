@@ -906,13 +906,23 @@ var targumReader = function () {
     return Math.max(record.done ? 1 : 0, mine);
   }
 
-  // How many targums this reader has finished, in every language: the number the
+  // How many targums this reader has finished in this page's language: the number the
   // celebration brags with. A section finished twice is finished once.
+  //
+  // In this language only (2026-09-14): the foot's other counts are this language's words,
+  // and Your Progress counts finished targums per language, so a first Italian text that
+  // said "Your 17th" because of sixteen in Hebrew agreed with neither. A record's language
+  // is read the way the progress page reads it — its own, else the older store's — and a
+  // record with neither is not counted there, so it is not counted here. This text is
+  // always this language's, whatever its record says.
   function finishedCount() {
     var all = read(DOCS, "{}");
+    var older = read("targum:master", "{}");
     var count = 0;
     Object.keys(all).forEach(function (hash) {
-      count += finishedTally(all[hash]);
+      var record = all[hash] || {};
+      var where = hash === documentId ? language : record.language || (older[hash] || {}).language;
+      if (where === language) count += finishedTally(record);
     });
     return count;
   }
