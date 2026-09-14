@@ -28,7 +28,17 @@ from typing import TYPE_CHECKING, Any
 from .. import level as level_module
 from ..translate.prompts import language_name
 from ..usage import Usage
-from . import CHAT_MODEL, CHAT_WORKERS, EFFORT, MAX_STEPS, MAX_TOKENS, TURN_RESERVE, prompts
+from . import (
+    CHAT_MODEL,
+    CHAT_WORKERS,
+    EFFORT,
+    MAX_STEPS,
+    MAX_TOKENS,
+    TURN_DEADLINE_S,
+    TURN_RESERVE,
+    TURN_TOO_LONG,
+    prompts,
+)
 from . import exemplars as exemplars_module
 from . import hebrew as hebrew_module
 from . import sources as sources_module
@@ -150,6 +160,15 @@ def _said(blocks: list[dict[str, Any]]) -> str:
 ClientFactory = Callable[[], Any]
 
 
+class TurnTooLong(Exception):
+    """A turn past its deadline (`TURN_DEADLINE_S`).
+
+    Raised at the top of a step or while a reply streams, never between a tool call and
+    its result: the transcript is replayed to the API on the next turn, and a `tool_use`
+    kept without its `tool_result` would be a 400 on every turn after it.
+    """
+
+
 #: The one kind of cache breakpoint the API takes.
 CACHED = {"type": "ephemeral"}
 
@@ -183,6 +202,7 @@ def run_turn(
     web_search: bool = False,
     contract: str = "",
     ledger: str = "",
+    deadline_s: float = TURN_DEADLINE_S,
 ) -> Usage:
     """Answer the last user message in `history`, streaming into `feed`.
 
@@ -190,38 +210,29 @@ def run_turn(
     order, so the store holds the conversation as the API will need to see it again.
     `contract` is a stable block added to the system prompt (the Hebrew mode's rules);
     `ledger` is the per-reader block, or the plain one where none is given. Returns
-    what the turn cost.
+    what the turn cost. Raises `TurnTooLong` once `deadline_s` has passed.
     """
     usage = ctx.usage
     messages = list(history)
     stable = prompts.SYSTEM + ("\n\n" + contract if contract else "")
+    ends = time.monotonic() + deadline_s
+    # The tool calls the page has been told about already, as their blocks began.
+    announced: set[str] = set()
     for _ in range(MAX_STEPS):
-        with client.messages.stream(
-            model=CHAT_MODEL,
-            max_tokens=MAX_TOKENS,
-            system=[
-                # Three breakpoints (targum-internal#239). The stable half first, so a
-                # reader marking one word does not throw the whole prefix away; the
-                # ledger after it, cached too, now that it holds still for a whole
-                # conversation; and the last message, so the next turn reads this
-                # turn's history from the cache rather than sending it again.
-                {"type": "text", "text": stable, "cache_control": CACHED},
-                {
-                    "type": "text",
-                    "text": ledger or prompts.ledger(ctx.level),
-                    "cache_control": CACHED,
-                },
-            ],
-            output_config={"effort": EFFORT},
-            tools=tools_module.anthropic_tools(web_search=web_search),
-            messages=marked(messages),
-        ) as stream:
-            for event in stream:
-                if getattr(event, "type", "") == "content_block_delta":
-                    delta = getattr(event, "delta", None)
-                    if getattr(delta, "type", "") == "text_delta":
-                        feed.put("text", written(str(getattr(delta, "text", ""))))
-            reply = stream.get_final_message()
+        if time.monotonic() > ends:
+            raise TurnTooLong()
+        try:
+            reply = _stream_step(
+                client, ctx, messages, feed, stable, ledger, web_search, ends, announced
+            )
+        except TurnTooLong:
+            raise
+        except Exception as error:
+            # A read that timed out because the turn had no time left is the deadline,
+            # not a fault of the API's.
+            if time.monotonic() > ends:
+                raise TurnTooLong() from error
+            raise
         got = getattr(reply, "usage", None)
         if got is not None:
             usage.add(
@@ -237,7 +248,7 @@ def run_turn(
         for block in blocks:
             if block.get("type") == "server_tool_use" and block.get("name") == "web_search":
                 usage.add_search()
-                feed.put("tool", {"name": "web_search"})
+                _announce(feed, announced, block)
         messages.append({"role": "assistant", "content": blocks})
         keep("assistant", blocks, _said(blocks))
         stop = getattr(reply, "stop_reason", "end_turn")
@@ -252,7 +263,7 @@ def run_turn(
             if block.get("type") != "tool_use":
                 continue
             name = str(block.get("name") or "")
-            feed.put("tool", {"name": name})
+            _announce(feed, announced, block)
             text, failed = tools_module.run(name, dict(block.get("input") or {}), ctx)
             if name in ("quote_build", "quote_conversation") and not failed:
                 # The page draws the card from the quote itself, not from what the
@@ -273,6 +284,78 @@ def run_turn(
         messages.append({"role": "user", "content": results})
         keep("user", results, "")
     return usage
+
+
+def _announce(feed: Feed, announced: set[str], block: Any) -> None:
+    """Tell the page a tool is being used, once per call.
+
+    As its block begins in the stream where the stream says so (targum-internal#271):
+    a server-side search runs inside the model's own reply, and told only after the reply
+    was whole, the page sat through every search with nothing to say. A stream that does
+    not say is told after, as before.
+    """
+    ident = str(_field(block, "id") or "")
+    if ident and ident in announced:
+        return
+    if ident:
+        announced.add(ident)
+    feed.put("tool", {"name": str(_field(block, "name") or "")})
+
+
+def _field(block: Any, key: str) -> Any:
+    """A block's field, whether the block is a stored dict or the SDK's object."""
+    return block.get(key) if isinstance(block, dict) else getattr(block, key, None)
+
+
+def _stream_step(
+    client: Any,
+    ctx: tools_module.Ctx,
+    messages: list[dict[str, Any]],
+    feed: Feed,
+    stable: str,
+    ledger: str,
+    web_search: bool,
+    ends: float,
+    announced: set[str],
+) -> Any:
+    """One round trip to the model, streamed into `feed`; the reply, whole."""
+    with client.messages.stream(
+        model=CHAT_MODEL,
+        max_tokens=MAX_TOKENS,
+        system=[
+            # Three breakpoints (targum-internal#239). The stable half first, so a
+            # reader marking one word does not throw the whole prefix away; the
+            # ledger after it, cached too, now that it holds still for a whole
+            # conversation; and the last message, so the next turn reads this
+            # turn's history from the cache rather than sending it again.
+            {"type": "text", "text": stable, "cache_control": CACHED},
+            {
+                "type": "text",
+                "text": ledger or prompts.ledger(ctx.level),
+                "cache_control": CACHED,
+            },
+        ],
+        output_config={"effort": EFFORT},
+        tools=tools_module.anthropic_tools(web_search=web_search),
+        messages=marked(messages),
+        # No longer than the turn has left: a stream that goes quiet is the deadline.
+        timeout=max(0.1, ends - time.monotonic()),
+    ) as stream:
+        for event in stream:
+            if time.monotonic() > ends:
+                # Nothing of this step is kept, so the transcript still ends where
+                # the API can take it up again.
+                raise TurnTooLong()
+            kind = getattr(event, "type", "")
+            if kind == "content_block_delta":
+                delta = getattr(event, "delta", None)
+                if getattr(delta, "type", "") == "text_delta":
+                    feed.put("text", written(str(getattr(delta, "text", ""))))
+            elif kind == "content_block_start":
+                block = getattr(event, "content_block", None)
+                if getattr(block, "type", "") in ("tool_use", "server_tool_use"):
+                    _announce(feed, announced, block)
+        return stream.get_final_message()
 
 
 @dataclass
@@ -917,10 +1000,15 @@ class Chats:
         except Exception as error:  # noqa: BLE001 - said to the reader, not raised at them
             # The reader gets one sentence; the operator gets the traceback, in the
             # terminal, the way a build's failure is printed. Swallowing it silently is
-            # how a 400 on every second turn looked like a shrug.
-            traceback.print_exc()
+            # how a 400 on every second turn looked like a shrug. A turn that ran out of
+            # time is not a fault, and says so in its own words.
+            timed_out = isinstance(error, TurnTooLong)
+            if not timed_out:
+                traceback.print_exc()
             job.stage = "failed"
-            job.error = "We couldn't carry on the conversation. Try again."
+            job.error = (
+                TURN_TOO_LONG if timed_out else "We couldn't carry on the conversation. Try again."
+            )
             self.library.release(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=job.error)
             feed.put("error", {"message": job.error, "detail": type(error).__name__})

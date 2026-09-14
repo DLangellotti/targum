@@ -296,6 +296,98 @@ def test_a_failing_model_is_said_to_the_reader_and_released(tmp_path: Path) -> N
     assert store.committed(0) == 0.0, "the reserve went back"
 
 
+def test_a_turn_past_its_deadline_ends_and_says_so(tmp_path: Path, monkeypatch) -> None:
+    """Nothing ended a turn, so a reader could not tell a slow one from a dead one
+    (targum-internal#271). A turn past `TURN_DEADLINE_S` is ended between steps or while
+    a reply streams, never between a tool call and its result, and the reader is told."""
+    import time
+
+    library, store = world(tmp_path)
+
+    class Slow(Stream):
+        def __iter__(self) -> Any:
+            time.sleep(0.3)
+            yield from super().__iter__()
+
+    class Crawling(Script):
+        def stream(self, **request: Any) -> Stream:
+            base = super().stream(**request)
+            assert request["timeout"] <= 0.5 + 0.01, "a step never outlives the turn"
+            return Slow(base.reply)
+
+    tool_step = reply(
+        [{"type": "tool_use", "id": "t1", "name": "my_progress", "input": {}}], "tool_use"
+    )
+    client = Crawling([tool_step, tool_step, tool_step, reply([{"type": "text", "text": "x"}])])
+    kept: list[tuple[str, list[dict[str, Any]]]] = []
+    with pytest.raises(session_module.TurnTooLong):
+        session_module.run_turn(
+            client,
+            context(library, store),
+            [{"role": "user", "content": "x"}],
+            session_module.Feed(),
+            lambda role, content, said: kept.append((role, content)),
+            deadline_s=0.5,
+        )
+    assert len(client.requests) < 4, "the turn stopped rather than running its script out"
+    assert kept and kept[-1][0] == "user", (
+        "every tool_use kept has its tool_result kept after it, so the next turn replays"
+    )
+
+    monkeypatch.setattr(session_module, "TURN_DEADLINE_S", 0.0)
+    monkeypatch.setattr(
+        session_module,
+        "run_turn",
+        lambda *a, **k: (_ for _ in ()).throw(session_module.TurnTooLong()),
+    )
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+    asked = chats.say(None, library.home(None), "", "hi", admin=False)
+    chats.answer(asked)
+    feed = chats.feed_for(asked.chat_id, asked.n)
+    assert feed is not None and feed.closed
+    said = [json.loads(data) for kind, data in feed.events if kind == "error"]
+    assert said[0]["message"] == "We took too long to answer that. Try again."
+    row = next(t for t in store.chat_turns(asked.chat_id) if t["n"] == asked.n)
+    assert row["stage"] == "failed" and row["error"] == said[0]["message"]
+
+
+def test_a_tool_is_announced_as_its_block_begins(tmp_path: Path) -> None:
+    """A server-side search runs inside the model's reply. Told only once the reply was
+    whole, the page sat through every search with nothing to say (targum-internal#271)."""
+    library, store = world(tmp_path)
+    feed = session_module.Feed()
+    seen_before_the_end: list[str] = []
+    search = {"type": "server_tool_use", "id": "s1", "name": "web_search", "input": {}}
+
+    class Announcing(Stream):
+        def __iter__(self) -> Any:
+            yield SimpleNamespace(
+                type="content_block_start", content_block=SimpleNamespace(**search)
+            )
+            yield from super().__iter__()
+
+        def get_final_message(self) -> Any:
+            seen_before_the_end.extend(kind for kind, _ in feed.events)
+            return super().get_final_message()
+
+    class Client(Script):
+        def stream(self, **request: Any) -> Stream:
+            return Announcing(super().stream(**request).reply)
+
+    client = Client([reply([search, {"type": "text", "text": "Found it."}])])
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "x"}],
+        feed,
+        lambda *_: None,
+        web_search=True,
+    )
+    assert seen_before_the_end[:1] == ["tool"], "the page hears of the search as it starts"
+    tools_said = [json.loads(data) for kind, data in feed.events if kind == "tool"]
+    assert tools_said == [{"name": "web_search"}], "once, not again when the reply is whole"
+
+
 def test_a_feed_tail_waits_rather_than_polls() -> None:
     feed = session_module.Feed()
     start = time.monotonic()
