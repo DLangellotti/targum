@@ -25,7 +25,11 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import threading
+import time
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -939,15 +943,100 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: How long one search waits on the publishers' feeds, all of them together. They were
+#: pulled one after another, each allowed the fetch door's thirty seconds: a "tech news"
+#: turn on 2026-09-14 spent 21 s in this one tool and found nothing, and nineteen feeds
+#: could have held a turn for nine minutes (targum-internal#272). A feed that misses it
+#: is named as late and keeps coming in behind, into the shelf below.
+FEEDS_BUDGET_S = 8.0
+
+#: How long a pulled feed is taken as what the publisher has out. A feed changes by the
+#: hour, and a conversation asks again within the minute.
+FEED_FRESH_S = 300.0
+
+#: How long a feed that would not answer is left alone before it is knocked on again.
+#: Short, because a host comes back; long enough that one turn's searches do not each
+#: wait on the same dead one. Not `store.closed()`: a host is only marked open again by
+#: a knock, so skipping the hosts on that list would keep them there for good.
+FEED_FAILED_S = 120.0
+
+
+class Feeds:
+    """The publishers' feeds, pulled side by side and kept a few minutes.
+
+    One per process, shared by every turn: two turns that ask at once share one pull of
+    each feed rather than making two, and a feed that came in after one search gave up
+    on it is there for the next.
+    """
+
+    def __init__(self, workers: int = 24) -> None:
+        self.workers = workers
+        self._lock = threading.Lock()
+        #: url -> (monotonic time it goes stale, its items or None for a failure)
+        self._kept: dict[str, tuple[float, list[Any] | None]] = {}
+        self._pending: dict[str, Future[list[Any] | None]] = {}
+        self._pool: ThreadPoolExecutor | None = None
+
+    def clear(self) -> None:
+        with self._lock:
+            self._kept.clear()
+            self._pending.clear()
+
+    def pull(self, urls: list[str], budget: float) -> dict[str, list[Any] | None]:
+        """Each feed's items, or None where it would not answer; waiting at most
+        `budget` seconds for all of them. A url missing from the answer is late."""
+        out: dict[str, list[Any] | None] = {}
+        waiting: dict[str, Future[list[Any] | None]] = {}
+        with self._lock:
+            now = time.monotonic()
+            for url in dict.fromkeys(urls):
+                kept = self._kept.get(url)
+                if kept is not None and now < kept[0]:
+                    out[url] = kept[1]
+                    continue
+                future = self._pending.get(url)
+                if future is None:
+                    if self._pool is None:
+                        self._pool = ThreadPoolExecutor(
+                            max_workers=self.workers, thread_name_prefix="feeds"
+                        )
+                    future = self._pool.submit(self._fetch, url)
+                    self._pending[url] = future
+                waiting[url] = future
+        if waiting:
+            wait_for(list(waiting.values()), timeout=budget)
+        for url, future in waiting.items():
+            if future.done():
+                out[url] = future.result()
+        return out
+
+    def _fetch(self, url: str) -> list[Any] | None:
+        from ..errors import TargumError
+        from ..weekly import feeds
+
+        try:
+            try:
+                items: list[Any] | None = feeds.pull(url, limit=15)
+                fresh_for = FEED_FRESH_S
+            except TargumError:
+                items, fresh_for = None, FEED_FAILED_S
+            with self._lock:
+                self._kept[url] = (time.monotonic() + fresh_for, items)
+            return items
+        finally:
+            with self._lock:
+                self._pending.pop(url, None)
+
+
+FEEDS = Feeds()
+
+
 def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What the publishers this box knows have published lately, matched to a query.
 
     Feeds are pulled through the one outbound door and read by `weekly/feeds.py`; a
     feed that will not answer is noted and skipped rather than failing the search.
     """
-    from ..errors import TargumError
-    from ..weekly import feeds
-
     query = str(args.get("query") or "").lower().split()
     kind = str(args.get("kind") or "")
     limit = max(1, min(int(args.get("limit") or 10), 30))
@@ -962,10 +1051,14 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         }
     items: list[dict[str, Any]] = []
     skipped: list[str] = []
+    late: list[str] = []
+    pulled_by_feed = FEEDS.pull([publisher.feed for publisher in publishers], FEEDS_BUDGET_S)
     for publisher in publishers:
-        try:
-            pulled = feeds.pull(publisher.feed, limit=15)
-        except TargumError:
+        if publisher.feed not in pulled_by_feed:
+            late.append(publisher.key)
+            continue
+        pulled = pulled_by_feed[publisher.feed]
+        if pulled is None:
             skipped.append(publisher.key)
             continue
         for item in pulled:
@@ -988,6 +1081,9 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"count": len(items), "items": items[:limit]}
     if skipped:
         out["unreachable"] = skipped
+    if late:
+        # Still being pulled: the next search a minute from now will have them.
+        out["late"] = late
     return out
 
 

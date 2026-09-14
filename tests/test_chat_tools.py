@@ -590,6 +590,7 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
         ]
 
     monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
     library, store, person, home = world
     ctx = context(library, store, person, home)
     got = tools.search_sources(ctx, {"query": "הים"})
@@ -603,6 +604,80 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
 
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
     assert "No publishers" in tools.search_sources(ctx, {})["note"]
+
+
+def test_search_sources_pulls_the_feeds_side_by_side_and_keeps_them(
+    world, monkeypatch, tmp_path
+) -> None:
+    """Nineteen feeds, pulled one after another at up to thirty seconds each, held a
+    "tech news" turn for 21 s on 2026-09-14 and could have held it for nine minutes
+    (targum-internal#272)."""
+    import threading
+    import time
+    from datetime import UTC, datetime
+
+    from targum.errors import TargumError
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    publishers = [
+        {"key": f"p{i}", "name": f"P{i}", "feed": f"https://p{i}.example/rss", "kind": "news"}
+        for i in range(19)
+    ]
+    publishers.append(
+        {"key": "slow", "name": "Slow", "feed": "https://slow.example/rss", "kind": "news"}
+    )
+    publishers.append(
+        {"key": "dead", "name": "Dead", "feed": "https://dead.example/rss", "kind": "news"}
+    )
+    path.write_text(json.dumps({"publishers": publishers}), encoding="utf-8")
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    knocks: dict[str, int] = {}
+    counting = threading.Lock()
+    slow_may_answer = threading.Event()
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        with counting:
+            knocks[url] = knocks.get(url, 0) + 1
+        if "dead" in url:
+            raise TargumError("Could not fetch")
+        if "slow" in url:
+            slow_may_answer.wait(5)
+        else:
+            time.sleep(0.3)
+        return [
+            feeds.Item(
+                title="חדשות",
+                link=url.replace("/rss", "/1"),
+                published=datetime(2026, 9, 14, tzinfo=UTC),
+            )
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    monkeypatch.setattr(tools, "FEEDS_BUDGET_S", 2.0)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+
+    started = time.monotonic()
+    got = tools.search_sources(ctx, {"limit": 30})
+    took = time.monotonic() - started
+    assert took < 2.0 + 1.0, f"nineteen 0.3 s feeds side by side, not {took:.1f} s in a row"
+    assert got["count"] == 19
+    assert got["unreachable"] == ["dead"]
+    assert got["late"] == ["slow"], "a feed past the budget is named, not waited for"
+
+    slow_may_answer.set()
+    for _ in range(50):
+        if "https://slow.example/rss" not in tools.FEEDS._pending:
+            break
+        time.sleep(0.02)
+    again = tools.search_sources(ctx, {"limit": 30})
+    assert again["count"] == 20, "the late feed came in behind, and the next search has it"
+    assert "late" not in again
+    assert all(count == 1 for count in knocks.values()), (
+        "inside the window nothing is pulled again, the dead feed included"
+    )
 
 
 def test_the_search_carries_no_country_the_api_refuses() -> None:
