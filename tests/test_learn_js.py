@@ -687,7 +687,7 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
     drawn = draw([reader("a", "א")], me={"signedIn": True, "name": "David"}, series=[portion])
     assert drawn["greeting"].endswith(", David.") and drawn["greeting"].split(",")[0] in (
         "Boker tov",
-        "Tzohorayim tovim",
+        "Shalom",
         "Erev tov",
     ), "Hebrew's, in Latin letters; and no Shabbat shalom on a Saturday"
     assert drawn["today"].endswith(" · This week: האזינו") and len(drawn["today"]) > 20
@@ -705,12 +705,12 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
 @pytest.mark.parametrize(
     ("code", "said"),
     [
-        ("he", ("Boker tov", "Tzohorayim tovim", "Erev tov")),
+        ("he", ("Boker tov", "Shalom", "Erev tov")),
         ("arc", ("Tzafra tava", "Shlama", "Ramsha tava")),
         ("yi", ("Gut morgn", "Gutn tog", "Gutn ovnt")),
         ("fr", ("Bonjour", "Bonsoir")),
         ("ru", ("Dobroye utro", "Dobry den", "Dobry vecher")),
-        ("it", ("Buongiorno", "Buon pomeriggio", "Buonasera")),
+        ("it", ("Buongiorno", "Buonasera")),
     ],
 )
 def test_the_greeting_is_in_the_language_the_page_is_in(code: str, said: tuple[str, ...]) -> None:

@@ -486,12 +486,11 @@ dates and the ones that move with Easter, Western for France and Italy, Orthodox
 Russia. Nothing else there moved: one line, the reader's own date first.
 
 The greeting over it is said in that language too, in Latin letters (2026-09-14, David):
-Boker tov, Tzohorayim tovim and Erev tov on Hebrew rather than Good morning, so the first
-words on the page are ones a reader can say before they can read the script. Yiddish says
-Gut morgn, Gutn tog, Gutn ovnt; Russian Dobroye utro, Dobry den, Dobry vecher; Italian
-Buongiorno, Buon pomeriggio, Buonasera; French Bonjour until the evening and then Bonsoir,
-having no afternoon greeting of its own; Aramaic Tzafra tava and Ramsha tava, and Shlama,
-peace, in the afternoon, having none either. The English is the line's title. Still the
+Boker tov, Shalom and Erev tov on Hebrew rather than Good morning, so the first words on the
+page are ones a reader can say before they can read the script. Yiddish says Gut morgn, Gutn
+tog, Gutn ovnt; Russian Dobroye utro, Dobry den, Dobry vecher; Italian Buongiorno until the
+evening and then Buonasera, and French Bonjour and then Bonsoir; Aramaic Tzafra tava and
+Ramsha tava, and Shlama, peace, in the afternoon. The English is the line's title. Still the
 time of day and nothing else — no Shabbat shalom on a Saturday.
 
 ### A language with CEFR levels shows them — 2026-09-13

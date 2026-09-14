@@ -424,16 +424,16 @@
   //
   // Said in the language the page is in, in Latin letters (David, 2026-09-14): "Boker tov"
   // rather than "Good morning" on Hebrew, so the first words on the page are ones the
-  // reader can say before they can read the script. Morning, afternoon, evening. French
-  // has no afternoon greeting of its own and says Bonjour until the evening; Aramaic has
-  // none either, and says Shlama, peace. The English is the element's title.
+  // reader can say before they can read the script. Morning, afternoon, evening. The
+  // afternoon is Shalom on Hebrew and Shlama, peace, on Aramaic; French and Italian say
+  // their day's greeting until the evening (David, 2026-09-14). The English is the title.
   var GREETINGS = {
-    he: ["Boker tov", "Tzohorayim tovim", "Erev tov"],
+    he: ["Boker tov", "Shalom", "Erev tov"],
     arc: ["Tzafra tava", "Shlama", "Ramsha tava"],
     yi: ["Gut morgn", "Gutn tog", "Gutn ovnt"],
     fr: ["Bonjour", "Bonjour", "Bonsoir"],
     ru: ["Dobroye utro", "Dobry den", "Dobry vecher"],
-    it: ["Buongiorno", "Buon pomeriggio", "Buonasera"],
+    it: ["Buongiorno", "Buongiorno", "Buonasera"],
   };
   var ENGLISH_GREETINGS = ["Good morning", "Good afternoon", "Good evening"];
   function partOfDay() {
