@@ -119,8 +119,32 @@ def normalize(text: str) -> str:
     return re.sub(r"[ \t ]+", " ", text)
 
 
+#: Yiddish is written in the Hebrew alphabet, so the script says Hebrew. These say
+#: otherwise: the three ligatures Yiddish writes and Hebrew never does, and the function
+#: words a Yiddish paragraph cannot go a sentence without and a Hebrew one has no use for.
+_YIDDISH_LIGATURES = frozenset("\u05f0\u05f1\u05f2")
+_YIDDISH_WORDS = frozenset(
+    "איז און פון פֿון ניט נישט זיך דאס דאָס אויף אויך געווען האט האָט זיינען זענען".split()
+)
+
+
+def _yiddish(text: str) -> bool:
+    """Whether Hebrew-script text is Yiddish. Measured by what Hebrew cannot contain,
+    so a Hebrew text is never read as Yiddish for a word it happens to share."""
+    if sum(char in _YIDDISH_LIGATURES for char in text) >= 3:
+        return True
+    words = [word.strip(".,;:!?\"'()[]«»—–-") for word in text.split()]
+    if not words:
+        return False
+    hits = sum(word in _YIDDISH_WORDS for word in words)
+    return hits >= 3 and hits >= len(words) * 0.02
+
+
 def detect_language(text: str) -> str:
-    """Guess a BCP-47 tag from the dominant script."""
+    """Guess a BCP-47 tag from the dominant script.
+
+    Only a guess, and only where nobody said: the build door takes the language the
+    reader picked, and refuses a guess that lands on a language targum does not read."""
     counts = dict.fromkeys((tag for tag, _ in _SCRIPT_RANGES), 0)
     latin = 0
     for char in text:
@@ -135,7 +159,11 @@ def detect_language(text: str) -> str:
             if point < 0x0250:
                 latin += 1
     best = max(counts, key=lambda tag: counts[tag])
-    return best if counts[best] > latin else "en"
+    if counts[best] <= latin:
+        return "en"
+    if best == "he" and _yiddish(text):
+        return "yi"
+    return best
 
 
 def build_document(

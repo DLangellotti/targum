@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import io
 import logging
+from collections.abc import Collection
 from typing import Any
 
 from ..errors import TargumError
@@ -166,6 +167,30 @@ class StanzaLemmatizer:
             segment.id: _tokens(document)
             for segment, document in zip(segments, documents, strict=True)
         }
+
+
+def for_text(
+    source: object,
+    language: str,
+    *,
+    buy: bool = False,
+    allowed: Collection[str] | None = None,
+    auto_download: bool = True,
+) -> Lemmatizer:
+    """The lemmatizer for a text whose language is known.
+
+    French, Russian, Italian and Yiddish are read by the model (`model_lemma`), which
+    costs money, so it reads from the cache alone unless `buy` is set — and only a build
+    that was quoted and claimed sets it. Everything else is `for_source`, unchanged, and
+    that is on purpose: the Hebrew annotator's name embeds its delegate's, so routing
+    Hebrew's chain through anything new would rename every Hebrew annotation on the shelf
+    and read them all again.
+    """
+    from . import model_lemma
+
+    if model_lemma.reads(language):
+        return model_lemma.ModelLemmatizer(buy=buy, allowed=allowed)
+    return for_source(source, auto_download=auto_download, language=language)
 
 
 def for_language(lemmatizer: Lemmatizer, language: str | None) -> Lemmatizer:

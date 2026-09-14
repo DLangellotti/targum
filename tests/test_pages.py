@@ -896,15 +896,22 @@ def test_a_cover_is_drawn_for_an_upload_without_being_asked() -> None:
 
 
 def test_the_upload_page_offers_only_the_pairs_that_have_been_taken_end_to_end() -> None:
-    """Three languages in and two out, each saying how far along it is. The rest of the
-    app can show eight; these are the ones an upload has actually been through."""
+    """Six languages in and two out, each saying how far along it is — French, Russian
+    and Italian joined Hebrew, Aramaic and Yiddish on 2026-09-13. These are the ones an
+    upload has actually been through."""
     add = PAGES["add"]
     said_in_page = html.unescape(add)
-    for said in ("Hebrew (alpha)", "Aramaic (Experimental)", "Yiddish (Experimental)"):
+    for said in (
+        "Hebrew (alpha)",
+        "Aramaic (Experimental)",
+        "Yiddish (Experimental)",
+        "French (Experimental)",
+        "Italian (Experimental)",
+    ):
         assert said in said_in_page, said
     assert "English (alpha)" in said_in_page
     assert "Russian (Experimental)" in said_in_page
-    for gone in ("French", "Spanish", "German", "Latin", "Arabic"):
+    for gone in ("Spanish", "German", "Latin", "Arabic"):
         assert f">{gone}" not in add, f"{gone} is not something an upload may ask for"
 
 

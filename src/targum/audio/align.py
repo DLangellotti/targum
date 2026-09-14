@@ -20,9 +20,9 @@ so every span was decided in a transliteration of the text rather than the text.
 model's vocabulary is the Hebrew alphabet, final forms included, and the letters it is
 aligning are the letters on the page.
 
-**Hebrew and nothing else**, which MMS was not. That is honest rather than limiting: the
-recordings targum aligns are Hebrew, and a language this cannot align reports itself
-unavailable and plays through, exactly as a missing install does.
+**Hebrew, and since 2026-09-13 French, Russian and Italian** — one permissive model per
+language (`MODELS`) rather than one multilingual NonCommercial one. A language with no row
+reports itself unavailable and plays through, exactly as a missing install does.
 """
 
 from __future__ import annotations
@@ -60,29 +60,66 @@ BATCH = 4
 SCORE_FLOOR = -10.0
 MATCH_FLOOR = -6.0
 
-#: The one language this acoustic model knows.
+#: The language the module's own `MODEL` and `NAME` are for.
 LANGUAGE = "he"
+
+#: One acoustic model per language, and the name its spans are stored under (2026-09-13).
+#: Each is XLS-R fine-tuned by one author and published Apache-2.0: French and Italian on
+#: Common Voice 6.1 (CC0), Russian on Common Voice 6.1 and CSS10 (Apache-2.0). The same
+#: clean chain Hebrew's model has, checked the same way, and the reason there is no
+#: Yiddish or Aramaic row: nothing permissive is trained for either. Hebrew's row is the
+#: constants above, byte for byte, because its name is part of every stored span's key.
+MODELS: dict[str, tuple[str, str]] = {
+    LANGUAGE: (MODEL, NAME),
+    "fr": ("jonatasgrosman/wav2vec2-large-xlsr-53-french", "ctc-xlsr-fr/1"),
+    "ru": ("jonatasgrosman/wav2vec2-large-xlsr-53-russian", "ctc-xlsr-ru/1"),
+    "it": ("jonatasgrosman/wav2vec2-large-xlsr-53-italian", "ctc-xlsr-it/1"),
+}
 
 _LETTERS = re.compile(r"[^א-ת]")
 
 
-def _bare(word: str) -> str:
+def _code(language: str) -> str:
+    return (language or "").split("-")[0].lower()
+
+
+def _bare(word: str, language: str = LANGUAGE) -> str:
     """The letters, which is all the model has symbols for.
 
-    Nikkud and cantillation are marks on a letter rather than letters; the model was
+    Nikkud and cantillation are marks on a letter rather than letters; the Hebrew model was
     trained on unpointed Common Voice and has no symbol for either. Stripping them here
     is the same normalisation `annotate` does before it asks a lemmatizer anything.
+
+    The other models spell in lowercase with their accents on: `é` is one symbol to the
+    French model, so an accented letter is kept whole (composed) and only what is not a
+    letter at all goes. Their vocabularies also carry the apostrophe, which `align` keeps
+    when the model has a symbol for it.
     """
-    plain = "".join(
-        ch for ch in unicodedata.normalize("NFC", word or "") if not unicodedata.combining(ch)
-    )
-    return _LETTERS.sub("", plain)
+    if _code(language) == LANGUAGE:
+        plain = "".join(
+            ch for ch in unicodedata.normalize("NFC", word or "") if not unicodedata.combining(ch)
+        )
+        return _LETTERS.sub("", plain)
+    composed = unicodedata.normalize("NFC", word or "").lower()
+    return "".join(ch for ch in composed if ch.isalpha() or ch in "'’").replace("’", "'")
 
 
 class CtcAligner:
+    """Word timings for a recording, in a language `MODELS` has an acoustic model for."""
+
     name = NAME
 
+    def __init__(self, language: str = LANGUAGE) -> None:
+        self.language = _code(language)
+        found = MODELS.get(self.language)
+        self.model = found[0] if found else ""
+        # The class attribute stays Hebrew's name, so what was stored before a language
+        # could be asked for keeps its key.
+        self.name = found[1] if found else f"ctc-xlsr-{self.language}/unavailable"
+
     def available(self) -> tuple[bool, str]:
+        if not self.model:
+            return False, f"No acoustic model aligns {self.language!r} yet"
         try:
             import torchaudio.functional  # noqa: F401
             import transformers  # noqa: F401
@@ -102,12 +139,12 @@ class CtcAligner:
 
         os.environ.setdefault("HF_HOME", str(model_dir() / "hf"))
         os.environ.setdefault("TORCH_HOME", str(model_dir()))
-        processor = Wav2Vec2Processor.from_pretrained(MODEL)
+        processor = Wav2Vec2Processor.from_pretrained(self.model)
         # Annotated rather than inferred: with the extra installed the class is typed
         # and `.eval()` reads as an untyped call, and without it there is no class to
         # read at all. CI has no `transformers`, so an ignore that silences the first
         # case is an unused ignore in the second — which is also an error.
-        model: Any = Wav2Vec2ForCTC.from_pretrained(MODEL)
+        model: Any = Wav2Vec2ForCTC.from_pretrained(self.model)
         model.eval()
 
         heard = processor(samples(audio, RATE), sampling_rate=RATE, return_tensors="pt")
@@ -147,13 +184,18 @@ class CtcAligner:
         usable, hint = self.available()
         if not usable:
             raise TargumError("The forced aligner is not installed.", hint)
-        if language.split("-")[0].lower() != LANGUAGE:
+        code = _code(language)
+        if code not in MODELS:
             raise TargumError(
-                f"The forced aligner reads Hebrew, not {language!r}.",
+                f"The forced aligner reads Hebrew, French, Russian and Italian, not {language!r}.",
                 "Recordings in other languages play without following along.",
             )
+        if code != self.language:
+            # Asked about a language other than the one this aligner loads: answered by
+            # the one that does, so the name on the spans is the model that made them.
+            return CtcAligner(code).align(audio, words, code)
 
-        spelled = [_bare(word) for word in words]
+        spelled = [_bare(word, code) for word in words]
         if not any(spelled):
             # Nothing here the model has symbols for — a part whose transcript is a URL
             # and a page number. Answered before the model is loaded rather than after:

@@ -71,8 +71,31 @@ def test_a_language_this_model_cannot_read_is_refused_rather_than_guessed(
     acoustic model would produce spans that look like spans and are noise.
     """
     monkeypatch.setattr(CtcAligner, "available", lambda self: (True, NAME))
-    with pytest.raises(TargumError, match="Hebrew"):
-        CtcAligner().align(tmp_path / "x.mp3", ["привет"], "ru")
+    with pytest.raises(TargumError, match="Hebrew, French, Russian and Italian"):
+        CtcAligner().align(tmp_path / "x.mp3", ["געזונט"], "yi")
+
+
+def test_a_language_with_no_model_says_so_before_anything_loads() -> None:
+    usable, why = CtcAligner("yi").available()
+    assert usable is False and "'yi'" in why
+
+
+def test_each_language_has_its_own_permissive_model_and_name() -> None:
+    """Hebrew keeps its model and its name byte for byte: the name keys every stored span.
+    French, Russian and Italian each get an Apache-2.0 XLS-R fine-tune of their own."""
+    assert align_module.MODELS["he"] == (MODEL, NAME)
+    for code in ("fr", "ru", "it"):
+        model, name = align_module.MODELS[code]
+        assert name == f"ctc-xlsr-{code}/1" and "mms" not in model.lower()
+        aligner = CtcAligner(code)
+        assert aligner.name == name and aligner.model == model
+    assert CtcAligner("he-IL").name == NAME
+
+
+def test_a_latin_or_cyrillic_word_keeps_its_accents_and_loses_the_rest() -> None:
+    assert _bare("L’Été,", "fr") == "l'été"
+    assert _bare("Привет!", "ru") == "привет"
+    assert _bare("1948", "it") == ""
 
 
 def test_hebrew_is_accepted_by_its_bare_tag_and_its_dialect_tag(
