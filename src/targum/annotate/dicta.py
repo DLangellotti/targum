@@ -29,6 +29,7 @@ hardest would put the licence back exactly where the corpus is thinnest.
 from __future__ import annotations
 
 import collections
+from collections.abc import Iterator
 from typing import Any
 
 from ..errors import TargumError
@@ -52,6 +53,24 @@ FEATURES = "roots+everyword+names+grammar/2"
 # of four thousand segments inside 1.5 GB, and the throughput difference against a batch
 # ten times larger is not measurable next to what the box does with the rest of a rebuild.
 BATCH = 16
+
+# And never more padded tokens than this in one call, however few sentences that is.
+# Sixteen assumed a book's sentences. A pasted recording's transcript has almost no
+# sentence ends, so a segment runs to the model's 512 tokens, and the lemma head sorts a
+# 128,000-wide row for every padded token: measured on 2026-09-14 at about 1 GB a long
+# segment, 2 GB for two, 4.6 GB for four. Sixteen of them OOM-killed the box at this
+# stage four times in an hour. A thousand tokens is two such segments, about 2 GB, and
+# a book's lines are short enough that it still sends them sixteen at a time.
+TOKENS = 1024
+
+# Characters to a token, low on purpose. Counted on 7,593 Hebrew segments of the local
+# shelf: the median is 5.0 and 99% are above 2.46, so a length read at 2 guesses high and
+# a batch comes out smaller than it could be, never larger. The model's tokenizer would
+# be exact at the price of tokenizing every segment twice.
+CHARS_PER_TOKEN = 2
+
+# What the model reads of one segment; the rest is cut off, and pads nothing.
+MAX_TOKENS = 512
 
 # What DICTA says when it has no lemma for a word.
 BLANK = "[BLANK]"
@@ -257,14 +276,37 @@ class DictaLemmatizer:
         model, tokenizer = self.model()
         out: dict[str, list[Token]] = {}
         with torch.inference_mode():
-            for start in range(0, len(segments), BATCH):
-                batch = segments[start : start + BATCH]
+            for batch in _batches(segments):
                 read = model.predict(
                     [segment.text for segment in batch], tokenizer, output_style="json"
                 )
                 for segment, said in zip(batch, read, strict=True):
                     out[segment.id] = _tokens(said, self.tally)
         return out
+
+
+def _tokens_in(text: str) -> int:
+    """A high guess at how many tokens the model will read of one segment."""
+    return min(MAX_TOKENS, len(text) // CHARS_PER_TOKEN + 2)
+
+
+def _batches(segments: list[Segment]) -> Iterator[list[Segment]]:
+    """Segments in the order they came, cut wherever the next would pad past `TOKENS`.
+
+    In order rather than sorted by length, so a text of short lines is handed over in
+    exactly the batches it always was, and reads back exactly as it did.
+    """
+    batch: list[Segment] = []
+    longest = 0
+    for segment in segments:
+        size = _tokens_in(segment.text)
+        if batch and (len(batch) == BATCH or (len(batch) + 1) * max(longest, size) > TOKENS):
+            yield batch
+            batch, longest = [], 0
+        batch.append(segment)
+        longest = max(longest, size)
+    if batch:
+        yield batch
 
 
 def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None) -> list[Token]:

@@ -1430,6 +1430,56 @@ def test_a_book_is_not_handed_to_the_model_in_one_piece() -> None:
     assert sum(asked) == len(segments), "and each segment is asked about exactly once"
 
 
+def test_long_segments_are_handed_over_by_the_token_not_by_the_count() -> None:
+    """Sixteen at a time held a book, and killed the box on a recording. A pasted video's
+    transcript has almost no sentence ends, so a segment runs to the model's 512 tokens,
+    and DICTA's lemma head sorts a 128,000-wide row for every padded token: measured on
+    2026-09-14 at about 1 GB a segment. A batch of sixteen of those is 16 GB, and the box
+    was OOM-killed at `annotate` four times in an hour on one video."""
+    from targum.annotate.dicta import BATCH, TOKENS, DictaLemmatizer, _tokens_in
+    from targum.models import Segment
+
+    asked: list[list[str]] = []
+
+    class Counting:
+        def predict(self, texts, tokenizer, output_style="json"):  # type: ignore[no-untyped-def]
+            asked.append(list(texts))
+            return [{"tokens": []} for _ in texts]
+
+    lemmatizer = DictaLemmatizer()
+    lemmatizer._model = Counting()
+    lemmatizer._tokenizer = object()
+
+    def segment(n: int, text: str) -> Segment:
+        return Segment(
+            id=f"s{n}",
+            text=text,
+            ref=str(n),
+            kind="paragraph",
+            block_id="b1",
+            block_index=1,
+            index=n,
+        )
+
+    long = " ".join(["הוא הלך לבית הספר בבוקר"] * 60)
+    short = "הוא הלך לבית הספר."
+    # A run of short lines first, as a book is, then a transcript's long ones among them.
+    texts = [short] * BATCH + [long if n % 5 == 0 else short for n in range(BATCH * 3)]
+    segments = [segment(n, text) for n, text in enumerate(texts)]
+    read = lemmatizer.lemmas(segments, "he")
+
+    assert len(read) == len(segments)
+    assert sum(len(texts) for texts in asked) == len(segments)
+    for texts in asked:
+        padded = len(texts) * max(_tokens_in(text) for text in texts)
+        assert len(texts) <= BATCH
+        assert padded <= TOKENS, f"{len(texts)} segments padded to {padded} tokens at once"
+    assert [text for texts in asked for text in texts] == [s.text for s in segments], (
+        "in the order they came, so a text of short lines is batched exactly as before"
+    )
+    assert max(len(texts) for texts in asked) == BATCH, "short lines still go sixteen at a time"
+
+
 def test_two_words_that_share_a_spelling_are_two_entries(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """אֵלֶּה and אָלָה are one lemma and two meanings. The list a glossary is bought from
     counts them apart, and the glossary files each under its own headword — so the curse
