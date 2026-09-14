@@ -96,7 +96,7 @@
      "finished" in it was wider there than its neighbours, and its other columns sat in
      different places from theirs. Fixed, and what it holds is clipped rather than
      allowed to move the row. */
-  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 4.5rem 4rem 6.25rem 6rem;
+  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 6.5rem 4rem 6.25rem 6rem;
   align-items: center;
   gap: 0.7rem;
 }
@@ -822,6 +822,14 @@
   color: var(--ink-soft);
   white-space: nowrap;
 }
+/* The English and the byline under a title may take a second line rather than clip
+   inside a Hebrew word: a clip in the middle of "תרגום" left a lone final mem. */
+.rows .row-english {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
 /* What a phone's row drops from its columns, said once under the title. */
 .row-meta { display: none; }
 /* Not here? Add your own — a link in the desk's own colour, not the browser's blue. */
@@ -856,6 +864,7 @@
   /* The row's own grid cannot be wider than a phone: the title's track gives way. */
   .rows-head,
   .rows .row-open { grid-template-columns: 2.25rem minmax(0, 1fr) auto; }
+  .rows-head > :empty:not(:first-child) { display: none; }
   .rows .row-state:empty { display: none; }
   /* Draw cover goes under the row rather than beside it, where it pushed the gauge
      past the edge of the panel. */
