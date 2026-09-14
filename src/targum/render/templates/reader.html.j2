@@ -766,6 +766,11 @@
   {% if pointing_credit %}
   <p class="keys-credit">Vowel points by <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
   {% endif %}
+  {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
+      partner or a word whose stress moves (targum-internal#259). -#}
+  {% if lexicon_credit %}
+  <p class="keys-credit">Aspect partners and stress from <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
+  {% endif %}
   {% if biblical %}
   <p class="keys-credit">Our dictionary forms are less reliable on biblical Hebrew than
     on modern. The analyser learned from modern unpointed text, so it sometimes misreads

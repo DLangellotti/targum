@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A Russian verb's card names its other aspect, stressed ("the other aspect: говори́ть").
+  Where the partner is used in the same text, the card offers to go and read it there.
+  A word whose stress moves across its forms says where: "stress moves: рука́ · ру́ку".
+  Both are looked up in OpenRussian.org's dictionary tables, CC BY-SA 4.0, which
+  `targum models fetch openrussian` puts in the model directory and the deploy fetches.
+  They are never committed, packaged or trained on, and a page that used them credits
+  them at its foot. A spelling the dictionary files as two words gets neither line. Asked
+  about a verb's aspect from its card, the chat is pointed at a new tool,
+  `sentences_with`, which finds sentences using a word in any of its forms across the
+  reader's shelf, so it can set the partner's sentence beside this one
+  (targum-internal#259).
 - A Russian word's card names its case and its aspect: "noun · f · accusative", "past ·
   perfective · m", "future · perfective · he/she", "past participle · perfective · f ·
   genitive". The model that reads French, Russian, Italian and Yiddish words now writes

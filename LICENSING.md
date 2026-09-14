@@ -292,6 +292,27 @@ about **models trained on** ShareAlike data, and wordfreq is not a model. Whethe
 same caution should reach a frequency table is not decided here, and is written down so
 that it is decided rather than drifted into.
 
+### OpenRussian's tables — CC BY-SA 4.0, looked up and never shipped (2026-09-14)
+
+A Russian verb's card names its aspect partner, and a word whose stress moves across its
+forms says where (targum-internal#259). Both come from
+**[OpenRussian.org](https://en.openrussian.org)**'s dictionary tables
+([`Badestrand/russian-dictionary`](https://github.com/Badestrand/russian-dictionary),
+LICENSE: CC BY-SA 4.0), which were built from Wiktionary and corrected by the site's
+users. They are pinned to one commit (`annotate/openrussian.COMMIT`) and fetched by
+`targum models fetch openrussian` into the model directory. No copy is in this repository
+or the wheel, and a test fails if a row of one ever is.
+
+David decided on 2026-09-14 how they may be used: **as a lookup, attributed, never
+trained on, and never shipped as a list of their own.** What reaches a reader is a fact
+about one word, such as говори́ть being сказа́ть's partner or рука́ being ру́ку in the
+accusative. That is the same reading this document gives wordfreq's bands above. A page
+that shows one names and links OpenRussian and the licence at its foot. The ShareAlike rule
+is about models trained on ShareAlike data, and nothing here is a model.
+
+The dictionary's README says its data "is not void of flaws". So a spelling it files
+twice (за́мок and замо́к, the two писать) gets no partner and no stress line.
+
 ## Content is not code
 
 Nothing above covers what targum *reads*. A text, a translation and a recording each

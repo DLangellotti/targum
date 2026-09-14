@@ -334,6 +334,15 @@ def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | No
             "form here from the sentence. If the tag is wrong for this sentence, say so "
             "plainly and say what it is."
         )
+        if "perfective" in about["grammar"]:
+            # Aspect is settled by the context far more often than by a rule, so the
+            # answer that teaches it is two real sentences side by side (Janda & Reynolds
+            # 2019; targum-internal#259).
+            lines.append(
+                "If they ask about the aspect, name the verb's partner and call "
+                "sentences_with for it, then set one sentence where they read the partner "
+                "beside this one and say what in each sentence decides the aspect."
+            )
     lines.append("Their question:")
     lines.append(text)
     return "\n".join(lines)

@@ -5790,7 +5790,7 @@ def test_a_served_reader_offers_to_talk_and_knows_where_you_are(browser, built: 
 
 def russian(out: Path) -> Path:
     """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
-    lines = ["Он взял её за руку.", "Рука болела, и рукой он писал."]
+    lines = ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]
     words = {
         0: [
             ("Он", "он", "UPOS=PRON|Case=Nom|Gender=Masc|Number=Sing|Person=3"),
@@ -5804,6 +5804,7 @@ def russian(out: Path) -> Path:
         1: [
             ("Рука", "рука", "UPOS=NOUN|Case=Nom|Gender=Fem|Number=Sing|Animacy=Inan"),
             ("рукой", "рука", "UPOS=NOUN|Case=Ins|Gender=Fem|Number=Sing|Animacy=Inan"),
+            ("брал", "брать", "UPOS=VERB|Gender=Masc|Aspect=Imp|Tense=Past|VerbForm=Fin"),
         ],
     }
     segments, tokens = [], {}
@@ -5865,7 +5866,12 @@ CARD_LINES = """
     const el = card.querySelector(selector);
     return el ? el.textContent : null;
   };
-  return { use: line('.use'), forms: line('.forms-here') };
+  return {
+    use: line('.use'),
+    forms: line('.forms-here'),
+    partner: line('.partner'),
+    moves: line('.stress-moves'),
+  };
 }
 """
 
@@ -5875,7 +5881,40 @@ def test_a_russian_card_says_the_case_and_the_other_forms_here(browser, tmp_path
     elsewhere in the text: the paradigm this reader has actually met."""
     context, page = open_reader(browser, russian(tmp_path / "reader"))
     shown = page.evaluate(CARD_LINES, "руку")
-    assert shown == {"use": "noun · f · accusative", "forms": "here also as рука · рукой"}
+    assert shown["use"] == "noun · f · accusative"
+    assert shown["forms"] == "here also as рука · рукой"
     verb = page.evaluate(CARD_LINES, "взял")
-    assert verb == {"use": "past · perfective · m", "forms": None}, "one form, nothing to list"
+    assert verb["use"] == "past · perfective · m" and verb["forms"] is None, "nothing to list"
+    assert verb["partner"] is None and verb["moves"] is None, "built without the tables"
+    context.close()
+
+
+def test_a_russian_verb_names_its_partner_and_goes_to_it(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With OpenRussian's tables, a verb's card names its other aspect, stressed, and where
+    the partner is used in the same text the card goes there; a noun whose stress moves
+    says where (targum-internal#259). The page credits the tables at its foot."""
+    from targum.annotate import openrussian
+
+    lexicon = openrussian.Lexicon()
+    lexicon.entries = {
+        "взять": [openrussian.Entry("verb", "взя'ть", "perfective", ("брать",))],
+        "брать": [openrussian.Entry("verb", "бра'ть", "imperfective", ("взять",))],
+        "рука": [
+            openrussian.Entry("noun", "рука'", forms={"sg_nom": ["рука'"], "sg_acc": ["ру'ку"]})
+        ],
+    }
+    monkeypatch.setattr(openrussian, "lexicon", lambda: lexicon)
+    reader = russian(tmp_path / "reader")
+    html = reader.read_text(encoding="utf-8")
+    assert "OpenRussian.org" in html
+    context, page = open_reader(browser, reader)
+    verb = page.evaluate(CARD_LINES, "взял")
+    assert verb["partner"] == "the other aspect: бра́тьread брал here"
+    assert page.evaluate(CARD_LINES, "руку")["moves"] == "stress moves: рука́ · ру́ку"
+    page.evaluate(CARD_LINES, "взял")
+    page.click(".gloss-card .partner .here")
+    page.wait_for_timeout(300)
+    assert page.evaluate("() => document.querySelector('.gloss-card').hidden"), "gone to read it"
     context.close()

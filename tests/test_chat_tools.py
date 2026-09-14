@@ -800,3 +800,45 @@ def test_suggest_next_leaves_out_what_the_page_says_is_finished(world) -> None:
     rest = [one for one in everything if one != "esther"]
     assert "esther" not in ids and ids[: len(rest)] == rest
     assert len(ids) == 10, "left out before the cut, so the cut still fills"
+
+
+def test_sentences_with_finds_a_word_in_every_form_on_the_shelf(world) -> None:
+    """The contrast an aspect question wants comes from the reader's own texts, found by
+    dictionary form so сказал and скажу both count (targum-internal#259)."""
+    library, store, person, home = world
+    built(home, "story-ru", "test:story", ["сказать"], "Рассказ")
+    folder = home / "story-ru"
+    (folder / "annotation.json").write_text(
+        json.dumps(
+            {
+                "tokens": {
+                    "0001.000-a": [{"surface": "сказал", "lemma": "сказать"}],
+                    "0002.000-a": [{"surface": "говорил", "lemma": "говорить"}],
+                    "0003.000-a": [{"surface": "Скажу", "lemma": "сказать"}],
+                }
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    (folder / "segments.json").write_text(
+        json.dumps(
+            {
+                "segments": [
+                    {"id": "0001.000-a", "text": "Он сказал правду."},
+                    {"id": "0002.000-a", "text": "Он долго говорил."},
+                    {"id": "0003.000-a", "text": "Скажу завтра."},
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    ctx = context(library, store, person, home)
+    got = tools.sentences_with(ctx, {"lemma": "сказа́ть"})
+    assert got["count"] == 2
+    assert [row["as"] for row in got["sentences"]] == ["сказал", "Скажу"]
+    assert got["sentences"][0]["sentence"] == "Он сказал правду."
+    assert got["sentences"][0]["title"] == "Рассказ"
+    assert tools.sentences_with(ctx, {"lemma": "читать"})["count"] == 0
+    assert "error" in tools.sentences_with(ctx, {"lemma": ""})

@@ -181,7 +181,11 @@ YOUTUBE = "https://www.youtube.com/watch?v="
 #: carried by the reader since the foot of a finished section counts through it
 #: (targum-internal#175). A browser resolves it in memory and fetches nothing.
 SVG_NAMESPACE = "http://www.w3.org/2000/svg"
-OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, SVG_NAMESPACE)
+#: The Russian dictionary a card's aspect partners and moving stress are looked up in.
+#: CC BY-SA asks to be named and linked where the facts are used, the decision DICTA's
+#: link made (targum-internal#259). Only on a Russian page that quoted the tables.
+OPENRUSSIAN = "https://en.openrussian.org"
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, SVG_NAMESPACE, OPENRUSSIAN)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -5096,3 +5100,69 @@ def test_a_silent_hebrew_section_offers_its_audio_only_while_the_voice_is_priced
     assert "Hear this section" in offered and "of your hours" in offered
     assert "TargumVoice" in offered, "the press rides in the page"
     assert "http" not in offered.split('id="voice-offer"')[1][:600], "still fetches nothing"
+
+
+def test_a_russian_reader_carries_partners_and_moving_stress_where_the_tables_are(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Looked up in OpenRussian at render, beside the lemmas like the root; credited and
+    linked at the foot of a page that used them; absent, with no credit, on a machine
+    without the tables (targum-internal#259)."""
+    from targum.annotate import openrussian
+    from targum.models import Annotation, Token
+
+    text = "Он взял руку."
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    segmented = SegmentedDocument(
+        document_hash="h", language="ru", segmenter="fake/1", segments=[segment]
+    )
+    document = Document(source="m", title="T", language="ru", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="ru",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "He took the hand."},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="ru",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segment.id: [
+                Token(start=3, end=7, surface="взял", lemma="взять", band=1),
+                Token(start=8, end=12, surface="руку", lemma="рука", band=1),
+            ]
+        },
+    )
+
+    def page(folder: str) -> tuple[str, dict[str, Any]]:
+        html = render(document, segmented, [translation], tmp_path / folder, annotation=annotation)[
+            0
+        ].read_text(encoding="utf-8")
+        found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+        assert found is not None
+        return html, json.loads(found.group(1))
+
+    monkeypatch.setattr(openrussian, "lexicon", lambda: None)
+    html, data = page("without")
+    assert "partners" not in data.get("extensions", {}) and "OpenRussian" not in html
+
+    lexicon = openrussian.Lexicon()
+    lexicon.entries = {
+        "взять": [openrussian.Entry("verb", "взя'ть", "perfective", ("брать",))],
+        "брать": [openrussian.Entry("verb", "бра'ть", "imperfective", ("взять",))],
+        "рука": [
+            openrussian.Entry("noun", "рука'", forms={"sg_nom": ["рука'"], "sg_acc": ["ру'ку"]})
+        ],
+    }
+    monkeypatch.setattr(openrussian, "lexicon", lambda: lexicon)
+    html, data = page("with")
+    assert data["extensions"]["partners"] == ["бра́ть", ""]
+    assert data["extensions"]["stress"] == ["", "рука́ · ру́ку"]
+    assert "OpenRussian.org" in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)

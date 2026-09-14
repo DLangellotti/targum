@@ -291,6 +291,71 @@ def _when(clock: int) -> str:
     return datetime.fromtimestamp(clock / 1000, tz=UTC).isoformat(timespec="minutes")
 
 
+#: How many sentences `sentences_with` hands back, and how long one may be.
+SENTENCES_WITH = 5
+SENTENCE_CHARS = 300
+
+
+def _json(path: Path) -> dict[str, Any]:
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _lemma(token: object) -> str:
+    return str(token.get("lemma") or "").lower() if isinstance(token, dict) else ""
+
+
+def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Sentences from the reader's own shelf, and the shared one, where a word appears.
+
+    For the contrast a Russian aspect question wants (targum-internal#259): aspect is
+    decided by context far more often than by rule, so the useful answer to "why сказал
+    and not говорил?" sets a sentence with one beside a sentence with the other — from
+    texts the reader has, which the model cannot otherwise see into. Read off each text's
+    own annotation, by dictionary form, so every inflected form is found. Spends nothing.
+    """
+    lemma = str(args.get("lemma") or "").strip().lower().replace("\u0301", "")
+    language = str(args.get("language") or "")
+    if not lemma:
+        return {"error": "Name the word by its dictionary form."}
+    mine, shared = _shelf(ctx)
+    found: list[dict[str, str]] = []
+    for home, rows in ((ctx.home, mine), (ctx.library.shared, shared)):
+        for row in rows:
+            if len(found) >= SENTENCES_WITH:
+                break
+            if language and str(row.get("language") or "") != language:
+                continue
+            folder = home / str(row.get("name") or "")
+            tokens = _json(folder / "annotation.json").get("tokens") or {}
+            wanted = {
+                sid: sorted({str(t.get("surface") or "") for t in words if _lemma(t) == lemma})
+                for sid, words in tokens.items()
+                if isinstance(words, list) and any(_lemma(t) == lemma for t in words)
+            }
+            if not wanted:
+                continue
+            segments = _json(folder / "segments.json").get("segments") or []
+            for segment in segments:
+                if len(found) >= SENTENCES_WITH:
+                    break
+                sid = str(segment.get("id") or "")
+                if sid not in wanted:
+                    continue
+                found.append(
+                    {
+                        "sentence": str(segment.get("text") or "")[:SENTENCE_CHARS],
+                        "as": " ".join(form for form in wanted[sid] if form),
+                        "title": str(row.get("title") or ""),
+                        "reader": str(row.get("reader") or ""),
+                    }
+                )
+    return {"lemma": lemma, "count": len(found), "sentences": found}
+
+
 def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "").lower()
     language = str(args.get("language") or "")
@@ -954,6 +1019,15 @@ REGISTRY: tuple[Tool, ...] = (
         "they know, when they last opened it and when they finished it.",
         _schema({"query": {"type": "string"}, "language": {"type": "string"}}),
         search_my_shelf,
+    ),
+    Tool(
+        "sentences_with",
+        "Up to five sentences from the texts on the reader's shelf, and the shared one, in "
+        "which a word appears, found by its dictionary form so every inflected form counts; "
+        "each with the form it takes there and the text it is from. For setting two uses "
+        "side by side — a Russian verb beside its aspect partner — from what the reader has.",
+        _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
+        sentences_with,
     ),
     Tool(
         "my_vocabulary",

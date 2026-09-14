@@ -2613,14 +2613,33 @@ def models_fetch(
 ) -> None:
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
     'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
-    their own, 'gold' for the treebanks the annotator is scored against, 'flores' for
-    the FLORES+ sentences the chat's recast is scored against, 'ntrex' for the news
-    sentences beside them, or 'heq' for the questions its answers about a text are
-    scored against."""
+    their own, 'openrussian' for the Russian dictionary tables, 'gold' for the treebanks
+    the annotator is scored against, 'flores' for the FLORES+ sentences the chat's recast
+    is scored against, 'ntrex' for the news sentences beside them, or 'heq' for the
+    questions its answers about a text are scored against."""
     from .align import embedding
 
     if language in {"menaked", "nikkud", "vowels", "pointing"}:
         _fetch_menaked()
+        return
+
+    if language in {"openrussian", "russian-dictionary"}:
+        from .annotate import openrussian
+
+        if openrussian.available():
+            console.print("[dim]OpenRussian's tables are already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching {openrussian.CREDIT}'s tables, {openrussian.LICENCE}. Looked up "
+            f"for a card, never trained on, never shipped as a list.[/dim]"
+        )
+        try:
+            got = openrussian.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(
+            f"[green]Downloaded[/green] {got} tables · {openrussian.CREDIT} · {openrussian.LICENCE}"
+        )
         return
 
     if language in {"scripture", "tanakh", "oshb"}:

@@ -197,6 +197,10 @@ var targumReader = function () {
   var extensions = data.extensions || {};
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
+  // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
+  // OpenRussian's tables where the build had them (targum-internal#259).
+  var partners = extensions.partners || [];
+  var stressLines = extensions.stress || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
   // which one this text is written in. Codes, not sentences: the words are in
   // `registerLine`, so rewriting them costs nothing and re-annotating a library is not
@@ -3400,6 +3404,27 @@ var targumReader = function () {
     return out;
   }
 
+  // The first place in this text a partner verb is used, and the form it takes there. A
+  // partner is named stressed and matched bare, the way the lemmas are stored.
+  function partnerHere(named) {
+    var wanted = named.split(" · ").map(function (one) {
+      return lemmas.indexOf(one.replace(/\u0301/g, "").toLowerCase());
+    });
+    var ids = Object.keys(wordData).sort();
+    for (var i = 0; i < ids.length; i++) {
+      var rows = wordData[ids[i]] || [];
+      for (var r = 0; r < rows.length; r++) {
+        if (rows[r][4] >= 0 && wanted.indexOf(rows[r][4]) >= 0) {
+          return {
+            segment: ids[i],
+            form: segmentText(ids[i]).slice(rows[r][0], rows[r][1]),
+          };
+        }
+      }
+    }
+    return null;
+  }
+
   // The card's grammar line for a word, as the ask sends it: only a line that names a
   // case or an aspect, which is the one a model's own reading could contradict.
   function grammarOf(word) {
@@ -3630,6 +3655,48 @@ var targumReader = function () {
       use.className = "use";
       mixedLine(use, usage);
       card.appendChild(use);
+    }
+
+    // The verb's other aspect. Aspect is decided by the sentence far more often than by a
+    // rule (Janda & Reynolds 2019), so where the partner is used in this same text the
+    // card offers to go and read it there, which is the contrast a rule cannot give.
+    var partner = partners[index] || "";
+    if (partner) {
+      var other = document.createElement("span");
+      other.className = "verb partner";
+      other.appendChild(document.createTextNode("the other aspect: "));
+      var named = document.createElement("bdi");
+      named.setAttribute("lang", language);
+      named.textContent = partner;
+      other.appendChild(named);
+      var used = partnerHere(partner);
+      if (used) {
+        var go = document.createElement("button");
+        go.type = "button";
+        go.className = "here";
+        go.textContent = "read " + used.form + " here";
+        go.addEventListener("click", function (event) {
+          event.stopPropagation();
+          hideCard();
+          jumpTo(used.segment);
+        });
+        other.appendChild(go);
+      }
+      card.appendChild(other);
+    }
+
+    // Where the stress lands in the forms that move it: рука́ · ру́ку. Only for a word
+    // whose stress does move; the dictionary form leads.
+    var moves = stressLines[index] || "";
+    if (moves) {
+      var shifts = document.createElement("span");
+      shifts.className = "verb stress-moves";
+      shifts.appendChild(document.createTextNode("stress moves: "));
+      var forms = document.createElement("bdi");
+      forms.setAttribute("lang", language);
+      forms.textContent = moves;
+      shifts.appendChild(forms);
+      card.appendChild(shifts);
     }
 
     // Which Hebrew the word belongs to, on the cards where that is worth a line at all:

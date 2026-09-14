@@ -1039,6 +1039,18 @@ body.marking .w.here,
   border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .gloss-card .verb .pealim:hover { border-block-end-color: var(--accent); }
+/* A partner verb used in the same text: a way there, drawn like the conjugations link. */
+.gloss-card .verb .here {
+  margin-inline-start: 0.5rem;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.gloss-card .verb .here:hover { border-block-end-color: var(--accent); }
 /* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
    is one. Muted like the other metadata; the answer above it is the ink. The register
    line is the same kind of fact and is set the same way: which Hebrew the word belongs

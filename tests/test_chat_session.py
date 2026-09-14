@@ -1201,3 +1201,10 @@ def test_the_current_language_is_one_the_reader_is_learning(tmp_path: Path) -> N
     store.choose(person, "learning", ["he"])
     assert store.language(person.id) == "he", "unticked: it falls back rather than failing"
     assert store.language(None) == "he"
+
+
+def test_an_aspect_question_is_pointed_at_the_partner_in_what_they_read() -> None:
+    about = {"surface": "сказал", "lemma": "сказать", "grammar": "past · perfective · m"}
+    assert "call sentences_with" in session_module.framed("why this one?", about)
+    noun = {"surface": "руку", "lemma": "рука", "grammar": "noun · f · accusative"}
+    assert "sentences_with" not in session_module.framed("why?", noun)
