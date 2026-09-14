@@ -8578,9 +8578,15 @@ var targumReader = function () {
         modeKey.setAttribute("aria-pressed", watching ? "true" : "false");
         // What pressing it does, not what the page is doing: a button labelled with the
         // state it is in is a button nobody can predict.
-        var next = watching ? "Read alongside" : "Watch full screen";
+        var next = watching ? "Show the transcript" : "Watch full screen";
         modeKey.setAttribute("aria-label", next);
-        modeKey.setAttribute("title", next + " (v)");
+        modeKey.setAttribute(
+          "title",
+          (watching ? "Minimise and show the transcript" : "Watch full screen") + " (v)"
+        );
+        // And in words beside the glyph (2026-09-14): where pressing it goes.
+        var word = modeKey.querySelector(".video-word");
+        if (word) word.textContent = watching ? "Transcript" : "Full screen";
       }
       /* One transport, moved rather than copied. Item 4 of the note asked that the two
          players never be on screen together, and the honest reading of that on a page

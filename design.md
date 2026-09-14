@@ -449,6 +449,18 @@ on a phone, since the `+` is how the product already says "bring something". On 
 the bar at the foot takes four columns. The `+` on the box stays: it brings a file while
 asking, and the page is for everything else.
 
+### The picture's keys say what they do — 2026-09-14
+
+David, looking at a docked video: the controls "don't make it obvious you can drag it or
+resize it", and full screen "it's not obvious you can minimise, and it's not obvious how
+to go to the transcript". Four glyphs in a column beside the picture were the whole of it.
+So the keys carry their words, the way the box's actions already do (§7). At a desk the
+docked picture has a bar across its top: **Move**, a grip that fills the bar so the bar is
+the thing to take hold of, **Full screen**, the corner and ×; the size handle in its corner
+is drawn on a raised ground instead of a faint hatch. Full screen, the two keys are pills
+over a dark backing: **Transcript**, which shrinks the picture to its corner beside the
+text, and **Close**. On a phone nothing moves or resizes, and the sheet is unchanged.
+
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
 §1 says "no flags" and §10 lists "flag imagery — texts, not countries" among the things

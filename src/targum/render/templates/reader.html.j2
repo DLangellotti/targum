@@ -462,19 +462,28 @@
     {#- Picked up and put anywhere on a wide window (design.md §12, 2026-09-13). A key of
         its own rather than the panel's frame: the picture is the play button, and a
         press on it has to stay a press. Arrow keys move it for a keyboard. -#}
-    <button type="button" class="video-grip" aria-label="Move the video" title="Move the video">
+    {#- Said in words as well as drawn (2026-09-14: "the controls on the player don't make it
+        obvious you can drag it or resize it"): the grip is a bar across the top of the
+        picture that says Move, and the other keys say what they do beside their glyphs. -#}
+    <button type="button" class="video-grip" aria-label="Move the video" title="Drag to move the video">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/>
         <circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/>
         <circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/>
       </svg>
+      <span class="video-word">Move</span>
     </button>
     {#- Watching or reading. Not a third state of the toggle in the bar: that one is
         whether there is a picture at all, and this is what the picture is doing. -#}
-    <button type="button" class="video-mode" aria-pressed="true" aria-label="Read alongside" title="Read alongside (v)">
+    {#- Full screen from the corner, the transcript from full screen: one key, whose glyph
+        and word say where pressing it goes — outward to fill the window, or inward to a
+        corner beside the text. -#}
+    <button type="button" class="video-mode" aria-pressed="true" aria-label="Show the transcript" title="Minimise and show the transcript (v)">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path d="M2.5 4h4M2.5 8h4M2.5 12h4M9.5 4h4M9.5 8h4M9.5 12h4"/>
+        <path class="expand" d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/>
+        <path class="shrink" d="M13.5 6.5h-4v-4M9.5 6.5 14 2M2.5 9.5h4v4M6.5 9.5 2 14"/>
       </svg>
+      <span class="video-word">Transcript</span>
     </button>
     {#- Which corner it stands in while the reader reads. Four, cycled — a picture parked
         over the sentence being read is the whole complaint the note made, and a corner
@@ -486,12 +495,12 @@
         <rect x="8.5" y="8.5" width="5" height="5" rx="1" class="corner"/>
       </svg>
     </button>
-    <button type="button" class="video-close" aria-label="Close the video">×</button>
+    <button type="button" class="video-close" aria-label="Close the video" title="Close the video"><span aria-hidden="true">×</span><span class="video-word">Close</span></button>
   </div>
   {#- Its size, from the corner across from the one it is held by. -#}
-  <button type="button" class="video-size" aria-label="Resize the video" title="Resize the video">
+  <button type="button" class="video-size" aria-label="Resize the video" title="Drag to resize the video">
     <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-      <path d="M10.5 4.5 4.5 10.5M10.5 8 8 10.5"/>
+      <path d="M10.5 2 2 10.5M10.5 5.5 5.5 10.5M10.5 9 9 10.5"/>
     </svg>
   </button>
 </div>

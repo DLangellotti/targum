@@ -2999,6 +2999,101 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
   .video.watching .video-size { display: none; }
 }
 
+/* --- the keys, said in words (2026-09-14) -------------------------------------------
+   "The controls on the player don't make it obvious you can drag it or resize it", and in
+   full screen that you can minimise it or reach the transcript. Glyphs alone were the
+   whole of it. So on a wide window the keys are a bar across the top of the picture:
+   Move, drawn as a grip and filling the bar so the bar is the thing to take hold of, then
+   Full screen, the corner and Close. The size key is a visible handle in its corner. Full
+   screen, the two keys are pills in words over a dark backing: Transcript, which shrinks
+   the picture into its corner beside the text, and Close. */
+.video-word { display: none; }
+.video-mode .shrink { display: none; }
+.video.watching .video-mode .expand { display: none; }
+.video.watching .video-mode .shrink { display: inline; }
+.video-mode svg path { fill: none; }
+
+@media (min-width: 60rem) {
+  .video:not(.watching) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+  }
+  .video:not(.watching) .video-el { inline-size: 100%; }
+  .video:not(.watching) .video-keys {
+    order: -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .video:not(.watching) .video-grip {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+    inline-size: auto;
+    block-size: 1.75rem;
+    padding-inline: 0.5rem;
+    background: var(--paper);
+    color: var(--ink-soft);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .video:not(.watching) .video-mode {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    inline-size: auto;
+    block-size: 1.75rem;
+    padding-inline: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .video:not(.watching) .video-corner,
+  .video:not(.watching) .video-close { inline-size: 1.75rem; block-size: 1.75rem; }
+  .video:not(.watching) .video-grip .video-word,
+  .video:not(.watching) .video-mode .video-word { display: inline; }
+  .video:not(.watching) .video-grip:hover,
+  .video:not(.watching) .video-mode:hover,
+  .video:not(.watching) .video-corner:hover,
+  .video:not(.watching) .video-close:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  .video:not(.watching) .video-size {
+    inline-size: 1.75rem;
+    block-size: 1.75rem;
+    padding: 0.3rem;
+    border-radius: 8px;
+    color: var(--ink);
+    background: color-mix(in srgb, var(--paper-raised) 88%, transparent);
+    box-shadow: 0 0 0 1px var(--overlay-rule, var(--rule));
+  }
+  .video:not(.watching) .video-size svg { inline-size: 0.9rem; block-size: 0.9rem; }
+  .video:not(.watching) .video-size:hover { background: var(--paper-raised); }
+}
+
+.video.watching .video-keys { gap: 0.5rem; margin: 1rem; }
+.video.watching .video-mode,
+.video.watching .video-close {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  inline-size: auto;
+  block-size: 2.25rem;
+  padding-inline: 0.9rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 55%);
+  color: #fbf9f5;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.video.watching .video-mode .video-word,
+.video.watching .video-close .video-word { display: inline; }
+.video.watching .video-mode:hover,
+.video.watching .video-close:hover { color: #fbf9f5; background: rgb(0 0 0 / 75%); }
+
 /* --- the dock --------------------------------------------------------------
    Reading, with the picture in a corner the reader chose, which is where it starts: a
    control fixed over a page of text takes its room out of the layout (§12), and
