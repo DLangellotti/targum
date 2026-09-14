@@ -259,6 +259,29 @@ def test_a_conversation_opened_again_carries_the_cards_it_quoted(chatting) -> No
     assert "quotes" not in answers[1], "only the answer that followed the quote carries it"
 
 
+def test_a_conversation_opened_mid_turn_is_still_waiting_on_the_reader_s_line(chatting) -> None:
+    """The tool traffic is stored as `user` rows, and `/chat/<id>` handed them to the page
+    as the reader's own lines (2026-09-14: "Find me something interesting to read (tech
+    news)", reopened on a phone while the model searched). Each was drawn as an empty
+    bubble — the grey bars — and each, being `done`, cleared the page's note that the
+    reader's line was still `working`, so the page never picked the stream back up and
+    waited for good on an answer the box had already written."""
+    port, key, store, _ = chatting
+    chat = store.chat_open(None)
+    n = store.chat_say(chat, "user", "find me tech news", "find me tech news", stage="working")
+    store.chat_say(chat, "assistant", [{"type": "tool_use", "id": "t1"}], "", stage="done")
+    store.chat_say(
+        chat, "user", [{"type": "tool_result", "tool_use_id": "t1", "content": "{}"}], ""
+    )
+    status, whole, _ = call(port, "GET", f"/chat/{chat}?k={key}")
+    assert status == 200
+    theirs = [t for t in whole["turns"] if t["role"] == "user"]
+    assert [t["said"] for t in theirs] == ["find me tech news"], "no tool result is a line"
+    assert theirs[-1]["n"] == n and theirs[-1]["stage"] == "working", (
+        "the last line the page sees is the one still being answered"
+    )
+
+
 def test_the_export_and_the_purge_carry_conversations(tmp_path: Path) -> None:
     store = Store(tmp_path / "w.db")
     token = store.start_sign_in("reader@example.com")

@@ -108,6 +108,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A conversation reopened while targum was still answering now shows the answer. The
+  model's tool results were handed to the page as if they were your lines: each was drawn
+  as an empty grey bubble, and each told the page nothing was still being answered, so it
+  never picked the answer up again and waited for good on one the server had finished.
 - The commonest-words list no longer offers English to a language wordfreq has no list
   for. Asked for Yiddish, wordfreq answers with its fallback list instead of refusing,
   and `common_words` only caught a refusal; it now checks the language is really there.
