@@ -8,6 +8,7 @@ the span machinery treats both sources identically.
 
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 
@@ -51,11 +52,17 @@ def _seconds(clock: str) -> float:
 
 
 def _unstyled(text: str) -> tuple[str, str]:
-    """The cue's words and who says them, with every styling tag gone."""
+    """The cue's words and who says them, with every styling tag gone.
+
+    Entities are decoded after the tags go, so an escaped `&lt;i&gt;` stays a word
+    rather than becoming a tag. `&nbsp;` is the one that mattered: left in, it welded
+    the end of one sentence to the start of the next — 736 of them across ten Italian
+    tracks. Decoded, it is U+00A0, which `split` counts as the space it stood for.
+    """
     voice = _VOICE.search(text)
-    speaker = voice.group("name").strip() if voice else ""
+    speaker = html.unescape(voice.group("name")).strip() if voice else ""
     bare = _VOICE.sub("", text)
-    bare = _TAGS.sub("", bare).replace("</v>", "")
+    bare = html.unescape(_TAGS.sub("", bare).replace("</v>", ""))
     return " ".join(bare.split()), speaker
 
 

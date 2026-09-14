@@ -186,6 +186,20 @@ def test_vtt_styling_tags_are_dropped_and_the_voice_tag_names_the_speaker() -> N
     ]
 
 
+def test_entities_are_decoded_and_a_non_breaking_space_is_a_space() -> None:
+    """YouTube's Italian tracks escape their spaces. Left in, `&nbsp;` glued one
+    sentence to the next and the segmenter saw one."""
+    vtt = (
+        "WEBVTT\n\n"
+        "00:01.000 --> 00:03.000\nÈ finita.&nbsp;Poi&#160;Rossi &amp; figli\n\n"
+        "00:04.000 --> 00:06.000\n&lt;i&gt; resta &quot;testo&quot;\n"
+    )
+    assert [cue.text for cue in parse(vtt)] == [
+        "È finita. Poi Rossi & figli",
+        '<i> resta "testo"',
+    ]
+
+
 def test_a_part_heading_leads_with_its_name_in_the_texts_own_language(
     fake_audio, tmp_path: Path
 ) -> None:
