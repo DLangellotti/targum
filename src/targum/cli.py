@@ -1773,6 +1773,19 @@ def fetch(
     )
     console.print(f"[dim]targum build {path} --to en[/dim]")
 
+    # A StoryWeaver translation names the story it was made from, and an English one up
+    # that chain is a published translation to build beside it rather than one to buy.
+    if source.lower().startswith("storyweaver:") and document.language != "en":
+        from .ingest.fetch.storyweaver import StoryWeaverFetcher
+
+        try:
+            english = StoryWeaverFetcher().english_source(source.split(":", 1)[1])
+        except TargumError as error:
+            fail(error)
+        console.print(
+            f"[dim]English: {english}[/dim]" if english else "[dim]No English up its chain.[/dim]"
+        )
+
 
 @app.command(name="gloss")
 def gloss_command(
@@ -2082,7 +2095,10 @@ def sources() -> None:
     console.print("  [bold]Audio[/bold]      .mp3, .m4a, .m4b, .aac, .ogg, .opus, .flac, .wav")
     console.print("  [bold]Video[/bold]      .mp4, .m4v, .mov, .webm, .mkv, and a YouTube address")
     console.print("  [bold]Links[/bold]      any article, essay, wiki page or podcast episode")
-    console.print("  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>")
+    console.print(
+        "  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>, "
+        "storyweaver:<number>"
+    )
     console.print("  [bold]Pages[/bold]      .pdf with a text layer; .png, .jpg, .webp, .heic")
     console.print("[dim]Not scanned PDFs. Save one as text or markdown first.[/dim]")
 
