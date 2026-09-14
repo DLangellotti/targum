@@ -1324,7 +1324,7 @@ def test_a_line_in_the_frame_is_answered_there_and_a_text_is_offered_to_the_page
 def test_a_russian_browser_is_asked_once_which_language_the_lines_should_be_in() -> None:
     """targum-internal#243, on the page it stands on."""
     page = run(embed=True, language="ru-RU", answers={"/chat/list": TWO})
-    assert page["first"]["ask"] == "Отвечать по-русски?" and not page["first"]["hidden"]
+    assert page["first"]["ask"] == "Переводы на русском?" and not page["first"]["hidden"]
     yes = run(
         embed=True,
         language="ru-RU",

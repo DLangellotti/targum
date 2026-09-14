@@ -390,6 +390,17 @@ body {
    marks the page you are on. A bar at the edge of a rounded row read as a crescent. */
 .lang-panel button[aria-checked="true"] { font-weight: 600; color: var(--teal); background: var(--teal-wash); }
 .lang-panel .lang-item { display: inline-flex; align-items: center; gap: 0.55rem; }
+/* The language's own name after the English one, quieter, in its own face. */
+.lang-native { color: var(--ink-soft); font-weight: 400; }
+.lang-native:lang(he), .lang-native:lang(yi), .lang-native:lang(arc) { font-family: var(--reading-hebrew); }
+.lang-panel .lang-head {
+  margin: 0.2rem 0.7rem 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 /* A flag beside each name (§12, 2026-09-14): small, square-cornered at the scale's
    smallest step, a hairline round the white stripes. A language with no country keeps the
    width, so the names line up. */

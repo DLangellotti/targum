@@ -56,10 +56,10 @@
       <span class="tick-list" id="you-learning" role="group" aria-labelledby="learning-label"></span>
     </div>
     <div class="ticks">
-      <span class="ticks-label" id="reads-label">Reading into</span>
+      <span class="ticks-label" id="reads-label">Translations in</span>
       <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
     </div>
-    <p class="note">You lose nothing when you untick one.</p>
+    <p class="note">Hebrew is always on. Everything else is experimental, and you lose nothing when you untick one.</p>
     <p class="said" id="you-languages-said" hidden></p>
   </section>
 
@@ -88,7 +88,12 @@
     <div class="row">
       <a class="go-quiet" id="you-export" href="/account/export">Download your words</a>
       <button type="button" class="go-quiet" id="you-out">Sign out</button>
+    </div>
+    {#- On a row of its own, in clay (2026-09-14): it stood beside Download and Sign out in
+        the same quiet pill, three presses that looked alike and were nothing alike. -#}
+    <div class="row ending-row">
       <button type="button" class="go-quiet danger" id="you-forget">Delete account</button>
+      <button type="button" class="go-quiet" id="you-keep" hidden>Keep my account</button>
     </div>
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is

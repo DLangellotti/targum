@@ -58,6 +58,9 @@
     // corner anyway. Two letters do, and they are the same two whatever the window.
     open.className = "avatar";
     open.title = who.name ? who.name + " — " + who.email : who.email;
+    // Named for what it opens: its text is two initials, and "D" is not a name for a
+    // button to a screen reader (2026-09-14).
+    open.setAttribute("aria-label", "Your account");
     if (who.picture) {
       var image = new Image();
       image.alt = "";

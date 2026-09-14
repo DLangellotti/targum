@@ -148,3 +148,7 @@
 @media (hover: none) and (pointer: coarse) {
   .address label { min-block-size: 44px; }
 }
+
+/* Delete, apart and in words of its own colour: §4 keeps clay for what cannot be undone. */
+.ending-row { margin-block-start: 0.9rem; }
+.go-quiet.danger { color: var(--clay); }

@@ -540,7 +540,7 @@
     });
     var names = window.TARGUM_LANGUAGES || {};
     lang.switcher(host, have, names, chosen, onPick, {
-      label: "Definition language",
+      label: "Translations in",
       // Never "experimental": that is a claim about a language you are learning, and
       // these are the languages you already have.
       tag: function () {
