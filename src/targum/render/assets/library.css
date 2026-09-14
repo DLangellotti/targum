@@ -862,3 +862,22 @@
   .rows > li { flex-wrap: wrap; }
   .rows > li > .draw { margin-inline-start: 2.95rem; }
 }
+
+/* The press that starts a build from a row, after the row has said how long it takes
+   (2026-09-14): the working action in the primary, its way out beside it. */
+.rows > li > .row-go,
+.rows > li > .row-not {
+  flex: none;
+  padding: 0.35rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rows > li > .row-go { background: var(--teal); color: var(--teal-ink); }
+.rows > li > .row-not { background: transparent; color: var(--ink-soft); }
+@media (hover: none) and (pointer: coarse) {
+  .rows > li > .row-go, .rows > li > .row-not { min-height: 44px; }
+}

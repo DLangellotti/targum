@@ -415,7 +415,7 @@ def test_every_figure_is_said_once_on_the_page() -> None:
         "words marked known",
         "words learned by reading",
         "phrases saved",
-        "texts finished",
+        "targums finished",
         "day reading",
         # The longest run of days, and never the current one (targum-internal#175).
         "day in your longest run",
@@ -467,7 +467,7 @@ def test_a_text_said_finished_is_counted_once() -> None:
             "targum:days": {"2026-08-25": 1},
         }
     )
-    assert drawn["counts"]["text finished"] == 1
+    assert drawn["counts"]["targum finished"] == 1
 
 
 def test_a_finished_chapter_is_a_finished_targum() -> None:
@@ -488,7 +488,7 @@ def test_a_finished_chapter_is_a_finished_targum() -> None:
             "targum:days": {"2026-08-25": 1},
         }
     )
-    assert drawn["counts"]["texts finished"] == 2
+    assert drawn["counts"]["targums finished"] == 2
 
 
 def test_an_old_record_and_its_chapters_are_never_added_together() -> None:
@@ -515,7 +515,7 @@ def test_an_old_record_and_its_chapters_are_never_added_together() -> None:
             }
         )
         counts = drawn["counts"]
-        return counts.get("text finished", counts.get("texts finished", 0))
+        return counts.get("targum finished", counts.get("targums finished", 0))
 
     assert count({}) == 1, "the old record stands"
     assert count({"1": 1_700_000_000_000}) == 1, "and the first chapter is what it claimed"
@@ -538,7 +538,7 @@ def test_nobody_count_jumps_on_the_day_of_the_change() -> None:
             "targum:days": {"2026-08-25": 1},
         }
     )
-    assert before["counts"]["texts finished"] == 2, "two books, two targums, unchanged"
+    assert before["counts"]["targums finished"] == 2, "two books, two targums, unchanged"
 
 
 def _on(day: date, n: int, tag: str) -> dict[str, Any]:

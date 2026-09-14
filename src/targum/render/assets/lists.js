@@ -326,17 +326,27 @@
     // Grouped by the text they came from, which is the only place they mean anything.
     var byText = {};
     var order = [];
+    // The same words kept twice in one text are one phrase to read (2026-09-14): a phrase
+    // saved in three places listed "האנטישמיות שבימינו" three times over. The first stands
+    // for the rest.
+    var seenTerm = {};
     phrases.forEach(function (phrase) {
       if (!byText[phrase.title]) {
         byText[phrase.title] = [];
         order.push(phrase.title);
       }
+      var said = phrase.title + "\u0000" + String(phrase.term || "").trim();
+      if (seenTerm[said]) return;
+      seenTerm[said] = true;
       byText[phrase.title].push(phrase);
     });
 
     order.forEach(function (title) {
       var group = el("div", "text-group");
-      group.appendChild(el("h3", null, title));
+      var heading = el("h3", null, title);
+      heading.setAttribute("dir", "auto");
+      if (/[\u0590-\u05FF]/.test(title)) heading.setAttribute("lang", "he");
+      group.appendChild(heading);
       var list = el("ol");
       byText[title].forEach(function (phrase) {
         var item = el("li");

@@ -198,9 +198,11 @@
      nobody else can reach it. Tabs rather than a filter: they are not two settings of one
      list, they are two lists, and as a select called "Access" the second one was a thing
      nobody found. */
+  // "All texts", not "Library": under a page headed Library a first tab of the same name
+  // said nothing (2026-09-14). Sentence case, like every other label on the page.
   var WHERE = [
-    ["library", "Library"],
-    ["mine", "Your Uploads"],
+    ["library", "All texts"],
+    ["mine", "Your uploads"],
   ];
 
   // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
@@ -1059,17 +1061,63 @@
         // A price with no build in it — the server pointing at a catalogue row instead —
         // is not something to press Build on: an empty id came back as a lost build.
         if (!job.id) throw new Error("We couldn't start this one.");
-        tell(state, "We're lining it up…");
-        return ask("/build", { id: job.id }).then(function (started) {
-          if (started.error) throw new Error(started.error);
-          if (started.stage === "blocked") throw new Error(started.blocked);
-          return watch(job.id, state, open);
+        // Said, and then pressed (2026-09-14). The first press used to go straight on to
+        // the build, while the conversation and the Add page both say how long a thing
+        // takes and wait for the reader's own press before anything is spent. The same
+        // here: how long, and a press of its own beside the row.
+        return confirmBuild(open, state, job).then(function (yes) {
+          if (!yes) {
+            tell(state, "");
+            open.disabled = false;
+            return;
+          }
+          tell(state, "We're lining it up…");
+          return ask("/build", { id: job.id }).then(function (started) {
+            if (started.error) throw new Error(started.error);
+            if (started.stage === "blocked") throw new Error(started.blocked);
+            return watch(job.id, state, open);
+          });
         });
       })
       .catch(function (problem) {
         tell(state, String(problem.message || problem));
         open.disabled = false;
       });
+  }
+
+  // How long it will take, in the reader's minutes, and the press that starts it.
+  function waitFor(job) {
+    if (!job.estimate) return "Ready in a moment.";
+    var mins = Math.max(1, Math.round((job.total || job.segments || 0) / 25));
+    var start = job.chapters > 1 ? "Your first chapter will be ready in " : "Ready in ";
+    if (mins <= 1) return start + "about a minute.";
+    if (mins <= 4) return start + "a couple of minutes.";
+    return start + "about " + mins + " minutes.";
+  }
+
+  function confirmBuild(open, state, job) {
+    return new Promise(function (resolve) {
+      var item = open.parentNode;
+      tell(state, waitFor(job));
+      var go = el("button", "row-go", "Start reading");
+      go.type = "button";
+      var not = el("button", "row-not", "Not now");
+      not.type = "button";
+      function done(answer) {
+        if (go.parentNode) go.parentNode.removeChild(go);
+        if (not.parentNode) not.parentNode.removeChild(not);
+        resolve(answer);
+      }
+      go.onclick = function () {
+        done(true);
+      };
+      not.onclick = function () {
+        done(false);
+      };
+      item.appendChild(go);
+      item.appendChild(not);
+      if (go.focus) go.focus();
+    });
   }
 
   function drawCovers(button, name) {
@@ -1213,11 +1261,20 @@
       empty.hidden = showing.length > 0;
       if (!showing.length) {
         // An empty tab and an empty filter are different things to be told.
+        // A language with no catalogue yet says so, and points at what the reader has in
+        // it already, if anything (2026-09-14): "Nothing here yet" under Italian hid the
+        // two Italian texts one tab away.
+        var uploaded = everything.filter(function (row) {
+          return inLanguage(row, chosen) && !row.entry;
+        }).length;
         empty.textContent = here.length
           ? "Nothing here matches that."
           : view.where === "mine"
             ? "You haven't added anything yet. Use Add to bring your own."
-            : "Nothing here yet.";
+            : uploaded
+              ? "No " + (names[chosen] || chosen) + " texts in the library yet. You have " +
+                uploaded + " in Your uploads."
+              : "No " + (names[chosen] || chosen) + " texts in the library yet.";
       }
       var total = here.length;
       // Texts, not rows. A folded list is thirty-six rows over three hundred and

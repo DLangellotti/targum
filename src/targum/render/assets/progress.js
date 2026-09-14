@@ -373,7 +373,7 @@
     count(sums.phrases, sums.phrases === 1 ? "phrase saved" : "phrases saved", "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
     // thing, and the one on this page that is a whole text rather than a word.
-    count(sums.finished, sums.finished === 1 ? "text finished" : "texts finished", "leaf");
+    count(sums.finished, sums.finished === 1 ? "targum finished" : "targums finished", "leaf");
     count(days.length, days.length === 1 ? "day reading" : "days reading");
     // The longest run of days there has ever been, and never the current one. Decided
     // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
