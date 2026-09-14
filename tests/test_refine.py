@@ -23,6 +23,65 @@ def test_a_long_pause_breaks_a_paragraph_and_a_short_one_does_not() -> None:
     assert [p.text for p in refined.paragraphs] == ["one two", "three"]
 
 
+def test_a_paragraph_nobody_paused_in_is_cut_at_its_longest_pause() -> None:
+    """Someone talking over music never stops for 1.2 s. A 57-minute video came back as
+    paragraphs of hundreds of words, each one line of the reader and one call to the
+    lemmatizer, which cut it off at 512 tokens (2026-09-14)."""
+    from targum.transcribe.refine.rules import (
+        LEAST_PARAGRAPH_WORDS,
+        MAX_PARAGRAPH_WORDS,
+    )
+
+    words = heard(" ".join(f"מילה{n}" for n in range(300)), step=0.5)
+    # The breaths a speaker takes: longer every so often, never a paragraph's pause.
+    for n in range(37, 300, 37):
+        for later in words[n:]:
+            later.start = round(later.start + 0.6, 3)
+            later.end = round(later.end + 0.6, 3)
+    refined = RuleRefiner().refine(
+        Transcript(provider="test", language="he", duration=200.0, words=words)
+    )
+    lengths = [len(p.words) for p in refined.paragraphs]
+    assert sum(lengths) == 300, "every word is kept"
+    assert max(lengths) <= MAX_PARAGRAPH_WORDS
+    assert min(lengths) >= LEAST_PARAGRAPH_WORDS
+    assert refined.paragraphs[1].words[0].text == "מילה37", "the cut is at the breath"
+    assert [w for p in refined.paragraphs for w in p.words] == words, "clocks untouched"
+
+
+def test_a_cut_after_a_sentence_beats_a_longer_pause_inside_one() -> None:
+    words = heard(" ".join(f"מילה{n}" for n in range(50)), step=0.5)
+    words[19].text += "."
+    for later in words[30:]:
+        later.start = round(later.start + 0.9, 3)
+        later.end = round(later.end + 0.9, 3)
+    refined = RuleRefiner().refine(
+        Transcript(provider="test", language="he", duration=30.0, words=words)
+    )
+    assert [len(p.words) for p in refined.paragraphs] == [20, 30]
+
+
+def test_a_hearing_the_last_rules_refined_is_not_redone(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """rules/2 differs from rules/1 only in long paragraphs. Redoing a rules/1 part
+    would re-cut its segments, buy its translation again and move its reader's place."""
+    from targum.ingest.audio import refined_path
+    from targum.pipeline import Build
+    from targum.transcribe.models import Refined
+    from targum.transcribe.models import write as write_model
+
+    workspace = tmp_path / "audio"
+    for number, refiner in ((1, "rules/1"), (2, "rules/2"), (3, "none")):
+        write_model(
+            refined_path(workspace, number),
+            Refined(refiner=refiner, provider="openai/whisper-1", language="he", paragraphs=[]),
+        )
+    build = Build(str(tmp_path / "talk.mp3"), target_language="en", out_root=tmp_path / "out")
+    assert not build._needs_hearing(workspace, 1)
+    assert not build._needs_hearing(workspace, 2)
+    assert build._needs_hearing(workspace, 3), "a refiner it does not keep is still redone"
+    assert build._needs_hearing(workspace, 4), "and a part never heard is heard"
+
+
 def test_the_model_backed_refiner_maps_every_kept_word_back_to_its_clock() -> None:
     """The one hard rule: timing is never guessed. A repunctuated word keeps the clock
     of the word it was; the ad break the model dropped takes its clocks with it."""
@@ -105,7 +164,7 @@ def test_a_replaced_refiner_redoes_its_half_without_paying_to_hear_again(
     refined = folder / "audio" / "refined" / "part-001.json"
     import json
 
-    assert json.loads(refined.read_text())["refiner"] == "rules/1"
+    assert json.loads(refined.read_text())["refiner"] == "rules/2"
 
     monkeypatch.setenv("TARGUM_REFINER", "none")  # the null refiner stands in for a new one
     second = build()
