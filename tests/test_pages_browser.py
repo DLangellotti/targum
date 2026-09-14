@@ -271,6 +271,89 @@ def test_a_text_and_its_translation_are_paired_by_their_script(browser) -> None:
     assert asked[0]["translationName"] == "english.txt"
 
 
+#: The line that was refused on 2026-09-14, as it was pasted.
+ITALIAN = "Suo marito sta guardando nella macchina. \u201cDov\u2019\u00e8 la tenda?\u201d dice."
+
+
+def _add_in(browser, code: str, asked: list[dict]):
+    """The Add page with `code` chosen in the menu at the top, as a reader left it."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/prepare" in request.url:
+            asked.append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    context.add_init_script(f"localStorage.setItem('targum:language', '{code}')")
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    return context, open_page
+
+
+def test_a_paste_is_read_in_the_language_chosen(browser) -> None:
+    """Italian chosen at the top, Italian pasted: a text in Italian, priced as one
+    (2026-09-14). It was refused as "another script", because the box only ever looked
+    for Hebrew letters, and every line on the page said Hebrew."""
+    asked: list[dict] = []
+    context, open_page = _add_in(browser, "it", asked)
+    open_page.fill("#given", ITALIAN)
+    got = open_page.evaluate(
+        """() => ({
+          from: document.getElementById('from').value,
+          said: document.getElementById('understood').textContent,
+          placeholder: document.getElementById('given').placeholder,
+          label: document.getElementById('given').getAttribute('aria-label'),
+        })"""
+    )
+    open_page.click("#change")
+    open_page.click('[data-how="mine"]')
+    note = open_page.text_content("#how-note")
+    open_page.click("#go")
+    open_page.wait_for_timeout(400)
+    context.close()
+
+    assert got["from"] == "it", got
+    assert got["said"] == "That's 10 words of Italian.", got
+    assert "Italian" in got["placeholder"] and "Hebrew" not in got["placeholder"], got
+    assert "Italian" in got["label"] and "Hebrew" not in got["label"], got
+    assert note and "Italian" in note, note
+    assert asked and asked[0]["from"] == "it", asked
+
+
+def test_english_is_a_request_beside_a_latin_alphabet_language(browser) -> None:
+    """With French chosen, English letters are French letters, so the words decide: a
+    line about what the reader wants is still a request, never priced as French."""
+    asked: list[dict] = []
+    context, open_page = _add_in(browser, "fr", asked)
+    open_page.fill("#given", "a short podcast about why flats in Paris cost so much")
+    said = open_page.text_content("#understood")
+    open_page.click("#go")
+    open_page.wait_for_timeout(400)
+    context.close()
+
+    assert said and "what you want to read" in said, said
+    assert asked == [], "a description never reaches /prepare"
+
+
+def test_the_wrong_script_names_the_language_chosen(browser) -> None:
+    """Hebrew pasted with Russian chosen is not refused as Hebrew's other script: the
+    line names Russian, its letters, and where the language is chosen."""
+    context, open_page = _add_in(browser, "ru", [])
+    open_page.fill("#given", " ".join(["בראשית ברא אלהים את השמים ואת הארץ"] * 7))
+    said = open_page.text_content("#understood")
+    context.close()
+
+    assert said == (
+        "You're adding Russian, and this isn't in Cyrillic letters. Choose its language at the top."
+    ), said
+
+
 def test_a_description_is_never_priced(browser) -> None:
     """A sentence about what the reader wants is a request, not a text: Continue sends
     nothing to `/prepare`, and Ask targum — a turn of conversation, the reader's own
