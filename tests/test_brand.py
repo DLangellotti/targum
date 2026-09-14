@@ -243,6 +243,9 @@ THUMBED = (
     ".site-nav a",
     ".talk-cta",
     ".notices > button",
+    # And the panel's own presses (2026-09-14): each line's × and Clear all.
+    ".notices-clear",
+    ".notices-list button",
     ".account > button",
     ".palette-open",
     ".palette-row",

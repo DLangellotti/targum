@@ -349,6 +349,14 @@
 /* Empty most of the time — an `auto` track with nothing in it is no width at all. */
 .row-state { color: var(--ink-soft); font-size: 0.6875rem; }
 .rows .row-open:hover .row-state { color: var(--ink); }
+/* A build's sentence — where it has got to, or why it stopped (2026-09-14): a line of its
+   own under the title, wrapped and whole, rather than clipped to the state's column. */
+.rows .row-open .row-state.said {
+  grid-column: 2 / -1;
+  white-space: normal;
+  overflow: visible;
+  font-size: 0.8125rem;
+}
 
 .tally { margin: 0.7rem 0 0; color: var(--ink-soft); font-size: 0.6875rem; }
 

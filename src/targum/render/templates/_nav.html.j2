@@ -54,7 +54,8 @@
     {%- endif %}
     {#- Notifications, in the corner of every page (2026-09-11): what is building and
         what is ready, and anything else the page has to say later. The bell carries a
-        count; the panel lists them, newest first, each with its own ×. It replaced the
+        count; the panel lists them, newest first, each with its own × and Clear all
+        above them; the panel stays open while you put lines away. It replaced the
         pill that stood fixed at the foot of the window. Drawn by `building.js`. -#}
     {#- The command palette's own door (2026-09-11), beside the bell; ⌘K is the other. -#}
     <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="Find anything" title="Find anything (⌘K)">
@@ -66,6 +67,11 @@
         <span class="notices-count" id="notices-count" hidden></span>
       </button>
       <div class="notices-panel" id="notices-panel" role="dialog" aria-label="Notifications" hidden>
+        {#- Clear all (2026-09-14): every line put away at once, as each × would. Shown
+            only while there is something to clear. -#}
+        <div class="notices-head" id="notices-head" hidden>
+          <button type="button" class="notices-clear" id="notices-clear">Clear all</button>
+        </div>
         <p class="notices-empty" id="notices-empty">We're not building anything right now.</p>
         <ul class="notices-list" id="notices-list"></ul>
       </div>

@@ -709,9 +709,16 @@ def matching(source: str) -> Entry | None:
     wanted = _key(source)
     if not wanted:
         return None
-    for entry in everything():
+    entries = everything()
+    # A text's own row before any row it is shown beside. Onkelos on Genesis is a row of
+    # its own and also a rendering on the Hebrew Genesis, which comes first; asked in one
+    # pass, the Hebrew row answered for it, so pricing Onkelos came back as "already
+    # translated, here is Genesis" with no build in it, and the Library's press said the
+    # build was lost (2026-09-14).
+    for entry in entries:
         if _key(entry.source) == wanted:
             return entry
+    for entry in entries:
         for rendering in entry.translations:
             if _key(rendering.source) == wanted:
                 return entry

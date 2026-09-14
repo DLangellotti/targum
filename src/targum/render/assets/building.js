@@ -11,6 +11,10 @@
  * foot of the window that showed one build at a time. Polls only while something is
  * unfinished, and stops the moment nothing is. A build dismissed with × stays dismissed
  * in this browser. Other scripts may add a line of their own with `TargumNotices.note`.
+ *
+ * Since 2026-09-14 the panel stays open while you put lines away — the × used to close
+ * it, because redrawing the list took the pressed button out of the page before the
+ * press outside was judged — and Clear all puts every line away at once.
  */
 (function () {
   "use strict";
@@ -19,6 +23,8 @@
   var count = document.getElementById("notices-count");
   var empty = document.getElementById("notices-empty");
   var list = document.getElementById("notices-list");
+  var head = document.getElementById("notices-head");
+  var clear = document.getElementById("notices-clear");
   if (!open || !panel || !count || !empty || !list || typeof fetch !== "function") return;
 
   var key = window.TARGUM_KEY || "";
@@ -112,15 +118,18 @@
         putAway(entry.id);
         delete notes[entry.id];
         draw();
+        show(false);
         entry.action();
       };
       li.appendChild(act);
     }
     var x = document.createElement("button");
     x.type = "button";
+    x.className = "notices-x";
     x.setAttribute("aria-label", "Dismiss");
     x.textContent = "×";
     x.onclick = function () {
+      pressed = Array.prototype.indexOf.call(list.querySelectorAll(".notices-x"), x);
       if (entry.job) dismissJob(entry.job);
       else {
         // Put away for good, in this browser: a landed instalment or the month's hours
@@ -151,13 +160,25 @@
     return out;
   }
 
+  // Which × the keyboard was on, so a redraw — the one a × makes, or the poll's after it
+  // — puts it on the line that took that place, or on the bell when none is left.
+  var pressed = -1;
+
   function draw() {
     var rows = entries();
+    var at = Array.prototype.indexOf.call(list.querySelectorAll(".notices-x"), document.activeElement);
+    if (at < 0) at = pressed;
+    pressed = -1;
     list.textContent = "";
     rows.forEach(function (entry) {
       list.appendChild(row(entry));
     });
+    if (at >= 0) {
+      var xs = list.querySelectorAll(".notices-x");
+      (xs[Math.min(at, xs.length - 1)] || open).focus();
+    }
     empty.hidden = rows.length > 0;
+    if (head) head.hidden = rows.length === 0;
     count.hidden = rows.length === 0;
     count.textContent = String(rows.length);
     open.classList.toggle("live", rows.some(function (entry) { return entry.live; }));
@@ -215,6 +236,20 @@
       });
   }
 
+  // Clear all: each line as its own × would put it away, then one look at the server
+  // rather than one for every build.
+  function clearAll() {
+    entries().forEach(function (entry) {
+      if (entry.job && live(entry.job) && entry.job.mail) return dismissJob(entry.job);
+      putAway(entry.job ? entry.job.id : entry.id);
+      delete notes[entry.id];
+    });
+    draw();
+    ask();
+    open.focus();
+  }
+  if (clear) clear.addEventListener("click", clearAll);
+
   function note(id, text, extra) {
     extra = extra || {};
     notes[id] = {
@@ -258,10 +293,14 @@
   open.addEventListener("click", function () {
     show(panel.hidden);
   });
+  // Inside is judged on the path the press took, not where its target is now: a × or
+  // Clear all redraws the list, and the button pressed is no longer in the page by the
+  // time the press reaches the document.
+  var notices = document.getElementById("notices");
   document.addEventListener("click", function (event) {
     if (panel.hidden) return;
-    var inside = event.target && event.target.closest ? event.target.closest("#notices") : null;
-    if (!inside) show(false);
+    var path = event.composedPath ? event.composedPath() : [];
+    if (path.indexOf(notices) < 0) show(false);
   });
   document.addEventListener("keydown", function (event) {
     if (event.key === "Escape" && !panel.hidden) show(false);

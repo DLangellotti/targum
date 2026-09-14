@@ -440,6 +440,21 @@ body {
   text-align: start;
 }
 .notices-panel[hidden] { display: none; }
+/* Clear all (2026-09-14): a ghost at the head of the panel, as dismiss is (§13). */
+.notices-head { display: flex; justify-content: flex-end; padding: 0 0.2rem 0.2rem; }
+.notices-head[hidden] { display: none; }
+.notices-clear {
+  padding: 0.25rem 0.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.notices-clear:hover { background: var(--teal-wash); }
 .notices-empty { margin: 0.3rem 0.6rem; font-size: 0.8125rem; color: var(--ink-soft); }
 .notices-empty[hidden] { display: none; }
 .notices-list { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -757,11 +772,14 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .site-nav a,
   .talk-cta,
   .notices > button,
+  .notices-clear,
+  .notices-list button,
   .account > button,
   .palette-open,
   .palette-row {
     min-height: 44px;
   }
+  .notices-list .notices-x { min-width: 44px; }
 }
 
 /* --- the command palette (2026-09-11) ------------------------------------------------ */

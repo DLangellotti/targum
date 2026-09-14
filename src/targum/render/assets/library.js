@@ -945,17 +945,29 @@
     return "Almost there…";
   }
 
-  function watch(id, state) {
+  // A build's sentence in the row (2026-09-14). The state's own column is a word wide and
+  // clips, which is right for "finished" and cut a failure down to "We lost that buil…";
+  // a sentence takes a line of its own under the title, whole.
+  function tell(state, text) {
+    state.textContent = text;
+    state.classList.toggle("said", !!text);
+  }
+
+  function watch(id, state, open) {
     return new Promise(function (resolve) {
       var timer = setInterval(function () {
         ask("/job/" + id).then(function (job) {
-          if (job.error) {
+          // A failure or a refusal ends the watch, and the row can be pressed again: the
+          // sentence usually says to start it again.
+          var problem = job.error || (job.stage === "blocked" && job.blocked);
+          if (problem) {
             clearInterval(timer);
-            state.textContent = job.error;
+            tell(state, problem);
+            open.disabled = false;
             resolve();
             return;
           }
-          state.textContent = say(job.message) || "Almost there…";
+          tell(state, say(job.message) || "Almost there…");
           if (job.stage === "done") {
             clearInterval(timer);
             window.location.href = keyed("/reader/" + job.reader.split("/").map(encodeURIComponent).join("/"));
@@ -969,7 +981,7 @@
   function build(open, entry) {
     var state = open.querySelector(".row-state");
     open.disabled = true;
-    state.textContent = "We're getting it ready…";
+    tell(state, "We're getting it ready…");
     ask("/prepare", {
       source: entry.source,
       // The language this reader reads into, not English by assumption. They read in
@@ -988,13 +1000,18 @@
       .then(function (job) {
         if (job.error) throw new Error(job.error);
         if (job.blocked) throw new Error(job.blocked);
-        state.textContent = "We're lining it up…";
-        return ask("/build", { id: job.id }).then(function () {
-          return watch(job.id, state);
+        // A price with no build in it — the server pointing at a catalogue row instead —
+        // is not something to press Build on: an empty id came back as a lost build.
+        if (!job.id) throw new Error("We couldn't start this one.");
+        tell(state, "We're lining it up…");
+        return ask("/build", { id: job.id }).then(function (started) {
+          if (started.error) throw new Error(started.error);
+          if (started.stage === "blocked") throw new Error(started.blocked);
+          return watch(job.id, state, open);
         });
       })
       .catch(function (problem) {
-        state.textContent = String(problem.message || problem);
+        tell(state, String(problem.message || problem));
         open.disabled = false;
       });
   }
