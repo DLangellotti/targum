@@ -29,12 +29,14 @@ hardest would put the licence back exactly where the corpus is thinnest.
 from __future__ import annotations
 
 import collections
+import threading
 from collections.abc import Iterator
 from typing import Any
 
 from ..errors import TargumError
 from ..models import Segment, Token
 from ..paths import model_dir
+from ..segment.pieces import at_spaces
 from ..segment.stanza_segmenter import stanza_code
 from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, root_of
 
@@ -69,8 +71,15 @@ TOKENS = 1024
 # be exact at the price of tokenizing every segment twice.
 CHARS_PER_TOKEN = 2
 
-# What the model reads of one segment; the rest is cut off, and pads nothing.
+# What the model reads of one call's sentence; the rest is cut off, and pads nothing.
 MAX_TOKENS = 512
+
+# The longest piece of a segment handed over, cut at a space. A segment past the model's
+# 512 tokens used to come back with its tail unread — no dictionary form, no card — and a
+# transcript nobody punctuated is all tail. 800 characters stays under 512 tokens even at
+# the fewest characters a token was counted at on the shelf (1.62), and a sentence is
+# nowhere near it, so only a runaway segment is ever cut.
+PIECE_CHARS = 800
 
 # What DICTA says when it has no lemma for a word.
 BLANK = "[BLANK]"
@@ -199,6 +208,12 @@ def _pieces_of(seg: list[str], lemma: str, suffix: Any) -> str | None:
 #: shares them rather than paying again.
 _LOADED: dict[str, tuple[Any, Any]] = {}
 
+#: One load and one call at a time, across every thread in the process. The build worker,
+#: the quote a request prices, and the chat's record all reach these weights, and each
+#: call can hold gigabytes while it runs: two at once is two spikes, and two loads racing
+#: is two copies. The chat's own lock serialised only the chat.
+_LOCK = threading.Lock()
+
 
 class DictaLemmatizer:
     """Hebrew through DICTA; anything else through the lemmatizer it is given.
@@ -239,6 +254,10 @@ class DictaLemmatizer:
         beside the weights instead of in the home directory — one place to back up, one
         place a box without a network has to have been given.
         """
+        with _LOCK:
+            return self._load()
+
+    def _load(self) -> tuple[Any, Any]:
         if self._model is None and MODEL in _LOADED:
             self._model, self._tokenizer = _LOADED[MODEL]
         if self._model is None:
@@ -274,36 +293,56 @@ class DictaLemmatizer:
         import torch
 
         model, tokenizer = self.model()
-        out: dict[str, list[Token]] = {}
+        # Every segment as the pieces the model reads whole: itself, unless it runs past
+        # `PIECE_CHARS`. Each piece keeps where it starts, so its words land back in place.
+        # A piece after the first starts at the space it was cut on, which is dropped, so
+        # the model's offsets are counted from the first letter it was actually given.
+        pieces = []
+        for segment in segments:
+            for start, end in at_spaces(segment.text, PIECE_CHARS):
+                text = segment.text[start:end]
+                lead = len(text) - len(text.lstrip()) if start else 0
+                pieces.append((segment.id, start + lead, text[lead:]))
+        out: dict[str, list[Token]] = {segment.id: [] for segment in segments}
         with torch.inference_mode():
-            for batch in _batches(segments):
-                read = model.predict(
-                    [segment.text for segment in batch], tokenizer, output_style="json"
-                )
-                for segment, said in zip(batch, read, strict=True):
-                    out[segment.id] = _tokens(said, self.tally)
+            for batch in _batches([text for _, _, text in pieces]):
+                with _LOCK:
+                    read = model.predict(
+                        [pieces[at][2] for at in batch], tokenizer, output_style="json"
+                    )
+                for at, said in zip(batch, read, strict=True):
+                    segment_id, start, _ = pieces[at]
+                    out[segment_id].extend(
+                        token.model_copy(
+                            update={"start": token.start + start, "end": token.end + start}
+                        )
+                        if start
+                        else token
+                        for token in _tokens(said, self.tally)
+                    )
         return out
 
 
 def _tokens_in(text: str) -> int:
-    """A high guess at how many tokens the model will read of one segment."""
+    """A high guess at how many tokens the model will read of one piece."""
     return min(MAX_TOKENS, len(text) // CHARS_PER_TOKEN + 2)
 
 
-def _batches(segments: list[Segment]) -> Iterator[list[Segment]]:
-    """Segments in the order they came, cut wherever the next would pad past `TOKENS`.
+def _batches(texts: list[str]) -> Iterator[list[int]]:
+    """Which texts go together, in the order they came, cut wherever the next would pad
+    past `TOKENS`.
 
     In order rather than sorted by length, so a text of short lines is handed over in
     exactly the batches it always was, and reads back exactly as it did.
     """
-    batch: list[Segment] = []
+    batch: list[int] = []
     longest = 0
-    for segment in segments:
-        size = _tokens_in(segment.text)
+    for at, text in enumerate(texts):
+        size = _tokens_in(text)
         if batch and (len(batch) == BATCH or (len(batch) + 1) * max(longest, size) > TOKENS):
             yield batch
             batch, longest = [], 0
-        batch.append(segment)
+        batch.append(at)
         longest = max(longest, size)
     if batch:
         yield batch
