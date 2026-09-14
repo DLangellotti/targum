@@ -18,6 +18,8 @@ states them, so the field is a claim that can be re-checked at `licence_url`:
   row on the next run rather than being remembered wrong.
 - `video:` — the curation record, which already carries all three (`video/store.py`).
 - `dialogue:` — targum's own writing, which `licensing.verdict` reads as nothing owed.
+- `storyweaver:` — the book's own attribution page, which states the footer licence and
+  every credit CC BY asks for (`ingest/fetch/storyweaver.py`).
 - `wikisource:` — the page's licence template, where it has one. The seven on the shelf
   have none, and they are left empty and listed rather than assumed public domain by
   selection, which is what `promote.py`'s table does and what this refuses to write down.
@@ -50,7 +52,7 @@ from urllib.parse import quote, urlencode, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum.catalogue import catalogue_path  # noqa: E402
-from targum.ingest.fetch import sefaria, siddur  # noqa: E402
+from targum.ingest.fetch import sefaria, siddur, storyweaver  # noqa: E402
 from targum.licensing import verdict  # noqa: E402
 from targum.video import store as video_store  # noqa: E402
 
@@ -235,6 +237,17 @@ def from_wikisource(source: str, fetch: Fetch) -> Terms | None:
     return Terms(found.licence, found.credit, page, found.rule)
 
 
+def from_storyweaver(source: str, fetch: Fetch) -> Terms | None:
+    number = storyweaver.book_id(source.split(":", 1)[1])
+    body = json.loads(fetch(storyweaver.READ.format(id=number)))
+    if not isinstance(body, dict) or not isinstance(body.get("data"), dict):
+        return None
+    read = storyweaver.terms_from(body["data"])
+    if not read.licence:
+        return None
+    return Terms(read.licence, read.credit, read.licence_url, "storyweaver")
+
+
 def from_video(source: str, videos: Path) -> Terms | None:
     record = videos / source.split(":", 1)[1] / "video.json"
     if not record.is_file():
@@ -261,6 +274,8 @@ def terms_for(source: str, fetch: Fetch, videos: Path, rendering: bool = False) 
         return from_siddur(source, fetch)
     if source.startswith("wikisource:"):
         return from_wikisource(source, fetch)
+    if source.startswith("storyweaver:"):
+        return from_storyweaver(source, fetch)
     if source.startswith("video:"):
         return from_video(source, videos)
     if source.startswith("dialogue:"):

@@ -125,6 +125,19 @@ def test_a_wikisource_page_that_says_nothing_is_left_empty(backfill) -> None:  #
     assert backfill.terms_for("wikisource:he:מגילת העצמאות", fetch, Path("/nowhere")) is None
 
 
+def test_a_storyweaver_book_is_read_off_its_own_attribution_page(backfill) -> None:  # type: ignore[no-untyped-def]
+    saved = Path(__file__).parent / "fixtures" / "storyweaver" / "7686.it.json"
+
+    def fetch(url: str) -> str:
+        assert url == "https://storyweaver.org.in/api/v1/stories/7686/read"
+        return saved.read_text(encoding="utf-8")
+
+    terms = backfill.terms_for("storyweaver:7686", fetch, Path("/nowhere"))
+    assert terms.licence == "CC BY 4.0" and terms.rule == "storyweaver"
+    assert terms.licence_url == "http://creativecommons.org/licenses/by/4.0/"
+    assert "translated by Silvia Lucchin" in terms.credit and "Rohini Nilekani" in terms.credit
+
+
 def test_an_unknown_family_is_none_rather_than_guessed(backfill) -> None:  # type: ignore[no-untyped-def]
     never = lambda url: pytest.fail(f"fetched {url}")  # noqa: E731
     assert backfill.terms_for("https://example.org/article", never, Path("/nowhere")) is None

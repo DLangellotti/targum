@@ -581,6 +581,10 @@ CREATE TABLE IF NOT EXISTS correction (
 """
 
 
+#: What a reader is told about a line targum was answering when it restarted.
+CHAT_RESTARTED = "We restarted while we were answering. Ask again."
+
+
 def now() -> int:
     """Milliseconds, because the client's own timestamps are `Date.now()`."""
     return int(time.time() * 1000)
@@ -2294,5 +2298,13 @@ class Store:
                 "UPDATE job SET stage = 'failed', error = ?, claimed = 0, length = 0 "
                 "WHERE stage = 'queued'",
                 ("targum restarted before this one started. Start it again.",),
+            )
+            # A conversation's turn is the same story in a different table. Its job row
+            # of kind `chat` was caught above, claim kept; the reader's line was not, and
+            # sat at "working" for good — a page that opened it again waited on a stream
+            # nobody would write (targum-internal#269). Every deploy restarts the box.
+            db.execute(
+                "UPDATE chat_turn SET stage = 'failed', error = ? WHERE stage = 'working'",
+                (CHAT_RESTARTED,),
             )
         return [row["id"] for row in rows]

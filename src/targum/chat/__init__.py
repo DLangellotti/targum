@@ -23,6 +23,16 @@ EFFORT = "low"
 #: called tools eight times is a loop, not a conversation.
 MAX_STEPS = 8
 
+#: How long one turn may run, all its round trips and tools together, before it is ended
+#: and the reader told. Nothing ended a turn: on 2026-09-14 a reader could not tell a slow
+#: one from a dead one (targum-internal#271). A search-and-describe turn takes about two
+#: minutes, so four is room for a slow one and not a wait anybody sits through. The page
+#: stops waiting a little after this (`GIVE_UP_MS` in `chat.js`).
+TURN_DEADLINE_S = 240.0
+
+#: What the reader is told about a turn that ran out of time.
+TURN_TOO_LONG = "We took too long to answer that. Try again."
+
 #: Threads answering turns. Their own pool rather than `Library.queue`: a turn behind a
 #: novel is a broken chat, and a novel behind a turn is a broken build. Capped, because
 #: `ThreadingHTTPServer` spawns request threads without limit and a turn holds one of
