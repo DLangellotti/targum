@@ -4642,6 +4642,9 @@ var targumReader = function () {
   function title() {
     return (documentTitle || document.title || "targum")
       .replace(/[^\w\u0080-\uffff -]+/g, "")
+      // The tab title isolates its Hebrew (U+2066 to U+2069, 2026-09-14); a file name
+      // has no use for the marks.
+      .replace(/[\u2066-\u2069]/g, "")
       .trim();
   }
 
@@ -8720,7 +8723,7 @@ var targumReader = function () {
     var gets = Array.prototype.slice.call(document.querySelectorAll(".player-get, .more-get"));
     var get = gets[0];
     if (get) {
-      var named = (document.title || "dialogue").replace(/[\\/:*?"<>|]/g, "").trim();
+      var named = (document.title || "dialogue").replace(/[\\/:*?"<>|\u2066-\u2069]/g, "").trim();
       /* Named for what it actually is. The build inlines whatever the scene was voiced
          as, so a suffix written into the page rather than read off it hands the reader a
          file their machine opens with the wrong thing. */
