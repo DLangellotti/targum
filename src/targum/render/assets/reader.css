@@ -1706,6 +1706,32 @@ body[data-case="Loc"] .w.case-Loc {
     block-size: max(100%, 44px);
     transform: translateY(-50%);
   }
+
+  /* The ones the audit of 2026-09-14 found under 44px with no reach at all: the copy and
+     hear keys on every card line, the grab that closes every phone sheet, the words tab,
+     Keep on a phrase, the pager's links, a weekly's level links, look it up, a note's
+     Save, Translate on a waiting chapter and Undo under the rest. Reached both ways — the
+     earlier reach grew height only, so a 22px key stayed 22px wide under a thumb — and
+     centred on the key by its margins, which needs no left or right. */
+  /* The grab and the words tab are already placed (sticky, fixed), and a `position` here
+     would unplace them; the rest are given one. */
+  :is(
+    .copy, .hear, .pick-card button, .pager a, .bar .levels .level,
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+  ) {
+    position: relative;
+  }
+  :is(
+    .copy, .hear, .grab, .list-tab, .pick-card button, .pager a, .bar .levels .level,
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+  )::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    inline-size: max(100%, 44px);
+    block-size: max(100%, 44px);
+  }
 }
 
 /* --- source only --------------------------------------------------------- */

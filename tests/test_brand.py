@@ -287,6 +287,22 @@ THUMBED = (
     # And the switch between renderings in the bar (2026-09-07, targum-internal#199):
     # Onkelos or English, on a text that carries both.
     ".renderings .rendering",
+    # And the keys the audit of 2026-09-14 found with no reach: copy and hear on a card
+    # line, the sheet's grab, the words tab, Keep on a phrase, the pager, a weekly's level
+    # links, look it up, a note's Save, Translate on a waiting chapter, Undo under the
+    # rest, and the press that starts a build from a Library row.
+    ".copy",
+    ".hear",
+    ".grab",
+    ".list-tab",
+    ".pick-card button",
+    ".pager a",
+    ".bar .levels .level",
+    ".gloss-card .look-up",
+    ".vocab-editor .note-save",
+    ".waiting-note button",
+    '.rest [id="rest-undo"]',
+    ".rows > li > .row-go",
 )
 
 
