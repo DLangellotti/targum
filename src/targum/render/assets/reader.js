@@ -7876,6 +7876,10 @@ var targumReader = function () {
   var pager = document.querySelector(".pager[data-chapter]");
   var link = pager && pager.querySelector("[data-next]");
   if (!link) return;
+  // Not from a part still waiting to be heard. Its page is a clock and nothing else, so
+  // it is "most of the way through" the moment it opens, and every waiting part a reader
+  // looked at bought the one after it — ahead of the part they came to press for.
+  if (document.querySelector("#waiting-note[data-audio]")) return;
   // Its own, because this is its own scope: it read `passKey` and called `keyed` across
   // the boundary, and neither was ever in reach. No key hosted, where the session cookie
   // identifies the reader; a key locally. This used to stop when there was no key — so

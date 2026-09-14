@@ -5545,28 +5545,68 @@ class Handler(BaseHTTPRequestHandler):
         self._json(job.state())
 
     def _buy_parts(self, folder: Path, number: int, whole: bool, target: str) -> None:
-        """Queue the hearing of one part — or of every part still waiting."""
-        from .ingest.audio import refined_path
+        """Queue the hearing of one page's parts — or of every page still waiting.
+
+        `number` is the page's, as it is for any book: the reader and the contents page
+        both send the section they show, and a part that ran long fills two of them.
+
+        Ready is what the page can show, never whether a transcript is on disk. This
+        answered `ready` to any part that had been heard, and the page reloaded itself
+        onto the same "not transcribed yet" — pressed again and again, nothing happened —
+        whenever the hearing had landed and the rest had not: a build still translating
+        it, the next-part prefetch that bought it a minute before the press, or a build
+        the box killed at the words, which left the transcript, the segments and even
+        the translation behind a page that was never rewritten. Rebuilding around a
+        transcript already heard spends nothing; its hearing and its English are cached.
+        """
+        from .models import SegmentedDocument, read_artifact
+        from .render.builder import split_sections
 
         try:
             data = json.loads((folder / "document.json").read_text(encoding="utf-8"))
             source = str(data.get("source") or "")
         except (OSError, json.JSONDecodeError):
             source = ""
-        if not source:
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if not source or segmented is None:
             return self._json({"error": "not found"}, 404)
         plan = json.loads((folder / "audio" / "parts.json").read_text(encoding="utf-8"))
-        waiting = [
-            int(span.get("number") or 0)
-            for span in plan.get("parts") or []
-            if not refined_path(folder / "audio", int(span.get("number") or 0)).exists()
-        ]
-        buying = waiting if whole else [number]
-        if not whole and number not in {int(s.get("number") or 0) for s in plan.get("parts") or []}:
-            return self._json({"error": "not found"}, 404)
-        if not whole and number not in waiting:
+        known = {int(span.get("number") or 0) for span in plan.get("parts") or []}
+        sections = split_sections(segmented)
+        by_id = {segment.id: segment for segment in segmented.segments}
+        ready = {c["number"]: c["ready"] for c in self.library.chapters(folder, target)}
+
+        if whole:
+            pages = [section for section in sections if not ready.get(section.number, True)]
+        else:
+            page = next((section for section in sections if section.number == number), None)
+            if page is None:
+                return self._json({"error": "not found"}, 404)
+            pages = [page]
+        buying = sorted({n for one in pages for n in _parts_on(one, by_id)} & known)
+        if not buying:
             return self._json({"ready": True})
-        if whole and not waiting:
+
+        # Already on its way: the press waits on that build rather than queueing a second
+        # one behind it, or being told `ready` while it is still translating.
+        home = self._home()
+        coming: dict[int, Job] = {}
+        for job in self.library.jobs.waiting(now() - self.library.RECENT_MS):
+            if job.stage not in ("queued", "working") or job.home != home:
+                continue
+            if job.options.get("folder") != folder.name:
+                continue
+            for n in job.options.get("parts") or []:
+                coming.setdefault(int(n), job)
+        if all(n in coming for n in buying):
+            return self._json(coming[buying[0]].state())
+        buying = [n for n in buying if n not in coming]
+
+        if (
+            not whole
+            and ready.get(number)
+            and not _still_waiting(folder / "reader" / pages[0].filename)
+        ):
             return self._json({"ready": True})
 
         person = self._person()
@@ -5576,7 +5616,7 @@ class Handler(BaseHTTPRequestHandler):
             options={"parts": buying, "folder": folder.name, "to": target},
             owner=person.id if person else None,
             admin=bool(person and person.admin),
-            home=self._home(),
+            home=home,
         )
         blocked = self.library.already_over(job)
         if blocked:
@@ -6209,6 +6249,27 @@ def _spelled_like(root: Path, folder: str) -> str | None:
     except OSError:
         return None
     return found[0] if len(found) == 1 else None
+
+
+def _parts_on(section: Any, by_id: Mapping[str, Any]) -> set[int]:
+    """Which parts of a recording one page holds, from its segments' refs — "part 3",
+    "part 3:2", "part 3:waiting" — rather than by assuming page three is part three."""
+    found: set[int] = set()
+    for sid in section.segment_ids:
+        segment = by_id.get(sid)
+        head = segment.ref.split(":", 1)[0] if segment is not None else ""
+        if head.startswith("part ") and head[5:].isdigit():
+            found.add(int(head[5:]))
+    return found
+
+
+def _still_waiting(page: Path) -> bool:
+    """Whether the page on disk still says its part is waiting. A page that is missing
+    is waiting too: there is nothing there to read."""
+    try:
+        return 'id="waiting-note"' in page.read_text(encoding="utf-8")
+    except OSError:
+        return True
 
 
 def default_store() -> Path:

@@ -555,3 +555,132 @@ def test_the_hosted_door_takes_one_video_and_never_a_channel(tmp_path: Path, mon
         library.prepare(job)
         assert job.stage == "failed", address
         assert "one video at a time" in job.error, address
+
+
+"""--- the part door ---"""
+
+TALK = "the winter came early. nobody remembered a colder one. the river froze."
+
+
+def talk(out: Path, fake_audio, parts: int = 3, heard: NullTranscriber | None = None) -> Build:
+    """A recording of `parts` twelve-minute parts, built where a signed-out press looks."""
+    fake_audio.duration = 720.0 * parts
+    fake_audio.pauses = [(720.0 * n - 1.0, 720.0 * n + 1.0) for n in range(1, parts)]
+    source = out.parent / "talk.mp3"
+    source.write_bytes(b"audio")
+    return Build(
+        str(source),
+        target_language="en",
+        source_language="en",
+        provider_name="null",
+        segmenter=SplitsOnFullStops(),
+        transcriber=heard or NullTranscriber(text=TALK, language="en"),
+        out_root=out / "local",
+    )
+
+
+def press(port: int, token: str, folder: Path, number: int):
+    body = json_module.dumps({"name": folder.name, "number": number}).encode()
+    return raw(port, f"/chapter?k={token}", body, "application/json")
+
+
+def test_a_part_heard_by_a_build_that_died_is_rebuilt_not_called_ready(
+    served, fake_audio, monkeypatch
+) -> None:
+    """The transcript landed and the build did not: the box killed it at the words. The
+    door answered `ready` because the transcript was on disk, the page reloaded onto the
+    same "not transcribed yet", and every press after that did nothing at all."""
+    from targum.ingest.audio import refined_path
+
+    port, token, out = served
+    build = talk(out, fake_audio)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    assert build.transcribe_parts([2])
+    assert refined_path(folder / "audio", 2).exists()
+
+    queued: list[Job] = []
+    enqueue = Library.enqueue
+    monkeypatch.setattr(
+        Library, "enqueue", lambda self, job: (queued.append(job), enqueue(self, job))
+    )
+    status, job = press(port, token, folder, 2)
+    assert status == 200
+    assert job.get("id"), job
+    assert job["stage"] == "queued"
+
+    # And the build it queued writes the page, without hearing the part a second time.
+    engine = NullTranscriber(text=TALK, language="en")
+    monkeypatch.setattr(Library, "_builder", lambda self, job: talk(out, fake_audio, heard=engine))
+    Library(out).run(queued[0])
+    assert queued[0].stage == "done", queued[0].error
+    assert 'id="waiting-note"' not in (folder / "reader" / "sec-0002.html").read_text(
+        encoding="utf-8"
+    )
+    assert engine.spent.calls == 0
+
+
+def test_a_part_whose_page_was_never_rewritten_is_rebuilt(served, fake_audio) -> None:
+    """Heard and translated, and still the old page: the build died after the English
+    was written and before the reader was. Every artifact says ready; the page is what
+    the reader sees."""
+    port, token, out = served
+    build = talk(out, fake_audio)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    stale = (folder / "reader" / "sec-0002.html").read_text(encoding="utf-8")
+    assert 'id="waiting-note"' in stale
+
+    talk(out, fake_audio).run(chapters=1, also=[2])
+    (folder / "reader" / "sec-0002.html").write_text(stale, encoding="utf-8")
+
+    status, job = press(port, token, folder, 2)
+    assert status == 200 and job.get("id"), job
+    status, answer = press(port, token, folder, 1)
+    assert answer == {"ready": True}, "part one's page is up to date"
+
+
+def test_a_second_press_waits_on_the_build_already_coming(served, fake_audio) -> None:
+    """A press while the part is on its way — its own first press, or the prefetch that
+    bought it — follows that build rather than queueing another behind it."""
+    port, token, out = served
+    build = talk(out, fake_audio)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    _status, first = press(port, token, folder, 2)
+    _status, second = press(port, token, folder, 2)
+    assert first["id"] and second["id"] == first["id"]
+    _status, third = press(port, token, folder, 3)
+    assert third["id"] != first["id"], "another part is another build"
+
+
+def test_a_press_buys_the_part_on_its_page_not_the_part_with_its_number(
+    served, fake_audio, monkeypatch
+) -> None:
+    """The page sends its own number. A part that runs long fills two pages, and from
+    there on page three is part two — the door bought part three."""
+    from targum.models import SegmentedDocument, read_artifact
+    from targum.render import builder as builder_module
+
+    monkeypatch.setattr(builder_module, "MAX_SEGMENTS_PER_SECTION", 3)
+    port, token, out = served
+    build = talk(out, fake_audio)
+    build.run(chapters=1)
+    folder = build.resolved_out
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    assert segmented is not None
+    by_id = {segment.id: segment for segment in segmented.segments}
+    page = next(
+        section
+        for section in builder_module.split_sections(segmented)
+        if any(by_id[sid].ref == "part 2:waiting" for sid in section.segment_ids)
+    )
+    assert page.number != 2, "part one runs over two pages"
+
+    queued: list[Job] = []
+    enqueue = Library.enqueue
+    monkeypatch.setattr(
+        Library, "enqueue", lambda self, job: (queued.append(job), enqueue(self, job))
+    )
+    press(port, token, folder, page.number)
+    assert [job.options["parts"] for job in queued] == [[2]]

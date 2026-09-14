@@ -360,7 +360,7 @@
     out rather than shipped empty — a column of blank paragraphs said nothing about
     why, and read as a page that had broken. -#}
 {% if not translated and not standalone %}
-<div class="waiting-note" id="waiting-note" dir="ltr" data-chapter="{{ section.number }}">
+<div class="waiting-note" id="waiting-note" dir="ltr" data-chapter="{{ section.number }}"{% if audio_waiting %} data-audio{% endif %}>
   {#- An imported recording's part that nobody has bought is waiting on a transcript,
       not on a translation, and a button that names the wrong work makes a promise the
       click will not keep. -#}

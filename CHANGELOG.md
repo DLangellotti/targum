@@ -108,6 +108,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- Transcribe on part two, three or four of an upload does something. The part door
+  answered "ready" whenever the part's transcript was on disk, and the page reloaded onto
+  the same "not transcribed yet". That happened whenever the hearing had landed and the
+  page had not: a build still translating the part, a build the box killed at the words,
+  or the next-part prefetch, which fired the moment a waiting part's page opened and
+  bought the part after it. The door now asks whether the page can show the part, follows
+  a build already on its way, and rebuilds a heard part without paying for it again. It
+  also buys the part on the page pressed rather than the part with the page's number, and
+  a waiting part's page no longer buys the next one. A part that was heard but never
+  translated had a Translate button that went to the same door and did nothing too.
+- A whisper transcript no longer loses stretches of speech. A segment was dropped as
+  invented whenever its no-speech probability passed 0.6, and on Hebrew that number runs
+  high over plain speech: on a ten-minute interview two minutes read 0.90–0.98 while
+  whisper was sure of every word, and 463 of 1,283 words were thrown away. A segment is
+  now dropped only when whisper is also unsure of it, as its own decoder does. Parts
+  already transcribed keep their gaps until they are heard again.
 - Learn opens without a long blank wait. The page draws once the shelf answers, and the
   shelf re-read every text's document, segments, translations, annotation and audio
   manifest on every request: 65 MB of JSON for a shelf of 163, 31.5 s on the live box once
