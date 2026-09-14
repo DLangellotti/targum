@@ -63,10 +63,43 @@
     tellReading();
   });
 
+  // Which language the page holding the drawer is in, and so which conversation the
+  // drawer shows (2026-09-14). The frame loads once and stays up, and the pages switch
+  // language in place, so the conversation read the language for itself as it loaded and
+  // was then one switch behind the page for as long as the page was open: Italian under
+  // a Hebrew header, and "Write in Hebrew" under an Italian one. Every page says its
+  // language with `targum:language` as it settles and when the menu changes it; the
+  // drawer is told the same, as it loads and after.
+  var language = "";
+  function holding() {
+    if (language) return language;
+    var lang = window.TargumLang;
+    return lang && lang.learning ? lang.current(lang.learning()) : "";
+  }
+  function tellLanguage() {
+    var code = holding();
+    if (!code || !loaded || !frame.contentWindow) return;
+    try {
+      frame.contentWindow.postMessage({ type: "targum:language", code: code }, window.location.origin);
+    } catch (e) {
+      /* the frame is not ours yet; its load will be told */
+    }
+  }
+  window.addEventListener("targum:language", function (event) {
+    var code = event && event.detail;
+    if (typeof code !== "string" || !code || code === language) return;
+    language = code;
+    tellLanguage();
+  });
+  frame.addEventListener("load", tellLanguage);
+
   function load() {
     if (loaded) return;
     loaded = true;
-    frame.setAttribute("src", frame.getAttribute("data-src") || keyed("/chat?embed=1"));
+    var src = frame.getAttribute("data-src") || keyed("/chat?embed=1");
+    var code = holding();
+    if (code) src += (src.indexOf("?") < 0 ? "?" : "&") + "language=" + encodeURIComponent(code);
+    frame.setAttribute("src", src);
   }
 
   var leaving = null;

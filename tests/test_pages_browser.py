@@ -1524,6 +1524,61 @@ def test_the_pages_in_front_of_the_door_stand_on_the_desk(browser, tmp_path: Pat
         )
 
 
+def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
+    """The drawer's frame loads once and stays up, and Learn switches language in place.
+    The conversation read the language for itself as it loaded, so it was one switch
+    behind the page: Italian under a Hebrew header, "Write in Hebrew" under an Italian
+    one (2026-09-14). It follows the page now, as it opens and after."""
+    html = learn_page(TOKEN)
+    asked: list[str] = []
+
+    def answer(route, request):
+        u = request.url
+        if "embed=1" in u:
+            route.fulfill(status=200, content_type="text/html", body=chat_page(TOKEN, embed=True))
+            return
+        if "/chat/list" in u:
+            asked.append(u.split("language=")[1].split("&")[0] if "language=" in u else "")
+            body: dict = {"chats": [], "usable": True, "talk": True, "chips": []}
+        elif "/readers" in u:
+            body = {"readers": [], "shared": [], "trash": []}
+        elif "/account/me" in u:
+            body = {"signedIn": False}
+        elif "/words/common" in u:
+            body = {"words": [], "offset": 0, "next": None, "into": "en"}
+        elif u.split("?")[0].endswith("/learn"):
+            route.fulfill(status=200, content_type="text/html", body=html)
+            return
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "localStorage.setItem('targum:learning', JSON.stringify(['he', 'it']));"
+        "localStorage.setItem('targum:language', 'he');"
+    )
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/learn?k={TOKEN}")
+    page.wait_for_timeout(300)
+    page.click("#talk-open")
+    talk = page.frame_locator("#talk-frame")
+    field = talk.locator("#say")
+    field.wait_for()
+    page.wait_for_timeout(300)
+    hebrew = field.get_attribute("placeholder")
+    # The page changes language in place, the way Learn's menu does.
+    page.evaluate("() => window.TargumLang.remember('it')")
+    page.wait_for_timeout(400)
+    italian = field.get_attribute("placeholder")
+    context.close()
+    assert hebrew == "Write in Hebrew or English", hebrew
+    assert italian == "Write in Italian or English", italian
+    # Learn asks for its own chips without a language; the drawer asks in the page's.
+    assert [code for code in asked if code] == ["he", "it"], asked
+
+
 def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
     """2026-09-11: ⌘K opens one field; typing narrows it to places, texts on the shelf,
     the catalogue's rows and conversations; arrows move and Enter goes. A text opens its
