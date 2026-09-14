@@ -7,6 +7,7 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
 {{ hebrew_face() }}
+{{ chrome_face() }}
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="signin">
@@ -21,6 +22,10 @@
     <span>targum</span>
   </a>
 
+  {#- The door itself is a card on the desk (§13, 2026-09-14): the lockup and the foot
+      stand on the ground around it, the way the places and the footer do on every page
+      behind it. -#}
+  <div class="door">
   {% if landing %}
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}
@@ -57,6 +62,7 @@
   {% endif %}
 
   <p class="said sent" id="sent" role="status" hidden></p>
+  </div>
 
   {#- The foot the rest of the site has. Not navigation — there is still nothing to
       navigate to from out here — but somebody handing an address over deserves to read

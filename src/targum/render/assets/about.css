@@ -1,15 +1,16 @@
 /* That targum is under construction, and thirty days of evidence that it is.
 
    The page was a wall of information — what it does, what shipped, what it cannot do
-   yet — and is now four things. §9's hue budget holds easily: paper and ink carry it,
-   and the only colour is leaf on the calendar, which §4 gives to progress. */
+   yet — and is now four things. §9's hue budget holds easily: the desk and ink carry it
+   (§13, since 2026-09-14, as the pages behind the door are), and the only colour is leaf
+   on the calendar, which §4 gives to progress, and teal on the one link. */
 
 body.about {
   margin: 0;
-  padding: 0 1.5rem 4rem;
-  background: var(--paper);
+  padding: 0 1rem 4rem;
+  background: var(--ground);
   color: var(--ink);
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
 }
 
 .about .corner {
@@ -22,62 +23,80 @@ body.about {
 }
 /* A call to action is ink (§9). */
 .about .corner .enter {
-  padding: 0.4rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.25rem;
+  padding: 0.4rem 1rem;
   border-radius: 999px;
   background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
   color: var(--page-max, #fffdf9);
   font-weight: 600;
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   text-decoration: none;
 }
 .about .corner [data-theme-toggle] {
-  border: 1px solid var(--rule);
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
-  padding: 0.35rem 0.5rem;
   background: none;
   color: var(--ink-soft);
   cursor: pointer;
 }
+.about .corner [data-theme-toggle]:hover { color: var(--ink); background: var(--teal-wash); }
 
-.sheet { max-width: 40rem; margin: 0 auto; padding-block-start: 4.5rem; }
+/* The wordmark on the ground, and what it says on a card under it. */
+/* `main`'s own padding in reader.css is the reader's measure, not this page's; the body
+   keeps the gutter, so the card, the wordmark and the foot share one edge. */
+.sheet { max-width: 40rem; margin: 0 auto; padding: 4.5rem 0 0; }
+.about .card {
+  padding: 1.5rem 1.25rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
 
 .about .brand {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  margin-block-end: 2.5rem;
+  margin-block-end: 1.25rem;
+  margin-inline-start: 0.25rem;
   color: var(--ink);
   text-decoration: none;
   font-family: var(--reading);
   font-weight: 600;
-  font-size: 1.0625rem;
+  font-size: 1.25rem;
   letter-spacing: -0.01em;
 }
 .about .brand-mark { width: 0.85em; height: 1.1em; }
 
 .about h1 {
   margin: 0 0 0.8rem;
-  font-family: var(--reading);
-  font-size: 1.75rem;
-  font-weight: 600;
+  font-family: var(--chrome);
+  font-size: 1.5rem;
+  font-weight: 700;
   line-height: 1.25;
+  text-wrap: balance;
 }
 /* §4 rations the accent to the single primary action in a view. On a page that is
    nothing but prose, putting it on every inline link made the accent the body-text
    colour — the one thing §10 names outright. The corner button keeps it. */
-.about a {
-  color: var(--ink);
+.about .card a {
+  color: var(--teal);
   text-decoration: none;
-  border-block-end: 1px solid var(--rule);
 }
-.about a:hover { border-block-end-color: var(--ink-soft); }
+.about .card a:hover { text-decoration: underline; }
 
 /* The count, and then the thirty days it is made of. */
-.figures { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.8125rem; }
+.figures { margin: 0 0 1rem; color: var(--ink-soft); font-size: 0.9375rem; }
 .figures b {
   color: var(--ink);
   font-size: 1.5rem;
-  font-family: var(--reading);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -97,9 +116,9 @@ body.about {
   background: var(--rule);
 }
 .day.level-0 { background: var(--rule); }
-.day.level-1 { background: color-mix(in srgb, var(--leaf) 32%, var(--paper)); }
-.day.level-2 { background: color-mix(in srgb, var(--leaf) 55%, var(--paper)); }
-.day.level-3 { background: color-mix(in srgb, var(--leaf) 78%, var(--paper)); }
+.day.level-1 { background: color-mix(in srgb, var(--leaf) 32%, var(--card)); }
+.day.level-2 { background: color-mix(in srgb, var(--leaf) 55%, var(--card)); }
+.day.level-3 { background: color-mix(in srgb, var(--leaf) 78%, var(--card)); }
 .day.level-4 { background: var(--leaf); }
 
 .key {
@@ -108,27 +127,29 @@ body.about {
   gap: 4px;
   margin: 0.6rem 0 0;
   color: var(--ink-soft);
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
 }
 .key i { width: 11px; height: 11px; display: block; }
 .key .less { margin-inline-end: 0.2rem; }
 .key .more { margin-inline-start: 0.2rem; }
 
-.log-more { margin: 2rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.log-more { margin: 1.5rem 0 0; font-size: 0.9375rem; color: var(--ink-soft); }
 
 /* The foot the rest of the site carries. This page had none, so nothing on it reached
    the terms — and the inline-link rule above would have underlined every item in it. */
 .about .foot {
   max-width: 40rem;
-  margin: 3rem auto 0;
+  margin: 1.5rem auto 0;
+  padding-inline: 0.25rem;
   display: flex;
   flex-wrap: wrap;
-  gap: 1.2rem;
+  gap: 0.4rem 1.2rem;
   color: var(--ink-soft);
-  font-size: 0.6875rem;
+  font-size: 0.8125rem;
 }
+.about .foot > * { white-space: nowrap; }
 .about .foot a {
   color: var(--ink-soft);
-  border-block-end: none;
+  text-decoration: none;
 }
 .about .foot a:hover { color: var(--ink); }
