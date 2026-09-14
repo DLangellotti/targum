@@ -180,7 +180,9 @@
 
   function drawEnglishToggle() {
     if (!englishToggle) return;
-    englishToggle.textContent = englishOpen ? "Hide English" : "Show English";
+    // "Translations", not "English": the line under the Hebrew is in whichever language
+    // the reader reads into, Russian as often as English (2026-09-14).
+    englishToggle.textContent = englishOpen ? "Hide translations" : "Show translations";
     englishToggle.setAttribute("aria-pressed", englishOpen ? "true" : "false");
     englishToggle.hidden = !turns.querySelector(".chat-pair") || !hasKnown();
   }
@@ -463,7 +465,7 @@
           // A tap on the pair — not on a word, which has a card of its own — opens
           // or folds its English. Reachable from a keyboard as a control is.
           pair.setAttribute("tabindex", "0");
-          pair.setAttribute("title", "The English");
+          pair.setAttribute("title", "The translation");
           pair.onclick = function (event) {
             var hit = event && event.target;
             if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
@@ -654,6 +656,11 @@
       return;
     }
     if (!text) return;
+    // Kept in the box while an answer is still coming, or while the conversation cannot
+    // answer: the line used to be cleared first and then dropped without a word
+    // (2026-09-14).
+    if (busy) return tell("We're still answering. Send it when the answer is in.");
+    if (!usable) return say(text);
     field.value = "";
     say(text);
   }

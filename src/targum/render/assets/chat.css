@@ -349,17 +349,21 @@ body.chat > .chat-main {
 .chat-sum .note { margin: 0; font-size: 0.8125rem; color: var(--clay); }
 .chat-sum .note:empty { display: none; }
 
-.chat-turn .chat-pair.recast .chat-en::before {
+/* The label over the recast itself, on its own line (2026-09-14). It stood at the start
+   of the English line under the Hebrew, at the far edge from it, and "CORRECTED I want to
+   read…" read as if the English were the correction. */
+.chat-turn .chat-pair.recast::before {
   content: "you said";
-  margin-inline-end: 0.5em;
+  font-family: var(--chrome);
   font-size: 0.6875rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  color: var(--ink-soft);
 }
 /* A recast that changed something says so in the label, and the words that changed
    carry a mark — the state in words as well as ink (§4). Why, from the model's one
    "~ " line, is folded under it and opened by a tap (targum-internal#242). */
-.chat-turn .chat-pair.recast.corrected .chat-en::before { content: "corrected"; }
+.chat-turn .chat-pair.recast.corrected::before { content: "corrected"; }
 .chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
 .chat-turn .chat-pair .chat-why {
   font-size: 0.8125rem;

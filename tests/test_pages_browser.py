@@ -917,7 +917,7 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
             "reader": "x/reader/index.html",
         },
         {"id": "words", "line": "Use my new words"},
-        {"id": "stuck", "line": "Explain a word I am stuck on"},
+        {"id": "stuck", "line": "Explain a word I'm stuck on"},
     ]
     readers = [
         {

@@ -54,8 +54,9 @@
   function remember(code) {
     set(code);
     if (window.TargumSync && typeof window.TargumSync.language === "function") {
-      window.TargumSync.language(code);
+      return window.TargumSync.language(code);
     }
+    return null;
   }
 
   function into(code) {
@@ -308,8 +309,7 @@
       item.addEventListener("click", function () {
         close();
         if (code === chosen) return;
-        remember(code);
-        onPick(code);
+        onPick(code, remember(code));
       });
       panel.appendChild(item);
     });
@@ -377,8 +377,15 @@
     if (!host || host.children.length) return;
     var codes = learning();
     var names = window.TARGUM_LANGUAGES || {};
-    switcher(host, codes, names, current(codes), function () {
-      window.location.reload();
+    // Reloaded once the account has the new language, not before: the page asks the
+    // server for this language's conversations, and a reload that raced the save was
+    // answered in the old one and drew an empty list (2026-09-14).
+    switcher(host, codes, names, current(codes), function (code, saved) {
+      var reload = function () {
+        window.location.reload();
+      };
+      if (saved && typeof saved.then === "function") saved.then(reload, reload);
+      else reload();
     });
   }
   if (typeof document !== "undefined" && document.addEventListener) {

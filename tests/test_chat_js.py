@@ -1045,7 +1045,7 @@ def test_the_english_is_folded_under_the_hebrew_and_the_recast_is_open() -> None
     page = said(ledger=KNOWN)
     assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
     assert [p["recast"] for p in page["pairs"]] == [True, False, False]
-    assert not page["english"]["hidden"] and page["english"]["text"] == "Show English"
+    assert not page["english"]["hidden"] and page["english"]["text"] == "Show translations"
 
 
 def test_a_reader_with_no_known_words_sees_the_english_open() -> None:
@@ -1064,7 +1064,7 @@ def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
 def test_show_english_opens_all_of_it_and_is_remembered() -> None:
     page = said(ledger=KNOWN, then=[{"type": "english"}])
     assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
-    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide English"
+    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide translations"
     assert page["english"]["kept"] == "open"
     remembered = said(ledger=KNOWN, stored={"targum:chat-english": "open"})
     assert [p["enHidden"] for p in remembered["pairs"]] == [False, False, False]
@@ -1358,7 +1358,7 @@ def test_the_chips_start_with_a_verb() -> None:
             {"line": "Use my new words"},
             {"line": "Show me what I know"},
             {"line": "Read today's news"},
-            {"line": "Explain a word I am stuck on"},
+            {"line": "Explain a word I'm stuck on"},
         ]
     ]
     assert all(

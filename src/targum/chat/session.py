@@ -667,7 +667,7 @@ class Chats:
                 chips.append({"id": "know", "line": "Show me what I know"})
         if any(one.feed for one in sources_module.load()):
             chips.append({"id": "news", "line": "Read today's news"})
-        chips.append({"id": "stuck", "line": "Explain a word I am stuck on"})
+        chips.append({"id": "stuck", "line": "Explain a word I'm stuck on"})
         return chips
 
     #: What the page says for the reader when the first chip is pressed, and what
