@@ -1031,8 +1031,8 @@ targum-internal #168.
 
 The band at the foot of a narrow window was built on one rule: a control fixed over a
 page of text takes its room out of the layout, never out of the reading. The sheet, the
-keys, the menu and the video panel still do. A word's card and a phrase's chip no longer
-do. They are drawn over the page, the strip, the arrows and the sheet, and the page is
+keys and the video panel still do. A word's card and a phrase's chip no longer do, and
+since 2026-09-14 neither does the menu behind ⋯ (below). They are drawn over the page, the strip, the arrows and the sheet, and the page is
 not laid out again for them.
 
 The rule was right for the things that stay and wrong for the thing that lasts a moment.
@@ -1042,6 +1042,16 @@ in front of the reader changed twice for one look at one meaning, and the reader
 (targum-internal#155): the screen must not move, and the words on it must not change
 until they turn the page. A card over the last lines of a page is a card they can pull
 down. A page that moves under their finger is not something they can do anything about.
+
+### The menu behind ⋯ covers the page too — 2026-09-14
+
+The same reasoning, one visit later. Opening ⋯ on a phone laid the chapter out again for
+the menu's height: Genesis 1 at 375×667 went from 26 pages to 31, and "1 of 31" and the
+arrows then sat over the verse being read (the Hebrew-first audit, R-02;
+targum-internal#273). The menu is a visit like the card: open it, change a setting or
+don't, put it away. So it is drawn over the page, the strip, the arrows and the sheet,
+and the page is laid out again only if a setting inside it changes the page, as Type and
+"Pages, or one long scroll" do. A tap on the page still puts it away.
 
 ### A daily page carries an artefact, not an invented face — 2026-09-01
 

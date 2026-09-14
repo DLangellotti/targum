@@ -4255,15 +4255,18 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "seatFoot();" in room, "measured before the things it lifts are"
     # The occupants count on a narrow window only, and everything at the foot is
     # measured where it will stand once it has stopped moving, not mid-flight.
-    # The residents, not the overlays: a word's card and a phrase's chip are drawn over
-    # the page and take nothing out of it — §12's 2026-09-03 entry, targum-internal#155.
+    # The residents, not the overlays: a word's card, a phrase's chip and the menu are
+    # drawn over the page and take nothing out of it — §12's 2026-09-03 entry,
+    # targum-internal#155, and for the menu 2026-09-14, targum-internal#273.
     assert "if (!roomy.matches) {" in room and "residents().forEach" in room
     assert "occupants()" not in script, "the card is not measured with the residents"
-    assert "return [listBox, keysCard, more, videoPanel];" in script
-    assert "return [card, chip];" in script
+    assert "return [listBox, keysCard, videoPanel];" in script
+    assert "return [card, chip, more];" in script
     assert room.count("settledTop(thing, false)") == 1
     assert room.count("settledTop(thing, true)") == 1
-    assert "\n  .gloss-card, .pick-card { z-index: 30; }\n" in phone, "over the strip and the tab"
+    over = "\n  .gloss-card, .pick-card, .bar-more.open { z-index: 30; }\n"
+    assert over in phone, "over the strip and the tab"
+    assert ".bar:has(.bar-more.open) { z-index: 30; }" in phone, "the menu's bar rises with it"
     # One occupant at a time, and the sheet left standing under a card.
     assert "function occupy(which)" in script and "function vacate(which)" in script
     assert 'if (open) occupy("list");' in script

@@ -2470,6 +2470,8 @@ def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> Non
         assert page.locator(control).is_visible(), control
     # The audio's own address reached the menu's copy too, or "save" would save nothing.
     assert page.get_attribute(".more-get", "href"), "the menu's copy knows the audio"
+    # The menu is drawn over the strip (targum-internal#273), so it is put away first.
+    page.click(".bar .more")
     page.click(".player-rate-now")
     assert page.evaluate(SPEED)["rate"] == "1.25×", "the figure steps the speed on"
     context.close()
@@ -3355,16 +3357,29 @@ def test_the_text_keeps_most_of_a_phone_whatever_is_up(phone_scene_scrolling) ->
     assert band["room"] >= height * 0.4, f"{band['room']}px of {height} with a card up"
 
 
-def test_the_menu_takes_the_band_and_a_tap_on_the_page_closes_it(phone_scene_scrolling) -> None:
-    """⋯ opens the menu where the sheet was; a control inside it works without closing
-    it; a tap on the text puts it away."""
+def test_the_menu_is_drawn_over_the_sheet_and_a_tap_on_the_page_closes_it(
+    phone_scene_scrolling,
+) -> None:
+    """⋯ opens the menu over the sheet, the way a word's card opens, and the sheet stays
+    where it was; a control inside it works without closing it; a tap on the text puts
+    it away. It took the sheet's place until 2026-09-14 (targum-internal#273)."""
     page = phone_scene_scrolling
     page.click("#list-tab")
     page.wait_for_function("() => document.body.classList.contains('list-open')")
+    before = page.evaluate(BAND)
     page.click(".bar .more")
     band = page.evaluate(BAND)
-    assert band["menu"] and not band["sheet"], "the menu has the band"
+    assert band["menu"] and band["sheet"] == before["sheet"], "the sheet stays under it"
+    assert band["foot"] == before["foot"], "and the band is not told about it"
     assert band["menu"]["bottom"] == pytest.approx(page.viewport_size["height"], abs=1)
+    on_top = page.evaluate(
+        """() => {
+          const m = document.querySelector('.bar-more.open').getBoundingClientRect();
+          const hit = document.elementFromPoint(m.left + m.width / 2, m.bottom - 8);
+          return !!hit && !!hit.closest('.bar-more');
+        }"""
+    )
+    assert on_top, "drawn over the sheet, not under it"
     names = page.evaluate(
         "() => [...document.querySelectorAll('.bar-more.open .group[data-what]')]"
         ".map((g) => g.getAttribute('data-what'))"
@@ -3650,7 +3665,8 @@ def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
     """With motion on, the strip and the arrows ride to their places over 200ms and an
     occupant rises from the foot. The page must be laid out for where they will stand:
     measured mid-flight, a menu opening gave the page four verses that ran under the
-    arrows, and closing it gave two and a screen of paper."""
+    arrows, and closing it gave two and a screen of paper. The menu is drawn over the
+    page since 2026-09-14, so the sheet is the occupant asked about here."""
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     built = dialogue(
         tmp_path / "dialogues", tmp_path / "reader", turns=LONG, span=BRIEF, words=True
@@ -3667,7 +3683,7 @@ def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
               const box = (el) => el && !el.hidden && el.getClientRects().length
                 ? el.getBoundingClientRect() : null;
               const foot = [document.getElementById('player'), document.querySelector('.turn'),
-                document.getElementById('more')].map(box).filter(Boolean);
+                document.getElementById('list')].map(box).filter(Boolean);
               const ceiling = Math.min(...foot.map((b) => b.top));
               const lines = [...document.querySelectorAll('.pair:not([hidden])')]
                 .map((p) => p.getBoundingClientRect().bottom);
@@ -3676,21 +3692,54 @@ def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
             }"""
         )
 
-    page.click(".bar .more")
+    page.click("#list-tab")
     page.wait_for_timeout(20)
     opened_at_once = pages_and_ceiling()["pages"]
     page.wait_for_timeout(450)
     settled = pages_and_ceiling()
     assert settled["pages"] == opened_at_once, "laid out once, for where the band will be"
-    assert settled["under"] == 0, "no line under the menu or what stands on it"
+    assert settled["under"] == 0, "no line under the sheet or what stands on it"
 
-    page.click(".bar .more")
+    page.click('.list-close[data-toggle="list"]')
     page.wait_for_timeout(20)
     closed_at_once = pages_and_ceiling()["pages"]
     page.wait_for_timeout(450)
     settled = pages_and_ceiling()
     assert settled["pages"] == closed_at_once
     assert settled["under"] == 0
+    context.close()
+
+
+def test_opening_the_menu_on_a_phone_leaves_the_pages_where_they_were(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """Opening ⋯ cut a long text into more pages for the menu's height (Genesis 1 went
+    from 26 to 31 at 375×667) and put the page count and the arrows over the verse being
+    read. The menu is drawn over the page now: same pages, same arrows, same pairs in
+    view, open or shut (targum-internal#273)."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(
+        tmp_path / "dialogues", tmp_path / "reader", turns=LONG, span=BRIEF, words=True
+    )
+    context = browser.new_context(viewport=PHONE, reduced_motion="no-preference")
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    page.wait_for_selector("#player")
+    page.wait_for_timeout(450)
+    look = """() => ({
+      pages: document.getElementById('page-of').textContent,
+      turn: JSON.stringify(document.querySelector('.turn').getBoundingClientRect()),
+      shown: [...document.querySelectorAll('.pair:not([hidden])')].length,
+    })"""
+    shut = page.evaluate(look)
+    page.click(".bar .more")
+    page.wait_for_selector(".bar-more.open")
+    page.wait_for_timeout(450)
+    assert page.evaluate(look) == shut, "the same pages under the menu"
+    page.click(".bar .more")
+    page.wait_for_timeout(450)
+    assert page.evaluate(look) == shut, "and after it"
     context.close()
 
 
