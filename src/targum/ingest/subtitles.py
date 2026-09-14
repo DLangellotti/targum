@@ -8,6 +8,7 @@ the span machinery treats both sources identically.
 
 from __future__ import annotations
 
+import html
 import re
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from ..errors import TargumError
 from ..models import BlockKind, Document
 from ..transcribe.models import Refined, RefinedParagraph, Word
 from ..transcribe.refine.rules import PARAGRAPH_PAUSE_S
-from .base import Paragraph, build_document, normalize, with_front_matter
+from .base import Paragraph, build_document, named_language, normalize, with_front_matter
 
 #: 00:01:02,345 or 01:02.345 — SRT writes a comma and always hours; VTT writes a dot
 #: and lets the hours go missing.
@@ -51,11 +52,17 @@ def _seconds(clock: str) -> float:
 
 
 def _unstyled(text: str) -> tuple[str, str]:
-    """The cue's words and who says them, with every styling tag gone."""
+    """The cue's words and who says them, with every styling tag gone.
+
+    Entities are decoded after the tags go, so an escaped `&lt;i&gt;` stays a word
+    rather than becoming a tag. `&nbsp;` is the one that mattered: left in, it welded
+    the end of one sentence to the start of the next — 736 of them across ten Italian
+    tracks. Decoded, it is U+00A0, which `split` counts as the space it stood for.
+    """
     voice = _VOICE.search(text)
-    speaker = voice.group("name").strip() if voice else ""
+    speaker = html.unescape(voice.group("name")).strip() if voice else ""
     bare = _VOICE.sub("", text)
-    bare = _TAGS.sub("", bare).replace("</v>", "")
+    bare = html.unescape(_TAGS.sub("", bare).replace("</v>", ""))
     return " ".join(bare.split()), speaker
 
 
@@ -176,5 +183,7 @@ class SubtitleIngester:
             str(path),
             blocks_from_paragraphs(with_front_matter(flowing, title, None)),
             ingester=self.name,
+            # `talk.it.vtt` says it is Italian; the script alone would call it English.
+            language=named_language(path) or None,
             title=title,
         )

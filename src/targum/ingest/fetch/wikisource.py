@@ -2,9 +2,21 @@
 
     targum build wikisource:he:מגילת_העצמאות
     targum build "wikisource:Declaration of Independence"
+    targum build "wikisource:it:Cenere"
 
 The language prefix picks the subdomain and defaults to English. Titles are taken as
 typed, with spaces allowed, since a page title is not a URL.
+
+**A book is often a contents page.** On it.wikisource most works are an index whose
+chapters are subpages — `Cenere` links `Cenere/Parte I/I` and eighteen more, and says
+nothing of its own — so reading the one page answered "no readable text" for Cenere,
+Cuore and Il Principe, and thirty words of titles for Novelle rusticane (2026-09-14).
+A page that links two or more of its own subpages and has next to no words besides is
+read as that contents: each subpage in the order the page lists it, under a heading of
+its own name, one level deeper for each level of the title, with the wiki's apparatus
+(`ws-noexport`: the edition box, the previous-and-next bar) taken out first. A page
+with text of its own is read as it always was, links or no links: the Declaration
+links its pointed copy, `/מנוקד`, and must not become two copies of itself.
 """
 
 from __future__ import annotations
@@ -64,6 +76,11 @@ _NAVIGATION = frozenset(
         "referencias",
         "enlaces externos",
         "notas",
+        # Italian
+        "note",
+        "voci correlate",
+        "collegamenti esterni",
+        "bibliografia",
         # German
         "siehe auch",
         "einzelnachweise",
@@ -227,6 +244,74 @@ def drop_link_lists(html: str) -> str:
     return str(soup)
 
 
+#: Fewer words than this outside the links to its own subpages, and a page is a table of
+#: contents. Novelle rusticane's is 30; the shortest real page on the Hebrew shelf is
+#: thousands.
+_INDEX_WORDS = 200
+#: How many pages one work may be read from. Cuore is 111; a crawl past this is a
+#: collection rather than a book, and is refused rather than fetched page by page.
+MAX_SUBPAGES = 400
+
+
+def _soup(html: str) -> Any:
+    from bs4 import BeautifulSoup
+
+    return BeautifulSoup(html, "html.parser")
+
+
+def drop_apparatus(html: str) -> str:
+    """The page without what Wikisource itself leaves out of an export.
+
+    `ws-noexport` marks the edition box, the quality badge and the chapter bar with its
+    previous and next links: the wiki's own furniture, named by the wiki.
+    """
+    soup = _soup(html)
+    for tag in soup.select(".ws-noexport"):
+        tag.decompose()
+    return str(soup)
+
+
+def subpages(html: str, title: str) -> list[str]:
+    """The page's own subpages, in the order it links them, once each.
+
+    Only what exists (a red link carries `new`) and only what is linked from the text
+    rather than the apparatus.
+    """
+    prefix = f"{title}/"
+    out: list[str] = []
+    for link in _soup(drop_apparatus(html)).find_all("a", title=True):
+        named = str(link["title"])
+        if named.startswith(prefix) and "new" not in (link.get("class") or []):
+            if named not in out:
+                out.append(named)
+    return out
+
+
+def _own_words(html: str, linked: list[str]) -> int:
+    """Words on the page that are not the names of the subpages it links."""
+    soup = _soup(drop_apparatus(html))
+    for tag in soup.find_all(["style", "script"]):
+        tag.decompose()
+    total = len(soup.get_text(" ").split())
+    inside = sum(
+        len(link.get_text(" ").split())
+        for link in soup.find_all("a", title=True)
+        if link["title"] in linked
+    )
+    return total - inside
+
+
+def _same_name(line: str, name: str) -> bool:
+    def key(text: str) -> str:
+        return _heading_key(text.replace("’", "'"))
+
+    return key(line) == key(name)
+
+
+def _is_contents(html: str, linked: list[str]) -> bool:
+    return len(linked) >= 2 and _own_words(html, linked) < _INDEX_WORDS
+
+
 def _plain(html: str | None) -> str:
     if not html:
         return ""
@@ -235,17 +320,25 @@ def _plain(html: str | None) -> str:
     return BeautifulSoup(html, "html.parser").get_text(" ", strip=True)
 
 
+def _read(html: str) -> list[Paragraph]:
+    """One page's text, with the wiki's furniture cut from the top and the bottom."""
+    paragraphs: list[Paragraph] = [
+        (kind, level, normalize(text))
+        for kind, level, text in paragraphs_from_html(drop_link_lists(html))
+    ]
+    return drop_unpointed_copies(drop_leading_notices(drop_trailing_navigation(paragraphs)))
+
+
 class WikisourceFetcher:
     # 2: the wiki's own link rows and its sourcing note are dropped from the top of a
-    # page as well as its navigation from the bottom. Free to bump; nothing downstream
-    # is bought again.
-    name = "wikisource/2"
+    # page as well as its navigation from the bottom. 3: a contents page is read as the
+    # work its subpages make; every page with text of its own reads byte for byte as it
+    # did under 2, and the bump is so that a contents page already ingested as its list of
+    # titles is read again rather than kept as though somebody had edited it. Free to
+    # bump; nothing downstream is bought again.
+    name = "wikisource/3"
 
-    def load(self, identifier: str) -> Document:
-        language, title = split_identifier(identifier)
-        if not title:
-            raise TargumError("Wikisource needs a page title.", "wikisource:he:מגילת העצמאות")
-
+    def _parse(self, language: str, title: str) -> dict[str, Any]:
         payload: Any = json.loads(
             get(
                 API.format(language=language),
@@ -264,22 +357,68 @@ class WikisourceFetcher:
                 f"Wikisource has no page '{title}' in {language}.",
                 str(payload["error"].get("info", "")),
             )
+        parsed: dict[str, Any] = payload.get("parse", {})
+        return parsed
 
-        parsed = payload.get("parse", {})
-        paragraphs: list[Paragraph] = [
-            (kind, level, normalize(text))
-            for kind, level, text in paragraphs_from_html(drop_link_lists(parsed.get("text", "")))
-        ]
-        paragraphs = drop_unpointed_copies(
-            drop_leading_notices(drop_trailing_navigation(paragraphs))
-        )
+    def _work(self, language: str, root: str, listed: list[str]) -> list[Paragraph]:
+        """Every subpage a contents page lists, in its order, each under its own name.
+
+        A subpage that is itself contents — `Cenere/Parte I` — is a heading and then its
+        own subpages. The root lists those too, usually, and each is read once.
+        """
+        out: list[Paragraph] = []
+        seen: set[str] = set()
+
+        def walk(pages: list[str]) -> None:
+            for page in pages:
+                if page in seen:
+                    continue
+                seen.add(page)
+                if len(seen) > MAX_SUBPAGES:
+                    raise TargumError(
+                        f"Wikisource's '{root}' runs past {MAX_SUBPAGES} pages.",
+                        "Name one part of it instead.",
+                    )
+                html = drop_apparatus(str(self._parse(language, page).get("text", "")))
+                inner = subpages(html, page)
+                name = page.rsplit("/", 1)[-1]
+                level = min(6, 2 + page[len(root) + 1 :].count("/"))
+                out.append((BlockKind.heading, level, name))
+                if not _is_contents(html, inner):
+                    body = _read(html)
+                    # The chapter's own title, printed again as its first line: `I.` under
+                    # the heading `I`, `COS’È IL RE` under `Cos'è il re`.
+                    if body and _same_name(body[0][2], name):
+                        body = body[1:]
+                    for kind, inner_level, text in body:
+                        if kind is BlockKind.heading:
+                            # Kept under the chapter it is in, never beside it.
+                            inner_level = min(6, max(inner_level or 0, level + 1))
+                        out.append((kind, inner_level, text))
+                walk(inner)
+
+        walk(listed)
+        return out
+
+    def load(self, identifier: str) -> Document:
+        language, title = split_identifier(identifier)
+        if not title:
+            raise TargumError("Wikisource needs a page title.", "wikisource:he:מגילת העצמאות")
+
+        parsed = self._parse(language, title)
+        html = str(parsed.get("text", ""))
+        # Subpages hang off the title the wiki settled on, after any redirect.
+        page = str(parsed.get("title") or title)
+        listed = subpages(html, page)
+        work = _is_contents(html, listed)
+        paragraphs = self._work(language, page, listed) if work else _read(html)
         if not paragraphs:
             raise TargumError(f"Wikisource page '{title}' has no readable text.")
 
         # displaytitle arrives as HTML, carrying the span the wiki uses to set the
         # title's direction. The reader wants the words.
         display = _plain(parsed.get("displaytitle")) or title
-        if not any(kind is BlockKind.heading for kind, _, _ in paragraphs[:1]):
+        if work or not any(kind is BlockKind.heading for kind, _, _ in paragraphs[:1]):
             paragraphs.insert(0, (BlockKind.heading, 1, display))
 
         return build_document(

@@ -48,6 +48,16 @@ def test_inline_elements_join_without_a_space() -> None:
     assert texts(html) == ["בהצהרת בלפור מיום"]
 
 
+def test_a_line_break_is_a_space() -> None:
+    """The EU's easy-read pages break every line with `<br>`, and `lettura<br>rende` came
+    out as one word (2026-09-14). A browser draws a space; so does this, and a Hebrew
+    prefix before a link still takes none."""
+    assert texts("<p>facile lettura<br>rende le informazioni<br/>comprensibili</p>") == [
+        "facile lettura rende le informazioni comprensibili"
+    ]
+    assert texts("<p>ב<a>הצהרת</a> בלפור<br>\nנאמר</p>") == ["בהצהרת בלפור נאמר"]
+
+
 def test_real_whitespace_between_elements_survives() -> None:
     html = "<body><p>A <a href='#'>link</a> mid sentence.</p></body>"
     assert texts(html) == ["A link mid sentence."]

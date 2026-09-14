@@ -194,6 +194,51 @@ def test_a_supplied_srt_costs_no_transcription(fake_audio, tmp_path: Path) -> No
     assert kept.parts[0].spans
 
 
+CUES = (
+    "1\n00:00:01,000 --> 00:00:04,000\nl'inverno arrivò presto.\n\n"
+    "2\n00:00:05,000 --> 00:00:09,000\nil fiume gelò.\n"
+)
+
+
+def test_a_transcript_that_names_its_language_is_read_in_it(fake_audio, tmp_path: Path) -> None:
+    """`talk.it.srt` is the file saying it is Italian. Without `--from` it used to be
+    read as Hebrew, folder, segmenter and all (2026-09-14)."""
+    fake_audio.duration = 90.0
+    script = tmp_path / "talk.it.srt"
+    script.write_text(CUES, encoding="utf-8")
+    build = builder(tmp_path, recording(tmp_path), source_language=None, transcript=script)
+    result = build.run()
+    assert result.out_dir.name.endswith("-it")
+    assert result.document.language == "it"
+    assert not build.language_assumed
+
+
+def test_a_video_sidecar_names_the_language_when_the_transcript_does_not(
+    fake_audio, tmp_path: Path
+) -> None:
+    fake_audio.duration = 90.0
+    script = tmp_path / "talk.srt"
+    script.write_text(CUES, encoding="utf-8")
+    source = recording(tmp_path)
+    (tmp_path / f"{source.stem}.info.json").write_text('{"language": "it"}', encoding="utf-8")
+    build = builder(tmp_path, source, source_language=None, transcript=script)
+    assert build.run().document.language == "it"
+
+
+def test_a_transcript_that_names_nothing_is_still_hebrew_and_says_so(
+    fake_audio, tmp_path: Path
+) -> None:
+    """Never guessed: with nothing naming the language the build keeps the product's
+    own, and marks it so the command line can say to pass `--from`."""
+    fake_audio.duration = 90.0
+    script = tmp_path / "talk.srt"
+    script.write_text(CUES, encoding="utf-8")
+    build = builder(tmp_path, recording(tmp_path), source_language=None, transcript=script)
+    result = build.run()
+    assert result.document.language == "he"
+    assert build.language_assumed
+
+
 def test_a_recording_page_inlines_only_its_own_part(fake_audio, tmp_path: Path) -> None:
     """A chapter of Genesis must not carry ninety megabytes of Exodus — the rule that
     shaped the recordings decides this too."""

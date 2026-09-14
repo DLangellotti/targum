@@ -25,6 +25,15 @@ stop that abbreviates. So these are those rules, called with two more:
   is a mis-split of `Prof. Smith` in a language nobody listed, and the price of not
   shipping a model.
 
+- **In Italian, a quotation is one segment** (`QUOTING`). A mark inside a closed «»,
+  “”, straight-quoted or dash-set speech ends nothing, so `«Non lo so. Forse domani»,
+  rispose.` stays whole rather than leaving half a quotation on each row; and a straight
+  `"` with a letter after it opens the next sentence rather than closing this one, the
+  way Italian translators type it. On the Italian shelf (2026-09-14) that changed 467
+  blocks, left 16,781 segments where there were 17,438, and changed nothing in a curated
+  video. French and Russian quote the same way and may want it too, but a boundary moved
+  there moves under English already bought, so each is turned on by name.
+
 A block in a script with no capitals at all — Arabic, Chinese — is not guessed at: it is
 one segment, whole. That is honest and never wrong about a boundary, only coarse.
 
@@ -39,7 +48,7 @@ from __future__ import annotations
 from .hebrew import sentences as _sentences
 
 #: Recorded in every segments.json this draws. Bump it when a rule or a list changes.
-NAME = "cased-rules/1"
+NAME = "cased-rules/2"
 
 _TITLES_EN = "mr mrs ms dr prof sr jr st rev hon gen col lt sgt capt mt ft"
 _MONTHS_EN = "jan feb mar apr jun jul aug sep sept oct nov dec"
@@ -70,6 +79,10 @@ ABBREVIATIONS: dict[str, frozenset[str]] = {
 }
 
 
+#: Languages whose quotations are held whole. See the docstring.
+QUOTING = frozenset({"it"})
+
+
 def cased(text: str) -> bool:
     """Whether the text has any letter with a capital form at all."""
     return any(char.isupper() or char.islower() for char in text)
@@ -80,4 +93,9 @@ def sentences(text: str, language: str) -> list[str]:
     if not cased(text):
         whole = text.strip()
         return [whole] if whole else []
-    return _sentences(text, cased=True, abbreviations=ABBREVIATIONS.get(language, frozenset()))
+    return _sentences(
+        text,
+        cased=True,
+        abbreviations=ABBREVIATIONS.get(language, frozenset()),
+        quotations=language in QUOTING,
+    )

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from targum.catalogue import Entry
 from targum.cli import app
 
 runner = CliRunner()
@@ -782,6 +783,110 @@ def test_seed_shares_one_lemmatizer_per_register(
     )
 
 
+def italian_row() -> Entry:
+    return Entry(
+        id="cenere",
+        title="Cenere",
+        author="Grazia Deledda",
+        language="it",
+        source="wikisource:it:Cenere",
+        blurb="b",
+        words=1,
+        difficulty=1,
+    )
+
+
+def test_every_door_a_catalogue_row_is_built_through_names_its_language(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Left to the script, every Latin alphabet reads as English, and `targum seed`
+    passed no language: an Italian row was seeded as English (2026-09-14). The seed, the
+    command line and the server's builder all hand `Build` the row's own language."""
+    from targum import catalogue, cli
+    from targum.serve import Job, Library
+
+    row = italian_row()
+    handed: list[dict[str, object]] = []
+
+    class FakeBuild:
+        def __init__(self, source: str, **options: object) -> None:
+            handed.append(options)
+            self.source = source
+
+        def run(self) -> object:
+            out = tmp_path / "shared" / "cenere-it"
+            out.mkdir(parents=True, exist_ok=True)
+            return type("Result", (), {"out_dir": out})()
+
+    monkeypatch.setattr(cli, "Build", FakeBuild)
+    monkeypatch.setattr(catalogue, "CATALOGUE", [row])
+    monkeypatch.setattr(catalogue, "matching", lambda source: row)
+    monkeypatch.setattr(cli, "seeds", lambda: ["cenere"])
+    monkeypatch.setattr("targum.coverage.lemmas", lambda folder: {})
+
+    cli.seed(out=tmp_path)
+    assert handed[-1]["source_language"] == "it"
+    # The model reads Italian's words; the shared Stanza chain would refuse them.
+    assert handed[-1]["lemmatizer"] is None
+
+    class Stop(Exception):
+        pass
+
+    def stopping(source: str, **options: object) -> None:
+        handed.append(options)
+        raise Stop
+
+    monkeypatch.setattr(cli, "Build", stopping)
+    with pytest.raises(Stop):
+        runner.invoke(app, ["build", row.source], catch_exceptions=False)
+    assert handed[-1]["source_language"] == "it"
+    runner.invoke(app, ["build", row.source, "--from", "fr"])
+    assert handed[-1]["source_language"] == "fr", "what the person said still wins"
+
+    library = Library(tmp_path)
+    build = library._builder(Job(id="a", source=row.source, options={"to": "en"}))
+    assert build.source_language == "it"
+    build = library._builder(Job(id="a", source=row.source, options={"to": "en", "from": "he"}))
+    assert build.source_language == "he"
+
+
+def test_a_translation_may_be_a_link_or_a_named_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`--translation` was a Path, which turns https:// into https:/ — "couldn't find a
+    site name" — and a file could be named but `gutenberg:1232` could not (2026-09-14)."""
+    from targum import cli
+
+    handed: list[object] = []
+
+    class Stop(Exception):
+        pass
+
+    def stopping(source: str, **options: object) -> None:
+        handed.extend(options["translations"])  # type: ignore[call-overload]
+        raise Stop
+
+    monkeypatch.setattr(cli, "Build", stopping)
+    link = "https://it.globalvoices.org/2024/01/tatar-tea/"
+    local = tmp_path / "en.vtt"
+    with pytest.raises(Stop):
+        runner.invoke(
+            app,
+            [
+                "build",
+                str(tmp_path / "it.vtt"),
+                "--translation",
+                link,
+                "--translation",
+                "gutenberg:1232",
+                "--translation",
+                str(local),
+            ],
+            catch_exceptions=False,
+        )
+    assert handed == [link, "gutenberg:1232", local]
+
+
 def test_licences_reports_the_corpus_by_what_may_leave(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -1076,3 +1181,18 @@ def test_a_rebuilt_import_keeps_its_recording_and_its_pictures(tmp_path: Path) -
     assert "data:audio" in again, "the rebuild wrote a reader with no recording in it"
     assert "<video" in again, "the rebuild wrote a reader with no picture in it"
     assert (folder / "reader" / "video" / "part-001.mp4").is_file()
+
+
+def test_the_main_guard_is_the_last_thing_in_the_module() -> None:
+    """`python -m targum.cli` calls main() when it reaches the guard, so a command
+    defined below it is not registered on that entry point. It has happened twice:
+    parasha, then video curate (2026-09-14)."""
+    import ast
+
+    import targum.cli
+
+    tree = ast.parse(Path(targum.cli.__file__).read_text(encoding="utf-8"))
+    last = tree.body[-1]
+    assert isinstance(last, ast.If) and "__main__" in ast.unparse(last.test), (
+        "something is defined after `if __name__ == '__main__'` in cli.py"
+    )

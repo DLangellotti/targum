@@ -2743,7 +2743,11 @@ class Library:
         return Build(
             job.source,
             target_language=options.get("to", "en"),
-            source_language=options.get("from") or None,
+            # What the door said, or else what the catalogue row says. The Library's own
+            # button sends the row's language, but a door that does not — a pasted
+            # catalogue source, a door written later — would leave it to the script,
+            # which reads every Latin alphabet as English.
+            source_language=options.get("from") or (entry.language if entry else None),
             # Natural, always. The word-for-word style is a command line option:
             # anyone who wants it can say so there, and putting the choice on this
             # page cost more in confusion than it bought.

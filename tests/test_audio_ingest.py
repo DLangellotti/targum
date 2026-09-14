@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from targum.audio import parts as parts_module
 from targum.audio import probe as probe_module
 from targum.ingest import load
@@ -184,6 +186,52 @@ def test_vtt_styling_tags_are_dropped_and_the_voice_tag_names_the_speaker() -> N
         ("שלום לכם", "Rivka"),
         ("ברוכים הבאים", ""),
     ]
+
+
+def test_entities_are_decoded_and_a_non_breaking_space_is_a_space() -> None:
+    """YouTube's Italian tracks escape their spaces. Left in, `&nbsp;` glued one
+    sentence to the next and the segmenter saw one."""
+    vtt = (
+        "WEBVTT\n\n"
+        "00:01.000 --> 00:03.000\nÈ finita.&nbsp;Poi&#160;Rossi &amp; figli\n\n"
+        "00:04.000 --> 00:06.000\n&lt;i&gt; resta &quot;testo&quot;\n"
+    )
+    assert [cue.text for cue in parse(vtt)] == [
+        "È finita. Poi Rossi & figli",
+        '<i> resta "testo"',
+    ]
+
+
+@pytest.mark.parametrize(
+    ("name", "language"),
+    [
+        ("abc123.it.vtt", "it"),
+        ("it.vtt", "it"),
+        ("abc123.iw.srt", "he"),
+        ("abc123.pt-BR.vtt", "pt"),
+        ("talk.arc.txt", "arc"),
+        ("talk.srt", ""),
+        ("lesson.1.vtt", ""),
+        ("my-talk.srt", ""),
+    ],
+)
+def test_a_transcript_names_its_language_only_where_its_name_carries_a_tag(
+    name: str, language: str
+) -> None:
+    from targum.ingest.base import named_language
+
+    assert named_language(Path(name)) == language
+
+
+def test_a_subtitle_file_dropped_on_its_own_keeps_the_language_its_name_states(
+    tmp_path: Path,
+) -> None:
+    """The script alone reads every Latin alphabet as English."""
+    from targum.ingest.subtitles import SubtitleIngester
+
+    track = tmp_path / "abc123.it.vtt"
+    track.write_text("WEBVTT\n\n00:01.000 --> 00:03.000\nÈ finita.\n", encoding="utf-8")
+    assert SubtitleIngester().load(str(track)).language == "it"
 
 
 def test_a_part_heading_leads_with_its_name_in_the_texts_own_language(

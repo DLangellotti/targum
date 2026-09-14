@@ -108,6 +108,50 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A Global Voices post in a language other than English loses its translators' notes on
+  what language each link opens in, such as "[en, come tutti i link successivi, salvo
+  diversa indicazione]". The extractor dropped the link and kept the note in the sentence.
+  None of the five Hebrew Global Voices rows has such a note, so none changes.
+- A line break in a web page, an EPUB or a Wikisource page reads as a space. `lettura<br>rende`
+  came out as one word on the EU's easy-read pages. The URL ingester is `url/5`: one
+  catalogue text changes, a Hebrew Wikinews article whose reference line read
+  "2022מסכי", and it is read again on its next build.
+- `targum build --translation` takes a link or a named source (`gutenberg:1232`) as well
+  as a file. It was read as a path, which turns `https://` into `https:/`.
+- A catalogue row is built in its own language on every path. `targum seed` passed no
+  language, so an Italian row was detected from its script and seeded as English, with
+  its words handed to a lemmatizer that refuses Italian. The seed, `targum build` of a
+  catalogued source and the server's builder now pass the row's language whenever the
+  person or the door did not name one.
+- A book-length word buy in French, Russian, Italian or Yiddish keeps each batch as it
+  returns. One failed call used to throw away every batch already paid for.
+- A Wikisource work split into subpages builds from its name. `wikisource:it:Cenere`,
+  `Cuore (1889)` and `Il Principe` said "no readable text" and `Novelle rusticane` came
+  back as thirty words of titles, because each is a contents page. A page that links two
+  or more of its own subpages and has almost no words besides is now read as the work:
+  each subpage in the order the page lists it, under its own heading, without the wiki's
+  edition box and chapter bar. Every page with text of its own reads exactly as before,
+  and the fetcher is `wikisource/3` so a contents page ingested as its titles is read again.
+- A recording built with a transcript is read in the language the transcript's name
+  gives (`abc123.it.vtt`, `it.vtt`), or the `language` in a yt-dlp `.info.json` beside a
+  local video, where `--from` was not passed. Before, it was read as Hebrew. A subtitle
+  file built on its own takes its language from its name the same way, and a plain-text
+  transcript is loaded in the recording's language, so the aligner's model is the
+  language's own. Where nothing names the language the build still reads Hebrew, and the
+  command line now says so and says to pass `--from`.
+- `targum video curate` carries a video's own English, aligned from
+  `--translation en.vtt`, and prefers it to a bought one. Before, it skipped every
+  aligned translation and refused the folder with "No English".
+- Subtitle cues decode HTML entities. `&nbsp;` between two sentences in YouTube's
+  Italian tracks glued them into one row.
+- `python -m targum.cli video curate` and `video list` exist. The `__main__` guard sat
+  above them, and a test now keeps it last.
+- Italian quotations stay on one row. A full stop or an ellipsis inside «», “”, straight
+  quotes or a dash-set line of dialogue split the quotation in two, and a straight `"`
+  opening a sentence after a full stop was read as closing the one before, gluing the
+  two. Italian is the one language this is turned on for (`cased.QUOTING`); the cased
+  rules are `cased-rules/2`, and Hebrew splits exactly as before. On the Italian shelf it
+  changes 467 blocks and no curated video. A text already built keeps its segments.
 - A conversation reopened while targum was still answering now shows the answer. The
   model's tool results were handed to the page as if they were your lines: each was drawn
   as an empty grey bubble, and each told the page nothing was still being answered, so it

@@ -382,29 +382,42 @@ class ModelLemmatizer:
             if not usable:
                 raise TargumError("Cannot read the words without a key.", why)
             for segment, tokens in zip(owed, self._read(owed, code), strict=True):
-                if tokens is None:
-                    continue
-                self.cache.put(
-                    "lemma",
-                    key(self.cache, segment.text, code, self.name),
-                    {"text": segment.text, "provider": self.name, "tokens": _stored(tokens)},
-                )
-                out[segment.id] = tokens
+                if tokens is not None:
+                    out[segment.id] = tokens
         return out
 
     def _read(self, segments: list[Segment], code: str) -> list[list[Token] | None]:
-        """Every segment's tokens, in batches, splitting any batch the answer overran."""
+        """Every segment's tokens, in batches, splitting any batch the answer overran.
+
+        Each batch is kept the moment it comes back, not once the last one has. A book is
+        about an hour of batches one after another, and keeping them all at the end
+        threw away every paid answer when one call failed — a 400 when the credit ran out
+        at 11:41 on 2026-09-14 lost about $3. Kept as it arrives, a run that dies is
+        rerun for the batches that never answered and nothing else.
+        """
         results: list[list[Token] | None] = []
         batch: list[Segment] = []
         size = 0
+
+        def ask() -> None:
+            found = self._ask(batch, code)
+            for segment, tokens in zip(batch, found, strict=True):
+                if tokens is not None:
+                    self.cache.put(
+                        "lemma",
+                        key(self.cache, segment.text, code, self.name),
+                        {"text": segment.text, "provider": self.name, "tokens": _stored(tokens)},
+                    )
+            results.extend(found)
+
         for segment in segments:
             if batch and (size + len(segment.text) > BATCH_CHARS or len(batch) >= BATCH_SEGMENTS):
-                results.extend(self._ask(batch, code))
+                ask()
                 batch, size = [], 0
             batch.append(segment)
             size += len(segment.text)
         if batch:
-            results.extend(self._ask(batch, code))
+            ask()
         return results
 
     def _ask(

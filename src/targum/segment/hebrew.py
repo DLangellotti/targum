@@ -109,18 +109,70 @@ def _abbreviation(text: str, stop: int, abbreviations: frozenset[str]) -> bool:
     return bool(word) and word.group(0).lower() in abbreviations  # type: ignore[union-attr]
 
 
+#: A dash that opens a line of dialogue, or closes the speech before its tag.
+_DIALOGUE = "—–"
+#: How long a quotation may run and still be one segment. A speech and its tag belong in
+#: one row; a quoted page does not, and inside a longer one the ordinary rules apply.
+QUOTED_MAX = 400
+
+
+def _quotations(text: str) -> list[tuple[int, int]]:
+    """Where a closed quotation runs, as (opening mark, closing mark), outermost only.
+
+    For `cased.QUOTING`. Guillemets and curly quotes pair by kind. A straight `"` has one
+    shape for both ends, so it pairs by what touches it: space before and a letter after
+    opens, a letter before closes, anything else is left alone. A line that opens with a
+    dash is dialogue, and its free-standing dashes pair in order — `— Non lo so. Forse
+    domani — rispose.` Only what closes counts: a quotation still open at the end of the
+    block is one that runs on into the next paragraph, and holding it would hold the rest
+    of this one. One pass and one sort, so a megabyte block stays cheap.
+    """
+    spans: list[tuple[int, int]] = []
+    waiting: dict[str, list[int]] = {"«": [], "“": [], '"': []}
+    pairs = {"»": "«", "”": "“"}
+    dashes: list[int] = []
+    dialogue = text.lstrip()[:1] in _DIALOGUE if text.strip() else False
+    for at, char in enumerate(text):
+        if char in waiting and char != '"':
+            waiting[char].append(at)
+        elif char in pairs:
+            if waiting[pairs[char]]:
+                spans.append((waiting[pairs[char]].pop(), at))
+        elif char == '"':
+            before = text[at - 1] if at else " "
+            after = text[at + 1] if at + 1 < len(text) else " "
+            if (before.isspace() or before in "([«“" + _DIALOGUE) and not after.isspace():
+                waiting['"'].append(at)
+            elif not before.isspace() and waiting['"']:
+                spans.append((waiting['"'].pop(), at))
+        elif dialogue and char in _DIALOGUE:
+            before = text[at - 1] if at else " "
+            after = text[at + 1] if at + 1 < len(text) else " "
+            if before.isspace() or after.isspace():
+                dashes.append(at)
+    spans.extend(zip(dashes[0::2], dashes[1::2], strict=False))
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(span for span in spans if span[1] - span[0] <= QUOTED_MAX):
+        if merged and start < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 def _ends_here(
     text: str,
     found: re.Match[str],
     *,
     cased: bool = False,
     abbreviations: frozenset[str] = frozenset(),
+    quotations: bool = False,
 ) -> bool:
     """Whether a run of marks ends a sentence.
 
-    `cased` and `abbreviations` are for a script with capitals (`cased.py`). With neither,
-    which is how Hebrew calls this, every rule is exactly the one the module docstring
-    lists and `NAME` records.
+    `cased`, `abbreviations` and `quotations` are for a script with capitals (`cased.py`).
+    With none, which is how Hebrew calls this, every rule is exactly the one the module
+    docstring lists and `NAME` records.
     """
     end = found.end()
     if end < len(text) and not text[end].isspace():
@@ -133,10 +185,13 @@ def _ends_here(
         # `...!)` — the terminal is inside something, and the outer sentence goes on.
         return False
     after = _AFTER.match(text, end).group(1)  # type: ignore[union-attr]
-    if cased and after and after[0] in CLOSING:
+    opens = quotations and len(after) > 1 and after[0] in OPENING and not after[1].isspace()
+    if cased and after and after[0] in CLOSING and not opens:
         # French sets a space inside its guillemets — `« Pourquoi ? »` — so the closer
         # arrives after the space; it is still this sentence's, and the rule above keeps
-        # what follows it with it.
+        # what follows it with it. A straight quote is a closer and an opener both, and
+        # where quotations are read, one with a letter after it is the next sentence's:
+        # `È finita. "Andiamo," disse.`
         return False
 
     if "!" not in marks and "?" not in marks and marks not in (".", "׃"):
@@ -162,13 +217,30 @@ def _ends_here(
 
 
 def sentences(
-    text: str, *, cased: bool = False, abbreviations: frozenset[str] = frozenset()
+    text: str,
+    *,
+    cased: bool = False,
+    abbreviations: frozenset[str] = frozenset(),
+    quotations: bool = False,
 ) -> list[str]:
-    """One block's sentences, in order, whitespace-trimmed, nothing dropped."""
+    """One block's sentences, in order, whitespace-trimmed, nothing dropped.
+
+    With `quotations`, a mark inside a closed quotation ends nothing: `"Non lo so. Forse
+    domani," rispose.` is one thing said and who said it. A run that reaches the closing
+    mark itself is not inside, and is read by the rules as before.
+    """
     out: list[str] = []
     start = 0
+    held = _quotations(text) if quotations else []
+    at = 0
     for found in _RUN.finditer(text):
-        if not _ends_here(text, found, cased=cased, abbreviations=abbreviations):
+        while at < len(held) and held[at][1] < found.end():
+            at += 1
+        if at < len(held) and held[at][0] < found.start():
+            continue
+        if not _ends_here(
+            text, found, cased=cased, abbreviations=abbreviations, quotations=quotations
+        ):
             continue
         piece = text[start : found.end()].strip()
         if piece:

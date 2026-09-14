@@ -106,6 +106,12 @@ def _clean(soup: BeautifulSoup) -> None:
     # Superscript note markers leave stray digits mid-sentence if they survive.
     for tag in soup("sup"):
         tag.decompose()
+    # A line break is a space between two words, the way a browser draws it. `_text`
+    # joins inline runs with nothing, which is right for a Hebrew prefix before a link
+    # and wrong for `lettura<br>rende`: the EU's easy-read pages break every line that
+    # way, and each came out as one word (2026-09-14).
+    for tag in soup("br"):
+        tag.replace_with(" ")
     # After the furniture tags are gone, so the denominator is the text a reader could
     # plausibly have come for and not the navigation that was always going.
     whole = len(soup.get_text())

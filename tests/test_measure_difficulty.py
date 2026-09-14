@@ -120,12 +120,12 @@ def test_a_source_with_no_copy_is_none(script: ModuleType, tmp_path: Path) -> No
     assert script.on_disk(tmp_path, GENESIS) is None
 
 
-def entry(source: str) -> Entry:
+def entry(source: str, language: str = "he") -> Entry:
     return Entry(
         id="e",
         title="t",
         author="a",
-        language="he",
+        language=language,
         source=source,
         blurb="b",
         words=1,
@@ -142,7 +142,9 @@ def test_a_modern_only_copy_of_scripture_is_not_measured_from_disk(
     """
     copy_at(tmp_path, "aaa", GENESIS, scripture=False)
     monkeypatch.setattr(
-        script, "ingest", SimpleNamespace(load=lambda source: SimpleNamespace(source=source))
+        script,
+        "ingest",
+        SimpleNamespace(load=lambda source, **kwargs: SimpleNamespace(source=source)),
     )
     monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
     monkeypatch.setattr(script, "HebrewSegmenter", lambda: None)
@@ -168,7 +170,9 @@ def test_measuring_now_builds_the_annotator_from_the_source(
         return SimpleNamespace(annotate=lambda segmented: annotation(scripture=True))
 
     monkeypatch.setattr(
-        script, "ingest", SimpleNamespace(load=lambda source: SimpleNamespace(source=source))
+        script,
+        "ingest",
+        SimpleNamespace(load=lambda source, **kwargs: SimpleNamespace(source=source)),
     )
     monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
     monkeypatch.setattr(script, "HebrewSegmenter", lambda: None)
@@ -188,3 +192,89 @@ def test_a_modern_text_is_measured_from_whatever_copy_it_has(
     copy_at(tmp_path, "aaa", MODERN, scripture=False)
     monkeypatch.setattr(script, "hard_share", lambda annotation, language: 9)
     assert script.measured(entry(MODERN), tmp_path) == (9, "on disk")
+
+
+def test_a_hebrew_text_is_read_by_the_same_lemmatizer_as_before(script: ModuleType) -> None:
+    """`for_text` is `for_source` for every language the model does not read, so moving
+    the sweep onto it moves no Hebrew number."""
+    from targum.annotate import lemma
+
+    for source in (GENESIS, MODERN):
+        assert lemma.for_text(source, "he").name == lemma.for_source(source).name
+
+
+def test_an_italian_entry_is_split_and_read_in_italian(
+    script: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Loaded without its language, Italian read as English: split by the English rules
+    and handed to DICTA and Stanza, which refuses it. A build reads it with the model."""
+    from targum.annotate.model_lemma import ModelLemmatizer
+
+    asked: dict[str, object] = {}
+
+    def load(source: str, **kwargs: object) -> SimpleNamespace:
+        asked.update(kwargs)
+        return SimpleNamespace(source=source)
+
+    def annotator(**kwargs: object) -> SimpleNamespace:
+        asked.update(kwargs)
+        read = annotation(scripture=False).model_copy(update={"language": "it"})
+        return SimpleNamespace(annotate=lambda segmented: read)
+
+    monkeypatch.setattr(script, "ingest", SimpleNamespace(load=load))
+    monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
+    monkeypatch.setattr(script, "Annotator", annotator)
+    monkeypatch.setattr(script, "hard_share", lambda annotation, language: 7)
+    italian = entry("gutenberg:52484", "it")
+
+    assert script.measured(italian, tmp_path) == (7, "measured now")
+    assert asked["language"] == "it"
+    lemmatizer = asked["lemmatizer"]
+    assert isinstance(lemmatizer, ModelLemmatizer) and not lemmatizer.buy, "never bought here"
+
+
+def test_a_text_with_no_words_read_is_not_the_easiest_on_the_shelf(
+    script: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        script,
+        "ingest",
+        SimpleNamespace(load=lambda source, **kwargs: SimpleNamespace(source=source)),
+    )
+    monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
+    empty = Annotation(document_hash="h", language="it", annotator="a", method="m", method_note="n")
+    monkeypatch.setattr(
+        script, "Annotator", lambda **kwargs: SimpleNamespace(annotate=lambda segmented: empty)
+    )
+    italian = entry("gutenberg:52484", "it")
+    share, how = script.measured(italian, tmp_path)
+    assert share is None and "no words" in how
+
+
+def test_a_built_folder_is_measured_in_its_own_language(
+    script: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """For a text the catalogue sweep cannot reach, such as Global Voices a level down."""
+    folder = tmp_path / "italian" / "globalvoices" / "gv-tatar-tea"
+    folder.mkdir(parents=True)
+    (folder / "document.json").write_text(json.dumps({"source": "gv.md"}), encoding="utf-8")
+    (folder / "annotation.json").write_text(
+        annotation(scripture=False).model_copy(update={"language": "it"}).model_dump_json(),
+        encoding="utf-8",
+    )
+    seen: list[str] = []
+    monkeypatch.setattr(
+        script, "hard_share", lambda annotation, language: seen.append(language) or 14
+    )
+    assert script.in_folder(folder) == (14, "on disk, it")
+    assert script.in_folder(folder / "annotation.json") == (14, "on disk, it")
+    assert seen == ["it", "it"]
+    assert script.in_folder(tmp_path)[0] is None
+
+
+def test_a_built_folder_of_scripture_read_the_modern_way_is_refused(
+    script: ModuleType, tmp_path: Path
+) -> None:
+    folder = copy_at(tmp_path, "aaa", GENESIS, scripture=False)
+    share, how = script.in_folder(folder)
+    assert share is None and "refused" in how

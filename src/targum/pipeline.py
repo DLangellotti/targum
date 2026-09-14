@@ -236,6 +236,10 @@ class Build:
         self._glosser: Any = None
         self.transcriber_name = transcriber_name
         self.transcript = Path(transcript) if transcript else None
+        #: True when a recording's supplied transcript was read as `DEFAULT_LANGUAGE`
+        #: because nothing named its language. Nothing hears it to check, so the command
+        #: line says so rather than letting Italian arrive segmented as Hebrew.
+        self.language_assumed = False
         self.video = video
         self._episode: Any = None
         self._transcriber: Any = transcriber
@@ -761,11 +765,12 @@ class Build:
         correspondence is a fact of the file rather than something to infer from shapes.
         One turn is one block is one segment, which is what `UNSPLIT` guarantees.
 
-        A curated video's English was not written by hand; it was bought once, by the
-        operator, before the video was shipped. So it arrives as it was made — provider,
-        model and `kind: machine` all kept, because a machine translation that stops
-        saying so at the shelf is the one thing this must not do. What it saves is the
-        box buying, per video, an English that has already been paid for.
+        A curated video's English was not written by hand here; it was bought once by
+        the operator, or aligned from the video's own published track, before the video
+        was shipped. So it arrives as it was made — provider, model and `kind` all kept,
+        because a machine translation that stops saying so at the shelf is the one thing
+        this must not do. What it saves is the box buying, per video, an English that
+        has already been paid for.
         """
         if source.source.startswith("video:"):
             from .video import store as video_store
@@ -1212,6 +1217,12 @@ class Build:
         from .audio import probe as probe_module
         from .video.youtube import is_youtube
 
+        if not self.source_language:
+            self.source_language = self._named_language() or None
+            # A recording with no transcript is heard before a part is bought, and the
+            # hearing names the language. One with a transcript is never heard at all.
+            self.language_assumed = self.source_language is None and self.transcript is not None
+
         address = ""
         watching = False
         if urlparse(str(self.source)).scheme in ("http", "https"):
@@ -1296,6 +1307,24 @@ class Build:
 
         if self.transcript is not None:
             self._write_subtitle_refinements(workspace, drafted)
+
+    def _named_language(self) -> str:
+        """The language a recording's own files state, where `--from` did not.
+
+        The transcript's name first — `talk.it.vtt` — then yt-dlp's sidecar beside a
+        local video. Both are the files saying what they are, which is not a guess;
+        where neither says, this answers "" and the build keeps `DEFAULT_LANGUAGE`.
+        """
+        from urllib.parse import urlparse
+
+        from .ingest.base import named_language
+        from .video.youtube import info_language
+
+        if self.transcript is not None and (named := named_language(self.transcript)):
+            return named
+        if urlparse(str(self.source)).scheme in ("http", "https"):
+            return ""
+        return info_language(Path(self.source))
 
     def _fetch_youtube_transcript(self, workspace: Path, address: str) -> None:
         """The subtitle track somebody wrote for this video, if there is one.
@@ -1430,7 +1459,9 @@ class Build:
         if all(refined_path(workspace, span.number).exists() for span in drafted.parts):
             return
 
-        written = ingest.load(str(self.transcript))
+        # In the recording's language where one is known: the script alone reads every
+        # Latin alphabet as English, and the aligner's model is chosen by this.
+        written = ingest.load(str(self.transcript), language=self.source_language)
         # The model is the language's, so the language is known before the aligner is.
         aligner = CtcAligner(written.language or drafted.language)
         usable, hint = aligner.available()

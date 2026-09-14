@@ -1489,7 +1489,7 @@ def seed(
     anything. Free — each has a published translation — and safe to run again.
     """
     from . import catalogue as catalogue_module
-    from .annotate import lemma
+    from .annotate import lemma, model_lemma
     from .annotate.base import Lemmatizer as LemmatizerProtocol
     from .coverage import lemmas
     from .serve import HOSTED_MODEL
@@ -1507,16 +1507,25 @@ def seed(
             fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))
             continue
         scripture = is_biblical(entry.source)
-        if scripture not in lemmatizers:
-            lemmatizers[scripture] = lemma.for_source(entry.source)
+        shared_lemmatizer: LemmatizerProtocol | None = None
+        # A language the model reads is left to the build, which reads it the way every
+        # build does. Handed the shared Stanza chain, an Italian row went to DICTA's
+        # delegate, which refuses Italian.
+        if not model_lemma.reads(entry.language):
+            if scripture not in lemmatizers:
+                lemmatizers[scripture] = lemma.for_source(entry.source)
+            shared_lemmatizer = lemmatizers[scripture]
         builder = Build(
             entry.source,
             target_language="en",
+            # The row says what language it is in. Left to the script, every Latin
+            # alphabet reads as English, and an Italian row was seeded as one.
+            source_language=entry.language,
             title=entry.title,
             model=entry.model or HOSTED_MODEL,
             out_root=shared,
             translations=[rendering.source for rendering in entry.translations],
-            lemmatizer=lemmatizers[scripture],
+            lemmatizer=shared_lemmatizer,
             # Machine-translated only where nothing published exists, and then under the
             # model it was translated with, so the cache answers rather than the API.
             machine=None,
@@ -1530,6 +1539,16 @@ def seed(
         lemmas(result.out_dir)
         console.print(f"[green]{entry.title}[/green] [dim]→ {result.out_dir}[/dim]")
     console.print("[dim]Done.[/dim]")
+
+
+def translation_source(given: str) -> Path | str:
+    """A `--translation` as `Build` takes it: a link or a named source as typed, a file
+    as a path, so its name is still the file's own stem."""
+    from urllib.parse import urlparse
+
+    if urlparse(given).scheme in ("http", "https") or ingest.fetch.is_identifier(given):
+        return given
+    return Path(given)
 
 
 @app.command()
@@ -1566,11 +1585,14 @@ def build(
             help="Folder for the targum and its files. Default: ./targum-out/<title>-<lang>/",
         ),
     ] = None,
+    # Strings, for the reason `source` is one: pathlib turns https:// into https:/, and a
+    # published translation is as often a link or `gutenberg:1232` as a file.
     translation: Annotated[
-        list[Path] | None,
+        list[str] | None,
         typer.Option(
             "--translation",
-            help="An existing translation to align. Repeat for several.",
+            help="An existing translation to align: a file, a link, or gutenberg:/wikisource:. "
+            "Repeat for several.",
         ),
     ] = None,
     machine: Annotated[
@@ -1642,7 +1664,9 @@ def build(
         builder = Build(
             source,
             target_language=to,
-            source_language=source_language,
+            # What the reader said, or else what the catalogue says: a row names its
+            # language, and a guess from the script calls Italian English.
+            source_language=source_language or (known.language if known else None),
             style=style,
             title=known.title if known else "",
             provider_name=provider or settings.provider,
@@ -1651,7 +1675,7 @@ def build(
             force=force,
             batch_size=settings.batch_size,
             effort=settings.effort,
-            translations=translation or [],
+            translations=[translation_source(one) for one in translation or []],
             machine=machine,
             difficulty=words,
             gloss=gloss,
@@ -1687,6 +1711,14 @@ def build(
             f"[bold]{plan.document.title or Path(source).name}[/bold] "
             f"[dim]{plan.document.language} → {to}, {count} segments[/dim]"
         )
+        if builder.language_assumed:
+            from .translate.prompts import language_name
+
+            console.print(
+                f"[yellow]Nothing names this recording's language, so we read it as "
+                f"{language_name(plan.document.language)}.[/yellow] "
+                "[dim]Pass --from if it is not.[/dim]"
+            )
 
         if plan.needs_payment:
             console.print(f"[dim]Estimated cost: about ${plan.estimated_cost:.2f}[/dim]")
@@ -3155,16 +3187,6 @@ def parasha_leyning(
     )
 
 
-# Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
-# then calls main(), so anything defined below the guard is not registered yet when the
-# app is invoked — the parasha commands were added after it and `python -m targum.cli
-# parasha` printed an empty command group while `targum parasha` worked. Keeping the
-# guard at the end means a command appended in the ordinary way is registered whichever
-# entry point is used.
-if __name__ == "__main__":
-    main()
-
-
 @video_app.command("curate")
 def video_curate(
     built: Annotated[Path, typer.Argument(help="A folder `targum build --video` wrote.")],
@@ -3221,3 +3243,13 @@ def video_list() -> None:
         licence = held.licence or "[red]no licence[/red]"
         console.print(f"video:{name}[dim] · {held.title} · {held.credit} · {licence}[/dim]")
     console.print(f"[dim]{len(names)} on the shelf at {video_store.root()}.[/dim]")
+
+
+# Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
+# then calls main(), so anything defined below the guard is not registered yet when the
+# app is invoked — the parasha commands were added after it and `python -m targum.cli
+# parasha` printed an empty command group while `targum parasha` worked. Keeping the
+# guard at the end means a command appended in the ordinary way is registered whichever
+# entry point is used.
+if __name__ == "__main__":
+    main()
