@@ -686,10 +686,10 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
     }
     drawn = draw([reader("a", "א")], me={"signedIn": True, "name": "David"}, series=[portion])
     assert drawn["greeting"].endswith(", David.") and drawn["greeting"].split(",")[0] in (
-        "Good morning",
-        "Good afternoon",
-        "Good evening",
-    ), "no Shabbat shalom: somebody on the internet on Shabbat does not get one"
+        "Boker tov",
+        "Tzohorayim tovim",
+        "Erev tov",
+    ), "Hebrew's, in Latin letters; and no Shabbat shalom on a Saturday"
     assert drawn["today"].endswith(" · This week: האזינו") and len(drawn["today"]) > 20
     inside = re.search(r"\((.*)\)", drawn["today"])
     assert inside and re.search(r"[\u05d0-\u05ea]", inside.group(1)), (
@@ -700,6 +700,27 @@ def test_the_page_greets_you_and_says_what_today_is() -> None:
     unnamed = draw([reader("a", "א")], me={"signedIn": True, "name": ""})
     assert "," not in unnamed["greeting"] and unnamed["greeting"].endswith(".")
     assert "This week" not in unnamed["today"], "no portion on a box without one"
+
+
+@pytest.mark.parametrize(
+    ("code", "said"),
+    [
+        ("he", ("Boker tov", "Tzohorayim tovim", "Erev tov")),
+        ("arc", ("Tzafra tava", "Shlama", "Ramsha tava")),
+        ("yi", ("Gut morgn", "Gutn tog", "Gutn ovnt")),
+        ("fr", ("Bonjour", "Bonsoir")),
+        ("ru", ("Dobroye utro", "Dobry den", "Dobry vecher")),
+        ("it", ("Buongiorno", "Buon pomeriggio", "Buonasera")),
+    ],
+)
+def test_the_greeting_is_in_the_language_the_page_is_in(code: str, said: tuple[str, ...]) -> None:
+    """David, 2026-09-14: "the greeting in that language, but written in Latin" — the
+    first words on the page are ones the reader can say before they can read the script."""
+    drawn = draw([reader("a", "א")], me={"signedIn": True, "name": "David"}, language=code)
+    first = drawn["greeting"].split(",")[0]
+    assert first in said, drawn["greeting"]
+    assert drawn["greeting"].endswith(", David.")
+    assert re.fullmatch(r"[A-Za-z ]+", first), "in Latin letters"
 
 
 def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
