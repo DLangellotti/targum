@@ -353,6 +353,9 @@ body {
   border-block-end: 1.4px solid currentColor;
   transform: translateY(-0.12rem) rotate(45deg);
 }
+/* Two logical borders make the corner, so under RTL the corner starts on the other side
+   and the same turn would point it sideways; the opposite turn points it down again. */
+.lang-menu .lang-open:dir(rtl)::before { transform: translateY(-0.12rem) rotate(-45deg); }
 .lang-menu .lang-open:hover, .lang-menu .lang-open.on { background: rgb(255 253 249 / 0.1); }
 .lang-panel {
   color: var(--ink);

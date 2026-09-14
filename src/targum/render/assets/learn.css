@@ -674,6 +674,8 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   border-block-end: 1.5px solid currentColor;
   transform: translateY(-0.2em) rotate(45deg);
 }
+/* The corner is drawn with logical borders: the opposite turn under RTL (as .lang-open). */
+.way-menu:dir(rtl)::after { transform: translateY(-0.2em) rotate(-45deg); }
 .ways-menu {
   position: absolute;
   inset-block-start: calc(100% + 0.5rem);

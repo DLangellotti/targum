@@ -643,6 +643,44 @@ def test_the_header_is_one_line_on_a_tablet(browser, tmp_path: Path) -> None:
     assert glyphs == ["add"], "at a desk only Add keeps its glyph, a + before the word"
 
 
+def test_a_menu_chevron_points_down_in_either_direction(browser, tmp_path: Path) -> None:
+    """A chevron drawn from two logical borders and a turn: under RTL the borders swap
+    sides, so the same turn pointed the language menu's and the doors' chevrons sideways."""
+    page_file = tmp_path / "learn.html"
+    page_file.write_text(learn_page(TOKEN), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 800})
+    open_page = context.new_page()
+    open_page.goto(page_file.as_uri())
+    open_page.wait_for_timeout(300)
+    pointing = open_page.evaluate(
+        """() => {
+          const out = {};
+          for (const dir of ['ltr', 'rtl']) {
+            const host = document.createElement('div');
+            host.dir = dir;
+            host.innerHTML = '<span class="lang-menu">'
+              + '<button class="lang-open">Hebrew</button></span>'
+              + '<button class="way-menu">Following</button>';
+            document.body.append(host);
+            for (const [name, sel, pseudo] of [['lang', '.lang-open', '::before'],
+                                                ['way', '.way-menu', '::after']]) {
+              const st = getComputedStyle(host.querySelector(sel), pseudo);
+              const on = (side) => parseFloat(st['border' + side + 'Width']) > 0;
+              // The corner the two borders make, as a vector, then turned by the transform.
+              const x = (on('Right') ? 1 : 0) - (on('Left') ? 1 : 0);
+              const y = (on('Bottom') ? 1 : 0) - (on('Top') ? 1 : 0);
+              const m = new DOMMatrix(st.transform === 'none' ? undefined : st.transform);
+              out[name + ':' + dir] = [m.a * x + m.c * y, m.b * x + m.d * y];
+            }
+          }
+          return out;
+        }"""
+    )
+    context.close()
+    for key, (x, y) in pointing.items():
+        assert abs(x) < 0.01 and y > 1, f"{key} points down, not {(x, y)}"
+
+
 def test_a_long_title_does_not_push_the_conversation_rail_under_the_thread(browser) -> None:
     """A conversation is titled with its first line, and a first line can be long. The
     rail's column is 14rem; a grid item's minimum width is its content unless told
