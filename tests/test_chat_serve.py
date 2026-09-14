@@ -155,6 +155,23 @@ def test_a_lost_feed_answers_from_the_store(chatting) -> None:
     assert "event: done\n" in body
 
 
+def test_a_turn_nothing_is_answering_is_said_to_be_over(chatting) -> None:
+    """A turn at "working" with no live feed is one the process that was answering it
+    lost. It was `done: false` to a polling page and `done` with no text to a stream, so
+    the page either waited for good or drew an empty answer (targum-internal#269)."""
+    port, key, store, _ = chatting
+    chat = store.chat_open(None)
+    n = store.chat_say(chat, "user", "find me tech news", "find me tech news", stage="working")
+    status, state, _ = call(port, "GET", f"/chat/turn/{chat}/{n}?k={key}")
+    assert status == 200
+    assert state["done"] is True and "Ask again" in state["error"]
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request("GET", f"/chat/stream/{chat}/{n}?k={key}")
+    body = connection.getresponse().read().decode("utf-8")
+    connection.close()
+    assert "event: error\n" in body and "event: done\n" not in body
+
+
 def test_somebody_else_s_conversation_is_not_found(chatting) -> None:
     port, key, store, _ = chatting
     theirs = store.chat_open(42)

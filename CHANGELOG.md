@@ -155,6 +155,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on no other day; the current streak is refused, not unbuilt — design.md §12 records
   the decision of 2026-09-03 and `test_brand.py` pins the absence. The reader now
   carries `charts.js` for the arithmetic, so three pages cannot disagree about it.
+- A chat line targum was answering when it restarted says so. Start-up told a build
+  the truth and left the reader's line at "working" for good, so a page opening it
+  again waited on an answer nobody was writing, or drew an empty one. It now reads "We
+  restarted while we were answering. Ask again." (targum-internal#269).
 - The Hebrew of a daf, from Sefaria (targum-internal#193): `sefaria:daf:<tractate>` is
   the tractate's Mishnah in the Romm edition, the daf's own printing, a perek a heading
   and a mishnah a verse; `sefaria:Rashi on <tractate>` and `sefaria:Tosafot on

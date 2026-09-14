@@ -38,7 +38,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
-from .accounts import Person, Store, now, plausible
+from .accounts import CHAT_RESTARTED, Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -4385,10 +4385,17 @@ class Handler(BaseHTTPRequestHandler):
             str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
         )
         stage = str(asked["stage"]) if asked else "done"
+        error = str(asked["error"]) if asked else ""
+        if stage == "working":
+            # Nothing in this process is answering it: every turn it answers has a feed.
+            # Start-up marks such a turn failed, so this is the moment between; said as
+            # over, rather than `done: false` to a page that would wait for good
+            # (targum-internal#269).
+            error = error or CHAT_RESTARTED
         return {
             "text": answered,
-            "done": stage != "working",
-            "error": str(asked["error"]) if asked else "",
+            "done": True,
+            "error": error,
             "words": asked.get("words") if asked else None,
         }
 
