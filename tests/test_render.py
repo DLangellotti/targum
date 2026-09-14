@@ -1690,6 +1690,26 @@ def test_a_catalogued_source_is_recognised_however_it_is_typed() -> None:
     assert matching("") is None
 
 
+def test_a_text_shown_beside_another_is_still_its_own_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Onkelos on Genesis is a row, and a rendering on the Hebrew Genesis too. Its own
+    row answers for it: when Genesis did, `/prepare` said a translation was already here
+    and started nothing, and the Library's press read "We lost that build" (2026-09-14)."""
+    from dataclasses import replace
+
+    from targum.catalogue import Rendering, matching
+
+    hebrew, aramaic = catalogue_of(
+        ("genesis", "sefaria:Genesis", 0, "biblical"),
+        ("onkelos-genesis", "sefaria:arc:Genesis", 0, "biblical"),
+    )
+    hebrew = replace(hebrew, translations=[Rendering(name="Onkelos", source="sefaria:arc:Genesis")])
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", [hebrew, aramaic])
+    assert matching("sefaria:arc:Genesis") is aramaic
+    assert matching("sefaria:Genesis") is hebrew
+
+
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 def test_only_hebrew_is_offered_on_the_reading_pages() -> None:
     """One language, for now. Everything those pages are made of is Hebrew — the
