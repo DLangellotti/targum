@@ -55,7 +55,7 @@
           headline is also fifty-two pages a search engine cannot tell apart. -#}
       <h1 class="pitch">{% if this_week %}This week's parasha, every word explained.{% else %}{{ portion.name }}, every word explained.{% endif %}</h1>
       {% if portion.hebrew or portion.name %}
-      <span class="named" lang="he" dir="rtl">{{ portion.hebrew or portion.name }}</span>
+      <span class="named" {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</span>
       {% endif %}
     </div>
     {#- Decoration: it says nothing the words have not said, so it is hidden from a
@@ -74,7 +74,7 @@
         appears: without that the bidi algorithm drags the surrounding punctuation to
         the wrong end and the button reads backwards. -#}
     <p class="cta">
-      <a class="go" href="#embed">Read <bdi lang="he" dir="rtl">{{ portion.hebrew or portion.name }}</bdi></a>
+      <a class="go" href="#embed">Read <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
     </p>
   </section>
 
@@ -82,7 +82,7 @@
   {#- The dateline says which portion, when, and how much of it — the four things
       somebody preparing checks before they start. -#}
   <p class="dateline">
-    <bdi class="named" lang="he" dir="rtl">{{ portion.hebrew or portion.name }}</bdi>
+    <bdi class="named" {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi>
     is read on {{ shabbat_said }}{% if hdate %} ({{ hdate }}){% endif %} —
     {{ portion.summary }}, {{ portion.verses }} verses in
     {{ portion.aliyot }} aliyot.{% if portion.kind.value == 'festival' %}
@@ -175,11 +175,11 @@
       the whole list. -#}
   <nav class="portions" aria-label="The other portions">
     {% if previous %}
-    <a class="prev" href="/parasha/{{ previous.slug }}"><span class="which">Previous</span> <bdi lang="he" dir="rtl">{{ previous.hebrew or previous.name }}</bdi></a>
+    <a class="prev" href="/parasha/{{ previous.slug }}"><span class="which">Previous</span> <bdi {% if previous.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ previous.hebrew or previous.name }}</bdi></a>
     {% endif %}
     <a class="all" href="{{ all_href }}">All portions</a>
     {% if following %}
-    <a class="next" href="/parasha/{{ following.slug }}"><span class="which">Next</span> <bdi lang="he" dir="rtl">{{ following.hebrew or following.name }}</bdi></a>
+    <a class="next" href="/parasha/{{ following.slug }}"><span class="which">Next</span> <bdi {% if following.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ following.hebrew or following.name }}</bdi></a>
     {% endif %}
   </nav>
 
@@ -197,7 +197,7 @@
       </li>
       <li>
         <b>Seven aliyot, seven sections.</b>
-        <span>The reading is divided the way it is called up, so you can go to שלישי without counting verses. The haftarah follows it, the same way.</span>
+        <span>The reading is divided the way it is called up, so you can go to <bdi lang="he" dir="rtl">שלישי</bdi> without counting verses. The haftarah follows it, the same way.</span>
       </li>
       <li>
         <b>It follows you.</b>
@@ -240,7 +240,7 @@
       <ul class="portions">
         {%- for one in listed %}
         <li>
-          <a class="story" href="/parasha/{{ one.slug }}" lang="he" dir="rtl">{{ one.hebrew or one.name }}</a>
+          <a class="story" href="/parasha/{{ one.slug }}" {% if one.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ one.hebrew or one.name }}</a>
           <span class="row">
             <span class="outlets" lang="en" dir="ltr">{{ one.name }}</span>
             <span class="licence">{{ one.summary }}</span>

@@ -139,7 +139,7 @@ def test_both_directions_are_explicit(rendered: Path) -> None:
     html = rendered.read_text(encoding="utf-8")
     assert 'class="src plain" data-form="plain" lang="he" dir="rtl"' in html
     assert 'class="tr" lang="en" dir="ltr"' in html
-    assert '<html lang="he" dir="rtl">' in html
+    assert '<html lang="en" dir="rtl" data-language="he">' in html
 
 
 def test_layout_uses_logical_properties_only(rendered: Path) -> None:

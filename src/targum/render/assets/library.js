@@ -108,7 +108,7 @@
   // "Beginners cannot understand library listings", said the first alpha reader.
   var LEVELS = [
     ["", "Any"],
-    ["easy", "Easier — up to 1 word in 5 new"],
+    ["easy", "Easier — up to 1 word in 5 hard"],
     ["mid", "Middling — about 1 in 4"],
     ["hard", "Harder — more than 1 in 4"],
   ];
@@ -147,7 +147,7 @@
     spoken: "With audio — a recording, line by line.",
     video: "With video — a recording that kept its pictures.",
     sort: {
-      difficulty: "New words — the share of a text's words that are hard.",
+      difficulty: "Hard words — the share of a text's words that are rare in everyday use.",
     },
     unmeasured: "— means we haven't measured it yet.",
   };
@@ -483,13 +483,19 @@
     box.appendChild(el("span", "col count", share + "%"));
     var said = inWords(share);
     if (said) box.title = said;
-    box.setAttribute("aria-label", share + "% new words" + (said ? ": " + said : ""));
+    box.setAttribute("aria-label", share + "% hard words" + (said ? ": " + said : ""));
     return box;
   }
 
   function named(list, value) {
     for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1];
     return "";
+  }
+
+  // A title's trailing English part, where a Hebrew title has one: the weekly's level.
+  function splitLevel(text) {
+    var found = /^(.*[\u0590-\u05FF].*?) · ([A-Za-z][^\u0590-\u05FF]*)$/.exec(String(text || ""));
+    return found ? { title: found[1], level: found[2] } : { title: text, level: "" };
   }
 
   function draw(row, member) {
@@ -517,9 +523,25 @@
     title.setAttribute("lang", row.language);
     // A scene says which it is, outside the Hebrew's own direction, before the title.
     var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
-    if (number) title.appendChild(el("span", "row-scene", "Scene " + number));
-    var bdi = el("bdi", null, row.title);
+    if (number) {
+      var scene = el("span", "row-scene", "Scene " + number);
+      scene.setAttribute("lang", "en");
+      title.appendChild(scene);
+    }
+    // Its own direction, and its own clip: an ellipsis on the LTR cell around it cut
+    // the *start* of a long Hebrew title, which is the edge Hebrew begins at (2026-09-14).
+    // A weekly edition's title carries its level in English at its end ("מבט השבוע · …
+    // · Easy · 1,000 words"), and one isolate for both put the English inside the
+    // Hebrew's direction; the level is drawn beside the title instead.
+    var parts = splitLevel(row.title);
+    var bdi = el("bdi", "row-name", parts.title);
+    bdi.setAttribute("dir", "auto");
     title.appendChild(bdi);
+    if (parts.level) {
+      var level = el("span", "row-level", parts.level);
+      level.setAttribute("lang", "en");
+      title.appendChild(level);
+    }
     // The one row to open next: the first scene not yet finished. "Start here" until
     // something has been, "Next" after. Ink, not accent — `.pointed` already spends the
     // page's accent on the row somebody was sent to — and a status, so what is read out
@@ -527,6 +549,7 @@
     if (nextRow && row.id === nextRow.entry) {
       var chip = el("span", "row-next", anyFinished ? "Next" : "Start here");
       chip.setAttribute("role", "status");
+      chip.setAttribute("lang", "en");
       title.appendChild(chip);
     }
     what.appendChild(title);
@@ -538,10 +561,20 @@
       var english = el("span", "row-english", row.english);
       english.setAttribute("lang", "en");
       english.setAttribute("dir", "ltr");
-      if (row.author) english.appendChild(el("span", "row-by-after", " · " + row.author));
+      if (row.author) {
+        // A byline is often half Hebrew ("Omid Memarian, תרגום Gallia Hoz"): isolated, so
+        // its words never trade places with the title's.
+        var after = el("span", "row-by-after", " · ");
+        var who = el("bdi", null, row.author);
+        who.setAttribute("dir", "auto");
+        after.appendChild(who);
+        english.appendChild(after);
+      }
       what.appendChild(english);
     } else if (row.author) {
-      what.appendChild(el("span", "row-by", row.author));
+      var by = el("span", "row-by", row.author);
+      by.setAttribute("dir", "auto");
+      what.appendChild(by);
     }
     // Personal, where it can be: a text on the shelf is measured against the reader's
     // own words. Absent for one never built, for one built without word-level
@@ -558,8 +591,17 @@
     // One word, not two: a video can be listened to as well, and a row saying
     // "audio video" says less than "video" does. No tooltip: what the word means is
     // said in the line under the controls, where a phone can read it.
-    if (row.video) what.appendChild(el("span", "row-video", "video"));
-    else if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
+    if (row.video) what.appendChild(el("span", "row-video", "Video"));
+    else if (row.spoken) what.appendChild(el("span", "row-audio", "Audio"));
+    // On a phone the kind, which Hebrew and the hard words leave their columns, and a
+    // row that only said a title and a length gave a learner nothing to choose by
+    // (2026-09-14). They come back as one line under the title.
+    var meta = [named(KINDS, row.kind), named(REGISTERS, row.register)];
+    if (measured(row)) meta.push((row.difficulty || 0) + "% hard words");
+    if (row.video) meta.push("Video");
+    else if (row.spoken) meta.push("Audio");
+    var metaLine = meta.filter(Boolean).join(" · ");
+    if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
     open.appendChild(what);
 
     open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
@@ -617,13 +659,16 @@
     var what = el("span", "what");
     var title = el("span", "row-title");
     title.setAttribute("lang", row.language);
-    title.appendChild(el("bdi", null, row.title));
+    var name = el("bdi", "row-name", row.title);
+    name.setAttribute("dir", "auto");
+    title.appendChild(name);
     // Where the beginner's path is, when the shelf holding it is shut. The chip is on
     // the scene itself once this is open; closed, a hundred scenes behind one row would
     // otherwise take the only line on the page that says where to start.
     if (nextRow && !isOpen(group) && group.members.indexOf(nextRow.entry) >= 0) {
       var chip = el("span", "row-next", anyFinished ? "Next" : "Start here");
       chip.setAttribute("role", "status");
+      chip.setAttribute("lang", "en");
       title.appendChild(chip);
     }
     what.appendChild(title);
@@ -636,8 +681,17 @@
       el("span", "row-by-after", (row.english ? " · " : "") + row.rows.length + " texts")
     );
     what.appendChild(under);
-    if (row.video) what.appendChild(el("span", "row-video", "video"));
-    else if (row.spoken) what.appendChild(el("span", "row-audio", "audio"));
+    if (row.video) what.appendChild(el("span", "row-video", "Video"));
+    else if (row.spoken) what.appendChild(el("span", "row-audio", "Audio"));
+    // On a phone the kind, which Hebrew and the hard words leave their columns, and a
+    // row that only said a title and a length gave a learner nothing to choose by
+    // (2026-09-14). They come back as one line under the title.
+    var meta = [named(KINDS, row.kind), named(REGISTERS, row.register)];
+    if (measured(row)) meta.push((row.difficulty || 0) + "% hard words");
+    if (row.video) meta.push("Video");
+    else if (row.spoken) meta.push("Audio");
+    var metaLine = meta.filter(Boolean).join(" · ");
+    if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
     open.appendChild(what);
 
     open.appendChild(el("span", "col label drop", named(KINDS, row.kind)));
@@ -680,11 +734,13 @@
     ["", ""],
     ["title", "Text"],
     ["kind", "Kind"],
-    ["register", "Hebrew"],
+    ["register", "Which Hebrew"],
     ["minutes", "Length"],
     // What the number under it means, said the way somebody choosing a text would ask
-    // it. "Looked up" is the measurement's name, not the reader's question.
-    ["difficulty", "New words"],
+    // it. "Looked up" is the measurement's name, not the reader's question — and "New
+    // words" was a claim about the reader the number cannot make: it counts words that
+    // are rare in the language, not words this reader has not met (2026-09-14).
+    ["difficulty", "Hard words"],
     // Unlabelled: the column a build narrates itself in, empty the rest of the time.
     ["", ""],
   ];

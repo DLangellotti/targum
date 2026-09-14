@@ -377,11 +377,11 @@ def test_the_list_opens_on_what_a_learner_can_read_now(tmp_path: Path) -> None:
 
 
 def test_the_hardest_column_says_what_it_counts(tmp_path: Path) -> None:
-    """ "Looked up" is what the measurement is called. "New words" is what a reader
-    choosing a text is asking about."""
+    """ "Looked up" is what the measurement is called. "Hard words" is what the number
+    counts: words rare in the language, not words new to this reader (2026-09-14)."""
     columns = draw(tmp_path)["columns"]
     # The sorted column carries its arrow, so this is a prefix rather than an equality.
-    assert any(name.startswith("New words") for name in columns), columns
+    assert any(name.startswith("Hard words") for name in columns), columns
     assert not any(name.startswith("Looked up") for name in columns), columns
 
 
@@ -490,7 +490,7 @@ def vocabulary(*lemmas: str) -> dict[str, str]:
 def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Path) -> None:
     """The one sentence on the page written for a reader who cannot yet read a title.
     It used to live in tooltips, which is nowhere on a phone."""
-    assert draw(tmp_path)["note"] == "New words — the share of a text's words that are hard."
+    assert draw(tmp_path)["note"] == "Hard words — the share of a text's words that are rare in everyday use."
     assert draw(tmp_path, view={"kind": "dialogue"})["note"].startswith(
         "Scenes — numbered conversations with audio. Start at 1."
     )
@@ -573,7 +573,7 @@ def test_a_remembered_view_wins_over_the_opening(tmp_path: Path) -> None:
     drawn = draw(tmp_path, view={})
     assert drawn["kindOn"] == "All"
     assert drawn["noteLeads"] is False
-    assert drawn["shareHead"] == {"text": "New words ↑", "disabled": False}
+    assert drawn["shareHead"] == {"text": "Hard words ↑", "disabled": False}
 
 
 def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> None:
@@ -693,7 +693,7 @@ def test_a_video_import_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
         row["title"]: row["media"]
         for row in draw(tmp_path, readers=mine, view={"where": "mine"})["rows"]
     }
-    assert rows == {"lecture-he": "video", "podcast-he": "audio", "essay-he": ""}
+    assert rows == {"lecture-he": "Video", "podcast-he": "Audio", "essay-he": ""}
 
 
 def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Path) -> None:

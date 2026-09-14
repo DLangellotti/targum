@@ -120,7 +120,7 @@ setTimeout(() => {
       noteLeads: !byId["picked-lead"].hidden,
       // The heading over the share column, and whether it can be pressed.
       shareHead: (() => {
-        const head = byId["rows-head"].children.find((c) => c.className === "drop" && /New words|Scene number/.test(c.textContent));
+        const head = byId["rows-head"].children.find((c) => c.className === "drop" && /Hard words|Scene number/.test(c.textContent));
         return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
       })(),
       find: byId["find"].value || "",

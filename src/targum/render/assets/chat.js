@@ -304,7 +304,9 @@
 
   // A Hebrew run is marked as one, so the stylesheet can give it its own leading and
   // the browser can shape it right-to-left inside an English line.
-  var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'־׀׃-]*[֐-׿]|[֐-׿]/g;
+  // Numbers and gershayim stay inside the run (2026-09-14): stopped at a digit, "פרק 3
+  // של ספר" was two runs, and an English line put the halves in the wrong order.
+  var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'״׳־׀׃–0-9-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
   var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+)/g;
   var ONLY_PATH = /^\/(?:reader|library)\/\S+$/;
@@ -838,6 +840,11 @@
       var title = document.createElement("span");
       title.className = "chat-title";
       title.textContent = chat.title || "Untitled";
+      // The first thing somebody typed, in whichever language they typed it: its own
+      // direction, so a Hebrew title clips at its end and not at its first word
+      // (2026-09-14), and its own language where the conversation says what it was.
+      title.setAttribute("dir", "auto");
+      if (chat.title && /[\u0590-\u05FF]/.test(chat.title)) title.setAttribute("lang", "he");
       button.appendChild(title);
       var when = document.createElement("span");
       when.className = "chat-when";

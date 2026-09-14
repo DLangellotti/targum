@@ -19,7 +19,7 @@
 <form class="composer" id="composer">
   {#- One row from the start: the field grows with what is typed, to six lines or so,
       and then scrolls. `rows="1"` is the resting height; the stylesheet does the rest. -#}
-  <textarea id="say" rows="1" placeholder="{{ placeholder }}" spellcheck="true"
+  <textarea id="say" rows="1" dir="auto" placeholder="{{ placeholder }}" spellcheck="true"
             aria-label="Your message"></textarea>
   {#- A file, a recording or a book, chosen here and priced in place: the Add page's
       job in one press, since 2026-09-06. A link goes in the field like anything else

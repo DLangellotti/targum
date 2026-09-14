@@ -59,7 +59,7 @@
       reader would. The Hebrew date under it, because that is the date this is keyed to
       and a page that only says "1 September" is a page about a Gregorian day. -#}
   <p class="dateline">
-    <b lang="he" dir="rtl"><bdi>{{ day.hebrew or day.title }}</bdi></b>
+    <b {% if day.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}><bdi>{{ day.hebrew or day.title }}</bdi></b>
     <span class="said-in-english">{{ day.title }}</span>
     <span class="when">{{ day.hdate }}</span>
   </p>
@@ -86,7 +86,7 @@
        {% if other.day == day.day %}aria-current="page"{% endif %}
        href="/{{ cycle.slug }}/{{ other.slug }}">
       <span class="date">{{ other.hdate }}</span>
-      <bdi lang="he" dir="rtl">{{ other.hebrew or other.title }}</bdi>
+      <bdi {% if other.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ other.hebrew or other.title }}</bdi>
     </a>
     {%- endfor %}
   </nav>

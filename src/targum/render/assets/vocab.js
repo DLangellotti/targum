@@ -294,6 +294,7 @@
       var note = (field = document.createElement("input"));
       note.type = "text";
       note.className = "note-field";
+      note.dir = "auto";
       note.value = options.note || "";
       note.placeholder = options.placeholder || "Enter text";
       note.setAttribute("aria-label", "Your own meaning");

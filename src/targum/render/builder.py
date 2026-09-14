@@ -62,7 +62,12 @@ ASSETS = Path(__file__).parent / "assets"
 # one thing to say, and split at the dash its halves are two isolates an RTL paragraph
 # reorders, so every range read backwards.
 _LATIN_RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,:/'’&–-]*[A-Za-z0-9]|[A-Za-z0-9]")
-_RTL_RUN = re.compile(r"[֐-׿؀-ۿ][֐-ۿ\s.,'\"־-]*[֐-׿؀-ۿ]|[֐-׿]")
+# And a Hebrew run keeps its numbers and its inner punctuation (2026-09-14): stopped at
+# a digit or a colon, "פרק 3 של ספר" was two isolates, and an LTR line laid the halves
+# out left to right, so the phrase read in the wrong order. Only what cannot end a
+# Hebrew phrase — a trailing full stop belongs to the English sentence around it — stays
+# outside.
+_RTL_RUN = re.compile(r"[֐-׿؀-ۿ][֐-ۿ\s.,:;?!()'\"״׳־–0-9-]*[֐-׿؀-ۿ]|[֐-׿]")
 
 
 @dataclass(slots=True)
@@ -1315,7 +1320,7 @@ def text_page(entry: Entry, address: str = "") -> str:
         _environment()
         .get_template("text.html.j2")
         .render(
-            title=f"{entry.title} — {name} — targum",
+            title=f"\u2068{entry.title}\u2069 — {name} — targum",
             description=entry.blurb,
             canonical=f"{address}/library/{entry.id}" if address else "",
             og_type="book",
@@ -1383,7 +1388,7 @@ def weekly_page(
         _environment()
         .get_template("weekly.html.j2")
         .render(
-            title=f"{issue.title} — {spec.label} — targum",
+            title=f"\u2068{issue.title}\u2069 — {spec.label} — targum",
             description=blurb,
             canonical=f"{address}/weekly/{issue.id}/{level.value}" if address else "",
             issue=issue,

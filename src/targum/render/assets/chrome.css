@@ -917,7 +917,9 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 .palette-row:hover, .palette-row.on { background: var(--teal-wash); }
 .palette-title { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.palette-title:lang(he) { font-family: var(--reading-hebrew); }
+.palette-title:dir(rtl) { text-align: end; }
+/* The row under the pointer keeps its ink. */
+.palette-row.on .palette-title, .palette-row:hover .palette-title { color: var(--ink); }
 .palette-english { color: var(--ink-soft); font-size: 0.875rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .palette-kind { margin-inline-start: auto; flex: none; color: var(--ink-soft); font-size: 0.6875rem; }
 @media (max-width: 40rem) {

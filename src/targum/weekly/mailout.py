@@ -31,7 +31,7 @@ PAUSE = 2.0
 
 SUBJECT = "the weekly — {dated}"
 
-BODY = """{title}, for the week of {dated}.
+BODY = """This week's issue, for the week of {dated}: \u2068{title}\u2069.
 
 Five sections in Modern Hebrew, written at three levels:
 

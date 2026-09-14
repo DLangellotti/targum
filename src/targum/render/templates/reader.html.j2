@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="{{ source_language }}" dir="{{ page_direction }}">
+{#- The page is English chrome around a text (2026-09-14): its bar, cards, keys and every
+    announcement are English, and a root that said lang="he" had a screen reader read
+    them all in a Hebrew voice. The direction still follows the text, every source cell
+    carries its own `lang`, and the text's language rides on `data-language`. -#}
+<html lang="en" dir="{{ page_direction }}" data-language="{{ source_language }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ title }}{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
+<title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
 {#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
@@ -38,7 +42,7 @@
     </svg>
   </span>
   <div class="bar-title">
-    {% if not standalone %}<a class="up" href="index.html">{{ title }}</a>{% else %}<span>{{ title }}</span>{% endif %}
+    {% if not standalone %}<a class="up" href="index.html" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</a>{% else %}<span lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</span>{% endif %}
     {#- The English beside the Hebrew, its own element so the two directions never share
         a string; gone under 40rem, where the bar has no room, while the document title
         keeps both. -#}
@@ -356,7 +360,7 @@
     out rather than shipped empty — a column of blank paragraphs said nothing about
     why, and read as a page that had broken. -#}
 {% if not translated and not standalone %}
-<div class="waiting-note" id="waiting-note" data-chapter="{{ section.number }}">
+<div class="waiting-note" id="waiting-note" dir="ltr" data-chapter="{{ section.number }}">
   {#- An imported recording's part that nobody has bought is waiting on a transcript,
       not on a translation, and a button that names the wrong work makes a promise the
       click will not keep. -#}
@@ -380,7 +384,7 @@
     </svg>
   </button>
   <span class="player-body">
-    <span class="player-said">{% if spoken_video %}Watch the video{% else %}Listen to {{ spoken_label }}{% endif %}</span>
+    <span class="player-said" dir="ltr">{% if spoken_video %}Watch the video{% else %}Listen to {{ spoken_label }}{% endif %}</span>
     {#- A control, not a readout. It was drawn as decoration for as long as the only way
         through a recording was to press a line, and a reader who wanted the middle of a
         sentence had nowhere to press. `aria-valuetext` is the clock rather than the
@@ -669,7 +673,7 @@
 {% if following %}
 <aside class="next-up here" id="next-up" dir="ltr" hidden>
   <span class="next-up-lead">Read next</span>
-  <a class="next-up-link" href="{{ following.filename }}">{{ following.title|isolate(source_direction) }}</a>
+  <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
   <span class="next-up-why">{{ minutes[following.number] }} min</span>
 </aside>
 {% elif suggested %}
@@ -679,7 +683,7 @@
       marks the row and scrolls to it, and lifts a filter that would have hidden it.
       `/library/<id>` is a different page — the public one, off unless the shelves are —
       and linking there gave a signed-in reader "not found". -#}
-  <a class="next-up-link" href="/library#{{ suggested.id }}">{{ suggested.title }}{% if suggested.english %} <span class="next-up-english" lang="en">· {{ suggested.english }}</span>{% endif %}</a>
+  <a class="next-up-link" href="/library#{{ suggested.id }}"><bdi lang="{{ source_language }}" dir="auto">{{ suggested.title }}</bdi>{% if suggested.english %} <span class="next-up-english" lang="en">· {{ suggested.english }}</span>{% endif %}</a>
   {#- Why this one, and how long it is. The blurb used to stand here, and a blurb says
       what a text is rather than why it is next: an offer nobody explained is a curator's
       opinion (targum-internal#176). The blurb is one tap away on the library row this
@@ -728,7 +732,7 @@
     <button type="button" data-export="anki" id="anki-button">Anki deck</button>
   </div>
 </aside>
-<button type="button" class="list-tab" id="list-tab" data-toggle="list" aria-expanded="false" aria-controls="list"><b id="list-tab-count">0</b> <span id="list-tab-label">words</span><span id="list-tab-phrases" hidden></span></button>
+<button type="button" class="list-tab" id="list-tab" dir="ltr" data-toggle="list" aria-expanded="false" aria-controls="list"><b id="list-tab-count">0</b> <span id="list-tab-label">words</span><span id="list-tab-phrases" hidden></span></button>
 {% endif %}
 
 <div id="pick-chip" class="pick-card" hidden></div>

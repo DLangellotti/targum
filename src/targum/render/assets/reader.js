@@ -449,7 +449,11 @@ var targumReader = function () {
   // One list, two kinds of thing in it. Words are held by dictionary form so every
   // form of the same word is marked at once; phrases are held as offsets into the
   // segment they came from, so they survive a rerender.
-  var language = (root.getAttribute("lang") || "und").split("-")[0].toLowerCase();
+  // The text's language. The root's own `lang` is the chrome's since 2026-09-14; a page
+  // built before then carries the text's language there and no `data-language`.
+  var language = (root.getAttribute("data-language") || root.getAttribute("lang") || "und")
+    .split("-")[0]
+    .toLowerCase();
   var documentId = data.document || location.pathname;
   var documentTitle = data.title || document.title || "";
   // Which part of the document this file is, and how many parts there are. A targum
@@ -3857,6 +3861,8 @@ var targumReader = function () {
       var field = document.createElement("input");
       field.type = "text";
       field.className = "ask-field";
+      // Hebrew and English in one question, each line in its own direction (B-01).
+      field.dir = "auto";
       field.setAttribute("aria-label", "Ask about this word");
       field.placeholder = state.turns.length ? "One more" : "Ask about this word";
       field.autocomplete = "off";
@@ -7776,7 +7782,12 @@ var targumReader = function () {
     if (!pick) return;
     if (link) {
       link.href = "/library#" + encodeURIComponent(pick.id);
-      link.textContent = pick.title;
+      link.textContent = "";
+      var named = document.createElement("bdi");
+      named.lang = document.documentElement.getAttribute("data-language") || "";
+      named.dir = "auto";
+      named.textContent = pick.title;
+      link.appendChild(named);
       if (pick.english) {
         var english = document.createElement("span");
         english.className = "next-up-english";

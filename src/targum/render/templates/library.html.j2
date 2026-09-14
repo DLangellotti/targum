@@ -38,7 +38,7 @@
         as you type. -#}
     <div class="sift">
       <input
-        id="find" class="find" type="search" autocomplete="off" spellcheck="false"
+        id="find" class="find" type="search" dir="auto" autocomplete="off" spellcheck="false"
         placeholder="Search a title, Hebrew or English" aria-label="Search the library">
       {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
           are not four genres, they are close to four languages, and which one somebody is
@@ -51,7 +51,7 @@
       <details class="filters" id="filters">
         <summary aria-label="Filters"></summary>
       <div class="switch-set">
-        <span class="switch-label">Hebrew</span>
+        <span class="switch-label">Which Hebrew</span>
         <div class="segmented" id="register-chips" role="group" aria-label="Which Hebrew"></div>
       </div>
       <div class="chips" id="kind-chips" role="group" aria-label="What it is"></div>
@@ -59,9 +59,9 @@
           offering "With video" was a label contradicting its own list. -#}
       <label class="pick"><span>Media</span><select id="audio"></select></label>
       <label class="pick"><span>Length</span><select id="length"></select></label>
-      {#- One name for one measure: the column below is "New words", and a select called
+      {#- One name for one measure: the column below is "Hard words", and a select called
           "Difficulty" over it was two names for the same number. -#}
-      <label class="pick"><span>New words</span><select id="difficulty"></select></label>
+      <label class="pick"><span>Hard words</span><select id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>Clear</button>
       </details>
     </div>

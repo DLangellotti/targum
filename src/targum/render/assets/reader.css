@@ -226,6 +226,28 @@
    root is excluded so `body` keeps the reading face underneath it. */
 [lang|="he"]:not(html) { font-family: var(--reading-hebrew); }
 
+/* And that rule loses to any component that names its own face with two classes —
+   `.chat-turn .chat-pair .chat-he`, `.gloss-card .lemma`, `.books .book-title` — so the
+   Hebrew in every conversation and on every word card was drawn in whatever the system
+   put in for Iowan Old Style (2026-09-14). Specificity is the wrong fight. Inside
+   anything that declares itself Hebrew-script, the reading and chrome faces *are* the
+   Hebrew stack, so a component that says `var(--reading)` or `var(--chrome)` gets the
+   right face whatever its selector weighs. Romanised Hebrew (`he-Latn`, the greeting)
+   and pronunciation (`he-fonipa`) are Latin letters and keep their Latin faces. */
+[lang|="he"]:not(html):not([lang$="-Latn"]):not([lang*="-fonipa"]),
+[lang|="yi"]:not(html):not([lang$="-Latn"]),
+[lang="arc"]:not(html) {
+  --reading: var(--reading-hebrew);
+  --chrome: var(--reading-hebrew);
+}
+
+/* Every field a reader types into takes each line's direction from what is typed, so a
+   Hebrew sentence with an English word, a number or a question mark in it reads in order
+   while it is being written (2026-09-14). `dir="auto"` decides the field; `plaintext`
+   decides each paragraph inside it. */
+textarea[dir="auto"],
+input[dir="auto"] { unicode-bidi: plaintext; }
+
 body {
   margin: 0;
   background: var(--paper);
@@ -2957,6 +2979,13 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .video-corner[data-corner="bottom-start"] svg .corner { transform: translateX(-6px); }
 .video-corner[data-corner="top-start"] svg .corner { transform: translate(-6px, -6px); }
 .video-corner[data-corner="top-end"] svg .corner { transform: translateY(-6px); }
+/* On a page that reads right to left the end is the left: the square is drawn at the
+   bottom right, so in RTL it moves for the end corners and stays for the start ones, the
+   way the resize key below already turns (2026-09-14). */
+html[dir="rtl"] .video-corner[data-corner="bottom-end"] svg .corner { transform: translateX(-6px); }
+html[dir="rtl"] .video-corner[data-corner="bottom-start"] svg .corner { transform: none; }
+html[dir="rtl"] .video-corner[data-corner="top-end"] svg .corner { transform: translate(-6px, -6px); }
+html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: translateY(-6px); }
 .video-close:hover, .video-mode:hover, .video-corner:hover, .video-grip:hover { color: var(--ink); }
 .video-close:focus-visible,
 .video-mode:focus-visible,

@@ -65,6 +65,7 @@
           kind: "text",
           title: reader.title || reader.name,
           english: reader.english || "",
+          language: reader.language || "",
           href: "/reader/" + encodeURIComponent(reader.name) + "/reader/index.html",
         });
       });
@@ -76,11 +77,12 @@
           kind: "catalogue",
           title: entry.title || entry.id,
           english: entry.english || "",
+          language: entry.language || "",
           href: "/library#" + encodeURIComponent(entry.id),
         });
       });
       ((got[1] && got[1].chats) || []).forEach(function (chat) {
-        found.push({ kind: "chat", title: chat.title || "Untitled", chat: chat.id });
+        found.push({ kind: "chat", title: chat.title || "Untitled", chat: chat.id, auto: true });
       });
       rows = found;
       return rows;
@@ -116,6 +118,11 @@
       var title = document.createElement("span");
       title.className = "palette-title";
       title.textContent = row.title;
+      // Its own language and direction: a Hebrew title in an LTR row lost its first words
+      // to the ellipsis and fell back to a face with no Hebrew in it (2026-09-14). A
+      // conversation's title is whatever was typed first, so it decides for itself.
+      if (row.language) title.setAttribute("lang", row.language);
+      if (row.language || row.auto) title.setAttribute("dir", "auto");
       button.appendChild(title);
       if (row.english) {
         var english = document.createElement("span");

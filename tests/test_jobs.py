@@ -77,7 +77,7 @@ def test_a_long_build_says_so_by_email(tmp_path: Path) -> None:
     assert len(postbox.sent) == 1
     to, subject, body = postbox.sent[0]
     assert to == "reader@example.com"
-    assert subject == "Text long is ready"
+    assert subject == "Ready to read: \u2068Text long\u2069"
     assert "https://targum.page/reader/a%20b/reader/index.html" in body
 
 
@@ -116,7 +116,7 @@ def test_putting_the_strip_away_is_a_promise_kept(tmp_path: Path) -> None:
     quick = job("quick", person.id, "done", now() - 1000, reader="q/reader/index.html")
     quick.options["mail"] = True
     library.tell(quick)
-    assert [sent[1] for sent in postbox.sent] == ["Text quick is ready"]
+    assert [sent[1] for sent in postbox.sent] == ["Ready to read: \u2068Text quick\u2069"]
 
     library.jobs = {"w": job("w", person.id, "working", now())}
     assert library.mine(person.id)[0]["mail"] is True
