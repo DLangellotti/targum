@@ -203,6 +203,21 @@
       show(host.hidden);
     });
   }
+  // Find from the account's sheet on a phone (2026-09-14): the sheet goes as the palette
+  // comes, or it would stand open under it.
+  Array.prototype.forEach.call(document.querySelectorAll("[data-palette-open]"), function (door) {
+    door.addEventListener("click", function (event) {
+      event.stopPropagation();
+      var sheet = door.closest("[role=dialog]");
+      if (sheet) sheet.hidden = true;
+      var account = document.getElementById("account-open");
+      if (account) {
+        account.setAttribute("aria-expanded", "false");
+        account.classList.remove("on");
+      }
+      show(true);
+    });
+  });
   if (scrim) {
     scrim.addEventListener("click", function () {
       show(false);

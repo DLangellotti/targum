@@ -474,6 +474,13 @@ body {
 }
 .notices-list li + li { border-block-start: 1px solid var(--hairline); }
 .notices-list li.live { color: var(--ink); }
+/* A failure can carry a whole address, which ran past the edge of a phone; and a line
+   with nothing to open put its × in the Open column (2026-09-14). */
+.notices-list li > span { overflow-wrap: anywhere; }
+.notices-list .notices-x { grid-column: 3; }
+/* A long inbox scrolls inside the panel, with Clear all kept at its head. */
+.notices-panel { max-block-size: min(32rem, calc(100vh - 6rem)); overflow-y: auto; overscroll-behavior: contain; }
+.notices-head { position: sticky; inset-block-start: -0.6rem; z-index: 1; background: inherit; }
 .notices-list a { color: var(--teal); font-weight: 600; white-space: nowrap; text-decoration: none; }
 .notices-list a:hover { text-decoration: underline; }
 .notices-list button {
@@ -686,6 +693,18 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .account-panel .signed-in button:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .account-panel .yours-link { border-block-end: 1px solid var(--hairline); }
 .account-panel .to-you { border-block-end: 0; }
+.account-panel .account-phone { display: none; }
+.account-panel .account-find {
+  padding: 0.45rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
 .notices-list li + li { border-block-start: 1px solid var(--hairline); }
 .talk-drawer { animation: talk-in var(--in) var(--ease); }
 .talk-drawer-head { border-block-end: 1px solid var(--hairline); padding: 0.8rem 0.8rem 0.7rem 1.2rem; }
@@ -760,15 +779,43 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .talk-cta .talk-glyph { display: block; }
   .talk-cta span { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
   .talk-drawer { z-index: 31; }
-  .account-panel, .notices-panel {
+  .account-panel, .notices-panel, .lang-panel {
     position: fixed;
     inset-inline: 0;
     inset-block: auto 0;
     width: auto;
+    min-width: 0;
     border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
     padding-block-end: calc(1rem + env(safe-area-inset-bottom));
     z-index: 32;
+    /* Never taller than the screen less a strip of the page, which is where a press
+       closes it; the page under it dims (2026-09-14). A shadow rather than an element,
+       so the press still reaches the page and closes the sheet. */
+    max-block-size: calc(100svh - 5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
   }
+  /* The sheets live in the bar, and the bar's own layer sat under the round pill, which
+     stood over the sheet's rows. While one is open the bar is lifted over it. */
+  .site-head:has(.account-panel:not([hidden]), .notices-panel:not([hidden]), .lang-panel:not([hidden])) {
+    z-index: 33;
+  }
+  /* The top bar keeps the mark, the language, the bell and the account (design.md §13);
+     find and the light switch are rows in the account's sheet. */
+  .site-head-row > .palette-open,
+  .site-head-row > [data-theme-toggle] { display: none; }
+  .account-panel .account-phone {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin: 0;
+    padding-block: 0.5rem;
+    margin-block-end: 0.7rem;
+    border-block-end: 1px solid var(--hairline);
+  }
+  .account-panel .account-theme { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--ink-soft); font-size: 0.875rem; }
   /* The conversation page itself: its box sits above the bar, and its list sheet's rows
      clear it. */
   body.chat { padding-block-end: 0; height: calc(100svh - 4rem - env(safe-area-inset-bottom)); }

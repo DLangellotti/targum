@@ -102,6 +102,53 @@ def test_a_build_caught_mid_flight_is_told_the_truth(tmp_path: Path) -> None:
     assert after.committed == 2.0
 
 
+def test_a_build_still_in_line_is_let_go_and_its_money_given_back(tmp_path: Path) -> None:
+    """The line was memory, and nothing puts a recovered job back on it: a queued build
+    sat at "queued" for good. It never started, so its claim goes back."""
+    lib, _ = library(tmp_path)
+    waiting = job(lib, 2.0)
+    assert lib.claim(waiting) == ""
+    lib.enqueue(waiting)
+
+    after = Library(
+        tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db")
+    )
+    recovered = after.jobs[waiting.id]
+    assert recovered.stage == "failed" and "restarted" in recovered.error
+    assert after.committed == 0.0, "nothing was spent on a build that never started"
+
+
+def test_a_job_comes_back_made_when_it_was_made(tmp_path: Path) -> None:
+    """Not at start-up: a history made "lately" by every restart filled the bell with it."""
+    lib, _ = library(tmp_path)
+    old = job(lib, 1.0)
+    old.made = now() - 3 * 24 * 60 * 60 * 1000
+    old.stage = "done"
+    lib.remember(old)
+
+    after = Library(
+        tmp_path / "out", max_cost=10.0, budget=10.0, store=Store(tmp_path / "targum.db")
+    )
+    assert after.jobs[old.id].made == old.made
+    assert after.mine(None) == [], "three days old and settled is not something to follow"
+
+
+def test_a_refusing_site_is_said_plainly() -> None:
+    """A 403 reached the bell as the HTTP library's own paragraph, a link to MDN and all."""
+    import httpx
+
+    from targum.serve import unreadable
+
+    request = httpx.Request("GET", "https://example.test/page?utm_source=x")
+    for status, words in ((403, "won't let us"), (404, "isn't there"), (502, "didn't answer")):
+        error = httpx.HTTPStatusError(
+            "Client error", request=request, response=httpx.Response(status, request=request)
+        )
+        said = unreadable(error)
+        assert words in said and "http" not in said, said
+    assert "couldn't read" in unreadable(ValueError("a stack of detail"))
+
+
 def test_jobs_come_back_with_what_the_page_needs(tmp_path: Path) -> None:
     lib, _ = library(tmp_path)
     done = job(lib, 1.0, owner=7, title="A Book", language="he", segments=41)

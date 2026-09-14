@@ -779,18 +779,45 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
 @media (max-width: 40rem) {
   body.learn main { padding: 0 0 5rem; gap: 1.25rem; }
   body.learn .site-head-row { padding-inline: 1rem; }
+  /* Quieter on a phone (2026-09-14, "the whole page is just way too busy"): the greeting
+     and the count without the date; and over a framed reader the sheet's head is the
+     known share and Open alone, because the door pressed above already says why this
+     text and the reader's own bar under it names it. */
+  .hello .today { display: none; }
+  .page-sheet:has(.page-window:not([hidden])) :is(.page-state, .page-title) { display: none; }
+  .page-sheet:has(.page-window:not([hidden])) .page-head {
+    grid-template-areas: "facts actions";
+    padding-block: 0.4rem;
+  }
   .front { gap: 1rem; margin-block-end: 1rem; }
   .front .learn-head { padding-inline: 1rem; }
-  /* The track takes the width, and its pills wrap to a second row when four of them
-     will not fit one (2026-09-11: Recently read joined the row, and at 320px three
-     labels ran 5px past the screen). Wrapped, the track is a rounded box, not a pill. */
-  .front .ways { align-self: stretch; flex-wrap: wrap; border-radius: var(--radius-sheet); }
-  .front .way { flex: 1 1 auto; text-align: center; padding-inline: 0.6rem; font-size: 0.8125rem; }
-  /* The menu hangs from the whole track, not from its own pill: a pill's width is a
-     word, and a Hebrew title in a menu that wide is one letter and an ellipsis. */
-  .front .ways { position: relative; }
-  .front .ways-menu-host { flex: 1 1 auto; display: flex; position: static; }
-  .front .ways-menu { inset-inline: 0; min-inline-size: 0; }
+  /* The track is one row that scrolls sideways (2026-09-14). It wrapped to a second row
+     when four pills would not fit one, which was a box as tall as the greeting; one row
+     keeps the page quiet, and the pill cut off at its far edge says there is more. The
+     menus come up as sheets from the foot, as every panel does on a phone (design.md
+     §13) — a menu hung from a scrolling row would be cut off by it. No fade at the edge: a
+     mask makes the row the box a fixed sheet is placed in, and the sheet opened inside
+     the row. */
+  .front .ways {
+    align-self: stretch;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .front .ways::-webkit-scrollbar { display: none; }
+  .front .way { flex: 0 0 auto; padding-inline: 0.75rem; font-size: 0.8125rem; }
+  .front .ways-menu-host { flex: 0 0 auto; display: flex; position: static; }
+  .front .ways-menu {
+    position: fixed;
+    inset-inline: 0;
+    inset-block: auto 0;
+    min-inline-size: 0;
+    max-block-size: calc(100svh - 5rem);
+    padding-block-end: calc(0.75rem + env(safe-area-inset-bottom));
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    z-index: 32;
+    box-shadow: 0 0 0 100vmax rgb(0 0 0 / 0.35);
+  }
   .page-sheet { border-radius: 0; box-shadow: none; }
   .page-window {
     /* The screen between the ink bar and the bottom bar, less the sheet's foot

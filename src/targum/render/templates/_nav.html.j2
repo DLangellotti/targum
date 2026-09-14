@@ -86,6 +86,12 @@
             top right"). Above both halves of the panel: it is yours signed in or not. -#}
         <p class="yours-link"><a class="to-you" href="/words">Your words and phrases</a>
           <a class="to-you" href="/you#subscriptions">Your subscriptions</a></p>
+        {#- On a phone the top bar keeps the mark, the language, the bell and the account
+            (design.md §13), so find and the light switch are here (2026-09-14). -#}
+        <p class="account-phone">
+          <button type="button" class="account-find" data-palette-open>Find anything</button>
+          <span class="account-theme">Light or dark <button type="button" data-theme-toggle aria-label="Switch theme"></button></span>
+        </p>
         <div class="signed-out">
           <p>Your words follow you. No password. We'll email you a link.</p>
           <form id="account-form">
