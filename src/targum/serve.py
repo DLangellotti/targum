@@ -6409,6 +6409,8 @@ DESK_KEYS = (
     "lang.",
     "building.",
     "account.",
+    "shelf.",
+    "follow.",
 )
 
 

@@ -10,6 +10,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
     if (!key) return path;
@@ -200,7 +218,7 @@
         var when = whenSaid(one.instalment.when);
         if (when) now.appendChild(el("span", "series-when", when));
       } else {
-        now.textContent = "Nothing this week yet.";
+        now.textContent = t("follow.nothing-this-week", "Nothing this week yet.");
       }
       what.appendChild(now);
       li.appendChild(what);
@@ -218,7 +236,7 @@
       toggle.appendChild(word);
       function settle() {
         var on = following(one.id);
-        word.textContent = on ? "Following" : "Follow";
+        word.textContent = on ? t("follow.following", "Following") : t("follow.follow", "Follow");
         toggle.setAttribute("aria-checked", on ? "true" : "false");
         li.classList.toggle("followed", on);
       }
@@ -229,7 +247,7 @@
       settle();
       acts.appendChild(toggle);
       if (one.page) {
-        var open = el("a", "series-open", "Open");
+        var open = el("a", "series-open", t("follow.open", "Open"));
         open.href = keyed(one.page);
         acts.appendChild(open);
       }
