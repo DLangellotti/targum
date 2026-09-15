@@ -2940,8 +2940,9 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
     # Each branch redraws it, and so does Keep: the card comes back with the scale on.
     # And a phrase's meaning arriving from the server redraws it once more, so the card
-    # that said "looking…" is the one that says what came.
-    assert body.count("showPick(picked);") == 4, "each redraws it"
+    # that said "looking…" is the one that says what came. And a meaning written before
+    # Keep redraws it kept, from Save and from a Keep pressed after it (2026-09-15).
+    assert body.count("showPick(picked);") == 6, "each redraws it"
     # And it stops being live the moment the card goes. There is one way to put the chip
     # away and it takes the keys down with it, because the two being separate lines meant
     # remembering them together at four call sites — and a level pressed at a phrase

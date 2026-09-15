@@ -215,6 +215,8 @@
   // `options.status` is what it is now; `onStatus` is handed the new one, or null when
   // the setting is taken off by pressing the one already chosen. `onNote` is handed the
   // text you typed, on the way out of the field rather than on every keystroke.
+  // `levels: false` draws the field alone: a phrase not kept yet offers its meaning to
+  // be written before it offers a scale (2026-09-15).
   function editor(options) {
     var box = document.createElement("div");
     box.className = "vocab-editor";
@@ -272,7 +274,7 @@
       });
       scale.appendChild(button);
     });
-    box.appendChild(scale);
+    if (options.levels !== false) box.appendChild(scale);
 
     // What the pressed step means, in words, under the scale. The names lived only in
     // the buttons' tooltips, which is nowhere on a phone, and "explain what the 1, 2, 3
