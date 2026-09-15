@@ -18,6 +18,24 @@
  */
 (function () {
   "use strict";
+
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
   var open = document.getElementById("notices-open");
   var panel = document.getElementById("notices-panel");
   var count = document.getElementById("notices-count");
@@ -50,16 +68,23 @@
   }
 
   // The pipeline narrates itself in its own vocabulary. This is the reader's.
+  // Keyed by the pipeline's English, which is what arrives; said in the reader's.
   var PLAIN = {
-    "Finding each word's dictionary form…": "reading the words",
-    "Adding vowel points…": "adding vowel points",
-    "Building the reader…": "setting the page",
+    "Finding each word's dictionary form…": function () {
+      return t("building.plain.words", "reading the words");
+    },
+    "Adding vowel points…": function () {
+      return t("building.plain.points", "adding vowel points");
+    },
+    "Building the reader…": function () {
+      return t("building.plain.page", "setting the page");
+    },
   };
   function plain(message) {
     if (!message) return "";
-    if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "lining it up";
-    if (message.indexOf("Looking up") === 0) return "looking up the words";
+    if (Object.prototype.hasOwnProperty.call(PLAIN, message)) return PLAIN[message]();
+    if (message.indexOf("Matching") === 0) return t("building.plain.lining-up", "lining it up");
+    if (message.indexOf("Looking up") === 0) return t("building.plain.looking-up", "looking up the words");
     return "";
   }
 
@@ -73,20 +98,29 @@
   function line(job) {
     // The English first where there is one: this line is read by somebody waiting, and
     // a title they can read is the one that tells them which build this is.
-    var title = job.title ? iso(job.title) : "your text";
+    var title = job.title ? iso(job.title) : t("building.your-text", "your text");
     if (job.english) title = iso(job.english) + " · " + title;
-    if (job.stage === "done") return title + " is ready.";
-    if (job.stage === "failed") return title + ": " + (job.error || "we couldn't get it ready.");
-    if (job.stage === "blocked") return title + ": " + (job.blocked || "we can't do this one right now.");
+    var named = { title: title };
+    if (job.stage === "done") return t("building.ready", "{title} is ready.", named);
+    if (job.stage === "failed") {
+      return title + ": " + (job.error || t("building.failed", "we couldn't get it ready."));
+    }
+    if (job.stage === "blocked") {
+      return title + ": " + (job.blocked || t("building.blocked", "we can't do this one right now."));
+    }
     if (job.stage === "queued") {
-      return job.behind === 1
-        ? "We'll start " + title + " after one other text."
-        : job.behind > 1
-          ? "We'll start " + title + " after " + job.behind + " other texts."
-          : "We'll start " + title + " next.";
+      return job.behind > 0
+        ? tn(
+            "building.queued",
+            job.behind,
+            "We'll start {title} after one other text.",
+            "We'll start {title} after {n} other texts.",
+            named
+          )
+        : t("building.next", "We'll start {title} next.", named);
     }
     var far = job.total ? Math.round((job.done / job.total) * 100) + "%" : plain(job.message);
-    return "We're getting " + title + " ready" + (far ? " · " + far : "");
+    return t("building.getting-ready", "We're getting {title} ready", named) + (far ? " · " + far : "");
   }
 
   function live(job) {
@@ -108,7 +142,7 @@
     if (entry.href) {
       var link = document.createElement("a");
       link.href = entry.href;
-      link.textContent = entry.label || "Open";
+      link.textContent = entry.label || t("building.open", "Open");
       // Following the link is as final as the ×: a reader who has opened the text has
       // no further use for a line that says it is ready.
       link.onclick = function () {
@@ -120,7 +154,7 @@
       var act = document.createElement("button");
       act.type = "button";
       act.className = "notices-act";
-      act.textContent = entry.label || "Open";
+      act.textContent = entry.label || t("building.open", "Open");
       act.onclick = function () {
         putAway(entry.id);
         delete notes[entry.id];
@@ -133,7 +167,7 @@
     var x = document.createElement("button");
     x.type = "button";
     x.className = "notices-x";
-    x.setAttribute("aria-label", "Dismiss");
+    x.setAttribute("aria-label", t("building.dismiss", "Dismiss"));
     x.textContent = "×";
     x.onclick = function () {
       pressed = Array.prototype.indexOf.call(list.querySelectorAll(".notices-x"), x);
@@ -212,7 +246,9 @@
   // Putting a live build away is asking to be told another way. The server says whether
   // it can — hosted, signed in, with an address to send — and only then is the promise
   // made, and said once.
-  var PROMISE = "We'll email you when it's ready.";
+  function promise() {
+    return t("building.promise", "We'll email you when it's ready.");
+  }
   function dismissJob(job) {
     putAway(job.id);
     draw();
@@ -231,7 +267,7 @@
       })
       .then(function (answer) {
         if (!answer || !answer.watching) return ask();
-        note("promise:" + job.id, PROMISE, { live: false });
+        note("promise:" + job.id, promise(), { live: false });
         setTimeout(function () {
           delete notes["promise:" + job.id];
           draw();
@@ -280,8 +316,9 @@
     .then(function (got) {
       ((got && got.chats) || []).forEach(function (chat) {
         if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
-        note("chat:" + chat.id + ":" + chat.answered, "New reply in " + (chat.title ? iso(chat.title) : "your conversation"), {
-          label: "Open",
+        var about = chat.title ? iso(chat.title) : t("building.your-conversation", "your conversation");
+        note("chat:" + chat.id + ":" + chat.answered, t("building.new-reply", "New reply in {title}", { title: about }), {
+          label: t("building.open", "Open"),
           action: function () {
             if (window.TargumTalk && window.TargumTalk.open) window.TargumTalk.open(chat.id);
             else window.location.href = keyed("/chat") + "#" + encodeURIComponent(chat.id);
@@ -324,10 +361,14 @@
     .then(function (me) {
       var hours = me && me.signedIn && me.hours;
       if (!hours || !hours.allowed || !(hours.used >= hours.allowed * 0.75)) return;
-      var reset = hours.ends ? " They reset on " + hours.ends + "." : "";
-      note("hours:" + (hours.ends || "now"), "You've used " + hours.used + " of your " + hours.allowed + " hours this month." + reset, {
+      var reset = hours.ends ? " " + t("building.hours.reset", "They reset on {date}.", { date: hours.ends }) : "";
+      var used = t("building.hours.used", "You've used {used} of your {allowed} hours this month.", {
+        used: hours.used,
+        allowed: hours.allowed,
+      });
+      note("hours:" + (hours.ends || "now"), used + reset, {
         href: keyed("/progress"),
-        label: "See",
+        label: t("building.hours.see", "See"),
       });
     })
     .catch(function () {});
@@ -340,7 +381,7 @@
         var inst = one.instalment;
         note("series:" + one.id + ":" + inst.id, one.name + ": " + iso(inst.hebrew || inst.title), {
           href: keyed(one.page || window.TargumFollow.readerOf(one)),
-          label: "Open",
+          label: t("building.open", "Open"),
         });
       });
     });

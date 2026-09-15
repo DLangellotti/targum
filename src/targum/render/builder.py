@@ -322,8 +322,9 @@ def page_words(language: str) -> Callable[[str, str], Markup]:
     return t
 
 
-#: What `charts.js` and `lang.js` say, which every desk page that carries them needs.
-SHARED_SCRIPT_KEYS = ("charts.", "lang.")
+#: What the scripts every desk page carries say: the charts, the language menu, the
+#: notices bell and the account panel.
+SHARED_SCRIPT_KEYS = ("charts.", "lang.", "building.", "account.")
 
 
 def script_strings(language: str, *prefixes: str) -> dict[str, Any]:
