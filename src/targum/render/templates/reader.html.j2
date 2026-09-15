@@ -365,7 +365,7 @@
       not on a translation, and a button that names the wrong work makes a promise the
       click will not keep. -#}
   <p>{% if audio_waiting %}We haven't transcribed this part yet.{% else %}We haven't translated this chapter yet.{% endif %}</p>
-  <button type="button" id="translate-chapter" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
+  <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
 </div>
 {% endif %}
 {#- The player. Shown on a dialogue the moment it opens, because a reader who does not

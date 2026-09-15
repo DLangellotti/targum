@@ -8236,9 +8236,12 @@ var targumReader = function () {
         link.appendChild(english);
       }
     }
-    if (lead) lead.textContent = "Read next" + (pick.scene ? " · " + pick.scene : "");
+    var say = window.TargumStrings || { t: function (key, english) { return english; } };
+    if (lead) lead.textContent = say.t("reader.next.lead", "Read next") + (pick.scene ? " · " + pick.scene : "");
     if (why) {
-      why.textContent = pick.because + (pick.minutes ? " · " + pick.minutes + " min" : "");
+      why.textContent =
+        pick.because +
+        (pick.minutes ? " · " + say.t("reader.next.minutes", "{n} min").replace("{n}", pick.minutes) : "");
       why.hidden = !pick.because;
     }
     // Nothing left to draw, so the control goes rather than sitting there inert.
@@ -8361,12 +8364,20 @@ var targumReader = function () {
     return head;
   }
 
+  // The reader's own words (targum-internal#184), where the page is read in another language.
+  var said = window.TargumStrings || { t: function (key, english) { return english; } };
+  var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that. Try again.");
+
   press.hidden = false;
   press.onclick = function () {
     press.disabled = true;
-    // The page set the button's word to the work owed — a translation, or for an
-    // imported recording a transcript — and the working form keeps that promise.
-    press.textContent = press.textContent === "Transcribe" ? "Transcribing…" : "Translating…";
+    // The page says which work is owed — a translation, or for an imported recording a
+    // transcript — and the working form keeps that promise. Read off the attribute, not
+    // the button's word, which is the reader's language.
+    press.textContent =
+      press.getAttribute("data-owed") === "transcript"
+        ? said.t("reader.chapter.transcribing", "Transcribing…")
+        : said.t("reader.chapter.translating", "Translating…");
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
@@ -8381,7 +8392,7 @@ var targumReader = function () {
         // refusal still carries an id, and polling a job that was never kept waited on
         // "Translating…" for ever (2026-09-14).
         if (job.blocked || job.stage === "blocked") throw new Error(job.blocked || job.error);
-        if (!job.id) throw new Error(job.error || job.blocked || "We couldn't start that. Try again.");
+        if (!job.id) throw new Error(job.error || job.blocked || trouble);
         var timer = setInterval(function () {
           fetch(keyed("/job/" + job.id))
             .then(function (r) {
@@ -8394,13 +8405,13 @@ var targumReader = function () {
               } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
                 press.disabled = false;
-                press.textContent = state.error || state.blocked || "We couldn't start that. Try again.";
+                press.textContent = state.error || state.blocked || trouble;
               }
             })
             .catch(function () {
               clearInterval(timer);
               press.disabled = false;
-              press.textContent = "We couldn't reach targum. Try again.";
+              press.textContent = said.t("reader.chapter.could-not-reach", "We couldn't reach targum. Try again.");
             });
         }, 1500);
       })
