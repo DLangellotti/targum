@@ -4483,20 +4483,35 @@ var targumReader = function () {
       redraw();
     }
 
+    function note(text) {
+      var item = ensure();
+      writeMeaning(phraseTerm(item), { note: text });
+      stamp(item);
+      remember();
+      redraw();
+    }
+
     return {
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? noteOn(phraseTerm(pick)) : "",
         placeholder: "Your own meaning",
         onStatus: apply,
-        onNote: function (text) {
-          var item = ensure();
-          writeMeaning(phraseTerm(item), { note: text });
-          stamp(item);
-          remember();
-          redraw();
-        },
+        onNote: note,
       }),
+      // The field without the scale, on a phrase not kept yet (2026-09-15: "I want to be
+      // able to write my own meanings for phrases", and the field only came after Keep).
+      // Writing a meaning is as deliberate as pressing Keep, so it keeps the phrase; the
+      // scale still waits, because one stray press on it is not.
+      field: function (onSaved) {
+        return TargumVocab.editor({
+          levels: false,
+          note: "",
+          placeholder: "Your own meaning",
+          onNote: note,
+          onSaved: onSaved,
+        });
+      },
       apply: apply,
     };
   }
@@ -4540,6 +4555,46 @@ var targumReader = function () {
     showPick(picked);
   });
 
+  // A phone never sends that mouseup for a selection: a long press selects natively and
+  // the handles are dragged by the browser, so the card never came and the phrase could
+  // not be kept (2026-09-15). The selection is watched instead, once it has settled,
+  // and only after a touch — with a mouse the handler above already has it, and a
+  // selection changing under a drag would draw the card at every word crossed. It only
+  // ever draws: the field on the card moves the selection too, and must not close it.
+  var pickedByTouch = false;
+  var pickSettling = null;
+  document.addEventListener(
+    "pointerdown",
+    function (event) {
+      pickedByTouch = event.pointerType === "touch" || event.pointerType === "pen";
+    },
+    true
+  );
+  document.addEventListener("selectionchange", function () {
+    if (!chip || !pickedByTouch) return;
+    if (pickSettling) window.clearTimeout(pickSettling);
+    pickSettling = window.setTimeout(function () {
+      pickSettling = null;
+      var picked = currentSelection();
+      if (!picked || !picked.text) return;
+      var same =
+        picking &&
+        picking.segmentId === picked.segmentId &&
+        picking.start === picked.start &&
+        picking.end === picked.end;
+      if (!same) showPick(picked);
+    }, 400);
+  });
+
+  // The kept phrase this selection overlaps, by its index in the sentence's list, or -1.
+  function keptOver(picked) {
+    var found = -1;
+    (picks[picked.segmentId] || []).forEach(function (item, index) {
+      if (item.start < picked.end && item.end > picked.start) found = index;
+    });
+    return found;
+  }
+
   // Built as a function rather than inline in the handler, because setting a level from
   // the keyboard has to draw the card again to show which one is now set — the editor
   // reads its pressed state once, when it is made.
@@ -4581,10 +4636,7 @@ var targumReader = function () {
 
     // Dragging over a phrase you already kept offers to drop it again. Tapping cannot:
     // a tap means "what does this mean", and a phrase usually covers several words.
-    var existing = -1;
-    (picks[picked.segmentId] || []).forEach(function (item, index) {
-      if (item.start < picked.end && item.end > picked.start) existing = index;
-    });
+    var existing = keptOver(picked);
 
     // The whole sentence has a translation already. A part of one is asked for, once,
     // where the page can ask; until the answer comes — or where it cannot — the words'
@@ -4622,10 +4674,22 @@ var targumReader = function () {
       hear: hearButton(picked.segmentId, picked.start, picked.end, "Hear this phrase"),
       kind: held ? held.kind : "",
       cite: held ? held.citation : "",
-      editor: existing > -1 ? editing.element : null,
+      editor:
+        existing > -1
+          ? editing.element
+          : editing.field(function () {
+              showPick(picked);
+            }),
       action: existing > -1 ? "Remove" : "Keep",
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
+        // A meaning typed into the field has kept the phrase already, under a card still
+        // saying Keep. Pressing it then is keeping what is kept: the card comes back with
+        // the scale, rather than a second copy going on the list.
+        if (existing === -1 && keptOver(picked) > -1) {
+          showPick(picked);
+          return;
+        }
         if (existing > -1) {
           if (window.TargumSync) window.TargumSync.forgetPhrase(list[existing].id);
           list.splice(existing, 1);

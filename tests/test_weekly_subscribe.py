@@ -49,7 +49,7 @@ class Refusing:
         self.refuse = refuse
         self.sent: list[str] = []
 
-    def send(self, to: str, link: str) -> None: ...
+    def send(self, to: str, link: str, language: str = "en") -> None: ...
 
     def notify(self, to: str, subject: str, body: str, headers: object = None) -> None:
         if to in self.refuse:

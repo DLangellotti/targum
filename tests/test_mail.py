@@ -141,3 +141,29 @@ def test_a_finished_build_is_said_plainly_on_the_console() -> None:
     )
     said = out.getvalue()
     assert "reader@example.com" in said and "Ruth is ready" in said and "http://x" in said
+
+
+def test_the_link_is_sent_in_the_language_the_person_reads(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Subject and body come from the catalogue in the language asked, and a language
+    that has not filled a key yet is sent that key in English (targum-internal#186)."""
+    from targum import strings
+
+    real = strings.catalogue
+
+    def catalogue(language: str) -> dict[str, str]:
+        if language == "ru":
+            return {"mail.sign_in.subject": "Ваша ссылка для входа в targum"}
+        return real(language)
+
+    monkeypatch.setattr(strings, "catalogue", catalogue)
+    sent: list[tuple[str, str]] = []
+    mailer = SmtpMailer(host="h", port=587, user="u", password="p", sender="s")
+    monkeypatch.setattr(
+        mailer, "_deliver", lambda to, subject, body, headers=None: sent.append((subject, body))
+    )
+
+    mailer.send("reader@example.com", "https://targum.page/account/enter?t=x", language="ru")
+    mailer.send("reader@example.com", "https://targum.page/account/enter?t=x")
+    assert sent[0][0] == "Ваша ссылка для входа в targum"
+    assert "https://targum.page/account/enter?t=x" in sent[0][1], "English body, link filled"
+    assert sent[1] == (SUBJECT, BODY.format(link="https://targum.page/account/enter?t=x"))

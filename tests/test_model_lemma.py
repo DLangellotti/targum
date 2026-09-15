@@ -136,6 +136,51 @@ def test_offsets_are_found_in_the_text_and_never_trusted() -> None:
     assert placed is not None and [t.surface for t in placed] == ["Le", "chat"]
 
 
+def test_a_curly_apostrophe_places_a_straight_one() -> None:
+    """French and Italian are written with ’ and the model often answers with ': the
+    article is placed all the same, spelled as the text spells it (targum-internal#262)."""
+    text = "L’homme mange à l’école."
+    answer = "\n".join(
+        [
+            "1\tL'\tle\tDET",
+            "1\thomme\thomme\tNOUN",
+            "1\tmange\tmanger\tVERB",
+            "1\tà\tà\tADP",
+            "1\tl'\tle\tDET",
+            "1\técole\técole\tNOUN",
+            "1\t.\t.\tPUNCT",
+        ]
+    )
+    [tokens] = model_lemma.parse(answer, [text], "fr")
+    assert tokens is not None
+    assert [t.surface for t in tokens] == ["L’", "homme", "mange", "à", "l’", "école"]
+    assert all(text[t.start : t.end] == t.surface for t in tokens)
+    # And the other way round, with the modifier letter the Italian texts sometimes carry.
+    [back] = model_lemma.parse("1\tdell’\tdi\tADP\n1\tanno\tanno\tNOUN", ["dellʼanno"], "it")
+    assert back is not None and [t.surface for t in back] == ["dellʼ", "anno"]
+
+
+def test_a_word_is_never_placed_inside_another() -> None:
+    """The model wrote `de` for `d’`, and it was found inside *solde* further on, which
+    lost every word between. A bare `l` takes the apostrophe the text gives it."""
+    text = "au cours d’une année due au solde naturel"
+    answer = "\n".join(
+        [
+            "1\tau\tà\tADP",
+            "1\tcours\tcours\tNOUN",
+            "1\tde\tde\tADP",
+            "1\tune\tun\tDET",
+            "1\tannée\tannée\tNOUN",
+            "1\tdue\tdû\tADJ",
+        ]
+    )
+    [tokens] = model_lemma.parse(answer, [text], "fr")
+    assert tokens is not None
+    assert [t.surface for t in tokens] == ["au", "cours", "une", "année", "due"]
+    [bare] = model_lemma.parse("1\tl\tle\tDET\n1\tallure\tallure\tNOUN", ["prend l’allure"], "fr")
+    assert bare is not None and [t.surface for t in bare] == ["l’", "allure"]
+
+
 def test_nothing_is_bought_without_a_press(tmp_path: Path) -> None:
     """Every lemmatizer reads from the cache alone unless it was made to buy. Pricing a
     card, repairing a paragraph and rebuilding a shelf all make it that way."""
