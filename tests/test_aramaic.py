@@ -270,3 +270,20 @@ def test_a_token_is_what_the_reader_already_knows_how_to_draw() -> None:
     card needs nothing to show an Aramaic word."""
     fields = set(Token.model_fields)
     assert {"headword", "lexeme", "split", "built", "pos"} <= fields
+
+
+def test_a_rendering_s_words_are_measured_in_the_text_the_reader_shows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Onkelos beside the Hebrew (targum-internal#202): offsets land on the bare text the
+    reader counts in, which keeps the maqaf and the sof pasuq, and a maqaf still parts
+    two words rather than joining them."""
+    from targum.vocalize.base import strip_nikkud
+
+    monkeypatch.setattr(aramaic, "verse_names", lambda ref: frozenset())
+    text = "וְאַרְעָא הֲוָת צַדְיָא עַל־אַפֵּי תְהוֹמָא׃"
+    shown, _ = strip_nikkud(text)
+    words = aramaic.rendering_tokens(text, "Onkelos Genesis 1:2")
+    assert [shown[t.start : t.end] for t in words] == ["וארעא", "הות", "צדיא", "על", "אפי", "תהומא"]
+    assert words[0].lexeme == "targum:אַרְעָא" and words[0].built == "ו + ארעא"
+    assert aramaic.sense(words[3].lexeme) and aramaic.sense(words[4].lexeme)

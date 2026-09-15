@@ -5071,6 +5071,27 @@ def test_only_a_rendering_read_beside_says_so(tmp_path: Path) -> None:
     assert {k: v.get("beside") for k, v in shipped.items()} == {"t0": None, "t1": None, "t2": True}
 
 
+def test_onkelos_ships_words_of_its_own_and_the_hebrew_ships_what_it_did(
+    tmp_path: Path,
+) -> None:
+    """A word in Onkelos can be tapped (targum-internal#202, criterion 5). The rendering
+    carries a word table of its own — language arc, meanings only from the hand table —
+    beside the Hebrew's rather than in it, because both are keyed by the Hebrew ids."""
+    onkelos = _rendering("Onkelos", "arc", {s.id: "וְאַרְעָא הֲוָת עַל־אַפֵּי" for s in GENESIS})
+    plain = _payload(_genesis(tmp_path / "plain", [_english()]))
+    with_it = _payload(_genesis(tmp_path / "both", [_english(), onkelos]))
+    table = with_it["translations"]["t1"]["tokens"]
+    assert table["language"] == "arc"
+    sid = GENESIS[0].id
+    shown = "וארעא הות על־אפי"
+    rows = table["words"][sid]
+    assert [shown[r[0] : r[1]] for r in rows] == ["וארעא", "הות", "על", "אפי"]
+    assert [table["lemmas"][r[4]] for r in rows] == ["ארעא", "הוה", "על", "אפי"]
+    assert table["glosses"]["en"][rows[0][4]] == "land; earth; ground"
+    assert "tokens" not in with_it["translations"]["t0"], "the English carries no word table"
+    assert with_it["words"] == plain["words"] and with_it["lemmas"] == plain["lemmas"]
+
+
 def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Path) -> None:
     """The regression that matters, from the other side: a second rendering adds the
     switch and its own data, and leaves every byte of the text, the cells and the first

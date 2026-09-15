@@ -249,3 +249,40 @@ def tokens(segment: Segment) -> list[Token]:
             )
         )
     return out
+
+
+def rendering_tokens(text: str, ref: str = "") -> list[Token]:
+    """The words of an Aramaic rendering read beside a Hebrew text — Onkelos beside the
+    Torah — with offsets into the rendering's bare text as the reader counts it
+    (`vocalize.base.strip_nikkud`), not into `bare` above.
+
+    The two bare forms differ: `bare` drops the maqaf and the sof pasuq with the points,
+    and the reader keeps them, so a word after a maqaf would be marked a letter early.
+    Every letter survives both, so each word is carried across by its first and last
+    letter (targum-internal#202). `ref` is the Hebrew verse's, prefixed `Onkelos `, which
+    is what lets the verse's own names answer.
+    """
+    from ..vocalize.base import strip_nikkud
+
+    _, to_bare = strip_nikkud(text)
+    # The points go; the maqaf, the sof pasuq and the paseq — punctuation inside the same
+    # range — stand as a space instead. Dropped with the points, על־אפי read as one word.
+    kept: list[int] = []
+    letters: list[str] = []
+    for i, char in enumerate(text):
+        if _POINTS.match(char):
+            if unicodedata.category(char) == "Mn":
+                continue
+            char = " "
+        kept.append(i)
+        letters.append(char)
+    stripped = "".join(letters)
+    segment = Segment(
+        id="beside", block_id="beside", block_index=0, index=0, text=stripped, ref=ref
+    )
+    out: list[Token] = []
+    for token in tokens(segment):
+        start = to_bare[kept[token.start]]
+        end = to_bare[kept[token.end - 1]] + 1
+        out.append(token.model_copy(update={"start": start, "end": end}))
+    return out
