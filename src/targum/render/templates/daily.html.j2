@@ -8,7 +8,7 @@
     Nothing here is generated day to day. A calendar says which range, a cut takes it out
     of a text already on the shelf, and the page points at a reader built by a cron. -#}
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
@@ -26,8 +26,8 @@
       <span>targum</span>
     </a>
     <div class="corner">
-      <a class="enter" href="/account/signin">Sign in</a>
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <a class="enter" href="/account/signin">{{ t("daily.page.sign-in", "Sign in") }}</a>
+      <button type="button" data-theme-toggle aria-label="{{ t("daily.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 
@@ -42,8 +42,8 @@
       invention. A page of the book is a picture of the book. -#}
   <section class="band">
     <div class="said">
-      <span class="eyebrow">{% if is_today %}Today{% else %}{{ day.hdate }}{% endif %}</span>
-      <h1 class="pitch">{{ cycle.name }}, every word explained.</h1>
+      <span class="eyebrow">{% if is_today %}{{ t("daily.page.today", "Today") }}{% else %}{{ day.hdate }}{% endif %}</span>
+      <h1 class="pitch">{{ t("daily.page.pitch", "{name}, every word explained.", name=cycle.name) }}</h1>
       <span class="named" lang="he" dir="rtl">{{ cycle.hebrew }}</span>
       <p class="lede">{{ cycle.blurb }}</p>
     </div>
@@ -65,7 +65,7 @@
   </p>
 
   <div class="embed" id="embed">
-    <button type="button" class="handle" id="embed-handle" aria-expanded="false">Full screen</button>
+    <button type="button" class="handle" id="embed-handle" aria-expanded="false">{{ t("daily.page.full-screen", "Full screen") }}</button>
     {#- The first section where there is more than one, and the whole thing where there
         is not — see `build.opens_at`. A day of Tehillim is seven psalms and its
         `index.html` is a list of seven links; a day of Mishna Yomi is one chapter and has
@@ -80,7 +80,7 @@
       somebody looking ahead can. Only the ones actually built: the window rolls, and a
       link to a day that has fallen out of it is a link to a 404. -#}
   {% if nearby %}
-  <nav class="nearby" aria-label="Other days">
+  <nav class="nearby" aria-label="{{ t("daily.page.other-days", "Other days") }}">
     {%- for other in nearby %}
     <a class="day{% if other.day == day.day %} here{% endif %}"
        {% if other.day == day.day %}aria-current="page"{% endif %}
@@ -96,12 +96,12 @@
       is the thing somebody deciding between them wants to know. -#}
   {% if others %}
   <section class="how">
-    <h2 class="label">Also today</h2>
+    <h2 class="label">{{ t("daily.page.also-today", "Also today") }}</h2>
     <ol class="cycles">
       {%- for one, said in others %}
       <li>
         <b><a href="/{{ one.slug }}">{{ one.name }}</a></b>
-        <span>{{ one.rhythm }} — today, <bdi lang="he" dir="rtl">{{ said }}</bdi></span>
+        <span>{{ t("daily.page.rhythm-today", "{rhythm} — today,", rhythm=one.rhythm) }} <bdi lang="he" dir="rtl">{{ said }}</bdi></span>
       </li>
       {%- endfor %}
     </ol>
@@ -109,7 +109,7 @@
   {% endif %}
 
   <section class="honest">
-    <h2 class="label">Made honestly</h2>
+    <h2 class="label">{{ t("daily.page.made-honestly", "Made honestly") }}</h2>
     <p class="made">
       The Hebrew is the published edition, cut to today's reading and not edited. The
       English beside it is {{ translation_said }}. The cycle and its calendar come from
@@ -133,17 +133,19 @@
       near-black, and §9's "a beige button on a beige card is forbidden" said the other
       way round. -#}
   <section class="keep">
-    <h2 class="label">Keep what you learn</h2>
-    <p class="section-title">Every word you mark, remembered.</p>
-    <p class="pitch-line">In tomorrow's reading, and in everything you read after it.</p>
+    <h2 class="label">{{ t("daily.page.keep-what-you-learn", "Keep what you learn") }}</h2>
+    <p class="section-title">{{ t("daily.page.every-word-you-mark-remembered", "Every word you mark, remembered.") }}</p>
+    <p class="pitch-line">{{ t("daily.page.in-tomorrow-s-reading-and-in-everything", "In tomorrow's reading, and in everything you read after it.") }}</p>
     <p class="door">
-      <a class="go" href="/account/signin">Sign in</a>
-      <span class="free">An email address. No password.</span>
+      <a class="go" href="/account/signin">{{ t("daily.page.sign-in", "Sign in") }}</a>
+      <span class="free">{{ t("daily.page.an-email-address-no-password", "An email address. No password.") }}</span>
     </p>
   </section>
 
 </main>
 
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('parasha.js') }}</script>
 
 {% include '_public_foot.html.j2' %}

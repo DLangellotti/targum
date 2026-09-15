@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{% if missing %}Not found — {% endif %}targum</title>
+<title>{% if missing %}{{ t("holding.page.not-found", "Not found") }} — {% endif %}targum</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('holding.css') }}</style>
 {{ hebrew_face() }}
@@ -14,8 +14,8 @@
 {#- What a stranger sees. Not the product and not a sales page: the identity, an honest
     word about where it is, and the door for the people who already have a key. -#}
 <div class="corner">
-  <a class="enter" href="/account/signin">Sign in</a>
-  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+  <a class="enter" href="/account/signin">{{ t("holding.page.sign-in", "Sign in") }}</a>
+  <button type="button" data-theme-toggle aria-label="{{ t("holding.page.switch-theme", "Switch theme") }}"></button>
 </div>
 
 <main class="middle">
@@ -32,10 +32,10 @@
   {#- An address that is not a page (2026-09-14). It answered "Coming soon" with a 200,
       which told a reader with a mistyped link that the whole site was closed, and told a
       search engine there was a page there. -#}
-  <p class="soon">We can't find that page</p>
-  <p class="missing">It may have moved, or the link may be mistyped. <a href="/library">Go to the library</a>.</p>
+  <p class="soon">{{ t("holding.page.we-can-t-find-that-page", "We can't find that page") }}</p>
+  <p class="missing">{{ t("holding.page.it-may-have-moved-or-the-link", "It may have moved, or the link may be mistyped.") }} <a href="/library">{{ t("holding.page.go-to-the-library", "Go to the library") }}</a>.</p>
   {%- else %}
-  <p class="soon">Coming soon</p>
+  <p class="soon">{{ t("holding.page.coming-soon", "Coming soon") }}</p>
   {%- endif %}
 </main>
 

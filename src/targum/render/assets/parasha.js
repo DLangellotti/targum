@@ -11,6 +11,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   /* Two frames on the page now — the Torah reading and the haftarah — and everything
      below treats them alike: each has its own full-screen handle, and the chanting-marks
      switch reaches both. The Torah reading's frame comes first in the markup and is the
@@ -33,13 +51,13 @@
       pinned = false;
       embed.classList.remove("pinned");
       handle.setAttribute("aria-expanded", "false");
-      handle.textContent = "Full screen";
+      handle.textContent = t("parasha.full-screen", "Full screen");
     }
     handle.addEventListener("click", function () {
       pinned = !pinned;
       embed.classList.toggle("pinned", pinned);
       handle.setAttribute("aria-expanded", pinned ? "true" : "false");
-      handle.textContent = pinned ? "Close" : "Full screen";
+      handle.textContent = pinned ? t("parasha.close", "Close") : t("parasha.full-screen", "Full screen");
     });
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape" && pinned) unpin();

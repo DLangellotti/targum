@@ -9,12 +9,12 @@
   {%- if back %}
   <a href="/library">{{ back }}</a>
   {%- endif %}
-  <a href="/about">What's built</a>
+  <a href="/about">{{ t("foot.whats-built", "What's built") }}</a>
   {#- Shown only once the documents are open. See `_foot.html.j2`. -#}
   {%- if legal_is_public() %}
-  <a href="/privacy">Privacy</a>
-  <a href="/terms">Terms</a>
+  <a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a>
+  <a href="/terms">{{ t("foot.terms", "Terms") }}</a>
   {%- endif %}
-  <a href="https://github.com/DLangellotti/targum">Source</a>
+  <a href="https://github.com/DLangellotti/targum">{{ t("foot.source", "Source") }}</a>
   <span>AGPL-3.0</span>
 </footer>

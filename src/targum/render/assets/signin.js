@@ -5,6 +5,24 @@
    sentence, because "check your email" belongs next to the field you just filled in. */
 (function () {
   "use strict";
+
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
   var form = document.getElementById("ask");
   var said = document.getElementById("sent");
   if (!form || !said) return;
@@ -49,18 +67,18 @@
         if (answer.ok) {
           // Thanked, and told where the link went. The server says the same thing for
           // every address, so naming the one just typed confirms nothing about it.
-          said.textContent = "Thanks. We've sent a link to " + field.value + ".";
+          said.textContent = t("account.sent", "Thanks. We've sent a link to {address}.", { address: field.value });
           form.hidden = true;
           return;
         }
         said.classList.add("bad");
-        said.textContent = answer.body.error || "We couldn't send a link. Try again.";
+        said.textContent = answer.body.error || t("account.could-not-send", "We couldn't send a link. Try again.");
         button.disabled = false;
       })
       .catch(function () {
         said.hidden = false;
         said.classList.add("bad");
-        said.textContent = "We couldn't connect. Check your connection and try again.";
+        said.textContent = t("signin.unreachable", "We couldn't connect. Check your connection and try again.");
         button.disabled = false;
       });
   });

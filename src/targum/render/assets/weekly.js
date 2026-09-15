@@ -10,6 +10,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   /* Full screen, asked for and never imposed.
 
      For a while the frame took the window on its own — when scrolling reached it, or
@@ -49,7 +67,7 @@
     }
 
     function say(open) {
-      handle.textContent = open ? "Back to the page" : "Full screen";
+      handle.textContent = open ? t("weekly.back-to-page", "Back to the page") : t("weekly.full-screen", "Full screen");
       handle.setAttribute("aria-expanded", open ? "true" : "false");
     }
 

@@ -6,7 +6,7 @@
     a mail client that fetches every link in a message must not be able to answer for the
     person who was sent it. -#}
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
@@ -27,7 +27,7 @@
       <span>targum</span>
     </a>
     <div class="corner">
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <button type="button" data-theme-toggle aria-label="{{ t("weekly.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 

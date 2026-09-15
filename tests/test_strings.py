@@ -139,6 +139,9 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         "theme.js",
         "chat.js",
         "speak.js",
+        "signin.js",
+        "parasha.js",
+        "weekly.js",
     ):
         assert _calls(render / "assets" / name), f"{name} says its words through the catalogue"
     for key, text in page.items():

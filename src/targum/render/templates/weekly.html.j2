@@ -4,7 +4,7 @@
     and a stranger who can read it is the reader this exists for. What stays behind the
     door is the product: the English beside every sentence, and the word cards. -#}
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
@@ -26,8 +26,8 @@
       <span>targum</span>
     </a>
     <div class="corner">
-      <a class="enter" href="/account/signin">Sign in</a>
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <a class="enter" href="/account/signin">{{ t("weekly.page.sign-in", "Sign in") }}</a>
+      <button type="button" data-theme-toggle aria-label="{{ t("weekly.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 
@@ -36,22 +36,22 @@
       premise — and the first thing under it is the product itself rather than a
       picture of it. The headline is the one place §5's landing display size is used. -#}
   <section class="hero with-stack">
-    <h1 class="pitch">Read this week's news in Hebrew. Every word explained.</h1>
+    <h1 class="pitch">{{ t("weekly.page.read-this-week-s-news-in-hebrew", "Read this week's news in Hebrew. Every word explained.") }}</h1>
     <p class="lede">
-      targum is a reader for Hebrew: tap any word for what it means, say how well you
-      know it, and every page after remembers.
+      {{ t("weekly.page.targum-is-a-reader-for-hebrew-tap", "targum is a reader for Hebrew: tap any word for what it means, say how well you
+      know it, and every page after remembers.") }}
     </p>
     {#- One action. The corner already offers Sign in; a second one beside the primary
         made the first screen ask twice. -#}
     <p class="cta">
-      <a class="go" href="#embed">Read this week's issue</a>
+      <a class="go" href="#embed">{{ t("weekly.page.read-this-week-s-issue", "Read this week's issue") }}</a>
     </p>
     {#- The press line: the outlets this issue cites, as their own wordmarks in their
         own colours — §12 records the departure. Only outlets the foot's sources list
         names; the marks and their licences are `assets/press/`. -#}
     {%- if press %}
     <p class="press">
-      <span class="from">From this week's reporting in</span>
+      <span class="from">{{ t("weekly.page.from-this-week-s-reporting-in", "From this week's reporting in") }}</span>
       {%- for outlet, mark in press %}
       <img src="{{ data_uri(mark) }}" alt="{{ outlet }}">
       {%- endfor %}
@@ -72,13 +72,13 @@
   {#- The page's spine: one small label over each block, in the one register the page
       already has for it (Mondays, Sources). On a phone they read as a table of
       contents while scrolling. -#}
-  <h2 class="label">This week</h2>
+  <h2 class="label">{{ t("weekly.page.this-week", "This week") }}</h2>
   {#- The dateline: where the weekly is introduced as what it is — the reader,
       demonstrated on the week's news, free, every Monday. The hero above says what
       targum is; this says why an issue is sitting on the page. -#}
   <p class="dateline">
-    Every Monday, targum publishes a free issue of the week's news, written three times
-    over. This is this week's — pick a level:
+    {{ t("weekly.page.every-monday-targum-publishes-a-free-issue", "Every Monday, targum publishes a free issue of the week's news, written three times
+    over. This is this week's — pick a level:") }}
   </p>
 
   {#- The three levels, each a way in. A reader has to choose one before they can
@@ -92,12 +92,12 @@
       bar became one row on a phone and the switch went behind ⋯. The page can know: the
       frame is the same origin, and `weekly.js` reads where it has gone on every load and
       keeps this and the address in step. -#}
-  <nav class="ladder" aria-label="Level — change it whenever a sentence is too hard, or too easy">
+  <nav class="ladder" aria-label="{{ t("weekly.page.level-change-it-whenever-a-sentence-is", "Level — change it whenever a sentence is too hard, or too easy") }}">
     {%- for other, other_spec in levels.items() %}
     <a href="/weekly/{{ issue.id }}/{{ other.value }}" data-level="{{ other.value }}"
        data-what="{{ explained[other] }}"{% if other == level %} class="here" aria-current="page"{% endif %}>
-      <b>{{ other_spec.name }}</b>
-      <span class="figure"><span class="for">for </span>{{ other_spec.figure }} words</span>
+      <b>{{ level_names[other] }}</b>
+      <span class="figure"><span class="for">{{ t("weekly.page.for", "for") }} </span>{{ t("weekly.page.figure-words", "{figure} words", figure=other_spec.figure) }}</span>
       <span class="what">{{ explained[other] }}</span>
     </a>
     {%- endfor %}
@@ -119,10 +119,10 @@
       inside, or on a phone scrolling it to the top — and gives it back from the one row
       above it, or on Escape. `weekly.js`. -#}
   <div class="embed" id="embed">
-    <button type="button" class="handle" id="embed-handle" aria-expanded="false">Full screen</button>
+    <button type="button" class="handle" id="embed-handle" aria-expanded="false">{{ t("weekly.page.full-screen", "Full screen") }}</button>
     <iframe
       src="/weekly/read/{{ folder }}/reader/index.html"
-      title="{{ issue.title }} — {{ spec.label }}"
+      title="{{ issue.title }} — {{ level_names[level] }} · {{ t("weekly.page.figure-words", "{figure} words", figure=spec.figure) }}"
       loading="lazy"></iframe>
   </div>
 
@@ -133,42 +133,42 @@
       The figures are illustrations: their controls are not controls, and a screen
       reader gets the sentence, not the picture. -#}
   <section class="how">
-    <h2 class="label">Why targum</h2>
-    <p class="section-title">Built for reading, not for drills.</p>
+    <h2 class="label">{{ t("weekly.page.why-targum", "Why targum") }}</h2>
+    <p class="section-title">{{ t("weekly.page.built-for-reading-not-for-drills", "Built for reading, not for drills.") }}</p>
     <ol>
       <li>
-        <b>Every word, one tap.</b>
-        <span>A card says what it means, how common it is and how it is said; tell it how well you know the word, and it remembers.</span>
+        <b>{{ t("weekly.page.every-word-one-tap", "Every word, one tap.") }}</b>
+        <span>{{ t("weekly.page.a-card-says-what-it-means-how", "A card says what it means, how common it is and how it is said; tell it how well you know the word, and it remembers.") }}</span>
         <figure class="how-card" aria-hidden="true">
           <bdi class="lemma" lang="he" dir="rtl">הֶחָלָב</bdi>
-          <span class="said">said <bdi dir="ltr" lang="he-fonipa">heχaˈlav</bdi></span>
-          <span class="form">dictionary form <bdi lang="he" dir="rtl">חָלָב</bdi> <i class="pos">moderate</i></span>
-          <span class="meaning">milk</span>
-          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">known</span></span>
+          <span class="said">{{ t("weekly.page.said", "said") }} <bdi dir="ltr" lang="he-fonipa">heχaˈlav</bdi></span>
+          <span class="form">{{ t("weekly.page.dictionary-form", "dictionary form") }} <bdi lang="he" dir="rtl">חָלָב</bdi> <i class="pos">{{ t("weekly.page.moderate", "moderate") }}</i></span>
+          <span class="meaning">{{ t("weekly.page.milk", "milk") }}</span>
+          <span class="levels"><span class="level">1</span><span class="level">2</span><span class="level">3</span><span class="level known on">{{ t("weekly.page.known", "known") }}</span></span>
         </figure>
       </li>
       <li>
-        <b>The page learns what you know.</b>
-        <span>Words you know go plain; what is left is what you have to learn. Signed in, that follows you into everything you read next.</span>
+        <b>{{ t("weekly.page.the-page-learns-what-you-know", "The page learns what you know.") }}</b>
+        <span>{{ t("weekly.page.words-you-know-go-plain-what-is", "Words you know go plain; what is left is what you have to learn. Signed in, that follows you into everything you read next.") }}</span>
         <figure class="how-line marking" aria-hidden="true">
           <p class="src" lang="he" dir="rtl"><span class="w" data-status="9">סליחה</span>, <span class="w" data-status="9">איפה</span> <span class="w">החלב</span>? <span class="w" data-status="1">במקרר</span>, <span class="w" data-status="9">בסוף</span> <span class="w">המעבר</span> <span class="w" data-status="9">הזה</span>.</p>
-          <p class="tr" lang="en" dir="ltr">Excuse me, where is the milk? In the fridge, at the end of this aisle.</p>
+          <p class="tr" lang="{{ page_language|default('en') }}" dir="ltr">{{ t("weekly.page.excuse-me-where-is-the-milk-in", "Excuse me, where is the milk? In the fridge, at the end of this aisle.") }}</p>
         </figure>
       </li>
       <li>
-        <b>Three versions of the same week.</b>
-        <span>Easy, Simplified, Native. Too hard? The easier one is a press away, at the same paragraph.</span>
+        <b>{{ t("weekly.page.three-versions-of-the-same-week", "Three versions of the same week.") }}</b>
+        <span>{{ t("weekly.page.easy-simplified-native-too-hard-the-easier", "Easy, Simplified, Native. Too hard? The easier one is a press away, at the same paragraph.") }}</span>
         <figure class="how-levels" aria-hidden="true">
           <span class="levels">
             {%- for other, other_spec in levels.items() %}
-            <span class="level{% if other == level %} here{% endif %}">{{ other_spec.name }}</span>
+            <span class="level{% if other == level %} here{% endif %}">{{ level_names[other] }}</span>
             {%- endfor %}
           </span>
         </figure>
       </li>
       <li>
-        <b>A reader, properly.</b>
-        <span>Vowel points on or off, a recording line by line, pages that turn the Hebrew way, full screen when you want it.</span>
+        <b>{{ t("weekly.page.a-reader-properly", "A reader, properly.") }}</b>
+        <span>{{ t("weekly.page.vowel-points-on-or-off-a-recording", "Vowel points on or off, a recording line by line, pages that turn the Hebrew way, full screen when you want it.") }}</span>
         <figure class="how-bar" aria-hidden="true">
           <span class="icons">
             <span class="icon"><svg viewBox="0 0 16 16"><path d="M4 3.5h8M8 3.5v6"/><path d="M5 12.5h0M8 12.5h0M11 12.5h0" class="dots"/></svg></span>
@@ -184,7 +184,7 @@
   {#- How the issue was made, and where it came from: the honesty a stranger deciding
       whether to trust a news digest is looking for, in one place. -#}
   <section class="honest">
-    <h2 class="label">Made honestly</h2>
+    <h2 class="label">{{ t("weekly.page.made-honestly", "Made honestly") }}</h2>
     <p class="made">{{ notice }}</p>
 
 
@@ -204,7 +204,7 @@
       twelve rows are a long tail under the ask, and a citation behind one tap is still
       a citation. -#}
   <details class="sources" id="sources" open>
-    <summary><b class="sub">Sources <span class="count">({{ issue.sources | length }})</span></b></summary>
+    <summary><b class="sub">{{ t("weekly.page.sources", "Sources") }} <span class="count">({{ issue.sources | length }})</span></b></summary>
     <ul>
       {%- for story in issue.sources %}
       <li>
@@ -222,7 +222,7 @@
           <span class="licence">{{ story.licence }}</span>
           {%- endif %}
           {%- if story.links %}
-          <a class="import" href="/add?source={{ story.links[0]|urlencode }}">Read the whole thing</a>
+          <a class="import" href="/add?source={{ story.links[0]|urlencode }}">{{ t("weekly.page.read-the-whole-thing", "Read the whole thing") }}</a>
           {%- endif %}
         </span>
       </li>
@@ -235,18 +235,18 @@
   {#- The door, last, and the page's one inverted block (§9): ink, pale text, the accent
       button — striking because it is the only one. Full width, like the reader. -#}
   <section class="keep">
-    <h2 class="label">Keep what you learn</h2>
-    <p class="section-title">Every word you mark, remembered.</p>
-    <p class="pitch-line">In next week's issue, and in everything you read after it.</p>
+    <h2 class="label">{{ t("weekly.page.keep-what-you-learn", "Keep what you learn") }}</h2>
+    <p class="section-title">{{ t("weekly.page.every-word-you-mark-remembered", "Every word you mark, remembered.") }}</p>
+    <p class="pitch-line">{{ t("weekly.page.in-next-week-s-issue-and-in", "In next week's issue, and in everything you read after it.") }}</p>
     <p class="door">
-      <a class="go" href="/account/signin">Sign in</a>
-      <span class="free">An email address. No password.</span>
+      <a class="go" href="/account/signin">{{ t("weekly.page.sign-in", "Sign in") }}</a>
+      <span class="free">{{ t("weekly.page.an-email-address-no-password", "An email address. No password.") }}</span>
     </p>
   </section>
 
   {%- if archive %}
   <section class="archive">
-    <h2>Earlier</h2>
+    <h2>{{ t("weekly.page.earlier", "Earlier") }}</h2>
     <ul>
       {%- for other in archive %}
       <li><a href="/weekly/{{ other.id }}/{{ level.value }}">{{ other.dated }}</a></li>
@@ -256,6 +256,8 @@
   {%- endif %}
 </main>
 
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('weekly.js') }}</script>
 
 {% include '_public_foot.html.j2' %}
