@@ -4204,7 +4204,8 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/chat/"):
             return self._chat_get(route[len("/chat/") :])
         if route == "/progress":
-            return self._send(200, self.progress.encode("utf-8"), "text/html; charset=utf-8")
+            page = self._desk("progress", self.progress)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         # Learn holds the top of each of these; this is the rest. `/words` was a redirect
         # to the progress page for a while, from when the word list lived there — an old
         # tab pointing here now lands on the word list itself, which is what it wanted.
@@ -5284,6 +5285,27 @@ class Handler(BaseHTTPRequestHandler):
             return next(iter(reads))
         return "en"
 
+    #: Desk pages rendered in another language, by language and then by page.
+    translated: dict[str, dict[str, str]] = {}
+
+    def _desk(self, name: str, english: str) -> str:
+        """A desk page in the language this reader's interface is in, where one was
+        rendered for it, and the English otherwise (targum-internal#184)."""
+        pages = self.translated.get(self._ui_language(), {})
+        return pages.get(name) or english
+
+    def _ui_language(self) -> str:
+        """The language the chrome speaks to this reader in: the one language their account
+        reads other than English, where a desk rendering in it exists — English beside it
+        or not, since reading Russian is the choice that says so. English otherwise: for a
+        visitor, for an account that reads only English, and for one that reads two other
+        languages, where nothing says which."""
+        person = self._person()
+        if person is None or self.store is None:
+            return "en"
+        others = [code for code in self.store.reads(person.id) if code != "en"]
+        return others[0] if len(others) == 1 and others[0] in self.translated else "en"
+
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
@@ -6358,6 +6380,17 @@ def _still_waiting(page: Path) -> bool:
         return True
 
 
+def desk_languages() -> list[str]:
+    """The languages besides English with a catalogue that says something on a desk page."""
+    from .strings import catalogue, languages
+
+    return [
+        code
+        for code in languages()
+        if code != "en" and any(key.startswith(("nav.", "progress.")) for key in catalogue(code))
+    ]
+
+
 def default_store() -> Path:
     """Where a word list lives, which is deliberately not where the readers live.
 
@@ -6457,6 +6490,11 @@ def start(
             "embedded": chat_page(token, embed=True),
             "chats": chats,
             "progress": progress_page(token),
+            # The desk pages said in another language, rendered once each at start-up
+            # like the English ones, and chosen per request (targum-internal#184).
+            "translated": {
+                code: {"progress": progress_page(token, language=code)} for code in desk_languages()
+            },
             "catalogue": library_page(token),
         },
     )

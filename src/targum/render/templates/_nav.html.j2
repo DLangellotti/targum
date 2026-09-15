@@ -37,14 +37,14 @@
       </svg>
       <span>targum</span>
     </a>
-    <nav class="site-nav" aria-label="Pages">
+    <nav class="site-nav" aria-label="{{ t("nav.pages", "Pages") }}">
       {#- On a phone the four places are a bar at the foot of the window, a glyph over
           each word (phase 4, 2026-09-11); at a desk only Add draws its glyph. §7: sixteen
           pixels, a stroke at 1.4, round caps. -#}
-      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>Learn</span></a>
-      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>Library</span></a>
-      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span><span class="nav-your">Your </span>Progress</span></a>
-      <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>Add</span></a>
+      <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>{{ t("nav.learn", "Learn") }}</span></a>
+      <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>{{ t("nav.library", "Library") }}</span></a>
+      <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span><span class="nav-your">{{ t("nav.your", "Your") }} </span>{{ t("nav.progress", "Progress") }}</span></a>
+      <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>{{ t("nav.add", "Add") }}</span></a>
     </nav>
     {#- Which language (design.md §13, 2026-09-13): one menu at the end of the places on
         every desk page that reads in a language, filled by `lang.js`. Hidden until the
@@ -58,46 +58,46 @@
         above them; the panel stays open while you put lines away. It replaced the
         pill that stood fixed at the foot of the window. Drawn by `building.js`. -#}
     {#- The command palette's own door (2026-09-11), beside the bell; ⌘K is the other. -#}
-    <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="Find anything" title="Find anything (⌘K)">
+    <button type="button" class="palette-open" id="palette-open" aria-expanded="false" aria-controls="palette" aria-label="{{ t("nav.find-anything", "Find anything") }}" title="{{ t("nav.find-anything-k", "Find anything (⌘K)") }}">
       <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/></svg>
     </button>
     <div class="notices" id="notices">
-      <button type="button" id="notices-open" aria-expanded="false" aria-haspopup="dialog" aria-label="Notifications">
+      <button type="button" id="notices-open" aria-expanded="false" aria-haspopup="dialog" aria-label="{{ t("nav.notifications", "Notifications") }}">
         <svg class="bell" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.2a3.6 3.6 0 0 0-3.6 3.6v2.4L3.2 10.6h9.6l-1.2-2.4V5.8A3.6 3.6 0 0 0 8 2.2zM6.6 12.6a1.4 1.4 0 0 0 2.8 0"/></svg>
         <span class="notices-count" id="notices-count" hidden></span>
       </button>
-      <div class="notices-panel" id="notices-panel" role="dialog" aria-label="Notifications" hidden>
+      <div class="notices-panel" id="notices-panel" role="dialog" aria-label="{{ t("nav.notifications", "Notifications") }}" hidden>
         {#- Clear all (2026-09-14): every line put away at once, as each × would. Shown
             only while there is something to clear. -#}
         <div class="notices-head" id="notices-head" hidden>
-          <button type="button" class="notices-clear" id="notices-clear">Clear all</button>
+          <button type="button" class="notices-clear" id="notices-clear">{{ t("nav.clear-all", "Clear all") }}</button>
         </div>
-        <p class="notices-empty" id="notices-empty">We're not building anything right now.</p>
+        <p class="notices-empty" id="notices-empty">{{ t("nav.we-re-not-building-anything-right-now", "We're not building anything right now.") }}</p>
         <ul class="notices-list" id="notices-list"></ul>
       </div>
     </div>
     <div class="account" id="account">
       <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
-        Sign in
+        {{ t("nav.sign-in", "Sign in") }}
       </button>
-      <div class="account-panel" id="account-panel" role="dialog" aria-label="Your account" hidden>
+      <div class="account-panel" id="account-panel" role="dialog" aria-label="{{ t("nav.your-account", "Your account") }}" hidden>
         {#- Your Words: the words and phrases you are learning, behind the account since
             2026-09-11 ("a dedicated page you access by clicking on your picture in the
             top right"). Above both halves of the panel: it is yours signed in or not. -#}
-        <p class="yours-link"><a class="to-you" href="/words">Your words and phrases</a>
-          <a class="to-you" href="/you#subscriptions">Your subscriptions</a></p>
+        <p class="yours-link"><a class="to-you" href="/words">{{ t("nav.your-words-and-phrases", "Your words and phrases") }}</a>
+          <a class="to-you" href="/you#subscriptions">{{ t("nav.your-subscriptions", "Your subscriptions") }}</a></p>
         {#- On a phone the top bar keeps the mark, the language, the bell and the account
             (design.md §13), so find and the light switch are here (2026-09-14). -#}
         <p class="account-phone">
-          <button type="button" class="account-find" data-palette-open>Find anything</button>
-          <span class="account-theme">Light or dark <button type="button" data-theme-toggle aria-label="Switch theme"></button></span>
+          <button type="button" class="account-find" data-palette-open>{{ t("nav.find-anything", "Find anything") }}</button>
+          <span class="account-theme">{{ t("nav.light-or-dark", "Light or dark") }} <button type="button" data-theme-toggle aria-label="{{ t("nav.switch-theme", "Switch theme") }}"></button></span>
         </p>
         <div class="signed-out">
-          <p>Your words follow you. No password. We'll email you a link.</p>
+          <p>{{ t("nav.your-words-follow-you-no-password-we", "Your words follow you. No password. We'll email you a link.") }}</p>
           <form id="account-form">
-            <input type="email" id="account-email" placeholder="you@example.com"
+            <input type="email" id="account-email" placeholder="{{ t("nav.you-example-com", "you@example.com") }}"
                    autocomplete="email" spellcheck="false" required>
-            <button type="submit">Send a link</button>
+            <button type="submit">{{ t("nav.send-a-link", "Send a link") }}</button>
           </form>
         </div>
         <div class="signed-in" hidden>
@@ -105,13 +105,13 @@
           {#- The month's hours, in the unit the pricing page gives them: where a reader
               who wonders looks, and nowhere they did not (targum-internal#237). -#}
           <p class="hours" id="account-hours" hidden></p>
-          <a class="to-you" href="/you">Your profile</a>
-          <button type="button" id="account-out">Sign out</button>
+          <a class="to-you" href="/you">{{ t("nav.your-profile", "Your profile") }}</a>
+          <button type="button" id="account-out">{{ t("nav.sign-out", "Sign out") }}</button>
         </div>
         <p class="said" id="account-said" hidden></p>
       </div>
     </div>
-    <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+    <button type="button" data-theme-toggle aria-label="{{ t("nav.switch-theme", "Switch theme") }}"></button>
   </div>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('learn', 'library', 'progress') %}
@@ -125,21 +125,21 @@
 {#- Talk to targum, from anywhere (2026-09-11): one pill fixed at the foot of every page
     opens the conversation as a drawer — the conversation page framed without its bar.
     Nothing is loaded until it is opened. Drawn by `talk.js`. -#}
-<button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="Talk to targum"><svg class="talk-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg><span>Talk to targum</span></button>
+<button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="{{ t("nav.talk-to-targum", "Talk to targum") }}"><svg class="talk-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg><span>{{ t("nav.talk-to-targum", "Talk to targum") }}</span></button>
 <div class="talk-scrim" id="talk-scrim" hidden></div>
-<aside class="talk-drawer" id="talk-drawer" aria-label="Talk to targum" hidden>
+<aside class="talk-drawer" id="talk-drawer" aria-label="{{ t("nav.talk-to-targum", "Talk to targum") }}" hidden>
   <div class="talk-drawer-head">
-    <span class="talk-drawer-title">Talk to targum</span>
-    <button type="button" class="talk-close" id="talk-close" aria-label="Close">×</button>
+    <span class="talk-drawer-title">{{ t("nav.talk-to-targum", "Talk to targum") }}</span>
+    <button type="button" class="talk-close" id="talk-close" aria-label="{{ t("nav.close", "Close") }}">×</button>
   </div>
-  <iframe class="talk-frame" id="talk-frame" title="Talk to targum" allow="microphone" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
+  <iframe class="talk-frame" id="talk-frame" title="{{ t("nav.talk-to-targum", "Talk to targum") }}" allow="microphone" data-src="/chat?embed=1{% if token %}&amp;k={{ token }}{% endif %}"></iframe>
 </aside>
 <script>{{ asset('talk.js') }}</script>
 {#- The command palette (2026-09-11): one field that finds a place, a text, a series or
     a conversation, and one press that goes there. Drawn by `palette.js`. -#}
 <div class="palette-scrim" id="palette-scrim" hidden></div>
-<div class="palette" id="palette" role="dialog" aria-label="Find anything" hidden>
-  <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="Find a text, a page, a conversation" autocomplete="off" spellcheck="false">
+<div class="palette" id="palette" role="dialog" aria-label="{{ t("nav.find-anything", "Find anything") }}" hidden>
+  <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="{{ t("nav.find-a-text-a-page-a-conversation", "Find a text, a page, a conversation") }}" autocomplete="off" spellcheck="false">
   <ul class="palette-list" id="palette-list" role="listbox"></ul>
 </div>
 <script>{{ asset('palette.js') }}</script>

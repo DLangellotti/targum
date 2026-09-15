@@ -3055,3 +3055,28 @@ def test_every_page_holding_the_talk_drawer_may_frame_the_conversation(
     assert "frame-ancestors 'self'" in framed, "the reader is still framed by the front page"
     assert "frame-src" not in policy(f"/chat?embed=1&k={token}")
     assert "frame-src 'self'" not in POLICY, "the grant is per page, never the default"
+
+
+def test_a_desk_page_is_said_in_the_one_language_an_account_reads(tmp_path: Path) -> None:
+    """The chrome speaks to a reader in the one language besides English their account
+    reads, where a rendering in it exists, English included beside it or not; to a
+    visitor, and to an account that reads only English, in English (targum-internal#184)."""
+    from targum.accounts import Store
+    from targum.serve import Handler
+
+    store = Store(tmp_path / "words.db")
+    olah, _ = store.finish_sign_in(store.start_sign_in("olah@example.com"))  # type: ignore[misc]
+    both, _ = store.finish_sign_in(store.start_sign_in("both@example.com"))  # type: ignore[misc]
+    plain, _ = store.finish_sign_in(store.start_sign_in("plain@example.com"))  # type: ignore[misc]
+    store.choose(olah, "reading", ["ru"])
+    store.choose(both, "reading", ["ru", "en"])
+
+    handler = Handler.__new__(Handler)
+    handler.store = store
+    handler.translated = {"ru": {"progress": "<ru>"}}
+    for person, want in ((olah, "<ru>"), (both, "<ru>"), (plain, "<en>"), (None, "<en>")):
+        handler._person = lambda person=person: person  # type: ignore[method-assign]
+        assert handler._desk("progress", "<en>") == want, person
+    handler.translated = {}
+    handler._person = lambda: olah  # type: ignore[method-assign]
+    assert handler._desk("progress", "<en>") == "<en>", "no rendering in it, so English"

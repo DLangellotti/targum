@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Your Progress — targum</title>
+<title>{{ t("progress.page.your-progress-targum", "Your Progress — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}</style>
 {{ hebrew_face() }}
@@ -24,7 +24,7 @@
       the bright set is legal on: --leaf-bright does not reach 3:1 against paper. -#}
   {#- Four numbers, not seven. What a reader wants from this block is the feeling of
       having got somewhere, and a row of everything countable is a row nobody reads. -#}
-  <section class="ledger" id="ledger" aria-label="What you have built">
+  <section class="ledger" id="ledger" aria-label="{{ t("progress.page.what-you-have-built", "What you have built") }}">
     <div class="counts" id="counts"></div>
   </section>
   {#- The month's hours, under the ledger and not in it: a real count, but of an
@@ -38,8 +38,8 @@
   <div class="panels paired">
     <div class="stack">
       <section class="panel">
-        <h2>Milestones</h2>
-        <p class="note">Counted from the words you've marked known.</p>
+        <h2>{{ t("progress.page.milestones", "Milestones") }}</h2>
+        <p class="note">{{ t("progress.page.counted-from-the-words-you-ve-marked", "Counted from the words you've marked known.") }}</p>
         <div id="milestones"></div>
         {#- The rung and the distance to the next one, for a language with no ulpan ladder
             behind it. Hebrew's is the block under this. -#}
@@ -50,7 +50,7 @@
           and Italian — and under the milestones because it is the same question asked in
           the language's own units: how far in am I. The heading is the ladder's name. -#}
       <section class="panel" id="rung" hidden>
-        <h2 id="rung-title">Ulpan level</h2>
+        <h2 id="rung-title">{{ t("progress.page.ulpan-level", "Ulpan level") }}</h2>
         <div class="standing" id="rung-standing"></div>
         {#- Where the rung comes from, said once. §6 is plain about limits, and
             `annotate/base.py` refuses to call a difficulty band a CEFR level for the same
@@ -60,28 +60,28 @@
     </div>
 
     <section class="panel">
-      <h2>Days reading</h2>
-      <p class="note">Every language together. A day counts when you open a text.</p>
+      <h2>{{ t("progress.page.days-reading", "Days reading") }}</h2>
+      <p class="note">{{ t("progress.page.every-language-together-a-day-counts-when", "Every language together. A day counts when you open a text.") }}</p>
       <div id="days"></div>
     </section>
   </div>
 
   <section class="panel">
-    <h2>Where they are</h2>
+    <h2>{{ t("progress.page.where-they-are", "Where they are") }}</h2>
     <p class="note" id="progress-note"></p>
     <div id="progress"></div>
   </section>
 
   <div class="panels">
     <section class="panel">
-      <h2>Words saved over time</h2>
-      <p class="note">From when you first marked each.</p>
+      <h2>{{ t("progress.page.words-saved-over-time", "Words saved over time") }}</h2>
+      <p class="note">{{ t("progress.page.from-when-you-first-marked-each", "From when you first marked each.") }}</p>
       <div id="growth"></div>
     </section>
 
     <section class="panel">
-      <h2>How common they are</h2>
-      <p class="note">How often each turns up in everyday use.</p>
+      <h2>{{ t("progress.page.how-common-they-are", "How common they are") }}</h2>
+      <p class="note">{{ t("progress.page.how-often-each-turns-up-in-everyday", "How often each turns up in everyday use.") }}</p>
       <div id="bands"></div>
     </section>
   </div>
@@ -91,7 +91,7 @@
 <p class="nothing" id="nothing" hidden>
   {#- "your library" meant the catalogue and the reader's own shelf at once, and the
       link went to the upload page, which was neither. Both have their own page now. -#}
-  Nothing yet. Open something from the <a id="library-link" href="/library">Library</a>.
+  Nothing yet. Open something from the <a id="library-link" href="/library">{{ t("progress.page.library", "Library") }}</a>.
 </p>
 
 <script>

@@ -1286,17 +1286,20 @@ def signin_page(*, landing: str = "", token: str = "", expired: bool = False) ->
     )
 
 
-def progress_page(token: str) -> str:
+def progress_page(token: str, language: str = "en") -> str:
     """Everything kept, with what it adds up to.
 
     Built from the browser's own store like the start page, because that is where a
-    word list lives; the server only hands over the page.
+    word list lives; the server only hands over the page. `language` is the one its own
+    words and the bar are said in (targum-internal#184): one rendering a language, chosen
+    per request by `Handler._desk`.
     """
 
     return (
         _environment()
         .get_template("progress.html.j2")
         .render(
+            t=page_words(language),
             token=token,
             languages=_language_names(),
             # The week's issue, if there is a readable one. Learn is the only surface

@@ -72,10 +72,10 @@ def _calls(path: Path) -> dict[str, str]:
         text = json.loads(f'"{text}"', strict=False)
         assert found.setdefault(key, text) == text, f"{key} says two things"
 
-    for match in re.finditer(r'\bt\(\s*"(reader\.[\w.-]+)",\s*' + literal, source):
+    for match in re.finditer(r'\bt\(\s*"([a-z]+\.[\w.-]+)",\s*' + literal, source):
         put(match.group(1), match.group(2))
     for match in re.finditer(
-        r'\btn\(\s*"(reader\.[\w.-]+)",\s*[^,]+,\s*' + literal + r",\s*" + literal, source
+        r'\btn\(\s*"([a-z]+\.[\w.-]+)",\s*[^,]+,\s*' + literal + r",\s*" + literal, source
     ):
         put(match.group(1) + ".one", match.group(2))
         put(match.group(1) + ".other", match.group(3))
@@ -91,6 +91,11 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
     assert len(calls) > 100, "the reader's sentences are said through the catalogue"
     page = _calls(render / "templates" / "reader.html.j2")
     assert len(page) > 100, "and so are the page's own"
+    # Every other template that says something through the catalogue: the bar every desk
+    # page carries, and the pages converted so far.
+    for template in sorted((render / "templates").glob("*.j2")):
+        if template.name != "reader.html.j2":
+            page.update(_calls(template))
     for key, text in page.items():
         assert not set(text) & set('"<>'), f"{key} could not stand in an attribute: {text!r}"
     calls.update(page)
