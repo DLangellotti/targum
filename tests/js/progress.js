@@ -25,6 +25,7 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 install({
   TARGUM_KEY: "k",
   TARGUM_LANGUAGES: { he: "Hebrew" },
+  TARGUM_STRINGS: payload.strings,
   stored: payload.stored || {},
   TargumLang: {
     HOME: "he",
@@ -59,6 +60,7 @@ global.localStorage = {
    until a page draws a chart. Same plain element: nothing here reads a namespace. */
 global.document.createElementNS = (namespace, tag) => element(tag);
 
+require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
 /* After charts.js and before the page, so the page binds these rather than the real
    ones. `collect` and `days` stay real — they are the shape everything else is drawn

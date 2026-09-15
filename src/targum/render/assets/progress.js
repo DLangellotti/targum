@@ -19,19 +19,32 @@
   }
 
   var names = window.TARGUM_LANGUAGES || {};
+  // The page's words in the reader's language, from `strings.js` (targum-internal#184).
+  var words = window.TargumStrings;
+  var t = words.t;
+  var tn = words.tn;
 
   var KNOWN = 9;
   var STATUS = {
-    1: { name: "just met", slot: "--step-1" },
-    2: { name: "getting there", slot: "--step-2" },
-    3: { name: "nearly there", slot: "--step-3" },
-    9: { name: "known", slot: "--step-4" },
+    1: { name: t("progress.status.1", "just met"), slot: "--step-1" },
+    2: { name: t("progress.status.2", "getting there"), slot: "--step-2" },
+    3: { name: t("progress.status.3", "nearly there"), slot: "--step-3" },
+    9: { name: t("progress.status.9", "known"), slot: "--step-4" },
   };
   // The six real ones. "not rated" was a seventh row that read as a category a word could
   // belong to, and it is not: it is the absence of frequency data for a language, which
   // is a fact about targum rather than about the word or the reader. A word that has one
   // is counted; a word that has none is not placed on a scale it has no reading for.
   var BANDS = ["easy", "fairly easy", "moderate", "hard", "very hard", "extremely hard"];
+  // What each is called on the page; the names above are the words' own data.
+  var BAND_NAMES = [
+    t("progress.band.easy", "easy"),
+    t("progress.band.fairly-easy", "fairly easy"),
+    t("progress.band.moderate", "moderate"),
+    t("progress.band.hard", "hard"),
+    t("progress.band.very-hard", "very hard"),
+    t("progress.band.extremely-hard", "extremely hard"),
+  ];
 
   /* One bar per band, and each its own colour. A scale rather than six unrelated hues:
      it runs leaf → iris → clay, which is the order §4 already gives them — what you can
@@ -47,6 +60,19 @@
     "color-mix(in srgb, var(--clay) 70%, var(--iris))",
     "var(--clay)",
   ];
+  /* A sentence with one figure in bold: `{bold}` in the text is where it goes, so a
+     language can put it wherever its grammar wants it. */
+  function boldIn(host, text, bold) {
+    var at = text.indexOf("{bold}");
+    if (at < 0) {
+      host.textContent = text;
+      return;
+    }
+    host.appendChild(document.createTextNode(text.slice(0, at)));
+    host.appendChild(el("b", null, bold));
+    host.appendChild(document.createTextNode(text.slice(at + "{bold}".length)));
+  }
+
   function named(code) {
     return names[code] || (code || "").toUpperCase();
   }
@@ -73,7 +99,6 @@
   var charts = window.TargumCharts;
   var el = charts.el;
   var svg = charts.svg;
-  var plural = charts.plural;
   var tipFor = charts.tipFor;
   var drawGrowth = charts.growth;
 
@@ -144,7 +169,7 @@
     note.textContent = "";
 
     if (!total) {
-      host.appendChild(el("p", "empty", "Nothing marked yet."));
+      host.appendChild(el("p", "empty", t("progress.empty", "Nothing marked yet.")));
       return;
     }
 
@@ -155,15 +180,14 @@
       preserveAspectRatio: "none",
       role: "img",
       height: height,
-      "aria-label":
-        "Your " +
-        named(currentCode) +
-        " words: " +
-        segments
+      "aria-label": t("progress.chart.status", "Your {language} words: {counts}", {
+        language: named(currentCode),
+        counts: segments
           .map(function (segment) {
             return segment.count + " " + STATUS[segment.status].name;
           })
           .join(", "),
+      }),
     });
     picture.style.height = height + "px";
 
@@ -234,7 +258,7 @@
       any = true;
     });
     if (!any) {
-      host.appendChild(el("p", "empty", "Nothing marked yet."));
+      host.appendChild(el("p", "empty", t("progress.empty", "Nothing marked yet.")));
       return;
     }
 
@@ -248,11 +272,11 @@
     var picture = svg("svg", {
       viewBox: "0 0 " + W + " " + H,
       role: "img",
-      "aria-label":
-        "By how common: " +
-        BANDS.map(function (band, index) {
+      "aria-label": t("progress.chart.bands", "By how common: {counts}", {
+        counts: BAND_NAMES.map(function (band, index) {
           return counts[index] + " " + band;
         }).join(", "),
+      }),
     });
 
     var tip = null;
@@ -263,7 +287,7 @@
       var width = (counts[index] / top) * (W - labelW - 48);
 
       var label = svg("text", { x: labelW - 8, y: y + 13, "text-anchor": "end" });
-      label.textContent = band;
+      label.textContent = BAND_NAMES[index];
       picture.appendChild(label);
 
       var bar = svg("rect", {
@@ -278,7 +302,7 @@
         bar.addEventListener("mousemove", function (event) {
           var box = wrap.getBoundingClientRect();
           tip.show(
-            "<b>" + counts[index] + "</b> " + band,
+            "<b>" + counts[index] + "</b> " + BAND_NAMES[index],
             event.clientX - box.left,
             event.clientY - box.top
           );
@@ -360,21 +384,25 @@
     // Everything kept, and then the half of it that has been finished with. "Known" on
     // its own read as a claim about the reader; "marked known" is what actually happened,
     // which is that they pressed a key while reading.
-    count(sums.saved, sums.saved === 1 ? "word on your list" : "words on your list");
+    count(sums.saved, tn("progress.count.saved", sums.saved, "word on your list", "words on your list"));
     count(
       sums.known,
-      sums.known === 1 ? "word marked known" : "words marked known",
+      tn("progress.count.known", sums.known, "word marked known", "words marked known"),
       "leaf"
     );
     // What targum carried up to known, rather than what a reader arrived already having.
     // "Learned" alone read as contradicting the known count beside it (2026-09-14): it
     // is the part of that count that started lower on the ladder and was read up to known.
-    count(sums.learned, sums.learned === 1 ? "word learned by reading" : "words learned by reading", "sun");
-    count(sums.phrases, sums.phrases === 1 ? "phrase saved" : "phrases saved", "iris");
+    count(
+      sums.learned,
+      tn("progress.count.learned", sums.learned, "word learned by reading", "words learned by reading"),
+      "sun"
+    );
+    count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
     // thing, and the one on this page that is a whole text rather than a word.
-    count(sums.finished, sums.finished === 1 ? "targum finished" : "targums finished", "leaf");
-    count(days.length, days.length === 1 ? "day reading" : "days reading");
+    count(sums.finished, tn("progress.count.finished", sums.finished, "targum finished", "targums finished"), "leaf");
+    count(days.length, tn("progress.count.days", days.length, "day reading", "days reading"));
     // The longest run of days there has ever been, and never the current one. Decided
     // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
     // is a count that can be destroyed, and that is what makes people quit in the week
@@ -383,7 +411,11 @@
     // legal here because this block is the inverted surface. It rises on /progress
     // quietly; the day it rises, the foot of the section that did it says so.
     var longest = charts.longest(days);
-    count(longest, longest === 1 ? "day in your longest run" : "days in your longest run", "sun");
+    count(
+      longest,
+      tn("progress.count.longest", longest, "day in your longest run", "days in your longest run"),
+      "sun"
+    );
 
     drawStanding(standing, entry, code, sums.known);
   }
@@ -411,7 +443,7 @@
     if (ladder) {
       if (title) title.textContent = ladder.title;
       // The limit is all that is said (§6, and the 2026-08-24 amendment in §12).
-      basis.textContent = "A guide, not a placement.";
+      basis.textContent = t("progress.basis", "A guide, not a placement.");
       drawLevel(inside, entry.words, ladder);
       return;
     }
@@ -423,25 +455,40 @@
       else if (next === null) next = mark;
     });
 
-    if (passed) standing.appendChild(el("span", "reached", grouped(passed) + " words known"));
+    if (passed) {
+      standing.appendChild(
+        el(
+          "span",
+          "reached",
+          tn("progress.milestone.reached", passed, "{n} word known", "{n} words known", { n: grouped(passed) })
+        )
+      );
+    }
     // Said once, beside the milestones that stand in for a level.
     standing.appendChild(
       el(
         "p",
         "why",
-        "There's no level for this language yet: we have no word list to measure it against."
+        t(
+          "progress.milestone.why",
+          "There's no level for this language yet: we have no word list to measure it against."
+        )
       )
     );
 
     var line = el("p", "next");
     if (next === null) {
-      line.textContent = "You're past every milestone we keep.";
+      line.textContent = t("progress.milestone.past", "You're past every milestone we keep.");
     } else if (known === 0) {
-      line.textContent = "Mark a word while you read and it starts here.";
+      line.textContent = t("progress.milestone.start", "Mark a word while you read and it starts here.");
     } else {
-      line.appendChild(document.createTextNode("Another "));
-      line.appendChild(el("b", null, grouped(next - known)));
-      line.appendChild(document.createTextNode(" to " + grouped(next) + "."));
+      boldIn(
+        line,
+        tn("progress.milestone.next", next - known, "Another {bold} to {next}.", "Another {bold} to {next}.", {
+          next: grouped(next),
+        }),
+        grouped(next - known)
+      );
     }
     standing.appendChild(line);
   }
@@ -476,7 +523,11 @@
         chip.appendChild(letter);
         chip.appendChild(el("span", "name", found.here.name));
         // The CEFR equivalent beside the ulpan name, so one scale reads across languages.
-        if (found.here.cefr) chip.appendChild(el("span", "cefr", " · about " + found.here.cefr));
+        if (found.here.cefr) {
+          chip.appendChild(
+            el("span", "cefr", " · " + t("progress.level.about", "about {level}", { level: found.here.cefr }))
+          );
+        }
       } else {
         chip.appendChild(el("span", "name", found.here.name));
       }
@@ -485,11 +536,11 @@
 
     var line = el("p", "next");
     if (!got.words) {
-      line.textContent = "Mark a word as known and this starts.";
+      line.textContent = t("progress.level.start", "Mark a word as known and this starts.");
     } else if (!found.next) {
       line.textContent = weighted
-        ? "You're past every rung an ulpan keeps."
-        : "You're past every CEFR level.";
+        ? t("progress.level.past-ulpan", "You're past every rung an ulpan keeps.")
+        : t("progress.level.past-cefr", "You're past every CEFR level.");
     } else {
       // In words either way, because words are what the reader has. The ulpan's total is
       // weighted, so it is turned back into words at the weight of the ones this reader
@@ -497,14 +548,17 @@
       var more = weighted
         ? Math.max(1, Math.round((found.next.at - got.weighted) / (got.weighted / got.words)))
         : Math.max(1, found.next.at - value);
-      line.appendChild(document.createTextNode("Another "));
-      line.appendChild(el("b", null, grouped(more)));
-      line.appendChild(
-        document.createTextNode(
-          weighted
-            ? " words to " + found.next.letter + " (" + found.next.name + ")."
-            : " common words to " + found.next.name + "."
-        )
+      boldIn(
+        line,
+        weighted
+          ? tn("progress.level.next-ulpan", more, "Another {bold} words to {letter} ({name}).", "Another {bold} words to {letter} ({name}).", {
+              letter: found.next.letter,
+              name: found.next.name,
+            })
+          : tn("progress.level.next-cefr", more, "Another {bold} common words to {name}.", "Another {bold} common words to {name}.", {
+              name: found.next.name,
+            }),
+        grouped(more)
       );
     }
     host.appendChild(line);
@@ -516,7 +570,7 @@
     var marks = el("div", "marks");
     MARKS.forEach(function (mark) {
       var chip = el("span", "mark" + (known >= mark ? " on" : ""), grouped(mark));
-      chip.setAttribute("title", known >= mark ? "Reached" : "Not yet");
+      chip.setAttribute("title", known >= mark ? t("progress.mark.reached", "Reached") : t("progress.mark.not-yet", "Not yet"));
       marks.appendChild(chip);
     });
     host.appendChild(marks);
@@ -581,7 +635,7 @@
       var box = el("li", read ? "read level-" + Math.max(1, charts.shade(count, busiest)) : "");
       box.setAttribute(
         "title",
-        count ? name + " — " + plural(count, "word") : name
+        count ? name + " — " + tn("progress.days.words", count, "{n} word", "{n} words") : name
       );
       if (read) counted += 1;
       strip.appendChild(box);
@@ -591,14 +645,26 @@
     strip.setAttribute(
       "aria-label",
       counted
-        ? plural(counted, "day") + " reading in the last twelve weeks"
-        : "No reading days in the last twelve weeks yet"
+        ? tn(
+            "progress.days.reading",
+            counted,
+            "{n} day reading in the last twelve weeks",
+            "{n} days reading in the last twelve weeks"
+          )
+        : t("progress.days.none", "No reading days in the last twelve weeks yet")
     );
     host.appendChild(strip);
 
     var said = el("p", "legend-days");
-    if (!days.length) said.textContent = "Today is the first.";
-    else said.textContent = plural(counted, "day") + " in the last twelve weeks.";
+    if (!days.length) said.textContent = t("progress.days.first", "Today is the first.");
+    else {
+      said.textContent = tn(
+        "progress.days.counted",
+        counted,
+        "{n} day in the last twelve weeks.",
+        "{n} days in the last twelve weeks."
+      );
+    }
     host.appendChild(said);
   }
 
