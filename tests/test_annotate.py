@@ -1855,6 +1855,75 @@ def test_the_script_rule_is_the_blocks_own_language() -> None:
     assert in_script("מלכא", "arc"), "Aramaic is written in Hebrew letters"
 
 
+class TaggingLemmatizer:
+    """Splits on spaces and tags X the words it is told to, the way the model tags a word
+    that is not the text's language — and says it does, as `ModelLemmatizer` does."""
+
+    name = "fake-tagging/1"
+    marks_foreign = True
+
+    def __init__(self, other: set[str]) -> None:
+        self.other = other
+
+    def lemmas(self, segments, language):  # type: ignore[no-untyped-def]
+        out: dict[str, list[Token]] = {}
+        for segment in segments:
+            tokens, at = [], 0
+            for word in segment.text.split():
+                start = segment.text.index(word, at)
+                at = start + len(word)
+                bare = word.strip(".,:«»")
+                pos = "X" if bare in self.other else "NOUN"
+                tokens.append(
+                    Token(
+                        start=start,
+                        end=start + len(bare),
+                        surface=bare,
+                        lemma=bare,
+                        band=0,
+                        pos=pos,
+                    )
+                )
+            out[segment.id] = tokens
+        return out
+
+
+def test_english_inside_an_italian_text_is_not_a_word() -> None:
+    """2026-09-15: an Italian lesson gave "Meglio tardi che mai" in English, and every
+    English word was tappable and counted as a word to know. Same alphabet, so
+    `in_script` cannot see it; the tag and the run's language can."""
+    pytest.importorskip("wordfreq")
+    text = "La traduzione potrebbe essere questa: but better late than never."
+    segmented = document([text], language="it")
+    lemmatizer = TaggingLemmatizer({"but", "better", "late", "than", "never"})
+    got = Annotator(lemmatizer=lemmatizer, bands=FakeBands())
+    assert got.name.endswith("+foreign/1")
+    surfaces = [t.surface for t in got.annotate(segmented).tokens[segmented.segments[0].id]]
+    assert surfaces == ["La", "traduzione", "potrebbe", "essere", "questa"], surfaces
+    assert "foreign" not in annotator().name, "Hebrew's annotator keeps its name"
+
+
+def test_an_italian_run_tagged_x_stays_italian() -> None:
+    """The model also gives up and tags a whole Italian paragraph X (Cuore has 101 such
+    segments), and a phrase half made of words both languages have still reads as one."""
+    pytest.importorskip("wordfreq")
+    from wordfreq import zipf_frequency
+
+    from targum.annotate.base import foreign_runs
+
+    def tokens(text: str) -> list[Token]:
+        return [
+            Token(start=0, end=1, surface=word, lemma=word, band=0, pos="X")
+            for word in text.split()
+        ]
+
+    italian = tokens("vieni avanti sei venuto a domandar notizie del ferito non è vero")
+    assert foreign_runs(italian, "it", zipf_frequency) == set()
+    english = tokens("in for a penny")
+    assert foreign_runs(english, "it", zipf_frequency) == {0, 1, 2, 3}
+    assert foreign_runs(english, "en", zipf_frequency) == set(), "English is not foreign to itself"
+
+
 def test_every_transformers_requirement_refuses_the_release_that_breaks_dicta() -> None:
     """5.17.0 removed a method DICTA's dictabert-joint code calls on every sentence.
 
