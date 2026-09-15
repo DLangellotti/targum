@@ -11,6 +11,9 @@ import pytest
 
 from targum import strings
 
+#: The forms `Intl.PluralRules` can choose, which is what `tn` looks a count's key up by.
+PLURAL_FORMS = {"zero", "one", "two", "few", "many", "other"}
+
 
 def fields(value: str) -> set[str]:
     return {name for _, name, _, _ in string.Formatter().parse(value) if name}
@@ -23,8 +26,22 @@ def test_every_language_says_only_what_english_says_with_the_same_blanks() -> No
     assert english, "the English catalogue is empty or missing from the package"
     for language in strings.languages():
         for key, value in strings.catalogue(language).items():
+            base, _, form = key.rpartition(".")
+            if form in PLURAL_FORMS and f"{base}.one" in english and f"{base}.other" in english:
+                # A count's forms: a language has its own (Russian's few and many), and
+                # every one of them says what English's other form says — Russian's one
+                # also counts 21 and 31, where English's "yesterday" has no number.
+                assert fields(value) <= fields(english[f"{base}.other"]), (
+                    f"{language}: {key} changes its blanks"
+                )
+                continue
             assert key in english, f"{language}.json has {key!r}, which English does not"
             assert fields(value) == fields(english[key]), f"{language}: {key} changes its blanks"
+            if not key.startswith("mail."):
+                # Pages put these in attributes unescaped, the way they put English.
+                assert not set(value) & set('"<>'), (
+                    f"{language}: {key} cannot stand in an attribute"
+                )
 
 
 def test_every_catalogue_is_a_flat_map_of_text() -> None:

@@ -10,7 +10,7 @@
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="words shelf">
-{% set here = 'library' %}{% set title = 'Library' %}
+{% set here = 'library' %}{% set title = t("nav.library", "Library") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
@@ -49,7 +49,9 @@
           rest opens when asked. A `details`, so it needs no script and keeps its state
           on the page. -#}
       <details class="filters" id="filters">
-        <summary aria-label="{{ t("library.page.filters", "Filters") }}"></summary>
+        <summary aria-label="{{ t("library.page.filters", "Filters") }}"
+                 data-more="{{ t("library.page.filters", "Filters") }}"
+                 data-fewer="{{ t("library.page.fewer-filters", "Fewer filters") }}"></summary>
       <div class="switch-set">
         <span class="switch-label">{{ t("library.page.which-hebrew", "Which Hebrew") }}</span>
         <div class="segmented" id="register-chips" role="group" aria-label="{{ t("library.page.which-hebrew", "Which Hebrew") }}"></div>
