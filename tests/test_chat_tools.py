@@ -889,6 +889,37 @@ def test_a_suggestion_leans_towards_the_registers_the_reader_reads(world, monkey
     )
 
 
+def test_a_suggestion_names_which_hebrew_only_for_hebrew(world, monkeypatch) -> None:
+    """2026-09-15: an Italian talk on Learn read "modern Hebrew, about 6 minutes. · 6 min".
+    Every language's rows carry a register, so the line says which Hebrew only of
+    Hebrew, and leaves the minutes to the card that already shows them."""
+    from targum import catalogue
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+
+    def entry(id: str, language: str) -> catalogue.Entry:
+        return catalogue.Entry(
+            id=id,
+            title=id,
+            author="",
+            language=language,
+            source=f"test:{id}",
+            blurb="",
+            words=792,
+            register=catalogue.Register.modern,
+            difficulty=4,
+        )
+
+    entries = [entry("paure", "it"), entry("sipur", "he")]
+    monkeypatch.setattr(catalogue, "everything", lambda: entries)
+    monkeypatch.setattr(tools, "_shelf", lambda ctx: ([], []))
+    italian = tools.suggest_next(ctx, {"language": "it"})["suggestions"]
+    assert italian[0]["because"] == "A learner looks up 4% of its words."
+    hebrew = tools.suggest_next(ctx, {"language": "he"})["suggestions"]
+    assert hebrew[0]["because"] == "A learner looks up 4% of its words. Modern Hebrew."
+
+
 def test_suggest_next_leaves_out_what_the_page_says_is_finished(world) -> None:
     """`skip` (2026-09-11): catalogue ids the browser records as finished are left out
     before the cut, so the next text that fits is always in reach — live, the top ten
