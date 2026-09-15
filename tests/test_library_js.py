@@ -92,6 +92,39 @@ def test_every_hebrew_text_is_counted_whether_or_not_it_has_a_row(tmp_path: Path
     assert drawn["columns"][:2] == ["Text", "Kind"]
 
 
+def test_the_page_says_its_words_in_the_readers_language(tmp_path: Path) -> None:
+    """A Russian reader's library says Russian, down to the plural the count takes, and
+    a word the catalogue has not filled is said in English rather than as its key
+    (targum-internal#184)."""
+    from targum.catalogue import CATALOGUE
+
+    hebrew = len([entry for entry in CATALOGUE if entry.language.startswith("he")])
+    drawn = draw(
+        tmp_path,
+        strings={
+            "language": "ru",
+            "strings": {
+                "library.column.title": "Текст",
+                "library.tally.all.one": "{n} текст",
+                "library.tally.all.few": "{n} текста",
+                "library.tally.all.many": "{n} текстов",
+                "library.tally.all.other": "{n} текста",
+            },
+        },
+    )
+    assert drawn["columns"][:2] == ["Текст", "Kind"]
+    form = {"one": "текст", "few": "текста", "many": "текстов", "other": "текста"}
+    last, tens = hebrew % 10, hebrew % 100
+    rule = (
+        "one"
+        if last == 1 and tens != 11
+        else "few"
+        if 2 <= last <= 4 and not 12 <= tens <= 14
+        else "many"
+    )
+    assert drawn["tally"] == f"{hebrew} {form[rule]}"
+
+
 # -- collections --------------------------------------------------------------
 
 

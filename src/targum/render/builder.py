@@ -322,6 +322,23 @@ def page_words(language: str) -> Callable[[str, str], Markup]:
     return t
 
 
+def script_strings(language: str, prefix: str) -> dict[str, Any]:
+    """What a desk page's `strings.js` is handed (targum-internal#184): the `prefix` keys
+    `language` has filled, less the `.page.` ones its template has already said, and
+    nothing for English, whose words are written at every call."""
+    from ..strings import SOURCE, catalogue
+
+    code = (language or SOURCE).split("-")[0].lower()
+    if code == SOURCE:
+        return {}
+    said = {
+        key: text
+        for key, text in catalogue(code).items()
+        if key.startswith(prefix) and not key.startswith(prefix + "page.")
+    }
+    return {"strings": said, "language": code} if said else {}
+
+
 def _strip(name: str, text: str) -> str:
     """An asset with its comments taken out, for baking into a page.
 
@@ -1766,6 +1783,7 @@ def library_page(token: str, language: str = "en") -> str:
             # collection can never open onto a row that is not there.
             collections=[group.state() for group in collections()],
             languages=_language_names(),
+            strings=script_strings(language, "library."),
         )
     )
 
