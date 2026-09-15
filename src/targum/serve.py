@@ -670,6 +670,9 @@ class Job:
     admin: bool = False
     # What it really cost, once the API has said. Zero until it has.
     spent: float = 0.0
+    # What the prompt cache did on this job: tokens read, written, and their dollars,
+    # already inside `spent`. Only a turn of conversation caches (targum-internal#239).
+    cached: tuple[int, int, float] | None = None
     # How many chapters the text has. One means it is not a book.
     chapters: int = 1
     # An imported recording: its length, how it divides, and what hearing it costs.
@@ -1261,7 +1264,9 @@ class Library:
             # A turn of conversation and a voice made for a text both come out of the
             # hours, so both settle their seconds (targum-internal#246).
             metered = job.kind in ("chat", "voice")
-            self.store.settle(job.id, job.spent, length=job.seconds if metered else None)
+            self.store.settle(
+                job.id, job.spent, length=job.seconds if metered else None, cache=job.cached
+            )
 
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""

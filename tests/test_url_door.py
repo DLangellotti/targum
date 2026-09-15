@@ -280,7 +280,9 @@ def test_a_database_from_before_the_column_gains_it_on_open(tmp_path: Path) -> N
     assert "egress" in columns
     row = store.db.execute("SELECT egress FROM reached WHERE host='old.example'").fetchone()
     assert row["egress"] == "direct", "what every row written before the column meant"
-    assert store.db.execute("PRAGMA user_version").fetchone()[0] == 15
+    from targum.accounts import SCHEMA_VERSION
+
+    assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
 
 
 def test_a_bot_check_is_said_as_one_to_the_model(tmp_path: Path) -> None:

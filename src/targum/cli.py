@@ -432,6 +432,14 @@ def evals(
         console.print("[green]Every floor holds.[/green]")
 
 
+def _cached(row: dict[str, Any]) -> str:
+    """One account's cache column: tokens read / written, and their dollars."""
+    read, wrote = int(row.get("cache_read") or 0), int(row.get("cache_write") or 0)
+    if not (read or wrote):
+        return "[dim]—[/dim]"
+    return f"{read:,} / {wrote:,} (${float(row.get('cache_cost') or 0):.2f})"
+
+
 @app.command()
 def usage(
     days: Annotated[
@@ -485,6 +493,9 @@ def usage(
     table.add_column("builds", justify="right")
     table.add_column("spent", justify="right")
     table.add_column("held", justify="right")
+    # What the prompt cache did (targum-internal#239): tokens read back and written, and
+    # the part of `spent` they came to. A dash for an account whose work never cached.
+    table.add_column("cache read / written", justify="right")
     table.add_column("last", justify="right")
 
     for row in rows:
@@ -507,6 +518,7 @@ def usage(
             str(row["jobs"]),
             f"${float(row['spent']):.2f}",
             f"[red]{holding}[/red]" if over else holding,
+            _cached(row),
             when,
         )
 
@@ -514,6 +526,14 @@ def usage(
     spent = sum(float(row["spent"]) for row in rows)
     held = sum(float(row["claimed"]) for row in rows)
     console.print(f"\n[bold]${spent:.2f}[/bold] spent · ${held:.2f} held [dim]— {window}[/dim]")
+    read = sum(int(row.get("cache_read") or 0) for row in rows)
+    wrote = sum(int(row.get("cache_write") or 0) for row in rows)
+    if read or wrote:
+        cached = sum(float(row.get("cache_cost") or 0) for row in rows)
+        console.print(
+            f"[dim]The prompt cache read {read:,} tokens and wrote {wrote:,}: "
+            f"${cached:.2f} of what was spent.[/dim]"
+        )
     console.print(
         f"[dim]Rails: ${ACCOUNT_BUDGET:.2f} per account per {BUDGET_HOURS}h (a rate "
         f"limit), ${SESSION_BUDGET:.2f} for the whole box per {BUDGET_HOURS}h. "

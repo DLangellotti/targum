@@ -970,6 +970,7 @@ class Chats:
                 ledger=ledger,
             )
             job.spent = spent.cost()
+            job.cached = (spent.cache_read_tokens, spent.cache_write_tokens, spent.cache_cost())
             job.seconds = hebrew_module.seconds_for(
                 hebrew_module.words_in(feed.text())
                 if asked.heard_seconds
