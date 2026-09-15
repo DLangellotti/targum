@@ -823,8 +823,10 @@ class Chats:
             spoken = ctx.level.language
             mode = mode_for(spoken, self.library.talks(home, person_id))
             chat_id = store.chat_open(person_id, language=spoken, mode=mode)
-        because = str(top.get("because") or "").strip()
         into = hebrew_module.gloss_language(ctx.reads)
+        # In the language of the line it rides in, not the English the model reads
+        # (targum-internal#287).
+        because = tools_module.because_in(top, into).strip()
         line = self.SUGGEST_LINES.get(into, self.SUGGEST_LINES["en"])
         # The line in the conversation's own language where it is held in one, with its
         # translation under it; a Hebrew sentence at the head of an Italian conversation

@@ -1193,5 +1193,10 @@
   "contents.unreachable": "We couldn't reach targum. Try again.",
   "contents.preparing": "Preparing…",
   "contents.could-not-prepare": "We couldn't prepare it. Try again.",
-  "job.youtube-unavailable": "We can't fetch from YouTube here."
+  "job.youtube-unavailable": "We can't fetch from YouTube here.",
+  "suggest.known": "You know {share}% of its words.",
+  "suggest.looked-up": "A learner looks up {share}% of its words.",
+  "suggest.modern-hebrew": "Modern Hebrew.",
+  "suggest.biblical-hebrew": "Biblical Hebrew.",
+  "suggest.unmeasured": "Not measured yet."
 }

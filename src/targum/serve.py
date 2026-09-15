@@ -5254,6 +5254,9 @@ class Handler(BaseHTTPRequestHandler):
         skip = query.get("skip", [""])[0]
         done = sorted({one.strip() for one in skip.split(",") if one.strip()})[:200]
         rows = chat_tools.suggest_next(ctx, {"limit": 1, "skip": done}).get("suggestions") or []
+        if rows:
+            # Said on Learn, in the page's language (targum-internal#287).
+            rows[0]["because"] = chat_tools.because_in(rows[0], self._page_language())
         return self._json({"suggestion": rows[0] if rows else None})
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:

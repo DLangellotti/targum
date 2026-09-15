@@ -186,7 +186,7 @@ def test_every_sentence_the_server_says_is_in_the_english_catalogue() -> None:
 
     english = strings.catalogue("en")
     said = 0
-    for name in ("serve.py", "chat/session.py"):
+    for name in ("serve.py", "chat/session.py", "chat/tools.py"):
         source = Path(strings.__file__).parents[1] / name
         for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):
@@ -204,3 +204,27 @@ def test_every_sentence_the_server_says_is_in_the_english_catalogue() -> None:
     # Said through a constant, which the walk above cannot read.
     assert english["job.no-key"] == NO_KEY
     assert english["chat.too-long"] == TURN_TOO_LONG
+
+
+def test_a_suggestions_reason_is_said_in_the_readers_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The English `because` stays for the model; the reader is told in theirs, and a row
+    with no reason keeps what it had (targum-internal#287)."""
+    from targum.chat.tools import because_in
+
+    real = strings.catalogue
+    said = {
+        "suggest.known": "Вы знаете {share}% его слов.",
+        "suggest.modern-hebrew": "Современный иврит.",
+    }
+    monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else real(code))
+    known = {
+        "because": "You know 70% of its words.",
+        "reason": {"key": "suggest.known", "share": 70},
+    }
+    assert because_in(known, "ru") == "Вы знаете 70% его слов."
+    assert because_in(known, "en") == "You know 70% of its words."
+    looked = {"reason": {"key": "suggest.looked-up", "share": 12, "register": "modern"}}
+    assert because_in(looked, "en") == "A learner looks up 12% of its words. Modern Hebrew."
+    assert because_in({"because": "old"}, "ru") == "old"

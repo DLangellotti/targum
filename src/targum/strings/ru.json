@@ -1295,5 +1295,10 @@
   "contents.unreachable": "Не удалось связаться с targum. Попробуйте снова.",
   "contents.preparing": "Готовим…",
   "contents.could-not-prepare": "Не удалось подготовить. Попробуйте снова.",
-  "job.youtube-unavailable": "Здесь мы не можем загружать с YouTube."
+  "job.youtube-unavailable": "Здесь мы не можем загружать с YouTube.",
+  "suggest.known": "Вы знаете {share}% его слов.",
+  "suggest.looked-up": "Ученик смотрит в словаре {share}% его слов.",
+  "suggest.modern-hebrew": "Современный иврит.",
+  "suggest.biblical-hebrew": "Библейский иврит.",
+  "suggest.unmeasured": "Пока не измерено."
 }

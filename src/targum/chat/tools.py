@@ -479,6 +479,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
             row["because"] = f"You know {round(float(known) * 100)}% of its words."
+            row["reason"] = {"key": "suggest.known", "share": round(float(known) * 100)}
             row["known_line"] = level_module.words_in_ten(float(known))
             rank = (0.0, -(float(known) + 0.1 * tilt))
         elif entry.difficulty:
@@ -489,13 +490,48 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             if language.split("-")[0] == "he" and entry.register.value in ("modern", "biblical"):
                 which = f" {entry.register.value.capitalize()} Hebrew."
             row["because"] = f"A learner looks up {entry.difficulty}% of its words.{which}"
+            row["reason"] = {
+                "key": "suggest.looked-up",
+                "share": entry.difficulty,
+                "register": which.strip() and entry.register.value,
+            }
             rank = (1.0, float(entry.difficulty) - 10.0 * tilt)
         else:
             row["because"] = "Not measured yet."
+            row["reason"] = {"key": "suggest.unmeasured"}
             rank = (2.0, 0.0)
         candidates.append((rank, row))
     candidates.sort(key=lambda pair: pair[0])
     return {"suggestions": [row for _, row in candidates[:limit]]}
+
+
+def because_in(row: dict[str, Any], language: str) -> str:
+    """A suggestion's reason in `language`, for the reader (targum-internal#287). The
+    English `because` stays on the row for the model, which reads the tool's output."""
+    from ..serve import said_in
+
+    reason = row.get("reason") or {}
+    key = str(reason.get("key") or "")
+    if key == "suggest.known":
+        return said_in(
+            language, "suggest.known", "You know {share}% of its words.", share=reason["share"]
+        )
+    if key == "suggest.looked-up":
+        said = said_in(
+            language,
+            "suggest.looked-up",
+            "A learner looks up {share}% of its words.",
+            share=reason["share"],
+        )
+        register = str(reason.get("register") or "")
+        if register == "modern":
+            said += " " + said_in(language, "suggest.modern-hebrew", "Modern Hebrew.")
+        elif register == "biblical":
+            said += " " + said_in(language, "suggest.biblical-hebrew", "Biblical Hebrew.")
+        return said
+    if key == "suggest.unmeasured":
+        return said_in(language, "suggest.unmeasured", "Not measured yet.")
+    return str(row.get("because") or "")
 
 
 def language_code(value: str) -> str:
