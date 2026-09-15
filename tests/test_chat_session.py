@@ -1058,6 +1058,45 @@ def test_the_ledger_block_holds_still_for_a_conversation_and_moves_for_the_next(
     assert exemplars.conversation_seed("a") == exemplars.conversation_seed("a")
 
 
+def test_two_conversations_are_sent_two_different_blocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half of criterion 2 (targum-internal#239): not only do the seeds differ,
+    the system block the API is sent differs between conversations — byte for byte the
+    same within one, a different slice of the ledger in the next. The seeds are pinned to
+    1 and 2 so the two slices are known to differ; the hash itself is held above."""
+    from targum.chat import exemplars
+
+    seeds: dict[str, int] = {}
+    monkeypatch.setattr(
+        exemplars, "conversation_seed", lambda chat_id: seeds.setdefault(chat_id, len(seeds) + 1)
+    )
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": now, "seen": now}
+                for w in ("בוקר", "טוב", "מה", "את", "עושה")
+            ]
+        },
+    )
+    reply_text = "> בּוֹקֶר טוֹב.\n= Good morning."
+    client = Script([reply([{"type": "text", "text": reply_text}])] * 4)
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    home = library.home(person)
+    first = chats.say(person, home, "", "Good morning", admin=False)
+    chats.answer(first)
+    chats.answer(chats.say(person, home, first.chat_id, "Good morning again", admin=False))
+    chats.answer(chats.say(person, home, "", "Hello", admin=False))
+    blocks = [request["system"] for request in client.requests[:3]]
+    assert blocks[0] == blocks[1], "byte for byte the same on two turns of one conversation"
+    assert blocks[0][0] == blocks[2][0], "the stable half is shared by every conversation"
+    assert blocks[0][1]["text"] != blocks[2][1]["text"], "and the ledger slice is not"
+
+
 def test_a_marked_message_is_a_copy_and_the_store_s_is_untouched() -> None:
     history = [
         {"role": "user", "content": "hello"},
