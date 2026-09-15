@@ -172,3 +172,24 @@ def test_a_desk_script_is_handed_only_its_own_keys_and_english_nothing(
         "language": "ru",
     }
     assert builder.script_strings("fr", "library.") == {}
+
+
+def test_every_sentence_the_server_says_is_in_the_english_catalogue() -> None:
+    """`Handler._say("key", "English")` in serve.py: the English written at the call is
+    the one in `en.json`, the same promise the scripts make (targum-internal#184)."""
+    import ast
+
+    source = Path(strings.__file__).parents[1] / "serve.py"
+    english = strings.catalogue("en")
+    said = 0
+    for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        if node.func.attr != "_say":
+            continue
+        key, text = (arg.value for arg in node.args[:2])  # type: ignore[attr-defined]
+        assert english.get(key) == text, (
+            f"{key}: serve.py says {text!r}, en.json {english.get(key)!r}"
+        )
+        said += 1
+    assert said > 30, "the server's sentences go through the catalogue"
