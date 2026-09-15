@@ -14,7 +14,9 @@ verse for verse and nothing is bought or guessed.
 The files are content, not code, and live where the catalogue does
 (`catalogue.json`'s rule): the first of `TARGUM_PUBLISHED`, `~/.targum/published`,
 `/etc/targum/published`, holding `<language>.json` as
-`{"title": …, "verses": {"Genesis 1:1": …}}`.
+`{"title": …, "books": {"Genesis": "Бытие"}, "verses": {"Genesis 1:1": …}}`. `books` is
+optional: it names each book and its chapters in the translation's own language, so a
+Russian reader meets «Бытие 1» rather than "Genesis 1" over Russian verses.
 """
 
 from __future__ import annotations
@@ -69,10 +71,13 @@ def split(identifier: str) -> tuple[str, str]:
     return language.lower(), book.replace("_", " ").strip()
 
 
-def document_for(language: str, book: str, verses: dict[str, str], title: str) -> Document:
+def document_for(
+    language: str, book: str, verses: dict[str, str], title: str, named: str = ""
+) -> Document:
     """One book's verses as Sefaria's renderings are shaped: every chapter from the first
     to the last, every verse from the first to the last in its chapter, an empty one kept
-    as "—" so the two sides count the same."""
+    as "—" so the two sides count the same. `named` is the book's name in the translation's
+    language, which titles it and its chapters; the refs stay Sefaria's."""
     chapters: dict[int, dict[int, str]] = {}
     for ref, text in verses.items():
         found = _REF.match(ref)
@@ -83,7 +88,7 @@ def document_for(language: str, book: str, verses: dict[str, str], title: str) -
     paragraphs: list[Paragraph] = []
     refs: dict[int, str] = {}
     for number in range(1, max(chapters) + 1):
-        paragraphs.append((BlockKind.heading, 2, f"{book} {number}"))
+        paragraphs.append((BlockKind.heading, 2, f"{named or book} {number}"))
         held = chapters.get(number, {})
         for count in range(1, (max(held) if held else 0) + 1):
             refs[len(paragraphs)] = f"{book} {number}:{count}"
@@ -99,7 +104,7 @@ def document_for(language: str, book: str, verses: dict[str, str], title: str) -
         blocks,
         ingester=PublishedFetcher.name,
         language=language,
-        title=f"{title}, {book}" if title else book,
+        title=named or (f"{title}, {book}" if title else book),
     )
 
 
@@ -110,5 +115,9 @@ class PublishedFetcher:
         language, book = split(identifier)
         held = edition(language)
         return document_for(
-            language, book, dict(held.get("verses") or {}), str(held.get("title") or "")
+            language,
+            book,
+            dict(held.get("verses") or {}),
+            str(held.get("title") or ""),
+            str(dict(held.get("books") or {}).get(book) or ""),
         )
