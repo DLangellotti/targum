@@ -265,6 +265,8 @@ var targumReader = function () {
   // runtime as words are looked up, since most texts were glossed before they existed.
   var citations = data.citations || [];
   var plurals = data.plurals || [];
+  // A French word's gender-telling ending, "f:tion", parallel to the lemmas.
+  var endings = data.endings || [];
   // What the words mean, per target language: `{ en: [...], ru: [...] }`, each table
   // parallel to `lemmas`. A meaning is written in one language and a text may carry a
   // translation into two, so there is no such thing as "the" meaning of a word here —
@@ -4147,6 +4149,8 @@ var targumReader = function () {
       var cite = citations[index] || "";
       var lying = plurals[index] || "";
       if (cite) usage = usage ? cite + " · " + usage : cite;
+      var rule = endingLine(grammarHere, endings[index]);
+      if (rule) usage = usage ? usage + " · " + rule : rule;
       if (lying) {
         usage = usage.replace(" · pl.", "");
         usage = (usage ? usage + " · " : "") + "pl. " + lying;
@@ -5258,6 +5262,17 @@ var targumReader = function () {
         binyan: (index >= 0 && binyanim[index]) || "",
       };
     });
+  }
+
+  // What a French noun's ending says about its gender, where the ending and the word
+  // agree: "like most nouns in -tion". "" for a noun the ending would get wrong, which is
+  // a word to learn, not a rule to state (targum-internal#263).
+  function endingLine(line, ending) {
+    if (feat(line, "UPOS") !== "NOUN" || !ending) return "";
+    var said = String(ending).split(":");
+    var gender = feat(line, "Gender") === "Fem" ? "f" : feat(line, "Gender") === "Masc" ? "m" : "";
+    if (said.length !== 2 || said[0] !== gender) return "";
+    return "like most nouns in -" + said[1];
   }
 
   // A French noun as a learner keeps it: its dictionary form with *un* or *une*, the only
@@ -8207,6 +8222,7 @@ var targumReader = function () {
     ankiText: ankiText,
     compoundLine: compoundLine,
     withArticle: withArticle,
+    endingLine: endingLine,
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,

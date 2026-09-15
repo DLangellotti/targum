@@ -337,6 +337,25 @@ Measured on 1,000 sentences stressed by hand in Wiktionary (`scripts/eval_stress
 evaluation only), marks placed that way were right 99.8% of the time, against 98.5% for
 silero alone.
 
+### Grammalecte's French lexicon — MPL 2.0, counted and not shipped (2026-09-15)
+
+A French noun's card names the ending that tells its gender, where the noun agrees: *nation*
+reads "noun · f · like most nouns in -tion" (targum-internal#263). Which endings earn that
+line is counted from **[Grammalecte](https://grammalecte.net)**'s lexicon
+(`lexicons/French.lex`, the successor to the Dicollecte dictionary). Its header gives the
+Mozilla Public License 2.0. The count reads the lexicon at one commit of its GitHub mirror
+([`Pofilo/grammalecte`](https://github.com/Pofilo/grammalecte), `08511c22`), cached outside
+the repository by `scripts/french_endings.py`.
+
+What ships is `annotate/french_endings.json`: about 160 endings, each with a gender, the share
+of nouns that have it and how many nouns that is. Only endings shared by 90% or more of at
+least fifty plain nouns are kept. That is a statistic about the lexicon, not a copy of any
+part of it, so this document reads MPL 2.0's file-level conditions as not reaching it. It is
+the same reading as wordfreq's bands and OpenRussian's facts above. The source and its
+licence are named in the table itself anyway. The card said to count from Dicollecte rather
+than from Lexique, which is CC BY-SA, and this does. Lefff (LGPL-LR) was kept in reserve
+as a lookup for nouns this lexicon lacks, and was not needed.
+
 ## Content is not code
 
 Nothing above covers what targum *reads*. A text, a translation and a recording each

@@ -1,0 +1,969 @@
+{
+ "source": "https://raw.githubusercontent.com/Pofilo/grammalecte/08511c222029b3be20bf547563315d10fb48d44b/lexicons/French.lex",
+ "licence": "MPL-2.0",
+ "counted": 39436,
+ "least": 50,
+ "share": 0.9,
+ "endings": [
+  {
+   "ending": "acée",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 79
+  },
+  {
+   "ending": "ade",
+   "gender": "f",
+   "share": 0.935,
+   "nouns": 215
+  },
+  {
+   "ending": "age",
+   "gender": "m",
+   "share": 0.997,
+   "nouns": 1974
+  },
+  {
+   "ending": "aie",
+   "gender": "f",
+   "share": 0.966,
+   "nouns": 58
+  },
+  {
+   "ending": "aille",
+   "gender": "f",
+   "share": 0.987,
+   "nouns": 77
+  },
+  {
+   "ending": "ain",
+   "gender": "m",
+   "share": 0.966,
+   "nouns": 59
+  },
+  {
+   "ending": "aison",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 69
+  },
+  {
+   "ending": "al",
+   "gender": "m",
+   "share": 0.991,
+   "nouns": 117
+  },
+  {
+   "ending": "amme",
+   "gender": "m",
+   "share": 0.955,
+   "nouns": 88
+  },
+  {
+   "ending": "an",
+   "gender": "m",
+   "share": 0.956,
+   "nouns": 227
+  },
+  {
+   "ending": "ance",
+   "gender": "f",
+   "share": 0.997,
+   "nouns": 338
+  },
+  {
+   "ending": "anie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 58
+  },
+  {
+   "ending": "ant",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 136
+  },
+  {
+   "ending": "aphe",
+   "gender": "m",
+   "share": 0.964,
+   "nouns": 83
+  },
+  {
+   "ending": "ar",
+   "gender": "m",
+   "share": 0.955,
+   "nouns": 110
+  },
+  {
+   "ending": "ard",
+   "gender": "m",
+   "share": 0.994,
+   "nouns": 159
+  },
+  {
+   "ending": "arité",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 67
+  },
+  {
+   "ending": "as",
+   "gender": "m",
+   "share": 0.978,
+   "nouns": 90
+  },
+  {
+   "ending": "ase",
+   "gender": "f",
+   "share": 0.936,
+   "nouns": 141
+  },
+  {
+   "ending": "asse",
+   "gender": "f",
+   "share": 0.944,
+   "nouns": 71
+  },
+  {
+   "ending": "at",
+   "gender": "m",
+   "share": 0.994,
+   "nouns": 360
+  },
+  {
+   "ending": "ateur",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 250
+  },
+  {
+   "ending": "athie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 58
+  },
+  {
+   "ending": "ature",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 58
+  },
+  {
+   "ending": "au",
+   "gender": "m",
+   "share": 0.997,
+   "nouns": 301
+  },
+  {
+   "ending": "ce",
+   "gender": "f",
+   "share": 0.916,
+   "nouns": 783
+  },
+  {
+   "ending": "ch",
+   "gender": "m",
+   "share": 0.964,
+   "nouns": 56
+  },
+  {
+   "ending": "ck",
+   "gender": "m",
+   "share": 0.966,
+   "nouns": 58
+  },
+  {
+   "ending": "cope",
+   "gender": "m",
+   "share": 0.954,
+   "nouns": 65
+  },
+  {
+   "ending": "cteur",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 77
+  },
+  {
+   "ending": "cée",
+   "gender": "f",
+   "share": 0.959,
+   "nouns": 98
+  },
+  {
+   "ending": "die",
+   "gender": "f",
+   "share": 0.952,
+   "nouns": 62
+  },
+  {
+   "ending": "dité",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 54
+  },
+  {
+   "ending": "don",
+   "gender": "m",
+   "share": 0.982,
+   "nouns": 55
+  },
+  {
+   "ending": "dé",
+   "gender": "m",
+   "share": 0.981,
+   "nouns": 103
+  },
+  {
+   "ending": "eau",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 257
+  },
+  {
+   "ending": "el",
+   "gender": "m",
+   "share": 0.978,
+   "nouns": 137
+  },
+  {
+   "ending": "elle",
+   "gender": "f",
+   "share": 0.948,
+   "nouns": 229
+  },
+  {
+   "ending": "en",
+   "gender": "m",
+   "share": 0.982,
+   "nouns": 219
+  },
+  {
+   "ending": "ence",
+   "gender": "f",
+   "share": 0.997,
+   "nouns": 288
+  },
+  {
+   "ending": "ent",
+   "gender": "m",
+   "share": 0.998,
+   "nouns": 1682
+  },
+  {
+   "ending": "enèse",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 62
+  },
+  {
+   "ending": "er",
+   "gender": "m",
+   "share": 0.997,
+   "nouns": 981
+  },
+  {
+   "ending": "esse",
+   "gender": "f",
+   "share": 0.99,
+   "nouns": 97
+  },
+  {
+   "ending": "et",
+   "gender": "m",
+   "share": 0.993,
+   "nouns": 444
+  },
+  {
+   "ending": "eté",
+   "gender": "f",
+   "share": 0.952,
+   "nouns": 63
+  },
+  {
+   "ending": "eur",
+   "gender": "m",
+   "share": 0.958,
+   "nouns": 1884
+  },
+  {
+   "ending": "euse",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 78
+  },
+  {
+   "ending": "ge",
+   "gender": "m",
+   "share": 0.959,
+   "nouns": 2124
+  },
+  {
+   "ending": "gie",
+   "gender": "f",
+   "share": 0.995,
+   "nouns": 597
+  },
+  {
+   "ending": "hie",
+   "gender": "f",
+   "share": 0.994,
+   "nouns": 335
+  },
+  {
+   "ending": "idé",
+   "gender": "m",
+   "share": 0.987,
+   "nouns": 76
+  },
+  {
+   "ending": "ie",
+   "gender": "f",
+   "share": 0.992,
+   "nouns": 3438
+  },
+  {
+   "ending": "ien",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 148
+  },
+  {
+   "ending": "ier",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 702
+  },
+  {
+   "ending": "il",
+   "gender": "m",
+   "share": 0.992,
+   "nouns": 128
+  },
+  {
+   "ending": "in",
+   "gender": "m",
+   "share": 0.986,
+   "nouns": 430
+  },
+  {
+   "ending": "ine",
+   "gender": "f",
+   "share": 0.964,
+   "nouns": 870
+  },
+  {
+   "ending": "ing",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 149
+  },
+  {
+   "ending": "ion",
+   "gender": "f",
+   "share": 0.97,
+   "nouns": 3227
+  },
+  {
+   "ending": "ir",
+   "gender": "m",
+   "share": 0.993,
+   "nouns": 290
+  },
+  {
+   "ending": "is",
+   "gender": "m",
+   "share": 0.907,
+   "nouns": 291
+  },
+  {
+   "ending": "ise",
+   "gender": "f",
+   "share": 0.956,
+   "nouns": 113
+  },
+  {
+   "ending": "iseur",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 73
+  },
+  {
+   "ending": "ison",
+   "gender": "f",
+   "share": 0.931,
+   "nouns": 87
+  },
+  {
+   "ending": "it",
+   "gender": "m",
+   "share": 0.986,
+   "nouns": 139
+  },
+  {
+   "ending": "ité",
+   "gender": "f",
+   "share": 0.99,
+   "nouns": 1465
+  },
+  {
+   "ending": "ium",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 211
+  },
+  {
+   "ending": "ivité",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 144
+  },
+  {
+   "ending": "ière",
+   "gender": "f",
+   "share": 0.975,
+   "nouns": 162
+  },
+  {
+   "ending": "let",
+   "gender": "m",
+   "share": 0.992,
+   "nouns": 120
+  },
+  {
+   "ending": "lie",
+   "gender": "f",
+   "share": 0.977,
+   "nouns": 130
+  },
+  {
+   "ending": "line",
+   "gender": "f",
+   "share": 0.974,
+   "nouns": 117
+  },
+  {
+   "ending": "lité",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 689
+  },
+  {
+   "ending": "lle",
+   "gender": "f",
+   "share": 0.914,
+   "nouns": 570
+  },
+  {
+   "ending": "lleur",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 84
+  },
+  {
+   "ending": "lon",
+   "gender": "m",
+   "share": 0.994,
+   "nouns": 158
+  },
+  {
+   "ending": "lot",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 53
+  },
+  {
+   "ending": "lteur",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 53
+  },
+  {
+   "ending": "lture",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 81
+  },
+  {
+   "ending": "lure",
+   "gender": "f",
+   "share": 0.936,
+   "nouns": 78
+  },
+  {
+   "ending": "lé",
+   "gender": "m",
+   "share": 0.938,
+   "nouns": 64
+  },
+  {
+   "ending": "ma",
+   "gender": "m",
+   "share": 0.938,
+   "nouns": 65
+  },
+  {
+   "ending": "me",
+   "gender": "m",
+   "share": 0.955,
+   "nouns": 2061
+  },
+  {
+   "ending": "mie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 396
+  },
+  {
+   "ending": "nade",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 52
+  },
+  {
+   "ending": "nat",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 53
+  },
+  {
+   "ending": "nce",
+   "gender": "f",
+   "share": 0.988,
+   "nouns": 643
+  },
+  {
+   "ending": "nette",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 94
+  },
+  {
+   "ending": "neur",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 141
+  },
+  {
+   "ending": "ng",
+   "gender": "m",
+   "share": 0.99,
+   "nouns": 197
+  },
+  {
+   "ending": "nie",
+   "gender": "f",
+   "share": 0.989,
+   "nouns": 265
+  },
+  {
+   "ending": "nité",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 62
+  },
+  {
+   "ending": "nt",
+   "gender": "m",
+   "share": 0.998,
+   "nouns": 1855
+  },
+  {
+   "ending": "née",
+   "gender": "f",
+   "share": 0.929,
+   "nouns": 56
+  },
+  {
+   "ending": "oir",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 239
+  },
+  {
+   "ending": "ol",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 140
+  },
+  {
+   "ending": "ome",
+   "gender": "m",
+   "share": 0.995,
+   "nouns": 185
+  },
+  {
+   "ending": "onie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 91
+  },
+  {
+   "ending": "or",
+   "gender": "m",
+   "share": 0.985,
+   "nouns": 65
+  },
+  {
+   "ending": "os",
+   "gender": "m",
+   "share": 0.967,
+   "nouns": 60
+  },
+  {
+   "ending": "ose",
+   "gender": "f",
+   "share": 0.925,
+   "nouns": 345
+  },
+  {
+   "ending": "ot",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 204
+  },
+  {
+   "ending": "otte",
+   "gender": "f",
+   "share": 0.983,
+   "nouns": 60
+  },
+  {
+   "ending": "ou",
+   "gender": "m",
+   "share": 0.977,
+   "nouns": 88
+  },
+  {
+   "ending": "phie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 239
+  },
+  {
+   "ending": "pie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 202
+  },
+  {
+   "ending": "ramme",
+   "gender": "m",
+   "share": 0.976,
+   "nouns": 85
+  },
+  {
+   "ending": "raphe",
+   "gender": "m",
+   "share": 0.973,
+   "nouns": 75
+  },
+  {
+   "ending": "rat",
+   "gender": "m",
+   "share": 0.984,
+   "nouns": 64
+  },
+  {
+   "ending": "rd",
+   "gender": "m",
+   "share": 0.995,
+   "nouns": 194
+  },
+  {
+   "ending": "rette",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 53
+  },
+  {
+   "ending": "ri",
+   "gender": "m",
+   "share": 0.982,
+   "nouns": 55
+  },
+  {
+   "ending": "rie",
+   "gender": "f",
+   "share": 0.999,
+   "nouns": 891
+  },
+  {
+   "ending": "rine",
+   "gender": "f",
+   "share": 0.981,
+   "nouns": 104
+  },
+  {
+   "ending": "rite",
+   "gender": "f",
+   "share": 0.907,
+   "nouns": 97
+  },
+  {
+   "ending": "ron",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 143
+  },
+  {
+   "ending": "rt",
+   "gender": "m",
+   "share": 0.972,
+   "nouns": 107
+  },
+  {
+   "ending": "ré",
+   "gender": "m",
+   "share": 0.967,
+   "nouns": 61
+  },
+  {
+   "ending": "scope",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 59
+  },
+  {
+   "ending": "se",
+   "gender": "f",
+   "share": 0.931,
+   "nouns": 1266
+  },
+  {
+   "ending": "seur",
+   "gender": "m",
+   "share": 0.98,
+   "nouns": 254
+  },
+  {
+   "ending": "sie",
+   "gender": "f",
+   "share": 0.994,
+   "nouns": 176
+  },
+  {
+   "ending": "sine",
+   "gender": "f",
+   "share": 0.981,
+   "nouns": 53
+  },
+  {
+   "ending": "sion",
+   "gender": "f",
+   "share": 0.996,
+   "nouns": 276
+  },
+  {
+   "ending": "sme",
+   "gender": "m",
+   "share": 0.999,
+   "nouns": 1443
+  },
+  {
+   "ending": "sse",
+   "gender": "f",
+   "share": 0.925,
+   "nouns": 266
+  },
+  {
+   "ending": "sure",
+   "gender": "f",
+   "share": 0.985,
+   "nouns": 67
+  },
+  {
+   "ending": "ter",
+   "gender": "m",
+   "share": 0.969,
+   "nouns": 65
+  },
+  {
+   "ending": "teur",
+   "gender": "m",
+   "share": 0.987,
+   "nouns": 669
+  },
+  {
+   "ending": "tie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 134
+  },
+  {
+   "ending": "tin",
+   "gender": "m",
+   "share": 0.973,
+   "nouns": 73
+  },
+  {
+   "ending": "tine",
+   "gender": "f",
+   "share": 0.99,
+   "nouns": 101
+  },
+  {
+   "ending": "tion",
+   "gender": "f",
+   "share": 0.998,
+   "nouns": 2817
+  },
+  {
+   "ending": "to",
+   "gender": "m",
+   "share": 0.938,
+   "nouns": 65
+  },
+  {
+   "ending": "ton",
+   "gender": "m",
+   "share": 0.984,
+   "nouns": 128
+  },
+  {
+   "ending": "tre",
+   "gender": "m",
+   "share": 0.924,
+   "nouns": 343
+  },
+  {
+   "ending": "tte",
+   "gender": "f",
+   "share": 0.977,
+   "nouns": 645
+  },
+  {
+   "ending": "tude",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 58
+  },
+  {
+   "ending": "ture",
+   "gender": "f",
+   "share": 0.993,
+   "nouns": 272
+  },
+  {
+   "ending": "tère",
+   "gender": "m",
+   "share": 0.952,
+   "nouns": 63
+  },
+  {
+   "ending": "té",
+   "gender": "f",
+   "share": 0.965,
+   "nouns": 1625
+  },
+  {
+   "ending": "ude",
+   "gender": "f",
+   "share": 0.932,
+   "nouns": 74
+  },
+  {
+   "ending": "uet",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 64
+  },
+  {
+   "ending": "uette",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 56
+  },
+  {
+   "ending": "uille",
+   "gender": "f",
+   "share": 0.923,
+   "nouns": 65
+  },
+  {
+   "ending": "um",
+   "gender": "m",
+   "share": 0.994,
+   "nouns": 341
+  },
+  {
+   "ending": "ur",
+   "gender": "m",
+   "share": 0.955,
+   "nouns": 1940
+  },
+  {
+   "ending": "us",
+   "gender": "m",
+   "share": 0.995,
+   "nouns": 218
+  },
+  {
+   "ending": "use",
+   "gender": "f",
+   "share": 0.985,
+   "nouns": 134
+  },
+  {
+   "ending": "ut",
+   "gender": "m",
+   "share": 0.978,
+   "nouns": 89
+  },
+  {
+   "ending": "ux",
+   "gender": "m",
+   "share": 0.962,
+   "nouns": 52
+  },
+  {
+   "ending": "xie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 57
+  },
+  {
+   "ending": "yse",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 59
+  },
+  {
+   "ending": "ème",
+   "gender": "m",
+   "share": 0.93,
+   "nouns": 71
+  },
+  {
+   "ending": "èse",
+   "gender": "f",
+   "share": 0.941,
+   "nouns": 135
+  },
+  {
+   "ending": "ètre",
+   "gender": "m",
+   "share": 1.0,
+   "nouns": 198
+  },
+  {
+   "ending": "ée",
+   "gender": "f",
+   "share": 0.931,
+   "nouns": 451
+  },
+  {
+   "ending": "énie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 60
+  },
+  {
+   "ending": "ésie",
+   "gender": "f",
+   "share": 1.0,
+   "nouns": 57
+  }
+ ]
+}

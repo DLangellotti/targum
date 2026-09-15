@@ -6399,6 +6399,7 @@ def french(out: Path) -> Path:
     lines = [
         "Elles ont mangé la pomme, puis elles sont arrivées.",
         "Les pommes sont mangées, et il n'a pas mangé.",
+        "La nation attend.",
     ]
     aux = "UPOS=AUX|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Mood=Ind"
     words = {
@@ -6415,6 +6416,7 @@ def french(out: Path) -> Path:
             ("mangées", "manger", "UPOS=VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part"),
             ("a", "avoir", "UPOS=AUX|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Mood=Ind"),
         ],
+        2: [("nation", "nation", "UPOS=NOUN|Gender=Fem|Number=Sing")],
     }
     segments, tokens = [], {}
     for n, text in enumerate(lines):
@@ -6477,5 +6479,8 @@ def test_a_french_participle_names_the_tense_its_auxiliary_makes(browser, tmp_pa
     assert eaten["forms"] == "here also as mangées"
     assert page.evaluate(CARD_LINES, "arrivées")["use"] == "passé composé · with être · f · pl."
     assert page.evaluate(CARD_LINES, "mangées")["use"] == "passive · with être · f · pl."
-    assert page.evaluate(CARD_LINES, "pomme")["forms"] is None, "a noun keeps its one line"
+    apple = page.evaluate(CARD_LINES, "pomme")
+    assert apple["forms"] is None, "a noun keeps its one line"
+    assert apple["use"] == "noun · f", "-me says masculine, so the rule is not said"
+    assert page.evaluate(CARD_LINES, "nation")["use"] == "noun · f · like most nouns in -tion"
     context.close()
