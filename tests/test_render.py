@@ -5352,3 +5352,15 @@ def test_the_lists_are_said_in_the_language_asked(monkeypatch: pytest.MonkeyPatc
     assert '<th scope="col">Слово</th>' in russian
     assert "window.TARGUM_STRINGS =" in russian and "lists.no-match" in russian
     assert list_page("k", "words") == plain
+
+
+def test_a_desk_page_in_another_language_says_so_to_a_screen_reader() -> None:
+    """A page whose words are Russian is marked Russian, or a screen reader reads the
+    Cyrillic with an English voice; a language with no catalogue falls back to English
+    words and says English (targum-internal#184)."""
+    from targum.render.builder import learn_page, list_page
+
+    assert '<html lang="en">' in learn_page("k")
+    assert '<html lang="ru">' in learn_page("k", language="ru")
+    assert '<html lang="ru">' in list_page("k", "words", language="ru-RU")
+    assert '<html lang="en">' in learn_page("k", language="xx")

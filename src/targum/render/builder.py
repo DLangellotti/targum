@@ -306,6 +306,15 @@ def _environment() -> Environment:
     return env
 
 
+def _page_language(language: str) -> str:
+    """What a desk page's `<html lang>` says: the language its words are in, where the
+    catalogue has that language, and English where they fell back to it."""
+    from ..strings import SOURCE, languages
+
+    code = (language or SOURCE).split("-")[0].lower()
+    return code if code in languages() else SOURCE
+
+
 def page_words(language: str) -> Callable[[str, str], Markup]:
     """A template's `t(key, English)` in `language` (targum-internal#184): that language's
     catalogue where it has the key, the English written in the template where not.
@@ -1031,6 +1040,7 @@ def learn_page(token: str, language: str = "en") -> str:
         .get_template("learn.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             strings=script_strings(language, "learn.", "shelf."),
             token=token,
             languages=_language_names(),
@@ -1090,6 +1100,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
         .get_template("yours.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             which=which,
             languages=_language_names(),
@@ -1117,6 +1128,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .get_template("add.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             strings=script_strings(language, "add.", "bring."),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
@@ -1332,6 +1344,7 @@ def progress_page(token: str, language: str = "en") -> str:
         .get_template("progress.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             languages=_language_names(),
             # The week's issue, if there is a readable one. Learn is the only surface
@@ -1767,6 +1780,7 @@ def you_page(token: str, language: str = "en") -> str:
         .get_template("you.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             strings=script_strings(language, "you."),
             token=token,
             reading=_staged(READING),
@@ -1791,6 +1805,7 @@ def library_page(token: str, language: str = "en") -> str:
         .get_template("library.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             catalogue=[entry.state() for entry in everything()],
             # Which texts the page meets as one thing. Baked in beside the catalogue and
