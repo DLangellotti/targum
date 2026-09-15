@@ -175,21 +175,31 @@ def test_a_desk_script_is_handed_only_its_own_keys_and_english_nothing(
 
 
 def test_every_sentence_the_server_says_is_in_the_english_catalogue() -> None:
-    """`Handler._say("key", "English")` in serve.py: the English written at the call is
-    the one in `en.json`, the same promise the scripts make (targum-internal#184)."""
+    """`Handler._say("key", "English")` and `said_in(ui, "key", "English")`: the English
+    written at the call is the one in `en.json`, the same promise the scripts make
+    (targum-internal#184)."""
     import ast
 
-    source = Path(strings.__file__).parents[1] / "serve.py"
+    from targum.chat import TURN_TOO_LONG
+    from targum.serve import NO_KEY
+
     english = strings.catalogue("en")
     said = 0
-    for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
-        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
-            continue
-        if node.func.attr != "_say":
-            continue
-        key, text = (arg.value for arg in node.args[:2])  # type: ignore[attr-defined]
-        assert english.get(key) == text, (
-            f"{key}: serve.py says {text!r}, en.json {english.get(key)!r}"
-        )
-        said += 1
-    assert said > 30, "the server's sentences go through the catalogue"
+    for name in ("serve.py", "chat/session.py"):
+        source = Path(strings.__file__).parents[1] / name
+        for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            called = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+            args = {"_say": node.args[:2], "said_in": node.args[1:3]}.get(str(called))
+            if not args or not all(isinstance(arg, ast.Constant) for arg in args):
+                continue
+            key, text = (arg.value for arg in args)  # type: ignore[attr-defined]
+            assert english.get(key) == text, (
+                f"{key}: {name} says {text!r}, en.json {english.get(key)!r}"
+            )
+            said += 1
+    assert said > 40, "the server's sentences go through the catalogue"
+    # Said through a constant, which the walk above cannot read.
+    assert english["job.no-key"] == NO_KEY
+    assert english["chat.too-long"] == TURN_TOO_LONG

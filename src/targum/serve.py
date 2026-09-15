@@ -143,6 +143,18 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 # stopping the server.
 NO_KEY = "We can't make anything new right now. Everything you have still opens."
 
+
+def said_in(ui: str, key: str, english: str, **fill: object) -> str:
+    """A sentence the server writes — into an answer, or onto a job a thread finishes
+    later — in the language `ui` names, and `english` where its catalogue has not said it
+    (targum-internal#184). `tests/test_strings.py` holds every call to `en.json`."""
+    from .strings import SOURCE, catalogue
+
+    code = (ui or SOURCE).split("-")[0].lower()
+    text = catalogue(code).get(key, english) if code != SOURCE else english
+    return text.format(**fill) if fill else text
+
+
 # A full-length novel costs real money to translate, and a page anyone on this machine
 # can reach should not be able to spend it by accident. Both are estimates rather than
 # billed amounts, so they are deliberately conservative.
@@ -668,6 +680,9 @@ class Job:
     # at claim time and never written down: it is a fact about who they are now, not
     # about this job, and a job recovered after a restart has already been claimed.
     admin: bool = False
+    # The language whoever asked for it reads the product in, so a refusal written later
+    # by the thread that runs it is said in theirs (targum-internal#184). Never stored.
+    ui: str = "en"
     # What it really cost, once the API has said. Zero until it has.
     spent: float = 0.0
     # What the prompt cache did on this job: tokens read, written, and their dollars,
@@ -1249,13 +1264,16 @@ class Library:
         return int(first.timestamp() * 1000)
 
     @staticmethod
-    def _month_ends() -> str:
-        """When this month's allowance comes back, as a date a refusal can name."""
+    def _month_ends(ui: str = "en") -> str:
+        """When this month's allowance comes back, as a date a refusal can name, in the
+        language `ui` names."""
         today = datetime.now(UTC)
         year, month = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
         # Month first, as every other date in the product is written ("Monday, September
         # 14" on Learn); "1 October" beside it was a second convention on one screen.
-        return datetime(year, month, 1, tzinfo=UTC).strftime("%B %-d")
+        english = datetime(year, month, 1, tzinfo=UTC).strftime("%B")
+        named = said_in(ui, f"date.month.{month}", english)
+        return said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
 
     def settle(self, job: Job) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of
@@ -1294,19 +1312,18 @@ class Library:
             return ""
         day = self._since()
         if self.store.committed(day) >= self.budget:
-            return self._out_of("everyone")
+            return self._out_of("everyone", job.ui)
         if self.account_budget is not None:
             if self.store.committed(day, job.owner) >= self.account_budget:
-                return self._out_of("account")
+                return self._out_of("account", job.ui)
         return ""
 
-    def _out_of(self, whose: str) -> str:
-        """Which ceiling stopped this, and when it lifts.
+    def _out_of(self, whose: str, ui: str = "en") -> str:
+        """Which ceiling stopped this, and when it lifts, in the language `ui` names.
 
         A refusal that does not say which limit was hit, or when it stops applying, is
         indistinguishable from the product being broken.
         """
-        when = f"in {BUDGET_HOURS} hours"
         if whose == "hours":
             # The one refusal a reader was warned about on the pricing page, so it says
             # the same number that page did rather than translating into money — and it
@@ -1315,44 +1332,69 @@ class Library:
             # limit it does not enforce. The two agreed while both said ten; they stopped
             # agreeing the moment the constant moved, which is the whole bug.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
-            return (
-                f"You've used your {allowed / 3600:g} hours of audio for this month. "
-                f"They come back on {self._month_ends()}. Text uploads still work, and the "
-                "library is always free."
+            return said_in(
+                ui,
+                "job.out-of.hours",
+                "You've used your {hours} hours of audio for this month. They come back on "
+                "{date}. Text uploads still work, and the library is always free.",
+                hours=f"{allowed / 3600:g}",
+                date=self._month_ends(ui),
             )
         if whose == "account":
             # Never "you have read your fill". Nothing here is a limit on reading — text
             # is unlimited and the library is free — so a refusal must not imply that a
             # reader has used something up. This one is a rate limit and says so.
-            return f"That's a lot to build at once. Try again {when}. The library is always free."
+            return said_in(
+                ui,
+                "job.out-of.account",
+                "That's a lot to build at once. Try again in {hours} hours. The library is "
+                "always free.",
+                hours=BUDGET_HOURS,
+            )
         if whose == "talk-hours":
             # The allowance, reached by talking rather than by uploading. The same number
             # the pricing page names, and the same promise that reading carries on.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
-            return (
-                f"You've used your {allowed / 3600:g} hours of audio and conversation for "
-                f"this month. They come back on {self._month_ends()}. You can keep reading, "
-                "and the library is always free."
+            return said_in(
+                ui,
+                "job.out-of.talk-hours",
+                "You've used your {hours} hours of audio and conversation for this month. "
+                "They come back on {date}. You can keep reading, and the library is always "
+                "free.",
+                hours=f"{allowed / 3600:g}",
+                date=self._month_ends(ui),
             )
         if whose == "chat":
             # The same rule for the conversation's own rail: a lot of talking is not a
             # lot of reading, and the shelf is still open.
-            return (
-                f"That's a lot of conversation for one day. Try again {when}. "
-                "The library is always free."
+            return said_in(
+                ui,
+                "job.out-of.chat",
+                "That's a lot of conversation for one day. Try again in {hours} hours. The "
+                "library is always free.",
+                hours=BUDGET_HOURS,
             )
-        return f"We've hit our limit for today. Try again {when}, or read from the library."
+        return said_in(
+            ui,
+            "job.out-of.everyone",
+            "We've hit our limit for today. Try again in {hours} hours, or read from the library.",
+            hours=BUDGET_HOURS,
+        )
 
-    def why_blocked(self, estimate: float) -> str:
+    def why_blocked(self, estimate: float, ui: str = "en") -> str:
         """Whether this build may go ahead, in words the page can show."""
         if estimate > self.max_cost:
             # The reader pays by the month and never by the text, so what stops them is
             # a limit on the thing itself, not a sum of money they have never been shown.
-            return (
-                "That's too long to take in one go. Try a chapter, or something from the library."
+            return said_in(
+                ui,
+                "job.too-long",
+                "That's too long to take in one go. Try a chapter, or something from the library.",
             )
         if estimate > self.remaining():
-            return "That's all we can take on for now. Come back later."
+            return said_in(
+                ui, "job.all-we-can-take", "That's all we can take on for now. Come back later."
+            )
         return ""
 
     @staticmethod
@@ -1910,9 +1952,9 @@ class Library:
                 # written with the scene and a curated video's was bought before it
                 # shipped, so neither needs a key — and a box that has lost its key
                 # should still hand a reader the whole shelf that costs nothing.
-                job.blocked = NO_KEY
+                job.blocked = said_in(job.ui, "job.no-key", NO_KEY)
             else:
-                job.blocked = self.why_blocked(job.estimate)
+                job.blocked = self.why_blocked(job.estimate, job.ui)
             if not job.blocked and builder.gloss and plan.segmented is not None:
                 # Glossing is priced from the real count of distinct dictionary forms,
                 # which means lemmatizing first. Only worth the wait once the
@@ -1921,7 +1963,7 @@ class Library:
                 cost, job.lemmas = self._gloss_cost(builder, plan.segmented, plan.buying_segments)
                 job.meanings = cost
                 job.estimate += cost
-                job.blocked = self.why_blocked(job.estimate)
+                job.blocked = self.why_blocked(job.estimate, job.ui)
             job.stage = "blocked" if job.blocked else "ready"
         except TargumError as error:
             job.error = f"{error.message} {error.hint or ''}".strip()
@@ -1995,7 +2037,7 @@ class Library:
         job.pages = len(paths)
         usable, _ = vision.can_read()
         if not usable:
-            return NO_KEY
+            return said_in(job.ui, "job.no-key", NO_KEY)
         waiting = vision.unread(paths, GLOSS_MODEL)
         usage = Usage()
         if waiting:
@@ -2076,13 +2118,20 @@ class Library:
         if not found.duration:
             # A live stream has no duration, and neither has a premiere that has not
             # started. Both would price at nothing and then run until the disk filled.
-            job.error = "That video has no length yet. We can't bring in a live stream."
+            job.error = said_in(
+                job.ui,
+                "job.live-stream",
+                "That video has no length yet. We can't bring in a live stream.",
+            )
             job.stage = "failed"
             return
         if found.duration > MAX_VIDEO_DURATION_S:
             hours = MAX_VIDEO_DURATION_S / 3600
-            job.error = (
-                f"That video is longer than {hours:g} hours. That's more than we can take at once."
+            job.error = said_in(
+                job.ui,
+                "job.video-too-long",
+                "That video is longer than {hours} hours. That's more than we can take at once.",
+                hours=f"{hours:g}",
             )
             job.stage = "failed"
             return
@@ -2133,7 +2182,7 @@ class Library:
         )
         job.transcription = round(transcription, 4)
         job.estimate = round(transcription + translating, 4)
-        job.blocked = self.why_blocked(job.estimate)
+        job.blocked = self.why_blocked(job.estimate, job.ui)
         job.stage = "blocked" if job.blocked else "ready"
 
     def _prepare_episode(self, job: Job, found: Any) -> None:
@@ -2177,7 +2226,7 @@ class Library:
             job.transcription = 0.0
             job.estimate = round(translating, 4)
         job.options["episode"] = True
-        job.blocked = self.why_blocked(job.estimate)
+        job.blocked = self.why_blocked(job.estimate, job.ui)
         job.stage = "blocked" if job.blocked else "ready"
 
     def claim(self, job: Job) -> str:
@@ -2187,7 +2236,7 @@ class Library:
         both pass, which is exactly how a budget gets overrun.
         """
         if job.estimate > self.max_cost:
-            return self.why_blocked(job.estimate)
+            return self.why_blocked(job.estimate, job.ui)
         if self.store is not None:
             # One transaction decides and spends. It holds across processes as well as
             # threads, which the lock below never did.
@@ -2211,9 +2260,9 @@ class Library:
             )
             if not refused:
                 return ""
-            return self._out_of(refused)
+            return self._out_of(refused, job.ui)
         with self.lock:
-            blocked = self.why_blocked(job.estimate)
+            blocked = self.why_blocked(job.estimate, job.ui)
             if not blocked:
                 self._committed += job.estimate
             return blocked
@@ -2229,7 +2278,7 @@ class Library:
         if self.store is None:
             with self.lock:
                 if job.estimate > self.remaining():
-                    return self._out_of("everyone")
+                    return self._out_of("everyone", job.ui)
                 self._committed += job.estimate
                 return ""
         admin = bool(job.admin)
@@ -2252,8 +2301,8 @@ class Library:
         if not refused:
             return ""
         if refused == "hours":
-            return self._out_of("talk-hours")
-        return self._out_of("chat" if refused == "account" else refused)
+            return self._out_of("talk-hours", job.ui)
+        return self._out_of("chat" if refused == "account" else refused, job.ui)
 
     @staticmethod
     def _gloss_cost(
@@ -4787,6 +4836,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         seconds = hebrew_module.seconds_for(hebrew_module.words_in(text))
         job = Job(
+            ui=self._page_language(),
             id=f"speak-{chat_id}-{n}",
             source=f"chat:{chat_id}",
             estimate=seconds / 60 * speech.PRICES[speech.NAME],
@@ -4860,7 +4910,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.chats is None or self.chats.store is None:
             return self._json({"error": "not found"}, 404)
         if not self.chats.usable:
-            return self._json({"error": NO_KEY}, 402)
+            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
         person = self._person()
         person_id = person.id if person else None
         chat_id = query.get("chat", [""])[0]
@@ -4947,6 +4997,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         admin = bool(person and self.store.is_admin(person.email))
         job = Job(
+            ui=self._page_language(),
             id=f"hear-{secrets.token_hex(6)}",
             source=f"chat:{chat_id or 'new'}",
             estimate=heard / 60 * transcriber.price_per_minute(),
@@ -4999,6 +5050,7 @@ class Handler(BaseHTTPRequestHandler):
             heard_seconds=heard,
             about=about,
             language=spoken,
+            ui=self._page_language(),
         )
         self._json({"chat": asked.chat_id, "turn": asked.n, "heard": text})
 
@@ -5007,7 +5059,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.chats is None or self.chats.store is None:
             return self._json({"error": "not found"}, 404)
         if not self.chats.usable:
-            return self._json({"error": NO_KEY}, 402)
+            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
         text = str(payload.get("text") or "").strip()
         if not text:
             return self._json(
@@ -5060,6 +5112,7 @@ class Handler(BaseHTTPRequestHandler):
             about=about,
             brought=brought,
             language=self._asked_language(payload.get("language")),
+            ui=self._page_language(),
         )
         return self._json({"chat": asked.chat_id, "turn": asked.n})
 
@@ -5148,6 +5201,7 @@ class Handler(BaseHTTPRequestHandler):
         seconds = hebrew_module.seconds_for(words)
         person = self._person()
         job = Job(
+            ui=self._page_language(),
             id=secrets.token_hex(8),
             source=str(folder),
             options={"voice": True, "folder": folder.name, "section": number},
@@ -5489,11 +5543,7 @@ class Handler(BaseHTTPRequestHandler):
     def _say(self, key: str, english: str, **fill: object) -> str:
         """A sentence the server sends back, in the language of whoever asked
         (targum-internal#184): `english` where their catalogue has not said it."""
-        from .strings import SOURCE, catalogue
-
-        code = self._page_language()
-        text = catalogue(code).get(key, english) if code != SOURCE else english
-        return text.format(**fill) if fill else text
+        return said_in(self._page_language(), key, english, **fill)
 
     def _named(self, code: str) -> str:
         """A language's name in the language of whoever asked."""
@@ -5757,6 +5807,7 @@ class Handler(BaseHTTPRequestHandler):
 
         person = self._person()
         job = Job(
+            ui=self._page_language(),
             id=secrets.token_hex(8),
             source=source,
             options=payload,
@@ -5830,6 +5881,7 @@ class Handler(BaseHTTPRequestHandler):
 
         person = self._person()
         job = Job(
+            ui=self._page_language(),
             id=secrets.token_hex(8),
             source=entry.source,
             title=entry.title,
@@ -5901,6 +5953,7 @@ class Handler(BaseHTTPRequestHandler):
 
         person = self._person()
         job = Job(
+            ui=self._page_language(),
             id=secrets.token_hex(8),
             source=str(folder),
             options={
@@ -5989,6 +6042,7 @@ class Handler(BaseHTTPRequestHandler):
 
         person = self._person()
         job = Job(
+            ui=self._page_language(),
             id=secrets.token_hex(8),
             source=source,
             options={"parts": buying, "folder": folder.name, "to": target},
@@ -6073,7 +6127,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         usable, _ = provider.available()
         if not usable:
-            return self._json({"error": NO_KEY}, 402)
+            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
         try:
             sense = gloss_one(
                 lemma,
@@ -6151,7 +6205,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         usable, _ = provider.available()
         if not usable:
-            return self._json({"error": NO_KEY}, 402)
+            return self._json({"error": self._say("job.no-key", NO_KEY)}, 402)
         try:
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:
