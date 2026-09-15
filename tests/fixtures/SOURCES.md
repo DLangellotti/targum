@@ -17,6 +17,11 @@ with their own provenance, kept here solely as test data.
 | `storyweaver/7686.it.json` | storyweaver.org.in API, story 7686, *La luna e il cappello*, pictures and scripts trimmed | CC BY 4.0. Translated by Silvia Lucchin (© 2016), from *La lune et la casquette* by Annie Marois (© 2015), based on *The Moon and The Cap* by Rohini Nilekani (© Pratham Books, 2007); illustrations by Angie & Upesh (© Pratham Books). Via StoryWeaver. |
 | `storyweaver/1124.fr.json` | Same API, story 1124, *La lune et la casquette*, trimmed the same way | CC BY 4.0. Translated by Annie Marois (© 2015), from the same original. |
 | `storyweaver/234.en.json` | Same API, story 234, *The Moon and The Cap*, trimmed the same way | CC BY 4.0. Written by Rohini Nilekani, © Pratham Books, 2007; illustrations by Angie & Upesh. |
+| `globalstorybooks/sbc/ru/0001.md`, `globalstorybooks/sbc/en/0001.md` | github.com/global-asp/sbc-source, `ru/0001_очень-высокий-человек.md` and `en/0001_a-very-tall-man.md`, recorded 2026-09-15 | CC BY. Text by Cornelius Gulere, illustrations by Catherine Groenewald, Russian translation by Ania Voznaia. Via Storybooks Canada, Global Storybooks. |
+| `globalstorybooks/sbc/ru/0002.md` | Written for this project in the shape of a story file, with a NonCommercial licence line, so the refusal is tested without keeping a NonCommercial text here | AGPL-3.0-or-later, part of this repository. |
+| `globalstorybooks/sbc/en/0087.md` | Same repository, `en/0087_i-like-to-read.md` | CC BY. Text and translation by Letta Machoga, illustrations by Wiehan de Jager. |
+| `globalstorybooks/lida/ru/0001.md` | github.com/global-asp/lida-source, `ru/0001_поиск-работы.md`, recorded 2026-09-15 | CC BY. Text by Espen Stranger-Johannessen, illustrations by Sunniva Høiby-Øiset, Russian translation by Liubov Denoi. Via LIDA Stories, Global Storybooks. |
+| `globalstorybooks/*/*.json` | GitHub contents API answers for those folders, trimmed to four entries and to `name`, `path` and `type` | File names only. |
 
 Nothing else in `tests/fixtures/` is quoted from elsewhere. The tool itself never
 bundles or ships the texts a user reads; these files exist so the aligner can be

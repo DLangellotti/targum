@@ -7,6 +7,7 @@ from typing import Protocol
 from ...errors import UnsupportedSource
 from ...models import Document
 from .dialogue import DialogueFetcher
+from .globalstorybooks import GlobalStorybooksFetcher
 from .gutenberg import GutenbergFetcher
 from .sefaria import SefariaFetcher
 from .siddur import SiddurFetcher
@@ -28,6 +29,7 @@ class Fetcher(Protocol):
 
 FETCHERS: dict[str, Fetcher] = {
     "dialogue": DialogueFetcher(),
+    "globalstorybooks": GlobalStorybooksFetcher(),
     "gutenberg": GutenbergFetcher(),
     "sefaria": SefariaFetcher(),
     "siddur": SiddurFetcher(),

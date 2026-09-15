@@ -138,6 +138,22 @@ def test_a_storyweaver_book_is_read_off_its_own_attribution_page(backfill) -> No
     assert "translated by Silvia Lucchin" in terms.credit and "Rohini Nilekani" in terms.credit
 
 
+def test_a_global_storybooks_story_is_read_off_its_own_file(backfill) -> None:  # type: ignore[no-untyped-def]
+    saved = Path(__file__).parent / "fixtures" / "globalstorybooks" / "sbc"
+
+    def fetch(url: str) -> str:
+        if url.startswith("https://api.github.com/"):
+            assert url.endswith("/sbc-source/contents/ru?ref=master")
+            return (saved / "ru.json").read_text(encoding="utf-8")
+        assert "raw.githubusercontent.com/global-asp/sbc-source/master/ru/0001_" in url
+        return (saved / "ru" / "0001.md").read_text(encoding="utf-8")
+
+    terms = backfill.terms_for("globalstorybooks:sbc/0001/ru", fetch, Path("/nowhere"))
+    assert terms.licence == "CC BY" and terms.rule == "globalstorybooks"
+    assert terms.licence_url.startswith("https://github.com/global-asp/sbc-source/blob/master/ru/")
+    assert "translated by Ania Voznaia" in terms.credit and "Storybooks Canada" in terms.credit
+
+
 def test_an_unknown_family_is_none_rather_than_guessed(backfill) -> None:  # type: ignore[no-untyped-def]
     never = lambda url: pytest.fail(f"fetched {url}")  # noqa: E731
     assert backfill.terms_for("https://example.org/article", never, Path("/nowhere")) is None
