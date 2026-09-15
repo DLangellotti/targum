@@ -4549,6 +4549,7 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
+            from .chat import hebrew as hebrew_module
             from .chat.session import mode_for
 
             # The hours beside the list: the one limit a reader is told about, in the
@@ -4569,6 +4570,9 @@ class Handler(BaseHTTPRequestHandler):
                     # be every conversation ever, and the page draws "More" at its foot.
                     "chats": store.chats(person_id, limit=limit, offset=offset, language=spoken),
                     "language": spoken,
+                    # The language the conversation's meanings are in, so a word looked
+                    # up from it matches the ones it already carries (targum-internal#287).
+                    "into": hebrew_module.gloss_language(self._reads(person)),
                     "usable": self.chats.usable,
                     # Whether a new conversation here is held in the talk shape: Hebrew for
                     # a reader with modern Hebrew to speak, and Italian (targum-internal
