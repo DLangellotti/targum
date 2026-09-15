@@ -440,6 +440,13 @@ def test_a_url_that_answers_with_plain_text_is_read_as_text(
         (" [sic]", False),
         (" [ndr]", False),
         (" […]", False),
+        (" [анг]", True),
+        (" [мао/анг]", True),
+        (" [англ]", True),
+        (" [казах]", True),
+        (" [анг, pdf, 51 КБ]", True),
+        (" [не был]", False),
+        (" [в 2017 году]", False),
     ],
 )
 def test_a_global_voices_edition_loses_its_link_language_notes(

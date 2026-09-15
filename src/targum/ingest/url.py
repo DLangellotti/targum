@@ -360,9 +360,23 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
 #: drops, left in the prose it sat in. Narrow on purpose: a two-letter code, or one of
 #: the three-letter codes the edition uses, and a longer note only where it says
 #: "link", so `[sic]`, `[ndr]` and `[…]` stay.
+#:
+#: The Russian edition writes the same notes as Cyrillic abbreviations: `[анг]`, `[рус]`,
+#: `[мао/анг]` where a page has two, `[анг, pdf, 51 КБ]` for a document. Those come from a
+#: list rather than any short Cyrillic word, because `[не был]` and `[в 2017 году]` are an
+#: editor's words inside a quotation and have to stay.
+_CYRILLIC_CODES = (
+    "англ?|рус|укр|бел|белор|каз|казах|кыр|кырг|кирг|узб|узбек|тадж|таджик|тат|туркм|азерб|"
+    "арм|груз|мао|гит|фр|франц|исп|испан|нем|немец|ит|итал|кит|китай|яп|япон|кор|корей|"
+    "араб|перс|фарси|тур|пол|чеш|болг|серб|порт|хин|монг"
+)
 _LINK_LANGUAGE = re.compile(
-    r"\s?\[(?:[a-z]{2}|uzb|kaz|kir|tgk|tuk|tat|fil|yue)(?:-[A-Z]{2})?"
-    r"(?:, [^\[\]]{0,60}\b(?:link|liens?|enlaces?)\b[^\[\]]{0,60})?\]"
+    r"\s?\[(?:"
+    r"(?:[a-z]{2}|uzb|kaz|kir|tgk|tuk|tat|fil|yue)(?:-[A-Z]{2})?"
+    r"(?:, [^\[\]]{0,60}\b(?:link|liens?|enlaces?)\b[^\[\]]{0,60})?"
+    rf"|(?:{_CYRILLIC_CODES})(?:/(?:{_CYRILLIC_CODES}))*"
+    r"(?:, (?:pdf|docx?|xlsx?|pptx?)(?:, [\d.,]+ ?(?:КБ|МБ|Кб|Мб))?)?"
+    r")\]"
 )
 
 
