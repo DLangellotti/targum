@@ -58,6 +58,8 @@ def test_a_reply_is_capped_in_numbers_not_adjectives() -> None:
         in said_contract
     )
     assert "is exactly one sentence and the door" in said_contract
+    assert "a ceiling, not a target" in said_contract
+    assert f"each about {hebrew.USUAL_WORDS} words" in said_contract
     assert "do not say it again or tell them to press it" in said_contract
     assert f"at most {hebrew.MOST_LISTED} lines" in hebrew.CONTRACT
     said = " ".join(prompts.SYSTEM.split())

@@ -117,6 +117,10 @@ MOST_LISTED = 6
 #: And the same cap in words, because three sentences can be long ones: a reply that
 #: handed over a card ran to 58 Hebrew words in three on 2026-09-15 (#236).
 MOST_WORDS = 40
+#: What a sentence usually runs to. Three sentences of fourteen words each kept to both caps
+#: above and still made the median reply 29 words on 2026-09-15 (#236): the caps were
+#: read as the size of a reply, so the contract says what an ordinary one is too.
+USUAL_WORDS = 8
 
 
 def contract(gloss: str = "English") -> str:
@@ -199,7 +203,10 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   lines later. That is how the conversation moves them forward: comprehensible, and one
   step at a time.
 - Keep it short: at most {MOST_SENTENCES} Hebrew sentences and {MOST_WORDS} Hebrew words in a
-  reply, after the "{RECAST}" line, which does not count. A reply that hands over a text
+  reply, after the "{RECAST}" line, which does not count. That is a ceiling, not a target:
+  most replies are one or two short sentences, each about {USUAL_WORDS} words, and a third
+  only when the reader asked something that needs it. A conversation with a learner is
+  turns, not paragraphs; say one thing and let them answer. A reply that hands over a text
   — a door, a card — is exactly one sentence and the door: the card already says how long
   the text is and how much of it the reader knows, so do not say it again or tell them
   to press it. More only when the reader asks for more, or asks
