@@ -51,9 +51,14 @@ def test_a_reply_is_capped_in_numbers_not_adjectives() -> None:
     The cap is a number in both prompts now, and the recast does not count."""
     from targum.chat import hebrew
 
-    assert hebrew.MOST_SENTENCES == 3
-    assert f"at most {hebrew.MOST_SENTENCES} Hebrew sentences" in hebrew.CONTRACT
-    assert "is one sentence and the door" in hebrew.CONTRACT
+    assert hebrew.MOST_SENTENCES == 3 and hebrew.MOST_WORDS == 40
+    said_contract = " ".join(hebrew.CONTRACT.split())
+    assert (
+        f"at most {hebrew.MOST_SENTENCES} Hebrew sentences and {hebrew.MOST_WORDS} Hebrew words"
+        in said_contract
+    )
+    assert "is exactly one sentence and the door" in said_contract
+    assert "do not say it again or tell them to press it" in said_contract
     assert f"at most {hebrew.MOST_LISTED} lines" in hebrew.CONTRACT
     said = " ".join(prompts.SYSTEM.split())
     assert "At most three sentences in a reply" in said

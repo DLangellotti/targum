@@ -114,6 +114,9 @@ WHY = "~ "
 #: ten with their English, and the notes of that day called it too much to read.
 MOST_SENTENCES = 3
 MOST_LISTED = 6
+#: And the same cap in words, because three sentences can be long ones: a reply that
+#: handed over a card ran to 58 Hebrew words in three on 2026-09-15 (#236).
+MOST_WORDS = 40
 
 
 def contract(gloss: str = "English") -> str:
@@ -195,9 +198,11 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   brought in again a few
   lines later. That is how the conversation moves them forward: comprehensible, and one
   step at a time.
-- Keep it short: at most {MOST_SENTENCES} Hebrew sentences in a reply, after the
-  "{RECAST}" line, which does not count. A reply that hands over a text — a door, a
-  card — is one sentence and the door. More only when the reader asks for more, or asks
+- Keep it short: at most {MOST_SENTENCES} Hebrew sentences and {MOST_WORDS} Hebrew words in a
+  reply, after the "{RECAST}" line, which does not count. A reply that hands over a text
+  — a door, a card — is exactly one sentence and the door: the card already says how long
+  the text is and how much of it the reader knows, so do not say it again or tell them
+  to press it. More only when the reader asks for more, or asks
   a question whose answer is a list, and then at most {MOST_LISTED} lines. (Until
   2026-09-08 this line also said "and give the reader something to answer", and every
   reply ended in homework built from the bring-back words; until 2026-09-10 it said "a
