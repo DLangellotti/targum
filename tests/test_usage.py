@@ -589,3 +589,69 @@ def test_every_model_targum_spends_on_has_a_price() -> None:
         spent = Usage()
         spent.add_seconds(model, 60.0)
         assert spent.cost() > 0, model
+
+
+def test_the_cache_is_priced_apart_and_inside_the_total() -> None:
+    """`cache_cost` is the part of `cost` the cache came to, so the receipt can show it
+    without the total counting it twice (targum-internal#239)."""
+    usage = Usage()
+    usage.add("claude-opus-5", 100, 10, cache_read=1_000_000, cache_write=1_000_000)
+    fresh = Usage()
+    fresh.add("claude-opus-5", 100, 10)
+    assert usage.cache_cost() == pytest.approx(5.0 * 0.1 + 5.0 * 1.25)
+    assert usage.cost() == pytest.approx(fresh.cost() + usage.cache_cost())
+    assert fresh.cache_cost() == 0.0
+
+
+def test_a_settled_turn_keeps_what_the_cache_did_and_the_ledger_sums_it(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    for n, cache in enumerate([(4000, 300, 0.12), (6000, 0, 0.03)]):
+        store.save_job(
+            {"id": f"turn-{n}", "owner": None, "home": "/tmp", "source": "x", "made": now()}
+        )
+        store.settle(f"turn-{n}", 0.5, length=10.0, cache=cache)
+    store.save_job({"id": "build", "owner": None, "home": "/tmp", "source": "x", "made": now()})
+    store.settle("build", 1.0)
+
+    row = store.db.execute("SELECT * FROM job WHERE id = 'turn-0'").fetchone()
+    assert (row["cache_read"], row["cache_write"], row["cache_cost"]) == (4000, 300, 0.12)
+    assert row["spent"] == pytest.approx(0.5), "the cache is inside what was spent"
+    [total] = store.spending(0)
+    assert (total["cache_read"], total["cache_write"]) == (10_000, 300)
+    assert total["cache_cost"] == pytest.approx(0.15)
+    assert total["spent"] == pytest.approx(2.0)
+
+
+def test_a_database_from_before_the_cache_columns_gains_them(tmp_path: Path) -> None:
+    import sqlite3
+
+    from targum.accounts import SCHEMA_VERSION
+
+    path = tmp_path / "old.db"
+    Store(path).save_job({"id": "old", "owner": None, "home": "/tmp", "source": "x"})
+    raw = sqlite3.connect(path)
+    raw.executescript(
+        "ALTER TABLE job DROP COLUMN cache_read; ALTER TABLE job DROP COLUMN cache_write;"
+        "ALTER TABLE job DROP COLUMN cache_cost; PRAGMA user_version = 15;"
+    )
+    raw.close()
+    store = Store(path)
+    columns = {row["name"] for row in store.db.execute("PRAGMA table_info(job)")}
+    assert {"cache_read", "cache_write", "cache_cost"} <= columns
+    assert store.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+
+
+def test_the_usage_report_shows_the_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    path = tmp_path / "targum.db"
+    store = Store(path)
+    store.save_job({"id": "turn", "owner": None, "home": "/tmp", "source": "x", "made": now()})
+    store.settle("turn", 0.4, length=5.0, cache=(12_345, 678, 0.21))
+    monkeypatch.setenv("COLUMNS", "200")
+    done = CliRunner().invoke(app, ["usage", "--store", str(path)])
+    assert done.exit_code == 0, done.output
+    assert "12,345 / 678" in done.output and "$0.21" in done.output
+    assert "The prompt cache read 12,345 tokens and wrote 678" in done.output

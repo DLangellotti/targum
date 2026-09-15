@@ -90,10 +90,13 @@ SESSION_DAYS = 90
 #    refuses this address and answers the egress is a different fact from one that
 #    refuses both, and without the column the two are one row (targum-internal#226).
 #
+# 16: job.cache_read, cache_write and cache_cost — what the prompt cache did on a turn of
+#    conversation, so the receipt can show it (targum-internal#239).
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -203,6 +206,12 @@ MIGRATIONS: tuple[str, ...] = (
     # turn, the answer's included, so it cannot say whether an answer arrived while they
     # were away. This can.
     "ALTER TABLE chat ADD COLUMN opened INTEGER NOT NULL DEFAULT 0",
+    # What the prompt cache did on a job, and what that part came to (2026-09-15,
+    # targum-internal#239): tokens read back, tokens written, and their dollars. Already
+    # inside `spent`; kept apart so the receipt can say whether caching saved anything.
+    "ALTER TABLE job ADD COLUMN cache_read INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN cache_write INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE job ADD COLUMN cache_cost REAL NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -400,7 +409,10 @@ CREATE TABLE IF NOT EXISTS job (
   spent    REAL    NOT NULL DEFAULT 0,
   length   REAL    NOT NULL DEFAULT 0,
   made     INTEGER NOT NULL DEFAULT 0,
-  kind     TEXT    NOT NULL DEFAULT 'build'
+  kind     TEXT    NOT NULL DEFAULT 'build',
+  cache_read  INTEGER NOT NULL DEFAULT 0,
+  cache_write INTEGER NOT NULL DEFAULT 0,
+  cache_cost  REAL    NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
@@ -2171,6 +2183,9 @@ class Store:
             "       COUNT(job.id) AS jobs, "
             "       COALESCE(SUM(job.spent), 0) AS spent, "
             "       COALESCE(SUM(job.claimed), 0) AS claimed, "
+            "       COALESCE(SUM(job.cache_read), 0) AS cache_read, "
+            "       COALESCE(SUM(job.cache_write), 0) AS cache_write, "
+            "       COALESCE(SUM(job.cache_cost), 0) AS cache_cost, "
             "       MAX(job.made) AS last "
             "FROM job LEFT JOIN person ON person.id = job.owner "
             "WHERE job.made >= ? "
@@ -2262,7 +2277,13 @@ class Store:
             )
             return ""
 
-    def settle(self, job_id: str, spent: float, length: float | None = None) -> None:
+    def settle(
+        self,
+        job_id: str,
+        spent: float,
+        length: float | None = None,
+        cache: tuple[int, int, float] | None = None,
+    ) -> None:
         """Replace what a build reserved with what it really cost.
 
         Claiming takes the estimate up front, because the decision to allow a build has
@@ -2270,7 +2291,17 @@ class Store:
         what it charged, the ledger holds that instead of a guess, and the budget stops
         being an approximation of itself. A turn of conversation settles its seconds the
         same way — reserved from the words asked, held at the words said.
+
+        `cache` is what the prompt cache did — tokens read, tokens written, and their
+        dollars, which are already inside `spent` — so the receipt can say whether caching
+        saved anything (targum-internal#239).
         """
+        if cache is not None:
+            with self.write() as db:
+                db.execute(
+                    "UPDATE job SET cache_read = ?, cache_write = ?, cache_cost = ? WHERE id = ?",
+                    (int(cache[0]), int(cache[1]), float(cache[2]), job_id),
+                )
         with self.write() as db:
             if length is None:
                 db.execute(

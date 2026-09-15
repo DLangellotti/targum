@@ -71,6 +71,20 @@ class Usage:
     def cache_write_tokens(self) -> int:
         return sum(wrote for _, wrote in self.cache_by_model.values())
 
+    def cache_cost(self) -> float:
+        """USD, of what `cost` charges for the cache alone: its reads and its writes."""
+        from .translate.anthropic_provider import PRICES
+
+        total = 0.0
+        for model, (read, wrote) in self.cache_by_model.items():
+            prices = PRICES.get(model)
+            if prices is None:
+                continue
+            total += (
+                read * prices[0] * self.CACHE_READ + wrote * prices[0] * self.CACHE_WRITE
+            ) / 1_000_000
+        return total
+
     def add_seconds(self, model: str, seconds: float) -> None:
         self.calls += 1
         self.seconds_by_model[model] = self.seconds_by_model.get(model, 0.0) + seconds
@@ -114,13 +128,7 @@ class Usage:
                 # Counted, not priced. Better than inventing a number for it.
                 continue
             total += (used_in * prices[0] + used_out * prices[1]) / 1_000_000
-        for model, (read, wrote) in self.cache_by_model.items():
-            prices = PRICES.get(model)
-            if prices is None:
-                continue
-            total += (
-                read * prices[0] * self.CACHE_READ + wrote * prices[0] * self.CACHE_WRITE
-            ) / 1_000_000
+        total += self.cache_cost()
         for model, seconds in self.seconds_by_model.items():
             rate = MINUTES.get(model)
             if rate is None:

@@ -228,6 +228,29 @@ def test_chats_answer_a_turn_off_the_request_and_settle_it(tmp_path: Path) -> No
     assert library.mine(None) == [], "a turn is on the ledger, not in the building strip"
 
 
+def test_a_settled_turn_keeps_what_the_cache_did_on_its_row(tmp_path: Path) -> None:
+    """The receipt for a chat job carries the cache's reads, writes and their cost
+    (targum-internal#239, criterion 3), not only the total they are inside."""
+    library, store = world(tmp_path)
+    answer = reply([{"type": "text", "text": "Ruth."}])
+    answer.usage = SimpleNamespace(
+        input_tokens=100,
+        output_tokens=20,
+        cache_read_input_tokens=4000,
+        cache_creation_input_tokens=300,
+    )
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([answer]))
+    asked = chats.say(None, library.home(None), "", "what first", admin=False)
+    chats.answer(asked)
+    job = library.jobs[f"chat-{asked.chat_id}-1"]
+    assert job.cached is not None and job.cached[:2] == (4000, 300) and job.cached[2] > 0
+    row = store.db.execute(
+        "SELECT spent, cache_read, cache_write, cache_cost FROM job WHERE id = ?", (job.id,)
+    ).fetchone()
+    assert (row["cache_read"], row["cache_write"]) == (4000, 300)
+    assert 0 < row["cache_cost"] < row["spent"], "a part of what was spent, not beside it"
+
+
 def test_the_chat_rail_refuses_and_names_when_it_lifts(tmp_path: Path) -> None:
     library, store = world(tmp_path)
     library.chat_budget = TURN_RESERVE * 1.5
