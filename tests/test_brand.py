@@ -303,6 +303,8 @@ THUMBED = (
     ".waiting-note button",
     '.rest [id="rest-undo"]',
     ".rows > li > .row-go",
+    # And Hear first, in the player strip (2026-09-15, targum-internal#265).
+    ".player-first",
 )
 
 

@@ -1645,7 +1645,9 @@ body[data-case="Loc"] .w.case-Loc {
        44px already — so the × was comfortable and the two keys next to it were not. */
     .player-rate-now, .player-video, .video-mode, .video-corner,
     /* The grip and the size key, on a wide touch screen (2026-09-13). */
-    .video-grip, .video-size
+    .video-grip, .video-size,
+    /* Hear first, in the strip (2026-09-15, targum-internal#265). */
+    .player-first
   ) {
     position: relative;
   }
@@ -1660,7 +1662,9 @@ body[data-case="Loc"] .w.case-Loc {
        44px already — so the × was comfortable and the two keys next to it were not. */
     .player-rate-now, .player-video, .video-mode, .video-corner,
     /* The grip and the size key, on a wide touch screen (2026-09-13). */
-    .video-grip, .video-size
+    .video-grip, .video-size,
+    /* Hear first, in the strip (2026-09-15, targum-internal#265). */
+    .player-first
   )::after {
     content: "";
     position: absolute;
@@ -2823,6 +2827,25 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 }
 .player-rate-now:hover { color: var(--ink); }
 .player-rate-now:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+
+/* Hear first (targum-internal#265): the rate readout's quiet shape, and ink with a rule
+   round it while it is on, so the state is seen as well as announced. */
+.player-first {
+  flex: none;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  font-size: 0.6875rem;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.player-first:hover { color: var(--ink); }
+.player-first:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+.player-first[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+/* The line being heard first: its own text held back, the space it takes kept so nothing
+   moves, the translation and the press that plays it left where they are. */
+.pair.hearing .src { visibility: hidden; }
 
 .player-get svg {
   inline-size: 0.9rem;

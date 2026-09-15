@@ -2152,6 +2152,69 @@ def test_changing_the_speed_mid_line_moves_where_it_stops(scene) -> None:
     scene.wait_for_function(STILL_SAYING, timeout=int(TURN * 1500))
 
 
+#: The first voiced line's text and translation, as a reader's eye meets them.
+HEARD = """
+() => {
+  const pair = document.querySelector(".pair.voiced");
+  const shown = (el) => !!el && getComputedStyle(el).visibility !== "hidden";
+  return {
+    text: [...pair.querySelectorAll(".src")].some(shown),
+    translation: shown(pair.querySelector(".tr")),
+    press: shown(pair.querySelector(".say")),
+    on: document.querySelector(".player-first").getAttribute("aria-pressed"),
+  };
+}
+"""
+
+
+def test_hear_first_plays_a_line_before_it_shows_it(scene) -> None:
+    """Hear first (targum-internal#265): a line pressed with it on plays with its text held
+    back and the translation in place, right to left as the page reads, and the text comes
+    back when the line ends."""
+    assert scene.evaluate(HEARD) == {
+        "text": True,
+        "translation": True,
+        "press": True,
+        "on": "false",
+    }, "off until pressed"
+    scene.click(".player-first")
+    scene.locator(".pair.voiced .say").first.click()
+    during = scene.evaluate(HEARD)
+    assert during["text"] is False, "the line is heard before it is seen"
+    assert during["translation"] is True and during["press"] is True
+    scene.wait_for_function(STILL_SAYING, timeout=int(TURN * 2500))
+    assert scene.evaluate(HEARD)["text"] is True, "and seen once it has been said"
+    assert scene.get_attribute(".pair.voiced .src", "dir") == "rtl"
+
+
+def test_hear_first_turned_off_mid_line_shows_the_line_at_once(scene) -> None:
+    scene.click(".player-slower")
+    scene.click(".player-first")
+    scene.locator(".pair.voiced .say").first.click()
+    assert scene.evaluate(HEARD)["text"] is False
+    scene.click(".player-first")
+    assert scene.evaluate(HEARD) == {
+        "text": True,
+        "translation": True,
+        "press": True,
+        "on": "false",
+    }
+
+
+def test_hear_first_is_never_remembered(scene) -> None:
+    """A way of practising, not a setting: off again every time the page opens."""
+    scene.click(".player-first")
+    assert scene.evaluate(HEARD)["on"] == "true"
+    scene.reload()
+    scene.wait_for_selector("#player")
+    assert scene.evaluate(HEARD)["on"] == "false"
+
+
+def test_a_silent_page_offers_no_hear_first(page) -> None:
+    """The control stands on the transport, so a text with no clock has none to press."""
+    assert page.locator(".player-first").count() == 0
+
+
 def test_the_ends_of_the_range_are_ends(scene) -> None:
     """A spent button says so and does nothing more. Forced, because Playwright reads
     aria-disabled the way a screen reader does and will not press it on its own."""
