@@ -183,7 +183,7 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
 
     The page's language is its first rendering's — the list is sorted so a rendering read
     beside the text never comes first — and English is the code's own, so it ships
-    nothing. Only the `reader.` and `vocab.` keys, and only what the language has filled:
+    nothing. Only the `reader.`, `vocab.` and `theme.` keys, and only what it has filled:
     a key it has not is said in English by the script.
     """
     from ..strings import SOURCE, catalogue
@@ -195,7 +195,9 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
         return {}
     # And the word card's own, which `vocab.js` says inside every reader.
     said = {
-        key: text for key, text in catalogue(code).items() if key.startswith(("reader.", "vocab."))
+        key: text
+        for key, text in catalogue(code).items()
+        if key.startswith(("reader.", "vocab.", "theme."))
     }
     return {"strings": said, "stringsLanguage": code} if said else {}
 
@@ -335,8 +337,18 @@ def page_words(language: str) -> Callable[[str, str], Markup]:
 
 
 #: What the scripts every desk page carries say: the charts, the language menu, the
-#: notices bell, the account panel and the series the nav follows.
-SHARED_SCRIPT_KEYS = ("charts.", "lang.", "building.", "account.", "follow.")
+#: notices bell, the account panel, the series the nav follows, the palette and the
+#: theme switch — and the nav's own words, which the palette says again.
+SHARED_SCRIPT_KEYS = (
+    "charts.",
+    "lang.",
+    "building.",
+    "account.",
+    "follow.",
+    "palette.",
+    "theme.",
+    "nav.",
+)
 
 
 def script_strings(language: str, *prefixes: str) -> dict[str, Any]:

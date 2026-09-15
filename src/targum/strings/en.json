@@ -814,5 +814,13 @@
   "claim.whole-list": "That's the whole list.",
   "claim.marked.one": "We've marked {n} as known.",
   "claim.marked.other": "We've marked {n} as known.",
-  "yours.last-read-first": "Last read first."
+  "yours.last-read-first": "Last read first.",
+  "palette.progress": "Your Progress",
+  "palette.add": "Add a text",
+  "palette.untitled": "Untitled",
+  "palette.kind.place": "Page",
+  "palette.kind.text": "Your shelf",
+  "palette.kind.chat": "Conversation",
+  "theme.to-light": "Switch to light",
+  "theme.to-dark": "Switch to dark"
 }

@@ -9,6 +9,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var host = document.getElementById("palette");
   var field = document.getElementById("palette-find");
   var list = document.getElementById("palette-list");
@@ -27,16 +45,20 @@
     return head;
   }
 
-  var PLACES = [
-    { kind: "place", title: "Learn", href: "/" },
-    { kind: "place", title: "Library", href: "/library" },
-    { kind: "place", title: "Your Progress", href: "/progress" },
-    { kind: "place", title: "Your words and phrases", href: "/words" },
-    { kind: "place", title: "Your subscriptions", href: "/you#subscriptions" },
-    { kind: "place", title: "Your profile", href: "/you" },
-    { kind: "place", title: "Add a text", href: "/add" },
-    { kind: "talk", title: "Talk to targum" },
-  ];
+  // Named when the palette opens rather than when this loads: the page hands its words
+  // over after the nav.
+  function places() {
+    return [
+      { kind: "place", title: t("nav.learn", "Learn"), href: "/" },
+      { kind: "place", title: t("nav.library", "Library"), href: "/library" },
+      { kind: "place", title: t("palette.progress", "Your Progress"), href: "/progress" },
+      { kind: "place", title: t("nav.your-words-and-phrases", "Your words and phrases"), href: "/words" },
+      { kind: "place", title: t("nav.your-subscriptions", "Your subscriptions"), href: "/you#subscriptions" },
+      { kind: "place", title: t("nav.your-profile", "Your profile"), href: "/you" },
+      { kind: "place", title: t("palette.add", "Add a text"), href: "/add" },
+      { kind: "talk", title: t("nav.talk-to-targum", "Talk to targum") },
+    ];
+  }
 
   var rows = null;
   var chosen = 0;
@@ -55,7 +77,7 @@
   // What can be found: gathered once per page, when first asked.
   function gather() {
     if (rows) return Promise.resolve(rows);
-    var found = PLACES.slice();
+    var found = places();
     return Promise.all([ask("/readers"), ask("/chat/list")]).then(function (got) {
       var readers = ((got[0] && got[0].readers) || []).concat((got[0] && got[0].shared) || []);
       var built = {};
@@ -82,7 +104,7 @@
         });
       });
       ((got[1] && got[1].chats) || []).forEach(function (chat) {
-        found.push({ kind: "chat", title: chat.title || "Untitled", chat: chat.id, auto: true });
+        found.push({ kind: "chat", title: chat.title || t("palette.untitled", "Untitled"), chat: chat.id, auto: true });
       });
       rows = found;
       return rows;
@@ -96,7 +118,15 @@
     });
   }
 
-  var KINDS = { place: "Page", catalogue: "Library", text: "Your shelf", chat: "Conversation", talk: "" };
+  function kinds() {
+    return {
+      place: t("palette.kind.place", "Page"),
+      catalogue: t("nav.library", "Library"),
+      text: t("palette.kind.text", "Your shelf"),
+      chat: t("palette.kind.chat", "Conversation"),
+      talk: "",
+    };
+  }
 
   function draw(all) {
     var words = String(field.value || "")
@@ -130,6 +160,7 @@
         english.textContent = row.english;
         button.appendChild(english);
       }
+      var KINDS = kinds();
       if (KINDS[row.kind]) {
         var kind = document.createElement("span");
         kind.className = "palette-kind";
@@ -187,11 +218,11 @@
     if (event.key === "ArrowDown") {
       event.preventDefault();
       chosen = Math.min(chosen + 1, Math.max(0, showing.length - 1));
-      showing = draw(rows || PLACES);
+      showing = draw(rows || places());
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       chosen = Math.max(0, chosen - 1);
-      showing = draw(rows || PLACES);
+      showing = draw(rows || places());
     } else if (event.key === "Enter") {
       event.preventDefault();
       go(showing[chosen]);
