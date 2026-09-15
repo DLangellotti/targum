@@ -9,6 +9,7 @@ from ...models import Document
 from .dialogue import DialogueFetcher
 from .globalstorybooks import GlobalStorybooksFetcher
 from .gutenberg import GutenbergFetcher
+from .published import PublishedFetcher
 from .sefaria import SefariaFetcher
 from .siddur import SiddurFetcher
 from .storyweaver import StoryWeaverFetcher
@@ -31,6 +32,7 @@ FETCHERS: dict[str, Fetcher] = {
     "dialogue": DialogueFetcher(),
     "globalstorybooks": GlobalStorybooksFetcher(),
     "gutenberg": GutenbergFetcher(),
+    "published": PublishedFetcher(),
     "sefaria": SefariaFetcher(),
     "siddur": SiddurFetcher(),
     "storyweaver": StoryWeaverFetcher(),

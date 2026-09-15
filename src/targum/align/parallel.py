@@ -30,7 +30,11 @@ NAME = "parallel/1"
 
 # Sources whose two sides are numbered the same way by whoever published them. A new one
 # joins this by adding a prefix here and nowhere else.
-DECLARED = ("sefaria/",)
+DECLARED = ("sefaria/", "published/")
+
+#: A published translation held as a file is numbered as Sefaria numbers the Hebrew it sits
+#: beside (`ingest/fetch/published.py`), so it keys as Sefaria does.
+_SAME_AS = {"published": "sefaria"}
 
 
 def parallel_key(document: object) -> str | None:
@@ -47,7 +51,8 @@ def parallel_key(document: object) -> str | None:
     head, sep, tail = rest.partition(":")
     if sep and len(head) <= 3 and head.isalpha():
         rest = tail
-    return f"{scheme.lower()}:{' '.join(rest.split()).lower()}"
+    scheme = _SAME_AS.get(scheme.lower(), scheme.lower())
+    return f"{scheme}:{' '.join(rest.split()).lower()}"
 
 
 def _chapters(segments: list[Any]) -> list[list[Any]]:
