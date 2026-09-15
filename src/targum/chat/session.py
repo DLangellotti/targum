@@ -284,10 +284,21 @@ def run_turn(
         if messages and messages[-1].get("role") == "user":
             if time.monotonic() > ends:
                 raise TurnTooLong()
+            # And told so. With tools refused and nothing said, the model spent the step
+            # thinking and wrote no text in 2 of 28 replays on 2026-09-15 (#236). Said
+            # only to this call: the transcript keeps the results as they were.
+            last = dict(messages[-1])
+            content = last.get("content")
+            blocks = (
+                list(content)
+                if isinstance(content, list)
+                else [{"type": "text", "text": str(content)}]
+            )
+            last["content"] = [*blocks, {"type": "text", "text": NO_STEPS_LEFT}]
             reply = _stream_step(
                 client,
                 ctx,
-                messages,
+                [*messages[:-1], last],
                 feed,
                 stable,
                 ledger,
@@ -304,6 +315,12 @@ def run_turn(
                 messages.append({"role": "assistant", "content": words})
                 keep("assistant", words, _said(words))
     return usage
+
+
+#: What the last round trip of a turn out of steps is told (targum-internal#279).
+NO_STEPS_LEFT = (
+    "No more tools this turn. Answer the reader now, in words, with what you have found."
+)
 
 
 def _count(usage: Usage, reply: Any) -> None:

@@ -239,6 +239,12 @@ def test_a_turn_that_runs_out_of_steps_still_ends_in_words(tmp_path: Path) -> No
         "Here is what I found.",
     )
     assert client.requests[-1]["tools"], "the tools stay defined: the history holds calls"
+    told = client.requests[-1]["messages"][-1]["content"][-1]
+    assert told["type"] == "text" and told["text"] == session_module.NO_STEPS_LEFT
+    assert all(
+        session_module.NO_STEPS_LEFT not in json.dumps(content, ensure_ascii=False)
+        for _, content, _ in kept
+    ), "said to the last call only, never kept in the transcript"
 
 
 def test_a_turn_that_ends_on_its_own_asks_for_nothing_more(tmp_path: Path) -> None:

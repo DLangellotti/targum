@@ -601,13 +601,22 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     state = job.state()
     return {
         "quote": state,
+        # One sentence, because the card says the rest (targum-internal#236). Asked to say
+        # what the text is and how long it takes, the model narrated the card beside it —
+        # its length, the share the reader knows, "press it" — and a reply that handed
+        # over a text ran to three sentences and 58 Hebrew words on 2026-09-15.
         "note": (
             "The page shows the reader a card from this with a button; pressing it gets "
-            "the text ready, and you cannot press it. Say what the text is and how long "
-            "it will take in their time — sentences, chapters, minutes, hours of audio — "
-            "never in money, and never as a build: to the reader it is getting ready."
+            "the text ready, and you cannot press it. The card already shows how long it "
+            "is and how much of it the reader knows. Introduce it in ONE sentence — what "
+            "the text is, in their time if you say how long, never in money, never as a "
+            "build — and stop: do not repeat the card or tell them to press it. One card "
+            "in a reply."
             if state["stage"] == "ready"
-            else "This cannot be made ready now; the card says why. Tell the reader plainly."
+            else (
+                "This cannot be made ready now; the card says why. Tell the reader plainly, "
+                "in one sentence."
+            )
         ),
     }
 
@@ -654,7 +663,7 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     note = (
         f"The page shows the reader a card for {kept} lines; the reader presses it, and the "
         "conversation opens on their shelf as a text with every word tappable. Say so in "
-        "their time, never in money."
+        "ONE sentence, in their time, never in money, and stop: the card says the rest."
     )
     if dropped:
         note += (

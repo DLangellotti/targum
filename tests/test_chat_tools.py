@@ -286,6 +286,11 @@ def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
     quote = got["quote"]
     assert quote["stage"] == "ready" and quote["segments"] == 40
     assert "$" not in got["note"] and "never in money" in got["note"]
+    # One sentence, because the card says the rest: asked to say what the text is and how
+    # long it takes, the model narrated the card beside it (targum-internal#236).
+    assert "Introduce it in ONE sentence" in got["note"]
+    assert "do not repeat the card or tell them to press it" in got["note"]
+    assert "One card in a reply" in got["note"]
     job = library.jobs[quote["id"]]
     assert job.owner == person.id and job.home == home and job.options["to"] == "en"
     assert job.kind == "build", "a quoted job is a build the strip will follow"
