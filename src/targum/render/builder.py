@@ -2424,6 +2424,13 @@ def render(
         # OpenRussian where this machine has its tables (targum-internal#259). Facts about
         # the dictionary form, so they ride beside the lemmas like the root. Nothing is
         # said about a lemma the dictionary spells two ways.
+        # The ending a French word has that tells a noun's gender, where it has one
+        # (targum-internal#263). The card names it only for a noun whose gender agrees.
+        endings: list[str] = []
+        if segmented.language.split("-")[0].lower() == "fr":
+            from ..annotate.endings import ending_of
+
+            endings = [ending_of(lemma) for lemma in lemmas]
         partners: list[str] = []
         stresses: list[str] = []
         if lexicon is not None:
@@ -2659,6 +2666,7 @@ def render(
                     # every text glossed before they existed.
                     **({"citations": citations} if any(citations) else {}),
                     **({"plurals": plurals} if any(plurals) else {}),
+                    **({"endings": endings} if any(endings) else {}),
                     "glosses": glosses,
                     # Which rows are in another language than the page's, by tag. Left
                     # out where none is, which is every text but two. The reader does

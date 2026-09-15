@@ -1552,3 +1552,21 @@ def test_a_french_verb_shows_its_forms_and_asks_with_its_tag() -> None:
     ]
     assert run([], language="fr", inflectLines=lines)["inflecting"] == [True, False, True]
     assert run([], language="he", inflectLines=lines)["inflecting"] == [False, False, True]
+
+
+def test_a_french_noun_says_the_ending_that_tells_its_gender() -> None:
+    """ "f · like most nouns in -tion", and only where the noun agrees: *la couleur*
+    ends like most masculine nouns, and a rule the word breaks is not said
+    (targum-internal#263)."""
+    said = run(
+        [],
+        language="fr",
+        endingLines=[
+            ["UPOS=NOUN|Gender=Fem|Number=Sing", "f:tion"],
+            ["UPOS=NOUN|Gender=Fem|Number=Sing", "m:eur"],
+            ["UPOS=NOUN|Gender=Masc|Number=Plur", "m:age"],
+            ["UPOS=ADJ|Gender=Fem|Number=Sing", "f:tion"],
+            ["UPOS=NOUN|Gender=Fem|Number=Sing", ""],
+        ],
+    )["endingLines"]
+    assert said == ["like most nouns in -tion", "", "like most nouns in -age", "", ""]

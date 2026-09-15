@@ -284,6 +284,8 @@ process.stdout.write(
     compounds: (payload.compoundLines || []).map((ask) => reader.compoundLine(...ask)),
     // A French noun kept with its article: [dictionary form, grammar line].
     articles: (payload.articleLines || []).map((ask) => reader.withArticle(...ask)),
+    // What a French noun's ending says: [grammar line, "f:tion"].
+    endingLines: (payload.endingLines || []).map((ask) => reader.endingLine(...ask)),
     // Whether a grammar line's forms are shown and asked about.
     inflecting: (payload.inflectLines || []).map((line) => reader.inflects(line)),
     // The register line, from where the reader is standing: [code, sourceRegister].
