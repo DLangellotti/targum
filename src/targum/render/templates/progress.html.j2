@@ -13,7 +13,7 @@
     palette (--step-1..4) is defined on `.words`, and the tiles, the growth line and the
     stacked bar are all drawn with that kit. -#}
 <body class="words progress">
-{% set here = 'progress' %}{% set title = 'Your Progress' %}
+{% set here = 'progress' %}{% set title = t("you.page.your-progress", "Your Progress") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
@@ -91,7 +91,7 @@
 <p class="nothing" id="nothing" hidden>
   {#- "your library" meant the catalogue and the reader's own shelf at once, and the
       link went to the upload page, which was neither. Both have their own page now. -#}
-  Nothing yet. Open something from the <a id="library-link" href="/library">{{ t("progress.page.library", "Library") }}</a>.
+  {{ t("progress.page.nothing-yet-open-something-from-the", "Nothing yet. Open something from the") }} <a id="library-link" href="/library">{{ t("progress.page.library", "Library") }}</a>.
 </p>
 
 <script>
