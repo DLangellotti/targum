@@ -5299,3 +5299,32 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
     assert "<span>Библиотека</span>" in russian and "<h2>Вехи</h2>" in russian
     assert "<span>Library</span>" in english and "<h2>Milestones</h2>" in english
     assert progress_page("k") == english
+
+
+@pytest.mark.parametrize(
+    ("page", "key", "english"),
+    [
+        ("learn_page", "learn.page.continue-reading", "Continue reading"),
+        ("library_page", "nav.library", "Library"),
+        ("you_page", "nav.your-account", "Your account"),
+        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to read?"),
+    ],
+)
+def test_every_desk_page_is_said_in_the_language_asked(
+    page: str, key: str, english: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Learn, Library, You and Add say their words in the language asked, like Your
+    Progress, and in English say what they always did (targum-internal#184)."""
+    from targum import strings
+    from targum.render import builder
+
+    render_page = getattr(builder, page)
+    plain = render_page("k")
+    assert english in plain
+    real = strings.catalogue
+    monkeypatch.setattr(
+        strings, "catalogue", lambda code: {key: "ПО-РУССКИ"} if code == "ru" else real(code)
+    )
+    said = render_page("k", language="ru")
+    assert "ПО-РУССКИ" in said
+    assert render_page("k") == plain

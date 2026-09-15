@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Library — targum</title>
+<title>{{ t("library.page.library-targum", "Library — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
 {{ hebrew_face() }}
@@ -28,10 +28,10 @@
       first thing that reader has to read, and thirteen chips they do not yet
       understand should not come before it. -#}
   <p class="note lead" id="picked-lead" hidden></p>
-  <div class="tabs" id="where" role="tablist" aria-label="Which texts"></div>
+  <div class="tabs" id="where" role="tablist" aria-label="{{ t("library.page.which-texts", "Which texts") }}"></div>
 
   <section class="panel" id="picked">
-    <p class="note" id="picked-note">Tap a text to read it.</p>
+    <p class="note" id="picked-note">{{ t("library.page.tap-a-text-to-read-it", "Tap a text to read it.") }}</p>
 
     {#- The controls are the page. A library of a hundred texts is only as good as the
         speed of getting to the one you want, so they sit above the list and act on it
@@ -39,7 +39,7 @@
     <div class="sift">
       <input
         id="find" class="find" type="search" dir="auto" autocomplete="off" spellcheck="false"
-        placeholder="Search a title, Hebrew or English" aria-label="Search the library">
+        placeholder="{{ t("library.page.search-a-title-hebrew-or-english", "Search a title, Hebrew or English") }}" aria-label="{{ t("library.page.search-the-library", "Search the library") }}">
       {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
           are not four genres, they are close to four languages, and which one somebody is
           learning is the first question this page asks. A switch with its own label rather
@@ -49,20 +49,20 @@
           rest opens when asked. A `details`, so it needs no script and keeps its state
           on the page. -#}
       <details class="filters" id="filters">
-        <summary aria-label="Filters"></summary>
+        <summary aria-label="{{ t("library.page.filters", "Filters") }}"></summary>
       <div class="switch-set">
-        <span class="switch-label">Which Hebrew</span>
-        <div class="segmented" id="register-chips" role="group" aria-label="Which Hebrew"></div>
+        <span class="switch-label">{{ t("library.page.which-hebrew", "Which Hebrew") }}</span>
+        <div class="segmented" id="register-chips" role="group" aria-label="{{ t("library.page.which-hebrew", "Which Hebrew") }}"></div>
       </div>
-      <div class="chips" id="kind-chips" role="group" aria-label="What it is"></div>
+      <div class="chips" id="kind-chips" role="group" aria-label="{{ t("library.page.what-it-is", "What it is") }}"></div>
       {#- "Media", since the answers are audio and video: a select called "Audio"
           offering "With video" was a label contradicting its own list. -#}
-      <label class="pick"><span>Media</span><select id="audio"></select></label>
-      <label class="pick"><span>Length</span><select id="length"></select></label>
+      <label class="pick"><span>{{ t("library.page.media", "Media") }}</span><select id="audio"></select></label>
+      <label class="pick"><span>{{ t("library.page.length", "Length") }}</span><select id="length"></select></label>
       {#- One name for one measure: the column below is "Hard words", and a select called
           "Difficulty" over it was two names for the same number. -#}
-      <label class="pick"><span>Hard words</span><select id="difficulty"></select></label>
-      <button type="button" class="clear" id="clear" hidden>Clear</button>
+      <label class="pick"><span>{{ t("library.page.hard-words", "Hard words") }}</span><select id="difficulty"></select></label>
+      <button type="button" class="clear" id="clear" hidden>{{ t("library.page.clear", "Clear") }}</button>
       </details>
     </div>
 
@@ -76,7 +76,7 @@
   {#- Somebody who has just failed to find what they wanted is exactly who needs the
       add page. A link, not a form: this page's job is browsing, and a pricing-and-
       progress flow living inside it would have made both jobs worse. -#}
-  <p class="elsewhere">Not here? <a href="/add">Add your own</a>.</p>
+  <p class="elsewhere">{{ t("library.page.not-here", "Not here?") }} <a href="/add">{{ t("library.page.add-your-own", "Add your own") }}</a>.</p>
 </main>
 {% include '_foot.html.j2' %}
 

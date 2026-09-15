@@ -984,7 +984,7 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     return out
 
 
-def learn_page(token: str) -> str:
+def learn_page(token: str, language: str = "en") -> str:
     """The page you land on: carry on, what you have, what you know.
 
     In that order on purpose. Most visits are somebody returning to a text rather than
@@ -1003,6 +1003,7 @@ def learn_page(token: str) -> str:
         _environment()
         .get_template("learn.html.j2")
         .render(
+            t=page_words(language),
             token=token,
             languages=_language_names(),
             # Which languages the conversation's "= " lines can be in, for the first
@@ -1068,7 +1069,7 @@ def list_page(token: str, which: str) -> str:
     )
 
 
-def add_page(token: str, no_key: str = "") -> str:
+def add_page(token: str, no_key: str = "", language: str = "en") -> str:
     """Bringing a text targum does not have.
 
     No longer the page anybody lands on — Learn is — so it introduces nothing and says
@@ -1086,6 +1087,7 @@ def add_page(token: str, no_key: str = "") -> str:
         _environment()
         .get_template("add.html.j2")
         .render(
+            t=page_words(language),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
@@ -1719,7 +1721,7 @@ def weekly_note(
     )
 
 
-def you_page(token: str) -> str:
+def you_page(token: str, language: str = "en") -> str:
     """Who you are, how you read, and the two things that end an account.
 
     Built like the other app pages: the server hands over the page and the browser asks
@@ -1733,6 +1735,7 @@ def you_page(token: str) -> str:
         _environment()
         .get_template("you.html.j2")
         .render(
+            t=page_words(language),
             token=token,
             reading=_staged(READING),
             into=_staged(INTO),
@@ -1742,7 +1745,7 @@ def you_page(token: str) -> str:
     )
 
 
-def library_page(token: str) -> str:
+def library_page(token: str, language: str = "en") -> str:
     """Texts worth reading, and the ones you have already built.
 
     The catalogue is baked in rather than fetched: it is a handful of entries that
@@ -1755,6 +1758,7 @@ def library_page(token: str) -> str:
         _environment()
         .get_template("library.html.j2")
         .render(
+            t=page_words(language),
             token=token,
             catalogue=[entry.state() for entry in everything()],
             # Which texts the page meets as one thing. Baked in beside the catalogue and

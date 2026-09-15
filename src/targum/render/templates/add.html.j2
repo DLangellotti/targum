@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Add — targum</title>
+<title>{{ t("add.page.add-targum", "Add — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('add.css') }}</style>
 {{ hebrew_face() }}
@@ -17,11 +17,11 @@
   {#- This page used to be the front door and opened by saying what targum is. Reached
       from the nav by somebody who already has an account and a shelf, that reads as a
       stranger's greeting to a regular. It says what it is for instead. -#}
-  <h1 class="lede">Add</h1>
+  <h1 class="lede">{{ t("add.page.add", "Add") }}</h1>
   {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
       few hundred texts, not most of what anybody wants. -#}
-  <p class="hint">It may already be in the
-    <a class="to-library" href="/library">Library</a>.</p>
+  <p class="hint">{{ t("add.page.it-may-already-be-in-the", "It may already be in the") }}
+    <a class="to-library" href="/library">{{ t("add.page.library", "Library") }}</a>.</p>
 
   {% if no_key %}
   <p class="notice" role="status">{{ no_key }}</p>
@@ -33,53 +33,53 @@
       box takes whatever it is given and a line under it says what targum thinks that
       was; every choice the form had is behind Change. -#}
   {% include '_glyphs.html.j2' %}
-  <section class="bring" aria-label="What to add">
+  <section class="bring" aria-label="{{ t("add.page.what-to-add", "What to add") }}">
     <div class="drop" id="drop">
       <ul class="given-files" id="given-files" hidden></ul>
-      <label class="given-label" for="given">What would you like to read?</label>
+      <label class="given-label" for="given">{{ t("add.page.what-would-you-like-to-read", "What would you like to read?") }}</label>
       <textarea id="given" rows="2" dir="auto" spellcheck="false" aria-describedby="understood"
-                placeholder="Paste a link or some Hebrew, drop a file, or say what you want"></textarea>
-      <p class="understood" id="understood" aria-live="polite">We can read books, articles, podcasts, videos, voice notes, subtitles and photos of pages.</p>
+                placeholder="{{ t("add.page.paste-a-link-or-some-hebrew-drop", "Paste a link or some Hebrew, drop a file, or say what you want") }}"></textarea>
+      <p class="understood" id="understood" aria-live="polite">{{ t("add.page.we-can-read-books-articles-podcasts-videos", "We can read books, articles, podcasts, videos, voice notes, subtitles and photos of pages.") }}</p>
     </div>
     <input type="file" id="file" multiple
            accept=".txt,.md,.markdown,.epub,.pdf,.srt,.vtt,.png,.jpg,.jpeg,.webp,.heic,.heif,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.flac,.wav,.mp4,.m4v,.mov,.webm,.mkv" hidden>
     <div class="bring-row">
-      <button type="button" id="choose" class="bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>Choose files</span></button>
+      <button type="button" id="choose" class="bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
       {#- Only for a description, and only where the talk drawer is there to say it in:
           looking for a text by describing it is a turn of conversation, metered like one,
           and the reader's own press sends it. -#}
-      <button type="button" id="ask-targum" class="bring-ask" hidden>Ask targum</button>
+      <button type="button" id="ask-targum" class="bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
       {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
           the button went on offering, and a press only repeated the notice. -#}
-      <button type="button" id="go" class="go"{% if no_key %} disabled{% endif %}>Continue</button>
+      <button type="button" id="go" class="go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
     </div>
   </section>
 
   {#- What the box understood, and every choice on one line. -#}
   <div class="summary" id="summary" hidden>
     <p class="summary-line" id="summary-line"></p>
-    <button type="button" id="change" class="change" aria-expanded="false" aria-controls="options">Change</button>
+    <button type="button" id="change" class="change" aria-expanded="false" aria-controls="options">{{ t("add.page.change", "Change") }}</button>
   </div>
 
   {#- The manual page: the controls the form had, with the ids they had, so a reader who
       knows exactly what they brought is never asked to trust a guess. Rows that do not
       apply to what is in the box are hidden. -#}
-  <section class="options" id="options" aria-label="Choices" hidden>
+  <section class="options" id="options" aria-label="{{ t("add.page.choices", "Choices") }}" hidden>
     <div class="option-row">
-      <h2>Languages</h2>
+      <h2>{{ t("add.page.languages", "Languages") }}</h2>
       <div class="option-body">
         <div class="pickers">
           {#- Three in and two out, each one saying how far along it is. Narrower than
               what the rest of the app can show: these are the pairs an upload has been
               taken end to end in. -#}
           <label class="field short">
-            <span>I am reading</span>
+            <span>{{ t("add.page.i-am-reading", "I am reading") }}</span>
             <select id="from">
               {% for one in reading %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
             </select>
           </label>
           <label class="field short">
-            <span>Translations in</span>
+            <span>{{ t("add.page.translations-in", "Translations in") }}</span>
             {# No `selected` here: which language you read into is a choice you have
                already made, and `add.js` restores it. Marking the first one selected made
                the page forget it on every visit, which for anyone who reads into anything
@@ -97,24 +97,24 @@
         aligner lines it up sentence by sentence, the same way the catalogue's published
         translations are lined up. -#}
     <div class="option-row" id="translation-row">
-      <h2>Translation</h2>
+      <h2>{{ t("add.page.translation", "Translation") }}</h2>
       <div class="option-body">
-        <div class="segmented" id="how" role="group" aria-label="Where the translation comes from">
-          <button type="button" class="segment" data-how="make" aria-pressed="true">We'll make one</button>
-          <button type="button" class="segment" data-how="mine" aria-pressed="false">I have one</button>
+        <div class="segmented" id="how" role="group" aria-label="{{ t("add.page.where-the-translation-comes-from", "Where the translation comes from") }}">
+          <button type="button" class="segment" data-how="make" aria-pressed="true">{{ t("add.page.we-ll-make-one", "We'll make one") }}</button>
+          <button type="button" class="segment" data-how="mine" aria-pressed="false">{{ t("add.page.i-have-one", "I have one") }}</button>
         </div>
-        <p class="hint" id="how-note">We'll translate it, sentence by sentence.</p>
+        <p class="hint" id="how-note">{{ t("add.page.we-ll-translate-it-sentence-by-sentence", "We'll translate it, sentence by sentence.") }}</p>
         <div id="have-translation" hidden>
           <div class="drop small" id="drop-translation" tabindex="0">
-            <p class="drop-label">Drop the translation</p>
-            <p class="drop-note">Plain text or markdown, in reading order</p>
+            <p class="drop-label">{{ t("add.page.drop-the-translation", "Drop the translation") }}</p>
+            <p class="drop-note">{{ t("add.page.plain-text-or-markdown-in-reading-order", "Plain text or markdown, in reading order") }}</p>
             <input type="file" id="translation" accept=".txt,.md,.markdown,.epub" hidden>
-            <button type="button" id="choose-translation">Choose file</button>
-            <button type="button" id="unchoose-translation" class="unchoose" hidden>Something else</button>
+            <button type="button" id="choose-translation">{{ t("add.page.choose-file", "Choose file") }}</button>
+            <button type="button" id="unchoose-translation" class="unchoose" hidden>{{ t("add.page.something-else", "Something else") }}</button>
           </div>
           <label class="field">
             <textarea id="pasted-translation" rows="3" dir="auto" spellcheck="false"
-                      placeholder="Or paste the translation"></textarea>
+                      placeholder="{{ t("add.page.or-paste-the-translation", "Or paste the translation") }}"></textarea>
           </label>
         </div>
       </div>
@@ -124,20 +124,20 @@
         import free of transcription; without one, targum writes down what is said, part
         by part, as each part is asked for. -#}
     <div class="option-row" id="audio-extra" hidden>
-      <h2>Transcript</h2>
+      <h2>{{ t("add.page.transcript", "Transcript") }}</h2>
       <div class="option-body">
-        <div class="segmented" id="spoken-how" role="group" aria-label="Where the transcript comes from">
-          <button type="button" class="segment" data-spoken="make" aria-pressed="true">We'll write one</button>
-          <button type="button" class="segment" data-spoken="mine" aria-pressed="false">I have one</button>
+        <div class="segmented" id="spoken-how" role="group" aria-label="{{ t("add.page.where-the-transcript-comes-from", "Where the transcript comes from") }}">
+          <button type="button" class="segment" data-spoken="make" aria-pressed="true">{{ t("add.page.we-ll-write-one", "We'll write one") }}</button>
+          <button type="button" class="segment" data-spoken="mine" aria-pressed="false">{{ t("add.page.i-have-one", "I have one") }}</button>
         </div>
-        <p class="hint" id="spoken-note">We'll write down what's said, part by part.</p>
+        <p class="hint" id="spoken-note">{{ t("add.page.we-ll-write-down-what-s-said", "We'll write down what's said, part by part.") }}</p>
         <div id="have-transcript" hidden>
           <div class="drop small" id="drop-transcript" tabindex="0">
-            <p class="drop-label">Drop the transcript</p>
-            <p class="drop-note">SRT or VTT, timings kept</p>
+            <p class="drop-label">{{ t("add.page.drop-the-transcript", "Drop the transcript") }}</p>
+            <p class="drop-note">{{ t("add.page.srt-or-vtt-timings-kept", "SRT or VTT, timings kept") }}</p>
             <input type="file" id="transcript" accept=".srt,.vtt" hidden>
-            <button type="button" id="choose-transcript">Choose file</button>
-            <button type="button" id="unchoose-transcript" class="unchoose" hidden>Something else</button>
+            <button type="button" id="choose-transcript">{{ t("add.page.choose-file", "Choose file") }}</button>
+            <button type="button" id="unchoose-transcript" class="unchoose" hidden>{{ t("add.page.something-else", "Something else") }}</button>
           </div>
         </div>
       </div>
@@ -148,8 +148,8 @@
 
   {#- The refusals, named before they are met, until each is said where it happens with
       the way on (targum-internal#252). -#}
-  <p class="hint limits">We can't add scanned PDFs, protected audiobooks (.aax), Spotify or
-    anything behind a login. A recording or a video uses some of your hours.</p>
+  <p class="hint limits">{{ t("add.page.we-can-t-add-scanned-pdfs-protected", "We can't add scanned PDFs, protected audiobooks (.aax), Spotify or
+    anything behind a login. A recording or a video uses some of your hours.") }}</p>
 
 </main>
 {% include '_foot.html.j2' %}
