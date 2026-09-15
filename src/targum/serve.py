@@ -6417,6 +6417,8 @@ DESK_KEYS = (
     "lists.",
     "vocab.",
     "claim.",
+    "palette.",
+    "theme.",
 )
 
 

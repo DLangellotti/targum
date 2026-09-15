@@ -35,6 +35,24 @@ window.targumForget =
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var KEY = "targum:theme";
   var root = document.documentElement;
 
@@ -75,7 +93,7 @@ window.targumForget =
     var dark = showing() === "dark";
     // The icon is the thing you would get, and the label says so, because an icon of
     // the state you are already in reads as a switch nobody needs to press.
-    var label = dark ? "Switch to light" : "Switch to dark";
+    var label = dark ? t("theme.to-light", "Switch to light") : t("theme.to-dark", "Switch to dark");
     buttons.forEach(function (button) {
       button.innerHTML =
         '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
