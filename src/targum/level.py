@@ -295,7 +295,9 @@ def describe(level: Level) -> str:
         "Never tell the reader they are 'at a level' or name the rung as a placement — it is "
         "a guide from self-reported words, not a placement and not a test. Quote the real "
         "counts instead."
-        f"{_address_sentence(level.address)}"
+        # Hebrew's "you" is gendered and the others' here are not written that way; an
+        # Italian conversation told how to say אַתָּה was told it was a Hebrew one.
+        f"{_address_sentence(level.address) if code == 'he' else ''}"
     )
 
 

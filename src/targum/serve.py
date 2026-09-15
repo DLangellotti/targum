@@ -4435,7 +4435,7 @@ class Handler(BaseHTTPRequestHandler):
                     # `session.mode_for`). Speak is offered either way since 2026-09-14.
                     "talk": spoken == "he" and self.library.talks(self._home(), person_id),
                     "hours": self._hours(person_id),
-                    "chips": self.chats.chips(person, self._home()),
+                    "chips": self.chats.chips(person, self._home(), spoken),
                 }
             )
         pieces = rest.split("/")

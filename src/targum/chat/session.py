@@ -667,19 +667,26 @@ class Chats:
     #: milliseconds the ledger keeps `at` in: a fortnight.
     NEW_WORDS_MS = 14 * 24 * 3600 * 1000
 
-    def chips(self, person: Person | None, home: Path) -> list[dict[str, str]]:
+    def chips(self, person: Person | None, home: Path, language: str = "") -> list[dict[str, str]]:
         """The things most readers ask, as buttons (targum-internal#240, from the notes
         of 2026-09-10: "most prompts will be nearly identical"). Drawn from the record,
         never a static list: each stands only where its condition holds, and the first
         never reaches the model at all — `suggest` answers it from `suggest_next` with
         no turn and no spend. This reverses the cut of starter chips on 2026-09-06;
-        design.md §12 records why."""
+        design.md §12 records why.
+
+        In one language: the conversation's, which is the switcher's. Drawn from the whole
+        record, the Italian side offered Continue on a Hebrew text and counted new and
+        known words from the Hebrew ledger, and a press put the reader back in Hebrew
+        (2026-09-15)."""
         chips: list[dict[str, str]] = [{"id": "read", "line": "Find me something to read"}]
         store = self.store
+        spoken = (language or "he").split("-")[0].lower()
         if store is not None and person is not None:
             # The text in progress: the most recently opened, not yet finished (the
             # carry card's own question, answered off the same clocks).
-            ctx = self.context(person, home, "", False)
+            ctx = self.context(person, home, "", False, language)
+            spoken = ctx.level.language.split("-")[0].lower()
             times = store.read_times(person.id)
             mine, shared = tools_module._shelf(ctx)
             opened = sorted(
@@ -688,6 +695,7 @@ class Chats:
                     for row in [*mine, *shared]
                     if str(row.get("document") or "") in times
                     and not times[str(row.get("document") or "")].get("finished")
+                    and str(row.get("language") or "").split("-")[0].lower() == spoken
                 ),
                 key=lambda pair: -pair[0],
             )
@@ -706,18 +714,24 @@ class Chats:
             since = int(time.time() * 1000) - self.NEW_WORDS_MS
             fresh = store.db.execute(
                 "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0"
-                " AND status IS NOT NULL AND status < 9 AND status > 0 AND at >= ?",
-                (person.id, since),
+                " AND language = ? AND status IS NOT NULL AND status < 9 AND status > 0"
+                " AND at >= ?",
+                (person.id, spoken, since),
             ).fetchone()
             if int(fresh["n"]) > 0:
                 chips.append({"id": "words", "line": "Use my new words"})
             known = store.db.execute(
-                "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND status = 9",
-                (person.id,),
+                "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND language = ?"
+                " AND status = 9",
+                (person.id, spoken),
             ).fetchone()
             if int(known["n"]) > 0:
                 chips.append({"id": "know", "line": "Show me what I know"})
-        if any(one.feed for one in sources_module.load()):
+        # Today's news from a publisher in this language: every feed is Hebrew for now.
+        if any(
+            one.feed and one.language.split("-")[0].lower() == spoken
+            for one in sources_module.load()
+        ):
             chips.append({"id": "news", "line": "Read today's news"})
         chips.append({"id": "stuck", "line": "Explain a word I'm stuck on"})
         return chips
@@ -777,7 +791,13 @@ class Chats:
         because = str(top.get("because") or "").strip()
         into = hebrew_module.gloss_language(ctx.reads)
         line = self.SUGGEST_LINES.get(into, self.SUGGEST_LINES["en"])
-        said = f"{self.SUGGEST_SAID}\n= {line} {because}".rstrip()
+        # The pointed Hebrew line only where the conversation is Hebrew. Another
+        # language's conversation is answered in the language the reader reads, and a
+        # Hebrew sentence at the head of an Italian one said it was a Hebrew one.
+        if ctx.level.language.split("-")[0].lower() == "he":
+            said = f"{self.SUGGEST_SAID}\n= {line} {because}".rstrip()
+        else:
+            said = f"{line} {because}".rstrip()
         n = store.chat_say(chat_id, "user", self.SUGGEST_ASKED, self.SUGGEST_ASKED)
         store.chat_say(chat_id, "assistant", [{"type": "text", "text": said}], said)
         return {

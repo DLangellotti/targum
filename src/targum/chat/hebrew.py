@@ -442,14 +442,20 @@ def ledger_block(
         # Nobody has a ledger on their first day. Words are marked while reading, so
         # the way to a ledger is a text, and the first question is the one the research
         # notes give: what they have read, never what level they are.
+        # In the conversation's own language. This said Hebrew whatever the ledger was,
+        # and an Italian conversation on its first day asked what the reader had read in
+        # Hebrew and offered them a Hebrew text (2026-09-15).
+        from ..translate.prompts import language_name
+
+        named = language_name((level.language or "he").split("-")[0].lower())
         parts.append(
             "The reader has marked no words known yet. Stand on the commonest of the common "
             "words, keep every sentence short, and in your first reply ask what they have "
-            "read in Hebrew so far - never what level they are - and offer them one short "
-            "text to start with (suggest_next), because words are marked while reading and "
-            "that is how their ledger begins. If they say they already read Hebrew, tell "
-            "them once that Learn has a list called Words you may already know, where "
-            "marking the common words they know lets you write with them."
+            f"read in {named} so far - never what level they are - and offer them one short "
+            f"{named} text to start with (suggest_next), because words are marked while "
+            f"reading and that is how their ledger begins. If they say they already read "
+            f"{named}, tell them once that Learn has a list called Words you may already "
+            "know, where marking the common words they know lets you write with them."
         )
     if common:
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))
