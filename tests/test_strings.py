@@ -68,7 +68,8 @@ def _calls(path: Path) -> dict[str, str]:
     found: dict[str, str] = {}
 
     def put(key: str, text: str) -> None:
-        text = json.loads(f'"{text}"')
+        # A paragraph of the page keeps its own line breaks, so control characters pass.
+        text = json.loads(f'"{text}"', strict=False)
         assert found.setdefault(key, text) == text, f"{key} says two things"
 
     for match in re.finditer(r'\bt\(\s*"(reader\.[\w.-]+)",\s*' + literal, source):
@@ -82,11 +83,17 @@ def _calls(path: Path) -> dict[str, str]:
 
 
 def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
-    """The English stands in `reader.js` as the fallback and in `en.json` as what a
-    translation is made from; this is what keeps them the same text (targum-internal#184)."""
-    script = Path(strings.__file__).parents[1] / "render" / "assets" / "reader.js"
-    calls = _calls(script)
+    """The English stands in `reader.js` and `reader.html.j2` as the fallback and in
+    `en.json` as what a translation is made from; this is what keeps them the same text
+    (targum-internal#184)."""
+    render = Path(strings.__file__).parents[1] / "render"
+    calls = _calls(render / "assets" / "reader.js")
     assert len(calls) > 100, "the reader's sentences are said through the catalogue"
+    page = _calls(render / "templates" / "reader.html.j2")
+    assert len(page) > 100, "and so are the page's own"
+    for key, text in page.items():
+        assert not set(text) & set('"<>'), f"{key} could not stand in an attribute: {text!r}"
+    calls.update(page)
     english = strings.catalogue("en")
     for key, text in calls.items():
         assert english.get(key) == text, (

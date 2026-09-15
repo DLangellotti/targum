@@ -25,6 +25,20 @@ from targum.render import MAX_SEGMENTS_PER_SECTION, isolate, render, split_secti
 from targum.vocalize import MARKS, has_taamim, strip_nikkud, strip_taamim
 
 
+def _reader_template() -> str:
+    """The reader's template as its English reads: a `t("key", "English")` call stands for
+    its English, which is what the page renders where no language says otherwise
+    (targum-internal#184), so a test about the markup reads the markup."""
+    from targum.render.builder import ASSETS
+
+    source = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    return re.sub(
+        r'\{\{ t\("reader\.[\w.-]+", "((?:[^"\\\\]|\\\\.)*)"\) \}\}',
+        lambda m: m.group(1),
+        source,
+    )
+
+
 @pytest.mark.parametrize(
     ("tag", "expected"),
     [("he", "rtl"), ("he-IL", "rtl"), ("ar", "rtl"), ("en", "ltr"), ("ru", "ltr")],
@@ -2281,9 +2295,8 @@ def test_a_pair_is_not_separated_by_a_blank_line() -> None:
 def test_only_a_verse_text_is_spaced_like_verses() -> None:
     """Asked of the source rather than guessed from the content — the same way
     `biblical.for_source()` picks the difficulty bands, and for the same reason."""
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     assert "{% if verse_by_verse %} verses{% endif %}" in template
 
     builder = (Path(__file__).resolve().parents[1] / "src/targum/render/builder.py").read_text(
@@ -2716,9 +2729,8 @@ def test_the_words_are_wrapped_in_both_modes_so_copying_is_the_same() -> None:
 
 
 def test_the_shortcut_is_listed_like_every_other_one() -> None:
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     assert "<dt>m</dt>" in template
     assert "data-marking" in template
 
@@ -2759,7 +2771,7 @@ def test_a_text_with_no_words_shows_no_count() -> None:
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     assert "headerKnown.hidden = !scored;" in script
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     assert '<span class="known" id="known" hidden></span>' in template
 
 
@@ -2819,9 +2831,8 @@ def test_the_level_keys_are_the_letters_outright() -> None:
 
 
 def test_the_level_keys_are_written_down() -> None:
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     assert "<dt>1 2 3</dt>" in template
     # One key a row: `k` and `i` shared a row while they shared their letters.
     assert "<dt>k 4</dt><dd>known</dd>" in template
@@ -3090,7 +3101,7 @@ def test_a_reader_can_be_asked_where_the_time_went() -> None:
     assert "showTimings(!readout || readout.hidden)" in script
     # And not written down: what the page took to draw is for whoever is building targum,
     # not for whoever is reading, so the card a reader opens does not offer it.
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     assert "<dt>t</dt>" not in template
     # Measured from the top of the file, or it is measuring the wrong span.
     assert script.index("var began") < script.index("function markSegment")
@@ -3281,9 +3292,8 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
 
     # The marking control only renders on a text that has words to mark, so it is read
     # from the template rather than from a fixture built without annotation.
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     mark = re.search(r"<button\b[^>]*data-marking.*?</button>", template, re.S)
     assert mark is not None
     assert "<svg" in mark.group(0) and ">Mark<" not in mark.group(0)
@@ -3295,9 +3305,8 @@ def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
 ) -> None:
     """A step down, the number, a step up. Typed rather than drawn — §7 has − and + as
     themselves, and × after a number as a multiplier — and in the player, not the bar."""
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     player = re.search(r'<div class="player".*?</div>', template, re.S)
     assert player is not None
     card = player.group(0)
@@ -3722,9 +3731,8 @@ def test_the_card_carries_no_key_legend() -> None:
 def test_the_queue_keys_are_written_down() -> None:
     """Every shortcut in this reader has a row in the card, and the two that changed
     meaning say what they mean now."""
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     # The arrows are not each other's mirror and the card says so: forward walks the
     # words still owed, back walks the chapter as it is written. A back key built on the
     # queue skipped everything the reader had just marked.
@@ -4195,9 +4203,8 @@ def test_the_first_time_line_is_only_on_a_page_with_words() -> None:
 def test_pages_are_a_preference_with_a_key_a_button_and_a_turn() -> None:
     """Listed like every other key, switchable from the bar, and turned from a control
     at the foot of the window with arrows drawn per reading direction."""
-    from targum.render.builder import ASSETS
 
-    template = (ASSETS.parent / "templates/reader.html.j2").read_text(encoding="utf-8")
+    template = _reader_template()
     assert "<dt>b</dt>" in template
     assert "<dt>Space</dt>" in template
     assert "data-paged" in template

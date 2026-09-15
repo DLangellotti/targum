@@ -15,7 +15,7 @@ import os
 import re
 import shutil
 from collections import Counter
-from collections.abc import Collection, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
 from datetime import date
 from functools import cache
@@ -297,7 +297,29 @@ def _environment() -> Environment:
     env.globals["hebrew_face"] = _hebrew_face
     env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
+    # The English, for any template that says a catalogued sentence and is not told
+    # another language; a reader's render passes its own (`page_words`).
+    env.globals["t"] = page_words("en")
     return env
+
+
+def page_words(language: str) -> Callable[[str, str], Markup]:
+    """A template's `t(key, English)` in `language` (targum-internal#184): that language's
+    catalogue where it has the key, the English written in the template where not.
+
+    Markup, not escaped: the text is the repository's own, and escaping it would turn an
+    English apostrophe into an entity and change every page that has one. The catalogue
+    test keeps these strings free of quotes and angle brackets, so one can stand in an
+    attribute."""
+    from ..strings import SOURCE, catalogue
+
+    code = (language or SOURCE).split("-")[0].lower()
+    said = catalogue(code) if code != SOURCE else {}
+
+    def t(key: str, english: str) -> Markup:
+        return Markup(said.get(key, english))
+
+    return t
 
 
 def _strip(name: str, text: str) -> str:
@@ -2386,6 +2408,8 @@ def render(
         tongues = {sid: languages[sid] for sid in section.segment_ids if sid in languages}
         html = env.get_template("reader.html.j2").render(
             **shared,
+            # The page's own words in the language it is read in (targum-internal#184).
+            t=page_words(translations[0].target_language if translations else "en"),
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
             translated=translated,
