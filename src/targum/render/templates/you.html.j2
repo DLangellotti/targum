@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>You — targum</title>
+<title>{{ t("you.page.you-targum", "You — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
 {{ hebrew_face() }}
@@ -17,7 +17,7 @@
 <main>
   {#- Signed out there is nothing here to show, and saying so beats an empty form. -#}
   <section class="panel" id="stranger" hidden>
-    <p class="note">Sign in from the corner and we'll fill this page in.</p>
+    <p class="note">{{ t("you.page.sign-in-from-the-corner-and-we", "Sign in from the corner and we'll fill this page in.") }}</p>
   </section>
 
   <section class="panel" id="who" hidden>
@@ -25,9 +25,9 @@
       <span class="avatar-large" id="you-avatar"></span>
       <div class="who-what">
         <label class="field">
-          <span>Name</span>
+          <span>{{ t("you.page.name", "Name") }}</span>
           <input type="text" id="you-name" dir="auto" maxlength="60" autocomplete="name"
-                 placeholder="What should we call you?" spellcheck="false">
+                 placeholder="{{ t("you.page.what-should-we-call-you", "What should we call you?") }}" spellcheck="false">
         </label>
         <p class="you-email" id="you-email"></p>
       </div>
@@ -37,10 +37,10 @@
         conversation that guessed once rewrote a man's sentence into the feminine and
         called it a correction. -#}
     <fieldset class="address" id="you-address">
-      <legend>In Hebrew, targum calls you</legend>
+      <legend>{{ t("you.page.in-hebrew-targum-calls-you", "In Hebrew, targum calls you") }}</legend>
       <label><input type="radio" name="address" id="address-m" value="m"> <bdi lang="he" dir="rtl">אַתָּה</bdi></label>
       <label><input type="radio" name="address" id="address-f" value="f"> <bdi lang="he" dir="rtl">אַתְּ</bdi></label>
-      <label><input type="radio" name="address" id="address-either" value=""> Either</label>
+      <label><input type="radio" name="address" id="address-either" value=""> {{ t("you.page.either", "Either") }}</label>
     </fieldset>
     <p class="said" id="you-said" hidden></p>
   </section>
@@ -50,23 +50,23 @@
       page where somebody says what they read, so a language missing from it would be a
       question they had no way to answer. Drawn by `you.js` from the lists below. -#}
   <section class="panel" id="languages" hidden>
-    <h2>Your languages</h2>
+    <h2>{{ t("you.page.your-languages", "Your languages") }}</h2>
     <div class="ticks">
-      <span class="ticks-label" id="learning-label">Learning</span>
+      <span class="ticks-label" id="learning-label">{{ t("you.page.learning", "Learning") }}</span>
       <span class="tick-list" id="you-learning" role="group" aria-labelledby="learning-label"></span>
     </div>
     <div class="ticks">
-      <span class="ticks-label" id="reads-label">Translations in</span>
+      <span class="ticks-label" id="reads-label">{{ t("you.page.translations-in", "Translations in") }}</span>
       <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
     </div>
-    <p class="note">Hebrew is always on. Everything else is experimental, and you lose nothing when you untick one.</p>
+    <p class="note">{{ t("you.page.hebrew-is-always-on-everything-else-is", "Hebrew is always on. Everything else is experimental, and you lose nothing when you untick one.") }}</p>
     <p class="said" id="you-languages-said" hidden></p>
   </section>
 
   <section class="panel" id="reading" hidden>
-    <h2>Your reading</h2>
+    <h2>{{ t("you.page.your-reading", "Your reading") }}</h2>
     <p class="tally" id="you-kept"></p>
-    <p class="elsewhere"><a href="/progress">Your Progress</a> has the whole of it.</p>
+    <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the whole of it.") }}</p>
   </section>
 
   {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
@@ -77,30 +77,30 @@
       the Library: the main pages stay as simple as they can. Drawn by `follow.js`;
       hidden until the server has named a series. -#}
   <section class="panel" id="subscriptions" hidden>
-    <h2>Your subscriptions</h2>
-    <p class="note">Series that come out on their own clock. Follow one and we'll put each
-      new instalment on Learn when it lands and email you.</p>
+    <h2>{{ t("you.page.your-subscriptions", "Your subscriptions") }}</h2>
+    <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on their own clock. Follow one and we'll put each
+      new instalment on Learn when it lands and email you.") }}</p>
     <ul class="series" id="series"></ul>
   </section>
 
   <section class="panel" id="ending" hidden>
-    <h2>Your account</h2>
+    <h2>{{ t("you.page.your-account", "Your account") }}</h2>
     <div class="row">
-      <a class="go-quiet" id="you-export" href="/account/export">Download your words</a>
-      <button type="button" class="go-quiet" id="you-out">Sign out</button>
+      <a class="go-quiet" id="you-export" href="/account/export">{{ t("you.page.download-your-words", "Download your words") }}</a>
+      <button type="button" class="go-quiet" id="you-out">{{ t("you.page.sign-out", "Sign out") }}</button>
     </div>
     {#- On a row of its own, in clay (2026-09-14): it stood beside Download and Sign out in
         the same quiet pill, three presses that looked alike and were nothing alike. -#}
     <div class="row ending-row">
-      <button type="button" class="go-quiet danger" id="you-forget">Delete account</button>
-      <button type="button" class="go-quiet" id="you-keep" hidden>Keep my account</button>
+      <button type="button" class="go-quiet danger" id="you-forget">{{ t("you.page.delete-account", "Delete account") }}</button>
+      <button type="button" class="go-quiet" id="you-keep" hidden>{{ t("you.page.keep-my-account", "Keep my account") }}</button>
     </div>
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is
         the fact somebody about to press this needs, and it is true either way. -#}
     <p class="note">We wait seven days before deleting.
       {%- if legal_is_public() %}
-      <a href="/deletion">What that means</a>.
+      <a href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.
       {%- endif %}</p>
     <p class="said" id="you-ending-said" hidden></p>
   </section>

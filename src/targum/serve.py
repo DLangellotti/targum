@@ -4190,9 +4190,11 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
-            return self._send(200, self.page.encode("utf-8"), HTML)
+            return self._send(200, self._desk("page", self.page).encode("utf-8"), HTML)
         if route == "/add":
-            return self._send(200, self.adding.encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(
+                200, self._desk("adding", self.adding).encode("utf-8"), "text/html; charset=utf-8"
+            )
         if route == "/chat":
             if not self.chatting:
                 return self._send(404, b"not found", "text/plain")
@@ -4213,9 +4215,15 @@ class Handler(BaseHTTPRequestHandler):
             page = self.lists[route.lstrip("/")]
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
-            return self._send(200, self.catalogue.encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(
+                200,
+                self._desk("catalogue", self.catalogue).encode("utf-8"),
+                "text/html; charset=utf-8",
+            )
         if route == "/you":
-            return self._send(200, self.you.encode("utf-8"), "text/html; charset=utf-8")
+            return self._send(
+                200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
+            )
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
@@ -6380,6 +6388,10 @@ def _still_waiting(page: Path) -> bool:
         return True
 
 
+#: The key prefixes a desk page says its words under (targum-internal#184).
+DESK_KEYS = ("nav.", "progress.", "learn.", "library.", "you.", "add.")
+
+
 def desk_languages() -> list[str]:
     """The languages besides English with a catalogue that says something on a desk page."""
     from .strings import catalogue, languages
@@ -6387,7 +6399,7 @@ def desk_languages() -> list[str]:
     return [
         code
         for code in languages()
-        if code != "en" and any(key.startswith(("nav.", "progress.")) for key in catalogue(code))
+        if code != "en" and any(key.startswith(DESK_KEYS) for key in catalogue(code))
     ]
 
 
@@ -6493,7 +6505,14 @@ def start(
             # The desk pages said in another language, rendered once each at start-up
             # like the English ones, and chosen per request (targum-internal#184).
             "translated": {
-                code: {"progress": progress_page(token, language=code)} for code in desk_languages()
+                code: {
+                    "progress": progress_page(token, language=code),
+                    "page": learn_page(token, language=code),
+                    "you": you_page(token, language=code),
+                    "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
+                    "catalogue": library_page(token, language=code),
+                }
+                for code in desk_languages()
             },
             "catalogue": library_page(token),
         },

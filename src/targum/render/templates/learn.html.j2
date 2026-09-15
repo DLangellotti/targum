@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Learn — targum</title>
+<title>{{ t("learn.page.learn-targum", "Learn — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 {{ hebrew_face() }}
@@ -68,7 +68,7 @@
           <span class="page-progress" id="carry-progress" role="img" aria-label="" hidden></span>
           {#- What this text is to the reader — Continue reading, Up next, Start here,
               From the conversation — over the title. -#}
-          <p class="page-state" id="carry-heading">Continue reading</p>
+          <p class="page-state" id="carry-heading">{{ t("learn.page.continue-reading", "Continue reading") }}</p>
           <bdi class="page-title" id="carry-title"></bdi>
           <p class="page-facts">
             <span class="page-english" id="carry-english" lang="en" dir="ltr" hidden></span>
@@ -80,12 +80,12 @@
               (2026-09-14, David: "while they can comfortably read on that page ... for
               the best experience, they should click open and go to the reader page").
               Said once, beside the press, and only over a framed reader. -#}
-          <p class="page-hint" id="carry-hint">Read here, or go full screen.</p>
+          <p class="page-hint" id="carry-hint">{{ t("learn.page.read-here-or-go-full-screen", "Read here, or go full screen.") }}</p>
           <p class="page-actions">
             {#- Open goes to the reader's own page, and says so: "Open" alone read as
                 opening something inside the sheet. The glyph is the expand corners a
                 window is made full-size by. -#}
-            <a class="open" id="carry" href="/"><svg class="open-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/></svg><span>Open the reader</span></a>
+            <a class="open" id="carry" href="/"><svg class="open-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/></svg><span>{{ t("learn.page.open-the-reader", "Open the reader") }}</span></a>
           </p>
         </div>
         <div class="page-window" id="carry-window" hidden>
@@ -96,9 +96,9 @@
     {#- On a phone, cards instead of the sheet (David, 2026-09-14): one for every text the
         page can offer, each a press to its reader. Drawn by `learn.js`, shown by the
         stylesheet under 40rem. -#}
-    <section class="learn-cards" aria-label="Your texts">
+    <section class="learn-cards" aria-label="{{ t("learn.page.your-texts", "Your texts") }}">
       <ul class="learn-card-list" id="learn-cards" hidden></ul>
-      <a class="see-all" id="learn-cards-all" href="/texts" hidden>All your targums</a>
+      <a class="see-all" id="learn-cards-all" href="/texts" hidden>{{ t("learn.page.all-your-targums", "All your targums") }}</a>
     </section>
 
   </div>
@@ -111,18 +111,18 @@
 {#- The first thing a new reader sees, so it is the onboarding now. It points at the
     Library rather than at the upload form, which is the whole change. -#}
 <section class="nothing" id="nothing" hidden>
-  <p class="lede">Nothing here yet.</p>
-  <p>Pick something from <a href="/library">Library</a>.</p>
-  <p class="hint">Or <a href="/add">add your own</a>.</p>
+  <p class="lede">{{ t("learn.page.nothing-here-yet", "Nothing here yet.") }}</p>
+  <p>{{ t("learn.page.pick-something-from", "Pick something from") }} <a href="/library">{{ t("learn.page.library", "Library") }}</a>.</p>
+  <p class="hint">{{ t("learn.page.or", "Or") }} <a href="/add">{{ t("learn.page.add-your-own", "add your own") }}</a>.</p>
 </section>
 {#- While the shelf is being asked for, and when it could not be (2026-09-14). The page
     stood blank under the bar until `/readers` answered, which on a large shelf is
     seconds; and a failed answer was told as "Nothing here yet", which is what a new
     account is told, not what a broken connection is. -#}
-<p class="learn-waiting" id="learn-waiting" role="status">Opening your texts…</p>
+<p class="learn-waiting" id="learn-waiting" role="status">{{ t("learn.page.opening-your-texts", "Opening your texts…") }}</p>
 <section class="nothing" id="learn-failed" role="alert" hidden>
-  <p class="lede">We couldn't load your texts.</p>
-  <p>Reload the page to try again. Everything you've read is still here.</p>
+  <p class="lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
+  <p>{{ t("learn.page.reload-the-page-to-try-again-everything", "Reload the page to try again. Everything you've read is still here.") }}</p>
 </section>
 
 {% include '_foot.html.j2' %}
