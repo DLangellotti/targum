@@ -6398,7 +6398,21 @@ def _still_waiting(page: Path) -> bool:
 
 
 #: The key prefixes a desk page says its words under (targum-internal#184).
-DESK_KEYS = ("nav.", "progress.", "learn.", "library.", "you.", "add.", "charts.", "lang.")
+DESK_KEYS = (
+    "nav.",
+    "progress.",
+    "learn.",
+    "library.",
+    "you.",
+    "add.",
+    "charts.",
+    "lang.",
+    "building.",
+    "account.",
+    "shelf.",
+    "follow.",
+    "bring.",
+)
 
 
 def desk_languages() -> list[str]:

@@ -11,6 +11,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
     if (!key) return path;
@@ -118,11 +136,13 @@
      a sentence. `tell(share)` hears the upload as a whole. */
   function upload(files, tell) {
     var chosen = listed(files);
-    if (!chosen.length) return Promise.reject("Choose a file first.");
+    if (!chosen.length) return Promise.reject(t("bring.choose-first", "Choose a file first."));
     var pictures = chosen.filter(isPicture);
     if (pictures.length) {
       if (pictures.length !== chosen.length) {
-        return Promise.reject("We can take several files at once only when they're pictures of one text.");
+        return Promise.reject(
+          t("bring.several", "We can take several files at once only when they're pictures of one text.")
+        );
       }
       var ids = [];
       function next(n) {
@@ -180,19 +200,39 @@
       var listening = Math.max(1, Math.round(spoken / 6));
       var translating = Math.max(1, Math.round((job.total || 25) / 25));
       var minutes = listening + translating;
-      var opener = job.parts > 1 ? "Your first part will be ready in " : "Ready in ";
-      if (minutes <= 1) return opener + "about a minute.";
-      if (minutes <= 4) return opener + "a few minutes.";
-      return opener + "about " + minutes + " minutes.";
+      var part = job.parts > 1;
+      if (minutes <= 1) {
+        return part
+          ? t("bring.wait.part-minute", "Your first part will be ready in about a minute.")
+          : t("bring.wait.minute", "Ready in about a minute.");
+      }
+      if (minutes <= 4) {
+        return part
+          ? t("bring.wait.part-few", "Your first part will be ready in a few minutes.")
+          : t("bring.wait.few", "Ready in a few minutes.");
+      }
+      return part
+        ? t("bring.wait.part-minutes", "Your first part will be ready in about {n} minutes.", { n: minutes })
+        : t("bring.wait.minutes", "Ready in about {n} minutes.", { n: minutes });
     }
-    if (!job.estimate) return "Ready in a moment.";
+    if (!job.estimate) return t("bring.wait.moment", "Ready in a moment.");
     // A book opens on its first chapter, so the wait is that chapter's — not the
     // novel's. `total` is what is being translated now.
     var mins = Math.max(1, Math.round((job.total || job.segments) / 25));
-    var start = job.chapters > 1 ? "Your first chapter will be ready in " : "Ready in ";
-    if (mins <= 1) return start + "about a minute.";
-    if (mins <= 4) return start + "a couple of minutes.";
-    return start + "about " + mins + " minutes.";
+    var chapter = job.chapters > 1;
+    if (mins <= 1) {
+      return chapter
+        ? t("bring.wait.chapter-minute", "Your first chapter will be ready in about a minute.")
+        : t("bring.wait.minute", "Ready in about a minute.");
+    }
+    if (mins <= 4) {
+      return chapter
+        ? t("bring.wait.chapter-couple", "Your first chapter will be ready in a couple of minutes.")
+        : t("bring.wait.couple", "Ready in a couple of minutes.");
+    }
+    return chapter
+      ? t("bring.wait.chapter-minutes", "Your first chapter will be ready in about {n} minutes.", { n: mins })
+      : t("bring.wait.minutes", "Ready in about {n} minutes.", { n: mins });
   }
 
   //: Past this share of the month's hours the box says so, above the field. Below it
@@ -204,8 +244,11 @@
   function hoursWarning(got) {
     if (!got || got.allowed === null || got.allowed === undefined) return "";
     if (!(got.used >= got.allowed * HOURS_WARN)) return "";
-    var line = "You've used " + said(got.used) + " of your " + said(got.allowed) + " this month.";
-    if (got.ends) line += " They reset on " + got.ends + ".";
+    var line = t("bring.hours.used", "You've used {used} of your {allowed} this month.", {
+      used: said(got.used),
+      allowed: said(got.allowed),
+    });
+    if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
     return line;
   }
 
@@ -215,32 +258,40 @@
     var whole = Math.floor(minutes / 60);
     var rest = minutes % 60;
     var parts = [];
-    if (whole) parts.push(whole + (whole === 1 ? " hour" : " hours"));
-    if (rest || !whole) parts.push(rest + (rest === 1 ? " minute" : " minutes"));
+    if (whole) parts.push(tn("account.hours", whole, "{n} hour", "{n} hours"));
+    if (rest || !whole) parts.push(tn("account.minutes", rest, "{n} minute", "{n} minutes"));
     return parts.join(" ");
   }
 
   function hours(seconds) {
     var h = seconds / 3600;
-    if (h < 1) return Math.max(1, Math.round(seconds / 60)) + " minutes of audio";
-    return Math.round(h * 10) / 10 + " hours of audio";
+    if (h < 1) return t("bring.audio.minutes", "{n} minutes of audio", { n: Math.max(1, Math.round(seconds / 60)) });
+    return t("bring.audio.hours", "{n} hours of audio", { n: Math.round(h * 10) / 10 });
   }
 
+  // Keyed by the pipeline's English, which is what arrives; said in the reader's.
   var PLAIN = {
-    "Finding each word's dictionary form…": "We're reading the words…",
-    "Adding vowel points…": "We're adding vowel points…",
-    "Building the reader…": "We're setting the page…",
+    "Finding each word's dictionary form…": function () {
+      return t("bring.build.words", "We're reading the words…");
+    },
+    "Adding vowel points…": function () {
+      return t("bring.build.points", "We're adding vowel points…");
+    },
+    "Building the reader…": function () {
+      return t("bring.build.page", "We're setting the page…");
+    },
   };
 
   // The pipeline narrates itself in its own vocabulary. This is the reader's.
   function plain(message) {
-    if (!message) return "We're getting it ready…";
-    if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "We're lining it up…";
-    if (message.indexOf("Transcribing") === 0) return "We're writing down what's said…";
-    if (message.indexOf("Finding the pauses") === 0) return "We're finding the pauses…";
-    if (message.indexOf("Looking up") === 0) return "We're looking up the words…";
-    return "We're getting it ready…";
+    var readying = t("bring.build.getting-ready", "We're getting it ready…");
+    if (!message) return readying;
+    if (Object.prototype.hasOwnProperty.call(PLAIN, message)) return PLAIN[message]();
+    if (message.indexOf("Matching") === 0) return t("bring.build.lining-up", "We're lining it up…");
+    if (message.indexOf("Transcribing") === 0) return t("bring.build.transcribing", "We're writing down what's said…");
+    if (message.indexOf("Finding the pauses") === 0) return t("bring.build.pauses", "We're finding the pauses…");
+    if (message.indexOf("Looking up") === 0) return t("bring.build.looking-up", "We're looking up the words…");
+    return readying;
   }
 
   // The card the reader presses. Drawn from the quote itself — the server's state of
@@ -378,8 +429,7 @@
     if (job.doubtful > 0) {
       var doubt = document.createElement("p");
       doubt.className = "quote-doubt";
-      doubt.textContent =
-        "We couldn't read " + job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " clearly.";
+      doubt.textContent = tn("add.doubtful", job.doubtful, "We couldn't read {n} line clearly.", "We couldn't read {n} lines clearly.");
       card.appendChild(doubt);
     }
     var note = document.createElement("p");
@@ -388,7 +438,7 @@
       var go = document.createElement("button");
       go.type = "button";
       go.className = "quote-go";
-      go.textContent = "Read this";
+      go.textContent = t("bring.read-this", "Read this");
       go.onclick = function () {
         go.disabled = true;
         start(job).then(function (state) {
@@ -397,7 +447,7 @@
             card.classList.add("refused");
             return;
           }
-          note.textContent = "We're getting it ready. It'll appear above when it's done.";
+          note.textContent = t("bring.started", "We're getting it ready. It'll appear above when it's done.");
           card.classList.add("started");
           if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
         });
@@ -406,23 +456,23 @@
       var more = document.createElement("a");
       more.className = "quote-more";
       more.href = keyed("/add");
-      more.textContent = "More options";
+      more.textContent = t("bring.more-options", "More options");
       card.appendChild(more);
     } else if (job.stage === "working" || job.stage === "reading") {
       // Sent from the box, so already pressed: the card is its progress. "Getting it
       // ready", never "building" (2026-09-11): a text is getting ready, then ready.
-      note.textContent = "We're getting it ready. It'll appear above when it's done.";
+      note.textContent = t("bring.started", "We're getting it ready. It'll appear above when it's done.");
       card.classList.add("started");
       if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
     } else if (job.stage === "done" && job.reader) {
       var open = document.createElement("a");
       open.className = "quote-go quote-open";
       open.href = door(job.reader);
-      open.textContent = "Open";
+      open.textContent = t("building.open", "Open");
       card.appendChild(open);
       card.classList.add("started");
     } else {
-      note.textContent = job.blocked || job.error || "We can't get this ready right now.";
+      note.textContent = job.blocked || job.error || t("bring.cannot", "We can't get this ready right now.");
       card.classList.add("refused");
     }
     card.appendChild(note);
@@ -443,7 +493,7 @@
       var out = document.createElement("button");
       out.type = "button";
       out.className = "chat-drop";
-      out.setAttribute("aria-label", "Do not bring " + file.name);
+      out.setAttribute("aria-label", t("bring.do-not-bring", "Do not bring {file}", { file: file.name }));
       out.textContent = "×";
       out.onclick = function () {
         drop(index);

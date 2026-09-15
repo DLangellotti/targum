@@ -16,6 +16,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var open = document.getElementById("account-open");
   if (!open || !window.TargumSync) return;
 
@@ -48,8 +66,8 @@
     open.textContent = "";
     if (!who) {
       open.className = "";
-      open.textContent = "Sign in";
-      open.title = "Sign in";
+      open.textContent = t("account.sign-in", "Sign in");
+      open.title = t("account.sign-in", "Sign in");
       drawHours(null);
       return;
     }
@@ -60,7 +78,7 @@
     open.title = who.name ? who.name + " — " + who.email : who.email;
     // Named for what it opens: its text is two initials, and "D" is not a name for a
     // button to a screen reader (2026-09-14).
-    open.setAttribute("aria-label", "Your account");
+    open.setAttribute("aria-label", t("account.yours", "Your account"));
     if (who.picture) {
       var image = new Image();
       image.alt = "";
@@ -88,19 +106,26 @@
     var whole = Math.floor(minutes / 60);
     var rest = minutes % 60;
     var parts = [];
-    if (whole) parts.push(whole + (whole === 1 ? " hour" : " hours"));
-    if (rest || !whole) parts.push(rest + (rest === 1 ? " minute" : " minutes"));
+    if (whole) parts.push(tn("account.hours", whole, "{n} hour", "{n} hours"));
+    if (rest || !whole) parts.push(tn("account.minutes", rest, "{n} minute", "{n} minutes"));
     return parts.join(" ");
   }
   function drawHours(got) {
     var has = got && got.allowed !== null && got.allowed !== undefined;
-    var said = has ? spoken(got.used) + " of your " + spoken(got.allowed) + " used this month" : "";
+    var said = has
+      ? t("account.hours.used", "{used} of your {allowed} used this month", {
+          used: spoken(got.used),
+          allowed: spoken(got.allowed),
+        })
+      : "";
     if (hoursLine) {
       hoursLine.textContent = said;
       hoursLine.hidden = !has;
     }
     if (ledgerLine) {
-      ledgerLine.textContent = said ? said + (got.ends ? " · resets " + got.ends : "") : "";
+      ledgerLine.textContent = said
+        ? said + (got.ends ? " · " + t("account.hours.resets", "resets {date}", { date: got.ends }) : "")
+        : "";
       ledgerLine.hidden = !has;
     }
   }
@@ -120,15 +145,19 @@
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
-    say("We're sending your link…");
+    say(t("account.sending", "We're sending your link…"));
     window.TargumSync.signIn(field.value)
       .then(function (answer) {
         if (answer.error && !answer.message) return say(answer.error, false, true);
-        say(answer.sent ? "Thanks. We've sent a link to " + field.value + "." : answer.message || "Thanks. Check your email.");
+        say(
+          answer.sent
+            ? t("account.sent", "Thanks. We've sent a link to {address}.", { address: field.value })
+            : answer.message || t("account.check-email", "Thanks. Check your email.")
+        );
         if (answer.sent) form.hidden = true;
       })
       .catch(function () {
-        say("We couldn't send a link. Try again.", false, true);
+        say(t("account.could-not-send", "We couldn't send a link. Try again."), false, true);
       });
   });
 
@@ -152,9 +181,9 @@
   // A link that has just been used, or one that had expired. Said on the page it lands
   // on rather than on a page of its own.
   var arrived = new URLSearchParams(location.search).get("signin");
-  if (arrived === "welcome") say("You're signed in.", true);
+  if (arrived === "welcome") say(t("account.welcome", "You're signed in."), true);
   if (arrived === "expired") {
-    say("That link has been used. Ask us for another.", true, true);
+    say(t("account.expired", "That link has been used. Ask us for another."), true, true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.

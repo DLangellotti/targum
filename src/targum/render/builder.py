@@ -322,8 +322,9 @@ def page_words(language: str) -> Callable[[str, str], Markup]:
     return t
 
 
-#: What `charts.js` and `lang.js` say, which every desk page that carries them needs.
-SHARED_SCRIPT_KEYS = ("charts.", "lang.")
+#: What the scripts every desk page carries say: the charts, the language menu, the
+#: notices bell, the account panel and the series the nav follows.
+SHARED_SCRIPT_KEYS = ("charts.", "lang.", "building.", "account.", "follow.")
 
 
 def script_strings(language: str, *prefixes: str) -> dict[str, Any]:
@@ -1027,7 +1028,7 @@ def learn_page(token: str, language: str = "en") -> str:
         .get_template("learn.html.j2")
         .render(
             t=page_words(language),
-            strings=script_strings(language, "learn."),
+            strings=script_strings(language, "learn.", "shelf."),
             token=token,
             languages=_language_names(),
             # Which languages the conversation's "= " lines can be in, for the first
@@ -1112,7 +1113,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .get_template("add.html.j2")
         .render(
             t=page_words(language),
-            strings=script_strings(language, "add."),
+            strings=script_strings(language, "add.", "bring."),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.

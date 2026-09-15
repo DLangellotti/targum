@@ -12,6 +12,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var key = window.TARGUM_KEY;
 
   function keyed(path) {
@@ -54,12 +72,12 @@
 
   function ago(stamp) {
     var minutes = Math.round((Date.now() - stamp) / 60000);
-    if (minutes < 2) return "just now";
-    if (minutes < 60) return minutes + " minutes ago";
+    if (minutes < 2) return t("shelf.ago.now", "just now");
+    if (minutes < 60) return tn("shelf.ago.minutes", minutes, "{n} minute ago", "{n} minutes ago");
     var hours = Math.round(minutes / 60);
-    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+    if (hours < 24) return tn("shelf.ago.hours", hours, "an hour ago", "{n} hours ago");
     var days = Math.round(hours / 24);
-    return days === 1 ? "yesterday" : days + " days ago";
+    return tn("shelf.ago.days", days, "yesterday", "{n} days ago");
   }
 
   function base(code) {
@@ -83,8 +101,8 @@
     });
     if (!mine.length) {
       note.textContent = readers.length
-        ? "Nothing in " + named(code) + " yet."
-        : "Nothing here yet. We'll keep the texts you open here.";
+        ? t("shelf.empty.language", "Nothing in {language} yet.", { language: named(code) })
+        : t("shelf.empty", "Nothing here yet. We'll keep the texts you open here.");
       return;
     }
     note.textContent = settings.note || "";
@@ -94,7 +112,7 @@
     var shown = settings.limit ? mine.slice(0, settings.limit) : mine;
     if (more && mine.length > shown.length) {
       more.hidden = false;
-      more.textContent = "See all " + mine.length + " →";
+      more.textContent = t("shelf.see-all", "See all {n} →", { n: mine.length });
     }
 
     shown.forEach(function (reader) {
@@ -143,16 +161,19 @@
       // "4 of 4" is a fraction with nothing left to say.
       bought.textContent = reader.chapters && reader.chapters.length
         ? reader.readyChapters === reader.chapters.length
-          ? reader.chapters.length + (reader.chapters.length === 1 ? " chapter" : " chapters")
-          : reader.readyChapters + " of " + reader.chapters.length + " translated"
+          ? tn("shelf.chapters", reader.chapters.length, "{n} chapter", "{n} chapters")
+          : t("shelf.chapters-translated", "{done} of {total} translated", {
+              done: reader.readyChapters,
+              total: reader.chapters.length,
+            })
         : reader.sections > 1
-          ? reader.sections + " parts"
+          ? tn("shelf.parts", reader.sections, "{n} part", "{n} parts")
           : "—";
       link.appendChild(bought);
 
       var when = document.createElement("span");
       when.className = "cell when";
-      when.textContent = reader.opened ? ago(reader.opened) : "not opened yet";
+      when.textContent = reader.opened ? ago(reader.opened) : t("shelf.not-opened", "not opened yet");
       link.appendChild(when);
 
       item.appendChild(link);
@@ -177,8 +198,8 @@
     press.type = "button";
     press.className = "open-chapters";
     press.setAttribute("aria-expanded", "false");
-    press.title = "Chapters";
-    press.textContent = "Chapters";
+    press.title = t("shelf.chapters-menu", "Chapters");
+    press.textContent = t("shelf.chapters-menu", "Chapters");
 
     var tree = null;
     press.onclick = function () {
@@ -230,15 +251,15 @@
       var get = document.createElement("button");
       get.type = "button";
       get.className = "get";
-      get.textContent = "Translate";
+      get.textContent = t("shelf.translate", "Translate");
       get.onclick = function () {
         get.disabled = true;
-        get.textContent = "Translating…";
+        get.textContent = t("shelf.translating", "Translating…");
         post("/chapter", { name: reader.name, number: chapter.number }).then(function (job) {
           follow(job.id, get);
         }, function () {
           get.disabled = false;
-          get.textContent = "Translate";
+          get.textContent = t("shelf.translate", "Translate");
         });
       };
       row.appendChild(get);
@@ -256,7 +277,7 @@
         } else if (job.stage === "failed" || job.blocked) {
           clearInterval(timer);
           button.disabled = false;
-          button.textContent = job.error || job.blocked || "We couldn't translate it. Try again.";
+          button.textContent = job.error || job.blocked || t("shelf.translate-failed", "We couldn't translate it. Try again.");
         }
       });
     }, 1500);
@@ -275,8 +296,8 @@
     var press = document.createElement("button");
     press.type = "button";
     press.className = "bin";
-    press.textContent = "Delete";
-    press.title = "Move to trash";
+    press.textContent = t("shelf.delete", "Delete");
+    press.title = t("shelf.delete.title", "Move to trash");
     press.onclick = function () {
       press.disabled = true;
       post("/trash", { name: reader.name }).then(function () {
@@ -301,14 +322,18 @@
     title.setAttribute("lang", reader.language || "und");
     title.className = "book-title";
     title.textContent = reader.title;
+    // The title wherever the sentence puts it: `{title}` marks the place.
+    var sentence = t("shelf.binned", "{title} is in Trash");
+    var at = Math.max(0, sentence.indexOf("{title}"));
+    said.appendChild(document.createTextNode(sentence.slice(0, at)));
     said.appendChild(title);
-    said.appendChild(document.createTextNode(" is in Trash"));
+    said.appendChild(document.createTextNode(sentence.slice(at).replace("{title}", "")));
     item.appendChild(said);
 
     var undo = document.createElement("button");
     undo.type = "button";
     undo.className = "restore";
-    undo.textContent = "Undo";
+    undo.textContent = t("shelf.undo", "Undo");
     undo.onclick = function () {
       undo.disabled = true;
       post("/restore", { name: reader.name }).then(reload, function () {
@@ -341,16 +366,14 @@
       // Said in days rather than a date: what a reader wants to know is how long they
       // have, not when the clock started.
       meta.textContent =
-        reader.goesIn > 1
-          ? "goes for good in " + reader.goesIn + " days"
-          : reader.goesIn === 1
-            ? "goes for good tomorrow"
-            : "goes for good today";
+        reader.goesIn >= 1
+          ? tn("shelf.goes-in", reader.goesIn, "goes for good tomorrow", "goes for good in {n} days")
+          : t("shelf.goes-today", "goes for good today");
 
       var back = document.createElement("button");
       back.type = "button";
       back.className = "restore";
-      back.textContent = "Put back";
+      back.textContent = t("shelf.put-back", "Put back");
       back.onclick = function () {
         back.disabled = true;
         post("/restore", { name: reader.name }).then(reload, function () {
