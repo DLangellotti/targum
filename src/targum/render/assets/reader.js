@@ -8206,6 +8206,8 @@ var targumReader = function () {
   var stopAt = null;
   var playing = null;      /* the one-line button, when a single line is playing */
   var playingEnd = 0;      /* where that line ends, for re-arming its timer at a new speed */
+  var hearFirst = player && player.querySelector(".player-first");
+  var hearing = null;      /* the pair whose text is hidden while its line plays */
   var following = false;   /* whether the whole scene is running */
   var marked = null;
 
@@ -8258,6 +8260,8 @@ var targumReader = function () {
   function halt() {
     if (stopAt) { clearTimeout(stopAt); stopAt = null; }
     audio.pause();
+    /* Hear first: the line is over, however it ended, so its text comes back. */
+    if (hearing) { hearing.classList.remove("hearing"); hearing = null; }
     if (playing) { playing.classList.remove("saying"); playing = null; }
     if (following) {
       following = false;
@@ -8709,6 +8713,21 @@ var targumReader = function () {
     measure.observe(player);
   }
 
+  /* Hear first (targum-internal#265). A switch and nothing more: off each time the page
+     opens, written nowhere, and said in words when it moves. Pressing it off mid-line
+     brings the text back at once rather than making the reader wait out the sentence. */
+  if (hearFirst) {
+    hearFirst.addEventListener("click", function () {
+      var on = hearFirst.getAttribute("aria-pressed") !== "true";
+      hearFirst.setAttribute("aria-pressed", on ? "true" : "false");
+      if (!on && hearing) { hearing.classList.remove("hearing"); hearing = null; }
+      var reader = window.TargumReader;
+      if (reader && reader.say) {
+        reader.say(on ? "Hear first. Press a line to hear it before you see it." : "Hear first is off.");
+      }
+    });
+  }
+
   /* One line. */
   document.addEventListener("click", function (event) {
     var button = event.target.closest ? event.target.closest(".say") : null;
@@ -8721,6 +8740,10 @@ var targumReader = function () {
     playing = button;
     playingEnd = span[1];
     button.classList.add("saying");
+    if (hearFirst && hearFirst.getAttribute("aria-pressed") === "true") {
+      hearing = button.closest ? button.closest(".pair") : null;
+      if (hearing) hearing.classList.add("hearing");
+    }
     play(span[0]);
     // Wall-clock, so the span's length is divided by the speed it is played at.
     stopAt = setTimeout(halt, Math.max(0, ((span[1] - span[0]) * 1000) / audio.playbackRate));

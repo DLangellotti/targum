@@ -305,6 +305,8 @@ THUMBED = (
     ".rows > li > .row-go",
     # And a part of this week's reading on the parasha page (2026-09-15, #203).
     ".week-part",
+    # And Hear first, in the player strip (2026-09-15, targum-internal#265).
+    ".player-first",
 )
 
 

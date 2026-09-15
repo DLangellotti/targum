@@ -422,6 +422,13 @@
     <button type="button" class="player-rate-now" dir="ltr" aria-label="Speed" title="Speed">1×</button>
     <button type="button" class="player-faster" aria-label="Faster">+</button>
   </span>
+  {#- Hear first (targum-internal#265): a line pressed while this is on plays with its own
+      text hidden and the translation left in place, and the text comes back when the line
+      ends. Listening practice in breaking speech into words, not a reading aid. Off every
+      time the page opens and never remembered, because it is a way of practising rather
+      than a setting; and it is here, on the transport, because a page with no recording
+      has no strip and so no control. -#}
+  <button type="button" class="player-first" aria-pressed="false">Hear first</button>
   {#- The picture, from the transport that is always on screen. The same control as the
       one in the bar — same `data-video`, so `showVideo` presses both and neither can
       show a state the other does not — and here as well because the bar's copy folds
