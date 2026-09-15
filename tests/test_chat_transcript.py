@@ -220,3 +220,26 @@ def test_an_italian_conversation_is_written_read_and_quoted_in_italian(tmp_path:
     assert written["language"] == "it" and written["title"] == "Sono andato al mare."
     assert ingest_load(str(path)).language == "it"
     assert library.jobs[got["quote"]["id"]].options["from"] == "it"
+
+
+def test_a_conversation_glossed_in_russian_is_carried_as_russian(world, tmp_path: Path) -> None:
+    """An account that reads Russian and not English has its "= " lines written in
+    Russian; the text built from them says so, rather than calling them English, and an
+    older file that said nothing is English as it always was (targum-internal#287)."""
+    library, store, person, chat_id = world
+    path, _, _ = transcript.write(store, library.home(person), chat_id, "Dov", "he", "ru")
+    document = ingest_load(str(path))
+    segmented = segment_document(document, HebrewSegmenter())
+    build = Build(str(path), target_language="ru", owner="p1", out_root=tmp_path / "b")
+    carried = build.authored(document, segmented)
+    assert carried is not None and carried.target_language == "ru"
+
+    older, _, _ = transcript.write(store, library.home(person), chat_id, "Dov")
+    raw = json.loads(older.read_text(encoding="utf-8"))
+    raw.pop("into")
+    older.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+    again = Build(str(older), target_language="en", owner="p1", out_root=tmp_path / "c")
+    kept = again.authored(
+        ingest_load(str(older)), segment_document(ingest_load(str(older)), HebrewSegmenter())
+    )
+    assert kept is not None and kept.target_language == "en"

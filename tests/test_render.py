@@ -5402,3 +5402,18 @@ def test_a_book_read_in_russian_says_its_contents_page_in_russian(tmp_path: Path
     english = book(tmp_path / "en")[0].read_text(encoding="utf-8")
     assert '<html lang="en"' in english and "Start reading" in english
     assert "window.TARGUM_STRINGS =" not in english
+
+
+def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
+    """The reason and the scene a reader offers next are said in the page's language; the
+    English `next_after` keeps is what its own tests read (targum-internal#287)."""
+    from targum.render.builder import offers_in
+
+    offers = [
+        {"id": "s2", "because": "Next in the sequence.", "scene": "Scene 2"},
+        {"id": "x", "because": "Easier than this one.", "scene": ""},
+    ]
+    russian = offers_in(offers, "ru")
+    assert russian[0]["because"] == "Следующий по порядку." and russian[0]["scene"] == "Сцена 2"
+    assert russian[1]["because"] == "Легче этого."
+    assert offers_in(offers, "en") == offers

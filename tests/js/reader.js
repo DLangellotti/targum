@@ -286,6 +286,8 @@ process.stdout.write(
     articles: (payload.articleLines || []).map((ask) => reader.withArticle(...ask)),
     // What a French noun's ending says: [grammar line, "f:tion"].
     endingLines: (payload.endingLines || []).map((ask) => reader.endingLine(...ask)),
+    // A split word's pieces, as the card says them in the page's language.
+    builts: (payload.builtLines || []).map((line) => reader.builtIn(line)),
     // The tag an ask sends, which stays English on any page.
     tags: (payload.tagLines || []).map((line) => reader.tagOf(line)),
     // Whether a grammar line's forms are shown and asked about.

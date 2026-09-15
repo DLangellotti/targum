@@ -29,6 +29,17 @@
     return t(key, count === 1 ? one : other, values);
   }
 
+  // How much of a text the reader already has, said in their language the way
+  // `level.words_in_ten` says it in English: a count in ten, never a percentage
+  // (targum-internal#244, #287). "" where the share was not measured.
+  function knownLine(share) {
+    if (share === null || share === undefined) return "";
+    var tenths = Math.max(0, Math.min(10, Math.round(share * 10)));
+    if (tenths >= 10) return t("bring.known.all", "You know nearly every word here.");
+    if (tenths <= 0) return t("bring.known.none", "You know almost none of the words here yet.");
+    return tn("bring.known.tenths", tenths, "You know about {n} word in 10 here.", "You know about {n} words in 10 here.");
+  }
+
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
     if (!key) return path;
@@ -395,10 +406,10 @@
     meta.className = "quote-meta";
     var facts = [];
     if (job.audio) facts.push(hours(job.seconds || 0));
-    else if (job.chapters > 1) facts.push(job.chapters + " chapters");
+    else if (job.chapters > 1) facts.push(tn("add.job.chapters", job.chapters, "{n} chapter", "{n} chapters"));
     else {
-      if (job.pages > 1) facts.push(job.pages + " pages");
-      if (job.segments) facts.push(job.segments + " sentences");
+      if (job.pages > 1) facts.push(tn("add.job.pages", job.pages, "{n} page", "{n} pages"));
+      if (job.segments) facts.push(tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences"));
     }
     if (job.stage === "ready") facts.push(wait(job));
     meta.textContent = facts.join(" · ");
@@ -408,7 +419,8 @@
     if (job.known_line) {
       var known = document.createElement("p");
       known.className = "quote-known";
-      known.textContent = job.known_line;
+      var line = knownLine(job.known_share);
+      known.textContent = line || job.known_line;
       card.appendChild(known);
     }
     // A text that arrived as pages shows its first lines as read: for a picture the

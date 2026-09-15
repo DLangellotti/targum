@@ -2367,8 +2367,14 @@ var targumReader = function () {
   var wordsLabel = document.getElementById("list-count-label");
   var phrasesLabel = document.getElementById("phrase-count-label");
 
-  function label(element, count, one) {
-    if (element) element.textContent = count === 1 ? one : one + "s";
+  // The word beside a count, in the page's language and its plural: the page drew it in
+  // Russian and this wrote English over it on the first redraw (targum-internal#287).
+  function label(element, count, kind) {
+    if (!element) return;
+    element.textContent =
+      kind === "phrase"
+        ? tn("reader.list.label-phrases", count, "phrase", "phrases")
+        : tn("reader.list.label-words", count, "word", "words");
   }
 
   // In the language of the meanings, which is the column's except beside Onkelos: this
@@ -3588,6 +3594,46 @@ var targumReader = function () {
   // A line that mixes Hebrew pieces with English glue — "ו and + ל to + בית". The
   // Hebrew runs get their own bdi with the page's language, so they take the carried
   // face and hold their own direction inside the English sentence.
+  /* A split word's pieces, in the page's language. The annotation stores them the way the
+   * card first said them, in English ("ו and + ל to + בית + his"), and a Russian page read
+   * "and" and "his" in English (targum-internal#287). Each glue word is looked up; a piece
+   * nothing matches is left as it was.
+   */
+  function builtWord(english) {
+    var words = {
+      and: gt("reader.built.and", "and"),
+      the: gt("reader.built.the", "the"),
+      to: gt("reader.built.to", "to"),
+      in: gt("reader.built.in", "in"),
+      as: gt("reader.built.as", "as"),
+      from: gt("reader.built.from", "from"),
+      that: gt("reader.built.that", "that"),
+      my: gt("reader.built.my", "my"),
+      me: gt("reader.built.me", "me"),
+      our: gt("reader.built.our", "our"),
+      us: gt("reader.built.us", "us"),
+      your: gt("reader.built.your", "your"),
+      you: gt("reader.built.you", "you"),
+      his: gt("reader.built.his", "his"),
+      him: gt("reader.built.him", "him"),
+      her: gt("reader.built.her", "her"),
+      their: gt("reader.built.their", "their"),
+      them: gt("reader.built.them", "them"),
+      "with a pronoun on the end": gt("reader.built.pronoun-on-the-end", "with a pronoun on the end"),
+    };
+    return Object.prototype.hasOwnProperty.call(words, english) ? words[english] : english;
+  }
+  function builtIn(text) {
+    return String(text || "")
+      .split(" + ")
+      .map(function (piece) {
+        var glued = /^([\u0590-\u05FF]+) (.+)$/.exec(piece);
+        if (glued) return glued[1] + " " + builtWord(glued[2]);
+        return /[\u0590-\u05FF]/.test(piece) ? piece : builtWord(piece);
+      })
+      .join(" + ");
+  }
+
   function mixedLine(container, text) {
     var hebrew = /[֐-׿]+/g;
     var at = 0;
@@ -4122,7 +4168,7 @@ var targumReader = function () {
       var pieces = document.createElement("span");
       pieces.className = "form";
       pieces.appendChild(document.createTextNode(t("reader.card.from", "from ")));
-      mixedLine(pieces, built);
+      mixedLine(pieces, builtIn(built));
       card.appendChild(pieces);
     } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
       var form = document.createElement("span");
@@ -4187,7 +4233,12 @@ var targumReader = function () {
       }
       var pealim = document.createElement("a");
       pealim.className = "pealim";
-      pealim.href = "https://www.pealim.com/search/?q=" + encodeURIComponent(lemma);
+      // Pealim has a Russian site; a Russian page's reader goes to it (targum-internal#287).
+      pealim.href =
+        "https://www.pealim.com/" +
+        (uiLanguage === "ru" ? "ru/" : "") +
+        "search/?q=" +
+        encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
       pealim.textContent = t("reader.card.conjugations", "conjugations");
@@ -5171,9 +5222,14 @@ var targumReader = function () {
     return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
-  var STATUS_NAMES = { 1: "just met", 2: "getting there", 3: "nearly there" };
-  STATUS_NAMES[KNOWN] = "known";
-  STATUS_NAMES[IGNORED] = "ignored";
+  function statusName(status) {
+    if (status === 1) return gt("reader.grammar.status-1", "just met");
+    if (status === 2) return gt("reader.grammar.status-2", "getting there");
+    if (status === 3) return gt("reader.grammar.status-3", "nearly there");
+    if (status === KNOWN) return gt("reader.grammar.status-known", "known");
+    if (status === IGNORED) return gt("reader.grammar.status-ignored", "ignored");
+    return "";
+  }
 
   function download(name, header, rows) {
     // A byte order mark, so a spreadsheet opens Hebrew and Russian as UTF-8.
@@ -5219,19 +5275,27 @@ var targumReader = function () {
   function meaningColumn() {
     var entry = translationData[showing] || {};
     var name = entry.languageName || targetLanguage;
-    return name ? "meaning (" + name + ")" : "meaning";
+    return name
+      ? t("reader.export.meaning-in", "meaning ({language})", { language: name })
+      : t("reader.export.meaning", "meaning");
   }
 
   function exportWords() {
     download(
       title() + " — words.csv",
-      ["word", "dictionary form", "difficulty", "how well", meaningColumn()],
+      [
+        t("reader.export.word", "word"),
+        t("reader.export.dictionary-form", "dictionary form"),
+        t("reader.export.difficulty", "difficulty"),
+        t("reader.export.how-well", "how well"),
+        meaningColumn(),
+      ],
       wordEntries().map(function (entry) {
         return [
           entry.term,
           entry.lemma,
           entry.level || "",
-          STATUS_NAMES[entry.status] || "",
+          statusName(entry.status),
           entry.meaning || "",
         ];
       })
@@ -5241,7 +5305,16 @@ var targumReader = function () {
   function exportPhrases() {
     download(
       title() + " — phrases.csv",
-      ["phrase", meaningColumn().replace("meaning", "reading")],
+      [
+        t("reader.export.phrase", "phrase"),
+        (function () {
+          var entry = translationData[showing] || {};
+          var name = entry.languageName || targetLanguage;
+          return name
+            ? t("reader.export.reading-in", "reading ({language})", { language: name })
+            : t("reader.export.reading", "reading");
+        })(),
+      ],
       phraseEntries().map(function (entry) {
         return [entry.term, entry.meaning || ""];
       })
@@ -5390,7 +5463,7 @@ var targumReader = function () {
       }
       if (card.root || card.binyan) {
         var verb = [];
-        if (card.root) verb.push("root " + ankiField(card.root.split("").join("\u05be")));
+        if (card.root) verb.push(t("reader.card.root", "root ") + ankiField(card.root.split("").join("\u05be")));
         if (card.binyan) verb.push(ankiField(card.binyan));
         back.push(verb.join(" \u00b7 "));
       }
@@ -8290,6 +8363,7 @@ var targumReader = function () {
     withArticle: withArticle,
     endingLine: endingLine,
     tagOf: tagOf,
+    builtIn: builtIn,
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
@@ -8581,7 +8655,17 @@ var targumReader = function () {
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ name: name, number: Number(note.getAttribute("data-chapter")) }),
+      // In the language this page is being read in, as the prefetch asks: without it the
+      // server bought its most complete language, which in a folder holding English and
+      // Russian was English (targum-internal#287).
+      body: JSON.stringify({
+        name: name,
+        number: Number(note.getAttribute("data-chapter")),
+        to: (function () {
+          var reading = document.querySelector(".pair .tr");
+          return reading ? reading.getAttribute("lang") || "" : "";
+        })(),
+      }),
     })
       .then(function (r) {
         return r.json();

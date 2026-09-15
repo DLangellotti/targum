@@ -103,6 +103,9 @@
   // A failed request is an answer with an error in it, never a rejection left to the
   // console: opened off the disk, or with the server gone, every fetch here fails, and
   // the page still has to stand and say so.
+  // The language a word's meaning is looked up in: the one the conversation's meanings
+  // arrive in, which the list names (targum-internal#287).
+  var meaningsIn = "en";
   var UNREACHED = { error: t("chat.unreached", "We couldn't connect. Try again.") };
   function ask(path, body) {
     return fetch(keyed(path), {
@@ -289,7 +292,7 @@
       look.onclick = function () {
         look.disabled = true;
         look.textContent = t("chat.looking", "looking…");
-        ask("/gloss", { lemma: word.lemma, source: conversing(), target: "en", sentence: sentence }).then(
+        ask("/gloss", { lemma: word.lemma, source: conversing(), target: meaningsIn, sentence: sentence }).then(
           function (got) {
             if (got && got.meaning) {
               meanings[word.lemma] = got.meaning;
@@ -1085,6 +1088,7 @@
     }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);
+      meaningsIn = answer.into || "en";
       chats = answer.chats || [];
       moreFrom = chats.length === PAGE ? PAGE : 0;
       drawChips(answer.chips || []);

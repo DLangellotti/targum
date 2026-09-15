@@ -42,6 +42,14 @@ def language_of(path: Path) -> str:
     return str(said or "he")
 
 
+def into_of(path: Path) -> str:
+    """The language the conversation's "= " lines were written in: English for a file
+    written before a conversation could gloss in anything else (targum-internal#287)."""
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    said = loaded.get("into") if isinstance(loaded, dict) else ""
+    return str(said or "en")
+
+
 def title_of(path: Path) -> str:
     loaded = json.loads(path.read_text(encoding="utf-8"))
     return str(loaded.get("title") or "") if isinstance(loaded, dict) else ""

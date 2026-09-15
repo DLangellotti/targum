@@ -476,7 +476,16 @@
     // What the filter is showing, so what you exported is what you were looking at.
     download(
       "targum " + named(languages, code) + " words.csv",
-      ["word", "dictionary form", "how common", "how well", "meaning", "your meaning", "kept"],
+      // The columns in the reader's language, like the page (targum-internal#287).
+      [
+        t("lists.csv.word", "word"),
+        t("lists.csv.dictionary-form", "dictionary form"),
+        t("lists.csv.how-common", "how common"),
+        t("lists.csv.how-well", "how well"),
+        t("lists.csv.meaning", "meaning"),
+        t("lists.csv.your-meaning", "your meaning"),
+        t("lists.csv.kept", "kept"),
+      ],
       visibleWords().map(function (word) {
         return [
           word.term,
@@ -494,7 +503,13 @@
   function exportPhrases() {
     download(
       "targum " + named(languages, code) + " phrases.csv",
-      ["phrase", "reading", "your reading", "how well", "from"],
+      [
+        t("lists.csv.phrase", "phrase"),
+        t("lists.csv.reading", "reading"),
+        t("lists.csv.your-reading", "your reading"),
+        t("lists.csv.how-well", "how well"),
+        t("lists.csv.from", "from"),
+      ],
       entry.phrases.map(function (phrase) {
         return [
           phrase.term,

@@ -255,7 +255,10 @@
       get.onclick = function () {
         get.disabled = true;
         get.textContent = t("shelf.translating", "Translating…");
-        post("/chapter", { name: reader.name, number: chapter.number }).then(function (job) {
+        // In the language the reader reads into, so a Russian reader's press never buys
+        // the folder's English (targum-internal#287).
+        var into = window.TargumLang && window.TargumLang.into ? window.TargumLang.into() : "";
+        post("/chapter", { name: reader.name, number: chapter.number, to: into }).then(function (job) {
           follow(job.id, get);
         }, function () {
           get.disabled = false;

@@ -89,9 +89,12 @@ def path_for(home: Path, chat_id: str) -> Path:
 
 
 def write(
-    store: Store, home: Path, chat_id: str, reader: str, language: str = "he"
+    store: Store, home: Path, chat_id: str, reader: str, language: str = "he", into: str = "en"
 ) -> tuple[Path, int, int]:
-    """Write the conversation down in the reader's home. (path, lines kept, turns lost)."""
+    """Write the conversation down in the reader's home. (path, lines kept, turns lost).
+
+    `into` is the language its "= " lines were written in, the one the account reads
+    (`hebrew.gloss_language`), so the text built from them says which it is."""
     turns = store.chat_turns(chat_id)
     code = (language or "he").split("-")[0].lower()
     kept, dropped = lines(turns, reader or "you", code)
@@ -103,6 +106,7 @@ def write(
         # "hey targum chat" read as junk among the books (2026-09-14).
         "title": (kept[0].hebrew if kept else "") or title or chat_id,
         "language": code,
+        "into": (into or "en").split("-")[0].lower(),
         "speakers": {"reader": reader or "you", "targum": TARGUM},
         "lines": [line.state() for line in kept],
         "dropped": dropped,

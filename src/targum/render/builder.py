@@ -1038,6 +1038,34 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     return out
 
 
+def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str]]:
+    """`next_after`'s offers with their reason and scene said in `language`, the
+    language the reader's own words are in (targum-internal#287). `next_after` keeps its
+    English, which is what its tests read."""
+    said = page_words(language)
+    reasons = {
+        "Next in the sequence.": said("reader.next.sequence", "Next in the sequence."),
+        "A step up from this one.": said("reader.next.step-up", "A step up from this one."),
+        "A step up, in a different Hebrew.": said(
+            "reader.next.step-up-other", "A step up, in a different Hebrew."
+        ),
+        "The easiest text on the shelf.": said(
+            "reader.next.easiest", "The easiest text on the shelf."
+        ),
+        "About as hard as this one.": said("reader.next.as-hard", "About as hard as this one."),
+        "Easier than this one.": said("reader.next.easier", "Easier than this one."),
+    }
+    out = []
+    for offer in offers:
+        worded = dict(offer)
+        worded["because"] = str(reasons.get(offer.get("because", ""), offer.get("because", "")))
+        scene = re.fullmatch(r"Scene (\d+)", offer.get("scene", ""))
+        if scene:
+            worded["scene"] = str(said("reader.next.scene", "Scene {n}", n=scene.group(1)))
+        out.append(worded)
+    return out
+
+
 def learn_page(token: str, language: str = "en") -> str:
     """The page you land on: carry on, what you have, what you know.
 
@@ -2202,10 +2230,10 @@ def render(
     from ..audio import manifest as manifest_module
 
     has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
-    offers = next_after(document)
     # The language the page's own words are said in: its first rendering's
     # (targum-internal#184). The text keeps its own on `data-language`.
     chrome = translations[0].target_language if translations else "en"
+    offers = offers_in(next_after(document), chrome)
     shared = {
         "has_audio": has_audio,
         # What to read next, worked out here because a reader cannot ask anybody. The

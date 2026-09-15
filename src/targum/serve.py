@@ -2103,7 +2103,10 @@ class Library:
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it
             # names the path that still works on their own machine.
-            job.error = f"We can't fetch from YouTube here. {hint}"
+            refused = said_in(
+                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
+            )
+            job.error = f"{refused} {hint}"
             job.stage = "failed"
             return
         try:
@@ -4549,6 +4552,7 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
+            from .chat import hebrew as hebrew_module
             from .chat.session import mode_for
 
             # The hours beside the list: the one limit a reader is told about, in the
@@ -4569,6 +4573,9 @@ class Handler(BaseHTTPRequestHandler):
                     # be every conversation ever, and the page draws "More" at its foot.
                     "chats": store.chats(person_id, limit=limit, offset=offset, language=spoken),
                     "language": spoken,
+                    # The language the conversation's meanings are in, so a word looked
+                    # up from it matches the ones it already carries (targum-internal#287).
+                    "into": hebrew_module.gloss_language(self._reads(person)),
                     "usable": self.chats.usable,
                     # Whether a new conversation here is held in the talk shape: Hebrew for
                     # a reader with modern Hebrew to speak, and Italian (targum-internal
@@ -5247,6 +5254,9 @@ class Handler(BaseHTTPRequestHandler):
         skip = query.get("skip", [""])[0]
         done = sorted({one.strip() for one in skip.split(",") if one.strip()})[:200]
         rows = chat_tools.suggest_next(ctx, {"limit": 1, "skip": done}).get("suggestions") or []
+        if rows:
+            # Said on Learn, in the page's language (targum-internal#287).
+            rows[0]["because"] = chat_tools.because_in(rows[0], self._page_language())
         return self._json({"suggestion": rows[0] if rows else None})
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:

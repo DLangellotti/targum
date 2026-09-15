@@ -1658,6 +1658,24 @@ def test_an_italian_word_is_looked_up_in_italian() -> None:
     )
     looked = [p for p in page["posted"] if p["path"] == "/gloss"]
     assert looked and looked[0]["body"]["source"] == "it" and looked[0]["body"]["lemma"] == "acqua"
+    assert looked[0]["body"]["target"] == "en", "an English reader's meaning is English"
+
+
+def test_a_word_is_looked_up_in_the_language_the_conversations_meanings_are_in() -> None:
+    """A reader who reads Russian and not English has the conversation's meanings in
+    Russian; a word looked up from it was asked for in English (targum-internal#287)."""
+    page = italian_page(
+        extra=[
+            {"type": "press", "selector": "chat-w"},
+            {"type": "press", "selector": "chat-look"},
+        ],
+        **{
+            "/gloss": {"meaning": "вода"},
+            "/chat/list": {"chats": [], "usable": True, "into": "ru"},
+        },
+    )
+    looked = [p for p in page["posted"] if p["path"] == "/gloss"]
+    assert looked and looked[0]["body"]["target"] == "ru"
 
 
 def test_a_conversation_opened_again_is_drawn_in_its_own_language_whatever_the_page_is_in() -> None:

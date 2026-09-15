@@ -1,3 +1,14 @@
+/* The language the reader reads into, as the language menu keeps it, so a chapter bought
+ * from here is bought in it rather than in whatever the folder holds most of
+ * (targum-internal#287). */
+function readInto() {
+  try {
+    return localStorage.getItem("targum:into") || "";
+  } catch (e) {
+    return "";
+  }
+}
+
 /* The contents page, when it is being served rather than opened off the disk.
  *
  * Section links are relative, and a served reader run locally is behind a key held in
@@ -185,7 +196,7 @@
       get.onclick = function () {
         get.disabled = true;
         get.textContent = hearing ? t("contents.transcribing", "Transcribing…") : t("contents.translating", "Translating…");
-        ask("/chapter", { name: name, number: number })
+        ask("/chapter", { name: name, number: number, to: readInto() })
           .then(function (job) {
             if (job.ready) return location.reload();
             // A refusal carries an id too, and watching a job that was never kept
@@ -285,7 +296,7 @@
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ name: name, all: true }),
+      body: JSON.stringify({ name: name, all: true, to: readInto() }),
     })
       .then(function (r) {
         return r.json();
