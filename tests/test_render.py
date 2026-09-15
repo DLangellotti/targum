@@ -5364,3 +5364,27 @@ def test_a_desk_page_in_another_language_says_so_to_a_screen_reader() -> None:
     assert '<html lang="ru">' in learn_page("k", language="ru")
     assert '<html lang="ru">' in list_page("k", "words", language="ru-RU")
     assert '<html lang="en">' in learn_page("k", language="xx")
+
+
+def test_the_conversation_page_is_said_in_the_language_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The conversation page and its frame say their own words in the language asked, and
+    hand its scripts theirs; in English they say what they always did
+    (targum-internal#184)."""
+    from targum import strings
+    from targum.render.builder import chat_page
+
+    plain = chat_page("k")
+    assert 'placeholder="Write in Hebrew or English"' in plain
+    real = strings.catalogue
+    said = {
+        "chat.page.write-in-hebrew-or-english": "Пишите на иврите или по-английски",
+        "chat.doing.still": "Мы ещё работаем…",
+    }
+    monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else real(code))
+    for embed in (False, True):
+        russian = chat_page("k", embed=embed, language="ru")
+        assert 'placeholder="Пишите на иврите или по-английски"' in russian
+        assert '<html lang="ru">' in russian and "chat.doing.still" in russian
+    assert chat_page("k") == plain
