@@ -800,6 +800,47 @@ body.public {
   font-weight: 600;
 }
 
+/* This week's reading, part by part (targum-internal#203): the schedule chips' shape,
+   one pill an aliyah and one for the haftarah. What is left carries the accent; a part
+   read this week steps back to muted and says "read" in leaf, the progress hue (§9), so
+   the state is in words as well as tone and there is no count. Inline blocks, not flex:
+   a flex item trims the space the word "read" is set after. */
+.public .week {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+.public .week-part {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--accent);
+  text-decoration: none;
+}
+.public .week-part bdi {
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+}
+.public .week-part[data-read],
+.public .week-part[data-read] bdi {
+  color: var(--ink-soft);
+}
+.public .week-part .read {
+  color: var(--leaf);
+  font-size: 0.8125rem;
+}
+@media (hover: none) and (pointer: coarse) {
+  /* §8: a pill a thumb presses answers over 44px. */
+  .public .week-part {
+    min-block-size: 44px;
+    line-height: 1.75rem;
+  }
+}
+
 /* The band is the parasha's, unchanged: two equal columns, words then picture, so no
    word is ever set over the writing in the photograph. It was one column here for the
    afternoon this page had no picture, and half of it was empty black — which is what a

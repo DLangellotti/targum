@@ -747,3 +747,85 @@ def test_the_corpus_records_which_annotation_it_was_cut_from(tmp_path: Path, bui
     behind = survey_corpus(corpus, library)
     assert behind.current == 0 and len(behind.behind) == behind.total
     assert behind.moved() == {"test/1 -> test/2": behind.total}
+
+
+# -- this week's reading, part by part (targum-internal#203) -------------------------
+
+
+def _parts(page: str) -> list[dict[str, str]]:
+    import re
+
+    found = []
+    for link in re.findall(r'<a class="week-part"([^>]*)>(.*?)</a>', page):
+        attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', link[0]))
+        attrs["name"] = unescape(re.sub(r"<[^>]+>", "", link[1].split('<span class="read"')[0]))
+        found.append(attrs)
+    return found
+
+
+def test_this_weeks_page_lists_each_part_of_the_reading(serving: int, tmp_path: Path) -> None:
+    """Seven aliyot and the haftarah, each a way into its frame, each carrying the document
+    its finish is kept under and the moment this week began — so the page can say what is
+    left without a count, and without a clock of its own."""
+    from targum.parasha.cut import ALIYOT, HAFTARAH
+
+    status, body = get(serving, "/parasha")
+    assert status == 200
+    parts = _parts(body)
+    reader = tmp_path / "parasha" / "read" / "nitzavim-vayeilech" / "reader"
+    sections = len(list(reader.glob("sec-*.html")))
+    assert [p["name"] for p in parts] == [*ALIYOT[:sections], HAFTARAH]
+
+    document = json.loads('"' + body.split('data-document="')[1].split('"')[0] + '"')
+    kept = (reader / "sec-0002.html").read_text(encoding="utf-8")
+    assert f'"document": "{document}"' in kept, "the id the reader writes its finish under"
+    for n, part in enumerate(parts[:sections], start=1):
+        assert part["href"] == f"/parasha/read/nitzavim-vayeilech/reader/sec-{n:04d}.html"
+        assert part["target"] == "reading" and part["data-section"] == str(n)
+    haftarah = parts[-1]
+    assert haftarah["target"] == "haftarah" and haftarah["data-section"] == "0"
+    assert haftarah["href"] == "/parasha/read/haftarah-isaiah-61-10-63-9/reader/index.html"
+    assert haftarah["data-document"] and haftarah["data-document"] != document
+    assert 'name="reading"' in body and 'name="haftarah"' in body, "the targets exist"
+
+    began = datetime(2026, 8, 30, 2, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    assert {p["data-began"] for p in parts} == {str(int(began.timestamp() * 1000))}
+    assert "%" not in body.split('<ol class="week"')[1].split("</ol>")[0], "no share of it"
+
+
+def test_a_portion_asked_for_by_name_is_not_a_week(serving: int) -> None:
+    status, body = get(serving, "/parasha/nitzavim-vayeilech")
+    assert status == 200
+    assert 'class="week-part"' not in body, "a portion by name has no week to be read in"
+
+
+def test_the_week_holds_until_the_turn(serving: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A reader mid-practice on Saturday night keeps the week they are in until the turn:
+    one minute before it the page still counts from the Sunday that began it."""
+    saturday_night = datetime(2026, 9, 6, 1, 59, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: saturday_night)
+    status, body = get(serving, "/parasha")
+    assert status == 200
+    began = datetime(2026, 8, 30, 2, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    assert f'data-began="{int(began.timestamp() * 1000)}"' in body
+    assert "nitzavim-vayeilech/reader/sec-0001.html" in body
+
+
+def test_a_festival_week_lists_what_is_actually_read(
+    serving: int, built: Index, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On a Shabbat a festival displaces the portion, the parts are the festival reading's
+    and the haftarah is the festival's (`ReadingKind.festival`)."""
+    week = built.week("2026-05-23", cal.Schedule.diaspora)
+    assert week is not None and week.slug == "shavuot-ii-on-shabbat"
+    midweek = datetime(2026, 5, 20, 12, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: midweek)
+    status, body = get(serving, "/parasha")
+    assert status == 200
+    parts = _parts(body)
+    assert parts, "the festival reading is listed"
+    folder = built.portions["shavuot-ii-on-shabbat"].folder
+    assert all(f"/parasha/read/{folder}/" in p["href"] for p in parts[:-1])
+    # The fixture's festival reading is too short to split, so it is one part, read whole.
+    assert len(parts) == 2 and parts[0]["data-sections"] == "1"
+    assert parts[-1]["href"] == "/parasha/read/haftarah-habakkuk-3-1-19/reader/index.html"

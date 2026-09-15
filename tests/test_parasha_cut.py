@@ -602,6 +602,28 @@ def test_the_haftarah_is_cut_as_one_section_with_its_pieces_in_order(tmp_path: P
     assert portion.verses == 23
 
 
+def test_the_haftarah_never_carries_a_targum(tmp_path: Path) -> None:
+    """Read once, in Hebrew, without targum (targum-internal#203). A book of the Prophets
+    carrying an Aramaic rendering would otherwise hand the haftarah the second reading and
+    the targum column; the English stays."""
+    library = _isaiah(tmp_path / "library")
+    folder = next(library.glob("ישעיהו-he"))
+    [english_file] = (folder / "translations").glob("*.en.json")
+    english = read_artifact(Translation, english_file)
+    assert english is not None
+    english.model_copy(
+        update={
+            "name": "Targum Jonathan Isaiah",
+            "target_language": "arc",
+            "segments": {sid: f"ארמית {sid}" for sid in english.segments},
+        }
+    ).write(folder / "translations" / "aligned.jonathan-isaiah.arc.json")
+
+    reference = _shemot_haftarah()
+    portion = cutmod.cut_haftarah(reference, cutmod.books_for(reference, library))
+    assert [t.target_language for t in portion.translations] == ["en"]
+
+
 def test_everything_keyed_to_a_haftarah_verse_comes_with_it(tmp_path: Path) -> None:
     library = _isaiah(tmp_path / "library")
     reference = _shemot_haftarah()

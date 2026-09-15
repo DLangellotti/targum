@@ -303,6 +303,8 @@ THUMBED = (
     ".waiting-note button",
     '.rest [id="rest-undo"]',
     ".rows > li > .row-go",
+    # And a part of this week's reading on the parasha page (2026-09-15, #203).
+    ".week-part",
 )
 
 

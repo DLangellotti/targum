@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import shutil
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -118,6 +118,27 @@ def moment(text: str) -> datetime:
 )
 def test_the_portion_turns_over_after_shabbat(when: str, expected: date, why: str) -> None:
     assert cal.pointing_at(moment(when)) == expected, why
+
+
+@pytest.mark.parametrize(
+    "when",
+    [
+        "2026-09-02T12:00",
+        "2026-09-05T23:30",
+        "2026-09-06T01:59",
+        "2026-09-06T02:00",
+        "2026-09-06T12:00",
+    ],
+)
+def test_the_week_begins_at_the_turn_that_pointed_at_it(when: str) -> None:
+    """`week_began` is the same clock said as a moment (targum-internal#203): every moment
+    falls inside the week its Shabbat began, and a week is seven days from turn to turn."""
+    now = moment(when)
+    shabbat = cal.pointing_at(now)
+    began = cal.week_began(shabbat)
+    assert began <= now < began + timedelta(days=7)
+    assert cal.pointing_at(began) == shabbat, "the week's first moment already points at it"
+    assert cal.pointing_at(began - timedelta(minutes=1)) == shabbat - timedelta(days=7)
 
 
 def test_the_turn_never_lands_inside_shabbat_anywhere_in_the_states() -> None:
