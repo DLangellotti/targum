@@ -280,6 +280,12 @@ process.stdout.write(
       Array.isArray(line) ? reader.useLine(line[0], line[1]) : reader.useLine(line),
     ),
     persons: (payload.personLines || []).map((line) => reader.personWord(line)),
+    // A French compound tense: [participle line, verb, auxiliary line, auxiliary, reflexive].
+    compounds: (payload.compoundLines || []).map((ask) => reader.compoundLine(...ask)),
+    // A French noun kept with its article: [dictionary form, grammar line].
+    articles: (payload.articleLines || []).map((ask) => reader.withArticle(...ask)),
+    // Whether a grammar line's forms are shown and asked about.
+    inflecting: (payload.inflectLines || []).map((line) => reader.inflects(line)),
     // The register line, from where the reader is standing: [code, sourceRegister].
     registers: (payload.registerLines || []).map((pair) =>
       reader.registerLine(pair[0], pair[1]),

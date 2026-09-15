@@ -3307,6 +3307,88 @@ var targumReader = function () {
   // features cannot tell an article from *ce* or *mon*, and a card should: *l'* and *les*
   // hide the gender that the article is the only place to see.
   var ARTICLES = ["le", "la", "les", "l'", "un", "une", "des", "il", "lo", "i", "gli", "uno", "una"];
+
+  /* --- the French compound tenses (targum-internal#263) ---------------------------
+   *
+   * A past participle after *avoir* or *être* in its own clause is half of a tense, and
+   * the card says which: *a mangé* is the passé composé, *avait mangé* the pluperfect.
+   * The tense is the auxiliary's. *Être* makes a compound tense only for the verbs that
+   * take it and for a reflexive verb; with any other participle it is the passive, which
+   * is the one reading "passé composé" would get wrong. The imparfait is still tagged
+   * as the past (it waits for the prompt change #264 shares), so an auxiliary in the past
+   * is read as the pluperfect, which is what it nearly always is.
+   */
+  var AUXILIARIES = { avoir: true, "être": true };
+  var ETRE_VERBS = {};
+  (
+    "aller venir arriver partir entrer sortir monter descendre naître mourir rester " +
+    "tomber retourner devenir revenir rentrer parvenir intervenir survenir décéder " +
+    "redescendre remonter repartir ressortir retomber advenir"
+  )
+    .split(" ")
+    .forEach(function (verb) {
+      ETRE_VERBS[verb] = true;
+    });
+  var REFLEXIVES = { se: true, me: true, te: true, "s'": true, "m'": true, "t'": true };
+  var COMPOUND_TENSES = { Pres: "passé composé", Past: "pluperfect", Fut: "future perfect" };
+  var COMPOUND_MOODS = { Cnd: "past conditional", Sub: "past subjunctive" };
+  var COMPOUND_FORMS = { Inf: "past infinitive", Part: "perfect participle" };
+
+  // The line for a French past participle whose auxiliary was found: `aux` is the
+  // auxiliary's grammar line and dictionary form, `reflexive` whether a reflexive pronoun
+  // stands before it. "" where this is not a compound tense the card can name.
+  function compoundLine(line, lemma, auxLine, auxLemma, reflexive) {
+    if (language !== "fr") return "";
+    if (feat(line, "VerbForm") !== "Part") return "";
+    var aux = String(auxLemma || "").toLowerCase();
+    if (!AUXILIARIES[aux]) return "";
+    var verb = String(lemma || "").toLowerCase();
+    var parts = [];
+    if (aux === "être" && !reflexive && !ETRE_VERBS[verb]) {
+      parts.push("passive");
+    } else {
+      var name =
+        COMPOUND_FORMS[feat(auxLine, "VerbForm")] ||
+        COMPOUND_MOODS[feat(auxLine, "Mood")] ||
+        COMPOUND_TENSES[feat(auxLine, "Tense")];
+      if (!name) return "";
+      parts.push(name);
+    }
+    parts.push("with " + aux);
+    if (feat(line, "Gender") === "Fem") parts.push("f");
+    if (feat(line, "Number") === "Plur") parts.push("pl.");
+    return parts.join(" · ");
+  }
+
+  // The auxiliary a tapped participle leans on: the nearest *avoir* or *être* before it
+  // in its own clause, a word or two of adverb and negation allowed between. Null where
+  // there is none, or where a comma or a stop comes first.
+  var AUXILIARY_REACH = 4;
+  function auxiliaryBefore(word) {
+    var pair = word.closest ? word.closest(".pair") : null;
+    var row = rowOf(word);
+    if (!pair || !row || besideCell(word)) return null;
+    var id = pair.getAttribute("data-id");
+    var rows = wordData[id] || [];
+    var at = rows.indexOf(row);
+    var text = segmentText(id);
+    var end = row[0];
+    for (var k = at - 1; k >= 0 && k >= at - AUXILIARY_REACH; k--) {
+      if (/[.,;:!?\u2014]/.test(text.slice(rows[k][1], end))) return null;
+      end = rows[k][0];
+      var lemma = wordOf(lemmas[rows[k][4]] || "");
+      if (!AUXILIARIES[String(lemma).toLowerCase()]) continue;
+      var line = rows[k].length > 8 ? grammarTable[rows[k][8]] || "" : "";
+      var reflexive = false;
+      for (var j = k - 1; j >= 0 && j >= k - 2; j--) {
+        var before = String(wordOf(lemmas[rows[j][4]] || "")).toLowerCase();
+        var said = text.slice(rows[j][0], rows[j][1]).toLowerCase();
+        if (REFLEXIVES[before] || REFLEXIVES[said]) reflexive = true;
+      }
+      return { line: line, lemma: lemma, reflexive: reflexive };
+    }
+    return null;
+  }
   // The case a word is in, by the name a Russian course teaches it under. Universal
   // Dependencies calls the prepositional Loc; nobody learning Russian does.
   var CASE_WORDS = {
@@ -3829,7 +3911,16 @@ var targumReader = function () {
   function grammarOf(word) {
     var row = rowOf(word);
     var line = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
-    return feat(line, "Case") || feat(line, "Aspect") ? useLine(line) : "";
+    return inflects(line) ? useLine(line) : "";
+  }
+
+  // Whether a word's forms are a paradigm worth showing and asking about: a case or an
+  // aspect, and since 2026-09-15 a French verb, whose endings are the paradigm a reader
+  // of French has actually met (targum-internal#263).
+  function inflects(line) {
+    if (feat(line, "Case") || feat(line, "Aspect")) return true;
+    var pos = feat(line, "UPOS");
+    return language === "fr" && (pos === "VERB" || pos === "AUX");
   }
 
   function showCard(word) {
@@ -3984,7 +4075,7 @@ var targumReader = function () {
     // рукой beside рука is the paradigm a reader has actually met. Only for a word whose
     // grammar carries a case or an aspect, which is to say an inflecting language's.
     var grammarLine = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
-    if (feat(grammarLine, "Case") || feat(grammarLine, "Aspect")) {
+    if (inflects(grammarLine)) {
       var others = formsHere(index, surface);
       if (others.length) {
         var met = document.createElement("span");
@@ -4043,8 +4134,13 @@ var targumReader = function () {
     // all a card can honestly say about either — and a word says the one grammatical
     // fact its kind usually hides from a learner.
     var kindWord = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
+    var grammarHere = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
+    var auxiliary = !kindWord && language === "fr" ? auxiliaryBefore(word) : null;
     var usage =
-      kindWord || useLine(row && row.length > 8 ? grammarTable[row[8]] || "" : "", lemma);
+      kindWord ||
+      (auxiliary &&
+        compoundLine(grammarHere, wordOf(lemma), auxiliary.line, auxiliary.lemma, auxiliary.reflexive)) ||
+      useLine(grammarHere, lemma);
     if (!kindWord) {
       // The paid half of the line, where a gloss has supplied it: the form a learner
       // keeps in front of a verb's parsing, the lying plural after a noun's gender.
@@ -5150,8 +5246,10 @@ var targumReader = function () {
     return wordEntries().map(function (entry) {
       var met = firstMeeting(entry.lemma);
       var index = met ? met.token[4] : -1;
+      var line = met && met.token.length > 8 ? grammarTable[met.token[8]] || "" : "";
+      var named = withArticle(wordOf(entry.lemma), line);
       return {
-        front: met ? readingRun(met.segmentId, met.token[0], met.token[1]) : entry.term,
+        front: named || (met ? readingRun(met.segmentId, met.token[0], met.token[1]) : entry.term),
         // What the reader wrote or kept first; failing that, the meaning the page
         // shipped, which is what the card beside the word shows.
         meaning: entry.meaning || (index >= 0 && glosses[index]) || "",
@@ -5160,6 +5258,18 @@ var targumReader = function () {
         binyan: (index >= 0 && binyanim[index]) || "",
       };
     });
+  }
+
+  // A French noun as a learner keeps it: its dictionary form with *un* or *une*, the only
+  // place its gender shows once it is met as *l'école* or *les écoles*
+  // (targum-internal#263). "" for anything else, which keeps the form it was met in.
+  function withArticle(lemma, line) {
+    if (!lemma || language !== "fr") return "";
+    if (feat(line, "UPOS") !== "NOUN") return "";
+    var gender = feat(line, "Gender");
+    if (gender === "Fem") return "une " + lemma;
+    if (gender === "Masc") return "un " + lemma;
+    return "";
   }
 
   // A field of the file. HTML is on, so the text is escaped as HTML; a tab or a line
@@ -8095,6 +8205,9 @@ var targumReader = function () {
     entries: wordEntries,
     // The Anki file, from cards a test hands it: the headers, the columns, the back.
     ankiText: ankiText,
+    compoundLine: compoundLine,
+    withArticle: withArticle,
+    inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
     // Finished with the text, and taken back.

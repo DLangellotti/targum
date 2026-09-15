@@ -6392,3 +6392,90 @@ def test_a_part_still_waiting_to_be_heard_buys_nothing_ahead_of_it(
     assert "data-audio" in (folder / "sec-0002.html").read_text(encoding="utf-8")
     assert bought("sec-0002.html") == []
     assert [ask["number"] for ask in bought("sec-0001.html")] == [2], "a heard part still does"
+
+
+def french(out: Path) -> Path:
+    """A French reader whose participles lean on avoir and être (targum-internal#263)."""
+    lines = [
+        "Elles ont mangé la pomme, puis elles sont arrivées.",
+        "Les pommes sont mangées, et il n'a pas mangé.",
+    ]
+    aux = "UPOS=AUX|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Mood=Ind"
+    words = {
+        0: [
+            ("ont", "avoir", aux),
+            ("mangé", "manger", "UPOS=VERB|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part"),
+            ("pomme", "pomme", "UPOS=NOUN|Gender=Fem|Number=Sing"),
+            ("sont", "être", aux),
+            ("arrivées", "arriver", "UPOS=VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part"),
+        ],
+        1: [
+            ("pommes", "pomme", "UPOS=NOUN|Gender=Fem|Number=Plur"),
+            ("sont", "être", aux),
+            ("mangées", "manger", "UPOS=VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part"),
+            ("a", "avoir", "UPOS=AUX|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Mood=Ind"),
+        ],
+    }
+    segments, tokens = [], {}
+    for n, text in enumerate(lines):
+        segment = Segment(
+            id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=n, text=text
+        )
+        segments.append(segment)
+        placed, cursor = [], 0
+        for surface, lemma, feats in words[n]:
+            start = text.index(surface, cursor)
+            cursor = start + len(surface)
+            placed.append(
+                Token(
+                    start=start,
+                    end=cursor,
+                    surface=surface,
+                    lemma=lemma,
+                    band=1,
+                    pos=feats.split("|")[0][5:],
+                    feats=feats,
+                )
+            )
+        tokens[segment.id] = placed
+    document = Document(
+        source="memory",
+        title="La pomme",
+        language="fr",
+        blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=lines[0])],
+        content_hash="f",
+    )
+    segmented = SegmentedDocument(
+        document_hash="f", language="fr", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="f",
+        source_language="fr",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"A line ({s.id})." for s in segments},
+    )
+    annotation = Annotation(
+        document_hash="f",
+        language="fr",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens=tokens,
+    )
+    return render(document, segmented, [translation], out, annotation=annotation)[0]
+
+
+def test_a_french_participle_names_the_tense_its_auxiliary_makes(browser, tmp_path: Path) -> None:
+    """*ont mangé* is the passé composé, *sont arrivées* takes être and agrees, and
+    *sont mangées* is the passive; a French verb lists the forms it takes here
+    (targum-internal#263)."""
+    context, page = open_reader(browser, french(tmp_path / "reader"))
+    eaten = page.evaluate(CARD_LINES, "mangé")
+    assert eaten["use"] == "passé composé · with avoir"
+    assert eaten["forms"] == "here also as mangées"
+    assert page.evaluate(CARD_LINES, "arrivées")["use"] == "passé composé · with être · f · pl."
+    assert page.evaluate(CARD_LINES, "mangées")["use"] == "passive · with être · f · pl."
+    assert page.evaluate(CARD_LINES, "pomme")["forms"] is None, "a noun keeps its one line"
+    context.close()
