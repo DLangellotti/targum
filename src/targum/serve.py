@@ -4201,8 +4201,10 @@ class Handler(BaseHTTPRequestHandler):
             # `?embed=1` is the same conversation without the bar and the foot, drawn
             # inside the front page (2026-09-11): it may be framed by this origin only.
             if parse_qs(urlparse(self.path).query).get("embed", [""])[0] == "1":
-                return self._send(200, self.embedded.encode("utf-8"), HTML, frames="out")
-            return self._send(200, self.chatting.encode("utf-8"), "text/html; charset=utf-8")
+                page = self._desk("embedded", self.embedded)
+                return self._send(200, page.encode("utf-8"), HTML, frames="out")
+            page = self._desk("chatting", self.chatting)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/chat/"):
             return self._chat_get(route[len("/chat/") :])
         if route == "/progress":
@@ -6419,6 +6421,8 @@ DESK_KEYS = (
     "claim.",
     "palette.",
     "theme.",
+    "chat.",
+    "speak.",
 )
 
 
@@ -6541,6 +6545,8 @@ def start(
                     "you": you_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),
+                    "chatting": chat_page(token, language=code),
+                    "embedded": chat_page(token, embed=True, language=code),
                     **{f"lists:{which}": list_page(token, which, language=code) for which in LISTS},
                 }
                 for code in desk_languages()

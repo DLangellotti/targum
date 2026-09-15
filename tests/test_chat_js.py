@@ -29,8 +29,10 @@ def run(
     embed: bool = False,
     language: str = "",
     who: dict[str, Any] | None = None,
+    strings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
+        "strings": strings,
         "thread": thread,
         "embed": embed,
         "language": language,
@@ -1545,7 +1547,7 @@ def test_the_page_stops_waiting_after_the_server_s_deadline() -> None:
 
     source = (Path(__file__).resolve().parents[1] / "src/targum/render/assets/chat.js").read_text()
     assert f"var GIVE_UP_MS = {int(TURN_DEADLINE_S) + 30} * 1000;" in source
-    assert f'var TOO_LONG = "{TURN_TOO_LONG}";' in source
+    assert f'var TOO_LONG = t("chat.too-long", "{TURN_TOO_LONG}");' in source
 
     lost = run(
         do=[{"type": "say", "text": "hi"}, {"type": "tick", "seconds": 240}],
@@ -1675,3 +1677,14 @@ def test_a_conversation_opened_again_is_drawn_in_its_own_language_whatever_the_p
     )
     assert [p["he"] for p in page["pairs"]] == ["Sono andato al mare.", "Com'era l'acqua?"]
     assert [(w["text"], w["state"]) for w in page["pairs"][1]["words"]] == [("l'acqua", "known")]
+
+
+def test_the_page_says_its_own_words_in_the_readers_language() -> None:
+    """A Russian reader waiting on an answer is told so in Russian; the conversation
+    itself stays Hebrew (targum-internal#184)."""
+    quiet = run(
+        do=[{"type": "say", "text": "hi"}, {"type": "tick", "seconds": 25}],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+        strings={"language": "ru", "strings": {"chat.doing.still": "Мы ещё работаем…"}},
+    )
+    assert quiet["turns"][1]["doing"] == ["Мы ещё работаем…"]

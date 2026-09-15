@@ -13,6 +13,12 @@
 (function () {
   "use strict";
 
+  // The page's words in the reader's language, from `strings.js` (targum-internal#184).
+  // The conversation is Hebrew whatever they are.
+  var t = window.TargumStrings.t;
+  var tn = window.TargumStrings.tn;
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer questions right now. Everything you have still opens.");
+
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
     if (!key) return path;
@@ -97,7 +103,7 @@
   // A failed request is an answer with an error in it, never a rejection left to the
   // console: opened off the disk, or with the server gone, every fetch here fails, and
   // the page still has to stand and say so.
-  var UNREACHED = { error: "We couldn't connect. Try again." };
+  var UNREACHED = { error: t("chat.unreached", "We couldn't connect. Try again.") };
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -212,7 +218,9 @@
     if (!englishToggle) return;
     // "Translations", not "English": the line under the Hebrew is in whichever language
     // the reader reads into, Russian as often as English (2026-09-14).
-    englishToggle.textContent = englishOpen ? "Hide translations" : "Show translations";
+    englishToggle.textContent = englishOpen
+      ? t("chat.hide-translations", "Hide translations")
+      : t("chat.page.show-translations", "Show translations");
     englishToggle.setAttribute("aria-pressed", englishOpen ? "true" : "false");
     englishToggle.hidden = !turns.querySelector(".chat-pair") || !hasKnown();
   }
@@ -277,10 +285,10 @@
       var look = document.createElement("button");
       look.type = "button";
       look.className = "chat-look";
-      look.textContent = "look it up";
+      look.textContent = t("chat.look-up", "look it up");
       look.onclick = function () {
         look.disabled = true;
-        look.textContent = "looking…";
+        look.textContent = t("chat.looking", "looking…");
         ask("/gloss", { lemma: word.lemma, source: conversing(), target: "en", sentence: sentence }).then(
           function (got) {
             if (got && got.meaning) {
@@ -288,7 +296,7 @@
               line.removeChild(look);
               line.appendChild(document.createTextNode(" · " + got.meaning));
             } else {
-              look.textContent = (got && got.error) || "we couldn't find it";
+              look.textContent = (got && got.error) || t("chat.not-found", "we couldn't find it");
             }
           }
         );
@@ -358,10 +366,15 @@
     }
     var folder = name.replace(/^\/(?:reader|library)\//, "").split("/")[0];
     folder = folder.replace(/-[a-z]{2}$/, "").replace(/-/g, " ");
-    a.appendChild(document.createTextNode("Open "));
+    // The name wherever the sentence puts it: `{name}` marks the place.
+    var sentence = t("chat.open-text", "Open {name}");
+    var at = Math.max(0, sentence.indexOf("{name}"));
+    a.appendChild(document.createTextNode(sentence.slice(0, at)));
     var who = document.createElement("bdi");
     who.textContent = folder;
     a.appendChild(who);
+    var after = sentence.slice(at).replace("{name}", "");
+    if (after) a.appendChild(document.createTextNode(after));
     return a;
   }
 
@@ -478,7 +491,7 @@
               why.hidden = hasKnown();
               pair.appendChild(why);
               pair.setAttribute("tabindex", "0");
-              pair.setAttribute("title", "Why it was corrected");
+              pair.setAttribute("title", t("chat.why-corrected", "Why it was corrected"));
               pair.onclick = function (event) {
                 var hit = event && event.target;
                 if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
@@ -497,7 +510,7 @@
           // A tap on the pair — not on a word, which has a card of its own — opens
           // or folds its English. Reachable from a keyboard as a control is.
           pair.setAttribute("tabindex", "0");
-          pair.setAttribute("title", "The translation");
+          pair.setAttribute("title", t("chat.the-translation", "The translation"));
           pair.onclick = function (event) {
             var hit = event && event.target;
             if (hit && String(hit.className || "").split(" ").indexOf("chat-w") >= 0) return;
@@ -607,11 +620,11 @@
     sentTurn(chosen);
     var li = turn("assistant", "", "working");
     var line = li.querySelector(".chat-line");
-    line.textContent = "Thanks. We're uploading it…";
+    line.textContent = t("chat.uploading", "Thanks. We're uploading it…");
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
     return bringing
       .bring(chosen, { to: into }, function (share) {
-        line.textContent = "Thanks. We're uploading it… " + share + "%";
+        line.textContent = t("chat.uploading-share", "Thanks. We're uploading it… {share}%", { share: share });
       })
       .then(function (job) {
         li.className = "chat-turn them";
@@ -648,7 +661,7 @@
       })
       .catch(function (why) {
         li.className = "chat-turn them bad";
-        line.textContent = String(why || "We couldn't send that. Try again.");
+        line.textContent = String(why || t("chat.could-not-send", "We couldn't send that. Try again."));
       })
       .then(function (job) {
         busy = false;
@@ -691,7 +704,7 @@
     // Kept in the box while an answer is still coming, or while the conversation cannot
     // answer: the line used to be cleared first and then dropped without a word
     // (2026-09-14).
-    if (busy) return tell("We're still answering. Send it when the answer is in.");
+    if (busy) return tell(t("chat.still-answering", "We're still answering. Send it when the answer is in."));
     if (!usable) return say(text);
     field.value = "";
     say(text);
@@ -788,8 +801,8 @@
     var button = document.createElement("button");
     button.type = "button";
     button.className = "chat-play";
-    button.setAttribute("aria-label", "Hear");
-    button.setAttribute("title", "Hear");
+    button.setAttribute("aria-label", t("chat.hear", "Hear"));
+    button.setAttribute("title", t("chat.hear", "Hear"));
     button.appendChild(glyph("hear"));
     button.onclick = function () {
       button.disabled = true;
@@ -837,7 +850,7 @@
     li.className = "chat-turn " + (role === "user" ? "me" : "them") + (state ? " " + state : "");
     // Who said it: where the turn stands says it on the page, and the name rides as
     // the label a screen reader reads, where the word used to stand over every turn.
-    li.setAttribute("aria-label", role === "user" ? "You" : "targum");
+    li.setAttribute("aria-label", role === "user" ? t("chat.you", "You") : "targum");
     var line = document.createElement("p");
     line.className = "chat-line";
     render(line, text, words);
@@ -856,13 +869,12 @@
   function ago(stamp) {
     if (!stamp) return "";
     var minutes = Math.round((Date.now() - stamp) / 60000);
-    if (minutes < 2) return "just now";
-    if (minutes < 60) return minutes + " minutes ago";
+    if (minutes < 2) return t("shelf.ago.now", "just now");
+    if (minutes < 60) return tn("shelf.ago.minutes", minutes, "{n} minute ago", "{n} minutes ago");
     var hours = Math.round(minutes / 60);
-    if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+    if (hours < 24) return tn("shelf.ago.hours", hours, "an hour ago", "{n} hours ago");
     var days = Math.round(hours / 24);
-    if (days === 1) return "yesterday";
-    if (days < 30) return days + " days ago";
+    if (days < 30) return tn("shelf.ago.days", days, "yesterday", "{n} days ago");
     return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
   }
 
@@ -878,7 +890,7 @@
       button.type = "button";
       var title = document.createElement("span");
       title.className = "chat-title";
-      title.textContent = chat.title || "Untitled";
+      title.textContent = chat.title || t("palette.untitled", "Untitled");
       // The first thing somebody typed, in whichever language they typed it: its own
       // direction, so a Hebrew title clips at its end and not at its first word
       // (2026-09-14), and its own language where the conversation says what it was.
@@ -905,7 +917,7 @@
       var more = document.createElement("button");
       more.type = "button";
       more.className = "chat-more";
-      more.textContent = "More";
+      more.textContent = t("chat.more", "More");
       more.onclick = function () {
         more.disabled = true;
         ask(
@@ -1021,23 +1033,27 @@
     counts.className = "chat-counts";
     var minutes = Math.max(1, Math.round(footSeconds / 60));
     var parts = [];
-    if (footSeconds > 0) parts.push(minutes + " min");
+    if (footSeconds > 0) parts.push(t("learn.minutes", "{n} min", { n: minutes }));
     // A reader with nothing marked yet is not told they knew 0%: that is a score of
     // zero, which the brand rules keep out. They are told how many words there were,
     // and that marking begins in a text.
     var marked = Object.keys(ledger()).length > 0;
     if (!marked) {
-      parts.push(vocabulary + (vocabulary === 1 ? " word" : " words") + " · none marked yet");
+      parts.push(
+        tn("chat.foot.words", vocabulary, "{n} word", "{n} words") + " · " + t("chat.foot.none-marked", "none marked yet")
+      );
     } else {
-      parts.push(count + (count === 1 ? " word you have not met" : " words you have not met"));
-      if (vocabulary) parts.push("you know " + Math.round((known / vocabulary) * 100) + "%");
+      parts.push(tn("chat.foot.unmet", count, "{n} word you have not met", "{n} words you have not met"));
+      if (vocabulary) {
+        parts.push(t("chat.foot.known", "you know {share}%", { share: Math.round((known / vocabulary) * 100) }));
+      }
     }
     counts.textContent = parts.join(" · ");
     li.appendChild(counts);
     var save = document.createElement("button");
     save.type = "button";
     save.className = "chat-save";
-    save.textContent = "Save as targum";
+    save.textContent = t("chat.save", "Save as targum");
     var note = document.createElement("p");
     note.className = "note";
     save.onclick = function () {
@@ -1064,7 +1080,9 @@
     // The box names the conversation's language: an Italian one said "Write in Hebrew or
     // English" until 2026-09-14.
     var named = (window.TARGUM_LANGUAGES || {})[listedIn];
-    if (named && listedIn !== "en") field.placeholder = "Write in " + named + " or English";
+    if (named && listedIn !== "en") {
+      field.placeholder = t("chat.write-in", "Write in {language} or English", { language: named });
+    }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);
       chats = answer.chats || [];
@@ -1072,7 +1090,7 @@
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
       drawHours(answer.hours);
-      if (!usable) tell("We can't answer questions right now. Everything you have still opens.");
+      if (!usable) tell(CANNOT_ANSWER);
       drawList();
       showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
@@ -1126,7 +1144,7 @@
     welcomed = true;
     var li = turn(
       "assistant",
-      "First, which of these words do you already know? Check them and we'll write at your level.",
+      t("chat.claim.ask", "First, which of these words do you already know? Check them and we'll write at your level."),
       ""
     );
     var host = document.createElement("div");
@@ -1152,7 +1170,10 @@
       onDone: function () {
         var note = document.createElement("p");
         note.className = "chat-claim-done";
-        note.textContent = "Thank you. You'll find the rest of the list under Your words and phrases, in your account.";
+        note.textContent = t(
+          "chat.claim.done",
+          "Thank you. You'll find the rest of the list under Your words and phrases, in your account."
+        );
         host.appendChild(note);
         if (chips) chips.show(true);
         // The second turn: a text at the level the checks just set, offered without a
@@ -1178,19 +1199,19 @@
       var pending = null;
       var lastAsked = 0;
       var lastWords = null;
-      (answer.turns || []).forEach(function (t) {
-        if (t.role === "user") {
-          turn("user", t.said);
-          lastAsked = t.n;
-          lastWords = t.words || null;
-          pending = t.stage === "working" ? t.n : null;
-          if (t.stage === "failed" && t.error) turn("assistant", t.error, "bad");
-        } else if (t.said) {
-          var li = turn("assistant", t.said, "", lastWords);
+      (answer.turns || []).forEach(function (one) {
+        if (one.role === "user") {
+          turn("user", one.said);
+          lastAsked = one.n;
+          lastWords = one.words || null;
+          pending = one.stage === "working" ? one.n : null;
+          if (one.stage === "failed" && one.error) turn("assistant", one.error, "bad");
+        } else if (one.said) {
+          var li = turn("assistant", one.said, "", lastWords);
           playButton(li, id, lastAsked);
           // The cards this answer quoted, as the jobs stand now (2026-09-11): a
           // conversation opened again keeps its cards, not only its words.
-          (t.quotes || []).forEach(function (job) {
+          (one.quotes || []).forEach(function (job) {
             quoteCard(li, job);
           });
         }
@@ -1238,7 +1259,7 @@
         openReader(reader);
       },
       stuck: function () {
-        field.placeholder = "The word, and the sentence it was in";
+        field.placeholder = t("chat.stuck", "The word, and the sentence it was in");
         field.focus();
       },
     });
@@ -1247,7 +1268,7 @@
 
   function suggest() {
     if (busy) return;
-    if (!usable) return tell("We can't answer questions right now. Everything you have still opens.");
+    if (!usable) return tell(CANNOT_ANSWER);
     busy = true;
     send.disabled = true;
     tell("");
@@ -1267,7 +1288,7 @@
         var another = document.createElement("button");
         another.type = "button";
         another.className = "chat-another";
-        another.textContent = "Another";
+        another.textContent = t("chat.another", "Another");
         another.onclick = function () {
           another.disabled = true;
           suggest();
@@ -1296,11 +1317,19 @@
     var shown = sentence || title;
     readingLine.hidden = !shown;
     if (readingText) readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
-    if (readingAsk) readingAsk.textContent = sentence ? "Explain this sentence" : "Let's talk about it";
+    if (readingAsk) {
+      readingAsk.textContent = sentence
+        ? t("chat.page.explain-this-sentence", "Explain this sentence")
+        : t("chat.talk-about-it", "Let's talk about it");
+    }
   }
   if (readingAsk) {
     readingAsk.onclick = function () {
-      say(reading && reading.sentence ? "What does this sentence mean?" : "Let's talk about this text.");
+      say(
+        reading && reading.sentence
+          ? t("chat.ask.sentence", "What does this sentence mean?")
+          : t("chat.ask.text", "Let's talk about this text.")
+      );
     };
   }
   if (EMBED) {
@@ -1340,7 +1369,7 @@
 
   function say(text, brought) {
     if (busy || !text) return;
-    if (!usable) return tell("We can't answer questions right now. Everything you have still opens.");
+    if (!usable) return tell(CANNOT_ANSWER);
     busy = true;
     send.disabled = true;
     turn("user", text);
@@ -1374,16 +1403,18 @@
   // what we are doing, and after a long quiet that we are still at it.
   var GIVE_UP_MS = 270 * 1000;
   var QUIET_MS = 20 * 1000;
-  var TOO_LONG = "We took too long to answer that. Try again.";
+  var TOO_LONG = t("chat.too-long", "We took too long to answer that. Try again.");
+  var LIBRARY = t("chat.doing.library", "We're looking through the library…");
+  var QUOTING = t("chat.doing.quote", "We're working out how long it'll take…");
   var DOING = {
-    web_search: "We're searching the web…",
-    describe_source: "We're reading the page…",
-    search_sources: "We're checking the news…",
-    search_library: "We're looking through the library…",
-    suggest_next: "We're looking through the library…",
-    open_library_text: "We're opening the text…",
-    quote_build: "We're working out how long it'll take…",
-    quote_conversation: "We're working out how long it'll take…",
+    web_search: t("chat.doing.web", "We're searching the web…"),
+    describe_source: t("chat.doing.page", "We're reading the page…"),
+    search_sources: t("chat.doing.news", "We're checking the news…"),
+    search_library: LIBRARY,
+    suggest_next: LIBRARY,
+    open_library_text: t("chat.doing.open", "We're opening the text…"),
+    quote_build: QUOTING,
+    quote_conversation: QUOTING,
   };
   // A clock a test can stand in for; the browser's own everywhere else.
   var clock = window.TargumClock || {
@@ -1427,7 +1458,7 @@
       if (over) return;
       var at = clock.now();
       if (at - started >= GIVE_UP_MS) return giveUp();
-      if (at - heard >= QUIET_MS) tellDoing("We're still working on it…");
+      if (at - heard >= QUIET_MS) tellDoing(t("chat.doing.still", "We're still working on it…"));
     }, 5000);
     function giveUp() {
       if (givingUp) return;
@@ -1501,7 +1532,7 @@
         } catch (e) {
           name = "";
         }
-        tellDoing(DOING[name] || "We're looking it up…");
+        tellDoing(DOING[name] || t("chat.doing.default", "We're looking it up…"));
       });
       source.addEventListener("quote", function (event) {
         heardNow();

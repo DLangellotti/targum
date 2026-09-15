@@ -277,7 +277,8 @@ def test_the_box_s_actions_are_glyphs_with_the_word_as_their_label() -> None:
         plus = re.search(r'<button[^>]*id="chat-bring"[^>]*>(.*?)</button>', page, re.S)
         assert plus and plus.group(1).strip() == "+", "the + is typed (§7)"
     chat = (ASSETS / "chat.js").read_text(encoding="utf-8")
-    assert 'button.setAttribute("aria-label", "Hear")' in chat and 'glyph("hear")' in chat
+    assert 'button.setAttribute("aria-label", t("chat.hear", "Hear"))' in chat
+    assert 'glyph("hear")' in chat
     speak = (ASSETS / "speak.js").read_text(encoding="utf-8")
     assert "textContent" not in speak, "Speak and Stop are labels now, not faces"
 

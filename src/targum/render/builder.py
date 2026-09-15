@@ -1153,7 +1153,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
     )
 
 
-def chat_page(token: str, embed: bool = False) -> str:
+def chat_page(token: str, embed: bool = False, language: str = "en") -> str:
     """The conversation page: one conversation, in Hebrew, and the box under it.
 
     Reached from the box on Learn, which is the front door (2026-09-06): a line typed
@@ -1166,6 +1166,9 @@ def chat_page(token: str, embed: bool = False) -> str:
     `embed` is the same page without the bar and the foot, for the frame on the front
     page (design.md §13, 2026-09-11): the front page holds the conversation itself
     rather than a copy of its box. Every link inside opens in the page that holds it.
+
+    `language` is the one its own words are said in (targum-internal#184); the
+    conversation itself is Hebrew whatever it is.
     """
     from ..translate.prompts import INTO
 
@@ -1173,10 +1176,15 @@ def chat_page(token: str, embed: bool = False) -> str:
         _environment()
         .get_template("chat.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             into=[code for code, _ in INTO],
             languages=_language_names(),
             embed=embed,
+            strings=script_strings(
+                language, "chat.", "bring.", "claim.", "speak.", "shelf.", "learn.", "vocab."
+            ),
         )
     )
 

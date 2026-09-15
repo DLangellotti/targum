@@ -75,6 +75,7 @@ if (payload.record) {
 const windowListeners = {};
 install({
   TARGUM_KEY: payload.key === undefined ? "k" : payload.key,
+  TARGUM_STRINGS: payload.strings,
   TARGUM_INTO: payload.into || ["en", "ru"],
   TARGUM_LANGUAGES: { en: "English", ru: "Russian", he: "Hebrew" },
   addEventListener: (type, handler) => {
@@ -199,6 +200,7 @@ const voice = { opened: 0 };
 document.getElementById("chat-voice").click = () => {
   voice.opened++;
 };
+require(path.join(assets, "strings.js"));
 require(path.join(assets, "bring.js"));
 require(path.join(assets, "chips.js"));
 require(path.join(assets, "lang.js"));

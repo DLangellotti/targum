@@ -20,14 +20,14 @@
   {#- One row from the start: the field grows with what is typed, to six lines or so,
       and then scrolls. `rows="1"` is the resting height; the stylesheet does the rest. -#}
   <textarea id="say" rows="1" dir="auto" placeholder="{{ placeholder }}" spellcheck="true"
-            aria-label="Your message"></textarea>
+            aria-label="{{ t("chat.page.your-message", "Your message") }}"></textarea>
   {#- A file, a recording or a book, chosen here and priced in place: the Add page's
       job in one press, since 2026-09-06. A link goes in the field like anything else
       said to targum. The card it draws carries "More options", which is the Add page,
       for a translation or a transcript of your own. -#}
   <button type="button" class="chat-bring" id="chat-bring"
-          aria-label="Bring a file, a picture or a recording"
-          title="Bring a file, a picture or a recording">+</button>
+          aria-label="{{ t("chat.page.bring-a-file-a-picture-or-a", "Bring a file, a picture or a recording") }}"
+          title="{{ t("chat.page.bring-a-file-a-picture-or-a", "Bring a file, a picture or a recording") }}">+</button>
   {#- `multiple` for the pictures: several chosen together are the pages of one text
       (2026-09-07). Anything else is taken one at a time, whatever was selected. -#}
   <input type="file" id="chat-file" hidden multiple
@@ -41,8 +41,8 @@
       press opens the device's own recorder through `chat-voice` (2026-09-14). -#}
   <input type="file" id="chat-voice" hidden accept="audio/*" capture>
   <button type="button" class="chat-mic" id="chat-mic" aria-pressed="false" hidden
-          aria-label="Speak" title="Speak"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg></button>
-  <button type="submit" class="chat-send" id="chat-send" aria-label="Send" title="Send"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-send"/></svg></button>
+          aria-label="{{ t("chat.page.speak", "Speak") }}" title="{{ t("chat.page.speak", "Speak") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg></button>
+  <button type="submit" class="chat-send" id="chat-send" aria-label="{{ t("chat.page.send", "Send") }}" title="{{ t("chat.page.send", "Send") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-send"/></svg></button>
 </form>
 {#- What went wrong with a line, said under the box in words (§6), never in colour
     alone. -#}

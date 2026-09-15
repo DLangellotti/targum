@@ -11,6 +11,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var can =
     typeof navigator !== "undefined" &&
     !!navigator.mediaDevices &&
@@ -52,15 +70,15 @@
           var clip = new Blob(recorded, { type: recorder.mimeType || "audio/webm" });
           recorder = null;
           mic.setAttribute("aria-pressed", "false");
-          say(mic, "Speak", "mic");
+          say(mic, t("chat.page.speak", "Speak"), "mic");
           onClip(clip);
         };
         recorder.start();
         mic.setAttribute("aria-pressed", "true");
-        say(mic, "Stop", "stop");
+        say(mic, t("speak.stop", "Stop"), "stop");
       },
       function () {
-        onFail("We couldn't open the microphone. Check that your browser allows it.");
+        onFail(t("speak.no-microphone", "We couldn't open the microphone. Check that your browser allows it."));
       }
     );
     return true;
