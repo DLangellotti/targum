@@ -439,7 +439,9 @@ def test_a_line_is_heard_in_any_conversation_and_keeps_where_the_reader_is(
     assert ears.languages == [""], "left to the transcriber to recognise"
     assert ears.heard[0].suffix == ".m4a"
     chat = store.chat_owned(None, answer["chat"])
-    assert chat is not None and chat["language"] == "it" and chat["mode"] == "find"
+    # Held in the talk shape since 2026-09-15 (targum-internal#280), and still heard as
+    # whatever was spoken.
+    assert chat is not None and chat["language"] == "it" and chat["mode"] == "talk"
     said = store.chat_turns(answer["chat"])[0]["content"]
     assert "Non dimenticate i vestiti" in json.dumps(said, ensure_ascii=False)
 

@@ -248,3 +248,34 @@ def test_a_reader_with_no_ledger_is_told_once_where_the_common_words_are() -> No
     nothing; the way up is Words you may already know, said once, never a level."""
     block = hebrew.ledger_block(level.EMPTY, [], ["של", "את"])
     assert "Words you may already know" in block and "never what level they are" in block
+
+
+# -- Italian, the second language held in the talk shape (targum-internal#280) ----------
+
+ITALIAN_REPLY = (
+    "> Sono andato al mare ieri.\n= I went to the sea yesterday.\n"
+    "~ Andare takes essere in the past.\n"
+    "Com'era l'acqua?\n= What was the water like?\n"
+    "/reader/due-amiche-it/reader/index.html"
+)
+
+
+def test_an_italian_reply_is_read_back_as_pairs_and_a_path_is_never_a_line() -> None:
+    said = hebrew.pairs(ITALIAN_REPLY, "it")
+    assert [(p.hebrew, p.english, p.recast) for p in said] == [
+        ("Sono andato al mare ieri.", "I went to the sea yesterday.", True),
+        ("Com'era l'acqua?", "What was the water like?", False),
+    ]
+    assert said[0].why == "Andare takes essere in the past."
+    assert hebrew.pairs(ITALIAN_REPLY) == [], "read as Hebrew, an Italian reply has no lines"
+    assert hebrew.length(ITALIAN_REPLY, "it") == 2, "Com'era and l'acqua; the recast not counted"
+
+
+def test_the_italian_contract_keeps_the_shape_and_none_of_hebrew_s_own_rules() -> None:
+    assert hebrew.contract_for("he") == hebrew.CONTRACT, "a Hebrew turn is held to what it was"
+    said = " ".join(hebrew.contract_for("it", "Russian").split())
+    assert said.startswith("This conversation is in Italian")
+    assert 'every "= " line is in Russian' in said
+    assert '"> "' in said and '"~ "' in said and "Natural first" in said
+    for hebrew_only in ("nikkud", "ktiv male", "maqaf", "Hebrew"):
+        assert hebrew_only not in said, hebrew_only

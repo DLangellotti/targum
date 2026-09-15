@@ -186,3 +186,37 @@ def test_why_a_line_was_corrected_is_not_written_into_the_text(tmp_path: Path) -
     text = "\n".join(f"{p.hebrew}\n{p.english}" for p in hebrew.pairs(said))
     assert "~" not in text and "Past tense" not in text
     assert transcript  # the writer reads pairs the same way; the why never reaches a Line
+
+
+def test_an_italian_conversation_is_written_read_and_quoted_in_italian(tmp_path: Path) -> None:
+    """Save as targum in an Italian conversation (targum-internal#280): the file says
+    Italian, the text loads as Italian, and the quote builds from Italian."""
+    store = Store(tmp_path / "db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+    person, _ = store.finish_sign_in(store.start_sign_in("dov@example.com"))  # type: ignore[misc]
+    chat_id = store.chat_open(person.id, language="it", mode="talk")
+    said = [
+        ("user", "I went to the sea"),
+        ("assistant", "> Sono andato al mare.\n= I went to the sea.\nCom'era?\n= How was it?"),
+    ]
+    for role, text in said:
+        content: Any = text if role == "user" else [{"type": "text", "text": text}]
+        store.chat_say(chat_id, role, content, text)
+    home = library.home(person)
+    ctx = tools.Ctx(
+        person=person,
+        home=home,
+        library=library,
+        store=store,
+        chat_id=chat_id,
+        level=level.snapshot(store, person.id, "it"),
+    )
+    got = tools.quote_conversation(ctx, {})
+    assert got["lines"] == 2 and got["quote"]["id"]
+    path = transcript.path_for(home, chat_id)
+    written = json.loads(path.read_text(encoding="utf-8"))
+    assert written["language"] == "it" and written["title"] == "Sono andato al mare."
+    assert ingest_load(str(path)).language == "it"
+    assert library.jobs[got["quote"]["id"]].options["from"] == "it"

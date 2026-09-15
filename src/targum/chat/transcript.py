@@ -1,14 +1,16 @@
 """A conversation, written down as the text a targum is built from.
 
-Always Hebrew (decided 2026-09-05). Both speakers' lines are Hebrew: the model's because
-it wrote them so, the reader's because every reply opens with a `> ` recast of what the
-reader said — as they wrote it if their Hebrew was right, corrected if not, translated if
-it was another language — with their own words on the `= ` line under it. So the
-reader's turn in the record is the recast, and their raw line is its translation. Nothing
-the reader typed in English ever stands as a Hebrew sentence, and nothing without its
-English is written down: the pipeline takes a carried translation whole (`Build.run`
-uses `plan.carried` as the translation and buys nothing), so a line with no English
-would open as a blank, and the record must not.
+In the language the conversation was held in: Hebrew (decided 2026-09-05), and Italian
+since 2026-09-15 (targum-internal#280). The rest of this says Hebrew because Hebrew was
+first; it holds for any language in `hebrew.TALKED`. Both speakers' lines are Hebrew:
+the model's because it wrote them so, the reader's because every reply opens with a `> `
+recast of what the reader said — as they wrote it if their Hebrew was right, corrected
+if not, translated if it was another language — with their own words on the `= ` line
+under it. So the reader's turn in the record is the recast, and their raw line is its
+translation. Nothing the reader typed in English ever stands as a Hebrew sentence, and
+nothing without its English is written down: the pipeline takes a carried translation
+whole (`Build.run` uses `plan.carried` as the translation and buys nothing), so a line
+with no English would open as a blank, and the record must not.
 
 The file sits in the reader's own home, addressed by path and never by a scheme.
 `Build.PUBLIC_SOURCES` gives `dialogue:` and every other public prefix a cache key with no
@@ -47,7 +49,7 @@ class Line:
         return asdict(self)
 
 
-def lines(turns: list[dict[str, Any]], reader: str) -> tuple[list[Line], int]:
+def lines(turns: list[dict[str, Any]], reader: str, language: str = "he") -> tuple[list[Line], int]:
     """The conversation as speaker-and-line pairs, and how many reader turns were lost.
 
     A reader's turn is kept only through the recast the model gave it; a model reply that
@@ -66,7 +68,7 @@ def lines(turns: list[dict[str, Any]], reader: str) -> tuple[list[Line], int]:
         if role != "assistant" or not said:
             continue
         recast_seen = False
-        for pair in hebrew.pairs(said):
+        for pair in hebrew.pairs(said, language):
             if not pair.english:
                 continue
             if pair.recast:
@@ -86,18 +88,21 @@ def path_for(home: Path, chat_id: str) -> Path:
     return home / "chats" / f"{chat_id}{SUFFIX}"
 
 
-def write(store: Store, home: Path, chat_id: str, reader: str) -> tuple[Path, int, int]:
+def write(
+    store: Store, home: Path, chat_id: str, reader: str, language: str = "he"
+) -> tuple[Path, int, int]:
     """Write the conversation down in the reader's home. (path, lines kept, turns lost)."""
     turns = store.chat_turns(chat_id)
-    kept, dropped = lines(turns, reader or "you")
+    code = (language or "he").split("-")[0].lower()
+    kept, dropped = lines(turns, reader or "you", code)
     title = store.chat_title(chat_id)
     payload = {
         "chat": chat_id,
-        # The conversation's first Hebrew line, where it has one: the text is Hebrew, and
+        # The conversation's first line, where it has one: the text is in its language, and
         # a shelf of saved conversations titled "what do you suggest we do today?" and
         # "hey targum chat" read as junk among the books (2026-09-14).
         "title": (kept[0].hebrew if kept else "") or title or chat_id,
-        "language": "he",
+        "language": code,
         "speakers": {"reader": reader or "you", "targum": TARGUM},
         "lines": [line.state() for line in kept],
         "dropped": dropped,

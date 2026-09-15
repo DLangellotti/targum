@@ -136,6 +136,24 @@
     return lang && lang.learning ? lang.current(lang.learning()) : "he";
   }
 
+  /* The language of the conversation in front of the reader: the one it was opened in,
+   * where one is open, and the page's otherwise — a new conversation is opened in the
+   * page's. Everything the record draws is in it: the lines paired, the ledger the words
+   * are marked from, the gloss looked up (targum-internal#280, Italian). */
+  var openedIn = "";
+  function conversing() {
+    return openedIn || spoken();
+  }
+
+  // Written in Hebrew letters, and right to left. Yiddish and Aramaic are too, and are
+  // not Hebrew: which letters a line is in says whether it is the conversation's own only
+  // where the conversation's own letters are not its translation's.
+  var HEBREW_LETTERS = { he: true, yi: true, arc: true };
+  function inLanguage(text) {
+    if (HEBREW_LETTERS[conversing()]) return /[\u05d0-\u05ea]/.test(text);
+    return /\p{L}/u.test(text);
+  }
+
   function tell(text) {
     if (!said) return;
     said.textContent = text || "";
@@ -153,7 +171,7 @@
 
   function ledger() {
     try {
-      return JSON.parse(localStorage.getItem("targum:vocab:he") || "{}") || {};
+      return JSON.parse(localStorage.getItem("targum:vocab:" + conversing()) || "{}") || {};
     } catch (e) {
       return {};
     }
@@ -247,7 +265,7 @@
     line.className = "chat-gloss";
     line.setAttribute("data-lemma", word.lemma);
     var form = document.createElement("bdi");
-    form.setAttribute("lang", "he");
+    form.setAttribute("lang", conversing());
     form.textContent = word.lemma;
     line.appendChild(form);
     var meaning = meanings[word.lemma] || word.meaning || "";
@@ -263,7 +281,7 @@
       look.onclick = function () {
         look.disabled = true;
         look.textContent = "looking…";
-        ask("/gloss", { lemma: word.lemma, source: "he", target: "en", sentence: sentence }).then(
+        ask("/gloss", { lemma: word.lemma, source: conversing(), target: "en", sentence: sentence }).then(
           function (got) {
             if (got && got.meaning) {
               meanings[word.lemma] = got.meaning;
@@ -347,8 +365,9 @@
     return a;
   }
 
-  // The conversation's shape: a Hebrew line, then "= " and its English; "> " marks a
-  // recast of the reader's words. Read here by the same rule `chat/hebrew.py` reads it.
+  // The conversation's shape: a line in its language, then "= " and its translation; "> "
+  // marks a recast of the reader's words. Read here by the same rule `chat/hebrew.py`
+  // reads it. `he` is the conversation's line whatever its language.
   function pairs(text) {
     var out = [];
     var pending = null;
@@ -380,7 +399,7 @@
       }
       var recast = line.indexOf("> ") === 0;
       var body = recast ? line.slice(2).trim() : line;
-      if (/[\u05d0-\u05ea]/.test(body)) pending = { he: body, en: "", recast: recast };
+      if (inLanguage(body)) pending = { he: body, en: "", recast: recast };
     });
     if (pending) out.push(pending);
     return out;
@@ -396,10 +415,11 @@
    */
   var lastAsked = "";
 
-  // A Hebrew line without its points or punctuation, as words, for saying whether the
+  // A line without its points, punctuation or capitals, as words, for saying whether the
   // recast changed anything and which words.
   function bare(text) {
     return String(text || "")
+      .toLowerCase()
       .replace(/[\u0591-\u05c7]/g, "")
       .replace(/[.,:;!?()"'״׳־\u2013\u2014-]/g, " ")
       .split(/\s+/)
@@ -407,7 +427,7 @@
   }
   function correctedBy(asked, recast) {
     var was = bare(asked);
-    if (!was.some(function (w) { return /[\u05d0-\u05ea]/.test(w); })) return null;
+    if (!was.some(inLanguage)) return null;
     var now = bare(recast);
     if (was.join(" ") === now.join(" ")) return null;
     var had = {};
@@ -429,8 +449,8 @@
         pair.className = "chat-pair" + (p.recast ? " recast" : "");
         var he = document.createElement("span");
         he.className = "chat-he";
-        he.setAttribute("lang", "he");
-        he.setAttribute("dir", "rtl");
+        he.setAttribute("lang", conversing());
+        he.setAttribute("dir", HEBREW_LETTERS[conversing()] ? "rtl" : "ltr");
         drawHebrew(he, p.he, wordsFor(words, p.he), pair);
         var en = document.createElement("span");
         en.className = "chat-en";
@@ -1154,6 +1174,7 @@
     tell("");
     return ask("/chat/" + encodeURIComponent(id)).then(function (answer) {
       if (answer.error) return tell(answer.error);
+      openedIn = answer.chat && answer.chat.language ? String(answer.chat.language).split("-")[0] : "";
       var pending = null;
       var lastAsked = 0;
       var lastWords = null;
@@ -1183,6 +1204,7 @@
 
   function startNew() {
     current = "";
+    openedIn = "";
     remember("");
     showFresh();
     showList(false);

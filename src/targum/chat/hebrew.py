@@ -90,6 +90,18 @@ MODERN_BAND = 4
 RECAST = "> "
 ENGLISH = "= "
 
+#: The languages a conversation is held in: graded to the reader, with its translation
+#: under every line, marked word by word and saved as a text. Hebrew since 2026-09-06;
+#: Italian since 2026-09-15, when David asked why an Italian conversation was all English
+#: and had no Save as targum (targum-internal#280). French, Russian, Yiddish and Aramaic
+#: are #281 to #284. Every other language finds and answers in English (`session.mode_for`).
+TALKED = frozenset({"he", "it"})
+
+#: The languages written in Hebrew letters, which is how a line is told to be the
+#: conversation's own rather than its translation. Only by the script where the script
+#: settles it: Yiddish is in Hebrew letters and is not Hebrew (#283).
+HEBREW_SCRIPT = frozenset({"he", "yi", "arc"})
+
 
 def gloss_language(reads: set[str] | None) -> str:
     """Which language the "= " lines are in: the one the account reads into, English
@@ -230,6 +242,96 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 CONTRACT = contract()
 
 
+def italian_contract(gloss: str = "English") -> str:
+    """The Italian contract (targum-internal#280): the shape the Hebrew one keeps — a line,
+    its translation under it, the reader's own line said back, the one line of why — with
+    the rules that are Italian's own in place of nikkud, ktiv male and Hebrew punctuation.
+    """
+    no_foreign = "No English" if gloss == "English" else f"No {gloss} and no English"
+    return f"""This conversation is in Italian, whatever language the reader writes in. The reader
+reads {gloss}: every "{ENGLISH}" line is in {gloss}.
+Every reply, including one that finds, offers or quotes a text, keeps to this:
+
+- Write in Italian, spelled as an Italian newspaper spells it: every accent written and
+  the right way round (è, perché, città, più), elision with its apostrophe (l'amico,
+  un'altra, c'è), and no accent left off a word because it was typed in a hurry.
+- Every Italian sentence goes on its own line. Directly under it, on the next line, its
+  {gloss}, beginning with "{ENGLISH}". Never an Italian line without its {gloss} line.
+- Begin every reply with the reader's own line, in Italian: a line beginning "{RECAST}"
+  with their sentence — as they wrote it if their Italian was right, corrected if it was
+  not, and said in Italian if they wrote in English or any other language — then a
+  "{ENGLISH}" line with its {gloss}, which for a line they wrote in {gloss} is what
+  they wrote, as they wrote it. The recast is what they meant, said the way an Italian
+  speaker says it: correct and idiomatic, in Italian word order, in one clean sentence
+  or two. Never carry their grammar mistakes, their slips or their English word order
+  into it — the recast is the correction, and a wrong recast becomes the line of record.
+  Never change the gender of the reader's own words: where their Italian does not say
+  whether they are a man or a woman, keep the ending they wrote (sono stanco, sono
+  stanca) rather than choose for them. A woman's sentence "corrected" into the
+  masculine is a false correction.
+  If the recast changed anything the reader wrote in Italian — a wrong form, a missing
+  article, an auxiliary, English word order — one line beginning "{WHY}" directly under
+  the recast's "{ENGLISH}" line: one sentence in {gloss} naming what changed and the
+  rule, like "{WHY}Andare takes essere in the past: sono andato, not ho andato." Never on
+  a line that was right, never for a line written in English or another language, never
+  a second sentence, and nowhere else in the reply. Then answer. Do not lecture about a
+  mistake in the body; the corrected line is the correction, and the one "{WHY}" line is
+  the whole explanation.
+- Write your own lines in Italian first, as an Italian speaker would say them to a
+  friend: the idiom, the word order and the register of everyday spoken Italian, and the
+  plain words. Do not think of an English sentence and translate it — no calques: not
+  "fare senso" for "make sense" (avere senso), not "realizzare" for "realise" (rendersi
+  conto), not "applicare per" for "apply for" (fare domanda). Speak to the reader with
+  tu. Do not guess their gender: prefer a construction that does not choose it (ti è
+  piaciuto?, hai finito?) over one that does (sei contento?). If a sentence would only
+  make sense to someone who knows the {gloss} under it, it is not Italian yet. The
+  "{ENGLISH}" line under each of your lines is the {gloss} for the Italian you wrote,
+  and may read a little differently from how you would have put it in {gloss}; that is
+  right.
+- Punctuate like Italian: a question mark and nothing before it, quotation marks « » or
+  " ", and no em dash between clauses where a comma or a full stop will do. No colon
+  lead-ins that announce what is coming — say the thing. Small numbers as words: due
+  giorni, not "2 giorni".
+- {no_foreign} inside an Italian line, not even in brackets: never "leggere (to read)".
+  The {gloss} lives on the "{ENGLISH}" line and nowhere else. A word Italians say in
+  English (il weekend, il computer) stands as Italians write it. The one exception is a
+  title in another language, a video's name, which stands as it is.
+- Do not end every reply the same way. Ask a question when there is something to ask,
+  the way a person asks, and not "X, or Y?" every time; a reply may also simply end.
+- Natural first. Prefer the reader's known words and the common words listed below
+  wherever a natural sentence allows, so that most of what you write is theirs already —
+  but never bend a sentence to avoid a word: a stilted line inside the list is worse
+  than a natural one a little outside it. Bring new words in on purpose, two or three in
+  a reply and never more than one in a sentence, chosen because the reader will meet
+  them again — each is on its "{ENGLISH}" line like every other word — and use a word you
+  brought in again a few lines later.
+- Keep it short: at most {MOST_SENTENCES} Italian sentences and {MOST_WORDS} Italian words in
+  a reply, after the "{RECAST}" line, which does not count. That is a ceiling, not a
+  target: most replies are one or two short sentences, each about {USUAL_WORDS} words, and a
+  third only when the reader asked something that needs it. A conversation with a
+  learner is turns, not paragraphs; say one thing and let them answer. A reply that hands
+  over a text — a door, a card — is exactly one sentence and the door: the card already
+  says how long the text is and how much of it the reader knows. More only when the reader
+  asks for more, or asks a question whose answer is a list, and then at most
+  {MOST_LISTED} lines. When you offer texts, one Italian line per text with its {gloss},
+  and the text's door under it.
+- When the reader asks to read a text, its path - exactly as the tool returned it - goes
+  on a line of its own between the Italian lines, with nothing else on that line and no
+  "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
+  when you have not given its path.
+- A line quoted from a text is copied exactly as the text writes it.
+- Still never tell the reader they are at a level. You know their words; use them.
+"""
+
+
+def contract_for(language: str, gloss: str = "English") -> str:
+    """The contract a conversation in `language` is held to. Hebrew's is `contract`, word
+    for word: a Hebrew turn's prompt is what it was before any other language talked."""
+    if (language or "he").split("-")[0].lower() == "it":
+        return italian_contract(gloss)
+    return contract(gloss)
+
+
 @dataclass(frozen=True)
 class Pair:
     hebrew: str
@@ -239,13 +341,16 @@ class Pair:
     why: str = ""
 
 
-def pairs(text: str) -> list[Pair]:
-    """Read a turn back as (Hebrew, English) lines, by the contract and nothing else.
+def pairs(text: str, language: str = "he") -> list[Pair]:
+    """Read a turn back as (line, translation) pairs, by the contract and nothing else.
 
-    A Hebrew line with no `= ` under it is kept with an empty English — the transcript
+    A line with no `= ` under it is kept with an empty translation — the transcript
     should show what was said rather than hide a line the model forgot to translate.
-    Lines that are neither (a stray English sentence) are dropped: they are not in the
-    record's shape.
+    In Hebrew, lines that are neither (a stray English sentence) are dropped: they are not
+    in the record's shape. In a language written in the same letters as its translation
+    a stray English line cannot be told from the conversation's own by its script, so it
+    is kept, bare, and a path on its own line is never a line. `Pair.hebrew` is the
+    conversation's line whatever its language; the name is the record's first language.
     """
     out: list[Pair] = []
     pending: tuple[str, bool] | None = None
@@ -269,7 +374,7 @@ def pairs(text: str) -> list[Pair]:
             pending = None
         recast = line.startswith(RECAST)
         body = line[len(RECAST) :].strip() if recast else line
-        if _has_hebrew(body):
+        if _in_language(body, language):
             pending = (body, recast)
     if pending is not None:
         out.append(Pair(pending[0], "", pending[1]))
@@ -280,16 +385,29 @@ def _has_hebrew(text: str) -> bool:
     return any("א" <= ch <= "ת" for ch in text)
 
 
-def length(text: str) -> int:
-    """How many Hebrew words a reply is, the way a reader meets them: over the model's
-    own lines, the "> " recast left out because it is the reader's sentence said back.
-    A word is a run of Hebrew letters and points; the number is what the cap in the
-    contract is about, and what `scripts/eval_grading.py` and
-    `scripts/measure_reply_length.py` count."""
-    return sum(len(_WORD.findall(pair.hebrew)) for pair in pairs(text) if not pair.recast)
+#: A path the tool returned, standing on its own line: the page's door, never a line.
+_PATH = re.compile(r"^/(?:reader|library)/\S+$")
+
+
+def _in_language(text: str, language: str) -> bool:
+    """Whether a line is the conversation's own rather than something between its lines."""
+    if (language or "he").split("-")[0].lower() in HEBREW_SCRIPT:
+        return _has_hebrew(text)
+    return not _PATH.match(text) and any(ch.isalpha() for ch in text)
+
+
+def length(text: str, language: str = "he") -> int:
+    """How many words a reply is, the way a reader meets them: over the model's own lines,
+    the "> " recast left out because it is the reader's sentence said back. A Hebrew word
+    is a run of Hebrew letters and points, and any other language's a run of letters
+    joined by an apostrophe; the number is what the cap in the contract is about, and what
+    `scripts/eval_grading.py` and `scripts/measure_reply_length.py` count."""
+    word = _WORD if (language or "he").split("-")[0].lower() in HEBREW_SCRIPT else _LATIN_WORD
+    return sum(len(word.findall(pair.hebrew)) for pair in pairs(text, language) if not pair.recast)
 
 
 _WORD = re.compile(r"[\u05d0-\u05ea][\u05b0-\u05c7\u05d0-\u05ea\u05f3\u05f4\"']*")
+_LATIN_WORD = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
 
 
 def common_words(n: int = COMMON, language: str = "he") -> list[str]:
@@ -435,6 +553,9 @@ def ledger_block(
     returning: Returning | None = None,
 ) -> str:
     """The per-reader block: the ledger, then the word lists, then what comes back."""
+    from ..translate.prompts import language_name
+
+    named = language_name((level.language or "he").split("-")[0].lower())
     parts = [describe(level)]
     if known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))
@@ -445,9 +566,6 @@ def ledger_block(
         # In the conversation's own language. This said Hebrew whatever the ledger was,
         # and an Italian conversation on its first day asked what the reader had read in
         # Hebrew and offered them a Hebrew text (2026-09-15).
-        from ..translate.prompts import language_name
-
-        named = language_name((level.language or "he").split("-")[0].lower())
         parts.append(
             "The reader has marked no words known yet. Stand on the commonest of the common "
             "words, keep every sentence short, and in your first reply ask what they have "
@@ -461,7 +579,7 @@ def ledger_block(
         parts.append(f"Common words any learner meets early ({len(common)}): " + " ".join(common))
     back = returning or NOTHING_RETURNING
     if back.words():
-        lines = ["The reader's own words to carry back into your Hebrew, by where they stand:"]
+        lines = [f"The reader's own words to carry back into your {named}, by where they stand:"]
         if back.new:
             lines.append(
                 f"- met once, not yet known ({len(back.new)}): {' '.join(back.new)}. Use each "

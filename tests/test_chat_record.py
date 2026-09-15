@@ -120,3 +120,46 @@ def test_a_word_after_an_emoji_is_placed_where_the_browser_counts() -> None:
     for word in words:
         cut = units[word["start"] * 2 : word["end"] * 2].decode("utf-16-le")
         assert cut == word["surface"], (word, cut)
+
+
+def test_an_italian_line_is_read_by_the_model_and_what_it_cost_is_the_turn_s(
+    monkeypatch,
+) -> None:
+    """Italian has no permissively licensed tagger, so the record asks the model, bought
+    (targum-internal#280): a fresh reader a turn, and its usage handed back to the turn."""
+    from targum.annotate import model_lemma
+    from targum.usage import Usage
+
+    made: list[bool] = []
+
+    class Model(Spaces):
+        def __init__(self, buy: bool = False) -> None:
+            made.append(buy)
+            self.spent = Usage()
+
+        def lemmas(self, segments: list[Segment], language: str) -> dict[str, list[Token]]:
+            assert language == "it"
+            self.spent.add("claude-haiku-4-5", 900, 40)
+            return super().lemmas(segments, language)
+
+    monkeypatch.setattr(model_lemma, "ModelLemmatizer", Model)
+    recorder = record.Recorder(glosses=lambda lemma, language, target: "", bands=Bands())
+    spent = Usage()
+    spent.add("claude-opus-5", 100, 20)
+    (words,) = recorder.annotate(["Com'era l'acqua?"], "it", spent=spent)
+    assert made == [True], "bought, inside a turn that was claimed"
+    assert [w["surface"] for w in words] == ["Com'era", "l'acqua"]
+    assert spent.by_model == {"claude-opus-5": (100, 20), "claude-haiku-4-5": (900, 40)}
+
+
+def test_a_hebrew_line_is_still_read_here_and_costs_the_turn_nothing(monkeypatch) -> None:
+    from targum.annotate import model_lemma
+    from targum.usage import Usage
+
+    monkeypatch.setattr(model_lemma, "ModelLemmatizer", None)
+    recorder = record.Recorder(
+        lemmatizer=Spaces(), glosses=lambda lemma, language, target: "", bands=Bands()
+    )
+    spent = Usage()
+    recorder.annotate(["שלום"], "he", spent=spent)
+    assert spent.by_model == {}

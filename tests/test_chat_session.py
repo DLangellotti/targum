@@ -1394,9 +1394,10 @@ def test_a_reader_of_russian_gets_russian_under_every_line(
     monkeypatch.setattr(
         record.Recorder,
         "annotate",
-        lambda self, lines, language="he", target="en": (seen.append(target), [[] for _ in lines])[
-            1
-        ],
+        lambda self, lines, language="he", target="en", spent=None: (
+            seen.append(target),
+            [[] for _ in lines],
+        )[1],
     )
     library, store = world(tmp_path)
     person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
@@ -1488,3 +1489,53 @@ def test_an_aspect_question_is_pointed_at_the_partner_in_what_they_read() -> Non
     assert "call sentences_with" in session_module.framed("why this one?", about)
     noun = {"surface": "руку", "lemma": "рука", "grammar": "noun · f · accusative"}
     assert "sentences_with" not in session_module.framed("why?", noun)
+
+
+# -- Italian in the talk shape (targum-internal#280) --------------------------------------
+
+
+def test_italian_talks_and_a_language_with_no_talk_mode_still_finds() -> None:
+    assert session_module.mode_for("it", False) == "talk", "a shelf's Hebrew decides nothing here"
+    assert session_module.mode_for("he", True) == "talk"
+    assert session_module.mode_for("he", False) == "find", "scripture-only Hebrew stays as it was"
+    assert session_module.mode_for("fr", True) == "find"
+    assert session_module.talking({"mode": "find"}, "it"), "stored find only for its language"
+    assert not session_module.talking({"mode": "find"}, "he"), "stored find for its shelf"
+    assert not session_module.talking({"mode": "talk"}, "fr")
+
+
+def test_an_italian_turn_is_held_to_the_italian_contract_and_its_words_are_on_its_receipt(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """An Italian conversation opened as `find` before 2026-09-15 is answered in the talk
+    shape; the reply's lines are read in Italian, and what reading them cost is settled on
+    the turn's own job rather than anywhere else."""
+    from targum.chat import record
+    from targum.usage import Usage
+
+    read: list[tuple[list[str], str]] = []
+
+    def annotate(self, lines, language="he", target="en", spent=None):  # type: ignore[no-untyped-def]
+        read.append((lines, language))
+        bought = Usage()
+        bought.add("claude-haiku-4-5", 1_000_000, 0)
+        if spent is not None:
+            spent.merge(bought)
+        return [[] for _ in lines]
+
+    monkeypatch.setattr(record.Recorder, "annotate", annotate)
+    library, store = world(tmp_path)
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    chat_id = store.chat_open(person.id, language="it", mode="find")
+    reply_text = "> Ciao.\n= Hi.\nCome stai?\n= How are you?"
+    client = Script([reply([{"type": "text", "text": reply_text}])])
+    chats = session_module.Chats(library, store, client_factory=lambda: client)
+    home = library.home(person)
+    asked = chats.say(person, home, chat_id, "hi", admin=False, language="it")
+    chats.answer(asked)
+    system = " ".join(client.requests[0]["system"][0]["text"].split())
+    assert "This conversation is in Italian" in system
+    assert "nikkud" not in system
+    assert read == [(["Ciao.", "Come stai?"], "it")]
+    job = library.jobs[f"chat-{chat_id}-{asked.n}"]
+    assert job.spent > 0.99, "a million Haiku input tokens of word reading, on this turn"

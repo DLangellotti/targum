@@ -4411,6 +4411,8 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
+            from .chat.session import mode_for
+
             # The hours beside the list: the one limit a reader is told about, in the
             # unit they were told. The page says them only when they matter (2026-09-10,
             # targum-internal#237); the whole count lives on Your Progress.
@@ -4430,11 +4432,12 @@ class Handler(BaseHTTPRequestHandler):
                     "chats": store.chats(person_id, limit=limit, offset=offset, language=spoken),
                     "language": spoken,
                     "usable": self.chats.usable,
-                    # Whether the Hebrew contract rides: a reader with modern Hebrew to
-                    # speak, in Hebrew. Scripture-only readers, and every other language,
-                    # are answered in English, about the text (`Library.talks`,
+                    # Whether a new conversation here is held in the talk shape: Hebrew for
+                    # a reader with modern Hebrew to speak, and Italian (targum-internal
+                    # #280). Scripture-only readers, and every language with no talk mode
+                    # yet, are answered in English, about the text (`Library.talks`,
                     # `session.mode_for`). Speak is offered either way since 2026-09-14.
-                    "talk": spoken == "he" and self.library.talks(self._home(), person_id),
+                    "talk": mode_for(spoken, self.library.talks(self._home(), person_id)) == "talk",
                     "hours": self._hours(person_id),
                     "chips": self.chats.chips(person, self._home(), spoken),
                 }
@@ -4668,7 +4671,11 @@ class Handler(BaseHTTPRequestHandler):
         said = "".join(
             str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
         )
-        found = hebrew_module.pairs(said)
+        # In the conversation's own language: a French conversation is read in French,
+        # and only its own lines are read, never the translations under them.
+        opened = store.chat_owned(person.id if person else None, chat_id) or {}
+        spoken_in = str(opened.get("language") or "he")
+        found = hebrew_module.pairs(said, spoken_in)
         text = "\n".join(pair.hebrew for pair in found) if found else said.strip()
         if not text:
             return self._json({"error": "There's nothing for us to read aloud yet."}, 404)
@@ -4693,9 +4700,6 @@ class Handler(BaseHTTPRequestHandler):
             self.library.remember(job)
             return self._json({"error": refused}, 402)
         try:
-            # In the conversation's own language: a French conversation is read in French.
-            opened = store.chat_owned(person.id if person else None, chat_id) or {}
-            spoken_in = str(opened.get("language") or "he")
             clip = speech.render(text, where / f"{chat_id}-{n}", language=spoken_in)
         except Exception as error:
             # Anything, not only what `speech` says in words: a claim left held by an
@@ -4745,7 +4749,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import transcribe as transcribe_module
         from .audio import probe as probe_module
-        from .chat.session import mode_for
+        from .chat.session import mode_for, talking
 
         if self.chats is None or self.chats.store is None:
             return self._json({"error": "not found"}, 404)
@@ -4764,13 +4768,18 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             about = None
         home = self._home()
-        # What the conversation is held in decides what the clip is heard as: `talk` is
-        # Hebrew, and anything else is left to the transcriber to recognise.
+        # What the conversation is held in decides what the clip is heard as: a Hebrew
+        # conversation in the talk shape is Hebrew, and anything else is left to the
+        # transcriber to recognise. Italian is too, though it talks (targum-internal
+        # #280): its readers ask in Italian or in English, and a clip told it is Italian
+        # comes back as Italian whatever was said.
         if owned is not None:
-            mode = str(owned.get("mode") or "")
+            held_in = str(owned.get("language") or spoken)
+            held = talking(owned, held_in)
         else:
-            mode = mode_for(spoken, self.library.talks(home, person_id))
-        hear_as = "he" if mode == "talk" else ""
+            held_in = spoken
+            held = mode_for(spoken, self.library.talks(home, person_id)) == "talk"
+        hear_as = "he" if held and held_in.split("-")[0].lower() == "he" else ""
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
             return self._json({"error": "We didn't hear anything. Try again."}, 400)

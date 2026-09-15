@@ -34,6 +34,14 @@ def english_by_block(path: Path) -> dict[str, str]:
     return {f"b{n:04d}": str(row["english"]) for n, row in enumerate(_lines(path))}
 
 
+def language_of(path: Path) -> str:
+    """The language the conversation was held in: Hebrew for a file written before any
+    other language talked, which said nothing because it could only be Hebrew."""
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    said = loaded.get("language") if isinstance(loaded, dict) else ""
+    return str(said or "he")
+
+
 def title_of(path: Path) -> str:
     loaded = json.loads(path.read_text(encoding="utf-8"))
     return str(loaded.get("title") or "") if isinstance(loaded, dict) else ""
@@ -57,6 +65,6 @@ class TranscriptIngester:
             str(path),
             blocks,
             ingester=self.name,
-            language="he",
+            language=language_of(path),
             title=title_of(path) or path.stem,
         )

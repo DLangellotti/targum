@@ -1573,3 +1573,105 @@ def test_the_page_stops_waiting_after_the_server_s_deadline() -> None:
     )
     assert came["turns"][1]["cls"] == "chat-turn them"
     assert came["turns"][1]["text"] == "Try Ruth.", "an answer that did come is shown"
+
+
+# -- Italian, held in the talk shape (targum-internal#280) ---------------------------------
+
+ITALIAN_TEXT = (
+    "> Sono andato al mare.\n= I went to the sea.\nCom'era l'acqua?\n= What was the water like?\n"
+)
+ITALIAN_WORDS = {
+    "lines": [
+        {
+            "he": "Sono andato al mare.",
+            "words": [
+                {"start": 0, "end": 4, "surface": "Sono", "lemma": "essere", "pos": "AUX"},
+                {"start": 5, "end": 11, "surface": "andato", "lemma": "andare", "pos": "VERB"},
+                {"start": 15, "end": 19, "surface": "mare", "lemma": "mare", "pos": "NOUN"},
+            ],
+        },
+        {
+            "he": "Com'era l'acqua?",
+            "words": [
+                {"start": 8, "end": 15, "surface": "l'acqua", "lemma": "acqua", "pos": "NOUN"},
+            ],
+        },
+    ],
+    "outside": 0.0,
+}
+IN_ITALIAN = {"targum:language": "it", "targum:learning": json.dumps(["he", "it"])}
+
+
+def italian_page(extra: list[dict[str, Any]] | None = None, **answers: Any) -> dict[str, Any]:
+    ledger = {"essere": {"status": 9}, "andare": {"status": 2}}
+    return run(
+        do=[
+            {"type": "say", "text": "I went to the sea"},
+            {"type": "stream", "event": "text", "data": ITALIAN_TEXT},
+            {"type": "stream", "event": "words", "data": json.dumps(ITALIAN_WORDS)},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": ITALIAN_TEXT, "seconds": 120}),
+            },
+        ]
+        + (extra or []),
+        answers={"/chat/say": {"chat": "abc", "turn": 1}, **answers},
+        stored={**IN_ITALIAN, "targum:vocab:it": json.dumps(ledger)},
+    )
+
+
+def test_an_italian_reply_is_drawn_as_pairs_with_its_words_from_the_italian_ledger() -> None:
+    """David, 2026-09-15: "Why does this have so much English and it doesn't have the save
+    as targum function?" The page paired Hebrew lines only, so an Italian reply was a
+    wall of both languages at full size, with no words and no foot."""
+    page = italian_page()
+    assert page["posted"][0]["body"]["language"] == "it"
+    recast, line = page["pairs"]
+    assert (recast["he"], recast["en"], recast["recast"]) == (
+        "Sono andato al mare.",
+        "I went to the sea.",
+        True,
+    )
+    assert (line["lang"], line["dir"]) == ("it", "ltr")
+    assert line["enHidden"] is True, "the translation folds under a line, as in Hebrew"
+    assert [(w["text"], w["state"]) for w in recast["words"]] == [
+        ("Sono", "known"),
+        ("andato", "learning"),
+        ("mare", "new"),
+    ]
+    assert page["foot"] is not None and page["foot"]["save"], "Save as targum, at the foot"
+
+
+def test_an_italian_word_is_looked_up_in_italian() -> None:
+    page = italian_page(
+        extra=[
+            {"type": "press", "selector": "chat-w"},
+            {"type": "press", "selector": "chat-look"},
+        ],
+        **{"/gloss": {"meaning": "water"}},
+    )
+    looked = [p for p in page["posted"] if p["path"] == "/gloss"]
+    assert looked and looked[0]["body"]["source"] == "it" and looked[0]["body"]["lemma"] == "acqua"
+
+
+def test_a_conversation_opened_again_is_drawn_in_its_own_language_whatever_the_page_is_in() -> None:
+    """The Hebrew page opening an Italian conversation from the list: its lines are
+    Italian, and its words are marked from the Italian ledger, not the Hebrew one."""
+    page = run(
+        answers={
+            "/chat/list": {"chats": [{"id": "abc", "title": "t"}], "usable": True},
+            "/chat/abc": {
+                "chat": {"id": "abc", "mode": "talk", "language": "it"},
+                "seconds": 60,
+                "turns": [
+                    {"n": 1, "role": "user", "said": "hi", "stage": "done", "words": ITALIAN_WORDS},
+                    {"n": 2, "role": "assistant", "said": ITALIAN_TEXT, "stage": "done"},
+                ],
+            },
+        },
+        hash="abc",
+        stored={"targum:vocab:it": json.dumps({"acqua": {"status": 9}})},
+    )
+    assert [p["he"] for p in page["pairs"]] == ["Sono andato al mare.", "Com'era l'acqua?"]
+    assert [(w["text"], w["state"]) for w in page["pairs"][1]["words"]] == [("l'acqua", "known")]
