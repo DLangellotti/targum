@@ -90,6 +90,18 @@ def test_the_ledger_block_carries_the_words_and_never_a_level(tmp_path: Path) ->
     assert "ask what they have read" in empty and "never what level" in empty, (
         "a first day has no ledger: the way to one is a text"
     )
+    assert "read in Hebrew so far" in empty
+
+
+def test_a_first_day_in_another_language_asks_about_that_language() -> None:
+    """An Italian conversation with an empty Italian ledger was told to ask what the reader
+    had read in Hebrew, and offered a Hebrew text (2026-09-15)."""
+    from dataclasses import replace
+
+    italian = hebrew.ledger_block(replace(level.EMPTY, language="it"), [], [])
+    assert "The reader is learning Italian" in italian
+    assert "read in Italian so far" in italian
+    assert "Hebrew" not in italian, italian
 
 
 def test_the_contract_says_the_shape_and_the_rule() -> None:

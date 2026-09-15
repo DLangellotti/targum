@@ -1260,6 +1260,78 @@ def test_the_chips_stand_only_where_their_condition_holds(tmp_path: Path) -> Non
     assert len(mine) <= 7
 
 
+def test_the_chips_are_the_conversations_language_and_no_other(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """On the Italian side the chips offered Continue on a Hebrew text, and new words and
+    known words counted from the Hebrew ledger: a press put the reader back in Hebrew
+    (2026-09-15). Each language's chips are drawn from that language's record."""
+    from targum.chat import sources as sources_module
+
+    hebrew_feed = sources_module.Publisher(key="k", name="n", publisher="p", feed="https://x/rss")
+    monkeypatch.setattr(sources_module, "load", lambda: [hebrew_feed])
+    library, store = world(tmp_path)
+    chats = session_module.Chats(library, store, client_factory=lambda: Script([]))
+    person, _ = store.finish_sign_in(store.start_sign_in("r@example.com"))  # type: ignore[misc]
+    home = library.home(person)
+    folder = home / "wayfinding-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps(
+            {
+                "title": "מה זה wayfinding",
+                "language": "he",
+                "source": "test:wayfinding",
+                "content_hash": "h",
+                "blocks": [{"text": "שלום"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    opened = {row["name"]: row["document"] for row in library.readers(home)}["wayfinding-he"]
+    now = int(time.time() * 1000)
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "שלום",
+                    "status": 9,
+                    "band": "easy",
+                    "at": 1,
+                    "seen": 1,
+                },
+                {
+                    "language": "he",
+                    "lemma": "ספר",
+                    "status": 1,
+                    "band": "easy",
+                    "at": now,
+                    "seen": now,
+                },
+            ],
+            "docs": [
+                {
+                    "hash": opened,
+                    "title": "מה זה wayfinding",
+                    "language": "he",
+                    "updated": now,
+                    "opened": now,
+                    "done": 0,
+                    "seen": now,
+                }
+            ],
+        },
+    )
+    hebrew = [chip["id"] for chip in chats.chips(person, home, "he")]
+    assert {"continue", "words", "know", "news"} <= set(hebrew)
+    italian = [chip["id"] for chip in chats.chips(person, home, "it")]
+    assert not {"continue", "words", "know", "news"} & set(italian), italian
+
+
 def test_something_to_read_is_answered_without_the_model(tmp_path: Path, monkeypatch: Any) -> None:
     """The one line most readers press: `suggest_next` and a card, no turn, no job of
     kind chat, nothing spent; the exchange written into the conversation; "Another"
