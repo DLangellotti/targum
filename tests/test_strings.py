@@ -97,7 +97,7 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         if template.name != "reader.html.j2":
             page.update(_calls(template))
     # And the desk pages' own scripts, which say theirs through `strings.js`.
-    for script in ("library.js", "progress.js", "charts.js", "lang.js"):
+    for script in ("library.js", "progress.js", "charts.js", "lang.js", "learn.js"):
         page.update(_calls(render / "assets" / script))
     for key, text in page.items():
         assert not set(text) & set('"<>'), f"{key} could not stand in an attribute: {text!r}"
