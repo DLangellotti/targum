@@ -8581,7 +8581,17 @@ var targumReader = function () {
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ name: name, number: Number(note.getAttribute("data-chapter")) }),
+      // In the language this page is being read in, as the prefetch asks: without it the
+      // server bought its most complete language, which in a folder holding English and
+      // Russian was English (targum-internal#287).
+      body: JSON.stringify({
+        name: name,
+        number: Number(note.getAttribute("data-chapter")),
+        to: (function () {
+          var reading = document.querySelector(".pair .tr");
+          return reading ? reading.getAttribute("lang") || "" : "";
+        })(),
+      }),
     })
       .then(function (r) {
         return r.json();
