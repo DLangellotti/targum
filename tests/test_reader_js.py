@@ -1570,3 +1570,27 @@ def test_a_french_noun_says_the_ending_that_tells_its_gender() -> None:
         ],
     )["endingLines"]
     assert said == ["like most nouns in -tion", "", "like most nouns in -age", "", ""]
+
+
+def test_the_card_says_its_grammar_in_the_pages_language_and_asks_in_english() -> None:
+    """A Russian page's card reads «сущ. · ж · родительный»; the tag an ask
+    sends is still "noun · f · genitive", because the conversation's prompt reads it
+    in English (targum-internal#184). A word the catalogue lacks is said in English."""
+    strings = {
+        "reader.grammar.noun": "существительное",
+        "reader.grammar.f": "ж",
+        "reader.grammar.genitive": "родительный",
+        "reader.grammar.perfective": "совершенный",
+    }
+    line = "UPOS=NOUN|Case=Gen|Gender=Fem|Number=Sing"
+    verb = "UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin"
+    said = run(
+        [],
+        language="ru",
+        strings=strings,
+        stringsLanguage="ru",
+        grammarLines=[line, verb],
+        tagLines=[line, verb],
+    )
+    assert said["grammar"] == ["существительное · ж · родительный", "past · совершенный · m"]
+    assert said["tags"] == ["noun · f · genitive", "past · perfective · m"]

@@ -3276,33 +3276,53 @@ var targumReader = function () {
 
   // Who a form is about, in plain words. "past · I" reads to a novice and is
   // unambiguous to a student; "1cs perfect" is neither, on either shelf.
+  /* The card's grammar words, in the language the page is read in (targum-internal#184).
+   * An ask sends the card's tag to the conversation, whose prompt reads it in English and
+   * looks for "perfective" in it, so `grammarOf` turns the lookup off while it draws one.
+   */
+  var plainGrammar = false;
+  function gt(key, english, fill) {
+    return plainGrammar ? fillIn(english, fill) : t(key, english, fill);
+  }
+
   function personWord(line) {
     var person = feat(line, "Person");
     var gender = feat(line, "Gender");
     var plural = feat(line, "Number") === "Plur";
-    if (person === "1") return plural ? "we" : "I";
+    if (person === "1") return plural ? gt("reader.grammar.we", "we") : gt("reader.grammar.i", "I");
     if (person === "2") {
       var marks = [];
-      if (gender === "Masc") marks.push("m");
-      if (gender === "Fem") marks.push("f");
-      if (plural) marks.push("pl");
-      return marks.length ? "you (" + marks.join(", ") + ")" : "you";
+      if (gender === "Masc") marks.push(genderMark("Masc"));
+      if (gender === "Fem") marks.push(genderMark("Fem"));
+      if (plural) marks.push(gt("reader.grammar.pl-short", "pl"));
+      return marks.length
+        ? gt("reader.grammar.you-marked", "you ({marks})", { marks: marks.join(", ") })
+        : gt("reader.grammar.you", "you");
     }
     if (person === "3") {
-      if (plural) return "they";
-      if (gender === "Masc") return "he";
-      if (gender === "Fem") return "she";
+      if (plural) return gt("reader.grammar.they", "they");
+      if (gender === "Masc") return gt("reader.grammar.he", "he");
+      if (gender === "Fem") return gt("reader.grammar.she", "she");
       // A Russian present or future names no gender: пишет is anyone's.
-      if (feat(line, "Number") === "Sing") return "he/she";
+      if (feat(line, "Number") === "Sing") return gt("reader.grammar.he-she", "he/she");
     }
     return "";
   }
 
-  var TENSE_WORDS = { Past: "past", Pres: "present", Fut: "future" };
+  function tenseWord(code) {
+    if (code === "Past") return gt("reader.grammar.past", "past");
+    if (code === "Pres") return gt("reader.grammar.present", "present");
+    if (code === "Fut") return gt("reader.grammar.future", "future");
+    return "";
+  }
   // The moods a French or Italian verb is met in besides the indicative. Said in place
   // of the tense, because the tense the tagger gives a conditional is the present, and
   // "present" is the one thing *mangerait* is not (targum-internal#263).
-  var MOOD_WORDS = { Cnd: "conditional", Sub: "subjunctive" };
+  function moodWord(code) {
+    if (code === "Cnd") return gt("reader.grammar.conditional", "conditional");
+    if (code === "Sub") return gt("reader.grammar.subjunctive", "subjunctive");
+    return "";
+  }
   // Where a participle with no tense is a past participle rather than the beinoni.
   var PAST_PARTICIPLES = { fr: true, it: true };
   // The articles of French and Italian, by the dictionary form the tagger gives them. The
@@ -3332,9 +3352,19 @@ var targumReader = function () {
       ETRE_VERBS[verb] = true;
     });
   var REFLEXIVES = { se: true, me: true, te: true, "s'": true, "m'": true, "t'": true };
-  var COMPOUND_TENSES = { Pres: "passé composé", Past: "pluperfect", Fut: "future perfect" };
-  var COMPOUND_MOODS = { Cnd: "past conditional", Sub: "past subjunctive" };
-  var COMPOUND_FORMS = { Inf: "past infinitive", Part: "perfect participle" };
+  function compoundName(auxLine) {
+    var form = feat(auxLine, "VerbForm");
+    if (form === "Inf") return gt("reader.grammar.past-infinitive", "past infinitive");
+    if (form === "Part") return gt("reader.grammar.perfect-participle", "perfect participle");
+    var mood = feat(auxLine, "Mood");
+    if (mood === "Cnd") return gt("reader.grammar.past-conditional", "past conditional");
+    if (mood === "Sub") return gt("reader.grammar.past-subjunctive", "past subjunctive");
+    var tense = feat(auxLine, "Tense");
+    if (tense === "Pres") return gt("reader.grammar.passe-compose", "passé composé");
+    if (tense === "Past") return gt("reader.grammar.pluperfect", "pluperfect");
+    if (tense === "Fut") return gt("reader.grammar.future-perfect", "future perfect");
+    return "";
+  }
 
   // The line for a French past participle whose auxiliary was found: `aux` is the
   // auxiliary's grammar line and dictionary form, `reflexive` whether a reflexive pronoun
@@ -3347,18 +3377,15 @@ var targumReader = function () {
     var verb = String(lemma || "").toLowerCase();
     var parts = [];
     if (aux === "être" && !reflexive && !ETRE_VERBS[verb]) {
-      parts.push("passive");
+      parts.push(gt("reader.grammar.passive", "passive"));
     } else {
-      var name =
-        COMPOUND_FORMS[feat(auxLine, "VerbForm")] ||
-        COMPOUND_MOODS[feat(auxLine, "Mood")] ||
-        COMPOUND_TENSES[feat(auxLine, "Tense")];
+      var name = compoundName(auxLine);
       if (!name) return "";
       parts.push(name);
     }
-    parts.push("with " + aux);
-    if (feat(line, "Gender") === "Fem") parts.push("f");
-    if (feat(line, "Number") === "Plur") parts.push("pl.");
+    parts.push(gt("reader.grammar.with-auxiliary", "with {aux}", { aux: aux }));
+    if (feat(line, "Gender") === "Fem") parts.push(genderMark("Fem"));
+    if (feat(line, "Number") === "Plur") parts.push(pluralMark());
     return parts.join(" · ");
   }
 
@@ -3393,29 +3420,41 @@ var targumReader = function () {
   }
   // The case a word is in, by the name a Russian course teaches it under. Universal
   // Dependencies calls the prepositional Loc; nobody learning Russian does.
-  var CASE_WORDS = {
-    Nom: "nominative",
-    Gen: "genitive",
-    Dat: "dative",
-    Acc: "accusative",
-    Ins: "instrumental",
-    Loc: "prepositional",
-    Par: "partitive",
-    Voc: "vocative",
-  };
-  var ASPECT_WORDS = { Perf: "perfective", Imp: "imperfective" };
+  function caseWord(code) {
+    var words = {
+      Nom: gt("reader.grammar.nominative", "nominative"),
+      Gen: gt("reader.grammar.genitive", "genitive"),
+      Dat: gt("reader.grammar.dative", "dative"),
+      Acc: gt("reader.grammar.accusative", "accusative"),
+      Ins: gt("reader.grammar.instrumental", "instrumental"),
+      Loc: gt("reader.grammar.prepositional", "prepositional"),
+      Par: gt("reader.grammar.partitive", "partitive"),
+      Voc: gt("reader.grammar.vocative", "vocative"),
+    };
+    return Object.prototype.hasOwnProperty.call(words, code) ? words[code] : "";
+  }
+  function aspectWord(code) {
+    if (code === "Perf") return gt("reader.grammar.perfective", "perfective");
+    if (code === "Imp") return gt("reader.grammar.imperfective", "imperfective");
+    return "";
+  }
   // The six a Russian course teaches, in the order it teaches them; the lens offers these.
   var CASE_LENS = ["Nom", "Gen", "Dat", "Acc", "Ins", "Loc"];
-  var GENDER_MARKS = { Masc: "m", Fem: "f", Neut: "n" };
-  var POS_WORDS = {
-    NOUN: "noun",
-    ADJ: "adjective",
-    ADP: "preposition",
-    PRON: "pronoun",
-    PART: "particle",
-    CCONJ: "conjunction",
-    SCONJ: "conjunction",
-  };
+  function genderMark(code) {
+    if (code === "Masc") return gt("reader.grammar.m", "m");
+    if (code === "Fem") return gt("reader.grammar.f", "f");
+    if (code === "Neut") return gt("reader.grammar.n", "n");
+    return "";
+  }
+  function pluralMark() {
+    return gt("reader.grammar.pl", "pl.");
+  }
+  function posWord(pos) {
+    if (pos === "ADP") return gt("reader.grammar.preposition", "preposition");
+    if (pos === "PART") return gt("reader.grammar.particle", "particle");
+    if (pos === "CCONJ" || pos === "SCONJ") return gt("reader.grammar.conjunction", "conjunction");
+    return "";
+  }
 
   // The part of speech's own line: for each kind of word, the one fact whose absence
   // is the usual reason a learner mis-reads it. A verb is parsed, a noun declares its
@@ -3428,9 +3467,11 @@ var targumReader = function () {
   // and the line says whichever the reader is looking at.
   function registerLine(code, source) {
     if (code === "biblical") {
-      return source === "biblical" ? "biblical · rare today" : "biblical · an import here";
+      return source === "biblical"
+        ? gt("reader.grammar.biblical-rare", "biblical · rare today")
+        : gt("reader.grammar.biblical-import", "biblical · an import here");
     }
-    if (code === "modern") return "modern · not in the Tanakh";
+    if (code === "modern") return gt("reader.grammar.modern-not-tanakh", "modern · not in the Tanakh");
     return "";
   }
 
@@ -3440,19 +3481,25 @@ var targumReader = function () {
   // case is the fact a Russian learner tapped the word to find.
   function useLine(line, lemma) {
     var pos = feat(line, "UPOS");
-    var inCase = CASE_WORDS[feat(line, "Case")] || "";
-    var aspect = ASPECT_WORDS[feat(line, "Aspect")] || "";
+    var inCase = caseWord(feat(line, "Case"));
+    var aspect = aspectWord(feat(line, "Aspect"));
     if (pos === "VERB" || pos === "AUX") {
       var parts = [];
       var form = feat(line, "VerbForm");
-      var tense = TENSE_WORDS[feat(line, "Tense")];
+      var tense = tenseWord(feat(line, "Tense"));
+      var past = feat(line, "Tense") === "Past";
       // A Russian participle declines, so it is the only verb form with a case, and the
       // case is what tells it from the beinoni, which is tagged the same and has none.
-      if (form === "Part" && inCase) parts.push(tense ? tense + " participle" : "participle");
-      else if (form === "Inf") parts.push("infinitive");
-      else if (form === "Conv") parts.push("verbal adverb");
-      else if (feat(line, "Mood") === "Imp") parts.push("imperative");
-      else if (MOOD_WORDS[feat(line, "Mood")]) parts.push(MOOD_WORDS[feat(line, "Mood")]);
+      if (form === "Part" && inCase) {
+        parts.push(
+          tense
+            ? gt("reader.grammar.tense-participle", "{tense} participle", { tense: tense })
+            : gt("reader.grammar.participle", "participle")
+        );
+      } else if (form === "Inf") parts.push(gt("reader.grammar.infinitive", "infinitive"));
+      else if (form === "Conv") parts.push(gt("reader.grammar.verbal-adverb", "verbal adverb"));
+      else if (feat(line, "Mood") === "Imp") parts.push(gt("reader.grammar.imperative", "imperative"));
+      else if (moodWord(feat(line, "Mood"))) parts.push(moodWord(feat(line, "Mood")));
       // A French or Italian past participle, which agrees like an adjective and has no
       // person: *mangées* was "past · f" until 2026-09-15.
       // A Russian short participle (написан) comes here too, with its aspect, and says
@@ -3460,21 +3507,21 @@ var targumReader = function () {
       // tagger gave no tense is a past one too: it left the tense off about half of them
       // on the dev sets (2026-09-15), and the beinoni's "present" below is the one word
       // *mangée* must not be called.
-      else if (form === "Part" && (tense === "past" || (!tense && PAST_PARTICIPLES[language]))) {
-        parts.push("past participle");
+      else if (form === "Part" && (past || (!tense && PAST_PARTICIPLES[language]))) {
+        parts.push(gt("reader.grammar.past-participle", "past participle"));
         if (aspect) parts.push(aspect);
-        var marks = aspect ? agreement(line) : feat(line, "Gender") === "Fem" ? "f" : "";
+        var marks = aspect ? agreement(line) : feat(line, "Gender") === "Fem" ? genderMark("Fem") : "";
         if (marks) parts.push(marks);
-        if (!aspect && feat(line, "Number") === "Plur") parts.push("pl.");
+        if (!aspect && feat(line, "Number") === "Plur") parts.push(pluralMark());
         return parts.join(" · ");
       } else if (tense) parts.push(tense);
       // The beinoni: tagged as a participle, met as the present tense.
-      else if (form === "Part") parts.push("present");
+      else if (form === "Part") parts.push(tenseWord("Pres"));
       if (aspect) parts.push(aspect);
       var who = personWord(line);
       // A Russian past agrees with its subject's gender rather than its person, so it
       // says the gender: сказал is "m" whether I, you or he said it.
-      if (!who && !inCase && tense === "past") who = agreement(line);
+      if (!who && !inCase && past) who = agreement(line);
       if (who) parts.push(who);
       if (inCase) {
         var mark = agreement(line);
@@ -3484,25 +3531,25 @@ var targumReader = function () {
       return parts.join(" · ");
     }
     if (pos === "NOUN") {
-      var noun = ["noun"];
+      var noun = [gt("reader.grammar.noun", "noun")];
       var gender = feat(line, "Gender");
-      if (GENDER_MARKS[gender]) noun.push(GENDER_MARKS[gender]);
-      if (feat(line, "Number") === "Plur") noun.push("pl.");
-      if (feat(line, "Definite") === "Cons") noun.push("construct");
+      if (genderMark(gender)) noun.push(genderMark(gender));
+      if (feat(line, "Number") === "Plur") noun.push(pluralMark());
+      if (feat(line, "Definite") === "Cons") noun.push(gt("reader.grammar.construct", "construct"));
       if (inCase) noun.push(inCase);
       return noun.length > 1 ? noun.join(" · ") : "";
     }
     if (pos === "ADJ") {
-      var agree = ["adjective"];
+      var agree = [gt("reader.grammar.adjective", "adjective")];
       // Masculine singular is the form an adjective is looked up under, so it said
       // nothing — until a case came with it, when "adjective · genitive" needs the
       // gender to say which genitive.
-      var said = inCase ? agreement(line) : feat(line, "Gender") === "Fem" ? "f" : "";
+      var said = inCase ? agreement(line) : feat(line, "Gender") === "Fem" ? genderMark("Fem") : "";
       if (inCase) {
         if (said) agree.push(said);
       } else {
         if (said) agree.push(said);
-        if (feat(line, "Number") === "Plur") agree.push("pl.");
+        if (feat(line, "Number") === "Plur") agree.push(pluralMark());
       }
       if (inCase) agree.push(inCase);
       return agree.join(" · ");
@@ -3510,26 +3557,32 @@ var targumReader = function () {
     if (pos === "PRON") {
       var person = personWord(line);
       if (!inCase) return person;
-      return (person || "pronoun") + " · " + inCase;
+      return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
     }
     var headword = (lemma || "").toLowerCase().replace("\u2019", "'");
     if (pos === "DET" && !inCase && ARTICLES.indexOf(headword) >= 0) {
-      var article = ["article"];
-      if (GENDER_MARKS[feat(line, "Gender")]) article.push(GENDER_MARKS[feat(line, "Gender")]);
-      if (feat(line, "Number") === "Plur") article.push("pl.");
+      var article = [gt("reader.grammar.article", "article")];
+      if (genderMark(feat(line, "Gender"))) article.push(genderMark(feat(line, "Gender")));
+      if (feat(line, "Number") === "Plur") article.push(pluralMark());
       return article.join(" · ");
     }
     if (inCase && (pos === "DET" || pos === "NUM" || pos === "PROPN")) {
-      return (pos === "DET" ? "determiner" : pos === "NUM" ? "number" : "name") + " · " + inCase;
+      var kind =
+        pos === "DET"
+          ? gt("reader.grammar.determiner", "determiner")
+          : pos === "NUM"
+            ? gt("reader.grammar.number", "number")
+            : gt("reader.grammar.name", "name");
+      return kind + " · " + inCase;
     }
-    return POS_WORDS[pos] || "";
+    return posWord(pos);
   }
 
   // Gender and number as one mark, the way a Russian table heads its columns: the plural
   // has no gender, so it is "pl." alone.
   function agreement(line) {
-    if (feat(line, "Number") === "Plur") return "pl.";
-    return GENDER_MARKS[feat(line, "Gender")] || "";
+    if (feat(line, "Number") === "Plur") return pluralMark();
+    return genderMark(feat(line, "Gender"));
   }
 
   // A line that mixes Hebrew pieces with English glue — "ו and + ל to + בית". The
@@ -3856,7 +3909,7 @@ var targumReader = function () {
     Array.prototype.forEach.call(caseLens.options, function (option) {
       if (!option.value) return;
       var count = caseCounts[option.value] || 0;
-      option.textContent = CASE_WORDS[option.value] + " · " + count;
+      option.textContent = caseWord(option.value) + " · " + count;
       option.disabled = !count;
     });
     caseLens.addEventListener("change", function () {
@@ -3871,7 +3924,7 @@ var targumReader = function () {
     if (caseLens) caseLens.value = chosen;
     say(
       chosen
-        ? t("reader.case.said", "{case}, {n} here.", { case: CASE_WORDS[chosen], n: caseCounts[chosen] })
+        ? t("reader.case.said", "{case}, {n} here.", { case: caseWord(chosen), n: caseCounts[chosen] })
         : t("reader.case.none", "No case shown.")
     );
   }
@@ -3912,8 +3965,18 @@ var targumReader = function () {
   // case or an aspect, which is the one a model's own reading could contradict.
   function grammarOf(word) {
     var row = rowOf(word);
-    var line = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
-    return inflects(line) ? useLine(line) : "";
+    return tagOf(row && row.length > 8 ? grammarTable[row[8]] || "" : "");
+  }
+
+  // The tag itself, in English whatever the page speaks.
+  function tagOf(line) {
+    if (!inflects(line)) return "";
+    plainGrammar = true;
+    try {
+      return useLine(line);
+    } finally {
+      plainGrammar = false;
+    }
   }
 
   // Whether a word's forms are a paradigm worth showing and asking about: a case or an
@@ -4135,7 +4198,10 @@ var targumReader = function () {
     // The part of speech's own line. A name and a number say which they are — that is
     // all a card can honestly say about either — and a word says the one grammatical
     // fact its kind usually hides from a learner.
-    var kindWord = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
+    // The kind is data (the band a word is kept under, in English); the card says it.
+    var kind = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
+    var kindWord =
+      kind === "name" ? gt("reader.grammar.name", "name") : kind ? gt("reader.grammar.number", "number") : "";
     var grammarHere = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
     var auxiliary = !kindWord && language === "fr" ? auxiliaryBefore(word) : null;
     var usage =
@@ -4152,8 +4218,8 @@ var targumReader = function () {
       var rule = endingLine(grammarHere, endings[index]);
       if (rule) usage = usage ? usage + " · " + rule : rule;
       if (lying) {
-        usage = usage.replace(" · pl.", "");
-        usage = (usage ? usage + " · " : "") + "pl. " + lying;
+        usage = usage.replace(" · " + pluralMark(), "");
+        usage = (usage ? usage + " · " : "") + pluralMark() + " " + lying;
       }
     }
     if (usage) {
@@ -5272,7 +5338,7 @@ var targumReader = function () {
     var said = String(ending).split(":");
     var gender = feat(line, "Gender") === "Fem" ? "f" : feat(line, "Gender") === "Masc" ? "m" : "";
     if (said.length !== 2 || said[0] !== gender) return "";
-    return "like most nouns in -" + said[1];
+    return gt("reader.grammar.like-most-nouns-in", "like most nouns in -{ending}", { ending: said[1] });
   }
 
   // A French noun as a learner keeps it: its dictionary form with *un* or *une*, the only
@@ -8223,6 +8289,7 @@ var targumReader = function () {
     compoundLine: compoundLine,
     withArticle: withArticle,
     endingLine: endingLine,
+    tagOf: tagOf,
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,

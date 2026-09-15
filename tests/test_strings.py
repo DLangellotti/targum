@@ -89,7 +89,8 @@ def _calls(path: Path) -> dict[str, str]:
         text = json.loads(f'"{text}"', strict=False)
         assert found.setdefault(key, text) == text, f"{key} says two things"
 
-    for match in re.finditer(r'\bt\(\s*"([a-z]+\.[\w.-]+)",\s*' + literal, source):
+    # `gt` is the reader card's grammar words, which say their English to the chat's ask.
+    for match in re.finditer(r'\bg?t\(\s*"([a-z]+\.[\w.-]+)",\s*' + literal, source):
         put(match.group(1), match.group(2))
     for match in re.finditer(
         r'\btn\(\s*"([a-z]+\.[\w.-]+)",\s*[^,]+,\s*' + literal + r",\s*" + literal, source
