@@ -3080,3 +3080,22 @@ def test_a_desk_page_is_said_in_the_one_language_an_account_reads(tmp_path: Path
     handler.translated = {}
     handler._person = lambda: olah  # type: ignore[method-assign]
     assert handler._desk("progress", "<en>") == "<en>", "no rendering in it, so English"
+
+
+def test_a_visitor_is_spoken_to_in_the_language_their_browser_asks_for(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """By weight, then order; only a language with a catalogue; English otherwise
+    (targum-internal#184)."""
+    from targum import strings
+    from targum.serve import best_language
+
+    monkeypatch.setattr(strings, "languages", lambda: ["en", "ru"])
+    assert best_language("ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7") == "ru"
+    assert best_language("en-US,en;q=0.9,ru;q=0.8") == "en"
+    assert best_language("fr-FR,fr;q=0.9") == "en", "no French catalogue"
+    assert best_language("fr;q=0.9, ru;q=0.5") == "ru"
+    assert best_language("en;q=0.1, ru") == "ru", "weight before order"
+    assert best_language("ru;q=0") == "en", "q=0 is a refusal"
+    assert best_language("") == "en"
+    assert best_language("*") == "en"

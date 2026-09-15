@@ -3101,7 +3101,14 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if zipped:
             self.send_header("Content-Encoding", "gzip")
-        self.send_header("Vary", "Accept-Encoding")
+        # A page is said in the language the browser asks for when nobody is signed in,
+        # so what comes back varies with that header as well as with compression.
+        self.send_header(
+            "Vary",
+            "Accept-Encoding, Accept-Language"
+            if kind.startswith("text/html")
+            else "Accept-Encoding",
+        )
         self.send_header("Cache-Control", cache)
         # Set by the weekly's entry points while the deployment keeps it unindexed:
         # reachable by anyone with the address, surfaced by no search engine.
@@ -5326,6 +5333,15 @@ class Handler(BaseHTTPRequestHandler):
         others = [code for code in self.store.reads(person.id) if code != "en"]
         return others[0] if len(others) == 1 and others[0] in self.translated else "en"
 
+    def _page_language(self) -> str:
+        """The language a public page speaks to whoever asked: a signed-in reader's
+        interface language, by the same rule as the desk; for a visitor, the first
+        language their browser asks for that targum has a catalogue in — English where it
+        has none of them (David, 2026-09-15, targum-internal#184)."""
+        if self._person() is not None:
+            return self._ui_language()
+        return best_language(self.headers.get("Accept-Language", ""))
+
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
@@ -6401,6 +6417,32 @@ def _still_waiting(page: Path) -> bool:
 
 
 #: The key prefixes a desk page says its words under (targum-internal#184).
+def best_language(header: str) -> str:
+    """The language an `Accept-Language` header prefers among those with a catalogue:
+    by weight, then by order, and English where none of them has one."""
+    from .strings import SOURCE, languages
+
+    have = set(languages())
+    asked: list[tuple[float, int, str]] = []
+    for n, part in enumerate(header.split(",")):
+        name, _, rest = part.strip().partition(";")
+        weight = 1.0
+        for setting in rest.split(";"):
+            key, _, value = setting.strip().partition("=")
+            if key == "q":
+                try:
+                    weight = float(value)
+                except ValueError:
+                    weight = 0.0
+        code = name.strip().split("-")[0].lower()
+        if code and weight > 0:
+            asked.append((-weight, n, code))
+    for _, _, code in sorted(asked):
+        if code in have:
+            return code
+    return SOURCE
+
+
 DESK_KEYS = (
     "nav.",
     "progress.",
