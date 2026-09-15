@@ -244,6 +244,9 @@ class Build:
         self.video = video
         self._episode: Any = None
         self._transcriber: Any = transcriber
+        #: The refiner this build ran, once it has run one: what it bought — the
+        #: punctuation a hearing came back without — is on the receipt.
+        self._refiner_used: Any = None
         self._out = out
         self._out_root = out_root
         self._resolved_out: Path | None = None
@@ -1561,7 +1564,6 @@ class Build:
         refiner redoes its half for the price of its own tokens and nothing else."""
         from .ingest.audio import refined_path
         from .transcribe.models import Refined, load
-        from .transcribe.refine import build as build_refiner
 
         kept = load(Refined, refined_path(workspace, number))
         if kept is None:
@@ -1570,13 +1572,26 @@ class Build:
             # A supplied transcript is the source, not a refinement of a hearing —
             # there is nothing better to redo it with.
             return False
-        refiner = build_refiner()
-        # A refiner may say which of its forerunners it improves on without redoing: the
-        # rules that cut long paragraphs did not re-cut, and re-buy, every hearing made
-        # before them (2026-09-14).
-        return kept.refiner != refiner.name and kept.refiner not in getattr(
-            refiner, "keeps", frozenset()
-        )
+        refiner = self._refiner()
+        if kept.refiner == refiner.name:
+            return False
+        # A refiner may say which of its forerunners stand without redoing: the rules
+        # that cut long paragraphs did not re-cut, and re-buy, every hearing made before
+        # them (2026-09-14), and the rules that punctuate redo only what has none.
+        keeps = getattr(refiner, "keeps", None)
+        return not (callable(keeps) and keeps(kept))
+
+    def _refiner(self) -> Any:
+        """The refiner for this build's hearings. Punctuation is bought only for a hearing
+        that was bought: the free test transcriber has none worth marking, and a suite
+        that happens to run with a key exported must not reach for the model."""
+        from .transcribe.refine import build as build_refiner
+
+        try:
+            paid = bool(self.transcriber.price_per_minute())
+        except TargumError:
+            paid = False
+        return build_refiner(punctuate=paid)
 
     def _parts_owed(self, chapters: int | None, also: Sequence[int] = ()) -> list[int]:
         """Which parts this run buys: the first `chapters` still unheard, plus `also`.
@@ -1611,8 +1626,8 @@ class Build:
         from .audio import probe as probe_module
         from .ingest.audio import refined_path, transcript_path
         from .transcribe.models import Transcript
+        from .transcribe.models import load as load_model
         from .transcribe.models import write as write_model
-        from .transcribe.refine import build as build_refiner
 
         if not wanted:
             return False
@@ -1636,7 +1651,8 @@ class Build:
         if nothing_heard_yet and not self.source_language and self.transcriber.price_per_minute():
             drafted = self._probe_language(recording, found, drafted, workspace)
 
-        refiner = build_refiner()
+        refiner = self._refiner()
+        self._refiner_used = refiner
         by_number = {span.number: span for span in drafted.parts}
         heard = False
         said_nothing: list[int] = []
@@ -1659,7 +1675,18 @@ class Build:
                 language=drafted.language,
             )
             stored = self.cache.get("transcribe", key)
-            if isinstance(stored, dict):
+            # A part refined before is being refined again, not heard again: the hearing
+            # beside it is the one it was refined from, whichever transcriber this box
+            # names today — a changed default must not re-buy a part to punctuate it.
+            beside = (
+                load_model(Transcript, transcript_path(workspace, number))
+                if refined_path(workspace, number).exists()
+                else None
+            )
+            if beside is not None and beside.words:
+                transcript = beside
+                self.reused.append(f"transcript (part {number})")
+            elif isinstance(stored, dict):
                 transcript = Transcript.model_validate(stored)
                 self.reused.append(f"transcript (part {number})")
             else:
@@ -1847,6 +1874,10 @@ class Build:
         read = getattr(self._reading, "spent", None) if self._reading is not None else None
         if isinstance(read, Usage) and read.calls:
             total = total + read
+        # And the punctuation a hearing came back without.
+        marks = getattr(self._refiner_used, "spent", None)
+        if isinstance(marks, Usage) and marks.calls:
+            total = total + marks
         return total
 
     def plan(self, chapters: int | None = None) -> Plan:
@@ -2005,6 +2036,11 @@ class Build:
         except TargumError:
             rate = 0.0
         priced.transcription = seconds / 60 * rate
+        punctuator = getattr(self._refiner(), "punctuator", None) if rate else None
+        if punctuator is not None:
+            # Priced as though the hearing will come back without a mark, which whisper's
+            # Hebrew does; a hearing that punctuates settles for less.
+            priced.transcription += seconds / 60 * punctuator.dollars_per_minute()
         if self.machine and hasattr(self.provider, "estimate_from_counts"):
             words = seconds / 60 * SPEECH_WORDS_PER_MINUTE
             sentences = max(1.0, words / WORDS_PER_SENTENCE)

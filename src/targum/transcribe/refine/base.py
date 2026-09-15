@@ -12,6 +12,7 @@ from ..models import Refined, Transcript
 
 
 class Refiner(Protocol):
-    name: str
+    @property
+    def name(self) -> str: ...
 
     def refine(self, transcript: Transcript) -> Refined: ...

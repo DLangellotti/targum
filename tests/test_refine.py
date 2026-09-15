@@ -164,7 +164,7 @@ def test_a_replaced_refiner_redoes_its_half_without_paying_to_hear_again(
     refined = folder / "audio" / "refined" / "part-001.json"
     import json
 
-    assert json.loads(refined.read_text())["refiner"] == "rules/2"
+    assert json.loads(refined.read_text())["refiner"] == "rules/3"
 
     monkeypatch.setenv("TARGUM_REFINER", "none")  # the null refiner stands in for a new one
     second = build()
@@ -172,3 +172,183 @@ def test_a_replaced_refiner_redoes_its_half_without_paying_to_hear_again(
     assert json.loads(refined.read_text())["refiner"] == "none"
     # Nothing was heard twice: the transcript came from the cache.
     assert second.spent.seconds_by_model.get("null", 0.0) == 0.0
+
+
+# -- punctuation -------------------------------------------------------------------------
+
+#: What whisper-1 made of the opening of a Hebrew talk (2026-09-15): not one mark.
+UNMARKED = (
+    "היום אני אשתדל לא להתלהב יותר מידי כי אני נמצא במסגד מאוד מאוד פנסי "
+    "אבל יכול להיות שאני אתלהב והכל שלי יעלה המוסד הזה הוא אחד המוסדות הדתיים "
+    "הכי חשובים באסלאם הסוני כבר יותר מאלף שנים"
+)
+
+#: What claude-sonnet-5 answered for it, abridged: marks, a paragraph, and every word.
+MARKED = (
+    "היום אני אשתדל לא להתלהב יותר מידי, כי אני נמצא במסגד מאוד מאוד פנסי. "
+    "אבל יכול להיות שאני אתלהב והכל שלי יעלה.\n\nהמוסד הזה הוא אחד המוסדות הדתיים "
+    "הכי חשובים באסלאם הסוני כבר יותר מאלף שנים."
+)
+
+
+def stub(answer: str) -> tuple[list[str], object]:
+    asked: list[str] = []
+
+    def ask(prompt: str) -> tuple[str, int, int]:
+        asked.append(prompt)
+        return answer, 100, 90
+
+    return asked, ask
+
+
+def test_a_transcript_heard_without_marks_is_told_from_one_that_has_them() -> None:
+    from targum.transcribe.refine.punctuate import needs_punctuation
+
+    assert needs_punctuation(heard(UNMARKED))
+    assert not needs_punctuation(heard(MARKED.replace("\n\n", " ")))
+    assert not needs_punctuation(heard("שלום לכם")), "too short to need a full stop"
+
+
+def test_punctuation_adds_marks_and_never_changes_a_word() -> None:
+    """The model may be asked for marks; it is not trusted to have given only marks."""
+    from targum.transcribe.refine.punctuate import transfer
+
+    spoken = "אלום הנבואות האלו כבר קראו".split() + UNMARKED.split()
+    # It corrected a misheard word, added one, and punctuated the rest.
+    marked, opens = transfer(spoken, "אילו הנבואות, האלו כבר באמת קראו? " + UNMARKED)
+    assert marked == {1: "הנבואות,", 4: "קראו?"}
+    assert 0 not in marked, "a word the model corrected keeps the heard spelling"
+    assert opens == set()
+
+
+def test_a_mark_that_is_part_of_a_word_is_not_taken_as_punctuation() -> None:
+    from targum.transcribe.refine.punctuate import transfer
+
+    marked, _ = transfer("אמר ד ר כהן".split() + UNMARKED.split(), 'אמר ד"ר, כהן. ' + UNMARKED)
+    assert marked == {3: "כהן."}
+
+
+def test_an_answer_that_is_not_the_transcript_gives_no_marks() -> None:
+    from targum.transcribe.refine.punctuate import transfer
+
+    marked, opens = transfer(UNMARKED.split(), "זה סיכום קצר של ההרצאה.\n\nותו לא.")
+    assert (marked, opens) == ({}, set())
+
+
+def test_the_rules_punctuate_a_bare_hearing_and_every_clock_stands() -> None:
+    from targum.transcribe.refine.punctuate import Punctuator
+
+    asked, ask = stub(MARKED)
+    words = heard(UNMARKED, step=0.5)
+    refiner = RuleRefiner(Punctuator(ask=ask))  # type: ignore[arg-type]
+    refined = refiner.refine(Transcript(provider="openai/whisper-1", language="he", words=words))
+
+    assert refined.refiner == "rules/3+punctuate/1"
+    assert len(asked) == 1 and "Hebrew" in asked[0]
+    assert [p.text for p in refined.paragraphs] == MARKED.split("\n\n")
+    kept = [word for p in refined.paragraphs for word in p.words]
+    assert [(w.start, w.end) for w in kept] == [(w.start, w.end) for w in words]
+    assert refiner.spent.calls == 1
+
+
+def test_a_punctuated_hearing_is_left_as_it_came_and_costs_nothing() -> None:
+    from targum.transcribe.refine.punctuate import Punctuator
+
+    asked, ask = stub("")
+    RuleRefiner(Punctuator(ask=ask)).refine(  # type: ignore[arg-type]
+        Transcript(provider="elevenlabs/scribe_v2", language="he", words=heard(MARKED))
+    )
+    assert asked == []
+
+
+def test_in_punctuated_speech_a_breath_mid_sentence_is_not_a_paragraph() -> None:
+    words = heard("זה משפט אחד שלם. והנה משפט שני שנמשך", step=0.5)
+    for later in words[6:]:  # a long pause after "שני", mid-sentence
+        later.start += 2.0
+        later.end += 2.0
+    refined = RuleRefiner().refine(Transcript(provider="test", language="he", words=words))
+    assert len(refined.paragraphs) == 1
+
+    for later in words[4:]:  # and one after the full stop
+        later.start += 2.0
+        later.end += 2.0
+    refined = RuleRefiner().refine(Transcript(provider="test", language="he", words=words))
+    assert [p.text for p in refined.paragraphs] == ["זה משפט אחד שלם.", "והנה משפט שני שנמשך"]
+
+
+def test_only_an_unpunctuated_part_is_redone_once_punctuation_can_be_bought() -> None:
+    """A rules/2 part that reads is kept: redoing it moves a reader's place and buys its
+    translation again. One that never stops is the text a learner could not read."""
+    from targum.transcribe.models import Refined, RefinedParagraph
+    from targum.transcribe.refine.punctuate import Punctuator
+
+    def part(text: str, refiner: str = "rules/2") -> Refined:
+        words = heard(text)
+        return Refined(
+            refiner=refiner,
+            paragraphs=[RefinedParagraph(text=text, words=words)],
+        )
+
+    _, ask = stub("")
+    buying = RuleRefiner(Punctuator(ask=ask))  # type: ignore[arg-type]
+    assert not buying.keeps(part(UNMARKED)), "a bare hearing is redone"
+    assert buying.keeps(part(MARKED)), "one that punctuates stands"
+    assert buying.keeps(part(UNMARKED, "rules/3+punctuate/1"))
+    assert not buying.keeps(part(MARKED, "none")), "a refiner that is not rules is redone"
+    assert RuleRefiner().keeps(part(UNMARKED)), "without a key, nothing is redone"
+
+
+def test_punctuating_an_old_part_buys_marks_and_never_the_hearing(
+    fake_audio, tmp_path, monkeypatch
+) -> None:
+    from targum.pipeline import Build
+    from targum.transcribe.null import NullTranscriber
+    from targum.transcribe.refine.punctuate import Punctuator
+
+    class Splits:
+        name = "fake/1"
+
+        def split(self, texts: list[str], language: str) -> list[list[str]]:
+            return [[t] for t in texts]
+
+    class Deaf(NullTranscriber):
+        def transcribe(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            raise AssertionError("the part was heard again")
+
+    fake_audio.duration = 600.0
+    source = tmp_path / "talk.mp3"
+    source.write_bytes(b"audio")
+
+    def build(transcriber: NullTranscriber) -> Build:
+        return Build(
+            str(source),
+            target_language="en",
+            source_language="he",
+            provider_name="null",
+            segmenter=Splits(),
+            transcriber=transcriber,
+            out_root=tmp_path / "out",
+        )
+
+    first = build(NullTranscriber(text=UNMARKED, language="he"))
+    first.run()
+    import json
+
+    refined = first.resolved_out / "audio" / "refined" / "part-001.json"
+    assert json.loads(refined.read_text())["refiner"] == "rules/3"
+    # The cache is gone and the box names another transcriber: only the file beside the
+    # part says what was heard.
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "elsewhere"))
+
+    _, ask = stub(MARKED)
+    monkeypatch.setattr(
+        Build,
+        "_refiner",
+        lambda self: RuleRefiner(Punctuator(ask=ask)),  # type: ignore[arg-type]
+    )
+    second = build(Deaf(text="", language="he"))
+    second.run()
+    written = json.loads(refined.read_text())
+    assert written["refiner"] == "rules/3+punctuate/1"
+    assert "פנסי." in written["paragraphs"][0]["text"]
+    assert second.spent.calls >= 1, "the marks are on the receipt"
