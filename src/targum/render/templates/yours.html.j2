@@ -1,5 +1,10 @@
+{%- set heading = {
+  "texts": t("yours.page.your-targums", "Your targums"),
+  "words": t("yours.page.your-words", "Your Words"),
+  "phrases": t("yours.page.your-phrases", "Your Phrases"),
+}[which] -%}
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -25,14 +30,14 @@
 <main id="page" hidden>
   {%- if which == 'texts' %}
   <section class="panel" id="shelf-panel">
-    <p class="note what-is">A targum is an interactive bilingual text, optimised for
-      language learning.</p>
+    <p class="note what-is">{{ t("yours.page.a-targum-is-an-interactive-bilingual-text", "A targum is an interactive bilingual text, optimised for
+      language learning.") }}</p>
     <p class="note" id="shelf-note"></p>
     <div class="shelf-head" id="shelf-head" role="row" hidden>
       <span></span>
-      <span>Text</span>
-      <span>Chapters</span>
-      <span>Last opened</span>
+      <span>{{ t("yours.page.text", "Text") }}</span>
+      <span>{{ t("yours.page.chapters", "Chapters") }}</span>
+      <span>{{ t("yours.page.last-opened", "Last opened") }}</span>
       <span></span>
     </div>
     <ul class="books shelf-rows" id="library-list"></ul>
@@ -40,8 +45,8 @@
   </section>
 
   <section class="panel trash" id="trash-panel" hidden>
-    <h2>Trash</h2>
-    <p class="note">We keep these for seven days.</p>
+    <h2>{{ t("yours.page.trash", "Trash") }}</h2>
+    <p class="note">{{ t("yours.page.we-keep-these-for-seven-days", "We keep these for seven days.") }}</p>
     <ul class="books" id="trash-list"></ul>
   </section>
   {%- endif %}
@@ -49,35 +54,35 @@
   {%- if which == 'words' %}
   <section class="panel">
     <div class="list-controls">
-      <h2><span id="words-title">Your Words</span></h2>
+      <h2><span id="words-title">{{ t("yours.page.your-words", "Your Words") }}</span></h2>
       {#- Which language the meanings are in. Drawn only for somebody who has meanings in
           more than one, the same way the language switcher is: a control with one answer
           in it is only a question nobody asked. -#}
       <div class="langs quiet" id="meaning-langs" role="tablist"
-           aria-label="Translations in" hidden></div>
-      <input type="search" id="search" dir="auto" placeholder="Search a word or a meaning" spellcheck="false">
-      <select id="status-filter" aria-label="Filter by how well you know them">
-        <option value="learning">Still learning</option>
-        <option value="all">All</option>
-        <option value="1">1 · just met</option>
-        <option value="2">2 · getting there</option>
-        <option value="3">3 · nearly there</option>
-        <option value="9">Known</option>
-        <option value="0">Ignored</option>
+           aria-label="{{ t("yours.page.translations-in", "Translations in") }}" hidden></div>
+      <input type="search" id="search" dir="auto" placeholder="{{ t("yours.page.search-a-word-or-a-meaning", "Search a word or a meaning") }}" spellcheck="false">
+      <select id="status-filter" aria-label="{{ t("yours.page.filter-by-how-well-you-know-them", "Filter by how well you know them") }}">
+        <option value="learning">{{ t("yours.page.still-learning", "Still learning") }}</option>
+        <option value="all">{{ t("yours.page.all", "All") }}</option>
+        <option value="1">{{ t("yours.page.1-just-met", "1 · just met") }}</option>
+        <option value="2">{{ t("yours.page.2-getting-there", "2 · getting there") }}</option>
+        <option value="3">{{ t("yours.page.3-nearly-there", "3 · nearly there") }}</option>
+        <option value="9">{{ t("yours.page.known", "Known") }}</option>
+        <option value="0">{{ t("yours.page.ignored", "Ignored") }}</option>
       </select>
       {#- Hidden until sync says there is an account to export from. -#}
-      <button type="button" id="export-words" hidden>Export</button>
+      <button type="button" id="export-words" hidden>{{ t("yours.page.export", "Export") }}</button>
     </div>
     <div class="table-wrap">
       <table class="rows" id="word-table">
         <thead>
           <tr>
-            <th scope="col">Word</th>
-            <th scope="col">Dictionary form</th>
-            <th scope="col">Meaning</th>
-            <th scope="col">How common</th>
-            <th scope="col">How well</th>
-            <th scope="col">Kept</th>
+            <th scope="col">{{ t("yours.page.word", "Word") }}</th>
+            <th scope="col">{{ t("yours.page.dictionary-form", "Dictionary form") }}</th>
+            <th scope="col">{{ t("yours.page.meaning", "Meaning") }}</th>
+            <th scope="col">{{ t("yours.page.how-common", "How common") }}</th>
+            <th scope="col">{{ t("yours.page.how-well", "How well") }}</th>
+            <th scope="col">{{ t("yours.page.kept", "Kept") }}</th>
           </tr>
         </thead>
         <tbody id="word-rows"></tbody>
@@ -92,9 +97,9 @@
       known word. It is the conversation's first exchange on a first visit (2026-09-11);
       afterwards it lives here. Drawn by `claim.js`, hidden until it has rows. -#}
   <section class="panel claim" id="claim-panel" hidden>
-    <h2>Words you may already know</h2>
-    <p class="note">The commonest words of modern Hebrew that aren't on your ledger yet.
-      Check the ones you know and we'll bring up the next fifty.</p>
+    <h2>{{ t("yours.page.words-you-may-already-know", "Words you may already know") }}</h2>
+    <p class="note">{{ t("yours.page.the-commonest-words-of-modern-hebrew-that", "The commonest words of modern Hebrew that aren't on your ledger yet.
+      Check the ones you know and we'll bring up the next fifty.") }}</p>
     <div id="claim-body"></div>
   </section>
   {%- endif %}
@@ -102,21 +107,21 @@
   {%- if which in ('words', 'phrases') %}
   <section class="panel">
     <div class="list-controls">
-      <h2><span id="phrases-title">Your Phrases</span></h2>
-      <button type="button" id="export-phrases" hidden>Export</button>
+      <h2><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
+      <button type="button" id="export-phrases" hidden>{{ t("yours.page.export", "Export") }}</button>
     </div>
-    <p class="note">Phrases stay with their text.</p>
+    <p class="note">{{ t("yours.page.phrases-stay-with-their-text", "Phrases stay with their text.") }}</p>
     <div id="phrase-list"></div>
-    <p class="empty" id="phrases-empty" hidden>Nothing yet. Drag across words while you read to save a phrase.</p>
+    <p class="empty" id="phrases-empty" hidden>{{ t("yours.page.nothing-yet-drag-across-words-while-you", "Nothing yet. Drag across words while you read to save a phrase.") }}</p>
   </section>
   {%- endif %}
 
-  <p><a class="back" href="/" data-back>Learn</a></p>
+  <p><a class="back" href="/" data-back>{{ t("yours.page.learn", "Learn") }}</a></p>
 </main>
 
 <section class="nothing" id="nothing" hidden>
-  <p class="lede">Nothing here yet.</p>
-  <p>Pick something from <a href="/library">Library</a>.</p>
+  <p class="lede">{{ t("yours.page.nothing-here-yet", "Nothing here yet.") }}</p>
+  <p>{{ t("yours.page.pick-something-from", "Pick something from") }} <a href="/library">{{ t("yours.page.library", "Library") }}</a>.</p>
 </section>
 
 {% include '_foot.html.j2' %}
@@ -125,7 +130,8 @@
 window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_LIST = "{{ which }}";
-</script>
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
 <script>{{ asset('strings.js') }}</script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>

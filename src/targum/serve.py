@@ -4212,7 +4212,8 @@ class Handler(BaseHTTPRequestHandler):
         # to the progress page for a while, from when the word list lived there — an old
         # tab pointing here now lands on the word list itself, which is what it wanted.
         if route.lstrip("/") in self.lists:
-            page = self.lists[route.lstrip("/")]
+            which = route.lstrip("/")
+            page = self._desk(f"lists:{which}", self.lists[which])
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/library":
             return self._send(
@@ -6412,6 +6413,10 @@ DESK_KEYS = (
     "shelf.",
     "follow.",
     "bring.",
+    "yours.",
+    "lists.",
+    "vocab.",
+    "claim.",
 )
 
 
@@ -6534,6 +6539,7 @@ def start(
                     "you": you_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),
+                    **{f"lists:{which}": list_page(token, which, language=code) for which in LISTS},
                 }
                 for code in desk_languages()
             },

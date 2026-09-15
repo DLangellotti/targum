@@ -183,8 +183,8 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
 
     The page's language is its first rendering's — the list is sorted so a rendering read
     beside the text never comes first — and English is the code's own, so it ships
-    nothing. Only the `reader.` keys, and only what the language has filled: a key it has
-    not is said in English by the script.
+    nothing. Only the `reader.` and `vocab.` keys, and only what the language has filled:
+    a key it has not is said in English by the script.
     """
     from ..strings import SOURCE, catalogue
 
@@ -193,7 +193,10 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
     code = translations[0].target_language.split("-")[0].lower()
     if code == SOURCE:
         return {}
-    said = {key: text for key, text in catalogue(code).items() if key.startswith("reader.")}
+    # And the word card's own, which `vocab.js` says inside every reader.
+    said = {
+        key: text for key, text in catalogue(code).items() if key.startswith(("reader.", "vocab."))
+    }
     return {"strings": said, "stringsLanguage": code} if said else {}
 
 
@@ -301,6 +304,15 @@ def _environment() -> Environment:
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
     return env
+
+
+def _page_language(language: str) -> str:
+    """What a desk page's `<html lang>` says: the language its words are in, where the
+    catalogue has that language, and English where they fell back to it."""
+    from ..strings import SOURCE, languages
+
+    code = (language or SOURCE).split("-")[0].lower()
+    return code if code in languages() else SOURCE
 
 
 def page_words(language: str) -> Callable[[str, str], Markup]:
@@ -1028,6 +1040,7 @@ def learn_page(token: str, language: str = "en") -> str:
         .get_template("learn.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             strings=script_strings(language, "learn.", "shelf."),
             token=token,
             languages=_language_names(),
@@ -1071,8 +1084,8 @@ def learn_page(token: str, language: str = "en") -> str:
 LISTS = {"texts": "Your targums", "words": "Your Words", "phrases": "Your Phrases"}
 
 
-def list_page(token: str, which: str) -> str:
-    """One of Learn's three lists, whole.
+def list_page(token: str, which: str, language: str = "en") -> str:
+    """One of Learn's three lists, whole, its words said in `language` (targum-internal#184).
 
     Learn caps every list it draws, because a page somebody lands on with four hundred
     rows on it is not a landing page. This is where the rest of a list is, and it is the
@@ -1086,10 +1099,12 @@ def list_page(token: str, which: str) -> str:
         _environment()
         .get_template("yours.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             which=which,
-            heading=LISTS[which],
             languages=_language_names(),
+            strings=script_strings(language, "yours.", "lists.", "vocab.", "claim.", "shelf."),
         )
     )
 
@@ -1113,6 +1128,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .get_template("add.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             strings=script_strings(language, "add.", "bring."),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
@@ -1328,6 +1344,7 @@ def progress_page(token: str, language: str = "en") -> str:
         .get_template("progress.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             languages=_language_names(),
             # The week's issue, if there is a readable one. Learn is the only surface
@@ -1335,7 +1352,7 @@ def progress_page(token: str, language: str = "en") -> str:
             # at the reader's own rung rather than asking them to pick a level — see
             # `charts.levelFor`. Absent where no issue has been published and built.
             weekly=_this_week(),
-            strings=script_strings(language, "progress."),
+            strings=script_strings(language, "progress.", "vocab."),
         )
     )
 
@@ -1763,6 +1780,7 @@ def you_page(token: str, language: str = "en") -> str:
         .get_template("you.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             strings=script_strings(language, "you."),
             token=token,
             reading=_staged(READING),
@@ -1787,6 +1805,7 @@ def library_page(token: str, language: str = "en") -> str:
         .get_template("library.html.j2")
         .render(
             t=page_words(language),
+            page_language=_page_language(language),
             token=token,
             catalogue=[entry.state() for entry in everything()],
             # Which texts the page meets as one thing. Baked in beside the catalogue and
