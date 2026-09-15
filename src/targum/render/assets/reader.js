@@ -3070,6 +3070,16 @@ var targumReader = function () {
   }
 
   var TENSE_WORDS = { Past: "past", Pres: "present", Fut: "future" };
+  // The moods a French or Italian verb is met in besides the indicative. Said in place
+  // of the tense, because the tense the tagger gives a conditional is the present, and
+  // "present" is the one thing *mangerait* is not (targum-internal#263).
+  var MOOD_WORDS = { Cnd: "conditional", Sub: "subjunctive" };
+  // Where a participle with no tense is a past participle rather than the beinoni.
+  var PAST_PARTICIPLES = { fr: true, it: true };
+  // The articles of French and Italian, by the dictionary form the tagger gives them. The
+  // features cannot tell an article from *ce* or *mon*, and a card should: *l'* and *les*
+  // hide the gender that the article is the only place to see.
+  var ARTICLES = ["le", "la", "les", "l'", "un", "une", "des", "il", "lo", "i", "gli", "uno", "una"];
   // The case a word is in, by the name a Russian course teaches it under. Universal
   // Dependencies calls the prepositional Loc; nobody learning Russian does.
   var CASE_WORDS = {
@@ -3117,7 +3127,7 @@ var targumReader = function () {
   // DICTA never tags either, so every Hebrew line comes out exactly as it did
   // (targum-internal#258). They go last on the line, after what the word is, because the
   // case is the fact a Russian learner tapped the word to find.
-  function useLine(line) {
+  function useLine(line, lemma) {
     var pos = feat(line, "UPOS");
     var inCase = CASE_WORDS[feat(line, "Case")] || "";
     var aspect = ASPECT_WORDS[feat(line, "Aspect")] || "";
@@ -3131,7 +3141,22 @@ var targumReader = function () {
       else if (form === "Inf") parts.push("infinitive");
       else if (form === "Conv") parts.push("verbal adverb");
       else if (feat(line, "Mood") === "Imp") parts.push("imperative");
-      else if (tense) parts.push(tense);
+      else if (MOOD_WORDS[feat(line, "Mood")]) parts.push(MOOD_WORDS[feat(line, "Mood")]);
+      // A French or Italian past participle, which agrees like an adjective and has no
+      // person: *mangées* was "past · f" until 2026-09-15.
+      // A Russian short participle (написан) comes here too, with its aspect, and says
+      // its gender the way a Russian past does. In French and Italian a participle the
+      // tagger gave no tense is a past one too: it left the tense off about half of them
+      // on the dev sets (2026-09-15), and the beinoni's "present" below is the one word
+      // *mangée* must not be called.
+      else if (form === "Part" && (tense === "past" || (!tense && PAST_PARTICIPLES[language]))) {
+        parts.push("past participle");
+        if (aspect) parts.push(aspect);
+        var marks = aspect ? agreement(line) : feat(line, "Gender") === "Fem" ? "f" : "";
+        if (marks) parts.push(marks);
+        if (!aspect && feat(line, "Number") === "Plur") parts.push("pl.");
+        return parts.join(" · ");
+      } else if (tense) parts.push(tense);
       // The beinoni: tagged as a participle, met as the present tense.
       else if (form === "Part") parts.push("present");
       if (aspect) parts.push(aspect);
@@ -3175,6 +3200,13 @@ var targumReader = function () {
       var person = personWord(line);
       if (!inCase) return person;
       return (person || "pronoun") + " · " + inCase;
+    }
+    var headword = (lemma || "").toLowerCase().replace("\u2019", "'");
+    if (pos === "DET" && !inCase && ARTICLES.indexOf(headword) >= 0) {
+      var article = ["article"];
+      if (GENDER_MARKS[feat(line, "Gender")]) article.push(GENDER_MARKS[feat(line, "Gender")]);
+      if (feat(line, "Number") === "Plur") article.push("pl.");
+      return article.join(" · ");
     }
     if (inCase && (pos === "DET" || pos === "NUM" || pos === "PROPN")) {
       return (pos === "DET" ? "determiner" : pos === "NUM" ? "number" : "name") + " · " + inCase;
@@ -3772,7 +3804,8 @@ var targumReader = function () {
     // all a card can honestly say about either — and a word says the one grammatical
     // fact its kind usually hides from a learner.
     var kindWord = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
-    var usage = kindWord || useLine(row && row.length > 8 ? grammarTable[row[8]] || "" : "");
+    var usage =
+      kindWord || useLine(row && row.length > 8 ? grammarTable[row[8]] || "" : "", lemma);
     if (!kindWord) {
       // The paid half of the line, where a gloss has supplied it: the form a learner
       // keeps in front of a verb's parsing, the lying plural after a noun's gender.
