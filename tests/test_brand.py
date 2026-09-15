@@ -553,3 +553,39 @@ def test_the_streak_is_the_longest_one_and_the_foot_moves_nothing() -> None:
     # And the words that cost (targum-internal#174): no percentage, no grade, no clay.
     for verdict in ("%", "accuracy", "grade", "clay"):
         assert verdict not in foot.lower(), f"the foot passes a verdict: {verdict!r}"
+
+
+def _catalogues() -> list[tuple[str, dict[str, str]]]:
+    from targum import strings
+
+    return [(code, strings.catalogue(code)) for code in strings.languages() if code != "en"]
+
+
+def test_every_language_keeps_the_rules_that_are_not_about_english() -> None:
+    """§12, "The interface speaks Russian". No exclamation marks, no emoji, and the name
+    Latin and lowercase in every language: «targum», never Targum, never таргум."""
+    for code, said in _catalogues():
+        for key, text in said.items():
+            assert "!" not in text, f"{code}: {key} exclaims: {text!r}"
+            assert not re.findall(r"[\U0001F300-\U0001FAFF☀-➿️⬀-⯿]", text), f"{code}: {key}"
+            assert "Targum" not in text, f"{code}: {key} capitalises the name"
+            assert "таргум" not in text.lower(), f"{code}: {key} spells the name in Cyrillic"
+
+
+def test_a_translated_label_stays_near_the_length_of_its_english() -> None:
+    """§12, "The interface speaks Russian". A button, a tab or a column head was sized
+    against its English; a translation that runs past 1.6 times that, or six characters
+    more where the English is short, is caught here rather than by a screenshot."""
+    from targum import strings
+
+    english = strings.catalogue("en")
+    for code, said in _catalogues():
+        for key, text in said.items():
+            base, _, form = key.rpartition(".")
+            source = english.get(key) or english.get(f"{base}.other")
+            if source is None or "{" in source or len(source.split()) > 3:
+                continue
+            if re.search(r"[.?:…]$", source.strip()):
+                continue  # a sentence, not a label
+            limit = max(1.6 * len(source), len(source) + 6)
+            assert len(text) <= limit, f"{code}: {key} {text!r} is long for {source!r}"
