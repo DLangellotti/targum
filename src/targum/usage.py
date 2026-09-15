@@ -16,7 +16,7 @@ an unknown price is not zero, but pretending to know it is worse.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 
 
 @dataclass
@@ -111,6 +111,13 @@ class Usage:
             was_read, was_wrote = total.cache_by_model.get(model, (0, 0))
             total.cache_by_model[model] = (was_read + read, was_wrote + wrote)
         return total
+
+    def merge(self, other: Usage) -> None:
+        """Add `other` into this one, in place: a turn's receipt taking in a part of the
+        turn that was bought by something else, such as the chat record's word reading."""
+        total = self + other
+        for name in (f.name for f in fields(self)):
+            setattr(self, name, getattr(total, name))
 
     def cost(self) -> float:
         """USD, from the prices the provider publishes for each model it used."""

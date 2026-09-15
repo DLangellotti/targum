@@ -20,7 +20,7 @@ import queue
 import threading
 import time
 import traceback
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -562,13 +562,30 @@ def _conversing_in(learning: set[str]) -> str:
 def mode_for(language: str, talks: bool) -> str:
     """What a new conversation in a language is for.
 
-    `talk` — held in the language, graded to the reader — only in Hebrew, and only for a
-    reader with modern Hebrew to hold it in (`Library.talks`). Every other language opens
-    in the English find mode (2026-09-13): it finds and answers about texts in English
-    until conversation in that language is built, and Aramaic stays there, because nobody
-    converses in the Aramaic of Daniel.
+    `talk` — held in the language, graded to the reader — in Hebrew for a reader with
+    modern Hebrew to hold it in (`Library.talks`), and in every other language
+    conversation has been built for (`hebrew.TALKED`: Italian since 2026-09-15,
+    targum-internal#280). `talks` is about which Hebrew a shelf holds, so it decides
+    nothing for Italian. Every other language opens in the English find mode (2026-09-13)
+    until conversation in it is built (#281 to #284).
     """
-    return "talk" if (language or "he").split("-")[0] == "he" and talks else "find"
+    code = (language or "he").split("-")[0].lower()
+    if code == "he":
+        return "talk" if talks else "find"
+    return "talk" if code in hebrew_module.TALKED else "find"
+
+
+def talking(opened: Mapping[str, Any], language: str) -> bool:
+    """Whether a conversation already opened is held in the talk shape.
+
+    As it was stored, except that a conversation stored as `find` only because its
+    language had no talk mode yet is held in it now: an Italian conversation opened on
+    2026-09-14 is answered in Italian from its next turn. A Hebrew one stored as `find`
+    was stored so for its shelf, and stays."""
+    code = (language or "he").split("-")[0].lower()
+    if code not in hebrew_module.TALKED:
+        return False
+    return opened.get("mode") != "find" or code != "he"
 
 
 class Chats:
@@ -743,6 +760,8 @@ class Chats:
     #: "Here is a suggestion for reading": הִנֵּה מַשֶּׁהוּ לִקְרוֹא read as the English put
     #: into Hebrew word for word (2026-09-14), and the Russian had the same trouble.
     SUGGEST_SAID = "הִנֵּה הַצָּעָה לִקְרִיאָה."
+    #: The same line in every language a conversation is held in (`hebrew.TALKED`).
+    SUGGEST_SAID_IN = {"he": SUGGEST_SAID, "it": "Ecco qualcosa da leggere."}
     #: Its "= " line, in the languages the account may read (targum-internal#243).
     SUGGEST_LINES = {"en": "Here's something to read.", "ru": "Вот что почитать."}
 
@@ -791,11 +810,13 @@ class Chats:
         because = str(top.get("because") or "").strip()
         into = hebrew_module.gloss_language(ctx.reads)
         line = self.SUGGEST_LINES.get(into, self.SUGGEST_LINES["en"])
-        # The pointed Hebrew line only where the conversation is Hebrew. Another
-        # language's conversation is answered in the language the reader reads, and a
-        # Hebrew sentence at the head of an Italian one said it was a Hebrew one.
-        if ctx.level.language.split("-")[0].lower() == "he":
-            said = f"{self.SUGGEST_SAID}\n= {line} {because}".rstrip()
+        # The line in the conversation's own language where it is held in one, with its
+        # translation under it; a Hebrew sentence at the head of an Italian conversation
+        # said it was a Hebrew one. A language with no talk mode is answered in the
+        # language the reader reads.
+        own = self.SUGGEST_SAID_IN.get(ctx.level.language.split("-")[0].lower())
+        if own:
+            said = f"{own}\n= {line} {because}".rstrip()
         else:
             said = f"{line} {because}".rstrip()
         n = store.chat_say(chat_id, "user", self.SUGGEST_ASKED, self.SUGGEST_ASKED)
@@ -996,8 +1017,11 @@ class Chats:
         opened = store.chat_owned(person_id, asked.chat_id) or {}
         # The "= " lines in the language the account reads (targum-internal#243).
         into = hebrew_module.gloss_language(ctx.reads)
+        code = language.split("-")[0].lower()
         contract = (
-            "" if opened.get("mode") == "find" else hebrew_module.contract(language_name(into))
+            hebrew_module.contract_for(code, language_name(into))
+            if talking(opened, language)
+            else ""
         )
         known = hebrew_module.known_words(store, person_id, language)
         common = hebrew_module.common_words(language=language)
@@ -1012,7 +1036,7 @@ class Chats:
             hebrew_module.bring_back(store, person_id, language, seed=seed) if contract else None
         )
         ledger = hebrew_module.ledger_block(level, known, common, returning)
-        if contract and self.exemplars:
+        if contract and self.exemplars and code == "he":
             # A few sentences a Hebrew speaker wrote inside this reader's words, after
             # the breakpoint with the ledger: the idiom to write in, drawn afresh each
             # turn. Only where the conversation is in Hebrew.
@@ -1041,6 +1065,19 @@ class Chats:
                 contract=contract,
                 ledger=ledger,
             )
+            if contract:
+                # The record forming: the reply's lines read as a text is read, before the
+                # page is told the turn is done, so the words land with the lines. Before
+                # the turn is settled, because a language the model reads is bought here,
+                # and what that cost is this turn's.
+                self._record(
+                    asked,
+                    feed,
+                    language,
+                    set(known) | set(common) | set(returning.words() if returning else []),
+                    target=into,
+                    spent=spent,
+                )
             job.spent = spent.cost()
             job.cached = (spent.cache_read_tokens, spent.cache_write_tokens, spent.cache_cost())
             job.seconds = hebrew_module.seconds_for(
@@ -1052,16 +1089,6 @@ class Chats:
             self.library.settle(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="done", spent=job.spent)
             store.chat_add_spent(asked.chat_id, job.spent)
-            if contract:
-                # The record forming: the reply's Hebrew read as a text is read, before
-                # the page is told the turn is done, so the words land with the lines.
-                self._record(
-                    asked,
-                    feed,
-                    language,
-                    set(known) | set(common) | set(returning.words() if returning else []),
-                    target=into,
-                )
             feed.put(
                 "done",
                 {
@@ -1092,20 +1119,28 @@ class Chats:
             feed.close()
 
     def _record(
-        self, asked: Asked, feed: Feed, language: str, allowed: set[str], target: str = "en"
+        self,
+        asked: Asked,
+        feed: Feed,
+        language: str,
+        allowed: set[str],
+        target: str = "en",
+        spent: Usage | None = None,
     ) -> None:
-        """Read the answer's Hebrew lines and hand the page their words.
+        """Read the answer's lines and hand the page their words.
 
         Kept on the reader's turn, as the words of its answer, and put on the feed as
         its own event. A failure here is the operator's to read and costs the reader
-        nothing but the states: the turn is already done and the lines already drawn.
+        nothing but the states: the answer is written and its lines already drawn.
+        What reading the words cost, where the model reads them, is added to `spent`,
+        the turn's own usage, and settled with it.
         """
         if self.store is None:
             return
         try:
-            said = hebrew_module.pairs(feed.text())
+            said = hebrew_module.pairs(feed.text(), language)
             lines = [pair.hebrew for pair in said]
-            words = self.recorder.annotate(lines, language, target)
+            words = self.recorder.annotate(lines, language, target, spent=spent)
             payload = {
                 "lines": [{"he": he, "words": read} for he, read in zip(lines, words, strict=True)],
                 "outside": round(outside_share(words, allowed), 3),

@@ -638,10 +638,13 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     reader = "you"
     if ctx.person is not None:
         reader = str(ctx.store.profile(ctx.person).get("name") or "") or "you"
-    path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader)
+    # In the conversation's own language (targum-internal#280): `ctx.level` is read in the
+    # language the conversation was opened in (`Chats.context`).
+    held_in = (ctx.level.language or "he").split("-")[0].lower()
+    path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader, held_in)
     if kept < 2:
         return {
-            "error": "Nothing to read back yet. Talk a little first, in Hebrew.",
+            "error": f"Nothing to read back yet. Talk a little first, in {language_name(held_in)}.",
             "lines": kept,
         }
     job = Job(
@@ -649,7 +652,11 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         source=str(path),
         # Into the language the reader reads (targum-internal#243): the "= " lines
         # were written in it, and the pipeline carries them whole.
-        options={**BUILD_OPTIONS, "to": hebrew_module.gloss_language(ctx.reads), "from": "he"},
+        options={
+            **BUILD_OPTIONS,
+            "to": hebrew_module.gloss_language(ctx.reads),
+            "from": held_in,
+        },
         owner=ctx.person_id,
         admin=ctx.admin,
         home=ctx.home,
@@ -667,7 +674,8 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     )
     if dropped:
         note += (
-            f" {dropped} of their turns had no Hebrew recast and are not in the record; "
+            f" {dropped} of their turns had no {language_name(held_in)} recast and are not in "
+            "the record; "
             "say so plainly."
         )
     return {"quote": state, "lines": kept, "dropped": dropped, "note": note}

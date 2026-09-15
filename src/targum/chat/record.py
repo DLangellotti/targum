@@ -7,6 +7,12 @@ word its state on the reader's ledger while they are still reading it, and count
 they have not met. Meanings come from the glossary cache and are never bought here: a
 word the cache does not hold is shown bare, and the reader's own press looks it up.
 
+The same holds in Italian since 2026-09-15 (targum-internal#280), read by the model
+rather than by a local tagger, because nothing permissively licensed reads Italian
+(`annotate/model_lemma`). That reading costs a little, and it is part of the turn: what it
+spent is handed back to be settled on the turn's own job, never kept on a counter of its
+own.
+
 Measured before it was built (`scripts/measure_line_annotation.py`): on a laptop the
 model loads in about nine seconds and then reads a line in about sixty milliseconds, a
 five-line turn in a fifth of a second. The load is paid once per process, warmed when
@@ -23,9 +29,10 @@ from typing import Any
 from ..annotate.base import NOT_VOCABULARY, Bands, Lemmatizer, in_script
 from ..annotate.frequency import FrequencyBands
 from ..models import Segment
+from ..usage import Usage
 from ..vocalize.base import js_span, map_span, pointed_positions, strip_nikkud
 
-#: Which languages the record reads. One: the record is Hebrew on both sides.
+#: The record's first language, and the one its local model is warmed for.
 LANGUAGE = "he"
 
 
@@ -83,15 +90,36 @@ class Recorder:
         return held.gloss if held else ""
 
     def annotate(
-        self, lines: list[str], language: str = LANGUAGE, target: str = "en"
+        self,
+        lines: list[str],
+        language: str = LANGUAGE,
+        target: str = "en",
+        spent: Usage | None = None,
     ) -> list[list[dict[str, Any]]]:
         """Each line's words: where each sits in the pointed line, its dictionary form,
-        its part of speech, its band, and the meaning held for it, if one is."""
+        its part of speech, its band, and the meaning held for it, if one is.
+
+        `spent` is the turn's own usage, and what reading the words cost is added to it:
+        nothing for Hebrew, which is read here, and the model's reading for a language
+        only the model reads."""
         if not lines:
             return []
         segments = _segments(lines)
-        with self.lock:
-            read = self.lemmatizer().lemmas(segments, language)
+        from ..annotate import model_lemma
+
+        if self._lemmatizer is None and model_lemma.reads(language):
+            # Bought: the turn this is part of was claimed before its first token, and the
+            # reading is settled with it. A fresh reader a turn, so what it spent is this
+            # turn's and no other's; no lock, since nothing local is loaded.
+            reader = model_lemma.ModelLemmatizer(buy=True)
+            try:
+                read = reader.lemmas(segments, language)
+            finally:
+                if spent is not None:
+                    spent.merge(reader.spent)
+        else:
+            with self.lock:
+                read = self.lemmatizer().lemmas(segments, language)
         rated = self.bands.supports(language)
         meanings: dict[str, str] = {}
         bands: dict[str, int] = {}

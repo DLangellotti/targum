@@ -267,6 +267,9 @@ function pairsDrawn() {
       const gloss = node.children.find((c) => String(c.className).split(" ")[0] === "chat-gloss");
       out.push({
         he: he.textContent,
+        // Which language the line was drawn in, and which way it runs (#280).
+        lang: he.attrs.lang,
+        dir: he.attrs.dir,
         en: node.children[1].textContent,
         // Folded or open (#241).
         enHidden: node.children[1].hidden,
