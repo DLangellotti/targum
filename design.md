@@ -320,6 +320,33 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The interface speaks Russian — 2026-09-15
+
+Every word the product says to a reader now comes from `src/targum/strings/<code>.json`
+(targum-internal#184), and Russian is the first catalogue filled (#185). David decided
+the following the same day; they change or add rules, so they are recorded.
+
+- **The Russian was drafted by a model and shipped.** No review gate: a reader who
+  reports a bad line gets it fixed. A native ear still owns the voice.
+- **The name stays Latin and lowercase in every language.** «targum — это
+  интерактивный двуязычный текст», never Targum and never таргум, because the wordmark
+  it names is Latin (§3). `test_brand.py` holds every catalogue to it.
+- **Which rules are universal.** No exclamation marks, no emoji, the name as above, and
+  every `{blank}` the English has. `test_brand.py` checks them in every language.
+- **Which rules belong to a language.** Terseness and the voice (§6) were written for
+  English. Russian runs longer and reads a bare statement as curt, so a Russian line
+  may take the words the register needs. That is judged by ear, not by test, with
+  one exception: a label (three words or fewer, no closing punctuation) may run to 1.6
+  times its English or six characters more, whichever is larger, because the button
+  it sits in was sized against the English.
+- **A desk page says its own language.** Learn, Library, Progress, You, Add, the lists,
+  the conversation and the public pages carry `<html lang>` of the language their words
+  are in. A reader page is still English chrome around a text, as the entry below says.
+- **A visitor is spoken to in their browser's language.** Signed out, a public page
+  takes the first `Accept-Language` that has a catalogue; signed in, the interface
+  follows the one language the account reads besides English.
+
+
 ### The Hebrew-first audit — 2026-09-14
 
 David asked for a complete review of the product with the Hebrew learner as its user,
