@@ -684,7 +684,9 @@ class Chats:
     #: milliseconds the ledger keeps `at` in: a fortnight.
     NEW_WORDS_MS = 14 * 24 * 3600 * 1000
 
-    def chips(self, person: Person | None, home: Path, language: str = "") -> list[dict[str, str]]:
+    def chips(
+        self, person: Person | None, home: Path, language: str = "", ui: str = "en"
+    ) -> list[dict[str, str]]:
         """The things most readers ask, as buttons (targum-internal#240, from the notes
         of 2026-09-10: "most prompts will be nearly identical"). Drawn from the record,
         never a static list: each stands only where its condition holds, and the first
@@ -695,8 +697,16 @@ class Chats:
         In one language: the conversation's, which is the switcher's. Drawn from the whole
         record, the Italian side offered Continue on a Hebrew text and counted new and
         known words from the Hebrew ledger, and a press put the reader back in Hebrew
-        (2026-09-15)."""
-        chips: list[dict[str, str]] = [{"id": "read", "line": "Find me something to read"}]
+        (2026-09-15).
+
+        Each chip is labelled in `ui`, the language the page speaks to this reader in
+        (targum-internal#184); what a press says to the model is the page's own."""
+        from .. import strings
+
+        def said(chip: str) -> str:
+            return strings.text(f"chat.chip.{chip}", ui)
+
+        chips: list[dict[str, str]] = [{"id": "read", "line": said("read")}]
         store = self.store
         spoken = (language or "he").split("-")[0].lower()
         if store is not None and person is not None:
@@ -721,7 +731,7 @@ class Chats:
                 chips.append(
                     {
                         "id": "continue",
-                        "line": "Continue",
+                        "line": said("continue"),
                         # The title rides on its own, so the page can cut it short where
                         # a chip would run out of its card (2026-09-11).
                         "title": str(row["title"]),
@@ -736,21 +746,21 @@ class Chats:
                 (person.id, spoken, since),
             ).fetchone()
             if int(fresh["n"]) > 0:
-                chips.append({"id": "words", "line": "Use my new words"})
+                chips.append({"id": "words", "line": said("words")})
             known = store.db.execute(
                 "SELECT COUNT(*) AS n FROM word WHERE person = ? AND gone = 0 AND language = ?"
                 " AND status = 9",
                 (person.id, spoken),
             ).fetchone()
             if int(known["n"]) > 0:
-                chips.append({"id": "know", "line": "Show me what I know"})
+                chips.append({"id": "know", "line": said("know")})
         # Today's news from a publisher in this language: every feed is Hebrew for now.
         if any(
             one.feed and one.language.split("-")[0].lower() == spoken
             for one in sources_module.load()
         ):
-            chips.append({"id": "news", "line": "Read today's news"})
-        chips.append({"id": "stuck", "line": "Explain a word I'm stuck on"})
+            chips.append({"id": "news", "line": said("news")})
+        chips.append({"id": "stuck", "line": said("stuck")})
         return chips
 
     #: What the page says for the reader when the first chip is pressed, and what
@@ -774,6 +784,7 @@ class Chats:
         admin: bool,
         skip: Sequence[str] = (),
         language: str = "",
+        ui: str = "en",
     ) -> dict[str, Any]:
         """ "Something to read", answered without the model (targum-internal#240).
 
@@ -785,6 +796,8 @@ class Chats:
         `skip` names texts already offered, for "Another". Returns what the page draws,
         or `{"error", "status"}`.
         """
+        from .. import strings
+
         if self.store is None:
             raise RuntimeError("a chat needs a store")
         store = self.store
@@ -794,13 +807,13 @@ class Chats:
         left = {str(one) for one in skip}
         rows = [row for row in found.get("suggestions", []) if row["id"] not in left]
         if not rows:
-            return {"error": "We're out of suggestions. Ask us for something.", "status": 404}
+            return {"error": strings.text("chat.suggest.out", ui), "status": 404}
         top = rows[0]
         quoted = tools_module.quote_build(ctx, {"catalogue_id": top["id"]})
         quote = quoted.get("quote")
         if quote is None:
             return {
-                "error": quoted.get("error") or "We can't get that ready right now.",
+                "error": quoted.get("error") or strings.text("chat.suggest.cannot", ui),
                 "status": 409,
             }
         if not chat_id:
@@ -819,12 +832,15 @@ class Chats:
             said = f"{own}\n= {line} {because}".rstrip()
         else:
             said = f"{line} {because}".rstrip()
-        n = store.chat_say(chat_id, "user", self.SUGGEST_ASKED, self.SUGGEST_ASKED)
+        # The press, written in the words of the chip that was pressed.
+        asked = strings.text("chat.chip.read", ui)
+        n = store.chat_say(chat_id, "user", asked, asked)
         store.chat_say(chat_id, "assistant", [{"type": "text", "text": said}], said)
         return {
             "chat": chat_id,
             "turn": n,
             "said": said,
+            "asked": asked,
             "quote": quote,
             "offered": [top["id"]],
             "more": len(rows) > 1,

@@ -1370,6 +1370,9 @@ def test_the_chips_start_with_a_verb() -> None:
         line.split()[0] in ("Find", "Continue", "Use", "Show", "Read", "Explain") for line in lines
     )
     assert session.Chats.SUGGEST_ASKED == "Find me something to read"
+    from targum import strings
+
+    assert strings.text("chat.chip.read") == session.Chats.SUGGEST_ASKED, "the chip is the press"
     said = run(
         do=[{"type": "chip", "id": "know"}],
         answers={

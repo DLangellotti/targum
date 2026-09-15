@@ -1280,7 +1280,7 @@
       current = got.chat;
       remember(current);
       if (chips) chips.show(false);
-      turn("user", got.said ? "Find me something to read" : "");
+      turn("user", got.said ? got.asked || "Find me something to read" : "");
       var li = turn("assistant", got.said || "", "");
       if (got.quote) quoteCard(li, got.quote);
       offered = offered.concat(got.offered || []);

@@ -1082,5 +1082,13 @@
   "serve.picture-over-mb": "That picture is over {size} MB. Try a smaller one.",
   "serve.video-over-gb": "That video is over {size} GB. Try a shorter one.",
   "serve.recording-over-gb": "That recording is over {size} GB. Try a shorter one.",
-  "serve.over-quota": "That would take your recordings over {size} GB. Delete one and try again."
+  "serve.over-quota": "That would take your recordings over {size} GB. Delete one and try again.",
+  "chat.chip.read": "Find me something to read",
+  "chat.chip.continue": "Continue",
+  "chat.chip.words": "Use my new words",
+  "chat.chip.know": "Show me what I know",
+  "chat.chip.news": "Read today's news",
+  "chat.chip.stuck": "Explain a word I'm stuck on",
+  "chat.suggest.out": "We're out of suggestions. Ask us for something.",
+  "chat.suggest.cannot": "We can't get that ready right now."
 }

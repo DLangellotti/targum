@@ -4528,7 +4528,9 @@ class Handler(BaseHTTPRequestHandler):
                     # `session.mode_for`). Speak is offered either way since 2026-09-14.
                     "talk": mode_for(spoken, self.library.talks(self._home(), person_id)) == "talk",
                     "hours": self._hours(person_id),
-                    "chips": self.chats.chips(person, self._home(), spoken),
+                    "chips": self.chats.chips(
+                        person, self._home(), spoken, ui=self._page_language()
+                    ),
                 }
             )
         pieces = rest.split("/")
@@ -5213,6 +5215,7 @@ class Handler(BaseHTTPRequestHandler):
             admin=admin,
             skip=skip,
             language=self._asked_language(payload.get("language")),
+            ui=self._page_language(),
         )
         if "error" in answer:
             return self._json({"error": answer["error"]}, int(answer.get("status") or 409))
