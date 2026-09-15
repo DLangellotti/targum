@@ -1300,5 +1300,12 @@
   "suggest.looked-up": "Ученик смотрит в словаре {share}% его слов.",
   "suggest.modern-hebrew": "Современный иврит.",
   "suggest.biblical-hebrew": "Библейский иврит.",
-  "suggest.unmeasured": "Пока не измерено."
+  "suggest.unmeasured": "Пока не измерено.",
+  "reader.next.sequence": "Следующий по порядку.",
+  "reader.next.step-up": "На ступень сложнее этого.",
+  "reader.next.step-up-other": "На ступень сложнее, в другом иврите.",
+  "reader.next.easiest": "Самый лёгкий текст на полке.",
+  "reader.next.as-hard": "Примерно такой же сложности.",
+  "reader.next.easier": "Легче этого.",
+  "reader.next.scene": "Сцена {n}"
 }
