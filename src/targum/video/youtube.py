@@ -19,7 +19,9 @@ authorized to publish. That line is policy, not code — deliberately (2026-08-3
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -27,6 +29,8 @@ from urllib.parse import parse_qs, urlparse
 
 from ..errors import TargumError
 from . import MAX_VIDEO_BYTES, VIDEO_HEIGHT, ytdlp_available
+
+log = logging.getLogger(__name__)
 
 #: Addresses that are plainly YouTube's. A closed list, like the suffixes: the binary
 #: would happily fetch a thousand other sites, and each of those is a decision nobody
@@ -98,6 +102,9 @@ _TO_THE_OPERATOR = (" --", "http://", "https://")
 #: uploads through the same door a recording does, hosted included — so "YouTube links
 #: are CLI-only" would be the wrong sentence here, and so would silence.
 OTHER_DOOR = "You can upload the video file instead."
+
+#: The username and password a proxy address is bought with, wherever one is written.
+_USERINFO = re.compile(r"(?<=://)[^/@\s]+@")
 
 
 def proxy() -> str:
@@ -251,13 +258,37 @@ def _said(error: subprocess.CalledProcessError) -> str:
     return ""
 
 
+def _logged(error: subprocess.CalledProcessError) -> str:
+    """yt-dlp's own reason, written to the journal for whoever runs the box.
+
+    What `_said` drops for the reader is exactly what the operator needs. On 2026-09-13 a
+    paste failed through the proxy with "Sign in to confirm you're not a bot" from a
+    flagged exit, and the journal held nothing: the diagnosis had to be rebuilt from a
+    laptop with the service's command line (targum-internal#205). So every ERROR line is
+    logged, or the last line where there is none — never the command, which carries the
+    proxy, and with any username and password in an address taken out.
+    """
+    said = (error.stderr or b"").decode("utf-8", "replace").strip().splitlines()
+    lines = [line for line in said if line.startswith("ERROR:")] or said[-1:]
+    reason = " / ".join(lines) or f"exit {error.returncode} and nothing on stderr"
+    where = proxy()
+    if where:
+        reason = reason.replace(where, _USERINFO.sub("***@", where))
+    reason = _USERINFO.sub("***@", reason)
+    address = error.cmd[-1] if isinstance(error.cmd, list | tuple) and error.cmd else ""
+    log.warning("yt-dlp stopped on %s: %s", address, reason)
+    return reason
+
+
 def _refusal(error: subprocess.CalledProcessError, fallback: str) -> TargumError:
     """What the reader is told when yt-dlp stopped.
 
     The hint rides only targum's own sentence. "Private video." is already the whole
     answer and naming a second door after it answers a question nobody asked; a reader
     who has just been told something vague is the one who needs to know what else works.
+    What the reader is not told goes to the journal (`_logged`).
     """
+    _logged(error)
     sentence = _said(error)
     return TargumError(sentence) if sentence else TargumError(fallback, OTHER_DOOR)
 
