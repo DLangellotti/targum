@@ -1113,7 +1113,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .get_template("add.html.j2")
         .render(
             t=page_words(language),
-            strings=script_strings(language, "add."),
+            strings=script_strings(language, "add.", "bring."),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
