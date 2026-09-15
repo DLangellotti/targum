@@ -2177,7 +2177,7 @@ class Library:
             except Exception:  # noqa: BLE001 - an unkeyed transcriber prices at nothing
                 rate = max(PRICES.values()) if PRICES else 0.0
         first = job.seconds / max(1, job.parts) / 60
-        transcription = first * rate
+        transcription = first * (rate + _punctuation_rate(rate))
         words = first * SPEECH_WORDS_PER_MINUTE
         batches = max(1, math.ceil(words / WORDS_PER_SENTENCE / 20))
         translating = AnthropicProvider(model=HOSTED_MODEL).estimate_from_counts(
@@ -2210,7 +2210,7 @@ class Library:
         except Exception:  # noqa: BLE001 - an unkeyed transcriber prices at nothing
             rate = max(PRICES.values()) if PRICES else 0.0
         first = job.seconds / job.parts / 60
-        transcription = first * rate
+        transcription = first * (rate + _punctuation_rate(rate))
         # The first part's words, guessed at speech rate and priced on the arithmetic
         # the real estimate uses — the same coin, counted the same way.
         import math
@@ -6747,6 +6747,20 @@ class Handler(BaseHTTPRequestHandler):
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
         return self._not_found()
+
+
+def _punctuation_rate(hearing: float) -> float:
+    """Dollars a minute for the punctuation a paid hearing may come back without.
+
+    Priced beside the hearing rather than inside it, because it is bought from a
+    different provider, and only where a hearing is bought at all.
+    """
+    from .transcribe.refine import Punctuator
+
+    if not hearing:
+        return 0.0
+    punctuator = Punctuator()
+    return punctuator.dollars_per_minute() if punctuator.available()[0] else 0.0
 
 
 def _spelled_like(root: Path, folder: str) -> str | None:
