@@ -1316,6 +1316,95 @@ def test_onkelos_changes_the_column_and_the_card_stays_in_english(
     context.close()
 
 
+#: What tapping one word under `selector` opens: the word, the card's language, its
+#: meaning and its "from" line.
+TAP_WORD = """
+(selector) => {
+  const word = document.querySelector(selector);
+  word.click();
+  const card = document.getElementById('gloss-card');
+  const head = card.querySelector('.lemma');
+  const meaning = card.querySelector('.meaning');
+  const form = card.querySelector('.form');
+  return {
+    text: word.textContent,
+    lang: head ? head.getAttribute('lang') : '',
+    meaning: meaning ? meaning.textContent : '',
+    form: form ? form.textContent : '',
+  };
+}
+"""
+
+#: Every store the page could have filed a word or a meaning in, as JSON text.
+STORES = """
+() => Object.fromEntries(
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith('targum:vocab:') || k.startsWith('targum:meanings:'))
+    .map((k) => [k, localStorage.getItem(k)])
+)
+"""
+
+
+def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
+    browser, beside_onkelos: Path
+) -> None:
+    """Tapping works in Onkelos as in the Hebrew (targum-internal#202, criterion 5). The
+    word opens an Aramaic card with the hand table's meaning, and a level set on it goes
+    to the Aramaic list — never the Hebrew one, whose same-spelled entry does not colour
+    it either (David, 2026-09-15)."""
+    context, page = open_reader(browser, beside_onkelos)
+    page.evaluate(
+        """() => {
+          localStorage.setItem('targum:vocab:he', JSON.stringify(
+            {'ארעא': {status: 3, surface: 'ארעא', band: '', at: 1, seen: 1}}));
+        }"""
+    )
+    page.reload()
+    page.wait_for_selector(".pair")
+    page.evaluate(SWITCH, "t1")
+
+    words = page.evaluate(
+        "() => [...document.querySelectorAll('.tr .w')].slice(0, 2)"
+        ".map(w => [w.textContent, w.getAttribute('data-status')])"
+    )
+    assert words[0] == ["בְּאַרְעָא", None], "the Hebrew list's ארעא is not Onkelos's"
+
+    card = page.evaluate(TAP_WORD, ".tr .w")
+    assert card["lang"] == "arc"
+    assert card["meaning"].startswith("land; earth; ground")
+    assert "ב + ארעא" in card["form"]
+
+    page.keyboard.press("1")
+    page.wait_for_function(
+        "() => (JSON.parse(localStorage.getItem('targum:vocab:arc') || '{}')['ארעא'] || {})"
+        ".status === 1"
+    )
+    stores = page.evaluate(STORES)
+    assert json.loads(stores["targum:vocab:he"])["ארעא"]["status"] == 3, "the Hebrew list untouched"
+    assert not any("arc:" in text for text in stores.values()), "the page's key never leaves it"
+    assert "ארעא" in json.loads(stores.get("targum:meanings:arc:en", "{}"))
+    assert (
+        page.evaluate("() => document.querySelector('.tr .w').getAttribute('data-status')") == "1"
+    )
+    context.close()
+
+
+def test_a_word_of_onkelos_under_the_verse_is_a_word_too(browser, with_onkelos: Path) -> None:
+    """By verse, the Onkelos shown under the verse being read is tappable, and its card is
+    an Aramaic one (targum-internal#202, criterion 5)."""
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(with_onkelos / "sec-0001.html"))
+    page.wait_for_selector(".pair.verse")
+    page.click('#practice [data-practice="verse"]')
+    page.click(".practice-line button")
+    page.click(".practice-line button")
+    assert page.evaluate(WALK)["onkelos"][0] == "ארמית Ruth 2:1", "the line reads as before"
+    card = page.evaluate(TAP_WORD, ".practice-targum .w")
+    assert card["text"] == "ארמית" and card["lang"] == "arc"
+    context.close()
+
+
 def test_a_switched_rendering_is_drawn_and_kept(browser, two_languages: Path) -> None:
     """The switch is one press on a pill in the bar (targum-internal#199). It rewrites
     the translation cells and nothing else — the source cells' markup and the reader's

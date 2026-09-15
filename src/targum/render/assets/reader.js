@@ -240,6 +240,77 @@ var targumReader = function () {
   // can say which of the two it is: not looked up yet, or looked up and not found.
   var meaningsPending = false;
 
+  /* --- the words of Onkelos, beside the Hebrew (targum-internal#202) ----------
+   *
+   * A rendering read beside the text carries a word table of its own (`tokens`), so a
+   * word in Onkelos is tapped, kept and looked up like a word of the Hebrew. It is kept
+   * in the Aramaic list, never the Hebrew one (David, 2026-09-15): Aramaic headwords
+   * share spellings with Hebrew lemmas — מן, על, כל — and the page files words by
+   * spelling. So inside this page an Aramaic lemma is `arc:` and its spelling, in the
+   * same tables the card reads by index, and the prefix comes off wherever the word
+   * leaves the page: its list, its meanings, the counts, a lookup, the card's own lines.
+   * Its rows stand in `besideData`, apart from `wordData`, so nothing that counts or walks
+   * the Hebrew — the queue, the coverage, the foot — meets them.
+   */
+  var BESIDE_KEY = "arc:";
+  var besideTongue = "";
+  var besideData = {};
+  var besideText = {};
+  (function () {
+    var ids = Object.keys(translationData);
+    for (var t = 0; t < ids.length; t++) {
+      var entry = translationData[ids[t]];
+      var table = entry && entry.tokens;
+      if (!table || !table.words) continue;
+      besideTongue = String(table.language || "arc");
+      var start = lemmas.length;
+      var meanings = (table.glosses || {}).en || [];
+      if (meanings.length && !glossesBy.en) glossesBy.en = [];
+      (table.lemmas || []).forEach(function (lemma, i) {
+        lemmas.push(BESIDE_KEY + lemma);
+        heads[start + i] = (table.heads || [])[i] || lemma;
+        Object.keys(glossesBy).forEach(function (code) {
+          glossesBy[code][start + i] = code === "en" ? meanings[i] || "" : "";
+        });
+      });
+      var builtAt = { 0: 0 };
+      (table.built || []).forEach(function (built, i) {
+        if (i === 0) return;
+        builtAt[i] = builts.length;
+        builts.push(built);
+      });
+      Object.keys(table.words).forEach(function (sid) {
+        besideData[sid] = (table.words[sid] || []).map(function (row) {
+          var copy = row.slice();
+          copy[4] = start + row[4];
+          copy[5] = 0;
+          copy[7] = builtAt[row[7]] || 0;
+          copy[8] = 0;
+          return copy;
+        });
+        besideText[sid] = (entry.text && entry.text[sid]) || "";
+      });
+      return;
+    }
+  })();
+
+  // Whether a lemma index is one of Onkelos's, and a term with the page's prefix taken off.
+  function besideIndex(index) {
+    var lemma = lemmas[index];
+    return typeof lemma === "string" && lemma.indexOf(BESIDE_KEY) === 0;
+  }
+  function wordOf(term) {
+    return term && String(term).indexOf(BESIDE_KEY) === 0 ? String(term).slice(BESIDE_KEY.length) : term;
+  }
+  // The Onkelos cell a tapped word stands in, or null for a word of the Hebrew.
+  function besideCell(word) {
+    return besideTongue && word && word.closest ? word.closest(".tr, .practice-targum") : null;
+  }
+  // Which language a word is in: the page's, or Onkelos's.
+  function wordLanguage(index) {
+    return besideIndex(index) ? besideTongue : language;
+  }
+
   /* --- which language this is being read in --------------------------------
    *
    * The source language is on `<html lang>` and never changes. The target does: a
@@ -623,6 +694,12 @@ var targumReader = function () {
         tongueOfLemma[lemma] = tongues[0];
       }
     });
+    // Onkelos's words are the Aramaic list's, whatever the page's list holds.
+    lemmas.forEach(function (lemma) {
+      if (typeof lemma === "string" && lemma.indexOf(BESIDE_KEY) === 0) {
+        tongueOfLemma[lemma] = besideTongue;
+      }
+    });
   })();
   var otherTongues = Object.keys(tongueOfLemma)
     .map(function (lemma) {
@@ -642,6 +719,9 @@ var targumReader = function () {
       var theirs = read("targum:vocab:" + tongue, "{}");
       Object.keys(theirs).forEach(function (lemma) {
         if (tongueOfLemma[lemma] === tongue && !(lemma in merged)) merged[lemma] = theirs[lemma];
+        // Kept under its own spelling there, and under the page's prefix here.
+        var keyed = BESIDE_KEY + lemma;
+        if (tongueOfLemma[keyed] === tongue && !(keyed in merged)) merged[keyed] = theirs[lemma];
       });
     });
     return merged;
@@ -662,8 +742,8 @@ var targumReader = function () {
       var theirs = read(name, "{}");
       Object.keys(tongueOfLemma).forEach(function (lemma) {
         if (tongueOfLemma[lemma] !== tongue) return;
-        if (lemma in vocab) theirs[lemma] = vocab[lemma];
-        else delete theirs[lemma];
+        if (lemma in vocab) theirs[wordOf(lemma)] = vocab[lemma];
+        else delete theirs[wordOf(lemma)];
       });
       targumKeep(name, JSON.stringify(theirs));
     });
@@ -693,13 +773,16 @@ var targumReader = function () {
    */
   var meaningStores = {};
 
-  function meaningsFor(target) {
+  function meaningsFor(target, tongue) {
     var into = target || targetLanguage;
     if (!into) return null;
-    if (!meaningStores[into]) {
-      meaningStores[into] = { name: "targum:meanings:" + language + ":" + into, records: null };
+    // Keyed by the pair: an Onkelos word's meaning is Aramaic's, not the page's.
+    var from = tongue || language;
+    var pair = from === language ? into : from + ":" + into;
+    if (!meaningStores[pair]) {
+      meaningStores[pair] = { name: "targum:meanings:" + from + ":" + into, records: null };
     }
-    var store = meaningStores[into];
+    var store = meaningStores[pair];
     if (store.records === null) store.records = read(store.name, "{}");
     return store;
   }
@@ -708,8 +791,12 @@ var targumReader = function () {
   // than two: both are the same fact about the same pair, and `targum:gone` already
   // namespaces the two kinds this way.
   function meaningRecord(term, target) {
-    var store = meaningsFor(target);
-    return (store && store.records[term]) || null;
+    var store = meaningsFor(target, termTongue(term));
+    return (store && store.records[wordOf(term)]) || null;
+  }
+
+  function termTongue(term) {
+    return term && String(term).indexOf(BESIDE_KEY) === 0 ? besideTongue : "";
   }
 
   function meaningOf(term, target) {
@@ -725,17 +812,18 @@ var targumReader = function () {
   // Written whole, the way a word record is, so the account's merge has one `seen` to
   // compare and cannot take half of an edit.
   function writeMeaning(term, changes, target) {
-    var store = meaningsFor(target);
+    var store = meaningsFor(target, termTongue(term));
     if (!store) return;
-    var was = store.records[term] || {};
+    var key = wordOf(term);
+    var was = store.records[key] || {};
     var now = {
       meaning: changes.meaning === undefined ? was.meaning || "" : changes.meaning,
       note: changes.note === undefined ? was.note || "" : changes.note,
       at: was.at || nextOrder(),
       seen: Date.now(),
     };
-    if (!now.meaning && !now.note) delete store.records[term];
-    else store.records[term] = now;
+    if (!now.meaning && !now.note) delete store.records[key];
+    else store.records[key] = now;
     try {
       targumKeep(store.name, JSON.stringify(store.records));
     } catch (e) {}
@@ -769,8 +857,9 @@ var targumReader = function () {
     var store = meaningsFor();
     if (!store) return;
     lemmas.forEach(function (lemma, index) {
-      if (!glosses[index] && store.records[lemma]) {
-        glosses[index] = store.records[lemma].meaning || "";
+      var record = termTongue(lemma) ? meaningRecord(lemma) : store.records[lemma];
+      if (!glosses[index] && record) {
+        glosses[index] = record.meaning || "";
       }
     });
   }
@@ -1045,6 +1134,15 @@ var targumReader = function () {
     var lemma = lemmas[index];
     if (!lemma || isNameAt(index)) return;
     try {
+      // An Onkelos word counts in Aramaic's taps, and not in this section's foot.
+      if (besideIndex(index)) {
+        var cards = "targum:cards:" + besideTongue;
+        var taps = read(cards, "{}");
+        var had = taps[wordOf(lemma)] || {};
+        taps[wordOf(lemma)] = { n: Number(had.n || 0) + 1, at: Date.now() };
+        targumKeep(cards, JSON.stringify(taps));
+        return;
+      }
       var history = lookedRead();
       var was = history[lemma] || {};
       history[lemma] = { n: Number(was.n || 0) + 1, at: Date.now() };
@@ -1406,7 +1504,20 @@ var targumReader = function () {
   // always there, and the model reads either.
   function sentenceOf(word) {
     var pair = word && word.closest ? word.closest("[data-id]") : null;
-    return pair ? segmentText(pair.getAttribute("data-id")) : "";
+    if (!pair) return "";
+    return besideCell(word) ? besideBare(pair.getAttribute("data-id")) : segmentText(pair.getAttribute("data-id"));
+  }
+
+  // An Onkelos line as the reader counts it: its letters, the points taken off.
+  var besideBareText = {};
+  function besideBare(segmentId) {
+    if (besideBareText[segmentId] === undefined) {
+      var text = besideText[segmentId] || "";
+      var out = "";
+      for (var i = 0; i < text.length; i++) if (!isMark(text, i)) out += text.charAt(i);
+      besideBareText[segmentId] = out;
+    }
+    return besideBareText[segmentId];
   }
 
   // Whether a meaning is already held for this word — never bought. A card opens with
@@ -1419,7 +1530,7 @@ var targumReader = function () {
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: form, source: language, target: into, free: true }),
+      body: JSON.stringify({ lemma: form, source: wordLanguage(index), target: into, free: true }),
     })
       .then(function (response) {
         return response.json();
@@ -1473,7 +1584,7 @@ var targumReader = function () {
       headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         lemma: form,
-        source: language,
+        source: wordLanguage(index),
         target: into,
         sentence: sentence || "",
       }),
@@ -1657,13 +1768,17 @@ var targumReader = function () {
   // definitions switcher after the last word learned through it was gone.
   function forgetWord(lemma) {
     delete vocab[lemma];
-    Object.keys(meaningStores).forEach(function (into) {
-      var records = meaningStores[into].records;
-      if (records && records[lemma]) delete records[lemma];
+    var theirs = termTongue(lemma);
+    Object.keys(meaningStores).forEach(function (pair) {
+      // An Onkelos word's meanings are in the Aramaic stores, under its own spelling.
+      if (theirs && pair.indexOf(theirs + ":") !== 0) return;
+      if (!theirs && pair.indexOf(":") >= 0) return;
+      var records = meaningStores[pair].records;
+      if (records && records[wordOf(lemma)]) delete records[wordOf(lemma)];
     });
     if (window.TargumSync) {
-      window.TargumSync.forgetWord(tongueOf(lemma), lemma);
-      window.TargumSync.forgetMeanings(tongueOf(lemma), lemma);
+      window.TargumSync.forgetWord(tongueOf(lemma), wordOf(lemma));
+      window.TargumSync.forgetMeanings(tongueOf(lemma), wordOf(lemma));
     }
   }
 
@@ -1861,20 +1976,24 @@ var targumReader = function () {
   // open on a phone. Saved phrases are drawn in the same pass, because a phrase can
   // start mid-word and cover several, which the DOM will not nest.
   function markSegment(cell) {
-    var segmentId = cell.parentNode.getAttribute("data-id");
+    // An Onkelos cell stands in the Hebrew pair — the column's, or the verse walk's line
+    // under it — and draws from Onkelos's own rows.
+    var beside = !!besideTongue && /(^| )(tr|practice-targum)( |$)/.test(String(cell.className || ""));
+    var holder = beside && cell.closest ? cell.closest(".pair") : cell.parentNode;
+    var segmentId = holder ? holder.getAttribute("data-id") : "";
     cell.innerHTML = original(cell);
 
     // Offsets are held against the bare text. Drawing them on the pointed cell means
     // moving each span across, so that a word's marks travel inside its own span rather
     // than trailing outside it.
-    var map = cell === cells.plain[segmentId] ? null : markMap(cell);
+    var map = !beside && cell === cells.plain[segmentId] ? null : markMap(cell);
     function at(offset) {
       if (!map) return offset;
       return offset < map.length ? map[offset] : map[map.length - 1];
     }
 
     var layers = [];
-    (wordData[segmentId] || []).forEach(function (token) {
+    ((beside ? besideData : wordData)[segmentId] || []).forEach(function (token) {
       var lemma = lemmas[token[4]];
       var classes = ["w"];
       if (token[3]) classes.push("split");
@@ -1897,7 +2016,7 @@ var targumReader = function () {
         bare: token[0] + "," + token[1],
       });
     });
-    (picks[segmentId] || []).forEach(function (pick, index) {
+    (beside ? [] : picks[segmentId] || []).forEach(function (pick, index) {
       layers.push({ start: at(pick.start), end: at(pick.end), classes: ["picked"], pick: index });
     });
     if (!layers.length) return;
@@ -2036,6 +2155,15 @@ var targumReader = function () {
       }
     }
     if (cell) markSegment(cell);
+    // Onkelos, where it is on show beside this verse: its words take their levels from
+    // the same pass (targum-internal#202).
+    if (besideTongue && besideData[segmentId]) {
+      var column = pair.querySelector(".tr");
+      var onShow = translationData[showing];
+      if (column && onShow && onShow.tokens) markSegment(column);
+      var walked = pair.querySelector(".practice-targum");
+      if (walked) markSegment(walked);
+    }
   }
 
   // Everything in view, and a little either side. Cheap: the pairs are in document
@@ -3266,6 +3394,8 @@ var targumReader = function () {
   }
 
   function hearFor(word) {
+    // The recording is of the Hebrew; an Onkelos word has no clock in it.
+    if (besideCell(word)) return null;
     var pair = word.closest ? word.closest(".pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
@@ -3282,7 +3412,7 @@ var targumReader = function () {
     if (!pair) return "";
     var segmentId = pair.getAttribute("data-id");
     var index = parseInt(word.getAttribute("data-lemma"), 10);
-    var match = (wordData[segmentId] || []).filter(function (token) {
+    var match = ((besideCell(word) ? besideData : wordData)[segmentId] || []).filter(function (token) {
       return token[4] === index;
     })[0];
     return match ? bandOf(match) : "";
@@ -3446,7 +3576,9 @@ var targumReader = function () {
     var pair = word.closest ? word.closest(".pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return word.textContent;
-    var text = segmentText(pair.getAttribute("data-id"));
+    var text = besideCell(word)
+      ? besideBare(pair.getAttribute("data-id"))
+      : segmentText(pair.getAttribute("data-id"));
     return text.slice(parseInt(span[0], 10), parseInt(span[1], 10)) || word.textContent;
   }
 
@@ -3486,7 +3618,7 @@ var targumReader = function () {
     var pair = word.closest ? word.closest(".pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
-    var rows = wordData[pair.getAttribute("data-id")] || [];
+    var rows = (besideCell(word) ? besideData : wordData)[pair.getAttribute("data-id")] || [];
     var start = parseInt(span[0], 10);
     var end = parseInt(span[1], 10);
     for (var i = 0; i < rows.length; i++) {
@@ -3502,12 +3634,14 @@ var targumReader = function () {
     var seen = {};
     var out = [];
     seen[surface.toLowerCase()] = true;
-    var ids = Object.keys(wordData).sort();
+    var table = besideIndex(index) ? besideData : wordData;
+    var ids = Object.keys(table).sort();
     for (var i = 0; i < ids.length && out.length < FORMS_SHOWN; i++) {
-      var rows = wordData[ids[i]] || [];
+      var rows = table[ids[i]] || [];
       for (var r = 0; r < rows.length && out.length < FORMS_SHOWN; r++) {
         if (rows[r][4] !== index) continue;
-        var form = segmentText(ids[i]).slice(rows[r][0], rows[r][1]).toLowerCase();
+        var text = table === besideData ? besideBare(ids[i]) : segmentText(ids[i]);
+        var form = text.slice(rows[r][0], rows[r][1]).toLowerCase();
         if (!form || seen[form]) continue;
         seen[form] = true;
         out.push(form);
@@ -3629,7 +3763,7 @@ var targumReader = function () {
     headline.className = "copy-line";
     var head = document.createElement("bdi");
     head.className = "lemma";
-    head.setAttribute("lang", language);
+    head.setAttribute("lang", wordLanguage(index));
     head.textContent = shown;
     headline.appendChild(head);
     headline.appendChild(window.TargumVocab.copyButton(shown, { say: say }));
@@ -3729,13 +3863,13 @@ var targumReader = function () {
       pieces.appendChild(document.createTextNode("from "));
       mixedLine(pieces, built);
       card.appendChild(pieces);
-    } else if (lemma !== surface.toLowerCase() && lemma !== surface) {
+    } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
       var form = document.createElement("span");
       form.className = "form";
       form.appendChild(document.createTextNode("from "));
       var bdi = document.createElement("bdi");
-      bdi.setAttribute("lang", language);
-      bdi.textContent = lemma;
+      bdi.setAttribute("lang", wordLanguage(index));
+      bdi.textContent = wordOf(lemma);
       form.appendChild(bdi);
       card.appendChild(form);
     }
@@ -3752,7 +3886,7 @@ var targumReader = function () {
         met.className = "form forms-here";
         met.appendChild(document.createTextNode("here also as "));
         var listed = document.createElement("bdi");
-        listed.setAttribute("lang", language);
+        listed.setAttribute("lang", wordLanguage(index));
         listed.textContent = others.join(" · ");
         met.appendChild(listed);
         card.appendChild(met);
@@ -3893,7 +4027,7 @@ var targumReader = function () {
     // A word tapped is a question half-asked (2026-09-06). The card's one more working
     // action: ask targum about this word, here, in this sentence, and read the answer
     // in the card. Two turns at most; the conversation page is the way on from there.
-    if (canAsk()) card.appendChild(askRow(index, word, shown, lemma));
+    if (canAsk()) card.appendChild(askRow(index, word, shown, wordOf(lemma)));
 
     card.hidden = false;
     seatNear(card, word.getBoundingClientRect());
@@ -6196,6 +6330,14 @@ var targumReader = function () {
       var cell = pair.querySelector(".tr");
       if (!cell) return;
       cell.textContent = entry.text[segmentId] || "";
+      // The cell's text is new, so what was cached about the old one goes; Onkelos's
+      // words are drawn into it (targum-internal#202).
+      if (besideTongue) {
+        cell.__targumHTML = undefined;
+        cell.__targumText = undefined;
+        cell.__targumMap = undefined;
+        if (entry.tokens && besideData[segmentId]) markSegment(cell);
+      }
       // The template stamps these from the first translation, so every other one wore
       // the first one's language — a Russian sentence marked English, punctuated at the
       // wrong end of the line and read out in the wrong voice.
@@ -6398,6 +6540,9 @@ var targumReader = function () {
     line.appendChild(row);
     pair.appendChild(line);
     practiceLine = line;
+    // Onkelos under the verse is words, like Onkelos in the column (targum-internal#202).
+    var targum = line.querySelector ? line.querySelector(".practice-targum") : null;
+    if (targum && besideData[id]) markSegment(targum);
   }
 
   function drawPracticeFoot(kind, record) {

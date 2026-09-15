@@ -177,6 +177,70 @@ def split_sections(segmented: SegmentedDocument) -> list[Section]:
 WORDS_A_MINUTE = 130
 
 
+def beside_words(
+    translation: Translation, section: Section, by_id: Mapping[str, Segment]
+) -> dict[str, Any]:
+    """The words of a rendering read beside the text — Onkelos — so a word in it can be
+    tapped like a word of the Hebrew (targum-internal#202).
+
+    A table of its own, never merged into the page's `words`: the rendering is keyed by
+    the Hebrew segment ids, so one table could not hold both, and its lemmas are Aramaic
+    headwords that share spellings with Hebrew ones (מן, על, כל). Same row shape as the
+    Hebrew's, offsets into the rendering's own bare text; meanings only from the hand
+    table (`aramaic.sense`), never from the page's Hebrew glossaries. Read at render and
+    kept nowhere: the Onkelos is already cut to the portion, and reading it is free.
+    """
+    from ..annotate import aramaic
+
+    lemmas: list[str] = []
+    heads: list[str | None] = []
+    meanings: list[str] = []
+    at: dict[tuple[str, str | None], int] = {}
+    builts: list[str] = [""]
+    built_at: dict[str, int] = {"": 0}
+    words: dict[str, list[list[int]]] = {}
+    for sid in section.segment_ids:
+        text = translation.segments.get(sid, "")
+        if not text:
+            continue
+        bare_text, _ = strip_nikkud(text)
+        ref = by_id[sid].ref if sid in by_id else ""
+        rows: list[list[int]] = []
+        for token in aramaic.rendering_tokens(text, f"Onkelos {ref}" if ref else ""):
+            word = (token.lemma, token.head)
+            if word not in at:
+                at[word] = len(lemmas)
+                lemmas.append(token.lemma)
+                heads.append(token.head)
+                meanings.append(aramaic.sense(token.lexeme))
+            if token.built and token.built not in built_at:
+                built_at[token.built] = len(builts)
+                builts.append(token.built)
+            start, end = js_span(bare_text, token.start, token.end)
+            rows.append(
+                [
+                    start,
+                    end,
+                    token.band,
+                    1 if token.split else 0,
+                    at[word],
+                    0,
+                    KIND_COLUMN.get(token.pos or "", 0),
+                    built_at.get(token.built or "", 0),
+                    0,
+                ]
+            )
+        words[sid] = rows
+    return {
+        "language": translation.target_language,
+        "words": words,
+        "lemmas": lemmas,
+        "heads": heads,
+        "built": builts,
+        **({"glosses": {"en": meanings}} if any(meanings) else {}),
+    }
+
+
 def section_minutes(sections: list[Section], by_id: Mapping[str, Segment]) -> dict[int, int]:
     """How long each section takes to read, by section number.
 
@@ -2058,7 +2122,11 @@ def render(
                 # A rendering read beside the text rather than into a language — Onkelos
                 # — which the page shows without looking a word up in it. Only where it
                 # is true, so every other text's payload is the one it always was.
-                **({"beside": True} if translation.target_language in BESIDE else {}),
+                **(
+                    {"beside": True, "tokens": beside_words(translation, section, by_id)}
+                    if translation.target_language in BESIDE
+                    else {}
+                ),
             }
             for index, translation in enumerate(translations)
         }
@@ -2302,7 +2370,13 @@ def render(
             section=section,
             translated=translated,
             audio_waiting=audio_waiting,
-            words=bool(words),
+            # Words to tap: the Hebrew's, or Onkelos's beside it (targum-internal#202).
+            words=bool(words)
+            or any(
+                translation.target_language in BESIDE
+                and any(translation.segments.get(sid) for sid in section.segment_ids)
+                for translation in translations
+            ),
             # The case lens, on a page whose words carry a case — which is to say a
             # Russian one (targum-internal#261).
             cases=any("Case=" in line for line in grammar),
