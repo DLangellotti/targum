@@ -3329,7 +3329,7 @@ class Handler(BaseHTTPRequestHandler):
             hdate = ""
             haftarah = index.haftarot.get(portion.haftarah) if portion.haftarah else None
             haftarah_reason = ""
-            week = None
+            parts = None
         else:
             portion = here
             if portion is None or portion.folder not in readable:
@@ -3343,7 +3343,7 @@ class Handler(BaseHTTPRequestHandler):
             # Chanukah the congregation reads the special one, and a page that named the
             # portion's own would be naming the wrong thing to prepare.
             haftarah, haftarah_reason = index.haftarah_on(shabbat.isoformat(), schedule)
-            week = self._parasha_week(portion, haftarah, shabbat, readable)
+            parts = self._parasha_week(portion, haftarah, shabbat, readable)
 
         page = parasha_page(
             portion,
@@ -3365,7 +3365,7 @@ class Handler(BaseHTTPRequestHandler):
             # Where "all portions" goes: a reader with a shelf has them on it, in their
             # collection; a visitor has the list at the foot of this page.
             signed_in=self._person() is not None,
-            week=week,
+            week=parts,
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
