@@ -2367,8 +2367,14 @@ var targumReader = function () {
   var wordsLabel = document.getElementById("list-count-label");
   var phrasesLabel = document.getElementById("phrase-count-label");
 
-  function label(element, count, one) {
-    if (element) element.textContent = count === 1 ? one : one + "s";
+  // The word beside a count, in the page's language and its plural: the page drew it in
+  // Russian and this wrote English over it on the first redraw (targum-internal#287).
+  function label(element, count, kind) {
+    if (!element) return;
+    element.textContent =
+      kind === "phrase"
+        ? tn("reader.list.label-phrases", count, "phrase", "phrases")
+        : tn("reader.list.label-words", count, "word", "words");
   }
 
   // In the language of the meanings, which is the column's except beside Onkelos: this
@@ -4227,7 +4233,12 @@ var targumReader = function () {
       }
       var pealim = document.createElement("a");
       pealim.className = "pealim";
-      pealim.href = "https://www.pealim.com/search/?q=" + encodeURIComponent(lemma);
+      // Pealim has a Russian site; a Russian page's reader goes to it (targum-internal#287).
+      pealim.href =
+        "https://www.pealim.com/" +
+        (uiLanguage === "ru" ? "ru/" : "") +
+        "search/?q=" +
+        encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
       pealim.textContent = t("reader.card.conjugations", "conjugations");
@@ -5211,9 +5222,14 @@ var targumReader = function () {
     return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
-  var STATUS_NAMES = { 1: "just met", 2: "getting there", 3: "nearly there" };
-  STATUS_NAMES[KNOWN] = "known";
-  STATUS_NAMES[IGNORED] = "ignored";
+  function statusName(status) {
+    if (status === 1) return gt("reader.grammar.status-1", "just met");
+    if (status === 2) return gt("reader.grammar.status-2", "getting there");
+    if (status === 3) return gt("reader.grammar.status-3", "nearly there");
+    if (status === KNOWN) return gt("reader.grammar.status-known", "known");
+    if (status === IGNORED) return gt("reader.grammar.status-ignored", "ignored");
+    return "";
+  }
 
   function download(name, header, rows) {
     // A byte order mark, so a spreadsheet opens Hebrew and Russian as UTF-8.
@@ -5259,19 +5275,27 @@ var targumReader = function () {
   function meaningColumn() {
     var entry = translationData[showing] || {};
     var name = entry.languageName || targetLanguage;
-    return name ? "meaning (" + name + ")" : "meaning";
+    return name
+      ? t("reader.export.meaning-in", "meaning ({language})", { language: name })
+      : t("reader.export.meaning", "meaning");
   }
 
   function exportWords() {
     download(
       title() + " — words.csv",
-      ["word", "dictionary form", "difficulty", "how well", meaningColumn()],
+      [
+        t("reader.export.word", "word"),
+        t("reader.export.dictionary-form", "dictionary form"),
+        t("reader.export.difficulty", "difficulty"),
+        t("reader.export.how-well", "how well"),
+        meaningColumn(),
+      ],
       wordEntries().map(function (entry) {
         return [
           entry.term,
           entry.lemma,
           entry.level || "",
-          STATUS_NAMES[entry.status] || "",
+          statusName(entry.status),
           entry.meaning || "",
         ];
       })
@@ -5281,7 +5305,16 @@ var targumReader = function () {
   function exportPhrases() {
     download(
       title() + " — phrases.csv",
-      ["phrase", meaningColumn().replace("meaning", "reading")],
+      [
+        t("reader.export.phrase", "phrase"),
+        (function () {
+          var entry = translationData[showing] || {};
+          var name = entry.languageName || targetLanguage;
+          return name
+            ? t("reader.export.reading-in", "reading ({language})", { language: name })
+            : t("reader.export.reading", "reading");
+        })(),
+      ],
       phraseEntries().map(function (entry) {
         return [entry.term, entry.meaning || ""];
       })
@@ -5430,7 +5463,7 @@ var targumReader = function () {
       }
       if (card.root || card.binyan) {
         var verb = [];
-        if (card.root) verb.push("root " + ankiField(card.root.split("").join("\u05be")));
+        if (card.root) verb.push(t("reader.card.root", "root ") + ankiField(card.root.split("").join("\u05be")));
         if (card.binyan) verb.push(ankiField(card.binyan));
         back.push(verb.join(" \u00b7 "));
       }
