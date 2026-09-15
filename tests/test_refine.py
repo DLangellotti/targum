@@ -342,7 +342,9 @@ def test_punctuating_an_old_part_buys_marks_and_never_the_hearing(
 
     _, ask = stub(MARKED)
     monkeypatch.setattr(
-        Build, "_refiner", lambda self: RuleRefiner(Punctuator(ask=ask))  # type: ignore[arg-type]
+        Build,
+        "_refiner",
+        lambda self: RuleRefiner(Punctuator(ask=ask)),  # type: ignore[arg-type]
     )
     second = build(Deaf(text="", language="he"))
     second.run()

@@ -176,6 +176,10 @@ class Punctuator:
         answer = client.messages.create(
             model=self.model,
             max_tokens=8192,
+            # Off, not low: putting commas into words already written is not a problem
+            # to reason about, and a thinking budget made the cost of a part a coin toss
+            # — the same 1,848 words came to 17,093 tokens out with it and ~7,000 without.
+            thinking={"type": "disabled"},
             messages=[{"role": "user", "content": prompt}],
         )
         written = "".join(str(getattr(block, "text", "")) for block in answer.content)
