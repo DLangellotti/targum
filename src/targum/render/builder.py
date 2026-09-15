@@ -177,6 +177,26 @@ def split_sections(segmented: SegmentedDocument) -> list[Section]:
 WORDS_A_MINUTE = 130
 
 
+def reader_strings(translations: list[Translation]) -> dict[str, Any]:
+    """The reader's own sentences in the language its page is read in, for `reader.js`'s
+    `t` and `tn` (targum-internal#184).
+
+    The page's language is its first rendering's — the list is sorted so a rendering read
+    beside the text never comes first — and English is the code's own, so it ships
+    nothing. Only the `reader.` keys, and only what the language has filled: a key it has
+    not is said in English by the script.
+    """
+    from ..strings import SOURCE, catalogue
+
+    if not translations:
+        return {}
+    code = translations[0].target_language.split("-")[0].lower()
+    if code == SOURCE:
+        return {}
+    said = {key: text for key, text in catalogue(code).items() if key.startswith("reader.")}
+    return {"strings": said, "stringsLanguage": code} if said else {}
+
+
 def beside_words(
     translation: Translation, section: Section, by_id: Mapping[str, Segment]
 ) -> dict[str, Any]:
@@ -2484,6 +2504,10 @@ def render(
                     # have to infer from a missing table.
                     **({"languages": tongues} if tongues else {}),
                     "levelNames": BAND_NAMES,
+                    # The reader's own words in the language it is read in, where that
+                    # is not English and has a catalogue (targum-internal#184). An
+                    # English reader carries nothing, so its page is what it was.
+                    **reader_strings(translations),
                     # Which text this is. Lists are kept per document, not per
                     # language, so reading two articles does not pool their words.
                     "document": segmented.document_hash,

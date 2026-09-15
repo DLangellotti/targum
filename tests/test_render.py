@@ -5242,3 +5242,28 @@ def test_a_russian_reader_carries_partners_and_moving_stress_where_the_tables_ar
     assert "OpenRussian.org" in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An English reader's page is what it was; a reader read in Russian carries the
+    catalogue's `reader.` words and its language, and nothing else of the catalogue
+    (targum-internal#184)."""
+    from targum import strings
+
+    english = _payload(_genesis(tmp_path / "en", [_english()]))
+    assert "strings" not in english and "stringsLanguage" not in english
+
+    real = strings.catalogue
+
+    def catalogue(language: str) -> dict[str, str]:
+        if language == "ru":
+            return {"reader.finish.done": "Готово", "mail.sign_in.subject": "не для читателя"}
+        return real(language)
+
+    monkeypatch.setattr(strings, "catalogue", catalogue)
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    shipped = _payload(_genesis(tmp_path / "ru", [russian]))
+    assert shipped["strings"] == {"reader.finish.done": "Готово"}
+    assert shipped["stringsLanguage"] == "ru"

@@ -178,6 +178,42 @@ var targumReader = function () {
     data = {};
   }
 
+  /* --- the reader's own words, in the language it was built for (targum-internal#184) --
+   *
+   * Every sentence the reader says is `t(key, English)`: the English stands in the code,
+   * and a reader built for a language with a catalogue carries that language's words in
+   * `data.strings`. A key the language has not filled is said in English, never as its
+   * name. `tn` is the same for a count, choosing the form by the language's own plural
+   * rules (Russian has three), and by one and other for English. `tests/test_strings.py`
+   * holds every call here to `strings/en.json`, so the two cannot drift.
+   */
+  var uiStrings = data.strings || {};
+  var uiLanguage = data.stringsLanguage || "en";
+  function fillIn(text, fill) {
+    if (!fill) return text;
+    return text.replace(/\{(\w+)\}/g, function (all, name) {
+      return Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function t(key, english, fill) {
+    var said = uiStrings[key];
+    return fillIn(typeof said === "string" ? said : english, fill);
+  }
+  function tn(key, count, one, other, fill) {
+    var form = "other";
+    try {
+      form = new Intl.PluralRules(uiLanguage).select(count);
+    } catch (e) {
+      form = count === 1 ? "one" : "other";
+    }
+    var said = uiStrings[key + "." + form];
+    if (typeof said !== "string") said = uiStrings[key + ".other"];
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return fillIn(typeof said === "string" ? said : count === 1 ? one : other, values);
+  }
+  window.TargumStrings = { t: t, tn: tn };
+
   var translationData = data.translations || {};
   var wordData = data.words || {};
   var lemmas = data.lemmas || [];
@@ -258,8 +294,8 @@ var targumReader = function () {
   var besideText = {};
   (function () {
     var ids = Object.keys(translationData);
-    for (var t = 0; t < ids.length; t++) {
-      var entry = translationData[ids[t]];
+    for (var r = 0; r < ids.length; r++) {
+      var entry = translationData[ids[r]];
       var table = entry && entry.tokens;
       if (!table || !table.words) continue;
       besideTongue = String(table.language || "arc");
@@ -979,7 +1015,11 @@ var targumReader = function () {
     }
     if (window.TargumSync) window.TargumSync.touched();
     renderFinished();
-    say(on ? "Finished. You'll see it on your progress page." : "Not finished.");
+    say(
+      on
+        ? t("reader.finish.said", "Finished. You'll see it on your progress page.")
+        : t("reader.finish.undone", "Not finished.")
+    );
   }
 
   /* What one document is worth to the count: the greater of its old whole-document
@@ -1252,7 +1292,11 @@ var targumReader = function () {
   }
 
   function times(n) {
-    return n === 1 ? "once" : n === 2 ? "twice" : n + " times";
+    return n === 1
+      ? t("reader.foot.once", "once")
+      : n === 2
+        ? t("reader.foot.twice", "twice")
+        : tn("reader.foot.times", n, "{n} times", "{n} times");
   }
 
   // The words, after the counts: what cost, what stopped costing, and the offer. Each
@@ -1275,19 +1319,26 @@ var targumReader = function () {
       span.appendChild(b);
     }
     if (cost.cost && cost.cost.length) {
-      var costly = line("cost", "Looked up here: ");
+      var costly = line("cost", t("reader.foot.looked-up-here", "Looked up here: "));
       cost.cost.forEach(function (item, n) {
         if (n) costly.appendChild(document.createTextNode(" · "));
         name(costly, item.lemma);
         costly.appendChild(
           document.createTextNode(
-            item.before ? ", looked up " + times(item.before) + " before" : ", the first time"
+            item.before
+              ? t("reader.foot.looked-up-before", ", looked up {times} before", {
+                  times: times(item.before),
+                })
+              : t("reader.foot.first-time", ", the first time")
           )
         );
       });
     }
     if (cost.stopped && cost.stopped.length) {
-      var eased = line("stopped", "Read here without a look-up, looked up before: ");
+      var eased = line(
+        "stopped",
+        t("reader.foot.stopped", "Read here without a look-up, looked up before: ")
+      );
       cost.stopped.forEach(function (item, n) {
         if (n) eased.appendChild(document.createTextNode(" · "));
         name(eased, item.lemma);
@@ -1297,7 +1348,7 @@ var targumReader = function () {
       return !vocab[lemma];
     });
     if (offer.length) {
-      var asked = line("offer", "Keep on your list: ");
+      var asked = line("offer", t("reader.foot.offer", "Keep on your list: "));
       offer.forEach(function (lemma) {
         var button = document.createElement("button");
         button.type = "button";
@@ -1334,17 +1385,28 @@ var targumReader = function () {
         line.appendChild(b);
       }
       if (item.day) {
-        line.appendChild(document.createTextNode("day "));
+        line.appendChild(document.createTextNode(t("reader.foot.day-before", "day ")));
         figure(item.day);
-        line.appendChild(document.createTextNode(" reading"));
+        line.appendChild(document.createTextNode(t("reader.foot.day-after", " reading")));
       } else if (item.run) {
         figure(item.run);
-        line.appendChild(document.createTextNode(" days running · your longest"));
+        line.appendChild(
+          document.createTextNode(t("reader.foot.run-after", " days running · your longest"))
+        );
       } else {
         figure(item.delta);
-        line.appendChild(document.createTextNode(" " + item.of + " · "));
+        // Kept in the foot's record in English words, so they are said from the key.
+        var saved = item.all === "saved";
+        var newly = saved
+          ? t("reader.foot.newly-saved", "newly saved")
+          : t("reader.foot.newly-known", "newly known");
+        line.appendChild(document.createTextNode(" " + newly + " · "));
         figure(item.standing);
-        line.appendChild(document.createTextNode(" " + item.all));
+        line.appendChild(
+          document.createTextNode(
+            " " + (saved ? t("reader.foot.saved", "saved") : t("reader.foot.known", "known"))
+          )
+        );
       }
       into.appendChild(line);
     });
@@ -1368,23 +1430,23 @@ var targumReader = function () {
       var count = finishedCount();
       var lead = document.createElement("b");
       lead.className = "cheer";
-      lead.textContent = "You finished a targum.";
+      lead.textContent = t("reader.finish.cheer", "You finished a targum.");
       finishedSaid.appendChild(lead);
       var tally = document.createElement("span");
       tally.className = "tally";
       var figure = document.createElement("b");
       figure.textContent = ordinal(count);
-      tally.appendChild(document.createTextNode("Your "));
+      tally.appendChild(document.createTextNode(t("reader.finish.your", "Your ")));
       tally.appendChild(figure);
       tally.appendChild(document.createTextNode(count === 1 ? " · " + said : " · " + said));
       finishedSaid.appendChild(tally);
       drawMoved(finishedSaid);
       finishedSaid.hidden = false;
-      finishedMark.textContent = "Undo";
+      finishedMark.textContent = t("reader.finish.undo", "Undo");
       finishedMark.classList.add("undo");
     } else {
       finishedSaid.hidden = true;
-      finishedMark.textContent = "Done";
+      finishedMark.textContent = t("reader.finish.done", "Done");
       finishedMark.classList.remove("undo");
     }
     finishedBox.classList.toggle("is-done", !!when);
@@ -1609,7 +1671,7 @@ var targumReader = function () {
       })
       .catch(function () {
         asked[form] = false;
-        onDone("We couldn't connect. Try again.");
+        onDone(t("reader.error.connect", "We couldn't connect. Try again."));
       });
   }
 
@@ -1712,11 +1774,11 @@ var targumReader = function () {
   // word: the ignore button reads "a name or a number", and hearing that back as the
   // answer to a keystroke tells you nothing about what happened.
   var SAID = {};
-  SAID[1] = "just met";
-  SAID[2] = "getting there";
-  SAID[3] = "nearly there";
-  SAID[KNOWN] = "known";
-  SAID[IGNORED] = "ignored";
+  SAID[1] = t("reader.level.1", "just met");
+  SAID[2] = t("reader.level.2", "getting there");
+  SAID[3] = t("reader.level.3", "nearly there");
+  SAID[KNOWN] = t("reader.level.known", "known");
+  SAID[IGNORED] = t("reader.level.ignored", "ignored");
 
   function stepTitle(status) {
     // Asked of the object's own keys, for the same reason every other lookup here is.
@@ -1737,7 +1799,13 @@ var targumReader = function () {
   function saidLevel(surface, status) {
     var counts = coverage();
     var left = counts.fresh + counts.learning;
-    say(surface + ", " + stepTitle(status) + ". " + left + " left.");
+    say(
+      t("reader.level.said", "{word}, {level}. {left} left.", {
+        word: surface,
+        level: stepTitle(status),
+        left: left,
+      })
+    );
   }
 
   // A level is one keystroke wide and there are five of them, so the wrong one is a
@@ -1822,7 +1890,14 @@ var targumReader = function () {
     restSaid = batch.length;
     remember();
     redraw();
-    say("You marked " + batch.length + " words as known. Nothing left to mark here.");
+    say(
+      tn(
+        "reader.rest.marked",
+        batch.length,
+        "You marked {n} words as known. Nothing left to mark here.",
+        "You marked {n} words as known. Nothing left to mark here."
+      )
+    );
     return batch.length;
   }
 
@@ -1848,7 +1923,7 @@ var targumReader = function () {
       restSaid = 0;
       remember();
       redraw();
-      say("Took back " + last.bulk.length + " words.");
+      say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} words.", "Took back {n} words."));
       return true;
     }
     if (last.before) {
@@ -1959,7 +2034,9 @@ var targumReader = function () {
     // reading direction. The card's legend already knew this; the bar did not.
     var forward =
       (document.documentElement.getAttribute("dir") || "ltr") === "rtl" ? "←" : "→";
-    first.textContent = "k known · 1 2 3 · " + forward + " next word · ? every key";
+    first.textContent = t("reader.first.keys", "k known · 1 2 3 · {forward} next word · ? every key", {
+      forward: forward,
+    });
     try {
       targumKeep(FIRST, String(Date.now()));
     } catch (e) {}
@@ -2416,7 +2493,12 @@ var targumReader = function () {
   function renderRest(counts) {
     if (!restBox || !restText || !restMark || !restUndo) return;
     if (restSaid) {
-      restText.textContent = restSaid + (restSaid === 1 ? " word" : " words") + " marked known";
+      restText.textContent = tn(
+        "reader.rest.done",
+        restSaid,
+        "{n} word marked known",
+        "{n} words marked known"
+      );
       restMark.hidden = true;
       restUndo.hidden = false;
       restBox.hidden = false;
@@ -2432,11 +2514,11 @@ var targumReader = function () {
       }).length;
       restText.textContent = "";
       restMark.textContent = left
-        ? "Mark " + left + (left === 1 ? " word" : " words") + " as known"
-        : "Clear names and numbers";
+        ? tn("reader.rest.mark", left, "Mark {n} word as known", "Mark {n} words as known")
+        : t("reader.rest.clear-names", "Clear names and numbers");
       restMark.setAttribute(
         "title",
-        left ? "We clear names and numbers too, without counting them." : ""
+        left ? t("reader.rest.names-too", "We clear names and numbers too, without counting them.") : ""
       );
       restMark.hidden = false;
       restUndo.hidden = true;
@@ -2483,16 +2565,18 @@ var targumReader = function () {
         if (done) {
           // A milestone bragged the brand's way: what is true, in type, once. Not a
           // banner, and nothing moves.
-          headerKnown.appendChild(document.createTextNode("nothing left to mark here"));
+          headerKnown.appendChild(
+            document.createTextNode(t("reader.header.nothing-left", "nothing left to mark here"))
+          );
         } else {
           var whole = document.createElement("b");
           whole.textContent = String(counts.known);
           var all = document.createElement("b");
           all.textContent = String(scored);
           headerKnown.appendChild(whole);
-          headerKnown.appendChild(document.createTextNode(" of "));
+          headerKnown.appendChild(document.createTextNode(t("reader.header.of", " of ")));
           headerKnown.appendChild(all);
-          headerKnown.appendChild(document.createTextNode(" known"));
+          headerKnown.appendChild(document.createTextNode(t("reader.header.known", " known")));
           if (left) {
             // Ink rather than leaf. Leaf is what you know; work still to do is not an
             // achievement, and colouring it as one would say the opposite of the number.
@@ -2501,7 +2585,7 @@ var targumReader = function () {
             rest.textContent = String(left);
             headerKnown.appendChild(document.createTextNode(" · "));
             headerKnown.appendChild(rest);
-            headerKnown.appendChild(document.createTextNode(" left"));
+            headerKnown.appendChild(document.createTextNode(t("reader.header.left", " left")));
           }
         }
       }
@@ -2516,7 +2600,13 @@ var targumReader = function () {
     // The bar says how many of how many; the list says what is left to do, in the same
     // words, so one count is not said twice in two phrasings on one screen (2026-09-14).
     listStats.textContent =
-      share + "% known here · " + counts.fresh + (counts.fresh === 1 ? " word to mark" : " words to mark");
+      tn(
+        "reader.list.stats",
+        counts.fresh,
+        "{share}% known here · {n} word to mark",
+        "{share}% known here · {n} words to mark",
+        { share: share }
+      );
   }
 
   // Reading or marking. One class on the body, and nothing is redrawn: every word is
@@ -2560,7 +2650,7 @@ var targumReader = function () {
     return TargumVocab.editor({
       status: entry.status,
       note: entry.note,
-      placeholder: "Your own meaning",
+      placeholder: t("reader.card.own-meaning", "Your own meaning"),
       onStatus: function (value) {
         setPhrase(entry, { status: value });
       },
@@ -2630,7 +2720,7 @@ var targumReader = function () {
       var kind = document.createElement("span");
       kind.className = "kind";
       kind.textContent = entry.level || "";
-      if (!entry.level) kind.title = "not rated in this language";
+      if (!entry.level) kind.title = t("reader.list.not-rated", "not rated in this language");
       item.appendChild(kind);
 
       // `!== undefined`, not truthy: ignored is 0, and it is a level like the others.
@@ -2638,7 +2728,7 @@ var targumReader = function () {
         var mark = document.createElement("span");
         mark.className = "row-status status-" + entry.status;
         mark.textContent = String(stepLabel(entry.status));
-        mark.title = "How well you know it";
+        mark.title = t("reader.list.how-well", "How well you know it");
         item.appendChild(mark);
       }
     }
@@ -2654,8 +2744,11 @@ var targumReader = function () {
     drop.type = "button";
     drop.className = "drop";
     drop.textContent = "×";
-    drop.title = "Take this off the list";
-    drop.setAttribute("aria-label", "Take " + entry.term + " off the list");
+    drop.title = t("reader.list.drop", "Take this off the list");
+    drop.setAttribute(
+      "aria-label",
+      t("reader.list.drop-named", "Take {term} off the list", { term: entry.term })
+    );
     drop.onclick = function () {
       if (entry.kind === "word") {
         forgetWord(entry.key);
@@ -2705,7 +2798,9 @@ var targumReader = function () {
     if (listItems) listItems.hidden = onPhrases;
     if (phraseItems) phraseItems.hidden = !onPhrases;
     if (exportButton) {
-      exportButton.textContent = onPhrases ? "Export these phrases" : "Export these words";
+      exportButton.textContent = onPhrases
+        ? t("reader.list.export-phrases", "Export these phrases")
+        : t("reader.list.export-words", "Export these words");
     }
     renderEmpty();
   }
@@ -2749,7 +2844,7 @@ var targumReader = function () {
     if (listTabPhrases) {
       listTabPhrases.hidden = phrases.length === 0;
       listTabPhrases.textContent = phrases.length
-        ? " · " + phrases.length + (phrases.length === 1 ? " phrase" : " phrases")
+        ? " · " + tn("reader.list.phrases", phrases.length, "{n} phrase", "{n} phrases")
         : "";
     }
 
@@ -3403,7 +3498,7 @@ var targumReader = function () {
       pair.getAttribute("data-id"),
       parseInt(span[0], 10),
       parseInt(span[1], 10),
-      "Hear this word"
+      t("reader.card.hear-word", "Hear this word")
     );
   }
 
@@ -3540,7 +3635,7 @@ var targumReader = function () {
       legend: true,
       // The field says what it is for, in the reader's words: the same line is its
       // accessible name, and "Enter text" was the one label on the card that was not.
-      placeholder: "Your own meaning",
+      placeholder: t("reader.card.own-meaning", "Your own meaning"),
       onStatus: function (value) {
         setStatus(index, surface, band, value);
         redraw();
@@ -3686,7 +3781,11 @@ var targumReader = function () {
     if (chosen) body.setAttribute("data-case", chosen);
     else body.removeAttribute("data-case");
     if (caseLens) caseLens.value = chosen;
-    say(chosen ? CASE_WORDS[chosen] + ", " + caseCounts[chosen] + " here." : "No case shown.");
+    say(
+      chosen
+        ? t("reader.case.said", "{case}, {n} here.", { case: CASE_WORDS[chosen], n: caseCounts[chosen] })
+        : t("reader.case.none", "No case shown.")
+    );
   }
 
   // `c` steps through the cases this page has, and past the last one back to none.
@@ -3791,7 +3890,7 @@ var targumReader = function () {
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
         // would only buy the same silence twice.
-        meaning.textContent = "we found nothing — write your own";
+        meaning.textContent = t("reader.card.found-nothing", "we found nothing — write your own");
       } else {
         if (!peeked[glossedAs(index)]) {
           peeked[glossedAs(index)] = true;
@@ -3802,13 +3901,15 @@ var targumReader = function () {
         var ask = document.createElement("button");
         ask.type = "button";
         ask.className = "look-up";
-        ask.textContent = canAsk() ? "look it up" : "nothing saved";
+        ask.textContent = canAsk()
+          ? t("reader.card.look-up", "look it up")
+          : t("reader.card.nothing-saved", "nothing saved");
         ask.disabled = !canAsk();
         ask.onclick = function (event) {
           event.stopPropagation();
           ask.disabled = true;
           ask.classList.add("looking");
-          ask.textContent = "looking…";
+          ask.textContent = t("reader.card.looking", "looking…");
           lookUp(index, sentenceOf(word), function () {
             if (lookedUp === word) showCard(word);
           });
@@ -3860,13 +3961,13 @@ var targumReader = function () {
     if (built) {
       var pieces = document.createElement("span");
       pieces.className = "form";
-      pieces.appendChild(document.createTextNode("from "));
+      pieces.appendChild(document.createTextNode(t("reader.card.from", "from ")));
       mixedLine(pieces, built);
       card.appendChild(pieces);
     } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
       var form = document.createElement("span");
       form.className = "form";
-      form.appendChild(document.createTextNode("from "));
+      form.appendChild(document.createTextNode(t("reader.card.from", "from ")));
       var bdi = document.createElement("bdi");
       bdi.setAttribute("lang", wordLanguage(index));
       bdi.textContent = wordOf(lemma);
@@ -3884,7 +3985,7 @@ var targumReader = function () {
       if (others.length) {
         var met = document.createElement("span");
         met.className = "form forms-here";
-        met.appendChild(document.createTextNode("here also as "));
+        met.appendChild(document.createTextNode(t("reader.card.also-as", "here also as ")));
         var listed = document.createElement("bdi");
         listed.setAttribute("lang", wordLanguage(index));
         listed.textContent = others.join(" · ");
@@ -3903,7 +4004,7 @@ var targumReader = function () {
       var verb = document.createElement("span");
       verb.className = "verb";
       if (root) {
-        verb.appendChild(document.createTextNode("root "));
+        verb.appendChild(document.createTextNode(t("reader.card.root", "root ")));
         var shoresh = document.createElement("bdi");
         shoresh.className = "root";
         shoresh.setAttribute("lang", language);
@@ -3929,7 +4030,7 @@ var targumReader = function () {
       pealim.href = "https://www.pealim.com/search/?q=" + encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
-      pealim.textContent = "conjugations";
+      pealim.textContent = t("reader.card.conjugations", "conjugations");
       verb.appendChild(pealim);
       card.appendChild(verb);
     }
@@ -3965,7 +4066,7 @@ var targumReader = function () {
     if (partner) {
       var other = document.createElement("span");
       other.className = "verb partner";
-      other.appendChild(document.createTextNode("the other aspect: "));
+      other.appendChild(document.createTextNode(t("reader.card.other-aspect", "the other aspect: ")));
       var named = document.createElement("bdi");
       named.setAttribute("lang", language);
       named.textContent = partner;
@@ -3975,7 +4076,7 @@ var targumReader = function () {
         var go = document.createElement("button");
         go.type = "button";
         go.className = "here";
-        go.textContent = "read " + used.form + " here";
+        go.textContent = t("reader.card.read-here", "read {form} here", { form: used.form });
         go.addEventListener("click", function (event) {
           event.stopPropagation();
           hideCard();
@@ -3992,7 +4093,7 @@ var targumReader = function () {
     if (moves) {
       var shifts = document.createElement("span");
       shifts.className = "verb stress-moves";
-      shifts.appendChild(document.createTextNode("stress moves: "));
+      shifts.appendChild(document.createTextNode(t("reader.card.stress-moves", "stress moves: ")));
       var forms = document.createElement("bdi");
       forms.setAttribute("lang", language);
       forms.textContent = moves;
@@ -4020,7 +4121,7 @@ var targumReader = function () {
       // but only on an annotation too old to name the pieces, which say it better.
       var caveat = document.createElement("span");
       caveat.className = "caveat";
-      caveat.textContent = "read as a prefix plus a word";
+      caveat.textContent = t("reader.card.prefix-caveat", "read as a prefix plus a word");
       card.appendChild(caveat);
     }
 
@@ -4081,13 +4182,15 @@ var targumReader = function () {
       field.className = "ask-field";
       // Hebrew and English in one question, each line in its own direction (B-01).
       field.dir = "auto";
-      field.setAttribute("aria-label", "Ask about this word");
-      field.placeholder = state.turns.length ? "One more" : "Ask about this word";
+      field.setAttribute("aria-label", t("reader.ask.label", "Ask about this word"));
+      field.placeholder = state.turns.length
+        ? t("reader.ask.one-more", "One more")
+        : t("reader.ask.label", "Ask about this word");
       field.autocomplete = "off";
       var go = document.createElement("button");
       go.type = "submit";
       go.className = "ask-go";
-      go.textContent = "Ask";
+      go.textContent = t("reader.ask.go", "Ask");
       form.appendChild(field);
       form.appendChild(go);
       form.addEventListener("submit", function (event) {
@@ -4103,7 +4206,7 @@ var targumReader = function () {
       var on = document.createElement("a");
       on.className = "ask-on";
       on.href = keyed("/chat") + "#" + encodeURIComponent(state.chat);
-      on.textContent = "Continue in chat";
+      on.textContent = t("reader.ask.continue", "Continue in chat");
       // In the drawer, where there is one (2026-09-11): the conversation goes on here,
       // beside the text, rather than on a page of its own.
       on.addEventListener("click", function (event) {
@@ -4191,10 +4294,12 @@ var targumReader = function () {
         return response.json();
       })
       .catch(function () {
-        return { error: "We couldn't connect. Try again." };
+        return { error: t("reader.error.connect", "We couldn't connect. Try again.") };
       })
       .then(function (got) {
-        if (!got || got.error) return settle((got && got.error) || "We couldn't connect. Try again.", true);
+        if (!got || got.error) {
+          return settle((got && got.error) || t("reader.error.connect", "We couldn't connect. Try again."), true);
+        }
         state.chat = got.chat;
         followAsk(got.chat, got.turn, draw, settle);
       });
@@ -4230,7 +4335,10 @@ var targumReader = function () {
           } catch (e) {
             why = {};
           }
-          settle(why.message || "We couldn't continue the conversation. Try again.", true);
+          settle(
+            why.message || t("reader.error.conversation", "We couldn't continue the conversation. Try again."),
+            true
+          );
         } else if (source.readyState === 2) {
           poll();
         }
@@ -4247,7 +4355,7 @@ var targumReader = function () {
           return response.json();
         })
         .catch(function () {
-          return { error: "We couldn't connect. Try again.", done: true };
+          return { error: t("reader.error.connect", "We couldn't connect. Try again."), done: true };
         })
         .then(function (state) {
           if (state.error && state.done) return settle(state.error, true);
@@ -4562,7 +4670,7 @@ var targumReader = function () {
     if (parts.cite) {
       var cite = document.createElement("span");
       cite.className = "cite";
-      cite.appendChild(document.createTextNode("to keep: "));
+      cite.appendChild(document.createTextNode(t("reader.pick.to-keep", "to keep: ")));
       var cited = document.createElement("bdi");
       cited.setAttribute("lang", language);
       cited.textContent = parts.cite;
@@ -4629,7 +4737,7 @@ var targumReader = function () {
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? noteOn(phraseTerm(pick)) : "",
-        placeholder: "Your own meaning",
+        placeholder: t("reader.card.own-meaning", "Your own meaning"),
         onStatus: apply,
         onNote: note,
       }),
@@ -4641,7 +4749,7 @@ var targumReader = function () {
         return TargumVocab.editor({
           levels: false,
           note: "",
-          placeholder: "Your own meaning",
+          placeholder: t("reader.card.own-meaning", "Your own meaning"),
           onNote: note,
           onSaved: onSaved,
         });
@@ -4755,8 +4863,8 @@ var targumReader = function () {
       pickCard({
         title: surface,
         reading: noteOf(lemma) || glosses[index] || "",
-        note: lemma && lemma !== surface ? "from " + lemma : "",
-        hear: hearButton(picked.segmentId, token[0], token[1], "Hear this word"),
+        note: lemma && lemma !== surface ? t("reader.card.from", "from ") + lemma : "",
+        hear: hearButton(picked.segmentId, token[0], token[1], t("reader.card.hear-word", "Hear this word")),
         editor: statusRow(index, surface, band),
       });
       placeChip(picked.rect);
@@ -4795,17 +4903,17 @@ var targumReader = function () {
       // that an answer is still owed, or that this one is a stand-in built from the
       // words' own glosses.
       note: whole
-        ? "the whole sentence"
+        ? t("reader.pick.whole-sentence", "the whole sentence")
         : held
           ? ""
           : asking
             ? reading
-              ? "word by word — looking…"
-              : "looking…"
+              ? t("reader.pick.looking-word-by-word", "word by word — looking…")
+              : t("reader.card.looking", "looking…")
             : reading
-              ? "word by word — the sentence is in parallel"
+              ? t("reader.pick.in-parallel", "word by word — the sentence is in parallel")
               : "",
-      hear: hearButton(picked.segmentId, picked.start, picked.end, "Hear this phrase"),
+      hear: hearButton(picked.segmentId, picked.start, picked.end, t("reader.pick.hear-phrase", "Hear this phrase")),
       kind: held ? held.kind : "",
       cite: held ? held.citation : "",
       editor:
@@ -5747,7 +5855,9 @@ var targumReader = function () {
   // What a screen reader hears when the switch is pressed. The button's own state is
   // `aria-pressed`; this says what changed.
   var FORM_SAID =
-    language === "ru" ? ["Bare text.", "Stress marks."] : ["Bare text.", "Vowel points."];
+    language === "ru"
+      ? [t("reader.form.bare", "Bare text."), t("reader.form.stress", "Stress marks.")]
+      : [t("reader.form.bare", "Bare text."), t("reader.form.points", "Vowel points.")];
 
   function toggleVowels() {
     if (!hasNikkud) return;
@@ -5759,7 +5869,7 @@ var targumReader = function () {
 
   // The chanting marks. Same shape as the vowels above, one position lower: it moves
   // between two pointed cells and does nothing at all with the vowels off.
-  var TAAMIM_SAID = ["Vowels only.", "Chanting marks."];
+  var TAAMIM_SAID = [t("reader.form.vowels-only", "Vowels only."), t("reader.form.chanting", "Chanting marks.")];
 
   function toggleTaamim() {
     if (!hasTaamim) return;
@@ -6040,12 +6150,14 @@ var targumReader = function () {
     body.classList.toggle("first-page", current === 0);
     var back = document.querySelector('.turn button[data-turn="-1"]');
     if (back) back.setAttribute("aria-disabled", current === 0 ? "true" : "false");
-    if (pageOf) pageOf.textContent = current + 1 + " of " + pages.length;
+    if (pageOf) {
+      pageOf.textContent = t("reader.page.of", "{page} of {pages}", { page: current + 1, pages: pages.length });
+    }
     for (i = range[0]; i <= range[1]; i++) markPair(pairs[i]);
     if (!quiet && window.scrollTo) window.scrollTo(0, 0);
     // A turned page replaces everything on the screen; the live region is how anyone
     // not looking at it finds out. Quiet turns are restores, not news.
-    if (!quiet) say("Page " + (current + 1) + " of " + pages.length);
+    if (!quiet) say(t("reader.page.said", "Page {page} of {pages}", { page: current + 1, pages: pages.length }));
     if (prefs.pageBy) {
       prefs.pageBy[pageKey] = pairs[range[0]].getAttribute("data-id") || "";
       save();
@@ -6528,12 +6640,22 @@ var targumReader = function () {
     row.className = "practice-row";
     row.setAttribute("dir", "ltr");
     var said = document.createElement("span");
-    said.textContent = ["In Hebrew", "Again, in Hebrew", "In Onkelos"][record.step];
+    said.textContent = [
+      t("reader.practice.in-hebrew", "In Hebrew"),
+      t("reader.practice.again-hebrew", "Again, in Hebrew"),
+      t("reader.practice.in-onkelos", "In Onkelos"),
+    ][record.step];
     row.appendChild(said);
     var last = at === practiceVerses.length - 1;
     row.appendChild(
       practiceButton(
-        record.step === 0 ? "Again" : record.step === 1 ? "Onkelos" : last ? "Finish" : "Next verse",
+        record.step === 0
+          ? t("reader.practice.again", "Again")
+          : record.step === 1
+            ? t("reader.practice.onkelos", "Onkelos")
+            : last
+              ? t("reader.practice.finish", "Finish")
+              : t("reader.practice.next-verse", "Next verse"),
         advancePractice
       )
     );
@@ -6549,20 +6671,30 @@ var targumReader = function () {
     if (!practiceStep) return;
     var words = "";
     var press = "";
+    var again = false;
     if (kind === "section") {
-      words = ["First reading, in Hebrew", "Second reading, in Hebrew", "Once in Onkelos"][
-        record.pass - 1
-      ];
-      press = ["Read it again", "Now Onkelos", "Start again"][record.pass - 1];
+      words = [
+        t("reader.practice.first-reading", "First reading, in Hebrew"),
+        t("reader.practice.second-reading", "Second reading, in Hebrew"),
+        t("reader.practice.once-onkelos", "Once in Onkelos"),
+      ][record.pass - 1];
+      press = [
+        t("reader.practice.read-again", "Read it again"),
+        t("reader.practice.now-onkelos", "Now Onkelos"),
+        t("reader.practice.start-again", "Start again"),
+      ][record.pass - 1];
+      again = record.pass === 3;
     } else if (kind === "verse" && record.verse === PRACTICE_DONE) {
-      words = "Every verse, twice in Hebrew and once in Onkelos";
-      press = "Start again";
+      words = t("reader.practice.every-verse", "Every verse, twice in Hebrew and once in Onkelos");
+      press = t("reader.practice.start-again", "Start again");
+      again = true;
     }
     practiceStep.hidden = !words;
     if (practiceSaid) practiceSaid.textContent = words;
     if (practiceNext) {
       practiceNext.textContent = press;
-      practiceNext.classList.toggle("again", press === "Start again");
+      // From the step, not the words, which are the reader's language.
+      practiceNext.classList.toggle("again", again);
     }
   }
 
@@ -6768,9 +6900,12 @@ var targumReader = function () {
     if (fullscreenButton) {
       fullscreenButton.classList.toggle("on", on);
       fullscreenButton.setAttribute("aria-pressed", on ? "true" : "false");
-      fullscreenButton.setAttribute("aria-label", on ? "Leave full screen" : "Full screen");
+      fullscreenButton.setAttribute(
+        "aria-label",
+        on ? t("reader.screen.leave-full", "Leave full screen") : t("reader.screen.full", "Full screen")
+      );
     }
-    say(on ? "Full screen." : "Out of full screen.");
+    say(on ? t("reader.screen.full-said", "Full screen.") : t("reader.screen.out-said", "Out of full screen."));
     // The window is another size: the pages are laid out for it.
     relayout();
   }
@@ -6964,14 +7099,18 @@ var targumReader = function () {
         save();
         // Said aloud: the pressed state on a 24px icon is the whole visual change, and
         // a mode that alters what reading does deserves more than that.
-        say(prefs.marking ? "Marking words as you read." : "Not marking.");
+        say(
+          prefs.marking
+            ? t("reader.mode.marking", "Marking words as you read.")
+            : t("reader.mode.not-marking", "Not marking.")
+        );
         return;
       }
       if (button.hasAttribute("data-paged")) {
         prefs.paged = !prefs.paged;
         applyPaged();
         save();
-        say(prefs.paged ? "Pages." : "One long scroll.");
+        say(prefs.paged ? t("reader.mode.pages", "Pages.") : t("reader.mode.scroll", "One long scroll."));
         return;
       }
       if (button.hasAttribute("data-turn")) {
@@ -7176,9 +7315,9 @@ var targumReader = function () {
     for (var i = range[1]; i >= range[0]; i--) {
       var id = pairs[i].getAttribute("data-id");
       var tokens = wordData[id] || [];
-      for (var t = tokens.length - 1; t >= 0; t--) {
-        if (!lemmas[tokens[t][4]]) continue;
-        return { segment: id, lemma: tokens[t][4], start: tokens[t][0] };
+      for (var ti = tokens.length - 1; ti >= 0; ti--) {
+        if (!lemmas[tokens[ti][4]]) continue;
+        return { segment: id, lemma: tokens[ti][4], start: tokens[ti][0] };
       }
     }
     return null;
@@ -7524,14 +7663,14 @@ var targumReader = function () {
         applyMode();
         settle();
         save();
-        say("Parallel.");
+        say(t("reader.mode.parallel", "Parallel."));
         return;
       case "o":
         prefs.mode = "source";
         applyMode();
         settle();
         save();
-        say("Source only.");
+        say(t("reader.mode.source-only", "Source only."));
         return;
       // `l` rather than `i`: `i` is ignore, on a word, and it cannot also be a mode.
       // The translation goes under each line, which is where the letter comes from.
@@ -7540,7 +7679,7 @@ var targumReader = function () {
         applyMode();
         settle();
         save();
-        say("Interlinear.");
+        say(t("reader.mode.interlinear", "Interlinear."));
         return;
       // The card is asked for, never offered. Walking the page fires no windows; this is
       // the second action that opens one. Open already, the same key asks the question
@@ -7564,13 +7703,17 @@ var targumReader = function () {
         prefs.marking = !prefs.marking;
         applyMarking();
         save();
-        say(prefs.marking ? "Marking words as you read." : "Not marking.");
+        say(
+          prefs.marking
+            ? t("reader.mode.marking", "Marking words as you read.")
+            : t("reader.mode.not-marking", "Not marking.")
+        );
         return;
       case "b":
         prefs.paged = !prefs.paged;
         applyPaged();
         save();
-        say(prefs.paged ? "Pages." : "One long scroll.");
+        say(prefs.paged ? t("reader.mode.pages", "Pages.") : t("reader.mode.scroll", "One long scroll."));
         return;
       case "f":
         toggleFullscreen();

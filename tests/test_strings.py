@@ -56,3 +56,39 @@ def test_a_gap_is_said_in_english_and_a_missing_key_is_loud(
             strings.text("a.nobody-wrote-this", "ru")
     finally:
         strings.catalogue.cache_clear()
+
+
+def _calls(path: Path) -> dict[str, str]:
+    """Every `t("key", "English")` and `tn("key", n, "one", "other")` in a script, as
+    catalogue keys and their English; a key said twice must say the same thing."""
+    import re
+
+    source = path.read_text(encoding="utf-8")
+    literal = r'"((?:[^"\\\\]|\\\\.)*)"'
+    found: dict[str, str] = {}
+
+    def put(key: str, text: str) -> None:
+        text = json.loads(f'"{text}"')
+        assert found.setdefault(key, text) == text, f"{key} says two things"
+
+    for match in re.finditer(r'\bt\(\s*"(reader\.[\w.-]+)",\s*' + literal, source):
+        put(match.group(1), match.group(2))
+    for match in re.finditer(
+        r'\btn\(\s*"(reader\.[\w.-]+)",\s*[^,]+,\s*' + literal + r",\s*" + literal, source
+    ):
+        put(match.group(1) + ".one", match.group(2))
+        put(match.group(1) + ".other", match.group(3))
+    return found
+
+
+def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
+    """The English stands in `reader.js` as the fallback and in `en.json` as what a
+    translation is made from; this is what keeps them the same text (targum-internal#184)."""
+    script = Path(strings.__file__).parents[1] / "render" / "assets" / "reader.js"
+    calls = _calls(script)
+    assert len(calls) > 100, "the reader's sentences are said through the catalogue"
+    english = strings.catalogue("en")
+    for key, text in calls.items():
+        assert english.get(key) == text, (
+            f"{key}: reader.js says {text!r}, en.json {english.get(key)!r}"
+        )
