@@ -711,9 +711,9 @@ def test_finishing_survives_everything_else_the_reader_writes() -> None:
     assert kept["record"] > 0
 
 
-def grammar(*lines: str) -> list[str]:
+def grammar(*lines: str | list[str], language: str = "he") -> list[str]:
     """The card's part-of-speech line, as each grammar string comes out in words."""
-    return run([], grammarLines=list(lines))["grammar"]
+    return run([], grammarLines=list(lines), language=language)["grammar"]
 
 
 def test_a_verb_is_parsed_in_plain_words() -> None:
@@ -814,6 +814,65 @@ def test_a_russian_verb_says_its_aspect() -> None:
         "UPOS=VERB|Case=Gen|Gender=Fem|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Part"
     ) == ["past participle · perfective · f · genitive"]
     assert grammar("UPOS=VERB|Gender=Masc|Number=Plur|VerbForm=Part|Person=3") == ["present · they"]
+
+
+def test_a_french_verb_says_its_mood_and_its_participle() -> None:
+    """The tagger gives a conditional the present tense, and "present" is the one thing
+    *mangerait* is not; a past participle agrees like an adjective and has no person, so
+    *mangées* reads "past participle · f · pl.", not "past · f" (targum-internal#263)."""
+    assert grammar("UPOS=VERB|Number=Sing|Tense=Pres|Person=3|VerbForm=Fin|Mood=Cnd") == [
+        "conditional · he/she"
+    ]
+    assert grammar("UPOS=VERB|Number=Plur|Tense=Pres|Person=1|VerbForm=Fin|Mood=Sub") == [
+        "subjunctive · we"
+    ]
+    assert grammar("UPOS=VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part") == [
+        "past participle · f · pl."
+    ]
+    assert grammar("UPOS=VERB|Gender=Masc|Number=Sing|Tense=Past|VerbForm=Part") == [
+        "past participle"
+    ]
+    # The tagger leaves the tense off about half the participles it reads: in French that
+    # is still a past participle, and in Hebrew it is still the beinoni.
+    bare = "UPOS=VERB|Gender=Fem|Number=Sing|VerbForm=Part"
+    assert grammar(bare, language="fr") == ["past participle · f"]
+    assert grammar(bare, language="it") == ["past participle · f"]
+    assert grammar(bare, language="he") == ["present"]
+    # A Russian short participle keeps its aspect and says its gender.
+    assert grammar("UPOS=VERB|Gender=Neut|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Part") == [
+        "past participle · perfective · n"
+    ]
+    assert grammar("UPOS=AUX|Number=Sing|Tense=Pres|Person=3|VerbForm=Fin|Mood=Ind") == [
+        "present · he/she"
+    ]
+
+
+def test_an_article_says_the_gender_it_hides() -> None:
+    """*l'* and *les* hide the gender that the article is the only place to see. Told by
+    the dictionary form, since the features cannot tell an article from *ce*; a Russian
+    determiner and a Hebrew line are unchanged."""
+    assert grammar(
+        ["UPOS=DET|Gender=Fem|Number=Sing", "le"],
+        ["UPOS=DET|Number=Plur", "le"],
+        ["UPOS=DET|Gender=Masc|Number=Sing", "un"],
+        ["UPOS=DET|Gender=Masc|Number=Sing", "il"],
+        ["UPOS=DET|Gender=Masc|Number=Sing", "ce"],
+        ["UPOS=DET|Case=Acc", "этот"],
+        ["UPOS=DET|Gender=Masc|Number=Sing", "\u05d4"],
+    ) == [
+        "article · f",
+        "article · pl.",
+        "article · m",
+        "article · m",
+        "",
+        "determiner · accusative",
+        "",
+    ]
+    # A Hebrew verb is where it was: the beinoni and a past form.
+    assert grammar("UPOS=VERB|Gender=Masc|Number=Plur|VerbForm=Part|Person=3") == ["present · they"]
+    assert grammar("UPOS=VERB|Person=1|Gender=Fem|Number=Sing|Tense=Past|VerbForm=Fin") == [
+        "past · I"
+    ]
 
 
 def test_a_pronoun_is_its_person() -> None:

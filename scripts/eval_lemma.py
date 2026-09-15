@@ -19,7 +19,10 @@ is the first part's, which is what the prompt asks for.
 
 **And the grammar** (prompt 2, targum-internal#258). Over the matched words whose hand
 annotation carries the feature, the share the model gave the same value: `case_accuracy`,
-`aspect_accuracy`, `gender_accuracy`, `number_accuracy`. A word the model left without the
+`aspect_accuracy`, `gender_accuracy`, `number_accuracy`, and since targum-internal#263
+`tense_accuracy`, `mood_accuracy`, `person_accuracy` and `verbform_accuracy`, which the
+French card's verb line is read from. A treebank's `Tense=Imp` (the imparfait) counts
+against a model the prompt does not yet let say it. A word the model left without the
 feature counts as wrong. A language whose treebank never marks a feature, or whose card
 does not keep it (`model_lemma.KEPT`), gets no row for it. The run also prints output
 tokens per word, which is the figure the quote uses (`model_lemma.TOKENS_PER_WORD_OUT`).
@@ -89,6 +92,10 @@ SCORED = {
     "Aspect": "aspect_accuracy",
     "Gender": "gender_accuracy",
     "Number": "number_accuracy",
+    "Tense": "tense_accuracy",
+    "Mood": "mood_accuracy",
+    "Person": "person_accuracy",
+    "VerbForm": "verbform_accuracy",
 }
 
 
