@@ -3732,7 +3732,15 @@ class Handler(BaseHTTPRequestHandler):
         if payload is not None:
             series = str(payload.get("series") or "").strip()
             if not series or not SERIES_ID.match(series):
-                return self._json({"error": "We couldn't tell which series you meant."}, 400)
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.we-couldn-t-tell-which-series",
+                            "We couldn't tell which series you meant.",
+                        )
+                    },
+                    400,
+                )
             wanted = bool(payload.get("on", True))
             if series == "weekly":
                 store.follow(person.email, wanted)
@@ -3775,7 +3783,14 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         store = self.library.store
         if person is None or store is None:
-            return self._json({"error": "You'll need to sign in first."}, 401)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.you-ll-need-to-sign-in", "You'll need to sign in first."
+                    )
+                },
+                401,
+            )
         wanted = bool(payload.get("on", True))
         store.follow(person.email, wanted)
         return self._json({"following": store.following(person.email)})
@@ -4178,7 +4193,13 @@ class Handler(BaseHTTPRequestHandler):
                 ("/readers", "/job/", "/jobs", "/glossary/", "/account/export", "/chat/")
             ):
                 return self._json(
-                    {"error": "You'll need to sign in first.", "signIn": "/account/signin"}, 401
+                    {
+                        "error": self._say(
+                            "serve.you-ll-need-to-sign-in", "You'll need to sign in first."
+                        ),
+                        "signIn": "/account/signin",
+                    },
+                    401,
                 )
             if not self._is_a_page(route):
                 return self._not_found()
@@ -4308,7 +4329,14 @@ class Handler(BaseHTTPRequestHandler):
             # help, and a wall of JSON in a browser tab is not a thing anybody can keep.
             person = self._person()
             if person is None:
-                return self._json({"error": "You'll need to sign in first."}, 401)
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.you-ll-need-to-sign-in", "You'll need to sign in first."
+                        )
+                    },
+                    401,
+                )
             body = json.dumps(self.store.everything(person), ensure_ascii=False, indent=1).encode(
                 "utf-8"
             )
@@ -4333,7 +4361,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(
                 job.state()
                 if job
-                else {"error": "We lost that build when we restarted. Start it again."}
+                else {
+                    "error": self._say(
+                        "serve.we-lost-that-build-when-we",
+                        "We lost that build when we restarted. Start it again.",
+                    )
+                }
             )
         self._not_found()
 
@@ -4360,13 +4393,21 @@ class Handler(BaseHTTPRequestHandler):
             return self._series_stop(self._form())
         if self._needs_account(route):
             return self._json(
-                {"error": "You'll need to sign in first.", "signIn": "/account/signin"}, 401
+                {
+                    "error": self._say(
+                        "serve.you-ll-need-to-sign-in", "You'll need to sign in first."
+                    ),
+                    "signIn": "/account/signin",
+                },
+                401,
             )
         if route != "/account/sign-in" and not self._authorised():
             return self._json(
                 {
-                    "error": "This page is from an earlier session. "
-                    "Open the new link in the Terminal."
+                    "error": self._say(
+                        "serve.this-page-is-from-an-earlier",
+                        "This page is from an earlier session. Open the new link in the Terminal.",
+                    )
                 },
                 403,
             )
@@ -4380,7 +4421,13 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         if length > MAX_UPLOAD:
             return self._json(
-                {"error": f"That file is over {MAX_FILE_MB} MB. Try sending us one part of it."},
+                {
+                    "error": self._say(
+                        "serve.file-over-mb",
+                        "That file is over {size} MB. Try sending us one part of it.",
+                        size=MAX_FILE_MB,
+                    )
+                },
                 413,
             )
         try:
@@ -4708,7 +4755,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_file(kept, "audio/mpeg" if kept.suffix == ".mp3" else "audio/wav")
         usable, why = speech.available()
         if not usable:
-            return self._json({"error": f"We can't read aloud here: {why}."}, 402)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cannot-read-aloud", "We can't read aloud here: {why}.", why=why
+                    )
+                },
+                402,
+            )
         turns = store.chat_turns(chat_id)
         said = "".join(
             str(turn["said"]) for turn in turns if turn["n"] > n and turn["role"] == "assistant"
@@ -4720,7 +4774,15 @@ class Handler(BaseHTTPRequestHandler):
         found = hebrew_module.pairs(said, spoken_in)
         text = "\n".join(pair.hebrew for pair in found) if found else said.strip()
         if not text:
-            return self._json({"error": "There's nothing for us to read aloud yet."}, 404)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.there-s-nothing-for-us-to",
+                        "There's nothing for us to read aloud yet.",
+                    )
+                },
+                404,
+            )
         seconds = hebrew_module.seconds_for(hebrew_module.words_in(text))
         job = Job(
             id=f"speak-{chat_id}-{n}",
@@ -4824,9 +4886,24 @@ class Handler(BaseHTTPRequestHandler):
         hear_as = "he" if held and held_in.split("-")[0].lower() == "he" else ""
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0:
-            return self._json({"error": "We didn't hear anything. Try again."}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-didn-t-hear-anything-try", "We didn't hear anything. Try again."
+                    )
+                },
+                400,
+            )
         if length > MAX_UPLOAD:
-            return self._json({"error": "That's too long for one line. Try a shorter one."}, 413)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.that-s-too-long-for-one",
+                        "That's too long for one line. Try a shorter one.",
+                    )
+                },
+                413,
+            )
         body = self.rfile.read(length)
         kind = (self.headers.get("Content-Type") or "audio/webm").split(";")[0].strip()
         suffixes = {
@@ -4856,7 +4933,16 @@ class Handler(BaseHTTPRequestHandler):
         usable, why = transcriber.available()
         if not usable:
             clip.unlink(missing_ok=True)
-            return self._json({"error": f"We can't write speech down here: {why}."}, 402)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cannot-transcribe",
+                        "We can't write speech down here: {why}.",
+                        why=why,
+                    )
+                },
+                402,
+            )
         admin = bool(person and self.store.is_admin(person.email))
         job = Job(
             id=f"hear-{secrets.token_hex(6)}",
@@ -4893,7 +4979,15 @@ class Handler(BaseHTTPRequestHandler):
             str(getattr(word, "text", "")) for word in getattr(transcript, "words", [])
         ).strip()
         if not text:
-            return self._json({"error": "We didn't catch that. Try again a little closer."}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-didn-t-catch-that-try",
+                        "We didn't catch that. Try again a little closer.",
+                    )
+                },
+                400,
+            )
         asked = self.chats.say(
             person,
             home,
@@ -4914,9 +5008,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": NO_KEY}, 402)
         text = str(payload.get("text") or "").strip()
         if not text:
-            return self._json({"error": "Say something first."}, 400)
+            return self._json(
+                {"error": self._say("serve.say-something-first", "Say something first.")}, 400
+            )
         if len(text) > 4000:
-            return self._json({"error": "That's too long for one turn. Try a shorter one."}, 413)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.that-s-too-long-for-one-2",
+                        "That's too long for one turn. Try a shorter one.",
+                    )
+                },
+                413,
+            )
         person = self._person()
         person_id = person.id if person else None
         chat_id = str(payload.get("chat") or "")
@@ -4975,10 +5079,24 @@ class Handler(BaseHTTPRequestHandler):
         if folder is None:
             return self._json({"error": "not found"}, 404)
         if not speech.priced():
-            return self._json({"error": "We can't give this text a voice yet."}, 402)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-can-t-give-this-text", "We can't give this text a voice yet."
+                    )
+                },
+                402,
+            )
         usable, why = speech.available()
         if not usable:
-            return self._json({"error": f"We can't read aloud here: {why}."}, 402)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cannot-read-aloud", "We can't read aloud here: {why}.", why=why
+                    )
+                },
+                402,
+            )
         try:
             number = int(payload.get("section") or 0)
         except (TypeError, ValueError):
@@ -4988,7 +5106,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         if not speech.speaks(segmented.language):
             # Yiddish and Aramaic: the voice does not read them, so it is not for sale.
-            return self._json({"error": "We can't read this language aloud yet."}, 402)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-can-t-read-this-language",
+                        "We can't read this language aloud yet.",
+                    )
+                },
+                402,
+            )
         section = next((one for one in split_sections(segmented) if one.number == number), None)
         if section is None:
             return self._json({"error": "not found"}, 404)
@@ -5357,6 +5483,24 @@ class Handler(BaseHTTPRequestHandler):
         others = [code for code in self.store.reads(person.id) if code != "en"]
         return others[0] if len(others) == 1 and others[0] in self.translated else "en"
 
+    def _say(self, key: str, english: str, **fill: object) -> str:
+        """A sentence the server sends back, in the language of whoever asked
+        (targum-internal#184): `english` where their catalogue has not said it."""
+        from .strings import SOURCE, catalogue
+
+        code = self._page_language()
+        text = catalogue(code).get(key, english) if code != SOURCE else english
+        return text.format(**fill) if fill else text
+
+    def _named(self, code: str) -> str:
+        """A language's name in the language of whoever asked."""
+        from .strings import SOURCE, catalogue
+        from .translate.prompts import language_name
+
+        asked = self._page_language()
+        said = catalogue(asked).get(f"language.{code}") if asked != SOURCE else None
+        return said or language_name(code)
+
     def _page_language(self) -> str:
         """The language a public page speaks to whoever asked: a signed-in reader's
         interface language, by the same rule as the desk; for a visitor, the first
@@ -5371,7 +5515,13 @@ class Handler(BaseHTTPRequestHandler):
         email = str(payload.get("email") or "")
         if not plausible(email):
             return self._json(
-                {"error": "We couldn't read that as an email address. Check it and try again."}, 400
+                {
+                    "error": self._say(
+                        "serve.we-couldn-t-read-that-as",
+                        "We couldn't read that as an email address. Check it and try again.",
+                    )
+                },
+                400,
             )
         # Hosted, an address has to have been invited. Without this, standing a box up
         # on a public address with a funded key lets whoever finds it open an account and
@@ -5387,8 +5537,10 @@ class Handler(BaseHTTPRequestHandler):
         if self.store.asking_too_often(email):
             return self._json(
                 {
-                    "error": "We've sent a few links to that address already. "
-                    "Check your spam folder."
+                    "error": self._say(
+                        "serve.we-ve-sent-a-few-links",
+                        "We've sent a few links to that address already. Check your spam folder.",
+                    )
                 },
                 429,
             )
@@ -5400,7 +5552,15 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             # Said plainly, because a link that never arrives with a cheerful "check
             # your email" is the worst version of this failing.
-            return self._json({"error": "We couldn't send the link. Try again in a minute."}, 502)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-couldn-t-send-the-link",
+                        "We couldn't send the link. Try again in a minute.",
+                    )
+                },
+                502,
+            )
         self._json({"sent": True, "message": SENT})
 
     def _enter(self, token: str) -> None:
@@ -5433,7 +5593,9 @@ class Handler(BaseHTTPRequestHandler):
     def _forget(self) -> None:
         person = self._person()
         if person is None:
-            return self._json({"error": "You're not signed in."}, 401)
+            return self._json(
+                {"error": self._say("serve.you-re-not-signed-in", "You're not signed in.")}, 401
+            )
         self.store.forget(person)
         self._sign_out()
 
@@ -5472,15 +5634,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def _prepare(self, payload: dict[str, Any]) -> None:
         """Price a build, and say what it will take before anything is spent."""
-        from .translate.prompts import INTO, READING, language_name
+        from .translate.prompts import INTO, READING
 
         # A picker is not a boundary. The page offers three languages in and two out
         # because those are the pairs an upload has been taken end to end in; a request
         # naming anything else is refused here rather than half-built.
         wanted = str(payload.get("to") or "en")
         if wanted not in {code for code, _ in INTO}:
-            offered = ", ".join(language_name(code) for code, _ in INTO)
-            return self._json({"error": f"We translate into {offered}."}, 400)
+            offered = ", ".join(self._named(code) for code, _ in INTO)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-translate-into",
+                        "We translate into {languages}.",
+                        languages=offered,
+                    )
+                },
+                400,
+            )
         # And of those, the ones this account reads. Buying a translation into a language
         # nobody said they read spends money on a page they cannot use — and every word
         # they keep from it carries a meaning in it into every text they own. The
@@ -5488,8 +5659,11 @@ class Handler(BaseHTTPRequestHandler):
         if wanted not in self._reads():
             return self._json(
                 {
-                    "error": f"{language_name(wanted)} isn't in your profile yet. "
-                    "Add it there and try again."
+                    "error": self._say(
+                        "serve.not-in-profile",
+                        "{language} isn't in your profile yet. Add it there and try again.",
+                        language=self._named(wanted),
+                    )
                 },
                 400,
             )
@@ -5505,14 +5679,24 @@ class Handler(BaseHTTPRequestHandler):
             from . import catalogue as catalogue_module
 
             if catalogue_module.matching(str(payload.get("source") or "")) is None:
-                names = ", ".join(language_name(code) for code, _ in READING)
-                return self._json({"error": f"We can read {names}."}, 400)
+                names = ", ".join(self._named(code) for code, _ in READING)
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.we-can-read", "We can read {languages}.", languages=names
+                        )
+                    },
+                    400,
+                )
         # And of those, the ones this account said it is learning.
         if reading in known and reading not in self._learning():
             return self._json(
                 {
-                    "error": f"{language_name(reading)} isn't in your profile yet. "
-                    "Add it there and try again."
+                    "error": self._say(
+                        "serve.not-in-profile",
+                        "{language} isn't in your profile yet. Add it there and try again.",
+                        language=self._named(reading),
+                    )
                 },
                 400,
             )
@@ -5538,7 +5722,15 @@ class Handler(BaseHTTPRequestHandler):
             published = {rendering.source for rendering in entry.translations} if entry else set()
             asked = payload.get("translations")
             if not isinstance(asked, list) or not {str(one) for one in asked} <= published:
-                return self._json({"error": "That translation is not one targum has."}, 400)
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.that-translation-is-not-one-targum",
+                            "That translation is not one targum has.",
+                        )
+                    },
+                    400,
+                )
         try:
             spoken_text = self._transcript_from(payload)
         except TargumError as error:
@@ -5580,8 +5772,11 @@ class Handler(BaseHTTPRequestHandler):
         if job is None:
             return self._json(
                 {
-                    "error": "We lost that build when we restarted. Start it again, and "
-                    "nothing counts twice."
+                    "error": self._say(
+                        "serve.we-lost-that-build-when-we-2",
+                        "We lost that build when we restarted. Start it again, and "
+                        "nothing counts twice.",
+                    )
                 },
                 404,
             )
@@ -5617,9 +5812,18 @@ class Handler(BaseHTTPRequestHandler):
 
         entry, plan = self.library.cover_plan(folder, bool(payload.get("chapters")))
         if entry is None:
-            return self._json({"error": "We can't find anything here to draw."}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.we-can-t-find-anything-here", "We can't find anything here to draw."
+                    )
+                },
+                400,
+            )
         if not plan:
-            return self._json({"drawn": 0, "message": "Already drawn."})
+            return self._json(
+                {"drawn": 0, "message": self._say("serve.already-drawn", "Already drawn.")}
+            )
 
         person = self._person()
         job = Job(
@@ -5882,7 +6086,13 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/gloss", error)
             return self._json(
-                {"error": "We couldn't look that word up just now. Try again in a moment."}, 502
+                {
+                    "error": self._say(
+                        "serve.we-couldn-t-look-that-word",
+                        "We couldn't look that word up just now. Try again in a moment.",
+                    )
+                },
+                502,
             )
         return self._json(
             {
@@ -5947,7 +6157,13 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/phrase", error)
             return self._json(
-                {"error": "We couldn't look that phrase up just now. Try again in a moment."}, 502
+                {
+                    "error": self._say(
+                        "serve.we-couldn-t-look-that-phrase",
+                        "We couldn't look that phrase up just now. Try again in a moment.",
+                    )
+                },
+                502,
             )
         return self._json(
             {
@@ -6123,19 +6339,42 @@ class Handler(BaseHTTPRequestHandler):
         except (TypeError, ValueError):
             size = 0
         if suffix in DRM_SUFFIXES:
-            return self._json({"error": "This file is protected, so we can't read it."}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.this-file-is-protected-so-we",
+                        "This file is protected, so we can't read it.",
+                    )
+                },
+                400,
+            )
         if suffix in PICTURE_SUFFIXES or suffix == ".pdf":
             # A picture or a handout, through the recording's door: the same chunks, the
             # same quota, a ceiling of its own.
             if size <= 0 or size > MAX_PICTURE_BYTES:
-                what = "PDF" if suffix == ".pdf" else "picture"
                 limit = MAX_PICTURE_BYTES // (1024 * 1024)
-                return self._json(
-                    {"error": f"That {what} is over {limit} MB. Try a smaller one."}, 413
+                said = (
+                    self._say(
+                        "serve.pdf-over-mb",
+                        "That PDF is over {size} MB. Try a smaller one.",
+                        size=limit,
+                    )
+                    if suffix == ".pdf"
+                    else self._say(
+                        "serve.picture-over-mb",
+                        "That picture is over {size} MB. Try a smaller one.",
+                        size=limit,
+                    )
                 )
+                return self._json({"error": said}, 413)
         elif suffix not in AUDIO_SUFFIXES | VIDEO_SUFFIXES:
             return self._json(
-                {"error": "We can only read a recording, a video, a picture or a PDF."},
+                {
+                    "error": self._say(
+                        "serve.we-can-only-read-a-recording",
+                        "We can only read a recording, a video, a picture or a PDF.",
+                    )
+                },
                 400,
             )
         else:
@@ -6143,18 +6382,31 @@ class Handler(BaseHTTPRequestHandler):
             ceiling = MAX_VIDEO_BYTES if moving else MAX_AUDIO_BYTES
             if size <= 0 or size > ceiling:
                 limit = ceiling // (1024 * 1024 * 1024)
-                what = "video" if moving else "recording"
-                return self._json(
-                    {"error": f"That {what} is over {limit} GB. Try a shorter one."}, 413
+                said = (
+                    self._say(
+                        "serve.video-over-gb",
+                        "That video is over {size} GB. Try a shorter one.",
+                        size=limit,
+                    )
+                    if moving
+                    else self._say(
+                        "serve.recording-over-gb",
+                        "That recording is over {size} GB. Try a shorter one.",
+                        size=limit,
+                    )
                 )
+                return self._json({"error": said}, 413)
         home = self._home()
         self.library.sweep_uploads(home)
         if self.library.used(home) + size > MEDIA_QUOTA_BYTES:
             gigs = MEDIA_QUOTA_BYTES // (1024 * 1024 * 1024)
             return self._json(
                 {
-                    "error": f"That would take your recordings over {gigs} GB. "
-                    "Delete one and try again."
+                    "error": self._say(
+                        "serve.over-quota",
+                        "That would take your recordings over {size} GB. Delete one and try again.",
+                        size=gigs,
+                    )
                 },
                 413,
             )
@@ -6183,7 +6435,9 @@ class Handler(BaseHTTPRequestHandler):
         folder, meta = held
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > CHUNK_BYTES:
-            return self._json({"error": "That chunk is too big."}, 413)
+            return self._json(
+                {"error": self._say("serve.that-chunk-is-too-big", "That chunk is too big.")}, 413
+            )
         expected = int(meta.get("size") or 0)
         if number * CHUNK_BYTES >= expected + CHUNK_BYTES:
             # A chunk the declared size has no room for is a lie about the size.
@@ -6207,7 +6461,15 @@ class Handler(BaseHTTPRequestHandler):
         target = folder / name
         pieces = sorted((folder / ".part").glob("[0-9]*"), key=lambda piece: int(piece.name))
         if [int(piece.name) for piece in pieces] != list(range(len(pieces))):
-            return self._json({"error": "Part of the upload didn't reach us. Send it again."}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.part-of-the-upload-didn-t",
+                        "Part of the upload didn't reach us. Send it again.",
+                    )
+                },
+                400,
+            )
         digest = hashlib.sha256()
         with target.open("wb") as out:
             for piece in pieces:
@@ -6217,7 +6479,15 @@ class Handler(BaseHTTPRequestHandler):
         claimed = str(payload.get("sha256") or "")
         if claimed and claimed != digest.hexdigest():
             target.unlink()
-            return self._json({"error": "The upload reached us damaged. Send it again."}, 400)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.the-upload-reached-us-damaged-send",
+                        "The upload reached us damaged. Send it again.",
+                    )
+                },
+                400,
+            )
         for piece in pieces:
             piece.unlink()
         (folder / ".sha256").write_text(digest.hexdigest(), encoding="utf-8")
@@ -6265,7 +6535,15 @@ class Handler(BaseHTTPRequestHandler):
             # now heard the file. Sound alone in a video container is a recording,
             # and a recording's ceiling is 1 GB whatever the container claims.
             shutil.rmtree(folder, ignore_errors=True)
-            return self._json({"error": "That recording is over 1 GB. Try a shorter one."}, 413)
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.that-recording-is-over-1-gb",
+                        "That recording is over 1 GB. Try a shorter one.",
+                    )
+                },
+                413,
+            )
         drafted = parts_module.plan(found)
         self._json(
             {"upload": upload, "seconds": round(found.duration, 1), "parts": len(drafted.parts)}
