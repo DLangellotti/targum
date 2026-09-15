@@ -58,6 +58,8 @@
  */
 (function () {
   "use strict";
+  // Said in the page's language, from `strings.js` (targum-internal#184).
+  var t = window.TargumStrings.t;
   var start = document.getElementById("start");
   var toc = document.querySelector(".toc[data-document]");
   if (!start || !toc) return;
@@ -71,7 +73,7 @@
   var row = toc.querySelector('[data-chapter="' + last + '"] a');
   if (!row) return;
   start.href = row.getAttribute("href");
-  start.textContent = "Continue";
+  start.textContent = t("contents.continue", "Continue");
 })();
 
 /* --- a link to a verse ------------------------------------------------------
@@ -124,6 +126,8 @@
  */
 (function () {
   "use strict";
+  // Said in the page's language, from `strings.js` (targum-internal#184).
+  var t = window.TargumStrings.t;
   if (location.protocol === "file:") return;
 
   // No key hosted, where the session cookie identifies the reader; a key locally, where
@@ -177,10 +181,10 @@
       // An imported recording's chapter is waiting on a transcript, not a
       // translation, and a button that names the wrong work makes the wrong promise.
       var hearing = row.hasAttribute("data-audio");
-      get.textContent = hearing ? "Transcribe" : "Translate";
+      get.textContent = hearing ? t("contents.transcribe", "Transcribe") : t("contents.translate", "Translate");
       get.onclick = function () {
         get.disabled = true;
-        get.textContent = hearing ? "Transcribing…" : "Translating…";
+        get.textContent = hearing ? t("contents.transcribing", "Transcribing…") : t("contents.translating", "Translating…");
         ask("/chapter", { name: name, number: number })
           .then(function (job) {
             if (job.ready) return location.reload();
@@ -188,14 +192,14 @@
             // spun for ever (2026-09-14).
             if (job.blocked || job.stage === "blocked" || !job.id) {
               get.disabled = false;
-              get.textContent = job.blocked || job.error || "We couldn't do that. Try again.";
+              get.textContent = job.blocked || job.error || t("contents.could-not", "We couldn't do that. Try again.");
               return;
             }
             watch(job.id, get);
           })
           .catch(function () {
             get.disabled = false;
-            get.textContent = "We couldn't reach targum. Try again.";
+            get.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
           });
       };
       row.appendChild(get);
@@ -215,13 +219,13 @@
           } else if (job.stage === "failed" || job.blocked || (job.error && !job.stage)) {
             clearInterval(timer);
             button.disabled = false;
-            button.textContent = job.error || job.blocked || "We couldn't do that. Try again.";
+            button.textContent = job.error || job.blocked || t("contents.could-not", "We couldn't do that. Try again.");
           }
         })
         .catch(function () {
           clearInterval(timer);
           button.disabled = false;
-          button.textContent = "We couldn't reach targum. Try again.";
+          button.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
         });
     }, 1500);
   }
@@ -242,6 +246,8 @@
 /* Prepare the whole book, for reading somewhere with no connection. */
 (function () {
   "use strict";
+  // Said in the page's language, from `strings.js` (targum-internal#184).
+  var t = window.TargumStrings.t;
   if (location.protocol === "file:") return;
 
   // No key hosted, a key locally — see above. Stopping on a missing key made this
@@ -275,7 +281,7 @@
 
   press.onclick = function () {
     press.disabled = true;
-    press.textContent = "Preparing…";
+    press.textContent = t("contents.preparing", "Preparing…");
     fetch(keyed("/chapter"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
@@ -303,19 +309,19 @@
               } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
                 clearInterval(timer);
                 press.disabled = false;
-                press.textContent = state.error || state.blocked || "We couldn't prepare it. Try again.";
+                press.textContent = state.error || state.blocked || t("contents.could-not-prepare", "We couldn't prepare it. Try again.");
               }
             })
             .catch(function () {
               clearInterval(timer);
               press.disabled = false;
-              press.textContent = "We couldn't reach targum. Try again.";
+              press.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
             });
         }, 1500);
       })
       .catch(function () {
         press.disabled = false;
-        press.textContent = "We couldn't reach targum. Try again.";
+        press.textContent = t("contents.unreachable", "We couldn't reach targum. Try again.");
       });
   };
 

@@ -341,7 +341,10 @@ the following the same day; they change or add rules, so they are recorded.
   it sits in was sized against the English.
 - **A desk page says its own language.** Learn, Library, Progress, You, Add, the lists,
   the conversation and the public pages carry `<html lang>` of the language their words
-  are in. A reader page is still English chrome around a text, as the entry below says.
+  are in. A reader and its contents page do the same for their chrome: `<html lang>` is
+  the language the chrome's words are in, which is the first rendering's where it has a
+  catalogue and English otherwise. The text keeps its own language on `data-language` and
+  on every source cell, as the entry below says.
 - **A visitor is spoken to in their browser's language.** Signed out, a public page
   takes the first `Accept-Language` that has a catalogue; signed in, the interface
   follows the one language the account reads besides English.
