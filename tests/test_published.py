@@ -70,3 +70,13 @@ def test_the_file_is_read_from_where_the_content_lives(
             published.PublishedFetcher().load("published:fr:Ruth")
     finally:
         published.edition.cache_clear()
+
+
+def test_a_book_named_in_the_translation_titles_its_chapters_in_that_language() -> None:
+    """A Russian reader meets «Руфь 1» over Russian verses, while every ref stays Sefaria's
+    and the book still pairs with the Hebrew."""
+    russian = published.document_for("ru", "Ruth", russian_ruth(), "Пятикнижие", "Руфь")
+    headings = [b.text for b in russian.blocks if b.kind is BlockKind.heading]
+    assert russian.title == "Руфь" and headings[0] == "Руфь 1"
+    assert next(b.ref for b in russian.blocks if b.kind is BlockKind.verse) == "Ruth 1:1"
+    assert parallel.parallel_key(russian) == parallel.parallel_key(document("he"))
