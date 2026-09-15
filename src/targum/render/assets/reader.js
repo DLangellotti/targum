@@ -3588,6 +3588,46 @@ var targumReader = function () {
   // A line that mixes Hebrew pieces with English glue — "ו and + ל to + בית". The
   // Hebrew runs get their own bdi with the page's language, so they take the carried
   // face and hold their own direction inside the English sentence.
+  /* A split word's pieces, in the page's language. The annotation stores them the way the
+   * card first said them, in English ("ו and + ל to + בית + his"), and a Russian page read
+   * "and" and "his" in English (targum-internal#287). Each glue word is looked up; a piece
+   * nothing matches is left as it was.
+   */
+  function builtWord(english) {
+    var words = {
+      and: gt("reader.built.and", "and"),
+      the: gt("reader.built.the", "the"),
+      to: gt("reader.built.to", "to"),
+      in: gt("reader.built.in", "in"),
+      as: gt("reader.built.as", "as"),
+      from: gt("reader.built.from", "from"),
+      that: gt("reader.built.that", "that"),
+      my: gt("reader.built.my", "my"),
+      me: gt("reader.built.me", "me"),
+      our: gt("reader.built.our", "our"),
+      us: gt("reader.built.us", "us"),
+      your: gt("reader.built.your", "your"),
+      you: gt("reader.built.you", "you"),
+      his: gt("reader.built.his", "his"),
+      him: gt("reader.built.him", "him"),
+      her: gt("reader.built.her", "her"),
+      their: gt("reader.built.their", "their"),
+      them: gt("reader.built.them", "them"),
+      "with a pronoun on the end": gt("reader.built.pronoun-on-the-end", "with a pronoun on the end"),
+    };
+    return Object.prototype.hasOwnProperty.call(words, english) ? words[english] : english;
+  }
+  function builtIn(text) {
+    return String(text || "")
+      .split(" + ")
+      .map(function (piece) {
+        var glued = /^([\u0590-\u05FF]+) (.+)$/.exec(piece);
+        if (glued) return glued[1] + " " + builtWord(glued[2]);
+        return /[\u0590-\u05FF]/.test(piece) ? piece : builtWord(piece);
+      })
+      .join(" + ");
+  }
+
   function mixedLine(container, text) {
     var hebrew = /[֐-׿]+/g;
     var at = 0;
@@ -4122,7 +4162,7 @@ var targumReader = function () {
       var pieces = document.createElement("span");
       pieces.className = "form";
       pieces.appendChild(document.createTextNode(t("reader.card.from", "from ")));
-      mixedLine(pieces, built);
+      mixedLine(pieces, builtIn(built));
       card.appendChild(pieces);
     } else if (wordOf(lemma) !== surface.toLowerCase() && wordOf(lemma) !== surface) {
       var form = document.createElement("span");
@@ -8290,6 +8330,7 @@ var targumReader = function () {
     withArticle: withArticle,
     endingLine: endingLine,
     tagOf: tagOf,
+    builtIn: builtIn,
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,

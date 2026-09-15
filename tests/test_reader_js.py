@@ -1594,3 +1594,27 @@ def test_the_card_says_its_grammar_in_the_pages_language_and_asks_in_english() -
     )
     assert said["grammar"] == ["существительное · ж · родительный", "past · совершенный · m"]
     assert said["tags"] == ["noun · f · genitive", "past · perfective · m"]
+
+
+def test_a_split_words_pieces_are_said_in_the_pages_language() -> None:
+    """The annotation stores "ו and + ל to + בית + his"; a Russian page says the glue in
+    Russian, and an English page says what it always did (targum-internal#287)."""
+    built = ["ו and + ל to + בית + his", "מ from + ה the + ספר + with a pronoun on the end"]
+    english = run([], builtLines=built)["builts"]
+    assert english == built
+    russian = run(
+        [],
+        builtLines=built,
+        strings={
+            "reader.built.and": "и",
+            "reader.built.to": "к",
+            "reader.built.his": "его",
+            "reader.built.from": "из",
+            "reader.built.the": "артикль",
+        },
+        stringsLanguage="ru",
+    )["builts"]
+    assert russian == [
+        "ו и + ל к + בית + его",
+        "מ из + ה артикль + ספר + with a pronoun on the end",
+    ]
