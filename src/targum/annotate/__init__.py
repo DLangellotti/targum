@@ -11,6 +11,7 @@ from . import register as register_module
 from .base import (
     BAND_COUNT,
     BAND_NAMES,
+    FOREIGN,
     HIGHLIGHT_LABELS,
     LANGUAGES,
     NOT_VOCABULARY,
@@ -18,6 +19,7 @@ from .base import (
     Bands,
     Lemmatizer,
     Pronouncer,
+    foreign_runs,
     highlight_levels,
     in_script,
     is_prefixed_foreign,
@@ -111,11 +113,18 @@ class Annotator:
         # And so is the language rule, for the same reason: it is a fact about what this
         # annotator does to a block, not about whether any text on the shelf has one.
         base = f"{self.lemmatizer.name}+{self.bands.name}+{register_module.NAME}+{LANGUAGES}"
+        if self._marks_foreign:
+            base = f"{base}+{FOREIGN}"
         if self.dictionary_name:
             # A text read with a dictionary behind it carries facts the same text read
             # without one does not, so it is a different annotation and says so.
             base = f"{base}+{self.dictionary_name}"
         return base if self.pronouncer is None else f"{base}+{self.pronouncer.name}"
+
+    @property
+    def _marks_foreign(self) -> bool:
+        """Whether this lemmatizer tags a foreign word X, so `foreign_runs` can be asked."""
+        return bool(getattr(self.lemmatizer, "marks_foreign", False)) and frequency_available()
 
     @property
     def scripture(self) -> bool:
@@ -179,14 +188,20 @@ class Annotator:
             segment.id: segment.language_in(segmented.language) for segment in segmented.segments
         }
 
+        zipf = FrequencyBands().zipf() if self._marks_foreign else None
         for segment_id, tokens in by_segment.items():
             positions = to_source.get(segment_id)
             marked: list[Token] = []
             said_in = spoken.get(segment_id, segmented.language)
+            english = foreign_runs(tokens, said_in, zipf) if zipf is not None else set()
             for at, token in enumerate(tokens):
                 if not in_script(token.surface, said_in):
                     # An English name, a time, an emoji inside the Hebrew: read past,
                     # the way the reader reads past it. See `in_script`.
+                    continue
+                if at in english:
+                    # The same, for English inside Italian or French, which shares the
+                    # alphabet `in_script` asks about. See `foreign_runs`.
                     continue
                 if is_prefixed_foreign(token.surface, said_in) or is_stranded_prefix(
                     token.surface, _next_word(tokens, at), said_in

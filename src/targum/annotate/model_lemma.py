@@ -325,6 +325,10 @@ def _restored(rows: Any, text: str) -> list[Token] | None:
 class ModelLemmatizer:
     """Tokens, dictionary forms, parts of speech and grammar, read by the model and cached."""
 
+    #: A word not in the text's language comes back tagged X, which is what lets the annotator
+    #: leave English out of an Italian text (`annotate.base.foreign_runs`).
+    marks_foreign = True
+
     def __init__(
         self,
         model: str = MODEL,

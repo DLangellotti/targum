@@ -482,10 +482,13 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             row["known_line"] = level_module.words_in_ten(float(known))
             rank = (0.0, -(float(known) + 0.1 * tilt))
         elif entry.difficulty:
-            row["because"] = (
-                f"A learner looks up {entry.difficulty}% of its words; "
-                f"{entry.register.value} Hebrew, about {entry.minutes} minutes."
-            )
+            # Which Hebrew only for Hebrew: every other language's catalogue rows carry
+            # the modern register too, and "modern Hebrew" was said of an Italian talk
+            # (2026-09-15). No minutes: the card already says them beside this line.
+            which = ""
+            if language.split("-")[0] == "he" and entry.register.value in ("modern", "biblical"):
+                which = f" {entry.register.value.capitalize()} Hebrew."
+            row["because"] = f"A learner looks up {entry.difficulty}% of its words.{which}"
             rank = (1.0, float(entry.difficulty) - 10.0 * tilt)
         else:
             row["because"] = "Not measured yet."
