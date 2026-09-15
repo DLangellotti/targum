@@ -884,8 +884,12 @@ class Chats:
         Every step is guarded: this runs because something already went wrong, and a
         handler that raises takes the worker with it after all.
         """
+        from ..serve import said_in
+
         traceback.print_exc()
-        said = "We couldn't carry on the conversation. Try again."
+        said = said_in(
+            asked.ui, "chat.could-not-carry-on", "We couldn't carry on the conversation. Try again."
+        )
         try:
             if self.store is not None:
                 self.store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=said)

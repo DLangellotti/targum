@@ -1192,5 +1192,6 @@
   "contents.could-not": "We couldn't do that. Try again.",
   "contents.unreachable": "We couldn't reach targum. Try again.",
   "contents.preparing": "Preparing…",
-  "contents.could-not-prepare": "We couldn't prepare it. Try again."
+  "contents.could-not-prepare": "We couldn't prepare it. Try again.",
+  "job.youtube-unavailable": "We can't fetch from YouTube here."
 }

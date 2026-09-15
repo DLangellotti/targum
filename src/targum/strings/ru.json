@@ -1294,5 +1294,6 @@
   "contents.could-not": "Не получилось. Попробуйте снова.",
   "contents.unreachable": "Не удалось связаться с targum. Попробуйте снова.",
   "contents.preparing": "Готовим…",
-  "contents.could-not-prepare": "Не удалось подготовить. Попробуйте снова."
+  "contents.could-not-prepare": "Не удалось подготовить. Попробуйте снова.",
+  "job.youtube-unavailable": "Здесь мы не можем загружать с YouTube."
 }

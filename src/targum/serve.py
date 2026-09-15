@@ -2103,7 +2103,10 @@ class Library:
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it
             # names the path that still works on their own machine.
-            job.error = f"We can't fetch from YouTube here. {hint}"
+            refused = said_in(
+                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
+            )
+            job.error = f"{refused} {hint}"
             job.stage = "failed"
             return
         try:
