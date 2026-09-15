@@ -1487,6 +1487,7 @@ def parasha_page(
     haftarah_readable: bool = False,
     address: str = "",
     signed_in: bool = False,
+    week: dict[str, Any] | None = None,
 ) -> str:
     """This week's portion, with its own reader inside it.
 
@@ -1526,6 +1527,7 @@ def parasha_page(
         _environment()
         .get_template("parasha.html.j2")
         .render(
+            week=week,
             # The same correction the headline already carries, in the tag that matters
             # more for it: on a portion asked for by name this is not this week's, and
             # fifty-four titles claiming to be is fifty-four pages a search engine cannot

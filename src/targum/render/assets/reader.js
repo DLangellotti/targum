@@ -3070,6 +3070,16 @@ var targumReader = function () {
   }
 
   var TENSE_WORDS = { Past: "past", Pres: "present", Fut: "future" };
+  // The moods a French or Italian verb is met in besides the indicative. Said in place
+  // of the tense, because the tense the tagger gives a conditional is the present, and
+  // "present" is the one thing *mangerait* is not (targum-internal#263).
+  var MOOD_WORDS = { Cnd: "conditional", Sub: "subjunctive" };
+  // Where a participle with no tense is a past participle rather than the beinoni.
+  var PAST_PARTICIPLES = { fr: true, it: true };
+  // The articles of French and Italian, by the dictionary form the tagger gives them. The
+  // features cannot tell an article from *ce* or *mon*, and a card should: *l'* and *les*
+  // hide the gender that the article is the only place to see.
+  var ARTICLES = ["le", "la", "les", "l'", "un", "une", "des", "il", "lo", "i", "gli", "uno", "una"];
   // The case a word is in, by the name a Russian course teaches it under. Universal
   // Dependencies calls the prepositional Loc; nobody learning Russian does.
   var CASE_WORDS = {
@@ -3117,7 +3127,7 @@ var targumReader = function () {
   // DICTA never tags either, so every Hebrew line comes out exactly as it did
   // (targum-internal#258). They go last on the line, after what the word is, because the
   // case is the fact a Russian learner tapped the word to find.
-  function useLine(line) {
+  function useLine(line, lemma) {
     var pos = feat(line, "UPOS");
     var inCase = CASE_WORDS[feat(line, "Case")] || "";
     var aspect = ASPECT_WORDS[feat(line, "Aspect")] || "";
@@ -3131,7 +3141,22 @@ var targumReader = function () {
       else if (form === "Inf") parts.push("infinitive");
       else if (form === "Conv") parts.push("verbal adverb");
       else if (feat(line, "Mood") === "Imp") parts.push("imperative");
-      else if (tense) parts.push(tense);
+      else if (MOOD_WORDS[feat(line, "Mood")]) parts.push(MOOD_WORDS[feat(line, "Mood")]);
+      // A French or Italian past participle, which agrees like an adjective and has no
+      // person: *mangées* was "past · f" until 2026-09-15.
+      // A Russian short participle (написан) comes here too, with its aspect, and says
+      // its gender the way a Russian past does. In French and Italian a participle the
+      // tagger gave no tense is a past one too: it left the tense off about half of them
+      // on the dev sets (2026-09-15), and the beinoni's "present" below is the one word
+      // *mangée* must not be called.
+      else if (form === "Part" && (tense === "past" || (!tense && PAST_PARTICIPLES[language]))) {
+        parts.push("past participle");
+        if (aspect) parts.push(aspect);
+        var marks = aspect ? agreement(line) : feat(line, "Gender") === "Fem" ? "f" : "";
+        if (marks) parts.push(marks);
+        if (!aspect && feat(line, "Number") === "Plur") parts.push("pl.");
+        return parts.join(" · ");
+      } else if (tense) parts.push(tense);
       // The beinoni: tagged as a participle, met as the present tense.
       else if (form === "Part") parts.push("present");
       if (aspect) parts.push(aspect);
@@ -3175,6 +3200,13 @@ var targumReader = function () {
       var person = personWord(line);
       if (!inCase) return person;
       return (person || "pronoun") + " · " + inCase;
+    }
+    var headword = (lemma || "").toLowerCase().replace("\u2019", "'");
+    if (pos === "DET" && !inCase && ARTICLES.indexOf(headword) >= 0) {
+      var article = ["article"];
+      if (GENDER_MARKS[feat(line, "Gender")]) article.push(GENDER_MARKS[feat(line, "Gender")]);
+      if (feat(line, "Number") === "Plur") article.push("pl.");
+      return article.join(" · ");
     }
     if (inCase && (pos === "DET" || pos === "NUM" || pos === "PROPN")) {
       return (pos === "DET" ? "determiner" : pos === "NUM" ? "number" : "name") + " · " + inCase;
@@ -3772,7 +3804,8 @@ var targumReader = function () {
     // all a card can honestly say about either — and a word says the one grammatical
     // fact its kind usually hides from a learner.
     var kindWord = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
-    var usage = kindWord || useLine(row && row.length > 8 ? grammarTable[row[8]] || "" : "");
+    var usage =
+      kindWord || useLine(row && row.length > 8 ? grammarTable[row[8]] || "" : "", lemma);
     if (!kindWord) {
       // The paid half of the line, where a gloss has supplied it: the form a learner
       // keeps in front of a verb's parsing, the lying plural after a noun's gender.
@@ -4450,20 +4483,35 @@ var targumReader = function () {
       redraw();
     }
 
+    function note(text) {
+      var item = ensure();
+      writeMeaning(phraseTerm(item), { note: text });
+      stamp(item);
+      remember();
+      redraw();
+    }
+
     return {
       element: TargumVocab.editor({
         status: pick ? pick.status : undefined,
         note: pick ? noteOn(phraseTerm(pick)) : "",
         placeholder: "Your own meaning",
         onStatus: apply,
-        onNote: function (text) {
-          var item = ensure();
-          writeMeaning(phraseTerm(item), { note: text });
-          stamp(item);
-          remember();
-          redraw();
-        },
+        onNote: note,
       }),
+      // The field without the scale, on a phrase not kept yet (2026-09-15: "I want to be
+      // able to write my own meanings for phrases", and the field only came after Keep).
+      // Writing a meaning is as deliberate as pressing Keep, so it keeps the phrase; the
+      // scale still waits, because one stray press on it is not.
+      field: function (onSaved) {
+        return TargumVocab.editor({
+          levels: false,
+          note: "",
+          placeholder: "Your own meaning",
+          onNote: note,
+          onSaved: onSaved,
+        });
+      },
       apply: apply,
     };
   }
@@ -4507,6 +4555,46 @@ var targumReader = function () {
     showPick(picked);
   });
 
+  // A phone never sends that mouseup for a selection: a long press selects natively and
+  // the handles are dragged by the browser, so the card never came and the phrase could
+  // not be kept (2026-09-15). The selection is watched instead, once it has settled,
+  // and only after a touch — with a mouse the handler above already has it, and a
+  // selection changing under a drag would draw the card at every word crossed. It only
+  // ever draws: the field on the card moves the selection too, and must not close it.
+  var pickedByTouch = false;
+  var pickSettling = null;
+  document.addEventListener(
+    "pointerdown",
+    function (event) {
+      pickedByTouch = event.pointerType === "touch" || event.pointerType === "pen";
+    },
+    true
+  );
+  document.addEventListener("selectionchange", function () {
+    if (!chip || !pickedByTouch) return;
+    if (pickSettling) window.clearTimeout(pickSettling);
+    pickSettling = window.setTimeout(function () {
+      pickSettling = null;
+      var picked = currentSelection();
+      if (!picked || !picked.text) return;
+      var same =
+        picking &&
+        picking.segmentId === picked.segmentId &&
+        picking.start === picked.start &&
+        picking.end === picked.end;
+      if (!same) showPick(picked);
+    }, 400);
+  });
+
+  // The kept phrase this selection overlaps, by its index in the sentence's list, or -1.
+  function keptOver(picked) {
+    var found = -1;
+    (picks[picked.segmentId] || []).forEach(function (item, index) {
+      if (item.start < picked.end && item.end > picked.start) found = index;
+    });
+    return found;
+  }
+
   // Built as a function rather than inline in the handler, because setting a level from
   // the keyboard has to draw the card again to show which one is now set — the editor
   // reads its pressed state once, when it is made.
@@ -4548,10 +4636,7 @@ var targumReader = function () {
 
     // Dragging over a phrase you already kept offers to drop it again. Tapping cannot:
     // a tap means "what does this mean", and a phrase usually covers several words.
-    var existing = -1;
-    (picks[picked.segmentId] || []).forEach(function (item, index) {
-      if (item.start < picked.end && item.end > picked.start) existing = index;
-    });
+    var existing = keptOver(picked);
 
     // The whole sentence has a translation already. A part of one is asked for, once,
     // where the page can ask; until the answer comes — or where it cannot — the words'
@@ -4589,10 +4674,22 @@ var targumReader = function () {
       hear: hearButton(picked.segmentId, picked.start, picked.end, "Hear this phrase"),
       kind: held ? held.kind : "",
       cite: held ? held.citation : "",
-      editor: existing > -1 ? editing.element : null,
+      editor:
+        existing > -1
+          ? editing.element
+          : editing.field(function () {
+              showPick(picked);
+            }),
       action: existing > -1 ? "Remove" : "Keep",
       onclick: function () {
         var list = picks[picked.segmentId] || (picks[picked.segmentId] = []);
+        // A meaning typed into the field has kept the phrase already, under a card still
+        // saying Keep. Pressing it then is keeping what is kept: the card comes back with
+        // the scale, rather than a second copy going on the list.
+        if (existing === -1 && keptOver(picked) > -1) {
+          showPick(picked);
+          return;
+        }
         if (existing > -1) {
           if (window.TargumSync) window.TargumSync.forgetPhrase(list[existing].id);
           list.splice(existing, 1);

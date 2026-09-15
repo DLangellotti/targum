@@ -2922,6 +2922,62 @@ def test_keeping_a_phrase_writes_it_down(page) -> None:
     assert kept == 1, "the phrase is on the reader's own list"
 
 
+KEPT_PHRASES = """() => {
+  const key = Object.keys(localStorage).find(k => k.indexOf('targum:picked:') === 0);
+  const held = JSON.parse(localStorage.getItem(key) || '{}');
+  return Object.keys(held).map(id => held[id].length).reduce((a, b) => a + b, 0);
+}"""
+
+
+def test_a_phrase_takes_your_own_meaning_before_it_is_kept(page) -> None:
+    """2026-09-15: "I want to be able to write my own meanings for phrases". The field
+    only came after Keep, so the card a reader first met had nowhere to write. Writing
+    keeps the phrase, and Keep pressed afterwards does not keep it twice."""
+    drag_across_words(page)
+    field = page.locator("#pick-chip .note-field")
+    assert field.count() == 1, "the field is on the card before Keep"
+    assert page.locator("#pick-chip .level").count() == 0, "the scale still waits"
+    field.fill("my own reading")
+    page.click("#pick-chip .note-save")
+    page.wait_for_timeout(300)
+    assert page.evaluate(KEPT_PHRASES) == 1, "writing a meaning keeps the phrase"
+    assert page.locator("#pick-chip .level").count() > 0, "and the card comes back kept"
+    assert page.locator("#pick-chip .note-field").input_value() == "my own reading"
+
+
+def test_keep_after_a_meaning_is_not_a_second_copy(page) -> None:
+    drag_across_words(page)
+    page.locator("#pick-chip .note-field").fill("mine")
+    page.locator("#pick-chip .note-field").dispatch_event("change")
+    page.click("#pick-chip .drop-pick")
+    page.wait_for_timeout(300)
+    assert page.evaluate(KEPT_PHRASES) == 1
+
+
+def test_a_phrase_selected_by_touch_offers_itself_to_be_kept(page) -> None:
+    """2026-09-15: on a phone a long press selects natively and no mouseup ever comes, so
+    the card never opened and a phrase could not be kept. The settled selection opens it."""
+    page.evaluate(
+        """() => {
+          const cell = [...document.querySelectorAll('.pair:not([hidden]) .src')].find(c => {
+            const r = c.getBoundingClientRect();
+            return r.width > 0 && r.top > 80 && c.querySelectorAll('.w').length >= 3;
+          });
+          const ws = cell.querySelectorAll('.w');
+          document.body.dispatchEvent(
+            new PointerEvent('pointerdown', {bubbles: true, pointerType: 'touch'})
+          );
+          const range = document.createRange();
+          range.setStart(ws[0].firstChild, 0);
+          range.setEnd(ws[2].lastChild, ws[2].lastChild.textContent.length);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }"""
+    )
+    page.wait_for_function("() => !document.getElementById('pick-chip').hidden", timeout=3000)
+    assert page.locator("#pick-chip .drop-pick").inner_text() == "Keep"
+
+
 def test_a_tap_still_opens_the_word_it_landed_on(page) -> None:
     """The guard above lets go of every click while the card is up, so the ordinary tap
     has to keep working: mousedown puts the card away, and a tap draws no new one."""

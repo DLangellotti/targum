@@ -294,6 +294,36 @@ def test_the_add_page_never_carries_ytdlps_note_to_the_operator(
     assert "!" not in job.error, "design.md §6: no exclamation marks"
 
 
+def test_what_the_reader_is_not_told_goes_to_the_journal(monkeypatch, caplog) -> None:
+    """The bot check is dropped for the reader and was dropped for the operator too, so a
+    failed paste on the box left nothing in the journal (targum-internal#205). It is
+    logged now, and the proxy's username and password never are."""
+    secret = "http://user-7:hunter2@gw.example.net:823"
+    stderr = BOT_CHECK + f"ERROR: Unable to connect to proxy {secret}\n".encode()
+    monkeypatch.setattr(youtube.subprocess, "run", _refusing(stderr))
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, secret)
+    caplog.set_level("WARNING", logger=youtube.__name__)
+    with pytest.raises(TargumError):
+        youtube.describe("https://youtu.be/abc123")
+    logged = caplog.text
+    assert "Sign in to confirm you're not a bot" in logged
+    assert "https://youtu.be/abc123" in logged, "which paste it was"
+    assert "gw.example.net:823" in logged
+    for leak in ("hunter2", "user-7"):
+        assert leak not in logged, f"{leak!r} reached the journal"
+
+
+def test_a_silent_failure_is_still_logged(monkeypatch, caplog, tmp_path: Path) -> None:
+    """A download that stopped without a word still leaves a line to find."""
+    monkeypatch.setattr(youtube.subprocess, "run", _refusing(b""))
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    caplog.set_level("WARNING", logger=youtube.__name__)
+    with pytest.raises(TargumError):
+        youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert "nothing on stderr" in caplog.text
+
+
 def test_the_egress_is_named_to_ytdlp_and_the_address_stays_last(monkeypatch) -> None:
     """The one knob that answers a flagged datacenter address: the fetch has to leave
     from somewhere YouTube trusts, and nothing installed on the box can substitute."""

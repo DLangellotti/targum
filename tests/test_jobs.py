@@ -18,7 +18,7 @@ class Postbox:
     def __init__(self) -> None:
         self.sent: list[tuple[str, str, str]] = []
 
-    def send(self, to: str, link: str) -> None:
+    def send(self, to: str, link: str, language: str = "en") -> None:
         raise AssertionError("a finished build is not a sign-in")
 
     def notify(self, to: str, subject: str, body: str) -> None:
@@ -93,7 +93,7 @@ def test_a_short_build_says_nothing(tmp_path: Path) -> None:
 
 def test_a_failed_email_never_fails_the_build(tmp_path: Path) -> None:
     class Broken:
-        def send(self, to: str, link: str) -> None:
+        def send(self, to: str, link: str, language: str = "en") -> None:
             raise RuntimeError
 
         def notify(self, to: str, subject: str, body: str) -> None:

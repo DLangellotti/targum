@@ -9,6 +9,7 @@ data or a frequency proxy.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Sequence
 from typing import Protocol
 
 from ..models import Segment, Token
@@ -86,6 +87,55 @@ NO_METHOD = "none"
 #: a word: tappable, counted against "N of M known", and "Hannah" filed in the ledger as
 #: extremely hard. English inside a Hebrew text is something a Hebrew reader reads past.
 LANGUAGES = "languages/3"
+
+#: The rule that English inside a text in another Latin-script language is not a word of
+#: that text, in the annotator's name for the same reason as `LANGUAGES` above.
+#:
+#: `foreign/1` (2026-09-15): an Italian lesson glossing "Meglio tardi che mai" as "but
+#: better late than never" had every English word tappable, markable and counted toward
+#: "N of M known". `in_script` cannot see it — English and Italian share an alphabet — so
+#: this asks the words instead. See `foreign_runs`. Only in the name of an annotator whose
+#: lemmatizer marks foreign words (`marks_foreign`), which is the model's and never
+#: Hebrew's: renaming DICTA's annotator re-reads the whole shelf on a box with no GPU.
+FOREIGN = "foreign/1"
+
+#: The language a foreign run is checked against. English because it is the language
+#: every translation and every teacher's aside on the shelf is in; another would be a
+#: guess at a problem nobody has shown.
+FOREIGN_TO = "en"
+
+
+def foreign_runs(
+    tokens: Sequence[Token], language: str, zipf: Callable[[str, str], float]
+) -> set[int]:
+    """The positions of tokens that are English rather than words of `language`.
+
+    Two signals, both needed. The tagger calls the word X — "other", where UD files a
+    foreign word — and the run of X words it sits in is more common in English than in
+    the text's language. The run, and not the word, because "in for a penny, in for a
+    pound" is half made of words Italian has too; and the tag, not frequency alone,
+    because "weekend" in an Italian sentence is an Italian word. Neither is enough by
+    itself: the model also gives up and calls a whole Italian paragraph X, and every
+    word of Cuore's "vieni avanti sei venuto" stays Italian by the count.
+    """
+    code = language.split("-")[0].lower()
+    out: set[int] = set()
+    if code == FOREIGN_TO:
+        return out
+    run: list[int] = []
+    for index in range(len(tokens) + 1):
+        if index < len(tokens) and tokens[index].pos == "X":
+            run.append(index)
+            continue
+        if run:
+            words = [tokens[at].surface.lower().strip("'’") for at in run]
+            there = sum(zipf(word, FOREIGN_TO) for word in words)
+            here = sum(zipf(word, code) for word in words)
+            if there > here:
+                out.update(run)
+            run = []
+    return out
+
 
 #: What a language is written in, for the rule above. Anything not listed is written in
 #: letters of some kind, and a token with no letter at all — a time, a number, an

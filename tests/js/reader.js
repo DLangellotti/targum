@@ -267,7 +267,10 @@ process.stdout.write(
     // is decided on the page, but what the file says is decided here.
     deck: payload.deck ? reader.ankiText(payload.deck.name, payload.deck.cards) : "",
     // The card's grammar line, as the annotator's pipe strings come out in words.
-    grammar: (payload.grammarLines || []).map((line) => reader.useLine(line)),
+    // A line, or a [line, dictionary form] pair where the form decides the words.
+    grammar: (payload.grammarLines || []).map((line) =>
+      Array.isArray(line) ? reader.useLine(line[0], line[1]) : reader.useLine(line),
+    ),
     persons: (payload.personLines || []).map((line) => reader.personWord(line)),
     // The register line, from where the reader is standing: [code, sourceRegister].
     registers: (payload.registerLines || []).map((pair) =>

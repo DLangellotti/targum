@@ -1,0 +1,4 @@
+{
+  "mail.sign_in.subject": "Your targum sign-in link",
+  "mail.sign_in.body": "Here is your link back into targum:\n\n{link}\n\nIt works once, and it stops working in twenty minutes. If you did not ask for it,\nnothing has happened to your account and you can ignore this.\n"
+}

@@ -115,6 +115,66 @@
     });
   });
 
+  /* This week's reading, part by part (targum-internal#203). A part is read this week
+     when the reader finished it after the week began: the moment is the server's, off
+     the same turn that decides which portion this page shows, so nothing here keeps a
+     clock. The finish times are the reader's own, in `targum:docs`, the record every
+     reader writes when a section is marked finished — a year-old finish of the same
+     portion is before the week began and says nothing about this one.
+
+     `section` names one aliyah of the reading. `sections` names a whole document — the
+     haftarah — which is read when every part of it is, and a one-part document keeps the
+     whole-text `done` its record may carry from before sections existed. */
+  function readThisWeek(record, section, sections, began) {
+    if (!record || !began) return false;
+    var times = record.sections && typeof record.sections === "object" ? record.sections : {};
+    if (section > 0) return Number(times[String(section)] || 0) >= began;
+    if (sections <= 1) return Number(times["1"] || record.done || 0) >= began;
+    for (var part = 1; part <= sections; part++) {
+      if (!(Number(times[String(part)] || 0) >= began)) return false;
+    }
+    return true;
+  }
+
+  var weekParts = document.querySelectorAll(".week-part");
+  function markWeek() {
+    var docs = {};
+    try {
+      docs = JSON.parse(localStorage.getItem("targum:docs") || "{}") || {};
+    } catch (error) {
+      docs = {};
+    }
+    Array.prototype.forEach.call(weekParts, function (part) {
+      var read = readThisWeek(
+        docs[part.getAttribute("data-document")],
+        Number(part.getAttribute("data-section")) || 0,
+        Number(part.getAttribute("data-sections")) || 0,
+        Number(part.getAttribute("data-began")) || 0
+      );
+      if (read) part.setAttribute("data-read", "");
+      else part.removeAttribute("data-read");
+      var said = part.querySelector(".read");
+      if (said) said.hidden = !read;
+    });
+  }
+  if (weekParts.length) {
+    markWeek();
+    /* A section is finished inside a frame, which is another window of this origin, so
+       its write arrives here as a storage event and the list follows it at once. */
+    window.addEventListener("storage", function (event) {
+      if (!event || !event.key || event.key === "targum:docs") markWeek();
+    });
+    Array.prototype.forEach.call(weekParts, function (part) {
+      part.addEventListener("click", function () {
+        var into = document.getElementById(
+          part.getAttribute("target") === "haftarah" ? "haftarah" : "embed"
+        );
+        if (into && into.scrollIntoView) into.scrollIntoView({ block: "start" });
+      });
+    });
+  }
+  window.targumWeek = { readThisWeek: readThisWeek, mark: markWeek };
+
   /* The portions, folded on a phone: fifty-odd rows are a long tail under the ask. */
   var sources = document.getElementById("sources");
   if (sources && window.matchMedia("(max-width: 60rem)").matches) sources.open = false;

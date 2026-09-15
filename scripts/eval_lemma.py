@@ -19,10 +19,18 @@ is the first part's, which is what the prompt asks for.
 
 **And the grammar** (prompt 2, targum-internal#258). Over the matched words whose hand
 annotation carries the feature, the share the model gave the same value: `case_accuracy`,
-`aspect_accuracy`, `gender_accuracy`, `number_accuracy`. A word the model left without the
+`aspect_accuracy`, `gender_accuracy`, `number_accuracy`, and since targum-internal#263
+`tense_accuracy`, `mood_accuracy`, `person_accuracy` and `verbform_accuracy`, which the
+French card's verb line is read from. A treebank's `Tense=Imp` (the imparfait) counts
+against a model the prompt does not yet let say it. A word the model left without the
 feature counts as wrong. A language whose treebank never marks a feature, or whose card
 does not keep it (`model_lemma.KEPT`), gets no row for it. The run also prints output
 tokens per word, which is the figure the quote uses (`model_lemma.TOKENS_PER_WORD_OUT`).
+
+**Written the way texts arrive** (`--curly`, targum-internal#262). The dev sets write the
+straight apostrophe; a French or Italian text usually writes ’. The same sentences with
+every ' turned into ’ are scored under the treebank's name plus `-curly`, so a word
+dropped at the curly one shows up as a gap between the two recalls.
 
 **What it costs.** A few cents a language at the default sample. Nothing is read from or
 written to the production cache: the question is what the model does today.
@@ -37,7 +45,7 @@ import argparse
 import sys
 import tempfile
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
@@ -84,6 +92,10 @@ SCORED = {
     "Aspect": "aspect_accuracy",
     "Gender": "gender_accuracy",
     "Number": "number_accuracy",
+    "Tense": "tense_accuracy",
+    "Mood": "mood_accuracy",
+    "Person": "person_accuracy",
+    "VerbForm": "verbform_accuracy",
 }
 
 
@@ -155,9 +167,19 @@ def spans(text: str, words: list[Word]) -> dict[tuple[int, int], Word]:
     return placed
 
 
-def score(language: str, count: int, model: str) -> list[evals.Row]:
+def curled(text: str) -> str:
+    return text.replace("'", "\u2019")
+
+
+def score(language: str, count: int, model: str, curly: bool = False) -> list[evals.Row]:
     corpus, _ = TREEBANKS[language]
     picked = sentences(fetch(language))[:count]
+    if curly:
+        corpus = f"{corpus}-curly"
+        picked = [
+            (curled(text), [replace(word, form=curled(word.form)) for word in words])
+            for text, words in picked
+        ]
     segments = [
         Segment(
             id=f"{n:04d}.000-eval",
@@ -260,11 +282,12 @@ def main() -> None:
     parser.add_argument("--sentences", type=int, default=120)
     parser.add_argument("--model", default=model_lemma.MODEL)
     parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
+    parser.add_argument("--curly", action="store_true", help="the sentences written with ’")
     parser.add_argument("--dry", action="store_true", help="print, and append nothing")
     args = parser.parse_args()
     rows: list[evals.Row] = []
     for language in args.languages:
-        found = score(language, args.sentences, args.model)
+        found = score(language, args.sentences, args.model, args.curly)
         rows.extend(found)
         for row in found:
             print(f"{language}  {row.metric:15} {row.score:.4f}  n={row.n}  {row.note}", flush=True)
