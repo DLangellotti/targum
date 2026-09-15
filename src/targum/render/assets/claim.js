@@ -20,6 +20,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
     if (!key) return path;
@@ -82,10 +100,10 @@
     tick.setAttribute("scope", "col");
     var all = el("input", "claim-check claim-all");
     all.type = "checkbox";
-    all.setAttribute("aria-label", "Check all");
+    all.setAttribute("aria-label", t("claim.check-all", "Check all"));
     tick.appendChild(all);
     headRow.appendChild(tick);
-    ["Word", "Meaning", "How common"].forEach(function (name) {
+    [t("yours.page.word", "Word"), t("yours.page.meaning", "Meaning"), t("yours.page.how-common", "How common")].forEach(function (name) {
       var th = el("th", "", name);
       th.setAttribute("scope", "col");
       headRow.appendChild(th);
@@ -98,10 +116,10 @@
     host.appendChild(wrap);
 
     var actions = el("div", "claim-actions");
-    var yes = el("button", "claim-yes", "Mark checked as known");
+    var yes = el("button", "claim-yes", t("claim.mark-known", "Mark checked as known"));
     yes.type = "button";
     yes.disabled = true;
-    var no = el("button", "claim-no", "None of these");
+    var no = el("button", "claim-no", t("claim.none", "None of these"));
     no.type = "button";
     var said = el("span", "claim-said", "");
     actions.appendChild(yes);
@@ -212,7 +230,7 @@
       }
       if (next === null || next === undefined) {
         draw([]);
-        said.textContent = "That's the whole list.";
+        said.textContent = t("claim.whole-list", "That's the whole list.");
         return;
       }
       load(next);
@@ -246,7 +264,7 @@
       });
       write(LEDGER, ledger);
       write(PASSED, passed);
-      said.textContent = "We've marked " + known.length + " as known.";
+      said.textContent = tn("claim.marked", known.length, "We've marked {n} as known.", "We've marked {n} as known.");
       if (window.TargumSync && window.TargumSync.touched) window.TargumSync.touched();
       if (window.TargumLists && window.TargumLists.changed) window.TargumLists.changed();
       if (options.onMarked) options.onMarked(known.length);

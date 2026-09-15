@@ -5328,3 +5328,27 @@ def test_every_desk_page_is_said_in_the_language_asked(
     said = render_page("k", language="ru")
     assert "ПО-РУССКИ" in said
     assert render_page("k") == plain
+
+
+def test_the_lists_are_said_in_the_language_asked(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Your Words, Your Phrases and Your targums say their headings, their table and their
+    scripts' words in the language asked; in English, nothing is handed over
+    (targum-internal#184)."""
+    from targum import strings
+    from targum.render.builder import list_page
+
+    plain = list_page("k", "words")
+    assert "<title>Your Words — targum</title>" in plain
+    assert "window.TARGUM_STRINGS =" not in plain
+    real = strings.catalogue
+    said = {
+        "yours.page.your-words": "Ваши слова",
+        "yours.page.word": "Слово",
+        "lists.no-match": "Ничего не нашлось.",
+    }
+    monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else real(code))
+    russian = list_page("k", "words", language="ru")
+    assert "<title>Ваши слова — targum</title>" in russian
+    assert '<th scope="col">Слово</th>' in russian
+    assert "window.TARGUM_STRINGS =" in russian and "lists.no-match" in russian
+    assert list_page("k", "words") == plain

@@ -8,6 +8,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var LEARNING = [1, 2, 3];
 
   function read(name, fallback) {
@@ -200,13 +218,17 @@
   var KNOWN = 9;
   var IGNORED = 0;
 
-  var STEPS = [
-    { value: 1, label: "1", title: "Just met" },
-    { value: 2, label: "2", title: "Getting there" },
-    { value: 3, label: "3", title: "Nearly there" },
-    { value: KNOWN, label: "known", title: "Known" },
-    { value: IGNORED, label: "ignore", title: "A name or a number" },
-  ];
+  // Drawn when asked for rather than when this loads: in a reader, the words it is said
+  // in arrive after this file.
+  function steps() {
+    return [
+      { value: 1, label: "1", title: t("vocab.step.1", "Just met") },
+      { value: 2, label: "2", title: t("vocab.step.2", "Getting there") },
+      { value: 3, label: "3", title: t("vocab.step.3", "Nearly there") },
+      { value: KNOWN, label: t("vocab.step.known", "known"), title: t("vocab.step.known.title", "Known") },
+      { value: IGNORED, label: t("vocab.step.ignore", "ignore"), title: t("vocab.step.ignore.title", "A name or a number") },
+    ];
+  }
 
   // One control, used by the word card, the phrase card, the list beside the text and
   // the words page. They ask the same two questions — how well do you know this, and
@@ -240,7 +262,7 @@
     // forever, and a reader who pressed it could not tell that anything had happened.
     function said(saved) {
       if (!save) return;
-      save.textContent = saved ? "Saved" : "Save";
+      save.textContent = saved ? t("vocab.saved", "Saved") : t("vocab.save", "Save");
       save.disabled = saved;
     }
 
@@ -253,6 +275,7 @@
       said(true);
     }
 
+    var STEPS = steps();
     var scale = document.createElement("div");
     scale.className = "levels";
     STEPS.forEach(function (step) {
@@ -288,7 +311,7 @@
       });
       legend.textContent = pressed
         ? pressed.label + " · " + pressed.title.toLowerCase()
-        : "1 just met · 2 getting there · 3 nearly there";
+        : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
       box.appendChild(legend);
     }
 
@@ -298,8 +321,8 @@
       note.className = "note-field";
       note.dir = "auto";
       note.value = options.note || "";
-      note.placeholder = options.placeholder || "Enter text";
-      note.setAttribute("aria-label", "Your own meaning");
+      note.placeholder = options.placeholder || t("vocab.enter-text", "Enter text");
+      note.setAttribute("aria-label", t("vocab.own-meaning", "Your own meaning"));
       note.addEventListener("click", function (event) {
         event.stopPropagation();
       });
@@ -330,7 +353,7 @@
       save = document.createElement("button");
       save.type = "button";
       save.className = "note-save";
-      save.textContent = "Save";
+      save.textContent = t("vocab.save", "Save");
       save.addEventListener("click", function (event) {
         event.stopPropagation();
         commitNote();
@@ -429,8 +452,8 @@
     var button = document.createElement("button");
     button.type = "button";
     button.className = "copy";
-    button.title = "Copy";
-    button.setAttribute("aria-label", options.label || "Copy " + text);
+    button.title = t("vocab.copy", "Copy");
+    button.setAttribute("aria-label", options.label || t("vocab.copy-text", "Copy {text}", { text: text }));
     button.innerHTML = COPY_ICON;
     var timer = null;
 
@@ -450,8 +473,8 @@
       // about the card, not past it.
       event.stopPropagation();
       copy(text).then(function (ok) {
-        said(ok ? "Copied" : "Not copied");
-        (options.say || announce)(ok ? "Copied." : "We couldn't copy that.");
+        said(ok ? t("vocab.copied", "Copied") : t("vocab.not-copied", "Not copied"));
+        (options.say || announce)(ok ? t("vocab.copied.said", "Copied.") : t("vocab.copy-failed", "We couldn't copy that."));
       });
     });
     // Enter on the button is the button's; the reader's Enter opens and closes cards.
@@ -578,7 +601,10 @@
     copy: copy,
     copyButton: copyButton,
     COPIED_FOR: COPIED_FOR,
-    STEPS: STEPS,
+    // Read when asked, in the words of whatever page is asking.
+    get STEPS() {
+      return steps();
+    },
     LEARNING: LEARNING,
     KNOWN: KNOWN,
     IGNORED: IGNORED,

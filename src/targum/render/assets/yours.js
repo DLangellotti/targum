@@ -11,6 +11,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var key = window.TARGUM_KEY;
 
   function keyed(path) {
@@ -85,7 +103,7 @@
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
-        shelf.draw(code, readers, { note: "Last read first." });
+        shelf.draw(code, readers, { note: t("yours.last-read-first", "Last read first.") });
         shelf.trash(code, trash);
       }
 

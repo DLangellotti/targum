@@ -12,6 +12,24 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said: this
+     file runs before the page has handed its strings over. Where there are none, the
+     English here (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   var charts = window.TargumCharts;
   var lang = window.TargumLang;
   var el = charts.el;
@@ -88,7 +106,7 @@
     var link = at(id);
     if (!link) return;
     link.hidden = !total;
-    if (total) link.textContent = "See all " + total + " →";
+    if (total) link.textContent = t("shelf.see-all", "See all {n} →", { n: total });
   }
 
   function named(names, which) {
@@ -266,7 +284,7 @@
           window.TargumVocab.editor({
             status: word.status,
             note: word.note,
-            placeholder: "Your own meaning",
+            placeholder: t("vocab.own-meaning", "Your own meaning"),
             onStatus: function (value) {
               updateWord(word, { status: value === null ? word.status : value });
               renderWords();
@@ -290,20 +308,20 @@
     });
 
     at("words-title").textContent =
-      "Your Words" + (rows.length ? " (" + rows.length + ")" : "");
+      t("yours.page.your-words", "Your Words") + (rows.length ? " (" + rows.length + ")" : "");
     wordsEmpty.hidden = rows.length > 0;
     wordsEmpty.textContent = rows.length
       ? ""
       : search.value.trim()
-        ? "Nothing here matches that."
+        ? t("lists.no-match", "Nothing here matches that.")
         : entry.words.length
-          ? "Nothing at that stage yet."
+          ? t("lists.no-stage", "Nothing at that stage yet.")
           // Nothing at all, which is every new account: say what fills the list and
           // where, rather than naming a stage the reader has not met.
-          : "Nothing yet. Tap a word while you read and tell us how well you know it.";
+          : t("lists.no-words", "Nothing yet. Tap a word while you read and tell us how well you know it.");
     // Capped, there is no paging: the rest of the list is a page away, not a press away.
     moreButton.hidden = cap ? true : rows.length <= shown;
-    moreButton.textContent = "Show " + Math.min(PAGE, rows.length - shown) + " more";
+    moreButton.textContent = t("lists.show-more", "Show {n} more", { n: Math.min(PAGE, rows.length - shown) });
     seeAll("words-more", cap && rows.length > cap ? rows.length : 0);
   }
 
@@ -318,7 +336,7 @@
     var cap = limits.phrases || 0;
     var phrases = cap ? all.slice(0, cap) : all;
     at("phrases-title").textContent =
-      "Your Phrases" + (all.length ? " (" + all.length + ")" : "");
+      t("yours.page.your-phrases", "Your Phrases") + (all.length ? " (" + all.length + ")" : "");
     seeAll("phrases-more", cap && all.length > cap ? all.length : 0);
     empty.hidden = all.length > 0;
     if (!phrases.length) return;
@@ -385,7 +403,7 @@
             window.TargumVocab.editor({
               status: phrase.status,
               note: phrase.note,
-              placeholder: "Your own meaning",
+              placeholder: t("vocab.own-meaning", "Your own meaning"),
               onStatus: function (value) {
                 updatePhrase(phrase, { status: value === null ? phrase.status : value });
                 renderPhrases();
@@ -550,7 +568,7 @@
     });
     var names = window.TARGUM_LANGUAGES || {};
     lang.switcher(host, have, names, chosen, onPick, {
-      label: "Translations in",
+      label: t("yours.page.translations-in", "Translations in"),
       // Never "experimental": that is a claim about a language you are learning, and
       // these are the languages you already have.
       tag: function () {
