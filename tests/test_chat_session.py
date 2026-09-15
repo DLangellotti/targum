@@ -196,14 +196,62 @@ def test_a_paused_turn_is_resumed_and_a_loop_is_cut_off(tmp_path: Path) -> None:
             for n in range(20)
         ]
     )
+    kept: list[tuple[str, Any, str]] = []
     session_module.run_turn(
         client,
         context(library, store),
         [{"role": "user", "content": "x"}],
         session_module.Feed(),
+        lambda role, content, said: kept.append((role, content, said)),
+    )
+    assert len(client.requests) == MAX_STEPS + 1, "a pause is resumed; a loop stops at the cap"
+    assert client.requests[-1]["tool_choice"] == {"type": "none"}, "and is asked for words"
+    assert all("tool_choice" not in request for request in client.requests[:-1])
+    # A call made anyway on that last step is not kept: it would have no result.
+    assert kept[-1][0] == "user"
+
+
+def test_a_turn_that_runs_out_of_steps_still_ends_in_words(tmp_path: Path) -> None:
+    """2 of 11 replayed turns on 2026-09-15 called tools on every step and said nothing
+    (targum-internal#279). The last round trip allows no tool, and its words are kept."""
+    library, store = world(tmp_path)
+    looping = [
+        reply(
+            [{"type": "tool_use", "id": f"t{n}", "name": "my_progress", "input": {}}],
+            "tool_use",
+        )
+        for n in range(MAX_STEPS)
+    ]
+    client = Script([*looping, reply([{"type": "text", "text": "Here is what I found."}])])
+    kept: list[tuple[str, Any, str]] = []
+    feed = session_module.Feed()
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "find me something"}],
+        feed,
+        lambda role, content, said: kept.append((role, content, said)),
+    )
+    assert len(client.requests) == MAX_STEPS + 1
+    assert kept[-1] == (
+        "assistant",
+        [{"type": "text", "text": "Here is what I found."}],
+        "Here is what I found.",
+    )
+    assert client.requests[-1]["tools"], "the tools stay defined: the history holds calls"
+
+
+def test_a_turn_that_ends_on_its_own_asks_for_nothing_more(tmp_path: Path) -> None:
+    library, store = world(tmp_path)
+    client = Script([reply([{"type": "text", "text": "Ruth."}])])
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "what first"}],
+        session_module.Feed(),
         lambda *_: None,
     )
-    assert len(client.requests) == MAX_STEPS, "a pause is resumed; a loop stops at the cap"
+    assert len(client.requests) == 1 and "tool_choice" not in client.requests[0]
 
 
 def test_chats_answer_a_turn_off_the_request_and_settle_it(tmp_path: Path) -> None:
