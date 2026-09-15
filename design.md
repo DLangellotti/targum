@@ -672,6 +672,11 @@ called Read with its own sentence, and the week's issue labelled as this week's.
 parts step down into each other with space, not rules. The conversation page stays,
 for the whole list and for a link into one conversation.
 
+*Superseded on 2026-09-11 by §13: the conversation lives on no page, in a drawer opened
+from a pill at the foot of every page, so Learn carries no box, no thread and no last
+three. Marked 2026-09-15, when David accepted the drawer as the replacement
+(targum-internal#235, #237, #238).*
+
 ### A silent text can be given a voice, at the reader's press — 2026-09-10
 
 The entry of 2026-09-03 below says a text that carries media opens as its media. This is
@@ -724,6 +729,10 @@ an ink pill at the top of the page — the page's one overlay, with the shadow �
 an overlay — and at a desk it stands in its column as before. And Learn carries the
 last three under the box, a hairline line in the weekly's shape, with the door to all
 of them: not a card, because the cards below have that page's one raised layer.
+
+*The Learn half is superseded on 2026-09-11 by §13: Learn has no box, so it carries no
+last three; the way back to a conversation is the list in the drawer and the address.
+Marked 2026-09-15 (targum-internal#238).*
 
 What it does not overturn: the list is titles and times, never counts or a level; the
 thread stays the conversation page's raised layer; nothing here is a board of doors.
