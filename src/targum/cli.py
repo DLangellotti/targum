@@ -1827,15 +1827,19 @@ def fetch(
 
     # A StoryWeaver translation names the story it was made from, and an English one up
     # that chain is a published translation to build beside it rather than one to buy.
-    if source.lower().startswith("storyweaver:") and document.language != "en":
+    # A Global Storybooks story keeps its number in the English folder, which is the same.
+    scheme = source.split(":", 1)[0].lower()
+    if scheme in ("storyweaver", "globalstorybooks") and document.language != "en":
+        from .ingest.fetch.globalstorybooks import GlobalStorybooksFetcher
         from .ingest.fetch.storyweaver import StoryWeaverFetcher
 
+        finder = StoryWeaverFetcher() if scheme == "storyweaver" else GlobalStorybooksFetcher()
         try:
-            english = StoryWeaverFetcher().english_source(source.split(":", 1)[1])
+            english = finder.english_source(source.split(":", 1)[1])
         except TargumError as error:
             fail(error)
         console.print(
-            f"[dim]English: {english}[/dim]" if english else "[dim]No English up its chain.[/dim]"
+            f"[dim]English: {english}[/dim]" if english else "[dim]No published English.[/dim]"
         )
 
 
@@ -2149,7 +2153,7 @@ def sources() -> None:
     console.print("  [bold]Links[/bold]      any article, essay, wiki page or podcast episode")
     console.print(
         "  [bold]By name[/bold]    gutenberg:<number>, wikisource:<language>:<title>, "
-        "storyweaver:<number>"
+        "storyweaver:<number>, globalstorybooks:<site>/<number>/<language>"
     )
     console.print("  [bold]Pages[/bold]      .pdf with a text layer; .png, .jpg, .webp, .heic")
     console.print("[dim]Not scanned PDFs. Save one as text or markdown first.[/dim]")
