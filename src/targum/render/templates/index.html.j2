@@ -3,7 +3,7 @@
     announcement are English, and a root that said lang="he" had a screen reader read
     them all in a Hebrew voice. The direction still follows the text, every source cell
     carries its own `lang`, and the text's language rides on `data-language`. -#}
-<html lang="en" dir="{{ page_direction }}" data-language="{{ source_language }}">
+<html lang="{{ page_language|default('en') }}" dir="{{ page_direction }}" data-language="{{ source_language }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -18,7 +18,7 @@
   {#- The mark holds the corner on its own: at this size the identity is the monogram,
       not the lockup, and the bar already carries the title beside it. -#}
   {#- The mark is the way back, the same as in a reader. -#}
-  <a class="bar-brand" id="home" href="/" title="Your Learn page" aria-label="targum — Learn" hidden>
+  <a class="bar-brand" id="home" href="/" title="{{ t("contents.page.your-learn-page", "Your Learn page") }}" aria-label="{{ t("contents.page.targum-learn", "targum — Learn") }}" hidden>
     <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
       <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
       <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
@@ -37,18 +37,18 @@
     {%- if siblings %}
     {#- The same news at another level. One press, and the reader keeps their place in
         the issue rather than being sent back to the library to find the easy one. -#}
-    <div class="group levels" role="group" aria-label="Level">
+    <div class="group levels" role="group" aria-label="{{ t("contents.page.level", "Level") }}">
       {%- for other in siblings %}
       {%- if other.current %}
-      <span class="level here" aria-current="page" title="Written for {{ other.figure }}">{{ other.name }}</span>
+      <span class="level here" aria-current="page" title="{{ t("contents.page.written-for", "Written for {figure}", figure=other.figure) }}">{{ other.name }}</span>
       {%- else %}
-      <a class="level" href="../../{{ other.folder }}/reader/{{ sections[0].filename }}" title="Written for {{ other.figure }}">{{ other.name }}</a>
+      <a class="level" href="../../{{ other.folder }}/reader/{{ sections[0].filename }}" title="{{ t("contents.page.written-for", "Written for {figure}", figure=other.figure) }}">{{ other.name }}</a>
       {%- endif %}
       {%- endfor %}
     </div>
     {%- endif %}
     <div class="group">
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <button type="button" data-theme-toggle aria-label="{{ t("contents.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 </header>
@@ -63,18 +63,18 @@
   {#- The one primary action on the page, and until now there was none: a list of
       chapter titles with no verb on it, which the first alpha reader opened and then
       had "NO IDEA what to do next". The first chapter, or the one last opened. -#}
-  <p class="start"><a id="start" href="{{ sections[0].filename }}" data-first="{{ sections[0].filename }}">Start reading</a></p>
+  <p class="start"><a id="start" href="{{ sections[0].filename }}" data-first="{{ sections[0].filename }}">{{ t("contents.page.start-reading", "Start reading") }}</a></p>
   {# One row per chapter. On a book the weekly readings are cut from the rows come in
      groups, one per portion: its name links to its first verse in the file that holds
      it — for נח that is the chapter-6 file, listed under בראשית — and a chapter is
      listed once, under the portion it starts in. Everything else is one group with no
      portion, and the list is the flat one it always was. #}
-  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ counts[section.number] }} {{ 'sentence' if counts[section.number] == 1 else 'sentences' }} &middot; {{ minutes[section.number] }} min</span></li>{% endmacro %}
+  {% macro row(section) %}<li data-chapter="{{ section.number }}"{% if chapters[section.number] %} data-chapters="{{ chapters[section.number] }}"{% endif %}{% if spans[section.number][0] %} data-from="{{ spans[section.number][0] }}" data-to="{{ spans[section.number][1] }}"{% endif %}{% if has_audio %} data-audio="1"{% endif %}><a href="{{ section.filename }}">{{ section.title|isolate(source_direction) }}</a> <span class="count">{{ t("contents.page.one-sentence", "{n} sentence", n=counts[section.number]) if counts[section.number] == 1 else t("contents.page.sentences", "{n} sentences", n=counts[section.number]) }} &middot; {{ t("contents.page.minutes", "{n} min", n=minutes[section.number]) }}</span></li>{% endmacro %}
   <ol class="toc" dir="{{ source_direction }}" data-document="{{ document.content_hash }}">
     {% for group in groups %}
     {% if group.portion %}
     <li class="portion" data-portion="{{ group.portion.slug }}">
-      <p class="portion-head"><a class="portion-name" href="{{ group.portion.href }}">{{ group.portion.hebrew|isolate(source_direction) }}</a> <span class="portion-span">{{ group.portion.summary }}</span> <a class="portion-page" href="/parasha/{{ group.portion.slug }}" hidden>This portion's page</a></p>
+      <p class="portion-head"><a class="portion-name" href="{{ group.portion.href }}">{{ group.portion.hebrew|isolate(source_direction) }}</a> <span class="portion-span">{{ group.portion.summary }}</span> <a class="portion-page" href="/parasha/{{ group.portion.slug }}" hidden>{{ t("contents.page.this-portion-s-page", "This portion's page") }}</a></p>
       <ol start="{{ group.sections[0].number }}">
         {% for section in group.sections %}
         {{ row(section) }}
@@ -90,8 +90,10 @@
   </ol>
   {#- For somebody about to lose their connection. A reader off a disk is the promise
       this product makes, and half a translated book is not that. -#}
-  <p class="whole" hidden><button type="button" id="prepare">Prepare all</button></p>
+  <p class="whole" hidden><button type="button" id="prepare">{{ t("contents.page.prepare-all", "Prepare all") }}</button></p>
 </main>
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('contents.js') }}</script>
 </body>
 </html>

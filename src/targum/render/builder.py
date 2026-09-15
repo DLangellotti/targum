@@ -2203,6 +2203,9 @@ def render(
 
     has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
     offers = next_after(document)
+    # The language the page's own words are said in: its first rendering's
+    # (targum-internal#184). The text keeps its own on `data-language`.
+    chrome = translations[0].target_language if translations else "en"
     shared = {
         "has_audio": has_audio,
         # What to read next, worked out here because a reader cannot ask anybody. The
@@ -2555,7 +2558,8 @@ def render(
         html = env.get_template("reader.html.j2").render(
             **shared,
             # The page's own words in the language it is read in (targum-internal#184).
-            t=page_words(translations[0].target_language if translations else "en"),
+            t=page_words(chrome),
+            page_language=_page_language(chrome),
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
             translated=translated,
@@ -2790,6 +2794,9 @@ def render(
         spans = {n: (a[0], a[-1]) if a else ("", "") for n, a in held.items()}
         index = env.get_template("index.html.j2").render(
             **shared,
+            t=page_words(chrome),
+            page_language=_page_language(chrome),
+            strings=script_strings(chrome, "contents."),
             counts={s.number: len(s.segment_ids) for s in sections},
             chapters=chapters,
             groups=portion_groups(sections, chapters, verses, document.source),

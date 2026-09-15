@@ -3510,7 +3510,7 @@ def cover_at(where: Path, name: str) -> Path:
     return drawn
 
 
-def book(tmp_path: Path, **extra: object) -> list[Path]:
+def book(tmp_path: Path, into: str = "en", **extra: object) -> list[Path]:
     """A rendered book — two chapters, so it has a contents page for a cover to sit on —
     for a text the catalogue describes, since that is what a cover is drawn from."""
     from targum.catalogue import CATALOGUE
@@ -3525,7 +3525,7 @@ def book(tmp_path: Path, **extra: object) -> list[Path]:
         name="English",
         document_hash="h",
         source_language="he",
-        target_language="en",
+        target_language=into,
         provider="null",
         segments={s.id: "x" for s in segments},
     )
@@ -5388,3 +5388,17 @@ def test_the_conversation_page_is_said_in_the_language_asked(
         assert 'placeholder="Пишите на иврите или по-английски"' in russian
         assert '<html lang="ru">' in russian and "chat.doing.still" in russian
     assert chat_page("k") == plain
+
+
+def test_a_book_read_in_russian_says_its_contents_page_in_russian(tmp_path: Path) -> None:
+    """The contents page and the chapter carry the page's own words in the language the
+    book is read in, marked so for a screen reader; an English book is English
+    (targum-internal#184)."""
+    russian = book(tmp_path / "ru", into="ru")
+    contents = russian[0].read_text(encoding="utf-8")
+    assert '<html lang="ru"' in contents
+    assert "Начать чтение" in contents and "window.TARGUM_STRINGS" in contents
+    assert '<html lang="ru"' in russian[1].read_text(encoding="utf-8")
+    english = book(tmp_path / "en")[0].read_text(encoding="utf-8")
+    assert '<html lang="en"' in english and "Start reading" in english
+    assert "window.TARGUM_STRINGS =" not in english

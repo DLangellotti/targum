@@ -3,7 +3,7 @@
     announcement are English, and a root that said lang="he" had a screen reader read
     them all in a Hebrew voice. The direction still follows the text, every source cell
     carries its own `lang`, and the text's language rides on `data-language`. -#}
-<html lang="en" dir="{{ page_direction }}" data-language="{{ source_language }}">
+<html lang="{{ page_language|default('en') }}" dir="{{ page_direction }}" data-language="{{ source_language }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
