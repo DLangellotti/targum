@@ -16,6 +16,15 @@
      success and sits under the button on an error, which is where each belongs. */
   form.parentNode.insertBefore(said, form.nextSibling);
 
+  // What this browser reads into, so the link arrives in that language (targum-internal#186).
+  function into() {
+    try {
+      return localStorage.getItem("targum:into") || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var field = form.querySelector('input[type="email"]');
@@ -28,7 +37,7 @@
     fetch("/account/sign-in", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: field.value }),
+      body: JSON.stringify({ email: field.value, into: into() }),
     })
       .then(function (response) {
         return response.json().then(function (body) {

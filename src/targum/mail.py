@@ -24,21 +24,20 @@ from dataclasses import dataclass, field
 from email.message import EmailMessage
 from typing import Protocol, TextIO
 
-SUBJECT = "Your targum sign-in link"
+from .strings import text
 
 # Plain text, no HTML, no tracking pixel, no logo. It is a link and a sentence; anything
-# more is a thing to maintain and a reason to land in a spam folder.
-BODY = """Here is your link back into targum:
-
-{link}
-
-It works once, and it stops working in twenty minutes. If you did not ask for it,
-nothing has happened to your account and you can ignore this.
-"""
+# more is a thing to maintain and a reason to land in a spam folder. The words live in the
+# string catalogue (`strings/en.json`) so the email can be sent in the language the person
+# reads (targum-internal#186); these two are the English, kept for what reads them here.
+SUBJECT = text("mail.sign_in.subject")
+BODY = text("mail.sign_in.body")
 
 
 class Mailer(Protocol):
-    def send(self, to: str, link: str) -> None: ...
+    def send(self, to: str, link: str, language: str = "en") -> None:
+        """The sign-in link, in `language` where the catalogue has it and English where not."""
+        ...
 
     def notify(
         self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
@@ -65,7 +64,8 @@ class ConsoleMailer:
 
     stream: TextIO | None = None
 
-    def send(self, to: str, link: str) -> None:
+    def send(self, to: str, link: str, language: str = "en") -> None:
+        # The console is the operator's own window, so it stays in English whoever asked.
         out = self.stream if self.stream is not None else sys.stdout
         out.write(
             f"\n  Sign-in link for {to}:\n  {link}\n"
@@ -96,8 +96,12 @@ class SmtpMailer:
     #: opens and closes its own, exactly as before.
     _open: smtplib.SMTP | None = field(default=None, repr=False)
 
-    def send(self, to: str, link: str) -> None:
-        self._deliver(to, SUBJECT, BODY.format(link=link))
+    def send(self, to: str, link: str, language: str = "en") -> None:
+        self._deliver(
+            to,
+            text("mail.sign_in.subject", language),
+            text("mail.sign_in.body", language, link=link),
+        )
 
     def notify(
         self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
