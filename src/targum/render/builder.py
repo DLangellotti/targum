@@ -1326,6 +1326,7 @@ def progress_page(token: str, language: str = "en") -> str:
             # at the reader's own rung rather than asking them to pick a level — see
             # `charts.levelFor`. Absent where no issue has been published and built.
             weekly=_this_week(),
+            strings=script_strings(language, "progress."),
         )
     )
 

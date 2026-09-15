@@ -38,12 +38,20 @@ def vocab(known: int = 0, learning: int = 0) -> dict[str, Any]:
     return out
 
 
-def draw(stored: dict[str, Any], chosen: str = "") -> dict[str, Any]:
+def draw(
+    stored: dict[str, Any], chosen: str = "", strings: dict[str, Any] | None = None
+) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
         # The store holds strings, the way localStorage does.
         payload.write_text(
-            json.dumps({"stored": {k: json.dumps(v) for k, v in stored.items()}, "chosen": chosen}),
+            json.dumps(
+                {
+                    "stored": {k: json.dumps(v) for k, v in stored.items()},
+                    "chosen": chosen,
+                    "strings": strings,
+                }
+            ),
             encoding="utf-8",
         )
         done = subprocess.run(
@@ -122,6 +130,33 @@ def test_the_next_milestone_says_how_far_it_is() -> None:
 
     assert drawn["reached"] == "500 words known"
     assert drawn["next"] == "Another 38 to 1,000."
+
+
+def test_the_page_says_its_words_in_the_readers_language() -> None:
+    """A Russian reader's ledger is Russian, the figure still bold wherever the sentence
+    puts it, the plural chosen by Russian's rules, and a gap said in English
+    (targum-internal#184)."""
+    drawn = draw(
+        {
+            "targum:vocab:yi": vocab(known=962),
+            "targum:docs": {"a": {"language": "yi", "title": "One"}},
+            "targum:opened": {"a": 1},
+            "targum:days": {"2026-08-24": 1, "2026-08-25": 1},
+        },
+        strings={
+            "language": "ru",
+            "strings": {
+                "progress.milestone.next.many": "До {next} ещё {bold}.",
+                "progress.milestone.next.other": "До {next} ещё {bold}.",
+                "progress.count.days.few": "дня чтения",
+                "progress.count.days.other": "дня чтения",
+            },
+        },
+    )
+
+    assert drawn["next"] == "До 1,000 ещё 38."
+    assert drawn["counts"]["дня чтения"] == 2
+    assert drawn["reached"] == "500 words known", "a gap is English, not the key"
 
 
 def test_nothing_kept_yet_asks_rather_than_boasting() -> None:
