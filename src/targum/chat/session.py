@@ -233,15 +233,7 @@ def run_turn(
             if time.monotonic() > ends:
                 raise TurnTooLong() from error
             raise
-        got = getattr(reply, "usage", None)
-        if got is not None:
-            usage.add(
-                CHAT_MODEL,
-                int(getattr(got, "input_tokens", 0) or 0),
-                int(getattr(got, "output_tokens", 0) or 0),
-                cache_read=int(getattr(got, "cache_read_input_tokens", 0) or 0),
-                cache_write=int(getattr(got, "cache_creation_input_tokens", 0) or 0),
-            )
+        _count(usage, reply)
         blocks = _content(reply)
         # A search the API ran on the turn's behalf is billed per search, not per token,
         # so it is counted on its own axis and priced with the rest of the receipt.
@@ -283,7 +275,48 @@ def run_turn(
         # parallel calls do not come back together and stops making them.
         messages.append({"role": "user", "content": results})
         keep("user", results, "")
+    else:
+        # Out of steps on a tool call (targum-internal#279). The loop used to end here,
+        # after the results and before any answer, and the reader was left with cards
+        # and no words: 2 of 11 replayed turns on 2026-09-15. One more round trip, with
+        # the tools still defined — the history holds tool calls, and the prefix stays
+        # cached — and none of them allowed, so what was found is said.
+        if messages and messages[-1].get("role") == "user":
+            if time.monotonic() > ends:
+                raise TurnTooLong()
+            reply = _stream_step(
+                client,
+                ctx,
+                messages,
+                feed,
+                stable,
+                ledger,
+                web_search,
+                ends,
+                announced,
+                tool_choice={"type": "none"},
+            )
+            _count(usage, reply)
+            # Words only. A call this late would have no step left to answer it, and a
+            # call kept without its result is a 400 on every turn after it.
+            words = [block for block in _content(reply) if block.get("type") == "text"]
+            if words:
+                messages.append({"role": "assistant", "content": words})
+                keep("assistant", words, _said(words))
     return usage
+
+
+def _count(usage: Usage, reply: Any) -> None:
+    """What one round trip cost, read off its reply."""
+    got = getattr(reply, "usage", None)
+    if got is not None:
+        usage.add(
+            CHAT_MODEL,
+            int(getattr(got, "input_tokens", 0) or 0),
+            int(getattr(got, "output_tokens", 0) or 0),
+            cache_read=int(getattr(got, "cache_read_input_tokens", 0) or 0),
+            cache_write=int(getattr(got, "cache_creation_input_tokens", 0) or 0),
+        )
 
 
 def _announce(feed: Feed, announced: set[str], block: Any) -> None:
@@ -317,6 +350,7 @@ def _stream_step(
     web_search: bool,
     ends: float,
     announced: set[str],
+    tool_choice: dict[str, str] | None = None,
 ) -> Any:
     """One round trip to the model, streamed into `feed`; the reply, whole."""
     with client.messages.stream(
@@ -337,6 +371,7 @@ def _stream_step(
         ],
         output_config={"effort": EFFORT},
         tools=tools_module.anthropic_tools(web_search=web_search),
+        **({"tool_choice": tool_choice} if tool_choice else {}),
         messages=marked(messages),
         # No longer than the turn has left: a stream that goes quiet is the deadline.
         timeout=max(0.1, ends - time.monotonic()),
