@@ -3329,6 +3329,7 @@ class Handler(BaseHTTPRequestHandler):
             hdate = ""
             haftarah = index.haftarot.get(portion.haftarah) if portion.haftarah else None
             haftarah_reason = ""
+            week = None
         else:
             portion = here
             if portion is None or portion.folder not in readable:
@@ -3342,6 +3343,7 @@ class Handler(BaseHTTPRequestHandler):
             # Chanukah the congregation reads the special one, and a page that named the
             # portion's own would be naming the wrong thing to prepare.
             haftarah, haftarah_reason = index.haftarah_on(shabbat.isoformat(), schedule)
+            week = self._parasha_week(portion, haftarah, shabbat, readable)
 
         page = parasha_page(
             portion,
@@ -3363,8 +3365,64 @@ class Handler(BaseHTTPRequestHandler):
             # Where "all portions" goes: a reader with a shelf has them on it, in their
             # collection; a visitor has the list at the foot of this page.
             signed_in=self._person() is not None,
+            week=week,
         )
         return self._send(200, page.encode("utf-8"), HTML)
+
+    @staticmethod
+    def _parasha_week(
+        portion: Any, haftarah: Any, shabbat: date, readable: set[str]
+    ) -> dict[str, Any] | None:
+        """What the page needs to say which parts of this week's reading are read.
+
+        The moment the week began, off `calendar.week_began`, and the document each part
+        is kept under — so the page compares the reader's own finish times against the
+        server's week and keeps no clock of its own (targum-internal#203). None where the
+        reading's reader has no document to find, which a page draws as no list.
+        """
+        from .parasha.build import document_of
+        from .parasha.calendar import week_began
+        from .parasha.cut import ALIYOT, HAFTARAH
+
+        document, sections = document_of(portion.folder)
+        if not document:
+            return None
+        # A reading the renderer wrote as one page — too short to split — is one part,
+        # read when that page is.
+        whole = {
+            "name": portion.hebrew or portion.name,
+            "href": f"/parasha/read/{portion.folder}/reader/index.html",
+            "frame": "reading",
+            "document": document,
+            "section": 0,
+            "sections": 1,
+        }
+        parts = [
+            {
+                "name": ALIYOT[n - 1] if n <= len(ALIYOT) else str(n),
+                "href": f"/parasha/read/{portion.folder}/reader/sec-{n:04d}.html",
+                "frame": "reading",
+                "document": document,
+                "section": n,
+                "sections": 0,
+            }
+            for n in range(1, sections + 1)
+        ] or [whole]
+        if haftarah is not None and haftarah.folder in readable:
+            kept, count = document_of(haftarah.folder, haftarah.opens)
+            count = count or 1
+            if kept:
+                parts.append(
+                    {
+                        "name": HAFTARAH,
+                        "href": f"/parasha/read/{haftarah.folder}/reader/{haftarah.opens}",
+                        "frame": "haftarah",
+                        "document": kept,
+                        "section": 0,
+                        "sections": count,
+                    }
+                )
+        return {"began": int(week_began(shabbat).timestamp() * 1000), "parts": parts}
 
     def _serve_daily(self, slug: str, rest: str) -> None:
         """One learning cycle, at three addresses.

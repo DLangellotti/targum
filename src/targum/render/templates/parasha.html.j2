@@ -93,6 +93,21 @@
     Two portions are read together this week.{% endif %}
   </p>
 
+  {#- This week's reading, part by part: the aliyot and the haftarah, each a way into its
+      frame, and the ones finished since the week began said as read (targum-internal#203).
+      What is left is what is not muted — no count, no share, nothing that only goes up,
+      the way a verse read goes quiet in shnayim mikra. When the week began is the
+      server's (`calendar.week_began`); what was finished is the reader's own record in
+      this browser. Links with a target, so it works with no JavaScript: `parasha.js`
+      only marks what is read and brings the frame into view. -#}
+  {% if week and week.parts %}
+  <ol class="week" aria-label="This week's reading">
+    {%- for part in week.parts %}
+    <li><a class="week-part" href="{{ part.href }}" target="{{ part.frame }}" data-began="{{ week.began }}" data-document="{{ part.document }}" data-section="{{ part.section }}" data-sections="{{ part.sections }}"><bdi lang="he" dir="rtl">{{ part.name }}</bdi><span class="read" hidden> · read</span></a></li>
+    {%- endfor %}
+  </ol>
+  {% endif %}
+
   {#- The two ways to read it. Not levels — the text is the text — but the one choice
       that changes what is on the page: whether the chanting marks are on it. Links, so
       the page works with no JavaScript at all; `parasha.js` upgrades them to a switch
@@ -139,6 +154,7 @@
         to read. The reader's own pager goes on from here, and the contents page is a
         press away inside it. -#}
     <iframe
+      name="reading"
       src="/parasha/read/{{ portion.folder }}/reader/sec-0001.html"
       title="{{ portion.name }}"
       loading="lazy"></iframe>
@@ -164,6 +180,7 @@
   <div class="embed" id="haftarah">
     <button type="button" class="handle" aria-expanded="false">Full screen</button>
     <iframe
+      name="haftarah"
       src="/parasha/read/{{ haftarah.folder }}/reader/{{ haftarah.opens }}"
       title="The haftarah, {{ haftarah.summary }}"
       loading="lazy"></iframe>

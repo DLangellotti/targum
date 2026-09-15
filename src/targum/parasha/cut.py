@@ -390,7 +390,7 @@ def cut_haftarah(haftarah: Haftarah, books: dict[str, Book]) -> Portion:
     named = " · ".join(
         books[book].document.title or book for book in haftarah.books if book in books
     )
-    return assemble(
+    portion = assemble(
         run.blocks,
         run.segments,
         books,
@@ -400,6 +400,14 @@ def cut_haftarah(haftarah: Haftarah, books: dict[str, Book]) -> Portion:
         name=haftarah.summary,
         ingester="parasha/1",
     )
+    # Read once, in Hebrew, and without targum (targum-internal#203). A rendering read
+    # *beside* the Hebrew — Targum Jonathan on a book of the Prophets, should one reach
+    # the shelf — is left off, because carrying it is what offers the reader the second
+    # reading and the targum column, and that states a practice the haftarah does not have.
+    from ..translate.prompts import BESIDE
+
+    portion.translations = [t for t in portion.translations if t.target_language not in BESIDE]
+    return portion
 
 
 def assemble(

@@ -551,6 +551,22 @@ def pointing_at(moment: datetime | None = None) -> date:
     return today + timedelta(days=ahead)
 
 
+def week_began(shabbat: date) -> datetime:
+    """The moment the week that ends on `shabbat` began: `FLIP_AT` on the Sunday before.
+
+    The same turn `pointing_at` makes, said as a moment rather than a Shabbat, so a page
+    can ask what a reader finished *this* week without keeping a clock of its own
+    (targum-internal#203). A section finished before this belongs to an earlier week —
+    last week's, or the same portion a year ago.
+    """
+    sunday = shabbat - timedelta(days=6)
+    try:
+        zone = ZoneInfo(FLIP_ZONE)
+    except Exception:  # noqa: BLE001 — the same fallback `now_in_flip_zone` makes
+        return datetime.combine(sunday, FLIP_AT)
+    return datetime.combine(sunday, FLIP_AT, tzinfo=zone)
+
+
 def current(
     schedule: Schedule = Schedule.diaspora,
     moment: datetime | None = None,

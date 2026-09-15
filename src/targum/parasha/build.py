@@ -14,6 +14,7 @@ is what makes it safe to run this every week from a cron.
 from __future__ import annotations
 
 import json
+import re
 import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator
@@ -103,6 +104,35 @@ def _built(index: Index) -> set[str]:
     return {
         folder for folder in named if (root() / "read" / folder / "reader" / "index.html").is_file()
     }
+
+
+_DOCUMENT = re.compile(r'"document":\s*"([0-9a-f]{16,})"')
+_documents: dict[tuple[Path, int], tuple[str, int]] = {}
+
+
+def document_of(folder: str, opens: str = "sec-0001.html") -> tuple[str, int]:
+    """The document id a built reader keeps its finished sections under, and how many
+    section files it has — 0 for a reader written as `index.html` alone — or ("", 0)
+    where the reader is not there.
+
+    Read off the reader itself rather than the index, because it is the reader that
+    writes the record, and an index written before this was asked for does not carry it.
+    Cached on the file's mtime: a page is served far more often than a corpus is cut.
+    """
+    reader = root() / "read" / folder / "reader"
+    page = reader / opens
+    if not page.is_file():
+        page = reader / "index.html"
+    try:
+        stamp = page.stat().st_mtime_ns
+    except OSError:
+        return "", 0
+    key = (page, stamp)
+    if key not in _documents:
+        found = _DOCUMENT.search(page.read_text(encoding="utf-8"))
+        sections = len(list(reader.glob("sec-*.html")))
+        _documents[key] = (found.group(1) if found else "", sections)
+    return _documents[key]
 
 
 def load() -> Index:
