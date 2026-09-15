@@ -83,6 +83,14 @@ if [ -f "$SOURCES" ]; then
 else
   echo "no sources.json at $SOURCES — the chat will have no publishers to search" >&2
 fi
+# Published translations held as files of verses (ingest/fetch/published.py) — the 1875
+# Russian Torah is the first — are content in the same way, and optional the same way: a
+# box without them builds every text as before, with only those renderings missing.
+PUBLISHED="${TARGUM_PUBLISHED:-$HOME/.targum/published}"
+ssh "${SSH_OPTS[@]}" "$HOST" "rm -rf /tmp/targum-published && mkdir -p /tmp/targum-published"
+if compgen -G "$PUBLISHED/*.json" >/dev/null; then
+  scp -q "$PUBLISHED"/*.json "$HOST:/tmp/targum-published/"
+fi
 # The unit too. provision.sh installs it once, on a fresh box, and nothing carried it
 # after that: a limit raised here stayed raised here.
 scp -q deploy/targum.service "$HOST:/tmp/targum.service"
@@ -125,6 +133,12 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     install -o root -g targum -m 0640 /tmp/sources.json /etc/targum/sources.json
     rm -f /tmp/sources.json
   fi
+  install -d -o root -g targum -m 0750 /etc/targum/published
+  for held in /tmp/targum-published/*.json; do
+    [ -e "\$held" ] || continue
+    install -o root -g targum -m 0640 "\$held" /etc/targum/published/
+  done
+  rm -rf /tmp/targum-published
   install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
   rm -f /tmp/targum.service
   systemctl daemon-reload
