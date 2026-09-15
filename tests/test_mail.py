@@ -167,3 +167,31 @@ def test_the_link_is_sent_in_the_language_the_person_reads(monkeypatch) -> None:
     assert sent[0][0] == "Ваша ссылка для входа в targum"
     assert "https://targum.page/account/enter?t=x" in sent[0][1], "English body, link filled"
     assert sent[1] == (SUBJECT, BODY.format(link="https://targum.page/account/enter?t=x"))
+
+
+def test_the_sign_in_link_is_sent_in_russian_to_a_reader_who_reads_russian() -> None:
+    """The catalogue's Russian (targum-internal#186, #185): the subject and the body in
+    Russian, lowercase targum, and the link whole through base64 on the wire."""
+    import base64
+    from email import message_from_bytes
+    from email.header import decode_header, make_header
+
+    kept: list[object] = []
+
+    class Session:
+        def send_message(self, note: object) -> None:
+            kept.append(note)
+
+    mailer = SmtpMailer("smtp.example.com", 587, "u", "p", "targum <hello@targum.page>")
+    object.__setattr__(mailer, "_open", Session())
+    link = f"https://targum.page/account/enter?t={secrets.token_urlsafe(32)}"
+    mailer.send("reader@example.com", link, language="ru")
+    raw = kept[0].as_bytes()  # type: ignore[attr-defined]
+
+    assert all(byte < 128 for byte in raw), "8-bit on the wire needs 8BITMIME end to end"
+    note = message_from_bytes(raw)
+    subject = str(make_header(decode_header(note["Subject"])))
+    assert subject == "Ваша ссылка для входа в targum"
+    body = base64.b64decode(note.get_payload()).decode()
+    assert link in body and "targum" in body and "Targum" not in body
+    assert "!" not in subject + body, "design.md §6: no exclamation marks"
