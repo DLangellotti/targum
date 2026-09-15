@@ -659,7 +659,8 @@ def test_the_catalogue_and_your_uploads_are_tabs_rather_than_a_filter() -> None:
     assert 'id="access"' not in library, "and the filter it replaces is gone"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    assert '["library", "All texts"]' in source and '["mine", "Your uploads"]' in source
+    assert '["library", t("library.where.library", "All texts")]' in source
+    assert '["mine", t("library.where.mine", "Your uploads")]' in source
     # The cell is still there — a build narrates itself in it — but it no longer carries
     # a Public/Private word, because the tab above the list says that once.
     assert '"row-state", row.entry ? "Public" : "Private"' not in source

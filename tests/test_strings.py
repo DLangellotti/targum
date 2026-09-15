@@ -96,6 +96,9 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
     for template in sorted((render / "templates").glob("*.j2")):
         if template.name != "reader.html.j2":
             page.update(_calls(template))
+    # And the desk pages' own scripts, which say theirs through `strings.js`.
+    for script in ("library.js",):
+        page.update(_calls(render / "assets" / script))
     for key, text in page.items():
         assert not set(text) & set('"<>'), f"{key} could not stand in an attribute: {text!r}"
     calls.update(page)
@@ -104,3 +107,22 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         assert english.get(key) == text, (
             f"{key}: reader.js says {text!r}, en.json {english.get(key)!r}"
         )
+
+
+def test_a_desk_script_is_handed_only_its_own_keys_and_english_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum.render import builder
+
+    said = {
+        "library.column.title": "Текст",
+        "library.page.heading": "Библиотека",
+        "reader.close": "Закрыть",
+    }
+    monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else {})
+    assert builder.script_strings("en", "library.") == {}
+    assert builder.script_strings("ru-RU", "library.") == {
+        "strings": {"library.column.title": "Текст"},
+        "language": "ru",
+    }
+    assert builder.script_strings("fr", "library.") == {}

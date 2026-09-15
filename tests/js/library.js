@@ -26,6 +26,8 @@ const byId = install({
   TARGUM_CATALOGUE: payload.catalogue,
   TARGUM_COLLECTIONS: payload.collections || [],
   TARGUM_LANGUAGES: { he: "Hebrew", ru: "Russian" },
+  // The page's words in a reader's language, as the builder hands them over; none is English.
+  TARGUM_STRINGS: payload.strings,
   // A first visit is a browser with no view remembered at all; every other run hands
   // the page the view a reader chose. `stored` lets a test put anything else in the
   // browser's store — the vocabulary the page counts, for one, and which collections
@@ -62,6 +64,7 @@ global.fetch = () =>
       Promise.resolve({ readers: payload.readers || [], shared: payload.shared || [], covers: !!payload.covers }),
   });
 
+require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "scenes.js"));
 require(path.join(assets, "covers.js"));

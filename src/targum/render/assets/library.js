@@ -18,6 +18,13 @@
 (function () {
   "use strict";
 
+  /* The page's words in the reader's language, from `strings.js` (targum-internal#184). */
+  var words = window.TargumStrings;
+  var t = words.t;
+  var tn = words.tn;
+  // What the page's own words are marked as, so a screen reader says them in their language.
+  var saidIn = words.language;
+
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
@@ -53,28 +60,28 @@
      beside Novels and Stories the bare word said nothing, and what it names is the story
      books of the Bible. */
   var KINDS = [
-    ["dialogue", "Scenes"],
-    ["story", "Stories"],
-    ["article", "News"],
-    ["novel", "Novels"],
-    ["essay", "Essays"],
-    ["talk", "Talks"],
-    ["prose", "Bible narrative"],
-    ["poetry", "Poetry"],
-    ["document", "Documents"],
-    ["play", "Plays"],
-    ["liturgy", "Prayer"],
+    ["dialogue", t("library.kind.dialogue", "Scenes")],
+    ["story", t("library.kind.story", "Stories")],
+    ["article", t("library.kind.article", "News")],
+    ["novel", t("library.kind.novel", "Novels")],
+    ["essay", t("library.kind.essay", "Essays")],
+    ["talk", t("library.kind.talk", "Talks")],
+    ["prose", t("library.kind.prose", "Bible narrative")],
+    ["poetry", t("library.kind.poetry", "Poetry")],
+    ["document", t("library.kind.document", "Documents")],
+    ["play", t("library.kind.play", "Plays")],
+    ["liturgy", t("library.kind.liturgy", "Prayer")],
   ];
 
   /* Which Hebrew a text is in, oldest first. Chronological rather than alphabetical, and
      never sorted: the five of them are a ramp a learner climbs, and putting Modern above
      Rabbinic because M precedes R would throw that away. */
   var REGISTERS = [
-    ["biblical", "Biblical"],
-    ["rabbinic", "Rabbinic"],
-    ["medieval", "Medieval"],
-    ["revival", "Revival"],
-    ["modern", "Modern"],
+    ["biblical", t("library.register.biblical", "Biblical")],
+    ["rabbinic", t("library.register.rabbinic", "Rabbinic")],
+    ["medieval", t("library.register.medieval", "Medieval")],
+    ["revival", t("library.register.revival", "Revival")],
+    ["modern", t("library.register.modern", "Modern")],
   ];
 
   /* Where each of them sits in that ramp, for sorting the column. Sorting on the label
@@ -90,16 +97,16 @@
   //: holds for video: a lecture with its slides and a podcast were one row saying
   //: "audio", and the reader who imported the lecture could not find it again.
   var SPOKEN = [
-    ["", "Any"],
-    ["yes", "With audio"],
-    ["video", "With video"],
+    ["", t("library.filter.any", "Any")],
+    ["yes", t("library.spoken.audio", "With audio")],
+    ["video", t("library.spoken.video", "With video")],
   ];
 
   var LENGTHS = [
-    ["", "Any"],
-    ["short", "Under 20 min"],
-    ["hour", "20 min – 2 hr"],
-    ["long", "Over 2 hr"],
+    ["", t("library.filter.any", "Any")],
+    ["short", t("library.length.short", "Under 20 min")],
+    ["hour", t("library.length.hour", "20 min – 2 hr")],
+    ["long", t("library.length.long", "Over 2 hr")],
   ];
 
   // The share of running words a reader would have to look up, in three steps. The
@@ -107,10 +114,10 @@
   // Said in words as well as tiers, because the cutoffs were never stated anywhere:
   // "Beginners cannot understand library listings", said the first alpha reader.
   var LEVELS = [
-    ["", "Any"],
-    ["easy", "Easier — up to 1 word in 5 hard"],
-    ["mid", "Middling — about 1 in 4"],
-    ["hard", "Harder — more than 1 in 4"],
+    ["", t("library.filter.any", "Any")],
+    ["easy", t("library.level.easy", "Easier — up to 1 word in 5 hard")],
+    ["mid", t("library.level.mid", "Middling — about 1 in 4")],
+    ["hard", t("library.level.hard", "Harder — more than 1 in 4")],
   ];
 
   // The same number as a sentence: 17% is "about 1 word in 6 is hard". "Hard" because
@@ -120,7 +127,7 @@
   // reader who knows no words looks up all twenty-two of a text that says 0%.
   function inWords(share) {
     if (!share) return "";
-    return "about 1 word in " + Math.max(2, Math.round(100 / share)) + " is hard";
+    return t("library.hard-share", "about 1 word in {n} is hard", { n: Math.max(2, Math.round(100 / share)) });
   }
 
   /* One line under the controls that says what the active one means — for the reader
@@ -128,28 +135,28 @@
      never justified. At most two clauses; the first is the one that changes what the
      list is. "—" is explained only while one is on screen. */
   var NOTES = {
-    base: "Tap a text to read it.",
+    base: t("library.note.base", "Tap a text to read it."),
     kind: {
-      dialogue: "Scenes — numbered conversations with audio. Start at 1.",
-      prose: "Bible narrative — the Bible's story books.",
-      talk: "Talks — lectures and explainers, with the video beside them.",
-      article: "News — the Israeli press, in the week it was written.",
-      play: "Plays — a speaker, then a line.",
-      liturgy: "Prayer — the siddur and the service, the same words every day.",
+      dialogue: t("library.note.dialogue", "Scenes — numbered conversations with audio. Start at 1."),
+      prose: t("library.note.prose", "Bible narrative — the Bible's story books."),
+      talk: t("library.note.talk", "Talks — lectures and explainers, with the video beside them."),
+      article: t("library.note.article", "News — the Israeli press, in the week it was written."),
+      play: t("library.note.play", "Plays — a speaker, then a line."),
+      liturgy: t("library.note.liturgy", "Prayer — the siddur and the service, the same words every day."),
     },
     register: {
-      biblical: "Biblical — the Hebrew of the Bible.",
-      rabbinic: "Rabbinic — the Hebrew of the Mishnah, the codes and the prayer book.",
-      medieval: "Medieval — philosophy, in the Hebrew built to carry Arabic argument.",
-      revival: "Revival — literary Hebrew from 1850 to 1930, before the language settled.",
-      modern: "Modern — Hebrew as it is written today.",
+      biblical: t("library.note.biblical", "Biblical — the Hebrew of the Bible."),
+      rabbinic: t("library.note.rabbinic", "Rabbinic — the Hebrew of the Mishnah, the codes and the prayer book."),
+      medieval: t("library.note.medieval", "Medieval — philosophy, in the Hebrew built to carry Arabic argument."),
+      revival: t("library.note.revival", "Revival — literary Hebrew from 1850 to 1930, before the language settled."),
+      modern: t("library.note.modern", "Modern — Hebrew as it is written today."),
     },
-    spoken: "With audio — a recording, line by line.",
-    video: "With video — a recording that kept its pictures.",
+    spoken: t("library.note.spoken", "With audio — a recording, line by line."),
+    video: t("library.note.video", "With video — a recording that kept its pictures."),
     sort: {
-      difficulty: "Hard words — the share of a text's words that are rare in everyday use.",
+      difficulty: t("library.note.difficulty", "Hard words — the share of a text's words that are rare in everyday use."),
     },
-    unmeasured: "— means we haven't measured it yet.",
+    unmeasured: t("library.note.unmeasured", "— means we haven't measured it yet."),
   };
 
   /* Whether the shelf on show is Hebrew's (2026-09-14). "Which Hebrew" — the register, its
@@ -201,8 +208,8 @@
   // "All texts", not "Library": under a page headed Library a first tab of the same name
   // said nothing (2026-09-14). Sentence case, like every other label on the page.
   var WHERE = [
-    ["library", "All texts"],
-    ["mine", "Your uploads"],
+    ["library", t("library.where.library", "All texts")],
+    ["mine", t("library.where.mine", "Your uploads")],
   ];
 
   // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
@@ -272,9 +279,9 @@
   }
 
   function said(minutes) {
-    if (minutes < 60) return minutes + " min";
+    if (minutes < 60) return t("library.minutes", "{n} min", { n: minutes });
     var hours = Math.round(minutes / 60);
-    return hours + " hr";
+    return t("library.hours", "{n} hr", { n: hours });
   }
 
   // One row per text, from two places. A catalogue entry the reader has already built
@@ -485,7 +492,10 @@
     box.appendChild(el("span", "col count", share + "%"));
     var said = inWords(share);
     if (said) box.title = said;
-    box.setAttribute("aria-label", share + "% hard words" + (said ? ": " + said : ""));
+    box.setAttribute(
+      "aria-label",
+      t("library.hard-words-share", "{share}% hard words", { share: share }) + (said ? ": " + said : "")
+    );
     return box;
   }
 
@@ -526,8 +536,8 @@
     // A scene says which it is, outside the Hebrew's own direction, before the title.
     var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
     if (number) {
-      var scene = el("span", "row-scene", "Scene " + number);
-      scene.setAttribute("lang", "en");
+      var scene = el("span", "row-scene", t("library.scene", "Scene {n}", { n: number }));
+      scene.setAttribute("lang", saidIn);
       title.appendChild(scene);
     }
     // Its own direction, and its own clip: an ellipsis on the LTR cell around it cut
@@ -549,9 +559,13 @@
     // page's accent on the row somebody was sent to — and a status, so what is read out
     // is what is seen.
     if (nextRow && row.id === nextRow.entry) {
-      var chip = el("span", "row-next", anyFinished ? "Next" : "Start here");
+      var chip = el(
+        "span",
+        "row-next",
+        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
+      );
       chip.setAttribute("role", "status");
-      chip.setAttribute("lang", "en");
+      chip.setAttribute("lang", saidIn);
       title.appendChild(chip);
     }
     what.appendChild(title);
@@ -585,7 +599,13 @@
     // once there is something to say (as Learn's does).
     if (row.built && typeof row.built.known === "number" && row.built.known > 0) {
       what.appendChild(
-        el("span", "row-fit", "you know " + Math.round(row.built.known * 100) + "% of its words")
+        el(
+          "span",
+          "row-fit",
+          t("library.you-know", "you know {share}% of its words", {
+            share: Math.round(row.built.known * 100),
+          })
+        )
       );
     }
     // The one thing on a row that is not a column: a text either can be listened to or
@@ -593,15 +613,17 @@
     // One word, not two: a video can be listened to as well, and a row saying
     // "audio video" says less than "video" does. No tooltip: what the word means is
     // said in the line under the controls, where a phone can read it.
-    if (row.video) what.appendChild(el("span", "row-video", "Video"));
-    else if (row.spoken) what.appendChild(el("span", "row-audio", "Audio"));
+    if (row.video) what.appendChild(el("span", "row-video", t("library.video", "Video")));
+    else if (row.spoken) what.appendChild(el("span", "row-audio", t("library.audio", "Audio")));
     // On a phone the kind, which Hebrew and the hard words leave their columns, and a
     // row that only said a title and a length gave a learner nothing to choose by
     // (2026-09-14). They come back as one line under the title.
     var meta = [named(KINDS, row.kind), named(REGISTERS, row.register)];
-    if (measured(row)) meta.push((row.difficulty || 0) + "% hard words");
-    if (row.video) meta.push("Video");
-    else if (row.spoken) meta.push("Audio");
+    if (measured(row)) {
+      meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
+    }
+    if (row.video) meta.push(t("library.video", "Video"));
+    else if (row.spoken) meta.push(t("library.audio", "Audio"));
     var metaLine = meta.filter(Boolean).join(" · ");
     if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
     open.appendChild(what);
@@ -622,7 +644,7 @@
     var state = el("span", "row-state");
     if (row.built && finishedDocs[row.built.document] && finishedDocs[row.built.document].done) {
       state.className = "row-state finished";
-      state.textContent = "finished";
+      state.textContent = t("library.finished", "finished");
     }
     open.appendChild(state);
 
@@ -632,7 +654,7 @@
     // catalogue — a cover is drawn from what the catalogue says a text is — and with no
     // cover yet. And only where this deployment has a key to draw with.
     if (canDraw && row.built && !row.built.shared && row.entry && !row.drawn) {
-      var draw = el("button", "draw", "Draw cover");
+      var draw = el("button", "draw", t("library.cover.draw", "Draw cover"));
       draw.type = "button";
       draw.setAttribute("data-draw", row.built.name);
       item.appendChild(draw);
@@ -668,9 +690,13 @@
     // the scene itself once this is open; closed, a hundred scenes behind one row would
     // otherwise take the only line on the page that says where to start.
     if (nextRow && !isOpen(group) && group.members.indexOf(nextRow.entry) >= 0) {
-      var chip = el("span", "row-next", anyFinished ? "Next" : "Start here");
+      var chip = el(
+        "span",
+        "row-next",
+        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
+      );
       chip.setAttribute("role", "status");
-      chip.setAttribute("lang", "en");
+      chip.setAttribute("lang", saidIn);
       title.appendChild(chip);
     }
     what.appendChild(title);
@@ -679,19 +705,25 @@
     var under = el("span", "row-english", row.english || "");
     under.setAttribute("lang", "en");
     under.setAttribute("dir", "ltr");
-    under.appendChild(
-      el("span", "row-by-after", (row.english ? " · " : "") + row.rows.length + " texts")
+    var count = el(
+      "span",
+      "row-by-after",
+      (row.english ? " · " : "") + tn("library.group-texts", row.rows.length, "{n} text", "{n} texts")
     );
+    if (saidIn !== "en") count.setAttribute("lang", saidIn);
+    under.appendChild(count);
     what.appendChild(under);
-    if (row.video) what.appendChild(el("span", "row-video", "Video"));
-    else if (row.spoken) what.appendChild(el("span", "row-audio", "Audio"));
+    if (row.video) what.appendChild(el("span", "row-video", t("library.video", "Video")));
+    else if (row.spoken) what.appendChild(el("span", "row-audio", t("library.audio", "Audio")));
     // On a phone the kind, which Hebrew and the hard words leave their columns, and a
     // row that only said a title and a length gave a learner nothing to choose by
     // (2026-09-14). They come back as one line under the title.
     var meta = [named(KINDS, row.kind), named(REGISTERS, row.register)];
-    if (measured(row)) meta.push((row.difficulty || 0) + "% hard words");
-    if (row.video) meta.push("Video");
-    else if (row.spoken) meta.push("Audio");
+    if (measured(row)) {
+      meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
+    }
+    if (row.video) meta.push(t("library.video", "Video"));
+    else if (row.spoken) meta.push(t("library.audio", "Audio"));
     var metaLine = meta.filter(Boolean).join(" · ");
     if (metaLine) what.appendChild(el("span", "row-meta", metaLine));
     open.appendChild(what);
@@ -734,15 +766,15 @@
 
   var COLUMNS = [
     ["", ""],
-    ["title", "Text"],
-    ["kind", "Kind"],
-    ["register", "Which Hebrew"],
-    ["minutes", "Length"],
+    ["title", t("library.column.title", "Text")],
+    ["kind", t("library.column.kind", "Kind")],
+    ["register", t("library.column.register", "Which Hebrew")],
+    ["minutes", t("library.column.minutes", "Length")],
     // What the number under it means, said the way somebody choosing a text would ask
     // it. "Looked up" is the measurement's name, not the reader's question — and "New
     // words" was a claim about the reader the number cannot make: it counts words that
     // are rare in the language, not words this reader has not met (2026-09-14).
-    ["difficulty", "Hard words"],
+    ["difficulty", t("library.column.difficulty", "Hard words")],
     // Unlabelled: the column a build narrates itself in, empty the rest of the time.
     ["", ""],
   ];
@@ -900,7 +932,7 @@
     // Nothing to choose between is not a choice: one kind left, or none, and the row of
     // chips is the word "All" on its own.
     if (seen && offered.length < 2) offered = [];
-    var all = offered.length ? [["", "All"]].concat(offered) : [];
+    var all = offered.length ? [["", t("library.filter.all", "All")]].concat(offered) : [];
     all.forEach(function (pair) {
       var chip = el("button", shape || "chip", pair[1]);
       chip.type = "button";
@@ -964,7 +996,9 @@
       // the column says that instead, and cannot be pressed: a heading reading "New
       // words" over a list not in that order would be a lie.
       var scenes = pair[0] === "difficulty" && view.kind === "dialogue";
-      button.appendChild(document.createTextNode(scenes ? "Scene number" : pair[1]));
+      button.appendChild(
+        document.createTextNode(scenes ? t("library.column.scene-number", "Scene number") : pair[1])
+      );
       if (pair[0] === "difficulty") button.className = "drop";
       if (scenes) {
         button.disabled = true;
@@ -990,17 +1024,18 @@
 
   // The pipeline narrates itself in its own words. This is the reader's.
   var PLAIN = {
-    "Finding each word's dictionary form…": "We're reading the words…",
-    "Adding vowel points…": "We're adding vowel points…",
-    "Building the reader…": "We're setting the page…",
+    // Keyed by the pipeline's own English, which is what arrives; said in the reader's.
+    "Finding each word's dictionary form…": t("library.build.words", "We're reading the words…"),
+    "Adding vowel points…": t("library.build.points", "We're adding vowel points…"),
+    "Building the reader…": t("library.build.page", "We're setting the page…"),
   };
 
   function say(message) {
     if (!message) return "";
     if (PLAIN[message]) return PLAIN[message];
-    if (message.indexOf("Matching") === 0) return "We're lining it up…";
-    if (message.indexOf("Looking up") === 0) return "We're looking up the words…";
-    return "Almost there…";
+    if (message.indexOf("Matching") === 0) return t("library.build.lining-up", "We're lining it up…");
+    if (message.indexOf("Looking up") === 0) return t("library.build.looking-up", "We're looking up the words…");
+    return t("library.build.almost", "Almost there…");
   }
 
   // A build's sentence in the row (2026-09-14). The state's own column is a word wide and
@@ -1025,7 +1060,7 @@
             resolve();
             return;
           }
-          tell(state, say(job.message) || "Almost there…");
+          tell(state, say(job.message) || t("library.build.almost", "Almost there…"));
           if (job.stage === "done") {
             clearInterval(timer);
             window.location.href = keyed("/reader/" + job.reader.split("/").map(encodeURIComponent).join("/"));
@@ -1039,7 +1074,7 @@
   function build(open, entry) {
     var state = open.querySelector(".row-state");
     open.disabled = true;
-    tell(state, "We're getting it ready…");
+    tell(state, t("library.build.getting-ready", "We're getting it ready…"));
     ask("/prepare", {
       source: entry.source,
       // The language this reader reads into, not English by assumption. They read in
@@ -1060,7 +1095,7 @@
         if (job.blocked) throw new Error(job.blocked);
         // A price with no build in it — the server pointing at a catalogue row instead —
         // is not something to press Build on: an empty id came back as a lost build.
-        if (!job.id) throw new Error("We couldn't start this one.");
+        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one."));
         // Said, and then pressed (2026-09-14). The first press used to go straight on to
         // the build, while the conversation and the Add page both say how long a thing
         // takes and wait for the reader's own press before anything is spent. The same
@@ -1071,7 +1106,7 @@
             open.disabled = false;
             return;
           }
-          tell(state, "We're lining it up…");
+          tell(state, t("library.build.lining-up", "We're lining it up…"));
           return ask("/build", { id: job.id }).then(function (started) {
             if (started.error) throw new Error(started.error);
             if (started.stage === "blocked") throw new Error(started.blocked);
@@ -1087,21 +1122,31 @@
 
   // How long it will take, in the reader's minutes, and the press that starts it.
   function waitFor(job) {
-    if (!job.estimate) return "Ready in a moment.";
+    if (!job.estimate) return t("library.wait.moment", "Ready in a moment.");
     var mins = Math.max(1, Math.round((job.total || job.segments || 0) / 25));
-    var start = job.chapters > 1 ? "Your first chapter will be ready in " : "Ready in ";
-    if (mins <= 1) return start + "about a minute.";
-    if (mins <= 4) return start + "a couple of minutes.";
-    return start + "about " + mins + " minutes.";
+    var chapter = job.chapters > 1;
+    if (mins <= 1) {
+      return chapter
+        ? t("library.wait.chapter-minute", "Your first chapter will be ready in about a minute.")
+        : t("library.wait.minute", "Ready in about a minute.");
+    }
+    if (mins <= 4) {
+      return chapter
+        ? t("library.wait.chapter-couple", "Your first chapter will be ready in a couple of minutes.")
+        : t("library.wait.couple", "Ready in a couple of minutes.");
+    }
+    return chapter
+      ? t("library.wait.chapter-minutes", "Your first chapter will be ready in about {n} minutes.", { n: mins })
+      : t("library.wait.minutes", "Ready in about {n} minutes.", { n: mins });
   }
 
   function confirmBuild(open, state, job) {
     return new Promise(function (resolve) {
       var item = open.parentNode;
       tell(state, waitFor(job));
-      var go = el("button", "row-go", "Start reading");
+      var go = el("button", "row-go", t("library.build.start-reading", "Start reading"));
       go.type = "button";
-      var not = el("button", "row-not", "Not now");
+      var not = el("button", "row-not", t("library.build.not-now", "Not now"));
       not.type = "button";
       function done(answer) {
         if (go.parentNode) go.parentNode.removeChild(go);
@@ -1122,12 +1167,12 @@
 
   function drawCovers(button, name) {
     button.disabled = true;
-    button.textContent = "Drawing…";
+    button.textContent = t("library.cover.drawing", "Drawing…");
     ask("/cover", { name: name, chapters: true })
       .then(function (job) {
         if (job.error) throw new Error(job.error);
         if (!job.id) {
-          button.textContent = "Drawn";
+          button.textContent = t("library.cover.drawn", "Drawn");
           return;
         }
         return new Promise(function (resolve) {
@@ -1142,7 +1187,12 @@
               // Counted rather than guessed at: a book with thirty-five chapters worth
               // drawing takes minutes, and a button that only says "Drawing…" for that
               // long is indistinguishable from one that has died.
-              if (state.total > 1) button.textContent = state.done + " of " + state.total;
+              if (state.total > 1) {
+                button.textContent = t("library.cover.progress", "{done} of {total}", {
+                  done: state.done,
+                  total: state.total,
+                });
+              }
               if (state.stage === "done") {
                 clearInterval(timer);
                 resolve();
@@ -1268,13 +1318,17 @@
           return inLanguage(row, chosen) && !row.entry;
         }).length;
         empty.textContent = here.length
-          ? "Nothing here matches that."
+          ? t("library.empty.no-match", "Nothing here matches that.")
           : view.where === "mine"
-            ? "You haven't added anything yet. Use Add to bring your own."
+            ? t("library.empty.mine", "You haven't added anything yet. Use Add to bring your own.")
             : uploaded
-              ? "No " + (names[chosen] || chosen) + " texts in the library yet. You have " +
-                uploaded + " in Your uploads."
-              : "No " + (names[chosen] || chosen) + " texts in the library yet.";
+              ? t("library.empty.language-uploads", "No {language} texts in the library yet. You have {n} in Your uploads.", {
+                  language: names[chosen] || chosen,
+                  n: uploaded,
+                })
+              : t("library.empty.language", "No {language} texts in the library yet.", {
+                  language: names[chosen] || chosen,
+                });
       }
       var total = here.length;
       // Texts, not rows. A folded list is thirty-six rows over three hundred and
@@ -1282,7 +1336,9 @@
       // things, in one sentence, both of them true.
       var found = surviving.length;
       tally.textContent =
-        found === total ? total + (total === 1 ? " text" : " texts") : found + " of " + total;
+        found === total
+          ? tn("library.tally.all", total, "{n} text", "{n} texts")
+          : t("library.tally.found", "{found} of {total}", { found: found, total: total });
       clear.hidden = !(view.find || view.kind || view.register || view.length || view.level);
     }
 
@@ -1423,7 +1479,11 @@
       }
       // The search names the language the shelf is in.
       var box = document.getElementById("find");
-      if (box) box.placeholder = "Search a title, " + (names[code] || "the text") + " or English";
+      if (box) {
+        box.placeholder = t("library.search", "Search a title, {language} or English", {
+          language: names[code] || t("library.search-the-text", "the text"),
+        });
+      }
       redraw();
     }
 
