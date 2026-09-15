@@ -5199,6 +5199,28 @@ class Handler(BaseHTTPRequestHandler):
         body = self.rfile.read(length).decode("utf-8", errors="replace")
         return {key: values[0] for key, values in parse_qs(body).items() if values}
 
+    def _mail_language(self, email: str, into: object) -> str:
+        """The language a sign-in email is written in (targum-internal#186).
+
+        The page's own `targum:into` first, which is what the person chose to read in on
+        this device — never `Accept-Language`, which for an olah is often Hebrew or English
+        on a phone bought in Israel whatever she reads. It is taken only where it is a
+        language targum reads into, and, for an address that already has an account, one
+        that account reads or an account that has not said (the English default). Failing
+        that, the one language the account reads, and English.
+        """
+        from .translate.prompts import INTO
+
+        offered = {code for code, _ in INTO}
+        asked = str(into or "").strip().lower()
+        person = self.store.person_by_email(email) if self.store is not None else None
+        reads = self.store.reads(person.id) if person is not None else set()
+        if asked in offered and (person is None or asked in reads or reads == {"en"}):
+            return asked
+        if len(reads) == 1:
+            return next(iter(reads))
+        return "en"
+
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
@@ -5224,10 +5246,11 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 429,
             )
+        language = self._mail_language(email, payload.get("into"))
         token = self.store.start_sign_in(email)
         link = f"{self.address}/account/enter?t={token}"
         try:
-            self.mailer.send(email, link)
+            self.mailer.send(email, link, language=language)
         except Exception:
             # Said plainly, because a link that never arrives with a cheerful "check
             # your email" is the worst version of this failing.

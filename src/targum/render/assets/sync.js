@@ -861,7 +861,12 @@
     },
 
     signIn: function (email) {
-      return ask("/account/sign-in", { email: email });
+      // The language the link is written in: what this browser reads into (#186).
+      var into = "";
+      try {
+        into = localStorage.getItem("targum:into") || "";
+      } catch (e) {}
+      return ask("/account/sign-in", { email: email, into: into });
     },
 
     signOut: function () {

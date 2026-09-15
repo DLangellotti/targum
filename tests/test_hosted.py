@@ -393,7 +393,7 @@ def test_only_an_invited_address_gets_a_link(tmp_path: Path, free_port: Callable
     sent: list[str] = []
 
     class Mailer:
-        def send(self, to: str, link: str) -> None:
+        def send(self, to: str, link: str, language: str = "en") -> None:
             sent.append(to)
 
     store_path = tmp_path / "invite.db"
@@ -434,6 +434,62 @@ def test_only_an_invited_address_gets_a_link(tmp_path: Path, free_port: Callable
     assert sent == ["wife@example.com"]
     assert post(port, "/account/sign-in", {"email": "stranger@example.com"})[0] == 403
     assert sent == ["wife@example.com"], "and still nobody else"
+
+
+def test_the_link_is_written_in_what_the_page_reads_into(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """The page's own `targum:into`, never Accept-Language; an account that chose a
+    language keeps it over whatever this browser says (targum-internal#186)."""
+    sent: list[tuple[str, str]] = []
+
+    class Mailer:
+        def send(self, to: str, link: str, language: str = "en") -> None:
+            sent.append((to, language))
+
+    store_path = tmp_path / "into.db"
+    store = Store(store_path)
+    for address in ("new@example.com", "known@example.com"):
+        store.invite(address)
+    port = free_port()
+    threading.Thread(
+        target=lambda: serve.start(
+            out=tmp_path / "out",
+            port=port,
+            open_browser=False,
+            store=store_path,
+            mailer=Mailer(),
+            require_account=True,
+            public_address=PUBLIC,
+        ),
+        daemon=True,
+    ).start()
+    for _ in range(60):
+        try:
+            probe = HTTPConnection("127.0.0.1", port, timeout=1)
+            probe.request("GET", "/health")
+            probe.getresponse().read()
+            probe.close()
+            break
+        except OSError:
+            time.sleep(0.1)
+
+    assert post(port, "/account/sign-in", {"email": "new@example.com", "into": "ru"})[0] == 200
+    assert post(port, "/account/sign-in", {"email": "new@example.com", "into": "klingon"})[0] == 200
+    assert post(port, "/account/sign-in", {"email": "new@example.com"})[0] == 200
+    assert sent == [
+        ("new@example.com", "ru"),
+        ("new@example.com", "en"),
+        ("new@example.com", "en"),
+    ]
+
+    sent.clear()
+    store.start_sign_in("known@example.com")
+    known = store.person_by_email("known@example.com")
+    assert known is not None
+    store.choose(known, "reading", ["ru"])
+    assert post(port, "/account/sign-in", {"email": "known@example.com", "into": "en"})[0] == 200
+    assert sent == [("known@example.com", "ru")], "the account's own choice outranks a browser"
 
 
 def test_locally_there_is_no_guest_list(tmp_path: Path) -> None:
