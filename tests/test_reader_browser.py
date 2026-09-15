@@ -2535,6 +2535,28 @@ def test_a_step_on_an_aligned_text_is_a_word(browser, tmp_path: Path) -> None:
     context.close()
 
 
+def test_a_line_lights_each_word_as_it_is_said(browser, tmp_path: Path) -> None:
+    """Word by word (targum-internal#265, step 2): a line played on its own underlines the
+    word the voice is on, from the recording's word clocks, and nothing once it ends. The
+    clocks are 0.2-0.7, 0.8-1.3 and 1.4-1.9 (see `imported`)."""
+    built = imported(tmp_path / "reader")
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair.voiced .say")
+    page.wait_for_selector(".src .w")
+    page.locator(".pair.voiced .say").first.click()
+    page.wait_for_function(
+        "() => { const w = document.querySelector('.w.voiced-now'); "
+        "return w && w.textContent === 'שתים'; }",
+        timeout=4000,
+    )
+    assert page.locator(".w.voiced-now").count() == 1, "one word at a time"
+    page.wait_for_function(STILL_SAYING, timeout=4000)
+    assert page.locator(".w.voiced-now").count() == 0, "and none once the line is over"
+    context.close()
+
+
 def test_a_text_is_picked_up_where_it_was_left(scene) -> None:
     """Item 5 of the note. The speed, the shut picture and the reading place were all
     kept across the door; the one thing a listener would notice was not."""
