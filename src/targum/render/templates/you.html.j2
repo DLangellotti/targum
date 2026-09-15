@@ -10,7 +10,7 @@
 <script>{{ asset('theme.js') }}</script>
 </head>
 <body class="words you">
-{% set here = 'you' %}{% set title = 'You' %}
+{% set here = 'you' %}{% set title = t("you.page.title", "You") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
@@ -98,7 +98,7 @@
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is
         the fact somebody about to press this needs, and it is true either way. -#}
-    <p class="note">We wait seven days before deleting.
+    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting.") }}
       {%- if legal_is_public() %}
       <a href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.
       {%- endif %}</p>

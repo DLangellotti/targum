@@ -784,8 +784,9 @@
   align-self: center;
 }
 .filters > summary::-webkit-details-marker { display: none; }
-.filters > summary::before { content: "Filters"; }
-.filters[open] > summary::before { content: "Fewer filters"; }
+/* Its words are the page's, in the page's language, carried on the element. */
+.filters > summary::before { content: attr(data-more); }
+.filters[open] > summary::before { content: attr(data-fewer); }
 .filters > summary:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 .filters:not([open]) > :not(summary) { display: none; }
 /* One register in front of the reader is no choice: the switch and its label go. */

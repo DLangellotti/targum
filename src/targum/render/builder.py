@@ -466,16 +466,20 @@ MODERN_FACE = ("Frank Ruhl Libre", "fonts/FrankRuhlLibre-Regular.woff2")
 _FALLBACK = '"Taamey Frank CLM", "Frank Ruhl CLM", "SBL Hebrew", "New Peninim MT", David, serif'
 
 
-def _language_names() -> list[tuple[str, str]]:
-    """Every language a page may have to name: offered, learned or read into.
+def _language_names(language: str = "en") -> list[tuple[str, str]]:
+    """Every language a page may have to name: offered, learned or read into — named in
+    `language`, where its catalogue names them (targum-internal#184).
 
     `OFFERED` alone left Aramaic and Yiddish out, and the language menu called them
     "ARC" and "YI" (2026-09-14).
     """
+    from ..strings import SOURCE, catalogue
     from ..translate.prompts import INTO, OFFERED, READING, language_name
 
+    code_ = (language or SOURCE).split("-")[0].lower()
+    said = catalogue(code_) if code_ != SOURCE else {}
     codes = dict.fromkeys([*OFFERED, *(code for code, _ in READING), *(code for code, _ in INTO)])
-    return [(code, language_name(code)) for code in codes]
+    return [(code, said.get(f"language.{code}") or language_name(code)) for code in codes]
 
 
 @cache
@@ -1055,7 +1059,7 @@ def learn_page(token: str, language: str = "en") -> str:
             page_language=_page_language(language),
             strings=script_strings(language, "learn.", "shelf."),
             token=token,
-            languages=_language_names(),
+            languages=_language_names(language),
             # Which languages the conversation's "= " lines can be in, for the first
             # visit's one question (targum-internal#243).
             into=[code for code, _ in INTO],
@@ -1115,7 +1119,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
             page_language=_page_language(language),
             token=token,
             which=which,
-            languages=_language_names(),
+            languages=_language_names(language),
             strings=script_strings(language, "yours.", "lists.", "vocab.", "claim.", "shelf."),
         )
     )
@@ -1145,10 +1149,10 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
-            reading=_staged(READING),
-            into=_staged(INTO),
+            reading=_staged(READING, language),
+            into=_staged(INTO, language),
             no_key=no_key,
-            languages=_language_names(),
+            languages=_language_names(language),
         )
     )
 
@@ -1180,7 +1184,7 @@ def chat_page(token: str, embed: bool = False, language: str = "en") -> str:
             page_language=_page_language(language),
             token=token,
             into=[code for code, _ in INTO],
-            languages=_language_names(),
+            languages=_language_names(language),
             embed=embed,
             strings=script_strings(
                 language, "chat.", "bring.", "claim.", "speak.", "shelf.", "learn.", "vocab."
@@ -1189,12 +1193,24 @@ def chat_page(token: str, embed: bool = False, language: str = "en") -> str:
     )
 
 
-def _staged(pairs: tuple[tuple[str, str], ...]) -> list[dict[str, str]]:
-    """A language list with its stage beside each, for a page to draw a picker from."""
-    from ..translate.prompts import language_name, stage_label
+def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[dict[str, str]]:
+    """A language list with its stage beside each, for a page to draw a picker from, named
+    and labelled in `language` (targum-internal#184)."""
+    from ..translate.prompts import stage_label
 
+    names = dict(_language_names(language))
+    said = page_words(language)
+    labels = {
+        "alpha": said("stage.alpha", "alpha"),
+        "Experimental": said("stage.experimental", "Experimental"),
+    }
     return [
-        {"code": code, "name": language_name(code), "stage": stage, "label": stage_label(stage)}
+        {
+            "code": code,
+            "name": names.get(code, code),
+            "stage": stage,
+            "label": str(labels.get(stage_label(stage), stage_label(stage))),
+        }
         for code, stage in pairs
     ]
 
@@ -1366,7 +1382,7 @@ def progress_page(token: str, language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             token=token,
-            languages=_language_names(),
+            languages=_language_names(language),
             # The week's issue, if there is a readable one. Learn is the only surface
             # that knows who is reading, so it is the only one that can open the digest
             # at the reader's own rung rather than asking them to pick a level — see
@@ -1803,10 +1819,10 @@ def you_page(token: str, language: str = "en") -> str:
             page_language=_page_language(language),
             strings=script_strings(language, "you."),
             token=token,
-            reading=_staged(READING),
-            into=_staged(INTO),
+            reading=_staged(READING, language),
+            into=_staged(INTO, language),
             required=list(REQUIRED_LEARNING),
-            languages=_language_names(),
+            languages=_language_names(language),
         )
     )
 
@@ -1832,7 +1848,7 @@ def library_page(token: str, language: str = "en") -> str:
             # for the same reason — and only the members actually on the shelf, so a
             # collection can never open onto a row that is not there.
             collections=[group.state() for group in collections()],
-            languages=_language_names(),
+            languages=_language_names(language),
             strings=script_strings(language, "library."),
         )
     )
