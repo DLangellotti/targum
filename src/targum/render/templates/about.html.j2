@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>under construction — targum</title>
+<title>{{ t("about.page.under-construction-targum", "under construction — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('about.css') }}</style>
 {{ hebrew_face() }}
@@ -12,8 +12,8 @@
 </head>
 <body class="about">
 <div class="corner">
-  <a class="enter" href="/account/signin">Sign in</a>
-  <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+  <a class="enter" href="/account/signin">{{ t("about.page.sign-in", "Sign in") }}</a>
+  <button type="button" data-theme-toggle aria-label="{{ t("about.page.switch-theme", "Switch theme") }}"></button>
 </div>
 
 {#- This page described targum at length: what it does, what had shipped, what it could
@@ -29,30 +29,29 @@
   </a>
 
   <div class="card">
-  <h1>targum is under construction</h1>
+  <h1>{{ t("about.page.targum-is-under-construction", "targum is under construction") }}</h1>
 
   {% if work.commits %}
   {#- The day the count ends on, not "the last 30 days": served from a wheel these
       numbers are as old as the deploy, and the sentence has to stay true for as long
       as the wheel does. -#}
   <p class="figures">
-    <b>{{ work.commits }}</b> {{ 'change' if work.commits == 1 else 'changes' }}
-    in the {{ days }} days to {{ work.through }}
+    <b>{{ work.commits }}</b> {{ t("about.page.changes", "changes in the {days} days to {through}", days=days, through=work.through) if work.commits != 1 else t("about.page.change", "change in the {days} days to {through}", days=days, through=work.through) }}
   </p>
   {#- One square a day. Colour says how much landed, and an empty day is left as the
       quiet grey it was rather than dressed up. -#}
-  <ol class="calendar" aria-label="Changes per day, last {{ days }} days">
+  <ol class="calendar" aria-label="{{ t("about.page.changes-per-day", "Changes per day, last {days} days", days=days) }}">
     {% for day, count in work.days %}
     <li class="day level-{{ level(count, work.busiest) }}"
         title="{{ day }} — {{ count }} {{ 'change' if count == 1 else 'changes' }}"></li>
     {% endfor %}
   </ol>
-  <p class="key"><span class="less">Less</span>
+  <p class="key"><span class="less">{{ t("about.page.less", "Less") }}</span>
     {% for n in [0, 1, 2, 3, 4] %}<i class="day level-{{ n }}"></i>{% endfor %}
-    <span class="more">More</span></p>
+    <span class="more">{{ t("about.page.more", "More") }}</span></p>
   {% endif %}
 
-  <p class="log-more">The work is on
+  <p class="log-more">{{ t("about.page.the-work-is-on", "The work is on") }}
     <a href="https://github.com/DLangellotti/targum">GitHub</a>.</p>
   </div>
 </main>

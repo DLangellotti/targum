@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
@@ -22,8 +22,8 @@
       <span>targum</span>
     </a>
     <div class="corner">
-      <a class="enter" href="/account/signin">Sign in</a>
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <a class="enter" href="/account/signin">{{ t("text.page.sign-in", "Sign in") }}</a>
+      <button type="button" data-theme-toggle aria-label="{{ t("text.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 
@@ -38,7 +38,7 @@
       out the way the reader itself lays it out. A page of description would rank for
       nothing and tell a visitor nothing. -#}
   <section class="sample">
-    <h2>The opening</h2>
+    <h2>{{ t("text.page.the-opening", "The opening") }}</h2>
     {%- for line in sample %}
     <div class="pair">
       <p class="source" lang="{{ entry.language }}" dir="{{ direction }}">{{ line.source }}</p>
@@ -66,11 +66,11 @@
   </section>
   {%- endif %}
 
-  <p class="facts">{{ entry.words | int }} words, about {{ minutes }} minutes of reading.</p>
+  <p class="facts">{{ t("text.page.facts", "{words} words, about {minutes} minutes of reading.", words=entry.words | int, minutes=minutes) }}</p>
 
   <p class="door">
-    <a class="go" href="/account/signin">Read it</a>
-    <span class="free">Someone has already translated this one.</span>
+    <a class="go" href="/account/signin">{{ t("text.page.read-it", "Read it") }}</a>
+    <span class="free">{{ t("text.page.someone-has-already-translated-this-one", "Someone has already translated this one.") }}</span>
   </p>
 </main>
 

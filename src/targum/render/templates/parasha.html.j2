@@ -9,7 +9,7 @@
     page is generated week to week. A calendar says which portion, and the page points
     at a reader that was built once. -#}
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
@@ -27,8 +27,8 @@
       <span>targum</span>
     </a>
     <div class="corner">
-      <a class="enter" href="/account/signin">Sign in</a>
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <a class="enter" href="/account/signin">{{ t("parasha.page.sign-in", "Sign in") }}</a>
+      <button type="button" data-theme-toggle aria-label="{{ t("parasha.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 
@@ -49,11 +49,11 @@
       {#- On the page that means "this Shabbat" the eyebrow says so; on a portion asked
           for by name it says where in the Torah it is, because that page is not about a
           week. Either way it is not the same words as the label further down. -#}
-      <span class="eyebrow">{% if this_week %}This Shabbat{% else %}{{ portion.books | join(' · ') }}{% endif %}</span>
+      <span class="eyebrow">{% if this_week %}{{ t("parasha.page.this-shabbat", "This Shabbat") }}{% else %}{{ portion.books | join(' · ') }}{% endif %}</span>
       {#- The headline names what the page is actually showing. On a portion asked for
           by name, "this week's parasha" was a lie — and fifty-two pages sharing one
           headline is also fifty-two pages a search engine cannot tell apart. -#}
-      <h1 class="pitch">{% if this_week %}This week's parasha, every word explained.{% else %}{{ portion.name }}, every word explained.{% endif %}</h1>
+      <h1 class="pitch">{% if this_week %}{{ t("parasha.page.pitch-this-week", "This week's parasha, every word explained.") }}{% else %}{{ t("daily.page.pitch", "{name}, every word explained.", name=portion.name) }}{% endif %}</h1>
       {% if portion.hebrew or portion.name %}
       <span class="named" {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</span>
       {% endif %}
@@ -67,18 +67,18 @@
 
   <section class="hero">
     <p class="lede">
-      The Hebrew as the Masorah wrote it, with the chanting marks or without, a
-      translation beside every verse, and any word you tap remembered.
+      {{ t("parasha.page.the-hebrew-as-the-masorah-wrote-it", "The Hebrew as the Masorah wrote it, with the chanting marks or without, a
+      translation beside every verse, and any word you tap remembered.") }}
     </p>
     {#- The name is Hebrew inside an English sentence, so it is isolated wherever it
         appears: without that the bidi algorithm drags the surrounding punctuation to
         the wrong end and the button reads backwards. -#}
     <p class="cta">
-      <a class="go" href="#embed">Read <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
+      <a class="go" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
     </p>
   </section>
 
-  <h2 class="label">The reading</h2>
+  <h2 class="label">{{ t("parasha.page.the-reading", "The reading") }}</h2>
   {#- The dateline says which portion, when, and how much of it — the four things
       somebody preparing checks before they start. -#}
   <p class="dateline">
@@ -101,9 +101,9 @@
       this browser. Links with a target, so it works with no JavaScript: `parasha.js`
       only marks what is read and brings the frame into view. -#}
   {% if week and week.parts %}
-  <ol class="week" aria-label="This week's reading">
+  <ol class="week" aria-label="{{ t("parasha.page.this-week-s-reading", "This week's reading") }}">
     {%- for part in week.parts %}
-    <li><a class="week-part" href="{{ part.href }}" target="{{ part.frame }}" data-began="{{ week.began }}" data-document="{{ part.document }}" data-section="{{ part.section }}" data-sections="{{ part.sections }}"><bdi lang="he" dir="rtl">{{ part.name }}</bdi><span class="read" hidden> · read</span></a></li>
+    <li><a class="week-part" href="{{ part.href }}" target="{{ part.frame }}" data-began="{{ week.began }}" data-document="{{ part.document }}" data-section="{{ part.section }}" data-sections="{{ part.sections }}"><bdi lang="he" dir="rtl">{{ part.name }}</bdi><span class="read" hidden> {{ t("parasha.page.read-2", "· read") }}</span></a></li>
     {%- endfor %}
   </ol>
   {% endif %}
@@ -112,16 +112,16 @@
       that changes what is on the page: whether the chanting marks are on it. Links, so
       the page works with no JavaScript at all; `parasha.js` upgrades them to a switch
       that changes the reader in place. -#}
-  <nav class="ladder taamim" aria-label="The chanting marks">
+  <nav class="ladder taamim" aria-label="{{ t("parasha.page.the-chanting-marks", "The chanting marks") }}">
     <a href="?taamim=on" data-taamim="on"{% if taamim %} class="here" aria-current="page"{% endif %}>
-      <b>With the te'amim</b>
-      <span class="figure">as it is chanted</span>
-      <span class="what">Every mark the Masorah wrote: the vowels, and the cantillation the reading is sung to.</span>
+      <b>{{ t("parasha.page.with-the-te-amim", "With the te'amim") }}</b>
+      <span class="figure">{{ t("parasha.page.as-it-is-chanted", "as it is chanted") }}</span>
+      <span class="what">{{ t("parasha.page.every-mark-the-masorah-wrote-the-vowels", "Every mark the Masorah wrote: the vowels, and the cantillation the reading is sung to.") }}</span>
     </a>
     <a href="?taamim=off" data-taamim="off"{% if not taamim %} class="here" aria-current="page"{% endif %}>
-      <b>Vowels only</b>
-      <span class="figure">easier to read</span>
-      <span class="what">The chanting marks taken off, the vowels left where they were — the plainer page for reading rather than leyning.</span>
+      <b>{{ t("parasha.page.vowels-only", "Vowels only") }}</b>
+      <span class="figure">{{ t("parasha.page.easier-to-read", "easier to read") }}</span>
+      <span class="what">{{ t("parasha.page.the-chanting-marks-taken-off-the-vowels", "The chanting marks taken off, the vowels left where they were — the plainer page for reading rather than leyning.") }}</span>
     </a>
   </nav>
 
@@ -135,19 +135,19 @@
   {% set apart = diaspora.slug != israel.slug %}
   <p class="schedules">
     {% if apart %}
-    <span class="apart">Israel and the diaspora are reading different portions this week.</span>
+    <span class="apart">{{ t("parasha.page.israel-and-the-diaspora-are-reading-different", "Israel and the diaspora are reading different portions this week.") }}</span>
     {% endif %}
     <a class="schedule{% if schedule.value == 'diaspora' %} here{% endif %}"{% if schedule.value == 'diaspora' %} aria-current="page"{% endif %} href="/parasha?schedule=diaspora">
-      Diaspora{% if apart %} · <bdi lang="he" dir="rtl">{{ diaspora.hebrew }}</bdi>{% endif %}
+      {{ t("parasha.page.diaspora", "Diaspora") }}{% if apart %} · <bdi lang="he" dir="rtl">{{ diaspora.hebrew }}</bdi>{% endif %}
     </a>
     <a class="schedule{% if schedule.value == 'israel' %} here{% endif %}"{% if schedule.value == 'israel' %} aria-current="page"{% endif %} href="/parasha?schedule=israel">
-      Israel{% if apart %} · <bdi lang="he" dir="rtl">{{ israel.hebrew }}</bdi>{% endif %}
+      {{ t("parasha.page.israel", "Israel") }}{% if apart %} · <bdi lang="he" dir="rtl">{{ israel.hebrew }}</bdi>{% endif %}
     </a>
   </p>
   {% endif %}
 
   <div class="embed" id="embed">
-    <button type="button" class="handle" id="embed-handle" aria-expanded="false">Full screen</button>
+    <button type="button" class="handle" id="embed-handle" aria-expanded="false">{{ t("parasha.page.full-screen", "Full screen") }}</button>
     {#- The first aliyah, not the contents page. A portion is built in seven sections —
         one per aliyah, which is also one chanted file per page — and `index.html` is
         then a list of seven links, which is a poor first thing to hand somebody who came
@@ -170,7 +170,7 @@
       is most of what somebody preparing needs. Hebcal's Sephardic variant is in the
       index and deliberately not here: see targum-internal#201. -#}
   {% if haftarah %}
-  <h2 class="label">The haftarah</h2>
+  <h2 class="label">{{ t("parasha.page.the-haftarah", "The haftarah") }}</h2>
   <p class="dateline">
     {{ haftarah.summary }}{% if haftarah.hebrew %} — from
     <bdi lang="he" dir="rtl">{{ haftarah.hebrew }}</bdi>{% endif %}, {{ haftarah.verses }} verses.{% if haftarah_reason %}
@@ -178,11 +178,11 @@
   </p>
   {% if haftarah_readable %}
   <div class="embed" id="haftarah">
-    <button type="button" class="handle" aria-expanded="false">Full screen</button>
+    <button type="button" class="handle" aria-expanded="false">{{ t("parasha.page.full-screen", "Full screen") }}</button>
     <iframe
       name="haftarah"
       src="/parasha/read/{{ haftarah.folder }}/reader/{{ haftarah.opens }}"
-      title="The haftarah, {{ haftarah.summary }}"
+      title="{{ t("parasha.page.haftarah-title", "The haftarah, {summary}", summary=haftarah.summary) }}"
       loading="lazy"></iframe>
   </div>
   {% endif %}
@@ -192,41 +192,41 @@
       they are read — and it wraps, because after וזאת הברכה comes בראשית. A festival
       reading belongs to a date rather than to the cycle and has neither, only the way to
       the whole list. -#}
-  <nav class="portions" aria-label="The other portions">
+  <nav class="portions" aria-label="{{ t("parasha.page.the-other-portions", "The other portions") }}">
     {% if previous %}
-    <a class="prev" href="/parasha/{{ previous.slug }}"><span class="which">Previous</span> <bdi {% if previous.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ previous.hebrew or previous.name }}</bdi></a>
+    <a class="prev" href="/parasha/{{ previous.slug }}"><span class="which">{{ t("parasha.page.previous", "Previous") }}</span> <bdi {% if previous.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ previous.hebrew or previous.name }}</bdi></a>
     {% endif %}
-    <a class="all" href="{{ all_href }}">All portions</a>
+    <a class="all" href="{{ all_href }}">{{ t("parasha.page.all-portions", "All portions") }}</a>
     {% if following %}
-    <a class="next" href="/parasha/{{ following.slug }}"><span class="which">Next</span> <bdi {% if following.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ following.hebrew or following.name }}</bdi></a>
+    <a class="next" href="/parasha/{{ following.slug }}"><span class="which">{{ t("parasha.page.next", "Next") }}</span> <bdi {% if following.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ following.hebrew or following.name }}</bdi></a>
     {% endif %}
   </nav>
 
   <section class="how">
-    <h2 class="label">Why targum</h2>
-    <p class="section-title">Built for reading, not for drills.</p>
+    <h2 class="label">{{ t("parasha.page.why-targum", "Why targum") }}</h2>
+    <p class="section-title">{{ t("parasha.page.built-for-reading-not-for-drills", "Built for reading, not for drills.") }}</p>
     <ol>
       <li>
-        <b>Every word, one tap.</b>
-        <span>A card says what it means, how common it is and how it is said; tell it how well you know the word, and it remembers.</span>
+        <b>{{ t("parasha.page.every-word-one-tap", "Every word, one tap.") }}</b>
+        <span>{{ t("parasha.page.a-card-says-what-it-means-how", "A card says what it means, how common it is and how it is said; tell it how well you know the word, and it remembers.") }}</span>
       </li>
       <li>
-        <b>The marks, on or off.</b>
-        <span>The te'amim are what the reading is chanted to and clutter if you are still learning the vowels underneath them. One press takes them off and leaves everything else where it was.</span>
+        <b>{{ t("parasha.page.the-marks-on-or-off", "The marks, on or off.") }}</b>
+        <span>{{ t("parasha.page.the-te-amim-are-what-the-reading", "The te'amim are what the reading is chanted to and clutter if you are still learning the vowels underneath them. One press takes them off and leaves everything else where it was.") }}</span>
       </li>
       <li>
-        <b>Seven aliyot, seven sections.</b>
-        <span>The reading is divided the way it is called up, so you can go to <bdi lang="he" dir="rtl">שלישי</bdi> without counting verses. The haftarah follows it, the same way.</span>
+        <b>{{ t("parasha.page.seven-aliyot-seven-sections", "Seven aliyot, seven sections.") }}</b>
+        <span>{{ t("parasha.page.the-reading-is-divided-the-way-it", "The reading is divided the way it is called up, so you can go to") }} <bdi lang="he" dir="rtl">שלישי</bdi> {{ t("parasha.page.without-counting-verses-the-haftarah-follows-it", "without counting verses. The haftarah follows it, the same way.") }}</span>
       </li>
       <li>
-        <b>It follows you.</b>
-        <span>Words you mark here are marked in everything else you read — this week's portion, next week's, and the newspaper.</span>
+        <b>{{ t("parasha.page.it-follows-you", "It follows you.") }}</b>
+        <span>{{ t("parasha.page.words-you-mark-here-are-marked-in", "Words you mark here are marked in everything else you read — this week's portion, next week's, and the newspaper.") }}</span>
       </li>
     </ol>
   </section>
 
   <section class="honest">
-    <h2 class="label">Made honestly</h2>
+    <h2 class="label">{{ t("parasha.page.made-honestly", "Made honestly") }}</h2>
     <p class="made">
       The Hebrew is the Masoretic text as it is published, cut to this week's reading and
       not edited. The English beside it is {{ translation_said }}. The haftarah is cut
@@ -241,13 +241,13 @@
         a credit that lives only in a repository is a credit nobody reading ever sees.
         The recording's licence does require it. -#}
     <p class="made credits">
-      The scroll at the top is
+      {{ t("parasha.page.the-scroll-at-the-top-is", "The scroll at the top is") }}
       <a href="https://commons.wikimedia.org/wiki/File:Closeup_of_Torah_Scroll.jpg"
-         rel="noopener noreferrer">photographed by Jacob Gucker</a>, in the public domain
-      under CC0. Where a reading has a recording it is
+         rel="noopener noreferrer">{{ t("parasha.page.photographed-by-jacob-gucker", "photographed by Jacob Gucker") }}</a>{{ t("parasha.page.in-the-public-domain-under-cc0-where", ", in the public domain
+      under CC0. Where a reading has a recording it is") }}
       <a href="https://archive.org/details/PockettorahAudioFiles"
-         rel="noopener noreferrer">PocketTorah</a>, chanted in the Avery-Binder trope and
-      used under <a href="https://creativecommons.org/licenses/by-sa/3.0/"
+         rel="noopener noreferrer">PocketTorah</a>{{ t("parasha.page.chanted-in-the-avery-binder-trope-and", ", chanted in the Avery-Binder trope and
+      used under") }} <a href="https://creativecommons.org/licenses/by-sa/3.0/"
          rel="noopener noreferrer">CC BY-SA 3.0</a>.
     </p>
 
@@ -255,7 +255,7 @@
     {#- Every portion, all year, because the corpus is fixed and there is no reason to
         make somebody wait a year to read one. Folded on a phone. -#}
     <details class="sources" id="sources" open>
-      <summary><b class="sub">Every portion <span class="count">({{ listed|length }})</span></b></summary>
+      <summary><b class="sub">{{ t("parasha.page.every-portion", "Every portion") }} <span class="count">({{ listed|length }})</span></b></summary>
       <ul class="portions">
         {%- for one in listed %}
         <li>
@@ -272,16 +272,18 @@
   </section>
 
   <section class="keep">
-    <h2 class="label">Keep what you learn</h2>
-    <p class="section-title">Every word you mark, remembered.</p>
-    <p class="pitch-line">In next week's portion, and in everything you read after it.</p>
+    <h2 class="label">{{ t("parasha.page.keep-what-you-learn", "Keep what you learn") }}</h2>
+    <p class="section-title">{{ t("parasha.page.every-word-you-mark-remembered", "Every word you mark, remembered.") }}</p>
+    <p class="pitch-line">{{ t("parasha.page.in-next-week-s-portion-and-in", "In next week's portion, and in everything you read after it.") }}</p>
     <p class="door">
-      <a class="go" href="/account/signin">Sign in</a>
-      <span class="free">An email address. No password.</span>
+      <a class="go" href="/account/signin">{{ t("parasha.page.sign-in", "Sign in") }}</a>
+      <span class="free">{{ t("parasha.page.an-email-address-no-password", "An email address. No password.") }}</span>
     </p>
   </section>
 </main>
 
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('parasha.js') }}</script>
 
 {% include '_public_foot.html.j2' %}

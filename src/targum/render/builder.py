@@ -317,7 +317,7 @@ def _page_language(language: str) -> str:
     return code if code in languages() else SOURCE
 
 
-def page_words(language: str) -> Callable[[str, str], Markup]:
+def page_words(language: str) -> Callable[..., Markup]:
     """A template's `t(key, English)` in `language` (targum-internal#184): that language's
     catalogue where it has the key, the English written in the template where not.
 
@@ -330,8 +330,10 @@ def page_words(language: str) -> Callable[[str, str], Markup]:
     code = (language or SOURCE).split("-")[0].lower()
     said = catalogue(code) if code != SOURCE else {}
 
-    def t(key: str, english: str) -> Markup:
-        return Markup(said.get(key, english))
+    def t(key: str, english: str, **fill: object) -> Markup:
+        # A blank is filled escaped, since what fills it can come from anywhere.
+        text = Markup(said.get(key, english))
+        return text.format(**fill) if fill else text
 
     return t
 
@@ -1215,7 +1217,7 @@ def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[di
     ]
 
 
-def about_page() -> str:
+def about_page(language: str = "en") -> str:
     """That targum is under construction, and how much has landed lately.
 
     Nothing here is written by hand: the count and the calendar both come from `git
@@ -1229,17 +1231,31 @@ def about_page() -> str:
             return 0
         return min(4, 1 + int(3 * (count - 1) / max(1, busiest - 1)))
 
-    return _environment().get_template("about.html.j2").render(work=work(), days=DAYS, level=level)
+    return (
+        _environment()
+        .get_template("about.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            work=work(),
+            days=DAYS,
+            level=level,
+        )
+    )
 
 
-def holding_page() -> str:
+def holding_page(language: str = "en") -> str:
     """What a stranger sees while the product is not open yet.
 
     Deliberately not the sign-in page: that is a door, and a door presented to somebody
     with no key is a wall that looks like a mistake. This says where things are, and
     keeps the door in the corner for the people who have one.
     """
-    return _environment().get_template("holding.html.j2").render()
+    return (
+        _environment()
+        .get_template("holding.html.j2")
+        .render(t=page_words(language), page_language=_page_language(language))
+    )
 
 
 def not_found_page() -> str:
@@ -1351,7 +1367,9 @@ def legal_page(which: str, address: str = "") -> str:
     )
 
 
-def signin_page(*, landing: str = "", token: str = "", expired: bool = False) -> str:
+def signin_page(
+    *, landing: str = "", token: str = "", expired: bool = False, language: str = "en"
+) -> str:
     """The door. Three states, one template.
 
     Empty is the sign-in form. `landing` is the page an emailed link opens, naming the
@@ -1362,7 +1380,14 @@ def signin_page(*, landing: str = "", token: str = "", expired: bool = False) ->
     return (
         _environment()
         .get_template("signin.html.j2")
-        .render(landing=landing, token=token, expired=expired)
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            landing=landing,
+            token=token,
+            expired=expired,
+            strings=script_strings(language, "signin."),
+        )
     )
 
 
@@ -1422,7 +1447,7 @@ SHELF = (
 )
 
 
-def shelf_page(address: str = "") -> str:
+def shelf_page(address: str = "", language: str = "en") -> str:
     """The catalogue, for somebody who has not signed in.
 
     Public on purpose. It is the shop window, and until it exists there is nothing for a
@@ -1435,6 +1460,8 @@ def shelf_page(address: str = "") -> str:
         _environment()
         .get_template("shelf.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
             title=f"{name} — targum",
             description=blurb,
             canonical=f"{address}/library" if address else "",
@@ -1504,7 +1531,7 @@ def text_schema(entry: Entry, address: str = "") -> dict[str, Any]:
     return about
 
 
-def text_page(entry: Entry, address: str = "") -> str:
+def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     """One text, for somebody who has not signed in.
 
     A page about the text rather than about targum: whoever arrives here searched for the
@@ -1517,6 +1544,8 @@ def text_page(entry: Entry, address: str = "") -> str:
         _environment()
         .get_template("text.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
             title=f"\u2068{entry.title}\u2069 — {name} — targum",
             description=entry.blurb,
             canonical=f"{address}/library/{entry.id}" if address else "",
@@ -1565,6 +1594,7 @@ def weekly_page(
     *,
     address: str = "",
     archive: list[WeeklyIssue] | None = None,
+    language: str = "en",
 ) -> str:
     """A landing page for the weekly, with the issue's own reader inside it.
 
@@ -1579,12 +1609,16 @@ def weekly_page(
     from ..weekly.models import folder as weekly_folder
 
     spec = LEVELS[level]
+    said = page_words(language)
     blurb = issue.blurb
     press = _press(issue)
     return (
         _environment()
         .get_template("weekly.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "weekly."),
             title=f"\u2068{issue.title}\u2069 — {spec.label} — targum",
             description=blurb,
             canonical=f"{address}/weekly/{issue.id}/{level.value}" if address else "",
@@ -1593,7 +1627,13 @@ def weekly_page(
             spec=spec,
             folder=weekly_folder(issue.id, level),
             levels=LEVELS,
-            explained=WEEKLY_LEVELS,
+            level_names={
+                one: said(f"weekly.level.{one.value}", named.name) for one, named in LEVELS.items()
+            },
+            explained={
+                one: said(f"weekly.level.{one}.explained", text)
+                for one, text in WEEKLY_LEVELS.items()
+            },
             notice=NOTICE,
             shelf_name=SHELF[0],
             press=press,
@@ -1612,6 +1652,7 @@ def daily_page(
     opens: str = "index.html",
     is_today: bool = True,
     address: str = "",
+    language: str = "en",
 ) -> str:
     """One day of a learning cycle, with its own reader inside it.
 
@@ -1623,6 +1664,9 @@ def daily_page(
         _environment()
         .get_template("daily.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "parasha."),
             title=f"{day.title} — {cycle.name} — targum",
             # The reference goes in the description because it is how somebody who keeps
             # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
@@ -1679,6 +1723,7 @@ def parasha_page(
     address: str = "",
     signed_in: bool = False,
     week: dict[str, Any] | None = None,
+    language: str = "en",
 ) -> str:
     """This week's portion, with its own reader inside it.
 
@@ -1718,6 +1763,9 @@ def parasha_page(
         _environment()
         .get_template("parasha.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "parasha."),
             week=week,
             # The same correction the headline already carries, in the tag that matters
             # more for it: on a portion asked for by name this is not this week's, and

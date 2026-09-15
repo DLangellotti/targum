@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
@@ -20,8 +20,8 @@
       <span>targum</span>
     </a>
     <div class="corner">
-      <a class="enter" href="/account/signin">Sign in</a>
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <a class="enter" href="/account/signin">{{ t("shelf.page.sign-in", "Sign in") }}</a>
+      <button type="button" data-theme-toggle aria-label="{{ t("shelf.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 
@@ -44,7 +44,7 @@
   {%- else %}
   {#- Said plainly rather than dressed up. An empty shelf that pretends otherwise is
       worse than one that admits it, and this one fills up shortly. -#}
-  <p class="empty">Nothing here yet.</p>
+  <p class="empty">{{ t("shelf.page.nothing-here-yet", "Nothing here yet.") }}</p>
   {%- endif %}
 </main>
 

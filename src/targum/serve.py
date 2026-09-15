@@ -3101,7 +3101,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if zipped:
             self.send_header("Content-Encoding", "gzip")
-        self.send_header("Vary", "Accept-Encoding")
+        # A page said in the language the browser asked for varies with that header as
+        # well as with compression; only such a page says so, so a reader stays cacheable.
+        varies = "Accept-Encoding"
+        if getattr(self, "_said_by_browser", False):
+            varies += ", Accept-Language"
+        self.send_header("Vary", varies)
         self.send_header("Cache-Control", cache)
         # Set by the weekly's entry points while the deployment keeps it unindexed:
         # reachable by anyone with the address, surfaced by no search engine.
@@ -3352,6 +3357,7 @@ class Handler(BaseHTTPRequestHandler):
 
         page = parasha_page(
             portion,
+            language=self._page_language(),
             schedule=schedule,
             other=elsewhere,
             diaspora=here if schedule is Schedule.diaspora else elsewhere,
@@ -3499,6 +3505,7 @@ class Handler(BaseHTTPRequestHandler):
         page = daily_page(
             cycle,
             day,
+            language=self._page_language(),
             nearby=nearby,
             others=others,
             absent=list(ABSENT.items()),
@@ -3644,7 +3651,13 @@ class Handler(BaseHTTPRequestHandler):
         if wanted not in set(Level) or issue.edition(Level(wanted)) is None:
             return self._send(404, b"not found", "text/plain")
 
-        page = weekly_page(issue, Level(wanted), address=self.address, archive=published)
+        page = weekly_page(
+            issue,
+            Level(wanted),
+            address=self.address,
+            archive=published,
+            language=self._page_language(),
+        )
         return self._send(200, page.encode("utf-8"), HTML)
 
     def _weekly_said(self, message: str, done: bool = True) -> None:
@@ -3996,7 +4009,9 @@ class Handler(BaseHTTPRequestHandler):
             # Signed out. The holding page rather than the sign-in form, for the reason
             # `_needs_account` gives: a door shown to somebody with no key is a wall that
             # looks like a mistake. The door is one click away, in the corner.
-            return self._send(200, holding_page().encode("utf-8"), HTML)
+            return self._send(
+                200, holding_page(language=self._page_language()).encode("utf-8"), HTML
+            )
         if not person.admin:
             return self._send(404, b"not found", "text/plain")
         if self.store is None:
@@ -4062,6 +4077,8 @@ class Handler(BaseHTTPRequestHandler):
         leave a trace anywhere but the journal. Recorded, then re-raised, so nothing
         about the failure itself changes.
         """
+        # Whether this answer was chosen by the browser's language, asked afresh each time.
+        self._said_by_browser = False
         try:
             route()
         except Exception as error:
@@ -4134,7 +4151,11 @@ class Handler(BaseHTTPRequestHandler):
             entry = catalogue_module.by_id(naming.group(1))
             if entry is None:
                 return self._send(404, b"not found", "text/plain")
-            return self._send(200, text_page(entry, self.address).encode("utf-8"), HTML)
+            return self._send(
+                200,
+                text_page(entry, self.address, language=self._page_language()).encode("utf-8"),
+                HTML,
+            )
         # The shelves answer to whoever is asking. Signed out that is the public index —
         # the shop window, and the thing a search engine indexes. Signed in it is the
         # product. Same address either way, because a text somebody found on Google
@@ -4142,8 +4163,10 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/library":
             if self._person() is None and not self._authorised():
                 if not shelves_are_public():
-                    return self._send(200, holding_page().encode("utf-8"), HTML)
-                page = shelf_page(self.address)
+                    return self._send(
+                        200, holding_page(language=self._page_language()).encode("utf-8"), HTML
+                    )
+                page = shelf_page(self.address, language=self._page_language())
                 return self._send(200, page.encode("utf-8"), HTML)
 
         if self._needs_account(route):
@@ -4159,17 +4182,21 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if not self._is_a_page(route):
                 return self._not_found()
-            return self._send(200, holding_page().encode("utf-8"), HTML)
+            return self._send(
+                200, holding_page(language=self._page_language()).encode("utf-8"), HTML
+            )
         # The one route that needs no key: it carries a single-use token of its own,
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.
         if route == "/about":
-            return self._send(200, about_page().encode("utf-8"), HTML)
+            return self._send(200, about_page(language=self._page_language()).encode("utf-8"), HTML)
         if route == "/series/stop":
             # Followed out of an email, with no account and no key.
             return self._series_stop(None)
         if route == "/account/signin":
-            return self._send(200, signin_page().encode("utf-8"), HTML)
+            return self._send(
+                200, signin_page(language=self._page_language()).encode("utf-8"), HTML
+            )
         if route == "/account/enter":
             # Exempt from the key, never from the host check: a page on another origin
             # that resolves a name to this address still gets nothing.
@@ -4180,8 +4207,12 @@ class Handler(BaseHTTPRequestHandler):
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
             person = self.store.peek_sign_in(token) if token else None
             if person is None:
-                return self._send(200, signin_page(expired=True).encode("utf-8"), HTML)
-            page = signin_page(landing=person.email, token=token)
+                return self._send(
+                    200,
+                    signin_page(expired=True, language=self._page_language()).encode("utf-8"),
+                    HTML,
+                )
+            page = signin_page(landing=person.email, token=token, language=self._page_language())
             return self._send(200, page.encode("utf-8"), HTML)
         if not self._authorised():
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
@@ -5326,6 +5357,16 @@ class Handler(BaseHTTPRequestHandler):
         others = [code for code in self.store.reads(person.id) if code != "en"]
         return others[0] if len(others) == 1 and others[0] in self.translated else "en"
 
+    def _page_language(self) -> str:
+        """The language a public page speaks to whoever asked: a signed-in reader's
+        interface language, by the same rule as the desk; for a visitor, the first
+        language their browser asks for that targum has a catalogue in — English where it
+        has none of them (David, 2026-09-15, targum-internal#184)."""
+        if self._person() is not None:
+            return self._ui_language()
+        self._said_by_browser = True
+        return best_language(self.headers.get("Accept-Language", ""))
+
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
         if not plausible(email):
@@ -5367,7 +5408,9 @@ class Handler(BaseHTTPRequestHandler):
         if got is None:
             # Not an error: a spent or stale link is what a second press looks like,
             # and the way out of it is to ask for another, which that page offers.
-            return self._send(200, signin_page(expired=True).encode("utf-8"), HTML)
+            return self._send(
+                200, signin_page(expired=True, language=self._page_language()).encode("utf-8"), HTML
+            )
         _, session = got
         from .accounts import SESSION_DAYS
 
@@ -6401,6 +6444,32 @@ def _still_waiting(page: Path) -> bool:
 
 
 #: The key prefixes a desk page says its words under (targum-internal#184).
+def best_language(header: str) -> str:
+    """The language an `Accept-Language` header prefers among those with a catalogue:
+    by weight, then by order, and English where none of them has one."""
+    from .strings import SOURCE, languages
+
+    have = set(languages())
+    asked: list[tuple[float, int, str]] = []
+    for n, part in enumerate(header.split(",")):
+        name, _, rest = part.strip().partition(";")
+        weight = 1.0
+        for setting in rest.split(";"):
+            key, _, value = setting.strip().partition("=")
+            if key == "q":
+                try:
+                    weight = float(value)
+                except ValueError:
+                    weight = 0.0
+        code = name.strip().split("-")[0].lower()
+        if code and weight > 0:
+            asked.append((-weight, n, code))
+    for _, _, code in sorted(asked):
+        if code in have:
+            return code
+    return SOURCE
+
+
 DESK_KEYS = (
     "nav.",
     "progress.",
