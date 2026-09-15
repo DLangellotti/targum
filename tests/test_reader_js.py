@@ -1475,3 +1475,80 @@ def test_the_reader_speaks_the_language_it_was_built_for() -> None:
         ],
     )["sayings"]
     assert english == ["Mark 1 word as known", "Mark 2 words as known"]
+
+
+PARTICIPLE = "UPOS=VERB|Gender=Fem|Number=Plur|Tense=Past|VerbForm=Part"
+
+
+def test_a_french_participle_says_the_compound_tense_its_auxiliary_makes() -> None:
+    """*ont mangé* is the passé composé and *avaient mangé* the pluperfect; *sont
+    arrivées* takes être and agrees; *sont mangées* is the passive, which is what
+    "passé composé" would get wrong; and a reflexive takes être for any verb
+    (targum-internal#263)."""
+    present = "UPOS=AUX|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Mood=Ind"
+    past = "UPOS=AUX|Number=Plur|Person=3|Tense=Past|VerbForm=Fin|Mood=Ind"
+    future = "UPOS=AUX|Number=Plur|Person=3|Tense=Fut|VerbForm=Fin|Mood=Ind"
+    conditional = "UPOS=AUX|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin|Mood=Cnd"
+    infinitive = "UPOS=AUX|VerbForm=Inf"
+    said = run(
+        [],
+        language="fr",
+        compoundLines=[
+            [PARTICIPLE, "manger", present, "avoir", False],
+            [PARTICIPLE, "manger", past, "avoir", False],
+            [PARTICIPLE, "manger", future, "avoir", False],
+            [PARTICIPLE, "manger", conditional, "avoir", False],
+            [PARTICIPLE, "manger", infinitive, "avoir", False],
+            [PARTICIPLE, "arriver", present, "être", False],
+            [PARTICIPLE, "manger", present, "être", False],
+            [PARTICIPLE, "laver", present, "être", True],
+            [PARTICIPLE, "manger", present, "pouvoir", False],
+        ],
+    )["compounds"]
+    assert said == [
+        "passé composé · with avoir · f · pl.",
+        "pluperfect · with avoir · f · pl.",
+        "future perfect · with avoir · f · pl.",
+        "past conditional · with avoir · f · pl.",
+        "past infinitive · with avoir · f · pl.",
+        "passé composé · with être · f · pl.",
+        "passive · with être · f · pl.",
+        "passé composé · with être · f · pl.",
+        "",
+    ]
+    # Italian's essere takes far more verbs than a list can hold, so it is left alone.
+    assert run(
+        [], language="it", compoundLines=[[PARTICIPLE, "mangiare", present, "avere", False]]
+    )["compounds"] == [""]
+
+
+def test_a_french_noun_is_kept_with_its_article() -> None:
+    """*l'école* hides the gender, so the Anki card keeps *une école*; a noun with no
+    gender, a verb, and a Russian noun keep the form they were met in."""
+    said = run(
+        [],
+        language="fr",
+        articleLines=[
+            ["école", "UPOS=NOUN|Gender=Fem|Number=Sing"],
+            ["livre", "UPOS=NOUN|Gender=Masc|Number=Plur"],
+            ["gens", "UPOS=NOUN|Number=Plur"],
+            ["manger", "UPOS=VERB|VerbForm=Inf"],
+        ],
+    )["articles"]
+    assert said == ["une école", "un livre", "", ""]
+    assert run([], language="ru", articleLines=[["книга", "UPOS=NOUN|Gender=Fem"]])["articles"] == [
+        ""
+    ]
+
+
+def test_a_french_verb_shows_its_forms_and_asks_with_its_tag() -> None:
+    """ "here also as" and the ask's grammar tag were for a word with a case or an
+    aspect; a French verb's endings are the paradigm a reader of French meets
+    (targum-internal#263). A French noun and a Hebrew verb are unchanged."""
+    lines = [
+        "UPOS=VERB|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin",
+        "UPOS=NOUN|Gender=Fem|Number=Sing",
+        "UPOS=NOUN|Case=Gen|Gender=Fem",
+    ]
+    assert run([], language="fr", inflectLines=lines)["inflecting"] == [True, False, True]
+    assert run([], language="he", inflectLines=lines)["inflecting"] == [False, False, True]
