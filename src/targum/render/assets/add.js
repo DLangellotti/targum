@@ -6,6 +6,12 @@
 (function () {
   "use strict";
 
+  // The page's words in the reader's language, from `strings.js` (targum-internal#184).
+  var t = window.TargumStrings.t;
+  var tn = window.TargumStrings.tn;
+  var CHANGE_LANGUAGE = t("add.change-language", "Choose its language under Change.");
+  var WE_TRANSLATE = t("add.summary.we-translate", "we translate");
+
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
@@ -104,13 +110,13 @@
   //: Which letters each language that may be added is written in, and what they are
   //: called. A fact about writing rather than a setting; a language missing here is read
   //: as Hebrew letters, which is what the page did for all of them before 2026-09-14.
-  var HEBREW = { letters: /[\u0590-\u05FF\uFB1D-\uFB4F]/g, called: "Hebrew letters", rtl: true };
-  var LATIN = { letters: /\p{Script=Latin}/gu, called: "the Latin alphabet", rtl: false };
+  var HEBREW = { letters: /[\u0590-\u05FF\uFB1D-\uFB4F]/g, called: t("add.script.hebrew", "Hebrew letters"), rtl: true };
+  var LATIN = { letters: /\p{Script=Latin}/gu, called: t("add.script.latin", "the Latin alphabet"), rtl: false };
   var SCRIPTS = {
     he: HEBREW,
     yi: HEBREW,
     arc: HEBREW,
-    ru: { letters: /\p{Script=Cyrillic}/gu, called: "Cyrillic letters", rtl: false },
+    ru: { letters: /\p{Script=Cyrillic}/gu, called: t("add.script.cyrillic", "Cyrillic letters"), rtl: false },
     fr: LATIN,
     it: LATIN,
   };
@@ -256,10 +262,17 @@
         if (text < 0 || ours[1 - text]) {
           hold([list[0]]);
           unpaired =
-            (text < 0 ? "Neither reads as " + named(code) : "Both read as " + named(code)) +
-            ", so we'll use only " +
-            list[0].name +
-            ". You can add a translation under Change.";
+            text < 0
+              ? t(
+                  "add.unpaired.neither",
+                  "Neither reads as {language}, so we'll use only {file}. You can add a translation under Change.",
+                  { language: named(code), file: list[0].name }
+                )
+              : t(
+                  "add.unpaired.both",
+                  "Both read as {language}, so we'll use only {file}. You can add a translation under Change.",
+                  { language: named(code), file: list[0].name }
+                );
         } else {
           hold([list[text]]);
           translationHalf.take(list[1 - text]);
@@ -272,10 +285,11 @@
       hold(list);
     } else if (list.length > 1) {
       hold([list[0]]);
-      unpaired =
-        "We'll use only " +
-        list[0].name +
-        ". Files go together as a recording and its subtitles, or a text and its translation.";
+      unpaired = t(
+        "add.unpaired.many",
+        "We'll use only {file}. Files go together as a recording and its subtitles, or a text and its translation.",
+        { file: list[0].name }
+      );
     } else {
       hold(list);
     }
@@ -306,14 +320,14 @@
     var rows = [];
     if (chosen) {
       rows.push({
-        label: chosen.length === 1 ? chosen[0].name : chosen.length + " photos of pages",
+        label: chosen.length === 1 ? chosen[0].name : tn("add.photos", chosen.length, "{n} photo of pages", "{n} photos of pages"),
         size: sized(chosen),
         remove: forget,
       });
     }
     var transcript = transcriptHalf.held();
-    if (transcript) rows.push({ label: transcript.name, role: "transcript", size: sized([transcript]), remove: transcriptHalf.putDown });
-    if (theirs) rows.push({ label: theirs.name, role: "translation", size: sized([theirs]), remove: translationHalf.putDown });
+    if (transcript) rows.push({ label: transcript.name, role: t("add.role.transcript", "transcript"), size: sized([transcript]), remove: transcriptHalf.putDown });
+    if (theirs) rows.push({ label: theirs.name, role: t("add.role.translation", "translation"), size: sized([theirs]), remove: translationHalf.putDown });
     rows.forEach(function (row) {
       var li = document.createElement("li");
       li.className = "given-file";
@@ -328,7 +342,7 @@
       var x = document.createElement("button");
       x.type = "button";
       x.className = "given-file-x";
-      x.setAttribute("aria-label", "Remove " + row.label);
+      x.setAttribute("aria-label", t("add.remove", "Remove {file}", { file: row.label }));
       x.textContent = "×";
       x.onclick = function () {
         row.remove();
@@ -347,43 +361,57 @@
       var kind = medium(chosen[0]);
       var transcript = transcriptHalf.held();
       var said = {
-        recording: "Thanks for the recording.",
-        video: "Thanks for the video.",
-        subtitles: "Thanks for the subtitles. We'll read them as a text.",
-        picture: chosen.length > 1 ? "Thanks for the photos. We'll read all " + chosen.length + " pages as one text." : "Thanks for the photo. We'll read the page as it's printed.",
-        pdf: "Thanks for the PDF.",
-        book: "Thanks for the book.",
-        text: "Thanks for the text.",
-        other: "Thanks for the file.",
+        recording: t("add.thanks.recording", "Thanks for the recording."),
+        video: t("add.thanks.video", "Thanks for the video."),
+        subtitles: t("add.thanks.subtitles", "Thanks for the subtitles. We'll read them as a text."),
+        picture:
+          chosen.length > 1
+            ? t("add.thanks.photos", "Thanks for the photos. We'll read all {n} pages as one text.", { n: chosen.length })
+            : t("add.thanks.photo", "Thanks for the photo. We'll read the page as it's printed."),
+        pdf: t("add.thanks.pdf", "Thanks for the PDF."),
+        book: t("add.thanks.book", "Thanks for the book."),
+        text: t("add.thanks.text", "Thanks for the text."),
+        other: t("add.thanks.other", "Thanks for the file."),
       }[kind];
       if (kind === "recording" || kind === "video") {
-        said += transcript
-          ? " We'll use the transcript that came with it, so there's nothing to write down."
-          : " We'll write down what's said, and that uses some of your hours.";
+        said +=
+          " " +
+          (transcript
+            ? t("add.spoken.theirs", "We'll use the transcript that came with it, so there's nothing to write down.")
+            : t("add.spoken.ours", "We'll write down what's said, and that uses some of your hours."));
       }
-      if (theirs) said += " We'll line up your translation with it, sentence by sentence.";
+      if (theirs) said += " " + t("add.translation.theirs", "We'll line up your translation with it, sentence by sentence.");
       return unpaired ? said + " " + unpaired : said;
     }
     var read = readGiven();
-    if (read.kind === "link") return "Thanks for the link. We'll work out how long it'll take.";
+    if (read.kind === "link") return t("add.thanks.link", "Thanks for the link. We'll work out how long it'll take.");
     if (read.kind === "text") {
-      return "That's " + read.words + (read.words === 1 ? " word" : " words") + " of " + named(adding()) + ".";
+      return tn("add.words", read.words, "That's {n} word of {language}.", "That's {n} words of {language}.", {
+        language: named(adding()),
+      });
     }
     if (read.kind === "few") {
       return talks()
-        ? "A few words. Continue and we'll read them as a text, or Ask targum and we'll find something to read."
-        : "A few words. We'll read them as a text.";
+        ? t("add.few.talks", "A few words. Continue and we'll read them as a text, or Ask targum and we'll find something to read.")
+        : t("add.few", "A few words. We'll read them as a text.");
     }
     if (read.kind === "description") {
       return talks()
-        ? "That sounds like what you want to read. Ask targum and we'll look for it."
-        : "That sounds like what you want to read. Paste a link or the text itself here.";
+        ? t("add.description.talks", "That sounds like what you want to read. Ask targum and we'll look for it.")
+        : t("add.description", "That sounds like what you want to read. Paste a link or the text itself here.");
     }
     if (read.kind === "foreign") {
       var code = adding();
       return english(read.text, code)
-        ? "You're adding " + named(code) + ", and this reads as English. Choose its language under Change."
-        : "You're adding " + named(code) + ", and this isn't in " + scriptOf(code).called + ". Choose its language under Change.";
+        ? t("add.foreign.english", "You're adding {language}, and this reads as English.", { language: named(code) }) +
+            " " +
+            CHANGE_LANGUAGE
+        : t("add.foreign.script", "You're adding {language}, and this isn't in {script}.", {
+            language: named(code),
+            script: scriptOf(code).called,
+          }) +
+            " " +
+            CHANGE_LANGUAGE;
     }
     return RESTING;
   }
@@ -391,8 +419,8 @@
   // What Translation says under its two choices.
   function lineUp(mine) {
     return mine
-      ? "We'll line it up with the " + named(adding()) + ", sentence by sentence."
-      : "We'll translate it, sentence by sentence.";
+      ? t("add.how.mine", "We'll line it up with the {language}, sentence by sentence.", { language: named(adding()) })
+      : t("add.how.ours", "We'll translate it, sentence by sentence.");
   }
 
   // Whether the conversation is on this page to ask in.
@@ -407,12 +435,14 @@
     var parts = [named(from && from.value) + " → " + named(to && to.value)];
     var typed = document.getElementById("pasted-translation");
     if (!(chosen && inPieces(chosen))) {
-      parts.push(theirs || (typed && typed.value.trim()) ? "your translation" : "we translate");
+      parts.push(theirs || (typed && typed.value.trim()) ? t("add.summary.your-translation", "your translation") : WE_TRANSLATE);
     } else {
-      parts.push("we translate");
+      parts.push(WE_TRANSLATE);
     }
     if (chosen && chosen.length === 1 && isAudio(chosen[0])) {
-      parts.push(transcriptHalf.held() ? "your transcript" : "we transcribe");
+      parts.push(
+        transcriptHalf.held() ? t("add.summary.your-transcript", "your transcript") : t("add.summary.we-transcribe", "we transcribe")
+      );
     }
     return parts.join(" · ");
   }
@@ -422,8 +452,13 @@
     drawFiles();
     var name = named(adding());
     if (given) {
-      given.placeholder = "Paste a link or some " + name + ", drop a file, or say what you want";
-      given.setAttribute("aria-label", "A link, some " + name + ", or what you want to read");
+      given.placeholder = t("add.given.placeholder", "Paste a link or some {language}, drop a file, or say what you want", {
+        language: name,
+      });
+      given.setAttribute(
+        "aria-label",
+        t("add.given.label", "A link, some {language}, or what you want to read", { language: name })
+      );
     }
     var note = document.getElementById("how-note");
     var mine = document.querySelector('[data-how="mine"]');
@@ -444,7 +479,7 @@
     if (!choices || !change) return;
     choices.hidden = !on;
     change.setAttribute("aria-expanded", on ? "true" : "false");
-    change.textContent = on ? "Done" : "Change";
+    change.textContent = on ? t("add.done", "Done") : t("add.change", "Change");
     try {
       if (on) localStorage.setItem(OPENED, "open");
       else localStorage.removeItem(OPENED);
@@ -704,8 +739,8 @@
         });
         half.hidden = !mine;
         note.textContent = mine
-          ? "We'll keep its timings, so there's nothing to write down."
-          : "We'll write down what's said, part by part.";
+          ? t("add.spoken.timings", "We'll keep its timings, so there's nothing to write down.")
+          : t("add.spoken.parts", "We'll write down what's said, part by part.");
         if (!mine && spokenText) {
           spokenText = null;
           field.value = "";
@@ -781,10 +816,9 @@
         // Both say experimental, which is what the picker says. This is where the two
         // part company: one has no word levels at all, the other simply is not Hebrew.
         note.textContent =
-          found.name +
-          (found.stage === "R&D"
-            ? " is experimental. It has no word levels yet."
-            : " is new here, and still experimental.");
+          found.stage === "R&D"
+            ? t("add.stage.rd", "{language} is experimental. It has no word levels yet.", { language: found.name })
+            : t("lang.beta-note", "{language} is new here, and still experimental.", { language: found.name });
       }
       if (code) lang.set(code);
     }
@@ -916,7 +950,7 @@
   // unchanging line for all of that reads as a hang, so it keeps talking.
   function waiting() {
     var box = document.createDocumentFragment();
-    var text = line("We're fetching it…");
+    var text = line(t("add.fetching", "We're fetching it…"));
     var note = document.createElement("p");
     note.className = "hint plain";
     note.textContent = "";
@@ -929,7 +963,7 @@
       note.textContent =
         seconds < 12
           ? ""
-          : "Still working. The first text in a language takes us longer.";
+          : t("add.still-working", "Still working. The first text in a language takes us longer.");
     }, 1000);
     return box;
   }
@@ -977,7 +1011,7 @@
       // fields it answers with merged into the request, then priced.
       prepared = bringing
         .upload(chosen, function (share) {
-          say(line("We're uploading it… " + share + "%"));
+          say(line(t("add.uploading", "We're uploading it… {share}%", { share: share })));
         })
         .then(function (sent) {
           // The same bytes were already imported: the reader is the answer.
@@ -1020,11 +1054,11 @@
           line(
             read.kind === "description"
               ? talks()
-                ? "Continue reads a link, a file or the text itself. Press Ask targum and we'll look for it."
-                : "Continue reads a link, a file or the text itself. Paste one of those here."
+                ? t("add.continue.talks", "Continue reads a link, a file or the text itself. Press Ask targum and we'll look for it.")
+                : t("add.continue", "Continue reads a link, a file or the text itself. Paste one of those here.")
               : read.kind === "foreign"
-                ? "Choose its language under Change, then press Continue."
-                : "Paste a link or some " + named(adding()) + ", or drop a file."
+                ? t("add.continue.foreign", "Choose its language under Change, then press Continue.")
+                : t("add.continue.empty", "Paste a link or some {language}, or drop a file.", { language: named(adding()) })
           ),
           true
         );
@@ -1052,7 +1086,7 @@
         go.disabled = false;
         // Never the exception itself: "TypeError: Failed to fetch" is not a sentence
         // anybody should be handed (2026-09-14).
-        say(line("We couldn't reach targum. Check your connection and try again."), true);
+        say(line(t("add.unreachable", "We couldn't reach targum. Check your connection and try again.")), true);
       });
   };
 
@@ -1076,14 +1110,15 @@
       when.textContent = clock(job.seconds);
       box.appendChild(when);
       if (job.parts > 1) {
-        box.appendChild(document.createTextNode(" · " + job.parts + " parts"));
+        box.appendChild(document.createTextNode(" · " + tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
       }
       return box;
     }
     var what =
       job.chapters > 1
-        ? job.chapters + " chapters"
-        : (job.pages > 1 ? job.pages + " pages · " : "") + job.segments + " sentences";
+        ? tn("add.job.chapters", job.chapters, "{n} chapter", "{n} chapters")
+        : (job.pages > 1 ? tn("add.job.pages", job.pages, "{n} page", "{n} pages") + " · " : "") +
+          tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences");
     return document.createTextNode(named(job.language) + " · " + what);
   }
 
@@ -1097,23 +1132,26 @@
     var box = document.createDocumentFragment();
     var head = document.createElement("p");
     head.className = "instead";
-    head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = entry.title;
-    head.appendChild(
-      document.createTextNode(
-        " is already in the library, with " +
-          (entry.translations.length === 1
-            ? "a translation"
-            : entry.translations.length + " translations") +
-          " a person published. It'll read better than ours."
-      )
+    // The title in bold wherever the sentence puts it: `{title}` marks the place.
+    var sentence = tn(
+      "add.instead",
+      entry.translations.length,
+      "{title} is already in the library, with a translation a person published. It'll read better than ours.",
+      "{title} is already in the library, with {n} translations a person published. It'll read better than ours."
     );
+    var at = sentence.indexOf("{title}");
+    if (at < 0) at = 0;
+    head.appendChild(document.createTextNode(sentence.slice(0, at)));
+    var bold = document.createElement("b");
+    bold.textContent = entry.title;
+    head.appendChild(bold);
+    head.appendChild(document.createTextNode(sentence.slice(at).replace("{title}", "")));
     var row = document.createElement("div");
     row.className = "row";
     var go = document.createElement("button");
     go.type = "button";
     go.className = "filled";
-    go.textContent = "Open it";
+    go.textContent = t("add.open-it", "Open it");
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
       // has its own page now, so the button can go where it says it goes.
@@ -1123,7 +1161,7 @@
     var anyway = document.createElement("button");
     anyway.type = "button";
     anyway.className = "ghost";
-    anyway.textContent = "Translate it anyway";
+    anyway.textContent = t("add.translate-anyway", "Translate it anyway");
     anyway.onclick = function () {
       // Deliberate, so it is asked for a second time rather than assumed.
       go.disabled = anyway.disabled = true;
@@ -1167,7 +1205,7 @@
         .catch(function () {
           // A dropped connection used to leave both buttons dead with no way forward.
           go.disabled = anyway.disabled = false;
-          say(line("We couldn't send that. Try again."), true);
+          say(line(t("add.could-not-send", "We couldn't send that. Try again.")), true);
         });
     };
     row.appendChild(anyway);
@@ -1221,7 +1259,7 @@
     }
     if (job.doubtful > 0) {
       box.appendChild(
-        line("We couldn't read " + job.doubtful + (job.doubtful === 1 ? " line" : " lines") + " clearly.")
+        line(tn("add.doubtful", job.doubtful, "We couldn't read {n} line clearly.", "We couldn't read {n} lines clearly."))
       );
     }
 
@@ -1235,7 +1273,7 @@
     var confirm = document.createElement("button");
     confirm.type = "button";
     confirm.className = "filled";
-    confirm.textContent = "Start reading";
+    confirm.textContent = t("add.start-reading", "Start reading");
     confirm.onclick = function () {
       ask("/build", { id: job.id }).then(function (state) {
         if (state.blocked) return refuse(state);
@@ -1253,7 +1291,7 @@
 
   function watch(job) {
     var box = document.createDocumentFragment();
-    var text = line("We're getting it ready…");
+    var text = line(t("add.getting-ready", "We're getting it ready…"));
     var bar = document.createElement("div");
     bar.className = "bar";
     bar.appendChild(document.createElement("i"));
@@ -1269,7 +1307,9 @@
         }
         // The pipeline narrates itself in its own vocabulary. This is the reader's.
         text.textContent = state.done
-          ? "We're getting it ready… " + Math.round((state.done / state.total) * 100) + "%"
+          ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
+              share: Math.round((state.done / state.total) * 100),
+            })
           : plain(state.message);
         var share = state.total ? state.done / state.total : 0;
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
