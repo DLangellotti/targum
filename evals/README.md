@@ -11,6 +11,7 @@ The stages, and what writes them:
 | stage | metric | script |
 | --- | --- | --- |
 | `lemma` | lemma accuracy against the IAHLT treebanks | `scripts/score_annotation.py` |
+| `lemma` | `token_recall`, `lemma_accuracy`, `upos_accuracy` and the grammar features, the model's reading of French, Russian, Italian and Yiddish against the Universal Dependencies dev sets; `corpus=<treebank>-curly` is the same sentences written with ’ (`--curly`) | `scripts/eval_lemma.py` (targum-internal#258, #262) |
 | `vocalize` | `letter_vowel`, `letter_dagesh`, `shin_dot`, `qamats_qatan_recall`, `word_exact` and `skeleton_kept`, Nakdimon and DICTA's menaked on two held-out sets: `dicta-modern`, the Wikipedia third of DICTA's diacritization test corpora, and `ben-yehuda`, 26 pointed works by 12 authors from Project Ben-Yehuda's dump, none of them in Nakdimon's training set | `scripts/measure_pointing.py` (targum-internal#148) |
 | `grading` | `outside_share`, the share of the chat's content lemmas outside the list it was given; `unpaired_lines` | `scripts/eval_grading.py` (targum-internal#213, #220) |
 | `recast` | `judge_ok_share`, `lemma_overlap`, `unpaired`, the chat's `> ` line against a person's rendering of the same English: `corpus=tatoeba`, volunteers' sentences, `corpus=flores-plus`, FLORES+'s professional renderings (`--reference flores`), or `corpus=ntrex-128`, the WMT 2019 news set's (`--reference ntrex`) | `scripts/eval_recast.py` (targum-internal#219, #221, #222) |

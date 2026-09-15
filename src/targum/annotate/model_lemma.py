@@ -111,6 +111,12 @@ UPOS = frozenset(
 _SKIPPED = frozenset({"PUNCT", "SYM"})
 _NUMBER = re.compile(r"^[#(\[]?(\d+)(?:[.:)\]][\d.]*)?$")
 
+#: The apostrophes a text is written with, read as one when a word is placed. French and
+#: Italian usually arrive with the curly one (`l’école`, `dell’anno`) and the model often
+#: answers with the straight one, which dropped the article without a trace
+#: (targum-internal#262). Each is a single code point, so offsets survive the swap.
+_APOSTROPHES = str.maketrans({"\u2019": "'", "\u02bc": "'"})
+
 SYSTEM = """You tag {language} text for a reading tool that shows a learner the dictionary \
 form and the grammar of every word.
 
@@ -179,6 +185,25 @@ def _has_letters(text: str) -> bool:
     return any(char.isalpha() for char in text)
 
 
+def _place(text: str, surface: str, cursor: int) -> int:
+    """Where `surface` is next written in `text` as a word of its own, or -1.
+
+    A find that starts or ends inside a run of letters is another word's middle: the model's
+    `de` for `d’` was placed inside *solde* ninety letters on, and every word between was
+    lost with it (targum-internal#262). Such a place is passed over, not taken.
+    """
+    at = text.find(surface, cursor)
+    while at >= 0:
+        end = at + len(surface)
+        inside = (at > 0 and text[at - 1].isalpha() and surface[0].isalpha()) or (
+            end < len(text) and text[end].isalpha() and surface[-1].isalpha()
+        )
+        if not inside:
+            return at
+        at = text.find(surface, at + 1)
+    return -1
+
+
 def unpaid(
     segments: Sequence[Segment], language: str, provider: str, cache: Cache | None = None
 ) -> list[Segment]:
@@ -236,8 +261,10 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
 
     Offsets are found, never trusted: each word is looked for in its own segment from where
     the last one ended, so a word the model spelled differently from the text is dropped
-    rather than put on a card over the wrong letters. A segment the answer never mentioned
-    is `None`, which is different from a segment that was read and held no word.
+    rather than put on a card over the wrong letters. The one difference forgiven is the
+    apostrophe: ’ and ' place the same word, and the surface is always the text's own.
+    A segment the answer never mentioned is `None`, which is different from a segment that
+    was read and held no word.
     """
     lines: list[list[tuple[str, str, str, str]]] = [[] for _ in texts]
     mentioned = [False for _ in texts]
@@ -268,14 +295,20 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
             continue
         tokens: list[Token] = []
         cursor = 0
+        plain = text.translate(_APOSTROPHES)
+        folded = plain.casefold()
         for surface, lemma, pos, feats in words:
-            at = text.find(surface, cursor)
+            surface = surface.translate(_APOSTROPHES)
+            at = _place(plain, surface, cursor)
+            if at < 0 and len(folded) == len(text):
+                at = _place(folded, surface.casefold(), cursor)
             if at < 0:
-                folded = text.casefold()
-                at = folded.find(surface.casefold(), cursor)
-                if at < 0 or len(folded) != len(text):
-                    continue
+                continue
             end = at + len(surface)
+            # An elided word the model wrote without its apostrophe (`l` for `l’`) takes
+            # the apostrophe the text gives it, as the prompt asks.
+            if end < len(plain) and plain[end] == "'" and surface[-1].isalpha():
+                end += 1
             if not _has_letters(text[at:end]) and pos != "NUM":
                 continue
             tokens.append(
