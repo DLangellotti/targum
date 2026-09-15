@@ -422,6 +422,9 @@ class Asked:
     #: Seconds of the reader's own voice this turn came from, already metered by the
     #: request that heard it. Zero for a typed line.
     heard_seconds: float = 0.0
+    #: The language the reader's page speaks, for what a refusal or a failure says back
+    #: (targum-internal#184). The answer itself is the conversation's.
+    ui: str = "en"
 
 
 def framed(text: str, about: dict[str, str] | None, brought: dict[str, Any] | None = None) -> str:
@@ -916,6 +919,7 @@ class Chats:
         about: dict[str, str] | None = None,
         brought: dict[str, Any] | None = None,
         language: str = "",
+        ui: str = "en",
     ) -> Asked:
         """Write the reader's turn down and hand it to a worker. Returns at once.
 
@@ -948,7 +952,7 @@ class Chats:
         )
         feed = Feed()
         self.feeds[(chat_id, n)] = feed
-        asked = Asked(chat_id, n, person, home, admin, heard_seconds)
+        asked = Asked(chat_id, n, person, home, admin, heard_seconds, ui)
         self.queue.put(asked)
         return asked
 
@@ -958,7 +962,7 @@ class Chats:
     # -- answering --------------------------------------------------------------
 
     def answer(self, asked: Asked) -> None:
-        from ..serve import Job
+        from ..serve import Job, said_in
 
         store = self.store
         feed = self.feeds.get((asked.chat_id, asked.n)) or Feed()
@@ -994,6 +998,7 @@ class Chats:
             home=asked.home,
             admin=asked.admin,
             kind="chat",
+            ui=asked.ui,
         )
         self.library.jobs[job.id] = job
         self.library.remember(job)
@@ -1125,7 +1130,13 @@ class Chats:
                 traceback.print_exc()
             job.stage = "failed"
             job.error = (
-                TURN_TOO_LONG if timed_out else "We couldn't carry on the conversation. Try again."
+                said_in(asked.ui, "chat.too-long", TURN_TOO_LONG)
+                if timed_out
+                else said_in(
+                    asked.ui,
+                    "chat.could-not-carry-on",
+                    "We couldn't carry on the conversation. Try again.",
+                )
             )
             self.library.release(job)
             store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=job.error)

@@ -655,3 +655,29 @@ def test_the_usage_report_shows_the_cache(tmp_path: Path, monkeypatch: pytest.Mo
     assert done.exit_code == 0, done.output
     assert "12,345 / 678" in done.output and "$0.21" in done.output
     assert "The prompt cache read 12,345 tokens and wrote 678" in done.output
+
+
+def test_a_refusal_is_said_in_the_language_of_whoever_asked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The thread that refuses a build has no request to ask, so the job carries the
+    reader's language from the one that made it (targum-internal#184). English where
+    nothing was said."""
+    from targum import strings
+    from targum.serve import Job, Library
+
+    real = strings.catalogue
+    said = {
+        "job.too-long": "Слишком длинно.",
+        "job.out-of.hours": "Часы закончились, вернутся {date}.",
+        "date.month-day": "{day} {month}",
+        "date.month.10": "октября",
+    }
+    monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else real(code))
+    library = Library(tmp_path, max_cost=0.01)
+    assert library.why_blocked(1.0, "ru") == "Слишком длинно."
+    assert library.why_blocked(1.0).startswith("That's too long")
+    assert library.claim(Job(id="j", source="s", estimate=1.0, ui="ru")) == "Слишком длинно."
+    refusal = library._out_of("hours", "ru")
+    assert refusal.startswith("Часы закончились, вернутся 1 ")
+    assert library._out_of("hours").startswith("You've used your")
