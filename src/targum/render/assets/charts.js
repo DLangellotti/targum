@@ -10,6 +10,26 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings` — `strings.js` on a desk page, and
+     `reader.js`'s own in a reader, which arrives after this file — so it is looked up when
+     a thing is said rather than when this loads. Where there is none, the English here
+     (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+
+  function tn(key, count, one, other, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.tn(key, count, one, other, fill);
+    var values = { n: count };
+    for (var name in fill || {}) values[name] = fill[name];
+    return t(key, count === 1 ? one : other, values);
+  }
+
   // Legacy records imported by the vocab migration carry `at: 0`; this keeps them out of
   // anything dated rather than putting the whole library on the first day of 2024.
   // A day, in milliseconds. It lived in words.js and was used from here: when the chart
@@ -54,10 +74,10 @@
   var EARLIEST = Date.UTC(2024, 0, 1);
 
   var STATUS = {
-    1: { name: "just met", slot: "--step-1" },
-    2: { name: "getting there", slot: "--step-2" },
-    3: { name: "nearly there", slot: "--step-3" },
-    9: { name: "known", slot: "--step-4" },
+    1: { name: t("charts.status.1", "just met"), slot: "--step-1" },
+    2: { name: t("charts.status.2", "getting there"), slot: "--step-2" },
+    3: { name: t("charts.status.3", "nearly there"), slot: "--step-3" },
+    9: { name: t("charts.status.9", "known"), slot: "--step-4" },
   };
 
   function el(tag, className, text) {
@@ -75,9 +95,6 @@
     return node;
   }
 
-  function plural(count, one) {
-    return count + " " + (count === 1 ? one : one + "s");
-  }
 
   function shortDate(stamp) {
     var d = new Date(stamp);
@@ -140,7 +157,7 @@
     });
     if (dated.length < 2) {
       host.appendChild(
-        el("p", "empty", "We'll draw a line after your second day.")
+        el("p", "empty", t("charts.growth.empty", "We'll draw a line after your second day."))
       );
       return;
     }
@@ -190,12 +207,13 @@
     var picture = svg("svg", {
       viewBox: "0 0 " + W + " " + H,
       role: "img",
-      "aria-label":
-        plural(running, "word") +
-        " saved between " +
-        shortDate(points[0].day) +
-        " and " +
-        shortDate(points[points.length - 1].day),
+      "aria-label": tn(
+        "charts.growth.label",
+        running,
+        "{n} word saved between {first} and {last}",
+        "{n} words saved between {first} and {last}",
+        { first: shortDate(points[0].day), last: shortDate(points[points.length - 1].day) }
+      ),
     });
 
     var grid = svg("g", { class: "grid" });
@@ -277,10 +295,9 @@
       var hostBox = wrap.getBoundingClientRect();
       tip.show(
         shortDate(point.day) +
-          "<br><b>" +
-          point.total +
-          "</b> saved" +
-          (point.added ? " · " + point.added + " that day" : ""),
+          "<br>" +
+          t("charts.growth.saved", "{total} saved", { total: "<b>" + point.total + "</b>" }) +
+          (point.added ? " · " + t("charts.growth.that-day", "{n} that day", { n: point.added }) : ""),
         (px(index) / W) * hostBox.width,
         (py(point.total) / H) * hostBox.height
       );
@@ -623,14 +640,14 @@
   // Each rung carries the CEFR level it is reckoned to correspond to (2026-09-13); the
   // source is beside the same table in `level.py`.
   var ULPAN = [
-    { at: 250, letter: "א", name: "aleph", cefr: "A1" },
-    { at: 900, letter: "א+", name: "aleph plus", cefr: "A1" },
-    { at: 1800, letter: "ב", name: "bet", cefr: "A2" },
-    { at: 3000, letter: "ב+", name: "bet plus", cefr: "A2+" },
-    { at: 4500, letter: "ג", name: "gimel", cefr: "B1" },
-    { at: 6500, letter: "ד", name: "dalet", cefr: "B2" },
-    { at: 9000, letter: "ה", name: "hey", cefr: "C1" },
-    { at: 12000, letter: "ו", name: "vav", cefr: "C2" },
+    { at: 250, letter: "א", name: t("charts.ulpan.aleph", "aleph"), cefr: "A1" },
+    { at: 900, letter: "א+", name: t("charts.ulpan.aleph-plus", "aleph plus"), cefr: "A1" },
+    { at: 1800, letter: "ב", name: t("charts.ulpan.bet", "bet"), cefr: "A2" },
+    { at: 3000, letter: "ב+", name: t("charts.ulpan.bet-plus", "bet plus"), cefr: "A2+" },
+    { at: 4500, letter: "ג", name: t("charts.ulpan.gimel", "gimel"), cefr: "B1" },
+    { at: 6500, letter: "ד", name: t("charts.ulpan.dalet", "dalet"), cefr: "B2" },
+    { at: 9000, letter: "ה", name: t("charts.ulpan.hey", "hey"), cefr: "C1" },
+    { at: 12000, letter: "ו", name: t("charts.ulpan.vav", "vav"), cefr: "C2" },
   ];
 
   // The CEFR levels, by known words among the language's commonest five thousand or so —
@@ -653,10 +670,10 @@
   // Which languages have a ladder. Yiddish and Aramaic have none: no frequency table to
   // measure a vocabulary against.
   var LADDERS = {
-    he: { title: "Ulpan level", rungs: ULPAN, measure: "weighted" },
-    fr: { title: "CEFR level", rungs: CEFR, measure: "common" },
-    ru: { title: "CEFR level", rungs: CEFR, measure: "common" },
-    it: { title: "CEFR level", rungs: CEFR, measure: "common" },
+    he: { title: t("charts.ladder.ulpan", "Ulpan level"), rungs: ULPAN, measure: "weighted" },
+    fr: { title: t("charts.ladder.cefr", "CEFR level"), rungs: CEFR, measure: "common" },
+    ru: { title: t("charts.ladder.cefr", "CEFR level"), rungs: CEFR, measure: "common" },
+    it: { title: t("charts.ladder.cefr", "CEFR level"), rungs: CEFR, measure: "common" },
   };
 
   function ladderFor(code) {
@@ -737,7 +754,6 @@
     kept: kept,
     KNOWN: KNOWN,
     svg: svg,
-    plural: plural,
     shortDate: shortDate,
     dayOf: dayOf,
     buckets: buckets,

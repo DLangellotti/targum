@@ -97,7 +97,7 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         if template.name != "reader.html.j2":
             page.update(_calls(template))
     # And the desk pages' own scripts, which say theirs through `strings.js`.
-    for script in ("library.js", "progress.js"):
+    for script in ("library.js", "progress.js", "charts.js", "lang.js"):
         page.update(_calls(render / "assets" / script))
     for key, text in page.items():
         assert not set(text) & set('"<>'), f"{key} could not stand in an attribute: {text!r}"
@@ -118,11 +118,12 @@ def test_a_desk_script_is_handed_only_its_own_keys_and_english_nothing(
         "library.column.title": "Текст",
         "library.page.heading": "Библиотека",
         "reader.close": "Закрыть",
+        "lang.menu.more": "Ваши языки",
     }
     monkeypatch.setattr(strings, "catalogue", lambda code: said if code == "ru" else {})
     assert builder.script_strings("en", "library.") == {}
     assert builder.script_strings("ru-RU", "library.") == {
-        "strings": {"library.column.title": "Текст"},
+        "strings": {"library.column.title": "Текст", "lang.menu.more": "Ваши языки"},
         "language": "ru",
     }
     assert builder.script_strings("fr", "library.") == {}

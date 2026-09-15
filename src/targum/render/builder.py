@@ -322,19 +322,25 @@ def page_words(language: str) -> Callable[[str, str], Markup]:
     return t
 
 
-def script_strings(language: str, prefix: str) -> dict[str, Any]:
-    """What a desk page's `strings.js` is handed (targum-internal#184): the `prefix` keys
-    `language` has filled, less the `.page.` ones its template has already said, and
-    nothing for English, whose words are written at every call."""
+#: What `charts.js` and `lang.js` say, which every desk page that carries them needs.
+SHARED_SCRIPT_KEYS = ("charts.", "lang.")
+
+
+def script_strings(language: str, *prefixes: str) -> dict[str, Any]:
+    """What a desk page's `strings.js` is handed (targum-internal#184): the keys under
+    `prefixes` that `language` has filled, less the `.page.` ones its template has already
+    said, and nothing for English, whose words are written at every call. Every desk
+    page's language menu and charts are said through it too, so their keys always ride."""
     from ..strings import SOURCE, catalogue
 
     code = (language or SOURCE).split("-")[0].lower()
     if code == SOURCE:
         return {}
+    wanted = (*prefixes, *SHARED_SCRIPT_KEYS)
     said = {
         key: text
         for key, text in catalogue(code).items()
-        if key.startswith(prefix) and not key.startswith(prefix + "page.")
+        if key.startswith(wanted) and ".page." not in key
     }
     return {"strings": said, "language": code} if said else {}
 
@@ -1021,6 +1027,7 @@ def learn_page(token: str, language: str = "en") -> str:
         .get_template("learn.html.j2")
         .render(
             t=page_words(language),
+            strings=script_strings(language, "learn."),
             token=token,
             languages=_language_names(),
             # Which languages the conversation's "= " lines can be in, for the first
@@ -1105,6 +1112,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .get_template("add.html.j2")
         .render(
             t=page_words(language),
+            strings=script_strings(language, "add."),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
@@ -1754,6 +1762,7 @@ def you_page(token: str, language: str = "en") -> str:
         .get_template("you.html.j2")
         .render(
             t=page_words(language),
+            strings=script_strings(language, "you."),
             token=token,
             reading=_staged(READING),
             into=_staged(INTO),

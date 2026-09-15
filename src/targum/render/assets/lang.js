@@ -18,6 +18,18 @@
 (function () {
   "use strict";
 
+  /* Words said through the page's `TargumStrings` — `strings.js` on a desk page, and
+     `reader.js`'s own in a reader, which arrives after this file — so it is looked up when
+     a thing is said rather than when this loads. Where there is none, the English here
+     (targum-internal#184). */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    if (said) return said.t(key, english, fill);
+    return english.replace(/\{(\w+)\}/g, function (all, name) {
+      return fill && Object.prototype.hasOwnProperty.call(fill, name) ? String(fill[name]) : all;
+    });
+  }
+
   var HOME = "he";
   var NAME = "targum:language";
   // And which language you read them *into*. A different question with a different
@@ -259,7 +271,7 @@
         // one thing on this tab and "Experimental" said another on the upload picker,
         // about the same language on the same day.
         mark.className = "beta";
-        mark.textContent = "experimental";
+        mark.textContent = t("lang.experimental", "experimental");
         button.appendChild(mark);
       }
       var on = code === chosen;
@@ -302,7 +314,7 @@
     open.className = "lang-open";
     open.setAttribute("aria-haspopup", "menu");
     open.setAttribute("aria-expanded", "false");
-    open.setAttribute("aria-label", "Language: " + (names[chosen] || chosen));
+    open.setAttribute("aria-label", t("lang.menu.label", "Language: {language}", { language: names[chosen] || chosen }));
     var label = document.createElement("span");
     label.className = "lang-name";
     label.textContent = names[chosen] || String(chosen || "").toUpperCase();
@@ -313,13 +325,13 @@
     var panel = document.createElement("div");
     panel.className = "lang-panel";
     panel.setAttribute("role", "menu");
-    panel.setAttribute("aria-label", "The language you're learning");
+    panel.setAttribute("aria-label", t("lang.menu.panel", "The language you're learning"));
     panel.hidden = true;
     // What the menu changes, said at its head (2026-09-14): not the language the pages
     // are written in, and not the one the translations are in.
     var head = document.createElement("p");
     head.className = "lang-head";
-    head.textContent = "You're learning";
+    head.textContent = t("lang.menu.head", "You're learning");
     panel.appendChild(head);
     all.forEach(function (code) {
       var item = document.createElement("button");
@@ -337,7 +349,7 @@
       if (tag(code)) {
         var mark = document.createElement("span");
         mark.className = "beta";
-        mark.textContent = "experimental";
+        mark.textContent = t("lang.experimental", "experimental");
         item.appendChild(mark);
       }
       item.addEventListener("click", function () {
@@ -351,7 +363,7 @@
     more.className = "lang-more";
     more.href = "/you#languages";
     more.setAttribute("role", "menuitem");
-    more.textContent = "Your languages";
+    more.textContent = t("lang.menu.more", "Your languages");
     panel.appendChild(more);
     host.appendChild(panel);
 
@@ -433,10 +445,9 @@
   // Said once, where the language is chosen, rather than on every card. The same
   // sentence the upload picker's own note uses, because it is the same claim.
   function betaNote(code, names) {
-    return (
-      (names[code] || code.toUpperCase()) +
-      " is new here, and still experimental."
-    );
+    return t("lang.beta-note", "{language} is new here, and still experimental.", {
+      language: names[code] || code.toUpperCase(),
+    });
   }
 
   window.TargumLang = {
