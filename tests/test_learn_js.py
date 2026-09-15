@@ -987,3 +987,25 @@ def test_the_date_follows_the_language_the_page_is_in() -> None:
 
     russian = draw([reader("a", "א")], language="ru")
     assert re.search(r"[\u0400-\u04ff]", russian["today"]), "in Russian"
+
+
+def test_the_page_says_its_words_in_the_readers_language() -> None:
+    """A Russian reader's Learn counts in Russian, with the plural Russian's rules choose,
+    and a door the catalogue has not filled says its English (targum-internal#184)."""
+    known = [word(f"מילה{n}", "w", status=9) for n in range(12)]
+    drawn = draw(
+        [],
+        vocabulary(*known),
+        catalogue=CATALOGUE,
+        strings={
+            "language": "ru",
+            "strings": {
+                "learn.known-words.many": "Вы знаете {n} слов: {language}.",
+                "learn.known-words.other": "Вы знаете {n} слова: {language}.",
+                "learn.minutes": "{n} мин",
+            },
+        },
+    )
+    assert drawn["known"] == "Вы знаете 12 слов: Hebrew."
+    assert drawn["carry"]["heading"] == "Start here"
+    assert drawn["carry"]["meta"] == "Where most people start · 10 мин"

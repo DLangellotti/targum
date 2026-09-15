@@ -96,9 +96,21 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
     for template in sorted((render / "templates").glob("*.j2")):
         if template.name != "reader.html.j2":
             page.update(_calls(template))
-    # And the desk pages' own scripts, which say theirs through `strings.js`.
-    for script in ("library.js", "progress.js", "charts.js", "lang.js"):
-        page.update(_calls(render / "assets" / script))
+    # And every other script, which says its words through `strings.js`.
+    scripts = sorted((render / "assets").glob("*.js"))
+    for script in scripts:
+        if script.name != "reader.js":
+            page.update(_calls(script))
+    for name in (
+        "library.js",
+        "progress.js",
+        "charts.js",
+        "lang.js",
+        "learn.js",
+        "you.js",
+        "add.js",
+    ):
+        assert _calls(render / "assets" / name), f"{name} says its words through the catalogue"
     for key, text in page.items():
         assert not set(text) & set('"<>'), f"{key} could not stand in an attribute: {text!r}"
     calls.update(page)

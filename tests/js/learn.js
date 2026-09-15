@@ -24,6 +24,7 @@ const windowListeners = {};
 install({
   TARGUM_KEY: "k",
   TARGUM_LANGUAGES: { he: "Hebrew" },
+  TARGUM_STRINGS: payload.strings,
   addEventListener: (type, handler) => {
     (windowListeners[type] = windowListeners[type] || []).push(handler);
   },
@@ -100,6 +101,7 @@ byId["status-filter"] = Object.assign(element("select"), { value: payload.filter
 /* The real vocabulary module, because the rows it draws carry its copy control; the
    move it runs on load and the editor it draws into a row are still not what this is
    for, and are stubbed back out. */
+require(path.join(assets, "strings.js"));
 require(path.join(assets, "vocab.js"));
 global.window.TargumVocab.migrate = () => {};
 global.window.TargumVocab.editor = () => element("div");

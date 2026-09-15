@@ -16,6 +16,11 @@
 (function () {
   "use strict";
 
+  // The page's words in the reader's language, from `strings.js` (targum-internal#184).
+  var words = window.TargumStrings;
+  var t = words.t;
+  var tn = words.tn;
+
   var key = window.TARGUM_KEY;
   /* Hosted there is no start-up key: the session cookie identifies the reader, and a key
      riding in every URL is a bearer token in browser history, on a shared screen, and in
@@ -170,7 +175,7 @@
     // "0% of its words" on the first card a new reader sees is true and unkind; the
     // line starts once there is something to say.
     if (!reader.known) return "";
-    return "You know " + Math.round(reader.known * 100) + "%";
+    return t("learn.known-share", "You know {share}%", { share: Math.round(reader.known * 100) });
   }
 
   // The title in English under the Hebrew one, where the catalogue has one. An upload
@@ -197,8 +202,17 @@
    * the last one is finished and the sequence has more. A step up: the sequence is done
    * and the catalogue's nearest harder text is offered instead.
    */
-  var TRACKS = { modern: "Modern Hebrew", biblical: "Biblical Hebrew" };
-  var STATES = { start: "Start here", carry: "Continue reading", next: "Up next", up: "A step up" };
+  var TRACKS = {
+    modern: t("learn.track.modern", "Modern Hebrew"),
+    biblical: t("learn.track.biblical", "Biblical Hebrew"),
+  };
+  var CONTINUE = t("learn.state.carry", "Continue reading");
+  var STATES = {
+    start: t("learn.state.start", "Start here"),
+    carry: CONTINUE,
+    next: t("learn.state.next", "Up next"),
+    up: t("learn.state.up", "A step up"),
+  };
 
   var scenes = window.TargumScenes || null;
 
@@ -213,36 +227,47 @@
     var out = [];
     var number = sceneOf(reader);
     if (number) {
-      out.push("Scene " + number + (door.total ? " of " + door.total : ""));
+      out.push(
+        door.total
+          ? t("learn.scene-of", "Scene {n} of {total}", { n: number, total: door.total })
+          : t("learn.scene", "Scene {n}", { n: number })
+      );
       if (door.state === "carry" && typeof reader.fresh === "number" && reader.fresh > 0) {
-        out.push(reader.fresh + (reader.fresh === 1 ? " word left" : " words left"));
+        out.push(tn("learn.words-left", reader.fresh, "{n} word left", "{n} words left"));
       } else if (reader.words) {
-        out.push(reader.words + " words");
+        out.push(tn("learn.words", reader.words, "{n} words", "{n} words"));
       }
     } else if (reader.chapters && reader.chapters.length > 1) {
       // "4 of 4" is a fraction with nothing left to say; "2 of 4 translated" says what
       // the fraction is a fraction of.
       out.push(
         reader.readyChapters === reader.chapters.length
-          ? reader.chapters.length + " chapters"
-          : reader.readyChapters + " of " + reader.chapters.length + " translated"
+          ? tn("learn.chapters", reader.chapters.length, "{n} chapters", "{n} chapters")
+          : t("learn.chapters-translated", "{done} of {total} translated", {
+              done: reader.readyChapters,
+              total: reader.chapters.length,
+            })
       );
     } else if (reader.sections > 1) {
-      out.push(reader.sections + " parts");
+      out.push(tn("learn.parts", reader.sections, "{n} parts", "{n} parts"));
     } else if (reader.minutes && door.state !== "carry") {
-      out.push(reader.minutes + " min");
+      out.push(t("learn.minutes", "{n} min", { n: reader.minutes }));
     }
     // One word, as on the library's rows: a video can be heard too, and saying both
     // says less than "video" does.
-    if (reader.video) out.push("video");
-    else if (reader.spoken) out.push("audio");
+    if (reader.video) out.push(t("learn.video", "video"));
+    else if (reader.spoken) out.push(t("learn.audio", "audio"));
     if (door.state === "carry" && !number) {
       // How long is left, from what the reader records of the sections finished and
       // the text's own length (2026-09-11): "about 12 min left" says where you are
       // without a word more.
       var left = minutesLeft(reader);
       if (left) out.push(left);
-      out.push(reader.opened ? "opened " + ago(reader.opened) : "not opened yet");
+      out.push(
+        reader.opened
+          ? t("learn.opened", "opened {when}", { when: ago(reader.opened) })
+          : t("learn.not-opened", "not opened yet")
+      );
     }
     return out.join(" · ");
   }
@@ -268,9 +293,11 @@
   function minutesLeft(reader) {
     if (!reader || !reader.minutes) return "";
     var share = progress(reader);
-    if (share >= 1) return "finished";
+    if (share >= 1) return t("learn.finished", "finished");
     var left = Math.max(1, Math.round(reader.minutes * (1 - share)));
-    return "about " + left + " min" + (share > 0 ? " left" : "");
+    return share > 0
+      ? t("learn.minutes-left", "about {n} min left", { n: left })
+      : t("learn.minutes-about", "about {n} min", { n: left });
   }
 
   // The label above a door's heading, naming the track; none for a language with one.
@@ -312,7 +339,7 @@
     sheet.hidden = false;
     showing = reader;
     var heading = document.getElementById("carry-heading");
-    if (heading) heading.textContent = door.heading || STATES[door.state] || "Continue reading";
+    if (heading) heading.textContent = door.heading || STATES[door.state] || CONTINUE;
     markDoor(door.id || "");
     trackLabel("carry-track", door.register);
     panel.classList.toggle("primary", !!door.primary);
@@ -353,7 +380,7 @@
       var share_ = door.state === "carry" && !door.src ? progress(reader) : 0;
       line.hidden = !share_;
       line.style.setProperty("--done", String(share_));
-      line.setAttribute("aria-label", Math.round(share_ * 100) + "% read");
+      line.setAttribute("aria-label", t("learn.read-share", "{share}% read", { share: Math.round(share_ * 100) }));
     }
     drawFrame(reader, door);
   }
@@ -445,7 +472,11 @@
     ru: ["Dobroye utro", "Dobry den", "Dobry vecher"],
     it: ["Buongiorno", "Buongiorno", "Buonasera"],
   };
-  var ENGLISH_GREETINGS = ["Good morning", "Good afternoon", "Good evening"];
+  var ENGLISH_GREETINGS = [
+    t("learn.greeting.morning", "Good morning"),
+    t("learn.greeting.afternoon", "Good afternoon"),
+    t("learn.greeting.evening", "Good evening"),
+  ];
   function partOfDay() {
     var hour = new Date().getHours();
     return hour < 12 ? 0 : hour < 18 ? 1 : 2;
@@ -636,7 +667,9 @@
     if (hebrewCalendar) {
       (lastSeries || []).forEach(function (one) {
         var inst = one.instalment;
-        if (one.id === "parasha" && inst) parts.push("This week: " + (inst.hebrew || inst.title));
+        if (one.id === "parasha" && inst) {
+          parts.push(t("learn.this-week", "This week: {portion}", { portion: inst.hebrew || inst.title }));
+        }
       });
     }
     return parts.join(" · ");
@@ -667,6 +700,8 @@
   // either menu.
   var doors = [];
   var showing = null;
+  var RECENTLY_READ = t("learn.recent", "Recently read");
+  var SUBSCRIPTIONS = t("learn.subscriptions", "Subscriptions");
   function kind(one) {
     return one.id.indexOf("series:") === 0 ? "series" : one.id.indexOf("recent:") === 0 ? "recent" : "pill";
   }
@@ -692,10 +727,15 @@
     });
     if (recent.length) {
       row.appendChild(
-        menu({ id: "recent", label: "Recently read", items: recent, foot: { label: "All your targums", href: "/texts" } })
+        menu({
+          id: "recent",
+          label: RECENTLY_READ,
+          items: recent,
+          foot: { label: t("learn.all-your-targums", "All your targums"), href: "/texts" },
+        })
       );
     }
-    if (series.length) row.appendChild(menu({ id: "subscriptions", label: "Subscriptions", items: series }));
+    if (series.length) row.appendChild(menu({ id: "subscriptions", label: SUBSCRIPTIONS, items: series }));
     markDoor(current);
     drawCards();
   }
@@ -709,7 +749,7 @@
    * card: the text carried on with is also the first recently read, and it is drawn once,
    * under the name that says why it leads. The stylesheet shows these under 40rem and
    * the sheet above it. */
-  var LABELS = { recent: "Recently read" };
+  var LABELS = { recent: RECENTLY_READ };
   function drawCards() {
     var list = document.getElementById("learn-cards");
     if (!list) return;
@@ -759,7 +799,7 @@
     var what = el("span", "learn-card-what");
     var kindOf = one && one.id ? kind(one) : "";
     what.appendChild(
-      el("span", "learn-card-state", door.heading || LABELS[kindOf] || STATES[door.state] || "Continue reading")
+      el("span", "learn-card-state", door.heading || LABELS[kindOf] || STATES[door.state] || CONTINUE)
     );
     var title = el("bdi", "learn-card-title", reader.title);
     title.setAttribute("lang", reader.language || "he");
@@ -780,7 +820,7 @@
     if (done) {
       var line = el("span", "page-progress");
       line.setAttribute("role", "img");
-      line.setAttribute("aria-label", Math.round(done * 100) + "% read");
+      line.setAttribute("aria-label", t("learn.read-share", "{share}% read", { share: Math.round(done * 100) }));
       line.style.setProperty("--done", String(done));
       link.appendChild(line);
     }
@@ -871,7 +911,7 @@
   function check() {
     var mark = el("span", "ways-done");
     mark.setAttribute("role", "img");
-    mark.setAttribute("aria-label", "Finished");
+    mark.setAttribute("aria-label", t("learn.finished-mark", "Finished"));
     var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("viewBox", "0 0 16 16");
     svg.setAttribute("aria-hidden", "true");
@@ -943,7 +983,7 @@
         doors.forEach(function (one) {
           if (one.id === id) named = one.label;
         });
-        press.textContent = on && named ? named : "Subscriptions";
+        press.textContent = on && named ? named : SUBSCRIPTIONS;
       }
     });
   }
@@ -967,10 +1007,10 @@
     var door = {
       id: "suggested",
       state: "up",
-      heading: "Suggested for you",
+      heading: t("learn.suggested-for-you", "Suggested for you"),
       register: row.register === "biblical" ? "biblical" : row.register === "modern" ? "modern" : "",
       primary: true,
-      meta: row.minutes ? why + " · " + row.minutes + " min" : why,
+      meta: row.minutes ? why + " · " + t("learn.minutes", "{n} min", { n: row.minutes }) : why,
     };
     if (row.reader) {
       door.src = row.reader;
@@ -978,7 +1018,7 @@
     } else {
       door.href = "/library#" + encodeURIComponent(row.id);
     }
-    return { id: "suggested", label: "Suggested", reader: reader, door: door };
+    return { id: "suggested", label: t("learn.suggested", "Suggested"), reader: reader, door: door };
   }
 
   // Your subscriptions as doors: each followed series with a current instalment.
@@ -1044,7 +1084,7 @@
     drawCarry(reader, {
       id: "offered",
       state: "carry",
-      heading: "From the conversation",
+      heading: t("learn.from-the-conversation", "From the conversation"),
       primary: true,
       path: path,
       meta: found ? undefined : "",
@@ -1109,12 +1149,14 @@
     var why = "";
     if (!level) {
       pick = open[0];
-      why = "Where most people start";
+      why = t("learn.why.start", "Where most people start");
     } else {
       open.forEach(function (entry) {
         if (!pick && entry.difficulty > level) pick = entry;
       });
-      why = pick ? "A step up from what you've read" : "About where you're reading";
+      why = pick
+        ? t("learn.why.step-up", "A step up from what you've read")
+        : t("learn.why.about-here", "About where you're reading");
       if (!pick) pick = open[open.length - 1];
     }
     return { pick: pick, why: why, level: level };
@@ -1210,8 +1252,10 @@
     // A count under ten is true and deflating on the first line a new reader sees
     // (2026-09-11): until then the line says what to do, which is what makes the count.
     line.textContent = known >= KNOWN_FLOOR
-      ? "You know " + known + " " + named(code) + " words."
-      : "Read, tap the words you don't know and talk to targum about any line.";
+      ? tn("learn.known-words", known, "You know {n} {language} words.", "You know {n} {language} words.", {
+          language: named(code),
+        })
+      : t("learn.known-start", "Read, tap the words you don't know and talk to targum about any line.");
   }
 
   /* --- putting it together --------------------------------------------------- */
@@ -1278,7 +1322,7 @@
           }
           door.primary = true;
           door.id = "main";
-          doors = [{ id: "main", label: STATES[door.state] || "Continue reading", reader: door.reader, door: door }].concat(
+          doors = [{ id: "main", label: STATES[door.state] || CONTINUE, reader: door.reader, door: door }].concat(
             recentDoors(mine)
           );
           // Modern first; past the whole modern catalogue, whatever is left in any
@@ -1308,7 +1352,7 @@
                   register: "modern",
                   primary: true,
                   href: "/library#" + encodeURIComponent(up.pick.id),
-                  meta: up.pick.minutes ? up.why + " · " + up.pick.minutes + " min" : up.why,
+                  meta: up.pick.minutes ? up.why + " · " + t("learn.minutes", "{n} min", { n: up.pick.minutes }) : up.why,
                 }
               );
             } else {
@@ -1451,7 +1495,7 @@
         if (window.TargumNotices && window.TargumNotices.note) {
           window.TargumNotices.note("series:" + one.id + ":" + one.instalment.id, line, {
             href: keyed(one.page || follow.readerOf(one)),
-            label: "Open",
+            label: t("learn.open", "Open"),
           });
         }
       });

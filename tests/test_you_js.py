@@ -36,10 +36,12 @@ def run(
     who: dict[str, Any] | None = None,
     do: list[dict[str, Any]] | None = None,
     answers: dict[str, Any] | None = None,
+    strings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = {
         "answers": {"/account/me": who if who is not None else SIGNED_IN, **(answers or {})},
         "do": do or [],
+        "strings": strings,
     }
     with tempfile.TemporaryDirectory() as where:
         path = Path(where) / "payload.json"
@@ -184,3 +186,21 @@ def test_signing_out_goes_through_sync_rather_than_the_endpoint() -> None:
     page = run(do=[{"type": "press", "id": "you-out"}])
     assert page["restarted"]["signedOut"] == 1
     assert [post["path"] for post in page["posted"]] == []
+
+
+def test_the_page_says_its_words_in_the_readers_language() -> None:
+    """A Russian reader's count of what they kept is Russian, each figure taking the
+    plural Russian's rules give it (targum-internal#184)."""
+    page = run(
+        strings={
+            "language": "ru",
+            "strings": {
+                "you.kept": "{words} и {phrases} во всех ваших языках.",
+                "you.kept.words.many": "{n} слов",
+                "you.kept.words.other": "{n} слова",
+                "you.kept.phrases.few": "{n} фразы",
+                "you.kept.phrases.other": "{n} фразы",
+            },
+        }
+    )
+    assert page["kept"] == "512 слов и 24 фразы во всех ваших языках."
