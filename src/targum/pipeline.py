@@ -804,7 +804,10 @@ class Build:
                 name=source.title or "a conversation",
                 document_hash=segmented.document_hash,
                 source_language=segmented.language,
-                target_language="en",
+                # In the language its lines were written in: Russian for an account that
+                # reads Russian and not English, which was labelled English until
+                # 2026-09-15 (targum-internal#287).
+                target_language=transcript_ingest.into_of(Path(source.source)),
                 provider="authored",
                 kind="authored",
                 segments=segments,

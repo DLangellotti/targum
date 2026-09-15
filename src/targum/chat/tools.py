@@ -641,7 +641,8 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # In the conversation's own language (targum-internal#280): `ctx.level` is read in the
     # language the conversation was opened in (`Chats.context`).
     held_in = (ctx.level.language or "he").split("-")[0].lower()
-    path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader, held_in)
+    into = hebrew_module.gloss_language(ctx.reads)
+    path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader, held_in, into)
     if kept < 2:
         return {
             "error": f"Nothing to read back yet. Talk a little first, in {language_name(held_in)}.",
@@ -654,7 +655,7 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         # were written in it, and the pipeline carries them whole.
         options={
             **BUILD_OPTIONS,
-            "to": hebrew_module.gloss_language(ctx.reads),
+            "to": into,
             "from": held_in,
         },
         owner=ctx.person_id,
