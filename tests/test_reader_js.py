@@ -1436,3 +1436,42 @@ def test_a_word_is_kept_in_the_language_of_the_row_it_is_met_in() -> None:
 def test_a_page_in_one_language_keeps_one_list_as_it_did() -> None:
     walked = walk(["one", "two"], levels=[{"word": "two", "status": KNOWN}])
     assert set(walked["stores"]["he"]) == {"two"} and walked["stores"]["arc"] == {}
+
+
+def test_the_reader_speaks_the_language_it_was_built_for() -> None:
+    """A key the page's language has filled is said in it, counts take that language's own
+    plural forms (Russian's few and many), and a key it has not filled is English — never
+    the key's name (targum-internal#184)."""
+    ru = {
+        "reader.finish.done": "Готово",
+        "reader.rest.mark.one": "Отметить {n} слово как известное",
+        "reader.rest.mark.few": "Отметить {n} слова как известные",
+        "reader.rest.mark.many": "Отметить {n} слов как известные",
+    }
+    said = run(
+        [],
+        strings=ru,
+        stringsLanguage="ru",
+        sayings=[
+            ["reader.finish.done", "Done"],
+            ["reader.finish.undo", "Undo"],
+            ["reader.rest.mark", 1, "Mark {n} word as known", "Mark {n} words as known"],
+            ["reader.rest.mark", 3, "Mark {n} word as known", "Mark {n} words as known"],
+            ["reader.rest.mark", 5, "Mark {n} word as known", "Mark {n} words as known"],
+        ],
+    )["sayings"]
+    assert said == [
+        "Готово",
+        "Undo",
+        "Отметить 1 слово как известное",
+        "Отметить 3 слова как известные",
+        "Отметить 5 слов как известные",
+    ]
+    english = run(
+        [],
+        sayings=[
+            ["reader.rest.mark", 1, "Mark {n} word as known", "Mark {n} words as known"],
+            ["reader.rest.mark", 2, "Mark {n} word as known", "Mark {n} words as known"],
+        ],
+    )["sayings"]
+    assert english == ["Mark 1 word as known", "Mark 2 words as known"]

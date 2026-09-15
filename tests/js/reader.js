@@ -65,6 +65,8 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   // The renderings this section carries, as the builder ships them: `{ t0: { text,
   // coarse, language, direction }, ... }`.
   ...(payload.translations ? { translations: payload.translations } : {}),
+  // The reader's own words in the page's language, as the builder ships them (#184).
+  ...(payload.strings ? { strings: payload.strings, stringsLanguage: payload.stringsLanguage } : {}),
 });
 
 /* The pairs, as the template writes them: a bare source cell and a translation cell
@@ -268,6 +270,12 @@ process.stdout.write(
     deck: payload.deck ? reader.ankiText(payload.deck.name, payload.deck.cards) : "",
     // The card's grammar line, as the annotator's pipe strings come out in words.
     // A line, or a [line, dictionary form] pair where the form decides the words.
+    // `t` and `tn`, asked directly: [key, English] or [key, count, one, other, fill].
+    sayings: (payload.sayings || []).map((ask) =>
+      ask.length === 2
+        ? window.TargumStrings.t(ask[0], ask[1])
+        : window.TargumStrings.tn(ask[0], ask[1], ask[2], ask[3], ask[4]),
+    ),
     grammar: (payload.grammarLines || []).map((line) =>
       Array.isArray(line) ? reader.useLine(line[0], line[1]) : reader.useLine(line),
     ),
