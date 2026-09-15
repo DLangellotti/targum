@@ -5274,3 +5274,28 @@ def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
     shipped = _payload(_genesis(tmp_path / "ru", [russian]))
     assert shipped["strings"] == {"reader.finish.done": "Готово"}
     assert shipped["stringsLanguage"] == "ru"
+
+
+def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`progress_page` in Russian says the bar and its own headings from the catalogue, and
+    in English says what it always did (targum-internal#184)."""
+    from targum import strings
+    from targum.render.builder import progress_page
+
+    english = progress_page("k")
+    real = strings.catalogue
+    monkeypatch.setattr(
+        strings,
+        "catalogue",
+        lambda code: (
+            {"nav.library": "Библиотека", "progress.page.milestones": "Вехи"}
+            if code == "ru"
+            else real(code)
+        ),
+    )
+    russian = progress_page("k", language="ru")
+    assert "<span>Библиотека</span>" in russian and "<h2>Вехи</h2>" in russian
+    assert "<span>Library</span>" in english and "<h2>Milestones</h2>" in english
+    assert progress_page("k") == english
