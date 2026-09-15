@@ -121,6 +121,39 @@ def test_buying_part_nine_before_part_two_leaves_part_nines_translation_reachabl
     assert len(a_row) == 4 and a_row[1] > a_row[0] and a_row[3] > a_row[2]
 
 
+def test_a_heard_part_with_no_translation_is_translated_when_asked_for(
+    fake_audio, tmp_path: Path
+) -> None:
+    """Transcribe on a page whose part was heard but never translated. The translation
+    on disk already matched the document, so the build took it whole and bought nothing,
+    and the page reloaded onto the same card however often it was pressed (2026-09-15)."""
+    from targum.serve import Library
+
+    fake_audio.duration = 1400.0  # two parts
+    source = recording(tmp_path)
+    first = builder(tmp_path, source)
+    first.run(chapters=1, also=[2])
+    out = first.resolved_out
+    # Heard, and the English lost: a build killed after the transcript, or a transcript
+    # that arrived whole.
+    path = out / "translations" / "null.natural.en.json"
+    written = json.loads(path.read_text(encoding="utf-8"))
+    second_page = Library.chapters(out, "en")[1]
+    from targum.models import SegmentedDocument, read_artifact
+    from targum.render.builder import split_sections
+
+    segmented = read_artifact(SegmentedDocument, out / "segments.json")
+    assert segmented is not None
+    lost = set(split_sections(segmented)[1].segment_ids)
+    written["segments"] = {k: v for k, v in written["segments"].items() if k not in lost}
+    path.write_text(json.dumps(written), encoding="utf-8")
+    assert second_page["ready"] and not Library.chapters(out, "en")[1]["ready"]
+
+    again = builder(tmp_path, source)
+    again.run(chapters=1, also=[2])
+    assert Library.chapters(out, "en")[1]["ready"]
+
+
 def test_the_manifest_beside_document_json_is_what_speech_reads_with_no_restart(
     fake_audio, tmp_path: Path
 ) -> None:

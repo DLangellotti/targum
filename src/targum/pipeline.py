@@ -2064,8 +2064,16 @@ class Build:
             written.write(self.resolved_out / "translations" / name)
             translations.append(written)
         if self.machine and written is None:
+            # A translation on disk is whole only when the build wants the whole text.
+            # Buying by the chapter, it is where `translate` starts from rather than
+            # where it stops: a heard part's page whose English was never bought matched
+            # the document hash, was taken as it stood, and Transcribe reloaded onto the
+            # same card however often it was pressed (2026-09-15). What it already holds
+            # costs nothing to ask for again.
             translations.append(
-                plan.cached_translation or self.translate(segmented, on_progress, only=only)
+                self.translate(segmented, on_progress, only=only)
+                if only is not None
+                else plan.cached_translation or self.translate(segmented, on_progress)
             )
         translations.extend(self.aligned(plan.document, segmented))
         if not translations:
