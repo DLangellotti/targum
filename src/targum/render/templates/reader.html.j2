@@ -27,7 +27,7 @@
       journey, twice, in the narrowest part of the bar. `id="home"` moves onto it, so the
       reader wires it exactly as before: a link only where there is somewhere to go, and
       carrying the key it was served with. -#}
-  <a class="bar-brand" id="home" href="/" title="Your Learn page" aria-label="targum — Learn" hidden>
+  <a class="bar-brand" id="home" href="/" title="{{ t("reader.page.your-learn-page", "Your Learn page") }}" aria-label="{{ t("reader.page.targum-learn", "targum — Learn") }}" hidden>
     <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
       <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
       <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
@@ -52,20 +52,20 @@
     <span class="known" id="known" hidden></span>
   </div>
   <div class="controls" dir="ltr">
-    <div class="group modes" id="modes" role="group" aria-label="Reading mode">
+    <div class="group modes" id="modes" role="group" aria-label="{{ t("reader.page.reading-mode", "Reading mode") }}">
       <span class="slide" aria-hidden="true"></span>
-      <button type="button" data-mode="parallel" class="on" aria-label="Parallel" title="Translation beside the text (p)">
+      <button type="button" data-mode="parallel" class="on" aria-label="{{ t("reader.page.parallel", "Parallel") }}" title="{{ t("reader.page.translation-beside-the-text-p", "Translation beside the text (p)") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M2.5 4h4M2.5 8h4M2.5 12h4M9.5 4h4M9.5 8h4M9.5 12h4"/>
         </svg>
       </button>
-      <button type="button" data-mode="inter" aria-label="Interlinear" title="Translation under each line (l)">
+      <button type="button" data-mode="inter" aria-label="{{ t("reader.page.interlinear", "Interlinear") }}" title="{{ t("reader.page.translation-under-each-line-l", "Translation under each line (l)") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M2.5 3.5h11M2.5 9.5h11"/>
           <path d="M2.5 6.2h6M2.5 12.2h6" class="faint"/>
         </svg>
       </button>
-      <button type="button" data-mode="source" aria-label="Source only" title="The text on its own (o)">
+      <button type="button" data-mode="source" aria-label="{{ t("reader.page.source-only", "Source only") }}" title="{{ t("reader.page.the-text-on-its-own-o", "The text on its own (o)") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M2.5 4h11M2.5 8h11M2.5 12h11"/>
         </svg>
@@ -83,8 +83,8 @@
         than a gap (targum-internal#260). -#}
     <div class="group" data-what="Stress marks">
       <button type="button" data-nikkud-toggle aria-pressed="false"
-              title="Stress marks (n). We mark a word only where two sources agree, so some words stay bare."
-              aria-label="Stress marks">
+              title="{{ t("reader.page.stress-marks-n-we-mark-a-word", "Stress marks (n). We mark a word only where two sources agree, so some words stay bare.") }}"
+              aria-label="{{ t("reader.page.stress-marks", "Stress marks") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M4 12.5h8"/>
           <path d="M9.5 3.5 7 8" class="dots"/>
@@ -94,10 +94,10 @@
     {% elif has_nikkud %}
     <div class="group" data-what="Vowel points">
       <button type="button" data-nikkud-toggle aria-pressed="false"
-              {%- if mark_guessed %} title="Vowel points (n). Where this text left a word bare, we guessed — about 90% right on modern Hebrew, less on classical. We mark the sentences we guessed."
-              {%- elif source_pointed %} title="Vowel points, as this text writes them (n)"
-              {%- else %} title="Vowel points, our best guess — about 90% right on modern Hebrew, less on classical (n)"{% endif %}
-              aria-label="Vowel points">
+              {%- if mark_guessed %} title="{{ t("reader.page.vowel-points-n-where-this-text-left", "Vowel points (n). Where this text left a word bare, we guessed — about 90% right on modern Hebrew, less on classical. We mark the sentences we guessed.") }}"
+              {%- elif source_pointed %} title="{{ t("reader.page.vowel-points-as-this-text-writes-them", "Vowel points, as this text writes them (n)") }}"
+              {%- else %} title="{{ t("reader.page.vowel-points-our-best-guess-about-90", "Vowel points, our best guess — about 90% right on modern Hebrew, less on classical (n)") }}"{% endif %}
+              aria-label="{{ t("reader.page.vowel-points", "Vowel points") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M4 3.5h8M8 3.5v6"/>
           <path d="M5 12.5h0M8 12.5h0M11 12.5h0" class="dots"/>
@@ -106,7 +106,7 @@
     </div>
     {% endif %}
     <div class="bar-more" id="more">
-      <div class="more-head"><b>This text</b><button type="button" data-more aria-label="Close">×</button></div>
+      <div class="more-head"><b>{{ t("reader.page.this-text", "This text") }}</b><button type="button" data-more aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
     {#- Hear a silent text (2026-09-10, targum-internal#246): on a section with no
         recording, the one door that makes one — a call to action, so ink (§9) — with
         what it costs in the reader's own hours beside it. The press posts `/voice`;
@@ -114,8 +114,8 @@
         voice has a price; never on a text that carries audio. -#}
     {% if voice_offer %}
     <div class="group voice-offer" id="voice-offer" data-section="{{ voice_offer.section }}" data-seconds="{{ voice_offer.seconds }}">
-      <span class="label">No recording</span>
-      <button type="button" class="voice-go" id="voice-go">Hear this section</button>
+      <span class="label">{{ t("reader.page.no-recording", "No recording") }}</span>
+      <button type="button" class="voice-go" id="voice-go">{{ t("reader.page.hear-this-section", "Hear this section") }}</button>
       <span class="voice-cost">This uses about {{ voice_offer.minutes }} minute{{ '' if voice_offer.minutes == 1 else 's' }} of your hours</span>
       <span class="voice-said" id="voice-said" role="status"></span>
     </div>
@@ -129,9 +129,9 @@
         ambiguity. The script wires both selectors to one handler, so neither copy can
         become a second, disagreeing idea of the same action. -#}
     <div class="group more-player">
-      <span class="label">The recording</span>
-      <a class="more-get" download>Save the audio</a>
-      <button type="button" class="more-close">Close the player</button>
+      <span class="label">{{ t("reader.page.the-recording", "The recording") }}</span>
+      <a class="more-get" download>{{ t("reader.page.save-the-audio", "Save the audio") }}</a>
+      <button type="button" class="more-close">{{ t("reader.page.close-the-player", "Close the player") }}</button>
     </div>
     {% endif %}
     {#- Which rendering the translation column draws from, on a text that carries more
@@ -145,7 +145,7 @@
         assuming the first. A rendering with nothing for this section is offered
         disabled, not as a button that empties the column. -#}
     {% if translations|length > 1 %}
-    <div class="group renderings" id="translation" role="group" aria-label="Translation" data-what="Translation" data-drawn="{{ drawn_id }}">
+    <div class="group renderings" id="translation" role="group" aria-label="{{ t("reader.page.translation", "Translation") }}" data-what="Translation" data-drawn="{{ drawn_id }}">
       {%- for t in translations %}
       <button type="button" class="rendering{% if t.id == drawn_id %} on{% endif %}" data-translation="{{ t.id }}" aria-pressed="{{ 'true' if t.id == drawn_id else 'false' }}" title="{{ t.name }}"{% if t.id not in covered %} disabled{% endif %}>{{ t.label }}</button>
       {%- endfor %}
@@ -158,9 +158,9 @@
         position. On a portion the section is an aliyah and says so; on a book it is a
         chapter. -#}
     {% if practice %}
-    <div class="group practice" id="practice" role="group" aria-label="Shnayim mikra" data-what="Shnayim mikra">
-      <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="Read as usual">Read</button>
-      <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="Each verse twice in Hebrew, then once in Onkelos">By verse</button>
+    <div class="group practice" id="practice" role="group" aria-label="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}" data-what="Shnayim mikra">
+      <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="{{ t("reader.page.read-as-usual", "Read as usual") }}">{{ t("reader.page.read", "Read") }}</button>
+      <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}">{{ t("reader.page.by-verse", "By verse") }}</button>
       <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="The whole {{ practice }} twice in Hebrew, then once in Onkelos">By {{ practice }}</button>
     </div>
     {% endif %}
@@ -191,7 +191,7 @@
     {% if spoken_video %}
     <div class="group" data-what="Watch the recording">
       <button type="button" data-video aria-pressed="false"
-              title="The video" aria-label="The video">
+              title="{{ t("reader.page.the-video", "The video") }}" aria-label="{{ t("reader.page.the-video", "The video") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <rect x="2" y="3.5" width="12" height="9" rx="1"/>
           <path d="M6.5 6 10 8 6.5 10Z"/>
@@ -209,7 +209,7 @@
     {% if spoken_home %}
     <div class="group" data-what="Where it lives">
       <a class="home" data-home href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
-         title="Open on YouTube at this line" aria-label="Open on YouTube at this line">
+         title="{{ t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") }}" aria-label="{{ t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M8.5 3.5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8.5"/>
           <path d="M7.5 8.5 13.5 2.5M9.5 2.5h4v4"/>
@@ -224,7 +224,7 @@
     {% if has_taamim %}
     <div class="group" data-what="Chanting marks">
       <button type="button" data-taamim-toggle aria-pressed="true"
-              title="The chanting marks, as the Masorah wrote them (a)" aria-label="Chanting marks">
+              title="{{ t("reader.page.the-chanting-marks-as-the-masorah-wrote", "The chanting marks, as the Masorah wrote them (a)") }}" aria-label="{{ t("reader.page.chanting-marks", "Chanting marks") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M4 12.5h8"/>
           <path d="M8 3.2 6.4 6h3.2Z" class="dots"/>
@@ -235,7 +235,7 @@
     {#- Pages, or one long scroll. The drawing is two leaves. -#}
     <div class="group" data-what="Pages, or one long scroll">
       <button type="button" data-paged aria-pressed="false"
-              title="Pages, or one long scroll (b)" aria-label="Pages">
+              title="{{ t("reader.page.pages-or-one-long-scroll-b", "Pages, or one long scroll (b)") }}" aria-label="{{ t("reader.page.pages", "Pages") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <rect x="2" y="3" width="5" height="10" rx="1"/>
           <rect x="9" y="3" width="5" height="10" rx="1"/>
@@ -247,8 +247,8 @@
     {% if words %}
     <div class="group" data-what="Highlight what you have not learned">
       <button type="button" data-marking aria-pressed="false"
-              title="Highlight the words you have not learned yet, and clear them as you mark them (m)"
-              aria-label="Highlight what you have not learned">
+              title="{{ t("reader.page.highlight-the-words-you-have-not-learned", "Highlight the words you have not learned yet, and clear them as you mark them (m)") }}"
+              aria-label="{{ t("reader.page.highlight-what-you-have-not-learned", "Highlight what you have not learned") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M2.5 3.5h11M2.5 12.5h11"/>
           <rect x="2" y="6.3" width="12" height="3.4" rx="1.2"/>
@@ -261,7 +261,7 @@
         shown, and it is never remembered (targum-internal#261). -#}
     {% if cases %}
     <div class="group" data-what="Show one case">
-      <select data-case-lens aria-label="Show one case" title="Show every word in one case (c)">
+      <select data-case-lens aria-label="{{ t("reader.page.show-one-case", "Show one case") }}" title="{{ t("reader.page.show-every-word-in-one-case-c", "Show every word in one case (c)") }}">
         <option value="">cases</option>
         <option value="Nom">nominative</option>
         <option value="Gen">genitive</option>
@@ -275,7 +275,7 @@
     {%- if siblings %}
     {#- The same news at another level. One press, and the reader keeps their place in
         the issue rather than being sent back to the library to find the easy one. -#}
-    <div class="group levels" role="group" aria-label="Level" data-what="Level">
+    <div class="group levels" role="group" aria-label="{{ t("reader.page.level", "Level") }}" data-what="Level">
       {%- for other in siblings %}
       {%- if other.current %}
       <span class="level here" aria-current="page" title="Written for {{ other.figure }}">{{ other.name }}</span>
@@ -288,16 +288,16 @@
       {%- endfor %}
     </div>
     {%- endif %}
-    <div class="group" role="group" aria-label="Type size" data-what="Type">
-      <button type="button" data-type="smaller" aria-label="Smaller type">A−</button>
-      <button type="button" data-type="larger" aria-label="Larger type">A+</button>
-      <button type="button" data-type="looser" aria-label="Line spacing" title="Line spacing">↕</button>
+    <div class="group" role="group" aria-label="{{ t("reader.page.type-size", "Type size") }}" data-what="Type">
+      <button type="button" data-type="smaller" aria-label="{{ t("reader.page.smaller-type", "Smaller type") }}">A−</button>
+      <button type="button" data-type="larger" aria-label="{{ t("reader.page.larger-type", "Larger type") }}">A+</button>
+      <button type="button" data-type="looser" aria-label="{{ t("reader.page.line-spacing", "Line spacing") }}" title="{{ t("reader.page.line-spacing", "Line spacing") }}">↕</button>
     </div>
     {#- The browser's own full screen, where it has one: the reader alone on the glass.
         `reader.js` hides the row where there is none (Safari on a phone), so the bar
         never offers what the browser cannot do. -#}
     <div class="group" data-what="Full screen" id="fullscreen-group" hidden>
-      <button type="button" data-fullscreen aria-pressed="false" title="Full screen (f)" aria-label="Full screen">
+      <button type="button" data-fullscreen aria-pressed="false" title="{{ t("reader.page.full-screen-f", "Full screen (f)") }}" aria-label="{{ t("reader.page.full-screen", "Full screen") }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10"/>
         </svg>
@@ -307,18 +307,18 @@
         the corner at the foot is the player's. Hidden until the page knows it is served:
         off a disk there is nothing to talk to. -#}
     <div class="group" data-what="Talk to targum">
-      <button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="Talk to targum about this text" title="Talk to targum about this text" hidden>
+      <button type="button" class="talk-cta" id="talk-open" aria-expanded="false" aria-controls="talk-drawer" aria-label="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" title="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" hidden>
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg>
       </button>
     </div>
     <div class="group" data-what="Keys">
-      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
+      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}">?</button>
     </div>
     <div class="group" data-what="Theme">
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
+      <button type="button" data-theme-toggle aria-label="{{ t("reader.page.switch-theme", "Switch theme") }}"></button>
     </div>
     </div>
-    <button type="button" class="more" data-more aria-expanded="false" aria-controls="more" aria-label="More">⋯</button>
+    <button type="button" class="more" data-more aria-expanded="false" aria-controls="more" aria-label="{{ t("reader.page.more", "More") }}">⋯</button>
   </div>
 </header>
 
@@ -330,7 +330,7 @@
     a mark, a title, three modes, three levels, three type buttons and two toggles — and
     a row of section names under the masthead is what a newspaper does anyway. -#}
 {%- if parts %}
-<nav class="parts" aria-label="Sections">
+<nav class="parts" aria-label="{{ t("reader.page.sections", "Sections") }}">
   {%- for part in parts %}
   <a href="#" data-to="{{ part.id }}" lang="{{ source_language }}" dir="{{ source_direction }}">{{ part.title }}</a>
   {%- endfor %}
@@ -348,7 +348,7 @@
 {#- `dir="ltr"`: the line is English chrome inside a page that takes the text's
     direction, and on an RTL page the bidi algorithm carried its full stop to the
     other end — ".Tap a word to say how well you know it". -#}
-{% if words %}<p class="first" id="first" dir="ltr" hidden>Tap a word to say how well you know it.</p>{% endif %}
+{% if words %}<p class="first" id="first" dir="ltr" hidden>{{ t("reader.page.tap-a-word-to-say-how-well", "Tap a word to say how well you know it.") }}</p>{% endif %}
 
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the
@@ -390,7 +390,7 @@
         sentence had nowhere to press. `aria-valuetext` is the clock rather than the
         percentage: "four minutes ten of nine minutes" is where you are, and "forty-six
         percent" is arithmetic about where you are. -#}
-    <span class="player-track" role="slider" tabindex="0" aria-label="Position"
+    <span class="player-track" role="slider" tabindex="0" aria-label="{{ t("reader.page.position", "Position") }}"
           aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00"><span class="player-fill"></span></span>
     <span class="player-clock" dir="ltr" aria-hidden="true"></span>
   </span>
@@ -399,14 +399,14 @@
       label says which, and it is written by the reader rather than here, because only
       the page knows whether its clocks go down to words. Two buttons and not one that
       goes back only: a reader who oversteps has to be able to come back. -#}
-  <span class="player-step" role="group" aria-label="Step">
-    <button type="button" class="player-back" aria-label="Back">
+  <span class="player-step" role="group" aria-label="{{ t("reader.page.step", "Step") }}">
+    <button type="button" class="player-back" aria-label="{{ t("reader.page.back", "Back") }}">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path d="M11 3.5 5.5 8 11 12.5"></path>
         <path d="M4 3.5v9"></path>
       </svg>
     </button>
-    <button type="button" class="player-on" aria-label="Forward">
+    <button type="button" class="player-on" aria-label="{{ t("reader.page.forward", "Forward") }}">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path d="M5 3.5 10.5 8 5 12.5"></path>
         <path d="M12 3.5v9"></path>
@@ -417,10 +417,10 @@
       0.5×, which is the one step nobody pressing "faster" means. In the card and not the
       bar, because the bar's button is only "play" and the speed is a fact about listening,
       not about the page. The readout is the typed × after a number (design.md §7). -#}
-  <span class="player-rate" role="group" aria-label="Speed">
-    <button type="button" class="player-slower" aria-label="Slower">−</button>
-    <button type="button" class="player-rate-now" dir="ltr" aria-label="Speed" title="Speed">1×</button>
-    <button type="button" class="player-faster" aria-label="Faster">+</button>
+  <span class="player-rate" role="group" aria-label="{{ t("reader.page.speed", "Speed") }}">
+    <button type="button" class="player-slower" aria-label="{{ t("reader.page.slower", "Slower") }}">−</button>
+    <button type="button" class="player-rate-now" dir="ltr" aria-label="{{ t("reader.page.speed", "Speed") }}" title="{{ t("reader.page.speed", "Speed") }}">1×</button>
+    <button type="button" class="player-faster" aria-label="{{ t("reader.page.faster", "Faster") }}">+</button>
   </span>
   {#- Hear first (targum-internal#265): a line pressed while this is on plays with its own
       text hidden and the translation left in place, and the text comes back when the line
@@ -428,7 +428,7 @@
       time the page opens and never remembered, because it is a way of practising rather
       than a setting; and it is here, on the transport, because a page with no recording
       has no strip and so no control. -#}
-  <button type="button" class="player-first" aria-pressed="false">Hear first</button>
+  <button type="button" class="player-first" aria-pressed="false">{{ t("reader.page.hear-first", "Hear first") }}</button>
   {#- The picture, from the transport that is always on screen. The same control as the
       one in the bar — same `data-video`, so `showVideo` presses both and neither can
       show a state the other does not — and here as well because the bar's copy folds
@@ -438,7 +438,7 @@
       off has to be turnable on from where it was turned off. -#}
   {% if spoken_video %}
   <button type="button" class="player-video" data-video aria-pressed="false"
-          aria-label="The video" title="The video">
+          aria-label="{{ t("reader.page.the-video", "The video") }}" title="{{ t("reader.page.the-video", "The video") }}">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <rect x="2" y="3.5" width="12" height="9" rx="1"/>
       <path d="M6.5 6 10 8 6.5 10Z"/>
@@ -446,14 +446,14 @@
   </button>
   {% endif %}
   {#- A real file, carried in the page already, so saving it costs no request. -#}
-  <a class="player-get" download aria-label="Download the audio" title="Download the audio">
+  <a class="player-get" download aria-label="{{ t("reader.page.download-the-audio", "Download the audio") }}" title="{{ t("reader.page.download-the-audio", "Download the audio") }}">
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <path d="M8 2.5v8"></path>
       <path d="M4.5 7.5 8 11l3.5-3.5"></path>
       <path d="M3 13.5h10"></path>
     </svg>
   </a>
-  <button type="button" class="player-close" aria-label="Close the player">×</button>
+  <button type="button" class="player-close" aria-label="{{ t("reader.page.close-the-player", "Close the player") }}">×</button>
 </div>
 {% endif %}
 {#- The picture, in the same corner the player stands in, and away until asked for.
@@ -481,7 +481,7 @@
       Named for where it is rather than for what it plays: the strip's button already
       says "Play <the text>", and two controls answering to the same name is one name
       too many for anybody listening to the page rather than looking at it. -#}
-  <button type="button" class="video-tap" data-play-scene aria-pressed="false" aria-label="Play or pause the picture">
+  <button type="button" class="video-tap" data-play-scene aria-pressed="false" aria-label="{{ t("reader.page.play-or-pause-the-picture", "Play or pause the picture") }}">
     <span class="video-tap-glyph" aria-hidden="true">
       <svg viewBox="0 0 16 16" focusable="false">
         <path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path>
@@ -506,40 +506,40 @@
     {#- Said in words as well as drawn (2026-09-14: "the controls on the player don't make it
         obvious you can drag it or resize it"): the grip is a bar across the top of the
         picture that says Move, and the other keys say what they do beside their glyphs. -#}
-    <button type="button" class="video-grip" aria-label="Move the video" title="Drag to move the video">
+    <button type="button" class="video-grip" aria-label="{{ t("reader.page.move-the-video", "Move the video") }}" title="{{ t("reader.page.drag-to-move-the-video", "Drag to move the video") }}">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/>
         <circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/>
         <circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/>
       </svg>
-      <span class="video-word">Move</span>
+      <span class="video-word">{{ t("reader.page.move", "Move") }}</span>
     </button>
     {#- Watching or reading. Not a third state of the toggle in the bar: that one is
         whether there is a picture at all, and this is what the picture is doing. -#}
     {#- Full screen from the corner, the transcript from full screen: one key, whose glyph
         and word say where pressing it goes — outward to fill the window, or inward to a
         corner beside the text. -#}
-    <button type="button" class="video-mode" aria-pressed="true" aria-label="Show the transcript" title="Minimise and show the transcript (v)">
+    <button type="button" class="video-mode" aria-pressed="true" aria-label="{{ t("reader.page.show-the-transcript", "Show the transcript") }}" title="{{ t("reader.page.minimise-and-show-the-transcript-v", "Minimise and show the transcript (v)") }}">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path class="expand" d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/>
         <path class="shrink" d="M13.5 6.5h-4v-4M9.5 6.5 14 2M2.5 9.5h4v4M6.5 9.5 2 14"/>
       </svg>
-      <span class="video-word">Transcript</span>
+      <span class="video-word">{{ t("reader.page.transcript", "Transcript") }}</span>
     </button>
     {#- Which corner it stands in while the reader reads. Four, cycled — a picture parked
         over the sentence being read is the whole complaint the note made, and a corner
         the layout keeps room for answers it for good. A picture that has been picked up
         comes back to its corner on the first press. -#}
-    <button type="button" class="video-corner" aria-label="Put the picture in a corner" title="Put the picture in a corner">
+    <button type="button" class="video-corner" aria-label="{{ t("reader.page.put-the-picture-in-a-corner", "Put the picture in a corner") }}" title="{{ t("reader.page.put-the-picture-in-a-corner", "Put the picture in a corner") }}">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
         <rect x="8.5" y="8.5" width="5" height="5" rx="1" class="corner"/>
       </svg>
     </button>
-    <button type="button" class="video-close" aria-label="Close the video" title="Close the video"><span aria-hidden="true">×</span><span class="video-word">Close</span></button>
+    <button type="button" class="video-close" aria-label="{{ t("reader.page.close-the-video", "Close the video") }}" title="{{ t("reader.page.close-the-video", "Close the video") }}"><span aria-hidden="true">×</span><span class="video-word">{{ t("reader.page.close", "Close") }}</span></button>
   </div>
   {#- Its size, from the corner across from the one it is held by. -#}
-  <button type="button" class="video-size" aria-label="Resize the video" title="Drag to resize the video">
+  <button type="button" class="video-size" aria-label="{{ t("reader.page.resize-the-video", "Resize the video") }}" title="{{ t("reader.page.drag-to-resize-the-video", "Drag to resize the video") }}">
     <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
       <path d="M10.5 2 2 10.5M10.5 5.5 5.5 10.5M10.5 9 9 10.5"/>
     </svg>
@@ -550,7 +550,7 @@
     a recorded book are the same control over the same audio, and two copies of an inline
     SVG is how the two quietly stop matching. -#}
 {%- macro hear(id) -%}
-<button type="button" class="say" data-id="{{ id }}" aria-label="Play this line"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path><rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect></svg></button>
+<button type="button" class="say" data-id="{{ id }}" aria-label="{{ t("reader.page.play-this-line", "Play this line") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path><rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect></svg></button>
 {%- endmacro -%}
 {% for segment in segments %}
   {% if segment.kind.value == 'heading' %}
@@ -628,9 +628,9 @@
     paged mode and not there at all otherwise. Arrows per reading direction, drawn by
     the stylesheet the way the pager's are. -#}
 <div class="turn" id="turn" hidden>
-  <button type="button" class="back" data-turn="-1" aria-label="Previous page"></button>
+  <button type="button" class="back" data-turn="-1" aria-label="{{ t("reader.page.previous-page", "Previous page") }}"></button>
   <span id="page-of" dir="ltr"></span>
-  <button type="button" class="forward" data-turn="1" aria-label="Next page"></button>
+  <button type="button" class="forward" data-turn="1" aria-label="{{ t("reader.page.next-page", "Next page") }}"></button>
 </div>
 
 {#- At the foot, where a part ends: the words you never marked, offered as known in one
@@ -643,7 +643,7 @@
 <div class="rest" id="rest" dir="ltr" hidden>
   <span id="rest-text"></span>
   <button type="button" id="rest-mark"></button>
-  <button type="button" id="rest-undo" hidden>Undo</button>
+  <button type="button" id="rest-undo" hidden>{{ t("reader.page.undo", "Undo") }}</button>
 </div>
 {% endif %}
 {#- Finished with the section: one press at its foot, and a line that says when. Pressing
@@ -666,7 +666,7 @@
 {% endif %}
 <div class="finished" id="finished" dir="ltr">
   <span id="done-said" hidden></span>
-  <button type="button" id="done-mark">Done</button>
+  <button type="button" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
 </div>
 {#- And where to go next. The next section first, by name and by how long it is: a reader
     who has just finished something should not have to shop, and the library is a shop.
@@ -681,7 +681,7 @@
     connection. -#}
 {% if following %}
 <aside class="next-up here" id="next-up" dir="ltr" hidden>
-  <span class="next-up-lead">Read next</span>
+  <span class="next-up-lead">{{ t("reader.page.read-next", "Read next") }}</span>
   <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
   <span class="next-up-why">{{ minutes[following.number] }} min</span>
 </aside>
@@ -703,7 +703,7 @@
       refusal the server kept would turn a door into a profile nobody asked to build.
       Rendered only where there is a second pick, so a shelf of two texts does not offer
       to draw for ever. Hidden until the script arms it, like the aside around it. -#}
-  {% if suggested_more %}<button type="button" class="next-up-else" id="next-up-else" data-more="{{ suggested_more|e }}" hidden>Something else</button>{% endif %}
+  {% if suggested_more %}<button type="button" class="next-up-else" id="next-up-else" data-more="{{ suggested_more|e }}" hidden>{{ t("reader.page.something-else", "Something else") }}</button>{% endif %}
 </aside>
 {% endif %}
 
@@ -715,33 +715,33 @@
 {% endif %}
 
 {% if words %}
-<aside class="list" id="list" aria-label="What you have kept from this text">
+<aside class="list" id="list" aria-label="{{ t("reader.page.what-you-have-kept-from-this-text", "What you have kept from this text") }}">
   <div class="list-head">
-    <div class="list-tabs" role="tablist" aria-label="Words or phrases">
+    <div class="list-tabs" role="tablist" aria-label="{{ t("reader.page.words-or-phrases", "Words or phrases") }}">
       <button type="button" role="tab" id="tab-words" data-list="words" aria-selected="true"
-              aria-controls="list-items"><b id="list-count">0</b> <span id="list-count-label">words</span></button>
+              aria-controls="list-items"><b id="list-count">0</b> <span id="list-count-label">{{ t("reader.page.words", "words") }}</span></button>
       <button type="button" role="tab" id="tab-phrases" data-list="phrases" aria-selected="false"
-              aria-controls="phrase-items"><b id="phrase-count">0</b> <span id="phrase-count-label">phrases</span></button>
+              aria-controls="phrase-items"><b id="phrase-count">0</b> <span id="phrase-count-label">{{ t("reader.page.phrases", "phrases") }}</span></button>
     </div>
-    <button type="button" class="list-close" data-toggle="list" aria-label="Hide the list">×</button>
+    <button type="button" class="list-close" data-toggle="list" aria-label="{{ t("reader.page.hide-the-list", "Hide the list") }}">×</button>
   </div>
   <p class="list-stats" id="list-stats"></p>
   {#- "Mark them in the text" was here, and it took the colours off and left everything
       else on. The Mark button in the bar does the whole job now. -#}
   <div class="list-body">
     <ol class="list-items" id="list-items" role="tabpanel" aria-labelledby="tab-words"></ol>
-    <p class="list-empty" id="words-empty">Tap or click a word to say how well you know it.</p>
+    <p class="list-empty" id="words-empty">{{ t("reader.page.tap-or-click-a-word-to-say", "Tap or click a word to say how well you know it.") }}</p>
     <ol class="list-items" id="phrase-items" role="tabpanel" aria-labelledby="tab-phrases" hidden></ol>
-    <p class="list-empty" id="phrases-empty" hidden>Drag across words to keep a phrase.</p>
+    <p class="list-empty" id="phrases-empty" hidden>{{ t("reader.page.drag-across-words-to-keep-a-phrase", "Drag across words to keep a phrase.") }}</p>
   </div>
   <div class="list-foot">
-    <button type="button" data-export="csv" id="export-button">Export</button>
+    <button type="button" data-export="csv" id="export-button">{{ t("reader.page.export", "Export") }}</button>
     {#- The same list again, shaped for Anki: the pointed word on the front, the sentence
         it was met in on the back. A file most learners already have somewhere to put. -#}
-    <button type="button" data-export="anki" id="anki-button">Anki deck</button>
+    <button type="button" data-export="anki" id="anki-button">{{ t("reader.page.anki-deck", "Anki deck") }}</button>
   </div>
 </aside>
-<button type="button" class="list-tab" id="list-tab" data-toggle="list" aria-expanded="false" aria-controls="list"><span class="list-tab-said" dir="ltr"><b id="list-tab-count">0</b> <span id="list-tab-label">words</span><span id="list-tab-phrases" hidden></span></span></button>
+<button type="button" class="list-tab" id="list-tab" data-toggle="list" aria-expanded="false" aria-controls="list"><span class="list-tab-said" dir="ltr"><b id="list-tab-count">0</b> <span id="list-tab-label">{{ t("reader.page.words", "words") }}</span><span id="list-tab-phrases" hidden></span></span></button>
 {% endif %}
 
 <div id="pick-chip" class="pick-card" hidden></div>
@@ -750,41 +750,41 @@
     for as long as it sat below the script tag the answer was null: the `?` key and the `?`
     button in the bar both went to a card that was never found, so the one page that says
     which keys exist could not be opened by either. -#}
-<div class="keys-card" id="keys" hidden role="dialog" aria-label="Keyboard shortcuts">
+<div class="keys-card" id="keys" hidden role="dialog" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}">
   {#- Named and closable where a pointer can see it. Escape and a click elsewhere both
       put it away, but nothing on the card said so, and the list beside the text already
       closes with the typed × the guidelines ask for. -#}
-  <div class="keys-head"><b>Keys</b><button type="button" class="keys-close" data-keys aria-label="Close">×</button></div>
+  <div class="keys-head"><b>{{ t("reader.page.keys", "Keys") }}</b><button type="button" class="keys-close" data-keys aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
   {#- In the order a reader reaches for them, not by category: the walk and the levels are
       most of a session, the modes are set once and left. `t` is not here — it reports how
       long the page took to draw, which is for whoever is building targum rather than for
       whoever is reading. -#}
   <dl>
-    {% if words %}<dt>&larr; &rarr;</dt><dd>forward through the words you have not finished with, then the foot of the page, then the next page — and, off the last, the next chapter; back through the words as they are written</dd>
-    <dt>k 4</dt><dd>known</dd>
-    <dt>1 2 3</dt><dd>just met, getting there, nearly there</dd>
-    <dt>i</dt><dd>ignore it — a name, a numeral, a word from another language</dd>
-    <dt>Enter</dt><dd>what the word you are on means; again to look it up</dd>
-    <dt>u</dt><dd>take back the last level, and stand on that word again</dd>
-    <dt>Esc</dt><dd>close this, then a word, then your saved words, then the queue</dd>
-    <dt>?</dt><dd>these keys</dd>
-    <dt>hard</dt><dd>the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you</dd>
-    <dt>s</dt><dd>your saved words</dd>
-    <dt>m</dt><dd>mark words as you read</dd>
-    <dt>b</dt><dd>pages, or one long scroll</dd>
-    <dt>f</dt><dd>full screen, and out of it</dd>
+    {% if words %}<dt>&larr; &rarr;</dt><dd>{{ t("reader.page.forward-through-the-words-you-have-not", "forward through the words you have not finished with, then the foot of the page, then the next page — and, off the last, the next chapter; back through the words as they are written") }}</dd>
+    <dt>k 4</dt><dd>{{ t("reader.page.known", "known") }}</dd>
+    <dt>1 2 3</dt><dd>{{ t("reader.page.just-met-getting-there-nearly-there", "just met, getting there, nearly there") }}</dd>
+    <dt>i</dt><dd>{{ t("reader.page.ignore-it-a-name-a-numeral-a", "ignore it — a name, a numeral, a word from another language") }}</dd>
+    <dt>Enter</dt><dd>{{ t("reader.page.what-the-word-you-are-on-means", "what the word you are on means; again to look it up") }}</dd>
+    <dt>u</dt><dd>{{ t("reader.page.take-back-the-last-level-and-stand", "take back the last level, and stand on that word again") }}</dd>
+    <dt>Esc</dt><dd>{{ t("reader.page.close-this-then-a-word-then-your", "close this, then a word, then your saved words, then the queue") }}</dd>
+    <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>
+    <dt>{{ t("reader.page.hard", "hard") }}</dt><dd>{{ t("reader.page.the-level-on-a-word-s-card", "the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you") }}</dd>
+    <dt>s</dt><dd>{{ t("reader.page.your-saved-words", "your saved words") }}</dd>
+    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you read") }}</dd>
+    <dt>b</dt><dd>{{ t("reader.page.pages-or-one-long-scroll", "pages, or one long scroll") }}</dd>
+    <dt>f</dt><dd>{{ t("reader.page.full-screen-and-out-of-it", "full screen, and out of it") }}</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
-    <dt>&lt; &gt;</dt><dd>slower, faster</dd>{% endif %}
-    {% if spoken_video %}<dt>v</dt><dd>watch it full screen, or read alongside it with the picture in a corner</dd>{% endif %}
-    <dt>PageDown</dt><dd>next page; PageUp back. On the last page, the next chapter</dd>
-    {% else %}<dt>Esc</dt><dd>close this</dd>
-    <dt>?</dt><dd>these keys</dd>{% endif %}
-    {% if cases %}<dt>c</dt><dd>one case at a time</dd>{% endif %}
+    <dt>&lt; &gt;</dt><dd>{{ t("reader.page.slower-faster", "slower, faster") }}</dd>{% endif %}
+    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>{% endif %}
+    <dt>PageDown</dt><dd>{{ t("reader.page.next-page-pageup-back-on-the-last", "next page; PageUp back. On the last page, the next chapter") }}</dd>
+    {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
+    <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
+    {% if cases %}<dt>c</dt><dd>{{ t("reader.page.one-case-at-a-time", "one case at a time") }}</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{{ "stress marks" if stress_marks else "vowel points" }}</dd>{% endif %}
-    {% if has_taamim %}<dt>a</dt><dd>the chanting marks, with the vowels on</dd>{% endif %}
-    <dt>p</dt><dd>parallel</dd>
-    <dt>l</dt><dd>interlinear — the translation under each line</dd>
-    <dt>o</dt><dd>source only</dd>
+    {% if has_taamim %}<dt>a</dt><dd>{{ t("reader.page.the-chanting-marks-with-the-vowels-on", "the chanting marks, with the vowels on") }}</dd>{% endif %}
+    <dt>p</dt><dd>{{ t("reader.page.parallel-2", "parallel") }}</dd>
+    <dt>l</dt><dd>{{ t("reader.page.interlinear-the-translation-under-each-line", "interlinear — the translation under each line") }}</dd>
+    <dt>o</dt><dd>{{ t("reader.page.source-only-2", "source only") }}</dd>
   </dl>
   {#- Who read it. A recording the library serves is somebody else's work under a licence
       that asks for them to be named, and naming them in a file nobody opens is not
@@ -803,22 +803,22 @@
       work named and the licence linked wherever the work is used, and a credit in a
       file nobody opens is the same non-naming the reading credit above refuses. -#}
   {% if words_credit %}
-  <p class="keys-credit">Dictionary forms by <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  <p class="keys-credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
   {% endif %}
   {#- And what pointed the words, on the same terms and keyed the same way: to the
       vocalizer that ran, and only where it pointed something the edition had not. -#}
   {% if pointing_credit %}
-  <p class="keys-credit">Vowel points by <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  <p class="keys-credit">{{ t("reader.page.vowel-points-by", "Vowel points by") }} <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
   {% endif %}
   {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
       partner or a word whose stress moves (targum-internal#259). -#}
   {% if lexicon_credit %}
-  <p class="keys-credit">Aspect partners and stress from <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
+  <p class="keys-credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
   {% endif %}
   {% if biblical %}
-  <p class="keys-credit">Our dictionary forms are less reliable on biblical Hebrew than
+  <p class="keys-credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
     on modern. The analyser learned from modern unpointed text, so it sometimes misreads
-    waw-consecutive, pausal and archaic forms on a card.</p>
+    waw-consecutive, pausal and archaic forms on a card.") }}</p>
   {% endif %}
 </div>
 {#- Talk to targum, in the reader (2026-09-11): "when I am reading something I want to
@@ -828,12 +828,12 @@
     front of them. Nothing loads until the pill is pressed; the frame has no address
     until then, so the page still fetches nothing by itself. -#}
 <div class="talk-scrim" id="talk-scrim" hidden></div>
-<aside class="talk-drawer" id="talk-drawer" aria-label="Talk to targum" hidden>
+<aside class="talk-drawer" id="talk-drawer" aria-label="{{ t("reader.page.talk-to-targum", "Talk to targum") }}" hidden>
   <div class="talk-drawer-head">
-    <span class="talk-drawer-title">Talk to targum</span>
-    <button type="button" class="talk-close" id="talk-close" aria-label="Close">×</button>
+    <span class="talk-drawer-title">{{ t("reader.page.talk-to-targum", "Talk to targum") }}</span>
+    <button type="button" class="talk-close" id="talk-close" aria-label="{{ t("reader.page.close", "Close") }}">×</button>
   </div>
-  <iframe class="talk-frame" id="talk-frame" title="Talk to targum" allow="microphone"></iframe>
+  <iframe class="talk-frame" id="talk-frame" title="{{ t("reader.page.talk-to-targum", "Talk to targum") }}" allow="microphone"></iframe>
 </aside>
 <script type="application/json" id="targum-data">{{ data }}</script>
 {#- The ledger's arithmetic, shared with Learn and /progress: the foot of a finished
