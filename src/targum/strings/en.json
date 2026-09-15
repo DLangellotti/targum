@@ -571,5 +571,17 @@
   "learn.parts.one": "{n} parts",
   "learn.parts.other": "{n} parts",
   "learn.known-words.one": "You know {n} {language} words.",
-  "learn.known-words.other": "You know {n} {language} words."
+  "learn.known-words.other": "You know {n} {language} words.",
+  "you.signed-out": "You've been signed out. Sign in again.",
+  "you.saved": "Saved.",
+  "you.kept": "{words} and {phrases}, across all your languages.",
+  "you.keep-one": "Keep at least one.",
+  "you.forget.sure": "Delete my account and words",
+  "you.forget": "Delete account",
+  "you.closing": "We're closing your account.",
+  "you.forget.unreachable": "We couldn't reach targum, so nothing was deleted. Try again.",
+  "you.kept.words.one": "{n} word",
+  "you.kept.words.other": "{n} words",
+  "you.kept.phrases.one": "{n} phrase",
+  "you.kept.phrases.other": "{n} phrases"
 }

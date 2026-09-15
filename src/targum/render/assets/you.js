@@ -15,6 +15,12 @@
 (function () {
   "use strict";
 
+  // The page's words in the reader's language, from `strings.js` (targum-internal#184).
+  var t = window.TargumStrings.t;
+  var tn = window.TargumStrings.tn;
+  var SIGNED_OUT = t("you.signed-out", "You've been signed out. Sign in again.");
+  var SAVED = t("you.saved", "Saved.");
+
   var key = window.TARGUM_KEY;
 
   function keyed(path) {
@@ -88,9 +94,10 @@
     var words = counts.words || 0;
     var phrases = counts.phrases || 0;
     at("you-kept").textContent =
-      grouped(words) + (words === 1 ? " word and " : " words and ") +
-      grouped(phrases) + (phrases === 1 ? " phrase" : " phrases") +
-      ", across all your languages.";
+      t("you.kept", "{words} and {phrases}, across all your languages.", {
+        words: tn("you.kept.words", words, "{n} word", "{n} words", { n: grouped(words) }),
+        phrases: tn("you.kept.phrases", phrases, "{n} phrase", "{n} phrases", { n: grouped(phrases) }),
+      });
   }
 
   var saving = null;
@@ -104,9 +111,9 @@
         // A session that ended while the page was open answers `signedIn: false` with no
         // error in it, and that is not "Saved."
         if (answer.error || answer.signedIn === false) {
-          return say("you-said", answer.error || "You've been signed out. Sign in again.", true);
+          return say("you-said", answer.error || SIGNED_OUT, true);
         }
-        say("you-said", "Saved.");
+        say("you-said", SAVED);
         drawWho(answer);
         // The corner draws from /account/me, so asking sync to look again is what makes
         // the initials in it agree with the name just typed.
@@ -121,9 +128,9 @@
     if (!box || box.name !== "address") return;
     ask("/account/address", { address: box.value }).then(function (answer) {
       if (answer.error || answer.signedIn === false) {
-        return say("you-said", answer.error || "You've been signed out. Sign in again.", true);
+        return say("you-said", answer.error || SIGNED_OUT, true);
       }
-      say("you-said", "Saved.");
+      say("you-said", SAVED);
     });
   }
 
@@ -192,7 +199,7 @@
       // Put back here rather than sent, so the box never shows a state the account
       // would refuse.
       box.checked = true;
-      return say("you-languages-said", "Keep at least one.");
+      return say("you-languages-said", t("you.keep-one", "Keep at least one."));
     }
     saveLanguages();
   }
@@ -211,9 +218,9 @@
         // and a refused change puts its boxes back rather than showing what was asked.
         if (answer.learning || answer.reads) drawLanguages(answer);
         if (answer.error || answer.signedIn === false) {
-          return say("you-languages-said", answer.error || "You've been signed out. Sign in again.");
+          return say("you-languages-said", answer.error || SIGNED_OUT);
         }
-        say("you-languages-said", "Saved.");
+        say("you-languages-said", SAVED);
         // The pages that offer a language read the account's answer through sync, so
         // asking it to look again is what makes them agree with the boxes.
         if (window.TargumSync) window.TargumSync.start();
@@ -240,13 +247,13 @@
         // And a way back beside it (2026-09-14): the second question had no answer but
         // reloading the page.
         press.setAttribute("data-sure", "yes");
-        press.textContent = "Delete my account and words";
+        press.textContent = t("you.forget.sure", "Delete my account and words");
         var keep = at("you-keep");
         if (keep) {
           keep.hidden = false;
           keep.onclick = function () {
             press.removeAttribute("data-sure");
-            press.textContent = "Delete account";
+            press.textContent = t("you.forget", "Delete account");
             keep.hidden = true;
           };
         }
@@ -257,7 +264,7 @@
       if (keeping) keeping.hidden = true;
       ask("/account/forget", {})
         .then(function (answer) {
-          say("you-ending-said", answer.message || "We're closing your account.");
+          say("you-ending-said", answer.message || t("you.closing", "We're closing your account."));
           // The words were left in this browser and the page went on showing the profile
           // (2026-09-14). Signed out here too, the way Sign out empties the browser.
           if (window.TargumSync && window.TargumSync.signOut) {
@@ -270,7 +277,11 @@
         })
         .catch(function () {
           press.disabled = false;
-          say("you-ending-said", "We couldn't reach targum, so nothing was deleted. Try again.", true);
+          say(
+            "you-ending-said",
+            t("you.forget.unreachable", "We couldn't reach targum, so nothing was deleted. Try again."),
+            true
+          );
         });
     });
   }

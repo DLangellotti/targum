@@ -24,6 +24,7 @@ const restarted = { count: 0, signedOut: 0 };
 
 install({
   TARGUM_KEY: "k",
+  TARGUM_STRINGS: payload.strings,
   // What the page is built with: every language targum has, and which stay on.
   TARGUM_READING: [
     { code: "he", name: "Hebrew", stage: "alpha", label: "alpha" },
@@ -54,6 +55,7 @@ global.fetch = (url, options) => {
   return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
 };
 
+require(path.join(assets, "strings.js"));
 require(path.join(assets, "you.js"));
 
 const at = (id) => byId[id] || { textContent: "", value: "", hidden: true, children: [] };
