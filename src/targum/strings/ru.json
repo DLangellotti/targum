@@ -1307,5 +1307,11 @@
   "reader.next.easiest": "Самый лёгкий текст на полке.",
   "reader.next.as-hard": "Примерно такой же сложности.",
   "reader.next.easier": "Легче этого.",
-  "reader.next.scene": "Сцена {n}"
+  "reader.next.scene": "Сцена {n}",
+  "bring.known.all": "Вы знаете здесь почти все слова.",
+  "bring.known.none": "Вы пока не знаете здесь почти ни одного слова.",
+  "bring.known.tenths.one": "Вы знаете здесь примерно {n} слово из 10.",
+  "bring.known.tenths.few": "Вы знаете здесь примерно {n} слова из 10.",
+  "bring.known.tenths.many": "Вы знаете здесь примерно {n} слов из 10.",
+  "bring.known.tenths.other": "Вы знаете здесь примерно {n} слова из 10."
 }

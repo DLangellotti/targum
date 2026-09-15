@@ -1205,5 +1205,9 @@
   "reader.next.easiest": "The easiest text on the shelf.",
   "reader.next.as-hard": "About as hard as this one.",
   "reader.next.easier": "Easier than this one.",
-  "reader.next.scene": "Scene {n}"
+  "reader.next.scene": "Scene {n}",
+  "bring.known.all": "You know nearly every word here.",
+  "bring.known.none": "You know almost none of the words here yet.",
+  "bring.known.tenths.one": "You know about {n} word in 10 here.",
+  "bring.known.tenths.other": "You know about {n} words in 10 here."
 }
