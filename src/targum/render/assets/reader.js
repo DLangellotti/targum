@@ -8405,6 +8405,7 @@ var targumReader = function () {
   function halt() {
     if (stopAt) { clearTimeout(stopAt); stopAt = null; }
     audio.pause();
+    unlight();
     /* Hear first: the line is over, however it ended, so its text comes back. */
     if (hearing) { hearing.classList.remove("hearing"); hearing = null; }
     if (playing) { playing.classList.remove("saying"); playing = null; }
@@ -8873,6 +8874,59 @@ var targumReader = function () {
     });
   }
 
+  /* Word by word (targum-internal#265, step 2). A line played on its own lights each of
+     its words as the voice reaches it, where the recording was aligned word by word — the
+     sentence broken into the words it is made of, which is the listening a learner is
+     practising. Read off the clocks each frame rather than from `timeupdate`, which comes
+     four times a second and would light a short word late or not at all. Nothing moves:
+     one underline goes from word to word. A line with no word clocks lights nothing. */
+  var lit = null;
+  var litFrame = 0;
+
+  function unlight() {
+    if (litFrame && window.cancelAnimationFrame) window.cancelAnimationFrame(litFrame);
+    litFrame = 0;
+    if (lit) lit.classList.remove("voiced-now");
+    lit = null;
+  }
+
+  // The word on show whose letters a clock covers. Only the source cell: the cells not on
+  // show hold no words, and an Onkelos cell's offsets are its own.
+  function wordAt(id, from, to) {
+    var pair = document.querySelector('.pair[data-id="' + CSS.escape(id) + '"]');
+    if (!pair) return null;
+    var words = pair.querySelectorAll(".src .w[data-bare]");
+    for (var i = 0; i < words.length; i++) {
+      var span = words[i].getAttribute("data-bare").split(",");
+      if (parseInt(span[0], 10) < to && parseInt(span[1], 10) > from) return words[i];
+    }
+    return null;
+  }
+
+  function follow(id) {
+    var rows = wordClocks[id];
+    if (!rows || !rows.length || !window.requestAnimationFrame) return;
+    function tick() {
+      litFrame = 0;
+      if (!playing) return unlight();
+      var now = audio.currentTime;
+      var word = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (now >= rows[i][2] && now < rows[i][3]) {
+          word = wordAt(id, rows[i][0], rows[i][1]);
+          break;
+        }
+      }
+      if (word !== lit) {
+        if (lit) lit.classList.remove("voiced-now");
+        lit = word;
+        if (lit) lit.classList.add("voiced-now");
+      }
+      litFrame = window.requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
   /* One line. */
   document.addEventListener("click", function (event) {
     var button = event.target.closest ? event.target.closest(".say") : null;
@@ -8890,6 +8944,7 @@ var targumReader = function () {
       if (hearing) hearing.classList.add("hearing");
     }
     play(span[0]);
+    follow(button.getAttribute("data-id"));
     // Wall-clock, so the span's length is divided by the speed it is played at.
     stopAt = setTimeout(halt, Math.max(0, ((span[1] - span[0]) * 1000) / audio.playbackRate));
   });

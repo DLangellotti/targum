@@ -2545,6 +2545,13 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
    mark of its own: a reader already reads that band as "this one", and a third meaning for
    a fourth colour would be spending the ration on bookkeeping. */
 .pair.voiced.now { background: var(--paper-raised); }
+/* The word the voice is on, while a line plays on its own (targum-internal#265, step 2):
+   an underline in the accent, low enough to clear the points, so it never covers a
+   word's level — that is the wash and the inset line — and nothing slides. */
+.w.voiced-now {
+  text-decoration: underline 2px var(--accent);
+  text-underline-offset: 0.45em;
+}
 
 /* The weekly's sections, under the bar.
 
