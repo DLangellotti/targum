@@ -978,7 +978,11 @@ var targumReader = function () {
     record.title = documentTitle || record.title || "";
     record.language = language || record.language || "";
     if (!record.sections || typeof record.sections !== "object") record.sections = {};
-    if (on) record.sections[sectionId] = Date.now();
+    // One moment for the whole press: the section, the text and the record were stamped
+    // by three calls to the clock, and a press that straddled a millisecond said the text
+    // was finished a millisecond after its last part was.
+    var now = Date.now();
+    if (on) record.sections[sectionId] = now;
     else delete record.sections[sectionId];
     /* `done` goes on meaning what it has always meant: this whole text is finished. It
        is set when the last of its parts is, and it is what the library row, the next
@@ -1001,9 +1005,9 @@ var targumReader = function () {
     for (var part = 1; part <= sectionCount; part++) {
       if (record.sections[String(part)]) whole += 1;
     }
-    if (on && whole >= sectionCount) record.done = record.done || Date.now();
+    if (on && whole >= sectionCount) record.done = record.done || now;
     if (!on && sectionCount === 1) record.done = 0;
-    record.updated = Date.now();
+    record.updated = now;
     all[documentId] = record;
     try {
       targumKeep(DOCS, JSON.stringify(all));
