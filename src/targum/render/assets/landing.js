@@ -281,15 +281,33 @@
   drawLines(); drawCard(); paint();
 
   /* ---- the media tiles ---- */
-  var waveHtml = "";
-  for (var i = 0; i < 48; i++) {
-    var hgt = 18 + Math.abs(Math.sin(i * 0.7) * 40 + Math.sin(i * 0.23) * 25);
-    waveHtml += "<i class=\"" + (i < 29 ? "on" : "") + "\" style=\"block-size:" + Math.min(92, hgt) + "%\"></i>";
+  // A bar's height is set on the element, not written into the markup: the server's own
+  // policy allows no inline `style` attribute, and every chart on this page drew flat
+  // until they were set this way (2026-09-16).
+  function bars(into, n, height, marked) {
+    var host = document.getElementById(into);
+    if (!host) return;
+    host.replaceChildren();
+    for (var i = 0; i < n; i++) {
+      var bar = document.createElement("i");
+      bar.style.blockSize = height(i) + "%";
+      if (marked && marked(i)) bar.className = "on";
+      host.appendChild(bar);
+    }
   }
-  document.getElementById("wave").innerHTML = waveHtml;
-  var miniHtml = "";
-  for (var j = 0; j < 22; j++) miniHtml += "<i style=\"block-size:" + (25 + Math.abs(Math.sin(j * 1.3)) * 75) + "%\"></i>";
-  document.getElementById("mini").innerHTML = miniHtml;
+  bars(
+    "wave",
+    48,
+    function (i) {
+      return Math.min(92, 18 + Math.abs(Math.sin(i * 0.7) * 40 + Math.sin(i * 0.23) * 25));
+    },
+    function (i) {
+      return i < 29;
+    }
+  );
+  bars("mini", 22, function (j) {
+    return 25 + Math.abs(Math.sin(j * 1.3)) * 75;
+  });
 
 
   /* ---- the vowel switches ---- */
@@ -388,11 +406,34 @@
   /* ---- the ladder ---- */
   var RUNGS = [[250, "א", "aleph", "A1"], [900, "א+", "aleph plus", "A1"], [1800, "ב", "bet", "A2"], [3000, "ב+", "bet plus", "A2+"], [4500, "ג", "gimel", "B1"], [6500, "ד", "dalet", "B2"], [9000, "ה", "hey", "C1"], [12000, "ו", "vav", "C2"]];
   var known = 2140;
-  document.getElementById("ladder").innerHTML = RUNGS.map(function (r, n) {
-    var lo = n ? RUNGS[n - 1][0] : 0, share = Math.max(0, Math.min(1, (known - lo) / (r[0] - lo)));
-    return "<div class=\"step\" title=\"" + r[2] + " · " + r[0].toLocaleString("en") + " words\"><span class=\"bar-s\" style=\"block-size:" + (18 + n * 11.5) + "%\"><i style=\"block-size:" + share * 100 + "%\"></i></span>" +
-      "<span class=\"cap\"><span class=\"he\">" + r[1] + "</span><span class=\"n\">" + r[0].toLocaleString("en") + "</span></span></div>";
-  }).join("");
+  // Built as elements for the reason the waveforms are: the two heights on every rung
+  // are an inline `style` the server's policy refuses, and the whole chart drew flat.
+  var ladder = document.getElementById("ladder");
+  ladder.replaceChildren();
+  RUNGS.forEach(function (r, n) {
+    var lo = n ? RUNGS[n - 1][0] : 0;
+    var share = Math.max(0, Math.min(1, (known - lo) / (r[0] - lo)));
+    var step = document.createElement("div");
+    step.className = "step";
+    step.title = r[2] + " · " + r[0].toLocaleString("en") + " words";
+    var bar = document.createElement("span");
+    bar.className = "bar-s";
+    bar.style.blockSize = 18 + n * 11.5 + "%";
+    var filled = document.createElement("i");
+    filled.style.blockSize = share * 100 + "%";
+    bar.appendChild(filled);
+    var cap = document.createElement("span");
+    cap.className = "cap";
+    var letter = document.createElement("span");
+    letter.className = "he";
+    letter.textContent = r[1];
+    var count = document.createElement("span");
+    count.className = "n";
+    count.textContent = r[0].toLocaleString("en");
+    cap.append(letter, count);
+    step.append(bar, cap);
+    ladder.appendChild(step);
+  });
 
   /* ---- conversation fold ---- */
   var whyFold = document.getElementById("whyFold"), why = document.getElementById("why");
