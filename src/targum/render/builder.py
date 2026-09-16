@@ -300,6 +300,7 @@ def _environment() -> Environment:
     env.globals["asset"] = _asset
     env.globals["data_uri"] = _data_uri
     env.globals["hebrew_face"] = _hebrew_face
+    env.globals["scripture_face"] = _scripture_face
     env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
     # The English, for any template that says a catalogued sentence and is not told
@@ -501,6 +502,25 @@ def _hebrew_face(biblical: bool = False) -> Markup:
         f'@font-face{{font-family:"{family}";'
         f'src:url({_data_uri(file)}) format("woff2");font-display:block}}'
         f':root{{--reading-hebrew:"{family}", {_FALLBACK}}}'
+        "</style>"
+    )
+
+
+@cache
+def _scripture_face() -> Markup:
+    """The accented face, beside the modern one, for a page that shows both.
+
+    `_hebrew_face` carries one or the other, because a reader is one text and wants one.
+    The front door is not one text: it shows a recipe and Genesis on the same scroll, and
+    with only the modern face every ta'am in the Torah demo drew as a box (2026-09-16).
+    28 KB, and it names its own token so nothing but scripture pays it any attention.
+    """
+    family, file = BIBLICAL_FACE
+    return Markup(
+        "<style>"
+        f'@font-face{{font-family:"{family}";'
+        f'src:url({_data_uri(file)}) format("woff2");font-display:block}}'
+        f':root{{--scripture:"{family}", {_FALLBACK}}}'
         "</style>"
     )
 
@@ -1282,17 +1302,21 @@ def front_page(language: str = "en", address: str = "") -> str:
     Everything it needs is baked in, as a reader's is: the two faces, the stylesheet and
     the one script are inlined, and nothing on the page fetches anything.
     """
+    words = page_words(language)
     return (
         _environment()
         .get_template("landing.html.j2")
         .render(
-            t=page_words(language),
+            t=words,
             page_language=_page_language(language),
-            title="targum — learn modern and biblical Hebrew",
-            description=(
+            # The tab and the search result speak the page's language too. They are the
+            # two sentences a stranger reads before the page itself.
+            title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
+            description=words(
+                "landing.head.description",
                 "Learn modern and biblical Hebrew from videos, podcasts and books. "
                 "Vowels on every word, English beside every line, and any word explained "
-                "the moment you tap it."
+                "the moment you tap it.",
             ),
             canonical=address.rstrip("/") + "/" if address else "",
             strings=script_strings(language, "landing."),

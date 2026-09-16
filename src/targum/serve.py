@@ -4374,7 +4374,7 @@ class Handler(BaseHTTPRequestHandler):
             # signed-out visitor asks for is still the holding page, because the front
             # door is a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
-                page = front_page(language=self._page_language(), address=self.address)
+                page = front_page(language=self._front_language(), address=self.address)
                 return self._send(200, page.encode("utf-8"), HTML)
             return self._send(
                 200, holding_page(language=self._page_language()).encode("utf-8"), HTML
@@ -5699,6 +5699,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._ui_language()
         self._said_by_browser = True
         return best_language(self.headers.get("Accept-Language", ""))
+
+    def _front_language(self) -> str:
+        """The language the front door answers in.
+
+        The browser's, as every other public page, unless the visitor pressed the
+        switcher in the bar: `?lang=` is the whole of the choice, kept in the address
+        rather than on a cookie or an account, because a stranger reading a landing page
+        has neither and should not be given one to change the language of a page.
+        """
+        from .strings import languages
+
+        asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
+        return asked if asked in set(languages()) else self._page_language()
 
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")

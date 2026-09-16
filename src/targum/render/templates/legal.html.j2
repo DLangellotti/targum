@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="en">
+<!-- The pages behind the front door are light, always (David, 2026-09-16), the
+     way the front door itself is: one look for everything a stranger meets.
+     `reader.css` guards its dark block with :not([data-theme="light"]), so the
+     stamp is the whole of it, and there is no switch because there is nothing
+     left to switch to. -->
+<html lang="en" data-theme="light">
 <head>
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
 </head>
 <body class="public legal">
 {#- Four documents, one template. They share a head, a lockup and a foot, and the three
@@ -33,7 +37,6 @@
     </a>
     <div class="corner">
       <a class="enter" href="/account/signin">Sign in</a>
-      <button type="button" data-theme-toggle aria-label="Switch theme"></button>
     </div>
   </div>
 

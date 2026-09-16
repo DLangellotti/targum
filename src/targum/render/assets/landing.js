@@ -10,6 +10,17 @@
 */
 (function () {
   "use strict";
+
+  // The page's words, in the page's language (targum-internal#184). English is the
+  // fallback written at every call, so a key the catalogue has not filled still says
+  // something rather than its own name.
+  var words = window.TargumStrings || {};
+  var t =
+    typeof words.t === "function"
+      ? words.t
+      : function (key, english) {
+          return english;
+        };
   var MARKS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -22,42 +33,44 @@
 
   /* ---- the words ---- */
   var W = {
-    samim: { he: "שָׂמִים", state: "known", head: "שָׂם", pos: "verb", sense: "to put, to place", facts: [["Here", "<span class=\"he\">שָׂמִים</span> · pa’al, present · put"], ["Root", "<span class=\"he\">שׂ־י־ם</span>"], ["Which Hebrew", "Biblical and modern"], ["Met before", "Genesis 2:8 · <span class=\"scripture\">וַיָּ֣שֶׂם</span> · “and there He put”"]] },
-    shemen: { he: "שֶׁמֶן", state: "known", head: "שֶׁמֶן", pos: "noun, masculine", sense: "oil", facts: [["Plural", "<span class=\"he\">שְׁמָנִים</span>"], ["Which Hebrew", "Biblical and modern"], ["Met before", "Genesis 28:18 · <span class=\"scripture\">שֶׁ֖מֶן</span> · “and poured oil”"]] },
-    bamachvat: { he: "בַּמַּחֲבַת", state: "learning", head: "מַחֲבַת", pos: "noun, feminine", sense: "frying pan", facts: [["Here", "<span class=\"he\">בַּ</span> + <span class=\"he\">מַּחֲבַת</span> · in the pan"], ["Which Hebrew", "Biblical and modern"], ["Met before", "Leviticus 2:5 · <span class=\"scripture\">הַֽמַּחֲבַ֖ת</span> · “baked on a griddle”"]] },
-    umechakim: { he: "וּמְחַכִּים", state: "known", head: "חִכָּה", pos: "verb", sense: "to wait", binyan: [["pi’el", "חִכָּה", true]], facts: [["Here", "<span class=\"he\">וּ</span> + <span class=\"he\">מְחַכִּים</span> · and wait"], ["Root", "<span class=\"he\">ח־כ־ה</span>"]] },
-    sheyitchamem: { he: "שֶׁיִּתְחַמֵּם", state: "new", head: "הִתְחַמֵּם", pos: "verb", sense: "to heat up, to warm up", binyan: [["pi’el", "חִמֵּם"], ["hitpa’el", "הִתְחַמֵּם", true]], facts: [["Here", "<span class=\"he\">שֶׁ</span> + <span class=\"he\">יִּתְחַמֵּם</span> · hitpa’el, future, it · for it to heat up"], ["Root", "<span class=\"he\">ח־מ־ם</span>"]] },
-    mosifim: { he: "מוֹסִיפִים", state: "learning", head: "הוֹסִיף", pos: "verb", sense: "to add", binyan: [["hif’il", "הוֹסִיף", true], ["nif’al", "נוֹסַף"]], facts: [["Here", "<span class=\"he\">מוֹסִיפִים</span> · hif’il, present · add"], ["Root", "<span class=\"he\">י־ס־ף</span>"], ["Which Hebrew", "Biblical and modern"]] },
-    batzal: { he: "בָּצָל", state: "known", head: "בָּצָל", pos: "noun, masculine", sense: "onion", facts: [["Plural", "<span class=\"he\">בְּצָלִים</span>"], ["Which Hebrew", "Biblical and modern"], ["Met before", "Numbers 11:5 · <span class=\"scripture\">הַבְּצָלִ֖ים</span> · “and the onions”"]] },
-    pilpel: { he: "פִּלְפֵּל", state: "known", head: "פִּלְפֵּל", pos: "noun, masculine", sense: "pepper", facts: [["Plural", "<span class=\"he\">פִּלְפְּלִים</span>"], ["Which Hebrew", "Rabbinic and modern"]] },
-    agvaniyot: { he: "וְעַגְבָנִיּוֹת", state: "learning", head: "עַגְבָנִיָּה", pos: "noun, feminine", sense: "tomato", facts: [["Here", "<span class=\"he\">וְ</span> + <span class=\"he\">עַגְבָנִיּוֹת</span> · and tomatoes"], ["Which Hebrew", "Modern"], ["From", "<span class=\"he\">עָגַב</span>, to desire. The tomato was once the love apple."]] },
-    umevashlim: { he: "וּמְבַשְּׁלִים", state: "known", head: "בִּשֵּׁל", pos: "verb", sense: "to cook", binyan: [["pi’el", "בִּשֵּׁל", true], ["pu’al", "בֻּשַּׁל"]], facts: [["Here", "<span class=\"he\">וּ</span> + <span class=\"he\">מְבַשְּׁלִים</span> · and cook"], ["Root", "<span class=\"he\">ב־שׁ־ל</span>"], ["Which Hebrew", "Biblical and modern"]] },
-    al: { he: "עַל", state: "known", head: "עַל", pos: "preposition", sense: "on, over", facts: [["Here", "<span class=\"he\">עַל אֵשׁ</span> · over a heat, on the stove"]] },
-    esh: { he: "אֵשׁ", state: "known", head: "אֵשׁ", pos: "noun, feminine", sense: "fire", facts: [["Here", "<span class=\"he\">אֵשׁ קְטַנָּה</span> · a low heat"], ["Which Hebrew", "Biblical and modern"]] },
-    ktana: { he: "קְטַנָּה", state: "known", head: "קָטָן", pos: "adjective", sense: "small", facts: [["Here", "feminine, to match <span class=\"he\">אֵשׁ</span>"]] },
-    achshav: { he: "עַכְשָׁיו", state: "known", head: "עַכְשָׁיו", pos: "adverb", sense: "now", facts: [["Which Hebrew", "Rabbinic and modern"]] },
-    shovrim: { he: "שׁוֹבְרִים", state: "learning", head: "שָׁבַר", pos: "verb", sense: "to break", binyan: [["pa’al", "שָׁבַר", true], ["nif’al", "נִשְׁבַּר"], ["pi’el", "שִׁבֵּר"]], facts: [["Here", "<span class=\"he\">שׁוֹבְרִים</span> · pa’al, present · crack"], ["Root", "<span class=\"he\">שׁ־ב־ר</span>"], ["Which Hebrew", "Biblical and modern"], ["Met before", "Exodus 34:1 · <span class=\"scripture\">שִׁבַּֽרְתָּ</span> · “which thou didst break”"]] },
-    et: { he: "אֶת", state: "known", head: "אֶת", pos: "particle", sense: "marks a definite object", facts: [["Here", "before <span class=\"he\">הַבֵּיצִים</span>, which is definite"]] },
-    habeitzim: { he: "הַבֵּיצִים", state: "known", head: "בֵּיצָה", pos: "noun, feminine", sense: "egg", facts: [["Here", "<span class=\"he\">הַ</span> + <span class=\"he\">בֵּיצִים</span> · the eggs"], ["Which Hebrew", "Biblical and modern"], ["Met before", "Deuteronomy 22:6 · <span class=\"scripture\">בֵיצִ֔ים</span> · “or eggs”"]] },
-    yeshirot: { he: "יְשִׁירוֹת", state: "new", head: "יְשִׁירוֹת", pos: "adverb", sense: "directly, straight", facts: [["Root", "<span class=\"he\">י־שׁ־ר</span>"], ["From", "<span class=\"he\">יָשָׁר</span>, straight"]] },
-    letoch: { he: "לְתוֹךְ", state: "known", head: "תּוֹךְ", pos: "preposition", sense: "into", facts: [["Here", "<span class=\"he\">לְ</span> + <span class=\"he\">תוֹךְ</span> · into"]] },
-    harotev: { he: "הָרֹטֶב", state: "learning", head: "רֹטֶב", pos: "noun, masculine", sense: "sauce", facts: [["Here", "<span class=\"he\">הָ</span> + <span class=\"he\">רֹטֶב</span> · the sauce"], ["Plural", "<span class=\"he\">רְטָבִים</span>"], ["From", "<span class=\"he\">ר־ט־ב</span>, moist"]] },
-    mechasim: { he: "מְכַסִּים", state: "learning", head: "כִּסָּה", pos: "verb", sense: "to cover", binyan: [["pi’el", "כִּסָּה", true], ["hitpa’el", "הִתְכַּסָּה"]], facts: [["Here", "<span class=\"he\">מְכַסִּים</span> · pi’el, present · cover"], ["Root", "<span class=\"he\">כ־ס־ה</span>"], ["Which Hebrew", "Biblical and modern"]] },
-    veacharei: { he: "וְאַחֲרֵי", state: "known", head: "אַחֲרֵי", pos: "preposition", sense: "after", facts: [["Here", "<span class=\"he\">וְ</span> + <span class=\"he\">אַחֲרֵי</span> · and after"]] },
-    chamesh: { he: "חָמֵשׁ", state: "known", head: "חָמֵשׁ", pos: "number", sense: "five", facts: [["Here", "feminine, to match <span class=\"he\">דַּקּוֹת</span>"]] },
-    dakot: { he: "דַּקּוֹת", state: "known", head: "דַּקָּה", pos: "noun, feminine", sense: "minute", facts: [["Plural", "<span class=\"he\">דַּקּוֹת</span>"], ["From", "<span class=\"he\">דַּק</span>, thin"], ["Met before", "Genesis 41:3 · <span class=\"scripture\">וְדַקּ֣וֹת</span> · “lean-fleshed”"]] },
-    ze: { he: "זֶה", state: "known", head: "זֶה", pos: "pronoun", sense: "this, it", facts: [["Here", "it"]] },
-    muchan: { he: "מוּכָן", state: "known", head: "מוּכָן", pos: "adjective", sense: "ready", facts: [["Root", "<span class=\"he\">כ־ו־ן</span>"], ["From", "<span class=\"he\">הֵכִין</span>, to prepare"]] }
+    samim: { he: "שָׂמִים", state: "known", head: "שָׂם", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-put-to-place", "to put, to place"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שָׂמִים</span> · " + t("landing.card.pa-al-present", "pa’al, present") + " · " + t("landing.card.put", "put")], [t("landing.card.root", "Root"), "<span class=\"he\">שׂ־י־ם</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-2-8", "Genesis 2:8") + " · <span class=\"scripture\">וַיָּ֣שֶׂם</span> · " + t("landing.card.and-there-he-put", "“and there He put”")]] },
+    shemen: { he: "שֶׁמֶן", state: "known", head: "שֶׁמֶן", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.oil", "oil"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">שְׁמָנִים</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-28-18", "Genesis 28:18") + " · <span class=\"scripture\">שֶׁ֖מֶן</span> · " + t("landing.card.and-poured-oil", "“and poured oil”")]] },
+    bamachvat: { he: "בַּמַּחֲבַת", state: "learning", head: "מַחֲבַת", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.frying-pan", "frying pan"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">בַּ</span> + <span class=\"he\">מַּחֲבַת</span> · " + t("landing.card.in-the-pan", "in the pan")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.leviticus-2-5", "Leviticus 2:5") + " · <span class=\"scripture\">הַֽמַּחֲבַ֖ת</span> · " + t("landing.card.baked-on-a-griddle", "“baked on a griddle”")]] },
+    umechakim: { he: "וּמְחַכִּים", state: "known", head: "חִכָּה", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-wait", "to wait"), binyan: [["pi’el", "חִכָּה", true]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וּ</span> + <span class=\"he\">מְחַכִּים</span> · " + t("landing.card.and-wait", "and wait")], [t("landing.card.root", "Root"), "<span class=\"he\">ח־כ־ה</span>"]] },
+    sheyitchamem: { he: "שֶׁיִּתְחַמֵּם", state: "new", head: "הִתְחַמֵּם", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-heat-up-to-warm-up", "to heat up, to warm up"), binyan: [["pi’el", "חִמֵּם"], ["hitpa’el", "הִתְחַמֵּם", true]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שֶׁ</span> + <span class=\"he\">יִּתְחַמֵּם</span> · " + t("landing.card.hitpa-el-future-it", "hitpa’el, future, it") + " · " + t("landing.card.for-it-to-heat-up", "for it to heat up")], [t("landing.card.root", "Root"), "<span class=\"he\">ח־מ־ם</span>"]] },
+    mosifim: { he: "מוֹסִיפִים", state: "learning", head: "הוֹסִיף", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-add", "to add"), binyan: [["hif’il", "הוֹסִיף", true], ["nif’al", "נוֹסַף"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">מוֹסִיפִים</span> · " + t("landing.card.hif-il-present", "hif’il, present") + " · " + t("landing.card.add", "add")], [t("landing.card.root", "Root"), "<span class=\"he\">י־ס־ף</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    batzal: { he: "בָּצָל", state: "known", head: "בָּצָל", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.onion", "onion"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">בְּצָלִים</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.numbers-11-5", "Numbers 11:5") + " · <span class=\"scripture\">הַבְּצָלִ֖ים</span> · " + t("landing.card.and-the-onions", "“and the onions”")]] },
+    pilpel: { he: "פִּלְפֵּל", state: "known", head: "פִּלְפֵּל", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.pepper", "pepper"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">פִּלְפְּלִים</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.rabbinic-and-modern", "Rabbinic and modern")]] },
+    agvaniyot: { he: "וְעַגְבָנִיּוֹת", state: "learning", head: "עַגְבָנִיָּה", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.tomato", "tomato"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וְ</span> + <span class=\"he\">עַגְבָנִיּוֹת</span> · " + t("landing.card.and-tomatoes", "and tomatoes")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.modern", "Modern")], [t("landing.card.from", "From"), "<span class=\"he\">עָגַב</span>" + t("landing.card.to-desire-the-tomato-was-once-the-love", ", to desire. The tomato was once the love apple.")]] },
+    umevashlim: { he: "וּמְבַשְּׁלִים", state: "known", head: "בִּשֵּׁל", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-cook", "to cook"), binyan: [["pi’el", "בִּשֵּׁל", true], ["pu’al", "בֻּשַּׁל"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וּ</span> + <span class=\"he\">מְבַשְּׁלִים</span> · " + t("landing.card.and-cook", "and cook")], [t("landing.card.root", "Root"), "<span class=\"he\">ב־שׁ־ל</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    al: { he: "עַל", state: "known", head: "עַל", pos: t("landing.card.preposition", "preposition"), sense: t("landing.card.on-over", "on, over"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">עַל אֵשׁ</span> · " + t("landing.card.over-a-heat-on-the-stove", "over a heat, on the stove")]] },
+    esh: { he: "אֵשׁ", state: "known", head: "אֵשׁ", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.fire", "fire"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">אֵשׁ קְטַנָּה</span> · " + t("landing.card.a-low-heat", "a low heat")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    ktana: { he: "קְטַנָּה", state: "known", head: "קָטָן", pos: t("landing.card.adjective", "adjective"), sense: t("landing.card.small", "small"), facts: [[t("landing.card.here", "Here"), t("landing.card.feminine-to-match", "feminine, to match") + " <span class=\"he\">אֵשׁ</span>"]] },
+    achshav: { he: "עַכְשָׁיו", state: "known", head: "עַכְשָׁיו", pos: t("landing.card.adverb", "adverb"), sense: t("landing.card.now", "now"), facts: [[t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.rabbinic-and-modern", "Rabbinic and modern")]] },
+    shovrim: { he: "שׁוֹבְרִים", state: "learning", head: "שָׁבַר", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-break", "to break"), binyan: [["pa’al", "שָׁבַר", true], ["nif’al", "נִשְׁבַּר"], ["pi’el", "שִׁבֵּר"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שׁוֹבְרִים</span> · " + t("landing.card.pa-al-present", "pa’al, present") + " · " + t("landing.card.crack", "crack")], [t("landing.card.root", "Root"), "<span class=\"he\">שׁ־ב־ר</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.exodus-34-1", "Exodus 34:1") + " · <span class=\"scripture\">שִׁבַּֽרְתָּ</span> · " + t("landing.card.which-thou-didst-break", "“which thou didst break”")]] },
+    et: { he: "אֶת", state: "known", head: "אֶת", pos: t("landing.card.particle", "particle"), sense: t("landing.card.marks-a-definite-object", "marks a definite object"), facts: [[t("landing.card.here", "Here"), t("landing.card.before", "before") + " <span class=\"he\">הַבֵּיצִים</span>" + t("landing.card.which-is-definite", ", which is definite")]] },
+    habeitzim: { he: "הַבֵּיצִים", state: "known", head: "בֵּיצָה", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.egg", "egg"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">הַ</span> + <span class=\"he\">בֵּיצִים</span> · " + t("landing.card.the-eggs", "the eggs")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.deuteronomy-22-6", "Deuteronomy 22:6") + " · <span class=\"scripture\">בֵיצִ֔ים</span> · " + t("landing.card.or-eggs", "“or eggs”")]] },
+    yeshirot: { he: "יְשִׁירוֹת", state: "new", head: "יְשִׁירוֹת", pos: t("landing.card.adverb", "adverb"), sense: t("landing.card.directly-straight", "directly, straight"), facts: [[t("landing.card.root", "Root"), "<span class=\"he\">י־שׁ־ר</span>"], [t("landing.card.from", "From"), "<span class=\"he\">יָשָׁר</span>" + t("landing.card.straight", ", straight")]] },
+    letoch: { he: "לְתוֹךְ", state: "known", head: "תּוֹךְ", pos: t("landing.card.preposition", "preposition"), sense: t("landing.card.into", "into"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">לְ</span> + <span class=\"he\">תוֹךְ</span> · " + t("landing.card.into", "into")]] },
+    harotev: { he: "הָרֹטֶב", state: "learning", head: "רֹטֶב", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.sauce", "sauce"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">הָ</span> + <span class=\"he\">רֹטֶב</span> · " + t("landing.card.the-sauce", "the sauce")], [t("landing.card.plural", "Plural"), "<span class=\"he\">רְטָבִים</span>"], [t("landing.card.from", "From"), "<span class=\"he\">ר־ט־ב</span>" + t("landing.card.moist", ", moist")]] },
+    mechasim: { he: "מְכַסִּים", state: "learning", head: "כִּסָּה", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-cover", "to cover"), binyan: [["pi’el", "כִּסָּה", true], ["hitpa’el", "הִתְכַּסָּה"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">מְכַסִּים</span> · " + t("landing.card.pi-el-present", "pi’el, present") + " · " + t("landing.card.cover", "cover")], [t("landing.card.root", "Root"), "<span class=\"he\">כ־ס־ה</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    veacharei: { he: "וְאַחֲרֵי", state: "known", head: "אַחֲרֵי", pos: t("landing.card.preposition", "preposition"), sense: t("landing.card.after", "after"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וְ</span> + <span class=\"he\">אַחֲרֵי</span> · " + t("landing.card.and-after", "and after")]] },
+    chamesh: { he: "חָמֵשׁ", state: "known", head: "חָמֵשׁ", pos: t("landing.card.number", "number"), sense: t("landing.card.five", "five"), facts: [[t("landing.card.here", "Here"), t("landing.card.feminine-to-match", "feminine, to match") + " <span class=\"he\">דַּקּוֹת</span>"]] },
+    dakot: { he: "דַּקּוֹת", state: "known", head: "דַּקָּה", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.minute", "minute"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">דַּקּוֹת</span>"], [t("landing.card.from", "From"), "<span class=\"he\">דַּק</span>" + t("landing.card.thin", ", thin")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-41-3", "Genesis 41:3") + " · <span class=\"scripture\">וְדַקּ֣וֹת</span> · " + t("landing.card.lean-fleshed", "“lean-fleshed”")]] },
+    ze: { he: "זֶה", state: "known", head: "זֶה", pos: t("landing.card.pronoun", "pronoun"), sense: t("landing.card.this-it", "this, it"), facts: [[t("landing.card.here", "Here"), t("landing.card.it", "it")]] },
+    muchan: { he: "מוּכָן", state: "known", head: "מוּכָן", pos: t("landing.card.adjective", "adjective"), sense: t("landing.card.ready", "ready"), facts: [[t("landing.card.root", "Root"), "<span class=\"he\">כ־ו־ן</span>"], [t("landing.card.from", "From"), "<span class=\"he\">הֵכִין</span>" + t("landing.card.to-prepare", ", to prepare")]] }
   };
   var LINES = [
-    { start: 0, end: 4.4, words: ["samim", "shemen", "bamachvat", "umechakim", "sheyitchamem"], en: "Put oil in the pan and wait for it to heat up.", stamp: "2:10" },
-    { start: 4.4, end: 9.0, words: ["mosifim", "batzal", "pilpel", "agvaniyot", "umevashlim", "al", "esh", "ktana"], en: "Add onion, pepper and tomatoes, and cook over a low heat.", stamp: "2:14", comma: [1] },
-    { start: 9.0, end: 13.6, words: ["achshav", "shovrim", "et", "habeitzim", "yeshirot", "letoch", "harotev"], en: "Now crack the eggs straight into the sauce.", stamp: "2:19" },
-    { start: 13.6, end: 18, words: ["mechasim", "veacharei", "chamesh", "dakot", "ze", "muchan"], en: "Cover it, and after five minutes it’s ready.", stamp: "2:23", comma: [0] }
+    { start: 0, end: 4.4, words: ["samim", "shemen", "bamachvat", "umechakim", "sheyitchamem"], en: t("landing.demo.put-oil-in-the-pan-and-wait-for", "Put oil in the pan and wait for it to heat up."), stamp: "2:10" },
+    { start: 4.4, end: 9.0, words: ["mosifim", "batzal", "pilpel", "agvaniyot", "umevashlim", "al", "esh", "ktana"], en: t("landing.demo.add-onion-pepper-and-tomatoes-and-cook-over", "Add onion, pepper and tomatoes, and cook over a low heat."), stamp: "2:14", comma: [1] },
+    { start: 9.0, end: 13.6, words: ["achshav", "shovrim", "et", "habeitzim", "yeshirot", "letoch", "harotev"], en: t("landing.demo.now-crack-the-eggs-straight-into-the-sauce", "Now crack the eggs straight into the sauce."), stamp: "2:19" },
+    { start: 13.6, end: 18, words: ["mechasim", "veacharei", "chamesh", "dakot", "ze", "muchan"], en: t("landing.demo.cover-it-and-after-five-minutes-it-s", "Cover it, and after five minutes it’s ready."), stamp: "2:23", comma: [0] }
   ];
   var DURATION = 18, BASE = 130;
   var RATES = [0.5, 0.75, 1];
-  var vowels = true, openId = "shovrim", t = 10.4, playing = false, rateIx = 2;
+  // `at` is where in the video we are. It was `t`, which is the catalogue's own
+  // name for a sentence, and the clock quietly overwrote it (2026-09-16).
+  var vowels = true, openId = "shovrim", at = 10.4, playing = false, rateIx = 2;
 
   function plain(s) { return vowels ? s : s.replace(MARKS, ""); }
   function lineAt(time) { for (var i = 0; i < LINES.length; i++) if (time >= LINES[i].start && time < LINES[i].end) return i; return -1; }
@@ -66,7 +79,7 @@
 
   var linesEl = document.getElementById("lines");
   function drawLines() {
-    var now = lineAt(t);
+    var now = lineAt(at);
     linesEl.textContent = "";
     LINES.forEach(function (line, n) {
       var pair = document.createElement("div");
@@ -93,13 +106,13 @@
 
   function drawCard() {
     var w = W[openId];
-    var html = "<div class=\"card-head\"><span class=\"label\">Word card</span><p class=\"card-word\">" + w.head + "</p>" +
+    var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.page.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
       "<p class=\"card-sense\">" + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
     if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + b[0] + " <span class=\"he\">" + b[1] + "</span></span>"; }).join("") + "</div>";
     html += "<dl class=\"facts-list\">" + w.facts.map(function (f) { return "<dt>" + f[0] + "</dt><dd>" + f[1] + "</dd>"; }).join("") + "</dl>";
-    html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">Getting there</button>" +
-      "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">Known</button>" +
-      "<button class=\"btn ghost small\" type=\"button\">Ask</button></div>";
+    html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.getting-there", "Getting there") + "</button>" +
+      "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +
+      "<button class=\"btn ghost small\" type=\"button\">" + t("landing.demo.ask", "Ask") + "</button></div>";
     document.getElementById("card").innerHTML = html;
   }
 
@@ -137,7 +150,7 @@
 
   function mmss(s) { s = Math.floor(s); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
   function caption(force) {
-    var n = lineAt(t);
+    var n = lineAt(at);
     if (n === shown && !force) return;
     var moved = n !== shown;
     shown = n;
@@ -215,20 +228,20 @@
   }
 
   function paint() {
-    film(t);
-    clock.textContent = mmss(BASE + t) + " / 10:12";
-    fill.style.inlineSize = (t / DURATION) * 100 + "%";
-    track.setAttribute("aria-valuenow", String(Math.floor(t)));
+    film(at);
+    clock.textContent = mmss(BASE + at) + " / 10:12";
+    fill.style.inlineSize = (at / DURATION) * 100 + "%";
+    track.setAttribute("aria-valuenow", String(Math.floor(at)));
     caption(false);
   }
-  function seek(time) { t = Math.max(0, Math.min(DURATION - 0.01, time)); shown = -2; paint(); }
+  function seek(time) { at = Math.max(0, Math.min(DURATION - 0.01, time)); shown = -2; paint(); }
 
   var last = 0, raf = 0;
   function frame(now) {
     if (!playing) return;
     var dt = last ? Math.min(0.1, (now - last) / 1000) : 0; last = now;
-    t += dt * RATES[rateIx];
-    if (t >= DURATION) { t = 0; paint(); toggle(); return; }
+    at += dt * RATES[rateIx];
+    if (at >= DURATION) { at = 0; paint(); toggle(); return; }
     paint();
     raf = requestAnimationFrame(frame);
   }
@@ -250,8 +263,8 @@
     seek(((e.clientX - r.left) / r.width) * DURATION);
   });
   track.addEventListener("keydown", function (e) {
-    if (e.key === "ArrowRight") { e.preventDefault(); seek(t + 2); }
-    if (e.key === "ArrowLeft") { e.preventDefault(); seek(t - 2); }
+    if (e.key === "ArrowRight") { e.preventDefault(); seek(at + 2); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); seek(at - 2); }
   });
   document.getElementById("pin").addEventListener("click", function () {
     var on = !stage.classList.contains("pinned");
@@ -309,11 +322,11 @@
 
   /* ---- the Torah ---- */
   var VERSES = [
-    { he: "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃", en: "In the beginning God created the heaven and the earth.", arc: "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא" },
-    { he: "וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֙הוּ֙ וָבֹ֔הוּ וְחֹ֖שֶׁךְ עַל־פְּנֵ֣י תְה֑וֹם וְר֣וּחַ אֱלֹהִ֔ים מְרַחֶ֖פֶת עַל־פְּנֵ֥י הַמָּֽיִם׃", en: "Now the earth was unformed and void, and darkness was upon the face of the deep; and the spirit of God hovered over the face of the waters.", arc: "וְאַרְעָא הֲוַת צָדְיָא וְרֵיקַנְיָא וַחֲשׁוֹכָא פָּרַשׂ עַל אַפֵּי תְהוֹמָא וְרוּחָא מִן קֳדָם יְיָ מְנַשְּׁבָא עַל אַפֵּי מַיָּא" },
-    { he: "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃", en: "And God said: ‘Let there be light.’ And there was light.", arc: "וַאֲמַר יְיָ יְהֵי נְהוֹרָא וַהֲוָה נְהוֹרָא" }
+    { he: "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃", en: t("landing.demo.in-the-beginning-god-created-the-heaven-and", "In the beginning God created the heaven and the earth."), arc: "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא" },
+    { he: "וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֙הוּ֙ וָבֹ֔הוּ וְחֹ֖שֶׁךְ עַל־פְּנֵ֣י תְה֑וֹם וְר֣וּחַ אֱלֹהִ֔ים מְרַחֶ֖פֶת עַל־פְּנֵ֥י הַמָּֽיִם׃", en: t("landing.demo.now-the-earth-was-unformed-and-void-and", "Now the earth was unformed and void, and darkness was upon the face of the deep; and the spirit of God hovered over the face of the waters."), arc: "וְאַרְעָא הֲוַת צָדְיָא וְרֵיקַנְיָא וַחֲשׁוֹכָא פָּרַשׂ עַל אַפֵּי תְהוֹמָא וְרוּחָא מִן קֳדָם יְיָ מְנַשְּׁבָא עַל אַפֵּי מַיָּא" },
+    { he: "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃", en: t("landing.demo.and-god-said-let-there-be-light-and", "And God said: ‘Let there be light.’ And there was light."), arc: "וַאֲמַר יְיָ יְהֵי נְהוֹרָא וַהֲוָה נְהוֹרָא" }
   ];
-  var READINGS = ["First reading, in Hebrew", "Second reading, in Hebrew", "Once in Onkelos"];
+  var READINGS = [t("landing.demo.first-reading-in-hebrew", "First reading, in Hebrew"), t("landing.demo.second-reading-in-hebrew", "Second reading, in Hebrew"), t("landing.demo.once-in-onkelos", "Once in Onkelos")];
   var mode = "read", at = 0, step = 0, reading = 0;
   var versesEl = document.getElementById("verses"), foot = document.getElementById("torahFoot"), meta = document.getElementById("torahMeta");
 
@@ -334,20 +347,20 @@
       versesEl.appendChild(row);
     });
     foot.hidden = mode === "read";
-    if (mode === "read") meta.textContent = "Hebrew · English";
+    if (mode === "read") meta.textContent = t("landing.demo.hebrew-english", "Hebrew · English");
     if (mode === "verse") {
-      meta.textContent = "Shnayim mikra · verse " + Math.min(at + 1, 3) + " of 3";
+      meta.textContent = t("landing.demo.shnayim-mikra-verse", "Shnayim mikra · verse ") + Math.min(at + 1, 3) + t("landing.demo.of-3", " of 3");
       var lastVerse = at === VERSES.length - 1;
-      var next = step === 0 ? ["Again", "again"] : step === 1 ? ["Onkelos", "onkelos"] : lastVerse ? ["Finish", "finish"] : ["Next verse", "next"];
-      var said = step === 0 ? "Read the verse in Hebrew." : step === 1 ? "Once more, in Hebrew." : "And once in Onkelos.";
-      if (step === 3) { said = "All three verses, twice in Hebrew and once in Onkelos."; next = ["Start again", "restart"]; }
+      var next = step === 0 ? [t("landing.demo.again", "Again"), "again"] : step === 1 ? [t("landing.demo.onkelos", "Onkelos"), "onkelos"] : lastVerse ? [t("landing.demo.finish", "Finish"), "finish"] : [t("landing.demo.next-verse", "Next verse"), "next"];
+      var said = step === 0 ? t("landing.demo.read-the-verse-in-hebrew", "Read the verse in Hebrew.") : step === 1 ? t("landing.demo.once-more-in-hebrew", "Once more, in Hebrew.") : t("landing.demo.and-once-in-onkelos", "And once in Onkelos.");
+      if (step === 3) { said = t("landing.demo.all-three-verses-twice-in-hebrew-and-once", "All three verses, twice in Hebrew and once in Onkelos."); next = [t("landing.demo.start-again", "Start again"), "restart"]; }
       foot.innerHTML = "<span class=\"say\">" + said + "</span><button class=\"btn filled small\" type=\"button\" data-go=\"" + next[1] + "\">" + next[0] + "</button>";
     }
     if (mode === "aliyah") {
-      meta.textContent = "Shnayim mikra · the aliyah";
+      meta.textContent = t("landing.demo.shnayim-mikra-the-aliyah", "Shnayim mikra · the aliyah");
       var done = reading === 3;
       foot.innerHTML = "<span class=\"say\">" + (done ? "That aliyah is on your progress." : READINGS[reading]) + "</span>" +
-        "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? "Start again" : reading === 2 ? "Done" : "Next reading") + "</button>";
+        "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? t("landing.demo.start-again", "Start again") : reading === 2 ? t("landing.demo.done", "Done") : "Next reading") + "</button>";
     }
   }
   document.querySelectorAll(".torah .seg button").forEach(function (b) {

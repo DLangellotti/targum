@@ -15,8 +15,12 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
+<link rel="alternate" hreflang="en" href="{{ (canonical or '/')|replace('/', '/', 1) }}">
+<link rel="alternate" hreflang="ru" href="{{ canonical }}?lang=ru">
 <style>{{ asset('landing.css') }}</style>
 {{ hebrew_face() }}
+{#- The Torah's own face, beside the modern one: the ta'amim are boxes without it. -#}
+{{ scripture_face() }}
 {{ chrome_face() }}
 </head>
 <body class="landing">
@@ -36,6 +40,16 @@
       <a href="#questions">{{ t("landing.page.faq", "FAQ") }}</a>
     </nav>
     <div class="end">
+      {#- The page's own language, and nothing else's: two links, because a stranger
+          reading a landing page has no account and no cookie to keep a choice on, and
+          should not be given one to read a page in Russian. The names are each in
+          their own language, so neither goes through the catalogue. -#}
+      {#- Two codes and a slash. The one you are reading is ink, the other is a link:
+          nothing else is needed to say a page comes in two languages. -#}
+      <p class="tongue">
+        {%- if page_language == 'ru' %}<a href="/?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
+        {%- else %}<b>EN</b><span>/</span><a href="/?lang=ru" hreflang="ru">RU</a>{% endif %}
+      </p>
       <a class="signin" href="/account/signin">{{ t("landing.page.sign-in", "Sign in") }}</a>
       <a class="btn cta small" href="#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
     </div>

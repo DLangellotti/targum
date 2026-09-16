@@ -95,13 +95,22 @@ def test_the_page_fetches_nothing() -> None:
     baked in, and the only outbound addresses are links a reader chooses to press."""
     html = front_page("en", ADDRESS)
     outbound = set(re.findall(r'(?:src|href)="(https?://[^"]+)', html))
-    assert outbound == {"https://github.com/DLangellotti/targum", f"{ADDRESS}/"}
+    assert outbound == {
+        "https://github.com/DLangellotti/targum",  # the foot, a link to press
+        f"{ADDRESS}/",  # its own canonical
+        f"{ADDRESS}/?lang=ru",  # and the same page in the other language
+    }
     assert not re.search(r"url\(\s*['\"]?https?:", html), "a stylesheet fetches something"
 
 
 def test_the_page_says_what_it_is_to_a_crawler() -> None:
     html = front_page("en", ADDRESS)
     assert "<title>targum — learn modern and biblical Hebrew</title>" in html
+    # And says it in the page's own language: the tab and the search result are the two
+    # sentences a stranger reads before the page itself.
+    assert "<title>targum — учите современный и библейский иврит</title>" in front_page(
+        "ru", ADDRESS
+    )
     assert f'<link rel="canonical" href="{ADDRESS}/">' in html
     assert 'property="og:title"' in html
 
@@ -288,3 +297,38 @@ def test_the_page_loads_one_stylesheet_and_it_is_its_own() -> None:
     ).read_text(encoding="utf-8")
     assert "asset('landing.css')" in template
     assert "asset('reader.css')" not in template, "both sheets collide on .lines and .thread"
+
+
+# -- the two languages ----------------------------------------------------------------
+
+
+def test_the_page_is_wholly_russian_when_asked_for_in_russian() -> None:
+    """Not half of it. A catalogue that has the headline and not the FAQ gives a
+    visitor a page that changes language halfway down, which is worse than English."""
+    from targum import strings
+
+    english = strings.catalogue("en")
+    russian = strings.catalogue("ru")
+    said = {key for key in english if key.startswith("landing.")}
+    assert said, "the page says nothing through the catalogue"
+    missing = sorted(key for key in said if key not in russian)
+    assert not missing, f"the front door is half-translated: {missing[:5]}"
+
+
+def test_the_switcher_offers_the_language_you_are_not_reading() -> None:
+    """One link, named in itself. A page in two languages has to offer the other one,
+    and a control that lists the language you are already reading says nothing."""
+    for code, offered, reading in (("en", "ru", "EN"), ("ru", "en", "RU")):
+        html = front_page(code, ADDRESS)
+        markup = re.sub(r"<style>.*?</style>", "", html, flags=re.S)
+        tongue = re.search(r'<p class="tongue">.*?</p>', markup, re.S)
+        assert tongue is not None
+        assert f'href="/?lang={offered}"' in tongue.group(0)
+        assert f"<b>{reading}</b>" in tongue.group(0)
+
+
+def test_a_russian_page_says_it_is_russian() -> None:
+    html = front_page("ru", ADDRESS)
+    assert '<html lang="ru"' in html
+    assert "Учите современный и библейский иврит" in html
+    assert 'hreflang="ru"' in html, "a crawler is told the two addresses are one page"

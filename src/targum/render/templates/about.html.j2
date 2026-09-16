@@ -1,5 +1,10 @@
 <!doctype html>
-<html lang="{{ page_language|default('en') }}">
+<!-- The pages behind the front door are light, always (David, 2026-09-16), the
+     way the front door itself is: one look for everything a stranger meets.
+     `reader.css` guards its dark block with :not([data-theme="light"]), so the
+     stamp is the whole of it, and there is no switch because there is nothing
+     left to switch to. -->
+<html lang="{{ page_language|default('en') }}" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,12 +13,10 @@
 <style>{{ asset('reader.css') }}{{ asset('about.css') }}</style>
 {{ hebrew_face() }}
 {{ chrome_face() }}
-<script>{{ asset('theme.js') }}</script>
 </head>
 <body class="about">
 <div class="corner">
   <a class="enter" href="/account/signin">{{ t("about.page.sign-in", "Sign in") }}</a>
-  <button type="button" data-theme-toggle aria-label="{{ t("about.page.switch-theme", "Switch theme") }}"></button>
 </div>
 
 {#- This page described targum at length: what it does, what had shipped, what it could
