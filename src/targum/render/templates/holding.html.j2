@@ -1,5 +1,10 @@
 <!doctype html>
-<html lang="{{ page_language|default('en') }}">
+<!-- The pages behind the front door are light, always (David, 2026-09-16), the
+     way the front door itself is: one look for everything a stranger meets.
+     `reader.css` guards its dark block with :not([data-theme="light"]), so the
+     stamp is the whole of it, and there is no switch because there is nothing
+     left to switch to. -->
+<html lang="{{ page_language|default('en') }}" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,14 +13,12 @@
 <style>{{ asset('reader.css') }}{{ asset('holding.css') }}</style>
 {{ hebrew_face() }}
 {{ chrome_face() }}
-<script>{{ asset('theme.js') }}</script>
 </head>
 <body class="holding">
 {#- What a stranger sees. Not the product and not a sales page: the identity, an honest
     word about where it is, and the door for the people who already have a key. -#}
 <div class="corner">
   <a class="enter" href="/account/signin">{{ t("holding.page.sign-in", "Sign in") }}</a>
-  <button type="button" data-theme-toggle aria-label="{{ t("holding.page.switch-theme", "Switch theme") }}"></button>
 </div>
 
 <main class="middle">

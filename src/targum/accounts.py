@@ -96,7 +96,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 16
+SCHEMA_VERSION = 17
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -594,6 +594,37 @@ CREATE TABLE IF NOT EXISTS correction (
   context  TEXT    NOT NULL DEFAULT '',
   reason   TEXT    NOT NULL DEFAULT ''
 );
+
+-- Who is waiting for a way in (2026-09-16, targum-internal#69). The front door takes an
+-- address and nothing else, and this is where it goes.
+--
+-- Deliberately not `subscriber`, which is the weekly, and not `follow`, which is a
+-- series with instalments: this is neither, and filing it under either would make
+-- "stop the weekly" and "take me off the waitlist" the same press. Deliberately not
+-- `invited` either — that table says who may open an account, and being let in is a
+-- second act by a person, not what joining does.
+--
+-- The states are the ones `subscriber` uses and mean the same things: pending until the
+-- address answers its confirmation, on once it has, off once they ask to come off. A row
+-- is never deleted, for the reason written there: "asked to leave" and "never came" are
+-- different facts. `invited` is stamped when they are let in, so a second opening does
+-- not mail the same people twice.
+--
+-- Schema 17 adds this, so `CREATE TABLE IF NOT EXISTS` is the whole of it.
+CREATE TABLE IF NOT EXISTS waiting (
+  email    TEXT    PRIMARY KEY,
+  state    TEXT    NOT NULL DEFAULT 'pending',
+  -- Hashed, like a sign-in link: it grants "yes, this address is mine".
+  confirm  TEXT,
+  -- In the clear, and for the reason `subscriber.stop` is: every mail carries the way
+  -- out, so the token has to be readable at send time to be put in one.
+  stop     TEXT    NOT NULL,
+  asked    INTEGER NOT NULL,
+  joined   INTEGER NOT NULL DEFAULT 0,
+  ended    INTEGER NOT NULL DEFAULT 0,
+  invited  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 """
 
 
@@ -1050,6 +1081,113 @@ class Store:
                 (now(), row["email"]),
             )
             return True
+
+    # -- the waitlist (2026-09-16) ----------------------------------------------------
+    #
+    # The front door's only form. Somebody waiting is not an account, is not a
+    # subscriber, and becomes neither by waiting: the address sits in `waiting` until a
+    # person decides to let them in, and letting them in is `allow` on `invited`, which
+    # is a separate act with a separate record.
+
+    def join_waitlist(self, email: str) -> str | None:
+        """Take an address. Mint a token to confirm it, or None if it is already on.
+
+        Idempotent for the same reason `subscribe` is: asking twice is what somebody
+        does when the first mail did not arrive, and it should re-mint rather than make
+        a second row or a second person.
+        """
+        address = tidy(email)
+        if not address:
+            raise ValueError("No address given.")
+        if self.waiting_state(address) == "on":
+            return None
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute(
+                """
+                INSERT INTO waiting (email, state, confirm, stop, asked)
+                VALUES (?, 'pending', ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET state = 'pending', confirm = ?, asked = ?
+                """,
+                (
+                    address,
+                    digest(token),
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    now(),
+                    digest(token),
+                    now(),
+                ),
+            )
+        return token
+
+    def waiting_state(self, email: str) -> str:
+        """`pending`, `on`, `off`, or empty for an address that never asked."""
+        row = self.db.execute(
+            "SELECT state FROM waiting WHERE email = ?", (tidy(email),)
+        ).fetchone()
+        return "" if row is None else str(row["state"])
+
+    def peek_waiting(self, token: str) -> str | None:
+        """Whose address this token would confirm, without spending it.
+
+        For the reason `peek_subscription` exists: a mail client that fetches every link
+        in a message would otherwise answer for the person it was sent to.
+        """
+        row = self.db.execute(
+            "SELECT email FROM waiting WHERE confirm = ? AND state = 'pending'",
+            (digest(token),),
+        ).fetchone()
+        return None if row is None else str(row["email"])
+
+    def confirm_waiting(self, token: str) -> str | None:
+        """Spend a confirmation. Returns the address, or None if it was not one."""
+        if not token:
+            return None
+        with self.write() as db:
+            row = db.execute(
+                "SELECT email FROM waiting WHERE confirm = ? AND state = 'pending'",
+                (digest(token),),
+            ).fetchone()
+            if row is None:
+                return None
+            db.execute(
+                "UPDATE waiting SET state = 'on', confirm = NULL, joined = ? WHERE email = ?",
+                (now(), row["email"]),
+            )
+            return str(row["email"])
+
+    def leave_waitlist(self, token: str) -> bool:
+        """One press, from a mail, with no account and no JavaScript."""
+        if not token:
+            return False
+        with self.write() as db:
+            row = db.execute("SELECT email FROM waiting WHERE stop = ?", (token,)).fetchone()
+            if row is None:
+                return False
+            db.execute(
+                "UPDATE waiting SET state = 'off', ended = ? WHERE email = ?",
+                (now(), row["email"]),
+            )
+            return True
+
+    def waiting_count(self) -> dict[str, int]:
+        """How many are waiting, by state. What the back office shows."""
+        rows = self.db.execute("SELECT state, COUNT(*) AS n FROM waiting GROUP BY state").fetchall()
+        counted = {str(row["state"]): int(row["n"]) for row in rows}
+        return {state: counted.get(state, 0) for state in ("pending", "on", "off")}
+
+    def waiting_for_a_way_in(self, limit: int = 0) -> list[str]:
+        """Confirmed addresses, oldest first: the order they would be let in."""
+        sql = "SELECT email FROM waiting WHERE state = 'on' AND invited = 0 ORDER BY asked"
+        rows = self.db.execute(
+            sql + (" LIMIT ?" if limit else ""), (limit,) if limit else ()
+        ).fetchall()
+        return [str(row["email"]) for row in rows]
+
+    def waiting_invited(self, email: str) -> None:
+        """Stamp an address as let in, so a second opening does not mail them twice."""
+        with self.write() as db:
+            db.execute("UPDATE waiting SET invited = ? WHERE email = ?", (now(), tidy(email)))
 
     # -- series (2026-09-11) ---------------------------------------------------------
 
