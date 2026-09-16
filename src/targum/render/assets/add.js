@@ -1367,6 +1367,49 @@
   if (wasOpen) openChoices(true);
   else settle();
 
+  /* --- what the hours are, before any are spent ---------------------------- */
+
+  /* targum-internal#299. The page already said "a recording or a video uses some of your
+     hours" and never what those hours were, so the first time most readers met the
+     number was the month they ran out of it. `/account/me` has carried it since #237.
+
+     Time, not price: the plan is eight hours, and dollars are not a thing a reader
+     should have to think about to decide whether to paste a link. And the library is
+     named here as costing none of them, because the sentence above is about limits and
+     somebody reading it quickly could take the whole page to be metered. */
+  var hoursLine = document.getElementById("hours");
+  if (hoursLine) {
+    fetch(keyed("/account/me"), { credentials: "same-origin" })
+      .then(function (answer) {
+        return answer.ok ? answer.json() : null;
+      })
+      .then(function (me) {
+        var hours = me && me.hours;
+        // No allowance to quote: an admin, or a machine somebody runs themselves. Saying
+        // nothing is right — an unmetered reader told about a limit would be told a
+        // thing that is not true of them.
+        if (!hours || typeof hours.allowed !== "number") return;
+        var left = Math.max(0, hours.allowed - (hours.used || 0));
+        // One decimal, and no trailing nought: "6.5 hours" and "8 hours", never "8.0".
+        var said = String(Math.round(left * 10) / 10);
+        var whole = String(hours.allowed);
+        hoursLine.textContent =
+          left > 0
+            ? t("add.hours.left", "You have {left} of your {all} hours this month. The library costs none of them.", {
+                left: said,
+                all: whole,
+              })
+            : t("add.hours.none", "You've used your {all} hours this month. They come back on {date}, and the library is always free.", {
+                all: whole,
+                date: hours.ends || "",
+              });
+        hoursLine.hidden = false;
+      })
+      .catch(function () {
+        /* The page works without it; a line that could not be fetched is no line. */
+      });
+  }
+
   /* --- getting about ------------------------------------------------------- */
 
   Array.prototype.forEach.call(document.querySelectorAll(".site-nav a, .to-library"), function (link) {

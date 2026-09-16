@@ -146,6 +146,14 @@
 
   <div class="status" id="status" hidden></div>
 
+  {#- What the hours are, before any of them are spent (targum-internal#299). The reader
+      was told "a recording or a video uses some of your hours" and never what they had,
+      so the first time anybody met the number was the month they ran out of it. Filled
+      by `add.js` from `/account/me`, and absent where this install has no allowance to
+      quote — an admin, or a machine somebody runs themselves. Time and not price, and
+      the library named as costing none of it (§6, and the voice of 2026-09-13). -#}
+  <p class="hint hours" id="hours" hidden></p>
+
   {#- The refusals, named before they are met, until each is said where it happens with
       the way on (targum-internal#252). -#}
   <p class="hint limits">{{ t("add.page.we-can-t-add-scanned-pdfs-protected", "We can't add scanned PDFs, protected audiobooks (.aax), Spotify or
