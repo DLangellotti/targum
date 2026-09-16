@@ -233,6 +233,13 @@ setTimeout(() => {
         : withDoors(at("doors"))
             .filter((p) => !String(p.className).includes("ways-item"))
             .map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
+      /* Whether the page gave up drawing. `learn.js` catches around its whole draw and
+         shows this panel, so a plain bug in the draw path — a TypeError, a shadowed
+         name — reads to a reader as "we couldn't load your texts" and to this harness
+         as a page that simply drew nothing. It cost an hour on targum-internal#294.
+         Reported here so a test can assert it is false rather than puzzle over an
+         empty carry. */
+      broke: !at("learn-failed").hidden,
       // The one question a new reader is asked (targum-internal#294): the doors it
       // offers, or nothing at all where it is not asking.
       arrival: at("arrival").hidden

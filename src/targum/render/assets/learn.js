@@ -1184,18 +1184,27 @@
    */
   var INTERESTS = [
     { id: "spoken", register: "modern", kind: "dialogue" },
-    { id: "portion", register: "biblical", kind: "" },
-    { id: "news", register: "modern", kind: "weekly" },
-    { id: "video", register: "modern", kind: "video" },
+    { id: "portion", register: "biblical" },
+    // Video is a fact about a text's source, not one of the eleven `Kind`s — the shelf
+    // row carries it as a flag, and asking for `kind === "video"` matched nothing.
+    { id: "video", register: "modern", video: true },
   ];
 
   function interestLabels() {
     return {
       spoken: t("learn.arrival.spoken", "Everyday Hebrew, spoken"),
       portion: t("learn.arrival.portion", "The week's Torah portion"),
-      news: t("learn.arrival.news", "This week's news"),
       video: t("learn.arrival.video", "Something to watch"),
     };
+  }
+
+  //: Whether one shelf row is the thing a door asks for. Register always; a kind or the
+  //: video flag where the door is narrower than its register.
+  function wanted(reader, want) {
+    if (reader.register !== want.register) return false;
+    if (want.video) return !!reader.video;
+    if (want.kind) return reader.kind === want.kind;
+    return true;
   }
 
   function interestOf(id) {
@@ -1253,9 +1262,7 @@
     var drawn = 0;
     INTERESTS.forEach(function (want) {
       var there = pool.some(function (reader) {
-        if (base(reader.language) !== lang.HOME) return false;
-        if (want.kind && want.kind !== "dialogue") return reader.kind === want.kind;
-        return reader.register === want.register;
+        return base(reader.language) === lang.HOME && wanted(reader, want);
       });
       if (!there) return;
       var press = document.createElement("button");
@@ -1429,20 +1436,23 @@
           var door = biblical.reader && biblical.opened > modern.opened ? biblical : modern;
           var came = interestOf(arrived);
           if (came && !modern.opened && !biblical.opened) {
-            var wanted = came.register === "biblical" ? biblical : modern;
+            // Not `wanted`: that is the predicate above, and a local of the same name
+            // shadows it for the whole of `show`, which is how the video door came to
+            // call an object as a function and draw no sheet at all.
+            var toward = came.register === "biblical" ? biblical : modern;
             // Narrower than a register where the answer was: the news is a weekly, a
             // video is a video. Only among what is already seeded — a suggestion that
             // has to be built first is not one, so anything narrower that is not here
             // falls back to its register's own door rather than to nothing.
-            if (came.kind && came.kind !== "dialogue") {
+            if (came.video || (came.kind && came.kind !== "dialogue")) {
               var narrower = handed.filter(function (reader) {
-                return reader.kind === came.kind;
+                return wanted(reader, came);
               })[0];
               if (narrower) {
-                wanted = { state: "start", reader: narrower, opened: 0, register: narrower.register };
+                toward = { state: "start", reader: narrower, opened: 0, register: narrower.register };
               }
             }
-            if (wanted.reader) door = wanted;
+            if (toward.reader) door = toward;
           }
           // A text of another register — revival, rabbinic, a novel — belongs to neither
           // track; opened more recently than either track's door, it is what the reader
