@@ -117,6 +117,22 @@
 
   </div>
 
+  {#- Words you may already know, on the way in (targum-internal#297). The grid itself
+      is #245's and lives on Your Words; this is the same grid offered at the one moment
+      it is worth most — after somebody has read a text and watched a word land on their
+      list, so they know what the list is for. Before that it is a vocabulary test.
+
+      A reader at bet who answers one page of it moves from a handful of known words to
+      a four-figure count, and the library re-sorts under them. Shown to a reader who has
+      opened something and has few words; hidden for good once answered or waved away.
+      Mounted by `learn.js`, which decides the moment. -#}
+  <section class="panel claim claim-here" id="claim-here" hidden>
+    <h2>{{ t("learn.claim.words-you-may-already-know", "Words you may already know") }}</h2>
+    <p class="note">{{ t("learn.claim.if-you-ve-read-hebrew-before", "If you've read Hebrew before, tell us which of these you know and the library will sort itself to match.") }}</p>
+    <div id="claim-here-body"></div>
+    <p class="claim-away"><button type="button" id="claim-not-now">{{ t("learn.claim.not-now", "Not now") }}</button></p>
+  </section>
+
   {#- The shelf that stood here left on 2026-09-11 ("removed from underneath"): the
       texts read lately are the Recently read menu in the row over the sheet, and the
       whole list, with its chapters and its trash, is Your targums (`/texts`). -#}
@@ -156,6 +172,7 @@ window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 <script>{{ asset('covers.js') }}</script>
 <script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>
+<script>{{ asset('claim.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 </body>
 </html>

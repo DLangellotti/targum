@@ -339,7 +339,13 @@ def test_your_words_stand_behind_the_account_with_the_checklist_and_the_phrases(
         if 'class="site-head"' not in page:
             continue
         assert 'class="to-you" href="/words"' in page, f"{name}: Your Words is in the account panel"
-    assert 'id="claim-panel"' not in PAGES["learn"] and "TargumClaim" not in PAGES["learn"]
+    # Your Words keeps the grid itself. Learn carries the same script and a panel of its
+    # own — `claim-here`, not this one — offered once to a reader who has read something
+    # and has few words, and hidden the rest of the time (targum-internal#297). The rule
+    # this used to hold was "the grid is not on Learn"; the rule now is that Learn never
+    # *stands* it there, which is what `hidden` in the markup says.
+    assert 'id="claim-panel"' not in PAGES["learn"], "the grid's own panel is Your Words'"
+    assert 'id="claim-here" hidden' in PAGES["learn"], "Learn's offer starts hidden"
 
 
 def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> None:
