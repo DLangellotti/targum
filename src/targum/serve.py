@@ -33,7 +33,7 @@ from datetime import UTC, date, datetime
 from functools import cache, lru_cache, partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
@@ -4499,6 +4499,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, signin_page(language=self._page_language()).encode("utf-8"), HTML
             )
+        # Google's two halves (targum-internal#304). Exempt from the start-up key for the
+        # reason the sign-in page is — somebody signing in has no key yet — and never
+        # exempt from the host check below. 404 where no client is configured, which is a
+        # machine somebody runs themselves, and the box until it has one.
+        if route == "/account/google":
+            return self._google_out()
+        if route == "/account/google/back":
+            return self._google_back(parse_qs(urlparse(self.path).query))
         if route == "/account/enter":
             # Exempt from the key, never from the host check: a page on another origin
             # that resolves a name to this address still gets nothing.
@@ -5894,6 +5902,90 @@ class Handler(BaseHTTPRequestHandler):
                 502,
             )
         self._json({"sent": True, "message": SENT})
+
+    #: Sign-ins started with Google and not yet finished, by `state`. In memory and not
+    #: on disk: they live ten minutes, they belong to no account yet, and a restart
+    #: losing them costs somebody one press of a button.
+    _google_begun: ClassVar[dict[str, Any]] = {}
+
+    def _google_redirect(self) -> str:
+        """Where Google sends them back. Must match the console's registered URI exactly."""
+        return f"{self.address.rstrip('/')}/account/google/back"
+
+    def _google_out(self) -> None:
+        """Send a reader to Google, remembering what is needed to finish."""
+        from . import google as google_module
+
+        if not google_module.configured() or not self._host_is_ours() or not self.address:
+            return self._send(404, b"not found", "text/plain")
+        begun = google_module.begin(self._google_redirect())
+        # Swept before it grows: nothing here is ever read after ten minutes, and a box
+        # left running would otherwise keep every abandoned sign-in for ever.
+        for state, old in list(self._google_begun.items()):
+            if google_module.stale(old):
+                self._google_begun.pop(state, None)
+        self._google_begun[begun.state] = begun
+        self._go(begun.where)
+
+    def _google_back(self, query: dict[str, list[str]]) -> None:
+        """Finish a sign-in Google has proved, or say plainly why not.
+
+        The order matters. `state` first, so a request nobody started is refused before
+        anything is spent; then the exchange, which is the only network call; then the
+        address, refused unless Google says it has verified it; and only then
+        `may_join`, which is the same gate the mailed link goes through and the reason
+        this is not a way around the guest list.
+        """
+        from . import google as google_module
+
+        if not google_module.configured() or not self._host_is_ours() or not self.address:
+            return self._send(404, b"not found", "text/plain")
+
+        def refuse(said: str) -> None:
+            page = signin_page(language=self._page_language(), said=said)
+            return self._send(200, page.encode("utf-8"), HTML)
+
+        state = (query.get("state") or [""])[0]
+        begun = self._google_begun.pop(state, None) if state else None
+        if begun is None or google_module.stale(begun):
+            # Also what an abandoned tab looks like an hour later, so it is said the way
+            # a spent link is: not an error, just start again.
+            return refuse(
+                self._say(
+                    "serve.that-sign-in-took-too-long",
+                    "That sign-in took too long. Try again.",
+                )
+            )
+        if (query.get("error") or [""])[0]:
+            # They pressed Cancel on Google's own screen. Nothing went wrong.
+            return refuse(
+                self._say("serve.no-harm-done", "No harm done. Sign in whichever way suits you.")
+            )
+        code = (query.get("code") or [""])[0]
+        if not code:
+            return refuse(
+                self._say(
+                    "serve.that-sign-in-didn-t-finish", "That sign-in didn't finish. Try again."
+                )
+            )
+        try:
+            answer = google_module.exchange(code, begun.verifier, self._google_redirect())
+            email = google_module.address_from(answer)
+        except google_module.Refused as error:
+            return refuse(str(error))
+
+        # The same gate the mailed link goes through. Without it, standing OAuth up on a
+        # funded box lets anybody with a Google account open one and start spending.
+        if self.require_account and not self.store.may_join(email):
+            return refuse(NOT_OPEN)
+        got = self.store.sign_in_verified(email)
+        if got is None:
+            return refuse(NOT_OPEN)
+        _, session = got
+        from .accounts import SESSION_DAYS
+
+        where = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
+        self._go(where, self._session_cookie(session, SESSION_DAYS))
 
     def _enter(self, token: str) -> None:
         got = self.store.finish_sign_in(token) if token else None

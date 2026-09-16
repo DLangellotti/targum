@@ -26,6 +26,11 @@
       stand on the ground around it, the way the places and the footer do on every page
       behind it. -#}
   <div class="door">
+  {#- What went wrong last time, where something did: a Google sign-in that was
+      cancelled, took too long, or was for an address that is not on the guest list. Said
+      on the door itself rather than on a page of its own, because the way out of every
+      one of them is the form underneath. -#}
+  {%- if said %}<p class="said trouble" role="status">{{ said }}</p>{% endif %}
   {% if landing %}
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}
@@ -49,8 +54,19 @@
 
   {% else %}
   <h1>{{ t("signin.page.hebrew-with-the-translation-beside-it", "Hebrew, with the translation beside it") }}</h1>
-  {#- One door. An address targum has not seen makes an account; one it has sends a
-      link. Nobody has to work out which of two buttons they are. -#}
+  {#- One door was the rule here, and the reason was good: "Nobody has to work out which
+      of two buttons they are." Google is a second door and not a second answer to that
+      question — it proves the same address faster, and the account it reaches is the same
+      account, because `person` is keyed on the address and nothing else
+      (targum-internal#304).
+
+      Drawn only where this install can finish the exchange. No Google script, no widget:
+      an anchor to accounts.google.com, which is a link the reader chooses to follow and
+      the one thing §11 lets off the page. -#}
+  {%- if google %}
+  <a class="go with-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
+  <p class="or">{{ t("signin.page.or", "or") }}</p>
+  {%- endif %}
   <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "No password. We'll email you a link.") }}</p>
   <form method="post" action="/account/sign-in" id="ask">
     <label for="email">{{ t("signin.page.email", "Email") }}</label>

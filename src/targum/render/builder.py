@@ -1448,7 +1448,12 @@ def legal_page(which: str, address: str = "") -> str:
 
 
 def signin_page(
-    *, landing: str = "", token: str = "", expired: bool = False, language: str = "en"
+    *,
+    landing: str = "",
+    token: str = "",
+    expired: bool = False,
+    language: str = "en",
+    said: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -1457,6 +1462,8 @@ def signin_page(
     what a link that has been used or has aged out arrives at, which is a normal thing
     to hit rather than an error.
     """
+    from .. import google as google_module
+
     return (
         _environment()
         .get_template("signin.html.j2")
@@ -1466,6 +1473,10 @@ def signin_page(
             landing=landing,
             token=token,
             expired=expired,
+            said=said,
+            # Only where this install can finish a Google sign-in. A door that fails at
+            # its last step is worse than a door that is not there (#304).
+            google=google_module.configured(),
             strings=script_strings(language, "signin."),
         )
     )
