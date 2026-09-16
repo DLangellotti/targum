@@ -67,7 +67,7 @@
   <h2>The waitlist</h2>
   <table>
     <thead>
-      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th></tr>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th></tr>
     </thead>
     <tbody>
       {% for who in survey.waiting_list %}
@@ -77,10 +77,23 @@
         <td class="quiet">{{ who.joined or '—' }}</td>
         <td class="quiet">{{ who.state }}</td>
         <td class="quiet">{{ who.invited or '—' }}</td>
+        <td class="quiet">{{ who.language or 'en' }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {#- The press that keeps the front door's promise (targum-internal#292): the oldest
+      confirmed addresses that have not been let in yet, each put on the guest list and
+      each written to in the language they joined in. Safe to press again — an address
+      already stamped is never picked twice. -#}
+  {%- if survey.waiting_for_a_way_in %}
+  <form method="post" action="/back-office/open-the-door" class="door">
+    <label for="count">Let in, oldest first</label>
+    <input type="number" id="count" name="count" value="5" min="1" max="25" step="1">
+    <button type="submit">Open the door</button>
+    <span class="quiet">{{ survey.waiting_for_a_way_in }} waiting who have not been let in</span>
+  </form>
+  {%- endif %}
   {%- endif %}
 
   <h2>Accounts</h2>

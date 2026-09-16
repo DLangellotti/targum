@@ -3803,7 +3803,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._waitlist_note(
                     "We've had a few requests for that address. Try again in an hour.", False
                 )
-            token = store.join_waitlist(address)
+            # The language the door was in when they pressed, kept so the invitation is
+            # written in it rather than in English by default (targum-internal#292).
+            token = store.join_waitlist(address, self._front_language())
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)
@@ -4210,6 +4212,36 @@ class Handler(BaseHTTPRequestHandler):
         )
         self._send(200, page.encode("utf-8"), HTML)
 
+    def _open_the_door(self, form: dict[str, str]) -> None:
+        """Let the next few off the waitlist in, from the back office's own form.
+
+        The same door `_promote` is: an admin session, and 404 for anyone else. The
+        count is read from the form and clamped, because a batch is a small group by
+        definition and a typed nought is not an instruction to let everybody in.
+        """
+        from .doorway import open_the_door
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        try:
+            count = max(1, min(self.DOOR_AT_ONCE, int(form.get("count", "5"))))
+        except ValueError:
+            count = 5
+        try:
+            rows = open_the_door(self.store, self.mailer, self.address, count)
+        except ValueError as error:
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}")
+        let_in = sum(1 for row in rows if row.ok)
+        failed = len(rows) - let_in
+        if not rows:
+            said = "Nobody is waiting who has not already been let in."
+        elif failed:
+            said = f"Let {let_in} in. {failed} could not be written to."
+        else:
+            said = f"Let {let_in} in."
+        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
+
     def _promote(self, form: dict[str, str]) -> None:
         """Accept or decline a proposal, from the back office's own form.
 
@@ -4556,6 +4588,8 @@ class Handler(BaseHTTPRequestHandler):
         # The back office's one action, a form post from the page an admin is on.
         if route == BACK_OFFICE_ROUTE + "/promote":
             return self._promote(self._form())
+        if route == BACK_OFFICE_ROUTE + "/open-the-door":
+            return self._open_the_door(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the
@@ -5439,6 +5473,9 @@ class Handler(BaseHTTPRequestHandler):
     #: list it may go: past a few thousand the "commonest" claim stops meaning much.
     COMMON_PAGE = 50
     COMMON_REACH = 3000
+    #: The most the back office will let in at one press. A batch is a small group
+    #: by definition, and the command line is there for a bigger one.
+    DOOR_AT_ONCE = 25
 
     def _common_words(self, query: dict[str, list[str]]) -> None:
         """The commonest words of modern Hebrew, in order, with the meaning the glossary

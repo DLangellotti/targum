@@ -85,14 +85,42 @@ def test_the_order_they_would_be_let_in_is_the_order_they_asked(store: Store) ->
         assert token and store.confirm_waiting(token)
     # Pending and stopped addresses are nobody's turn.
     store.join_waitlist("pending@example.com")
-    assert store.waiting_for_a_way_in() == [
+    assert [email for email, _ in store.waiting_for_a_way_in()] == [
         "first@example.com",
         "second@example.com",
         "third@example.com",
     ]
-    assert store.waiting_for_a_way_in(limit=2) == ["first@example.com", "second@example.com"]
+    assert [email for email, _ in store.waiting_for_a_way_in(limit=2)] == [
+        "first@example.com",
+        "second@example.com",
+    ]
     store.waiting_invited("first@example.com")
-    assert store.waiting_for_a_way_in() == ["second@example.com", "third@example.com"]
+    assert [email for email, _ in store.waiting_for_a_way_in()] == [
+        "second@example.com",
+        "third@example.com",
+    ]
+
+
+def test_the_language_the_door_was_in_rides_with_the_address(store: Store) -> None:
+    """So the invitation is written in what they read, not in English by default."""
+    token = store.join_waitlist("dina@example.com", "ru")
+    assert token and store.confirm_waiting(token)
+    assert store.waiting_for_a_way_in() == [("dina@example.com", "ru")]
+    # Nothing said means English, which is what the door was before it had a second
+    # language to be in.
+    plain = store.join_waitlist("avi@example.com")
+    assert plain and store.confirm_waiting(plain)
+    assert ("avi@example.com", "") in store.waiting_for_a_way_in()
+
+
+def test_coming_back_through_the_other_door_changes_the_language(store: Store) -> None:
+    """The door they came through most recently is the better guess at what they read."""
+    first = store.join_waitlist("dina@example.com", "en")
+    assert first
+    store.join_waitlist("dina@example.com", "ru")
+    again = store.join_waitlist("dina@example.com", "ru")
+    assert again and store.confirm_waiting(again)
+    assert store.waiting_for_a_way_in() == [("dina@example.com", "ru")]
 
 
 def test_waiting_touches_no_account(store: Store) -> None:

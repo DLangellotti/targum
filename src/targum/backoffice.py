@@ -97,6 +97,9 @@ class Waiting:
     asked: str
     joined: str = ""
     invited: str = ""
+    #: The language the front door was in when they joined, so the operator can see what
+    #: the invitation will be written in. Empty means English.
+    language: str = ""
 
 
 @dataclass
@@ -107,6 +110,8 @@ class Survey:
     #: How many are waiting at the front door, by state (targum-internal#69), and who.
     waiting: dict[str, int] = field(default_factory=dict)
     waiting_list: list[Waiting] = field(default_factory=list)
+    #: Confirmed and not yet let in — the number the door's own press would take from.
+    waiting_for_a_way_in: int = 0
 
     def active(self) -> int:
         """Accounts that did anything at all in the window."""
@@ -116,6 +121,18 @@ class Survey:
             who |= {who_ for who_, n in day.words.items() if n}
             who |= {who_ for who_, n in day.opened.items() if n}
         return len(who)
+
+
+def _spoken(row: sqlite3.Row) -> str:
+    """The language a waiting row joined in, empty where the store predates the column.
+
+    `SELECT *` on a database written before schema 18 has no `language` at all, and
+    reaching for it raises IndexError rather than an `sqlite3.Error` the caller suppresses.
+    """
+    try:
+        return str(row["language"] or "")
+    except (IndexError, KeyError):
+        return ""
 
 
 def _rows(db: sqlite3.Connection, sql: str, *args: object) -> list[sqlite3.Row]:
@@ -153,10 +170,14 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
                 asked=_day(int(row["asked"])),
                 joined=_day(int(row["joined"])) if row["joined"] else "",
                 invited=_day(int(row["invited"])) if row["invited"] else "",
+                language=_spoken(row),
             )
             # Oldest first: that is the order they would be let in.
             for row in _rows(db, "SELECT * FROM waiting ORDER BY asked")
         ]
+        found.waiting_for_a_way_in = sum(
+            1 for who in found.waiting_list if who.state == "on" and not who.invited
+        )
 
     people = _rows(db, "SELECT id, email, name, made, leaving FROM person ORDER BY id")
     counted = {

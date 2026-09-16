@@ -93,10 +93,18 @@ SESSION_DAYS = 90
 # 16: job.cache_read, cache_write and cache_cost — what the prompt cache did on a turn of
 #    conversation, so the receipt can show it (targum-internal#239).
 #
+# 17: the waiting table — who is at the front door (targum-internal#69). A new table, so
+#    `CREATE TABLE IF NOT EXISTS` is the whole of it.
+#
+# 18: waiting.language — which language the front door was in when they joined, so the
+#    invitation is written in the language they read rather than in English by default
+#    (targum-internal#292). Empty for every row written before it existed, which reads as
+#    English, and is the truth about them: the door was in English when they came through.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 17
+SCHEMA_VERSION = 18
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -198,6 +206,10 @@ MIGRATIONS: tuple[str, ...] = (
     # on the reader's row, so a page that comes back to the conversation draws every
     # word with its state without reading the lines again. See `chat/record.py`.
     "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
+    # The language the front door was in when an address joined the waitlist, so the
+    # invitation is written in it. Empty for everybody who joined before the door had a
+    # second language, which is the truth about them rather than a gap.
+    "ALTER TABLE waiting ADD COLUMN language TEXT NOT NULL DEFAULT ''",
     # Which door the last knock at a host went through. Everything knocked before this
     # existed was knocked from the box itself, so `direct` is the right thing for a row
     # that predates the column as well as the default for a new one.
@@ -622,7 +634,10 @@ CREATE TABLE IF NOT EXISTS waiting (
   asked    INTEGER NOT NULL,
   joined   INTEGER NOT NULL DEFAULT 0,
   ended    INTEGER NOT NULL DEFAULT 0,
-  invited  INTEGER NOT NULL DEFAULT 0
+  invited  INTEGER NOT NULL DEFAULT 0,
+  -- The language the front door was in when they joined. Empty means English, which is
+  -- what the door was before it had a second language to be in.
+  language TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 """
@@ -1095,12 +1110,16 @@ class Store:
     # person decides to let them in, and letting them in is `allow` on `invited`, which
     # is a separate act with a separate record.
 
-    def join_waitlist(self, email: str) -> str | None:
+    def join_waitlist(self, email: str, language: str = "") -> str | None:
         """Take an address. Mint a token to confirm it, or None if it is already on.
 
         Idempotent for the same reason `subscribe` is: asking twice is what somebody
         does when the first mail did not arrive, and it should re-mint rather than make
         a second row or a second person.
+
+        `language` is the language the front door was in when they pressed, and it is
+        kept so the invitation can be written in it. A second ask overwrites it: the
+        door they came through most recently is the better guess at what they read.
         """
         address = tidy(email)
         if not address:
@@ -1108,20 +1127,24 @@ class Store:
         if self.waiting_state(address) == "on":
             return None
         token = secrets.token_urlsafe(TOKEN_BYTES)
+        spoken = tidy(language)
         with self.write() as db:
             db.execute(
                 """
-                INSERT INTO waiting (email, state, confirm, stop, asked)
-                VALUES (?, 'pending', ?, ?, ?)
-                ON CONFLICT(email) DO UPDATE SET state = 'pending', confirm = ?, asked = ?
+                INSERT INTO waiting (email, state, confirm, stop, asked, language)
+                VALUES (?, 'pending', ?, ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET
+                    state = 'pending', confirm = ?, asked = ?, language = ?
                 """,
                 (
                     address,
                     digest(token),
                     secrets.token_urlsafe(TOKEN_BYTES),
                     now(),
+                    spoken,
                     digest(token),
                     now(),
+                    spoken,
                 ),
             )
         return token
@@ -1182,13 +1205,21 @@ class Store:
         counted = {str(row["state"]): int(row["n"]) for row in rows}
         return {state: counted.get(state, 0) for state in ("pending", "on", "off")}
 
-    def waiting_for_a_way_in(self, limit: int = 0) -> list[str]:
-        """Confirmed addresses, oldest first: the order they would be let in."""
-        sql = "SELECT email FROM waiting WHERE state = 'on' AND invited = 0 ORDER BY asked"
+    def waiting_for_a_way_in(self, limit: int = 0) -> list[tuple[str, str]]:
+        """Confirmed addresses not yet let in, oldest first, each with the language it
+        joined in: the order they would be let in, and what to write to them in.
+
+        Oldest first because the front door promises it — "The earlier you join, the
+        earlier that is" — and a waitlist that let people in in any other order would be
+        making that sentence untrue quietly.
+        """
+        sql = (
+            "SELECT email, language FROM waiting WHERE state = 'on' AND invited = 0 ORDER BY asked"
+        )
         rows = self.db.execute(
             sql + (" LIMIT ?" if limit else ""), (limit,) if limit else ()
         ).fetchall()
-        return [str(row["email"]) for row in rows]
+        return [(str(row["email"]), str(row["language"] or "")) for row in rows]
 
     def waiting_invited(self, email: str) -> None:
         """Stamp an address as let in, so a second opening does not mail them twice."""

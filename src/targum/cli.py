@@ -288,6 +288,68 @@ def invite(
     console.print(f"[dim]{len(people)} invited[/dim]")
 
 
+@app.command(name="open-the-door")
+def open_the_door(
+    count: Annotated[
+        int, typer.Option("--count", "-n", help="How many to let in, oldest first.")
+    ] = 5,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Say who would be let in, and change nothing.")
+    ] = False,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Let the next few people off the waitlist in, and write to each of them.
+
+    The front door promises "We're opening in small groups. We'll email you when your
+    turn comes." This keeps that promise: the oldest confirmed addresses that have not
+    been invited yet, in the order they joined, each put on the guest list and each sent
+    a mail in the language they joined in.
+
+    Safe to run again. An address already stamped as invited is never picked twice, and
+    one whose mail could not be sent is left unstamped so the next run tries it again.
+
+    `--dry-run` resolves the same list and changes nothing, which is how to ask who is
+    next without letting them in.
+    """
+    from .accounts import Store
+    from .doorway import open_the_door as opening
+    from .mail import from_environment
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+    if dry_run:
+        rows = opening(keeping, None, "", count, dry_run=True)
+        if not rows:
+            console.print("[dim]Nobody is waiting who has not already been let in.[/dim]")
+            return
+        for row in rows:
+            console.print(f"{row.email} [dim]{row.language or 'en'}[/dim]")
+        console.print(f"[dim]{len(rows)} would be let in[/dim]")
+        return
+
+    try:
+        where = os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip()
+        rows = opening(keeping, from_environment(), where, count)
+    except ValueError as error:
+        fail(
+            TargumError(
+                str(error),
+                "Set TARGUM_PUBLIC_ADDRESS and the SMTP settings, and run this on the box.",
+            )
+        )
+
+    if not rows:
+        console.print("[dim]Nobody is waiting who has not already been let in.[/dim]")
+        return
+    for row in rows:
+        if row.ok:
+            console.print(f"[green]Let in[/green] {row.email} [dim]{row.language or 'en'}[/dim]")
+        else:
+            console.print(f"[red]Could not write to[/red] {row.email} [dim]{row.failed}[/dim]")
+    let_in = sum(1 for row in rows if row.ok)
+    console.print(f"[dim]{let_in} of {len(rows)} let in[/dim]")
+
+
 @app.command()
 def admin(
     email: Annotated[
