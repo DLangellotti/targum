@@ -101,10 +101,15 @@ SESSION_DAYS = 90
 #    (targum-internal#292). Empty for every row written before it existed, which reads as
 #    English, and is the truth about them: the door was in English when they came through.
 #
+# 19: job.finished — when a build stopped, so how long one takes is a thing that can be
+#    counted rather than guessed at. Nothing could say "ready in about four minutes"
+#    honestly because nothing recorded how long the last thousand took
+#    (targum-internal#303).
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 18
+SCHEMA_VERSION = 19
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -206,6 +211,10 @@ MIGRATIONS: tuple[str, ...] = (
     # on the reader's row, so a page that comes back to the conversation draws every
     # word with its state without reading the lines again. See `chat/record.py`.
     "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
+    # When a build stopped, so that how long one takes can be counted. Zero for every
+    # row that predates it, which is why the reckoning below ignores zeros rather than
+    # treating them as instant builds.
+    "ALTER TABLE job ADD COLUMN finished INTEGER NOT NULL DEFAULT 0",
     # The language the front door was in when an address joined the waitlist, so the
     # invitation is written in it. Empty for everybody who joined before the door had a
     # second language, which is the truth about them rather than a gap.
@@ -424,7 +433,10 @@ CREATE TABLE IF NOT EXISTS job (
   kind     TEXT    NOT NULL DEFAULT 'build',
   cache_read  INTEGER NOT NULL DEFAULT 0,
   cache_write INTEGER NOT NULL DEFAULT 0,
-  cache_cost  REAL    NOT NULL DEFAULT 0
+  cache_cost  REAL    NOT NULL DEFAULT 0,
+  -- When it stopped, however it stopped. Zero while it is still running, and zero for
+  -- every row written before this column existed.
+  finished    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
@@ -2313,6 +2325,55 @@ class Store:
                 f"ON CONFLICT(id) DO UPDATE SET {updates}",
                 tuple(fields.values()),
             )
+
+    #: How many finished builds it takes before their middle is worth quoting. Below
+    #: this a box has an anecdote rather than a rate, and a "ready in about" drawn from
+    #: three builds is a number that will be wrong in a way somebody remembers.
+    ENOUGH_TO_QUOTE = 12
+
+    def how_long_builds_take(self, language: str = "", audio: bool | None = None) -> float:
+        """Seconds a build of this shape has taken, as the middle of the last hundred.
+
+        The median rather than the mean: one build that sat behind an annotator rename
+        for two hours would otherwise move the number for every build after it, and the
+        question being answered is "how long will mine take", not "how long have they
+        taken in total".
+
+        Zero where this box has not finished enough of them to say. That is the honest
+        answer and the page shows nothing rather than a guess — the whole reason this
+        column exists is that "ready in about four minutes" was never counted from
+        anything (targum-internal#303).
+
+        Rows written before `finished` existed have a zero in it, and are left out
+        rather than read as builds that took no time at all.
+        """
+        clauses = [
+            "finished > 0",
+            "made > 0",
+            "finished >= made",
+            "kind = 'build'",
+            "stage = 'done'",
+        ]
+        params: list[Any] = []
+        if language:
+            clauses.append("language = ?")
+            params.append(language)
+        if audio is not None:
+            # An imported recording is metered in seconds; everything else is not. It is
+            # the one division that changes the answer by an order of magnitude.
+            clauses.append("length > 0" if audio else "length = 0")
+        rows = self.db.execute(
+            "SELECT (finished - made) AS took FROM job WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY made DESC LIMIT 100",
+            tuple(params),
+        ).fetchall()
+        took = sorted(int(row["took"]) for row in rows)
+        if len(took) < self.ENOUGH_TO_QUOTE:
+            return 0.0
+        middle = len(took) // 2
+        pick = took[middle] if len(took) % 2 else (took[middle - 1] + took[middle]) / 2
+        return float(pick) / 1000
 
     def jobs(self) -> list[dict[str, Any]]:
         rows = self.db.execute("SELECT * FROM job ORDER BY made").fetchall()
