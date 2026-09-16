@@ -1284,6 +1284,75 @@
     host.hidden = drawn < 2;
   }
 
+  /* --- words you may already know, on the way in (targum-internal#297) ------- */
+
+  /* The grid is #245's and its home is Your Words. This offers it at the one moment it
+   * is worth most: after somebody has opened a text and watched a word land on their
+   * list, so they know what a list of words is *for*. Offered before that it is a
+   * vocabulary test handed to somebody who has not yet been told why.
+   *
+   * The reader it matters to is the one who already reads Hebrew. Their ledger starts
+   * empty like everybody's, so the shelf is sorted for a beginner and every row reads as
+   * out of reach; one page of this moves them to a four-figure count and the library
+   * re-sorts under them. For a true beginner there is nothing to claim and the grid
+   * reports itself empty, which hides it.
+   *
+   * Asked once. Answered or waved away, it does not come back — a page that keeps asking
+   * a question somebody has declined is a page that is not listening.
+   */
+  var CLAIMED = "targum:claimed-here";
+
+  function claimDone() {
+    try {
+      return !!localStorage.getItem(CLAIMED);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function claimOver() {
+    try {
+      if (window.targumKeep) window.targumKeep(CLAIMED, "done");
+      else localStorage.setItem(CLAIMED, "done");
+    } catch (e) {
+      /* it will be offered once more next visit, which is a smaller fault than never */
+    }
+  }
+
+  //: Below this many known words the offer is worth making. Past it the reader has a
+  //: ledger of their own and the commonest words are already on it.
+  var CLAIM_FLOOR = 300;
+
+  function offerClaim(opened, known) {
+    var host = document.getElementById("claim-here");
+    var body = document.getElementById("claim-here-body");
+    var away = document.getElementById("claim-not-now");
+    var claim = window.TargumClaim;
+    if (!host || !body || !claim || !claim.mount) return;
+    if (claimDone() || !opened || known > CLAIM_FLOOR || !claim.hebrew()) {
+      host.hidden = true;
+      return;
+    }
+    claim.mount(body, {
+      panel: host,
+      // One press and it is over: this is an offer on the way in, not the whole grid,
+      // which is on Your Words for anybody who wants to keep going.
+      once: true,
+      onMarked: function () {
+        claimOver();
+      },
+      onEmpty: function () {
+        host.hidden = true;
+      },
+    });
+    if (away) {
+      away.onclick = function () {
+        claimOver();
+        host.hidden = true;
+      };
+    }
+  }
+
   function trackDoor(code, register, readers, shared) {
     var docs = stored("targum:docs");
     function ofHere(list) {
@@ -1373,6 +1442,10 @@
           language: named(code),
         })
       : t("learn.known-start", "Read, tap the words you don't know and talk to targum about any line.");
+    // The two facts the offer needs, both of them already here: whether they have opened
+    // anything, and how few words they have. A reader who already reads Hebrew looks
+    // exactly like a beginner at this line, and this is where they get to say otherwise.
+    offerClaim(Object.keys(opened).length > 0, known);
   }
 
   /* --- putting it together --------------------------------------------------- */

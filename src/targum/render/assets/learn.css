@@ -1079,3 +1079,21 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   .arrival-doors { display: grid; grid-template-columns: 1fr; }
   .arrival-door { text-align: start; }
 }
+/* --- words you may already know, on the way in (targum-internal#297) --------- */
+
+/* The same panel Your Words draws, offered here once. `Not now` is a plain link-weight
+   press, not a button: declining is not an action of equal weight to answering. */
+.claim-here[hidden] { display: none; }
+.claim-away { margin: 0.75rem 0 0; }
+.claim-away button {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.claim-away button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
