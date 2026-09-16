@@ -96,7 +96,7 @@
      "finished" in it was wider there than its neighbours, and its other columns sat in
      different places from theirs. Fixed, and what it holds is clipped rather than
      allowed to move the row. */
-  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 6.5rem 4rem 6.25rem 6rem;
+  grid-template-columns: 2.25rem minmax(7rem, 3fr) 4.5rem 6.5rem 4rem 6.25rem 5.5rem 6rem;
   align-items: center;
   gap: 0.7rem;
 }

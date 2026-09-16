@@ -399,6 +399,8 @@
   "library.note.spoken": "With audio — a recording, line by line.",
   "library.note.video": "With video — a recording that kept its pictures.",
   "library.note.difficulty": "Hard words — the share of a text's words that are rare in everyday use.",
+  "library.column.known": "Words you know",
+  "library.note.known": "Words you know — the share of a text's words you have marked as known.",
   "library.note.unmeasured": "— means we haven't measured it yet.",
   "library.where.library": "All texts",
   "library.where.mine": "Your uploads",

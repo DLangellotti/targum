@@ -350,6 +350,69 @@ def open_the_door(
     console.print(f"[dim]{let_in} of {len(rows)} let in[/dim]")
 
 
+@app.command(name="catalogue-lemmas")
+def catalogue_lemmas(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    write: Annotated[
+        Path | None,
+        typer.Option("--write", help="Where to put the index. Default: beside the catalogue."),
+    ] = None,
+) -> None:
+    """Collect every catalogue text's dictionary forms into one index.
+
+    The library says how much of a text you already know, and until now it could only
+    say it about a text you had already built — which for a new reader is none of them,
+    on a page whose whole promise is being sorted by what you know
+    (targum-internal#293).
+
+    This reads the annotation each built copy already carries and writes the lemmas
+    beside the catalogue, where the server can measure any row against a reader's words
+    without building anything. It buys nothing and annotates nothing: a catalogue text
+    with no built copy on this machine is left out, and `targum rebuild --words` or a
+    seed run is what brings it in. Safe to run again; it rewrites the whole index.
+    """
+    from . import catalogue as catalogue_module
+    from .coverage import build_index, lemmas, write_index
+
+    root = out or Path("targum-out")
+    if not root.is_dir():
+        fail(TargumError(f"{root} is not a directory.", "Point --out at your targums."))
+
+    by_source = {entry.source: entry.id for entry in catalogue_module.everything()}
+    found: dict[str, list[str]] = {}
+    for document in sorted(root.glob("*/*/document.json")):
+        try:
+            source = str(json.loads(document.read_text(encoding="utf-8")).get("source", ""))
+        except (OSError, json.JSONDecodeError):
+            continue
+        entry_id = by_source.get(source)
+        if not entry_id or entry_id in found:
+            continue
+        words = lemmas(document.parent)
+        if words:
+            found[entry_id] = words
+
+    index = build_index(found)
+    where = write or (
+        (catalogue_module.catalogue_path() or Path.home() / ".targum" / "catalogue.json").parent
+        / "lemmas.json"
+    )
+    write_index(where, index)
+    reach = len(index.texts)
+    console.print(
+        f"[green]{reach}[/green] of {len(by_source)} catalogue texts "
+        f"[dim]{len(index.words):,} distinct words → {where}[/dim]"
+    )
+    if reach < len(by_source):
+        console.print(
+            f"[dim]{len(by_source) - reach} have no built copy here; "
+            f"build them with their words to bring them in.[/dim]"
+        )
+
+
 @app.command()
 def admin(
     email: Annotated[

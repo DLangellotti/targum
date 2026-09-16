@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from .paths import write_atomic
@@ -116,3 +117,135 @@ def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
     known = sum(1 for lemma in words if marked.get(lemma) == KNOWN)
     fresh = sum(1 for lemma in words if lemma not in marked)
     return Coverage(known=known / len(words), fresh=fresh, total=len(words))
+
+
+# -- the catalogue's own lemmas (targum-internal#293) ---------------------------------
+#
+# Everything above answers the question for a text this reader has *built*. The library
+# asks it about 900 rows, nearly all of which they have not, and the front door sells the
+# answer: "The library is sorted by the words you already know, so there's always a video,
+# a story or a chapter within reach."
+#
+# The gap was never a measurement problem. Every catalogue text has an annotation
+# somewhere — a build on this box, or one `scripts/measure_difficulty.py` makes to weigh
+# it — and `lemmas()` above already reduces one to the ~21 KB that matters. What was
+# missing is a place to keep the answer where the library can reach it without a build.
+#
+# So: one index beside the catalogue, mapping an entry id to ids into a shared table of
+# dictionary forms. It rides beside `catalogue.json` and not in the repo, for the reason
+# the catalogue does — the library's contents are not public — and it is read server-side
+# only. The browser never sees it: what crosses the wire is the one number per row that
+# `serve._measure` already puts there for a built text.
+
+#: The file's shape, so an index written by an older targum can be refused rather than
+#: misread. Bumped when the encoding changes, which is not the same as the catalogue
+#: changing — a rebuilt index keeps this number.
+INDEX_VERSION = 1
+
+
+@dataclass(frozen=True)
+class Index:
+    """Every catalogue text's dictionary forms, in one table.
+
+    `words` is the shared table and `texts` maps an entry id to sorted positions in it.
+    Sorted because it makes the intersection below a walk rather than a hash lookup per
+    lemma, and because a sorted list of small integers compresses.
+    """
+
+    words: tuple[str, ...]
+    texts: dict[str, tuple[int, ...]]
+
+    def lemmas_for(self, entry_id: str) -> list[str]:
+        """The dictionary forms of one entry, or nothing where it is not in the index."""
+        return [self.words[at] for at in self.texts.get(entry_id, ()) if at < len(self.words)]
+
+    def against(self, entry_id: str, marked: dict[str, int]) -> Coverage | None:
+        """One catalogue entry measured against what this reader has marked.
+
+        None where the entry is not in the index, which is the same "not measured" the
+        built path returns and is shown the same way: nothing, rather than 0%.
+        """
+        words = self.lemmas_for(entry_id)
+        if not words:
+            return None
+        known = sum(1 for lemma in words if marked.get(lemma) == KNOWN)
+        fresh = sum(1 for lemma in words if lemma not in marked)
+        return Coverage(known=known / len(words), fresh=fresh, total=len(words))
+
+
+EMPTY = Index(words=(), texts={})
+
+
+@lru_cache(maxsize=4)
+def _read_index(path: Path, stamp: tuple[int, int]) -> Index:
+    """The parse itself, kept for as long as the file it came from has not changed.
+
+    `stamp` is not read here: it is in the signature so that a rewritten index is a
+    different cache key and the next ask re-reads it. Without this the whole file was
+    parsed on every `/readers`, which for a full catalogue is megabytes of JSON on a
+    request that is already the slowest page in the product.
+    """
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return EMPTY
+    return _index_from(loaded)
+
+
+def read_index(path: Path | None) -> Index:
+    """The index beside the catalogue, or an empty one.
+
+    Empty is a working state and not a fault: a box with no index measures what it can
+    from built folders and says nothing about the rest, which is exactly what it did
+    before the index existed.
+    """
+    if path is None or not path.is_file():
+        return EMPTY
+    try:
+        stat = path.stat()
+    except OSError:
+        return EMPTY
+    return _read_index(path, (stat.st_mtime_ns, stat.st_size))
+
+
+def _index_from(loaded: object) -> Index:
+    """One parsed file, checked and turned into an `Index`."""
+    if not isinstance(loaded, dict) or loaded.get("version") != INDEX_VERSION:
+        return EMPTY
+    words = tuple(str(word) for word in loaded.get("words") or ())
+    texts: dict[str, tuple[int, ...]] = {}
+    for entry_id, positions in (loaded.get("texts") or {}).items():
+        if isinstance(positions, list):
+            texts[str(entry_id)] = tuple(int(at) for at in positions)
+    return Index(words=words, texts=texts)
+
+
+def build_index(found: dict[str, list[str]]) -> Index:
+    """Turn a map of entry id to its dictionary forms into the shared-table shape."""
+    table = sorted({lemma for lemmas_ in found.values() for lemma in lemmas_ if lemma})
+    at = {lemma: n for n, lemma in enumerate(table)}
+    texts: dict[str, tuple[int, ...]] = {}
+    for entry_id, lemmas_ in found.items():
+        # After mapping, not before: a text whose only word is the empty string is a
+        # truthy list and an empty row, and a row that means nothing is worse in an index
+        # than no row — `against` would return None for it either way, so it would sit
+        # there claiming to be measured and answering that it is not.
+        positions = tuple(sorted(at[lemma] for lemma in set(lemmas_) if lemma))
+        if positions:
+            texts[entry_id] = positions
+    return Index(words=tuple(table), texts=texts)
+
+
+def write_index(path: Path, index: Index) -> None:
+    """Write the index where `read_index` will find it."""
+    write_atomic(
+        path,
+        json.dumps(
+            {
+                "version": INDEX_VERSION,
+                "words": list(index.words),
+                "texts": {entry_id: list(at) for entry_id, at in sorted(index.texts.items())},
+            },
+            ensure_ascii=False,
+        ),
+    )
