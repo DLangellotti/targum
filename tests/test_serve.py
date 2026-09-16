@@ -3126,12 +3126,12 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         response = connection.getresponse()
         page = response.read().decode("utf-8")
         assert response.status == 200
-        assert "targum строится" in page and '<html lang="ru">' in page
+        assert "targum строится" in page and '<html lang="ru"' in page
         assert "Accept-Language" in (response.getheader("Vary") or "")
         connection.close()
         connection = HTTPConnection("127.0.0.1", port, timeout=5)
         connection.request("GET", "/about", headers={"Accept-Language": "fr-FR"})
         page = connection.getresponse().read().decode("utf-8")
-        assert "targum is under construction" in page and '<html lang="en">' in page
+        assert "targum is under construction" in page and '<html lang="en"' in page
     finally:
         server.shutdown()
