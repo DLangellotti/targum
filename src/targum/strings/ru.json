@@ -413,6 +413,8 @@
   "library.note.spoken": "С аудио — запись, строка за строкой.",
   "library.note.video": "С видео — запись, сохранившая картинку.",
   "library.note.difficulty": "Трудные слова — доля слов текста, редких в обиходе.",
+  "library.column.known": "Знакомые слова",
+  "library.note.known": "Знакомые слова — доля слов текста, которые вы отметили как известные.",
   "library.note.unmeasured": "— значит, мы это ещё не измерили.",
   "library.where.library": "Все тексты",
   "library.where.mine": "Ваши загрузки",

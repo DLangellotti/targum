@@ -155,6 +155,7 @@
     video: t("library.note.video", "With video — a recording that kept its pictures."),
     sort: {
       difficulty: t("library.note.difficulty", "Hard words — the share of a text's words that are rare in everyday use."),
+      known: t("library.note.known", "Words you know — the share of a text's words you have marked as known."),
     },
     unmeasured: t("library.note.unmeasured", "— means we haven't measured it yet."),
   };
@@ -287,6 +288,19 @@
   // One row per text, from two places. A catalogue entry the reader has already built
   // is one row and not two: the catalogue is where it came from, the shelf is where it
   // is now, and the row says both.
+  // How much of each catalogue text the reader knows, for the rows they have not built
+  // (targum-internal#293). Filled from `/readers`; empty on a box with no index, which
+  // leaves every unbuilt row saying what it said before, which is nothing.
+  var catalogueKnown = {};
+
+  // What a row's "you know" is, whichever side it came from. A built copy's own
+  // measurement wins: that is the text this reader actually has, annotation and all.
+  function knownOf(row) {
+    if (row.built && typeof row.built.known === "number") return row.built.known;
+    var measured = row.entry && catalogueKnown[row.entry.id];
+    return measured && typeof measured.known === "number" ? measured.known : null;
+  }
+
   function rows(readers, shared) {
     var mine = {};
     var out = [];
@@ -499,6 +513,25 @@
     return box;
   }
 
+  /* How much of this text the reader already knows, as a share of its dictionary forms.
+     A column rather than only a line in the title cell, because the front door sells the
+     shelf as sorted by it and a sort wants a heading to press.
+
+     An em dash where nothing is measured. Never 0%: "not measured" and "you know none of
+     this" are different claims, and the second one is the one this number must never make
+     about a book nobody has counted. */
+  function yours(row) {
+    var share = knownOf(row);
+    if (typeof share !== "number") return el("span", "col count", "—");
+    var shown = Math.round(share * 100);
+    var box = el("span", "col count", shown + "%");
+    box.setAttribute(
+      "aria-label",
+      t("library.you-know", "you know {share}% of its words", { share: shown })
+    );
+    return box;
+  }
+
   function named(list, value) {
     for (var i = 0; i < list.length; i++) if (list[i][0] === value) return list[i][1];
     return "";
@@ -597,13 +630,14 @@
     // annotation — "not measured" and "you know none of this" are different claims —
     // and at zero: "you know 0% of its words" is true and unkind, and the line starts
     // once there is something to say (as Learn's does).
-    if (row.built && typeof row.built.known === "number" && row.built.known > 0) {
+    var share = knownOf(row);
+    if (typeof share === "number" && share > 0) {
       what.appendChild(
         el(
           "span",
           "row-fit",
           t("library.you-know", "you know {share}% of its words", {
-            share: Math.round(row.built.known * 100),
+            share: Math.round(share * 100),
           })
         )
       );
@@ -634,6 +668,9 @@
     var hard = gauge(row);
     hard.className = "gauge drop";
     open.appendChild(hard);
+    var mine = yours(row);
+    mine.className = "col count drop";
+    open.appendChild(mine);
 
     /* Where a build narrates itself — and, on a text this reader has finished, the one
        word that says so, in leaf: a real state, not a score, and the only leaf on the
@@ -734,6 +771,9 @@
     var hard = gauge(row);
     hard.className = "gauge drop";
     open.appendChild(hard);
+    var groupMine = yours(row);
+    groupMine.className = "col count drop";
+    open.appendChild(groupMine);
     open.appendChild(el("span", "row-state"));
 
     item.appendChild(open);
@@ -762,7 +802,19 @@
     difficulty: function (row) {
       return row.difficulty || 0;
     },
+    // Most of it known first, which is the way somebody choosing what to read wants it
+    // — so this column alone sorts descending by default (`DESCENDING` below). A row
+    // with nothing measured sorts as -1 and lands at the far end either way: it is not
+    // 0% known, and putting it among the texts that really are would be the one claim
+    // this number must never make.
+    known: function (row) {
+      var share = knownOf(row);
+      return typeof share === "number" ? share : -1;
+    },
   };
+
+  //: Columns a reader means "most first" by. Every other column reads smallest first.
+  var DESCENDING = { known: true };
 
   var COLUMNS = [
     ["", ""],
@@ -775,6 +827,10 @@
     // words" was a claim about the reader the number cannot make: it counts words that
     // are rare in the language, not words this reader has not met (2026-09-14).
     ["difficulty", t("library.column.difficulty", "Hard words")],
+    // What the reader came to the page to ask. Beside "Hard words" because the two are
+    // the same question asked twice — how hard is this in the language, and how hard is
+    // it for me — and the second is the one the front door sells.
+    ["known", t("library.column.known", "Words you know")],
     // Unlabelled: the column a build narrates itself in, empty the rest of the time.
     ["", ""],
   ];
@@ -999,7 +1055,7 @@
       button.appendChild(
         document.createTextNode(scenes ? t("library.column.scene-number", "Scene number") : pair[1])
       );
-      if (pair[0] === "difficulty") button.className = "drop";
+      if (pair[0] === "difficulty" || pair[0] === "known") button.className = "drop";
       if (scenes) {
         button.disabled = true;
         button.setAttribute("aria-disabled", "true");
@@ -1012,7 +1068,7 @@
         if (view.sort === pair[0]) view.dir = -view.dir;
         else {
           view.sort = pair[0];
-          view.dir = 1;
+          view.dir = DESCENDING[pair[0]] ? -1 : 1;
         }
         redraw();
       });
@@ -1230,6 +1286,7 @@
   ask("/readers").then(function (data) {
     var readers = data.readers || [];
     var shared = data.shared || [];
+    catalogueKnown = data.catalogue || {};
     canDraw = !!data.covers;
     var opened = stored("targum:opened");
     readers.concat(shared).forEach(function (reader) {

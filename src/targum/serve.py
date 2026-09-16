@@ -4129,6 +4129,41 @@ class Handler(BaseHTTPRequestHandler):
             if measured is not None:
                 reader.update(measured.state())
 
+    def _measure_catalogue(self) -> dict[str, dict[str, float | int]]:
+        """How much of each *unbuilt* catalogue text the reader knows
+        (targum-internal#293).
+
+        The shelf's own promise — sorted by the words you already know — was true only of
+        texts this reader had built, which for somebody who has just arrived is none of
+        them. The index beside the catalogue carries every text's dictionary forms, so
+        the same intersection answers for a row nobody has opened.
+
+        One vocabulary query per language, as `_measure` does, and nothing at all where
+        the box has no index: an empty answer leaves every row saying what it said
+        before, which is nothing.
+        """
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+
+        person = self._person()
+        if person is None:
+            return {}
+        index = coverage_module.read_index(catalogue_module.lemmas_path())
+        if not index.texts:
+            return {}
+        vocabulary: dict[str, dict[str, int]] = {}
+        out: dict[str, dict[str, float | int]] = {}
+        for entry in catalogue_module.everything():
+            if entry.id not in index.texts:
+                continue
+            language = entry.language
+            if language not in vocabulary:
+                vocabulary[language] = self.store.marked(person, language)
+            measured = index.against(entry.id, vocabulary[language])
+            if measured is not None:
+                out[entry.id] = measured.state()
+        return out
+
     def _health(self) -> None:
         """Whether the process is alive and can still reach the one file that matters.
 
@@ -4508,6 +4543,10 @@ class Handler(BaseHTTPRequestHandler):
                     # Whether this deployment can draw a cover at all. A page with no
                     # image key offers nothing rather than offering and failing.
                     "covers": self.library.can_draw(),
+                    # Every catalogue text measured against this reader's words, built or
+                    # not (targum-internal#293). Keyed by entry id; a built copy's own
+                    # measurement above wins, because that is the text they actually have.
+                    "catalogue": self._measure_catalogue(),
                 }
             )
         if route == "/account/me":

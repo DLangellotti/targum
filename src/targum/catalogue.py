@@ -528,6 +528,25 @@ def catalogue_path() -> Path | None:
     return None
 
 
+def lemmas_path() -> Path | None:
+    """Where the catalogue's lemma index is (targum-internal#293).
+
+    Beside the catalogue, and found the same way, because it is the same kind of thing:
+    a fact about the library's contents, which are not public and do not live in the
+    repo. `TARGUM_CATALOGUE_LEMMAS` overrides it the way `TARGUM_CATALOGUE` does; failing
+    that it is `lemmas.json` in whichever directory the catalogue itself was found in, so
+    moving one moves the other.
+    """
+    named = os.environ.get("TARGUM_CATALOGUE_LEMMAS", "").strip()
+    if named:
+        return Path(named) if Path(named).is_file() else None
+    beside = catalogue_path()
+    if beside is None:
+        return None
+    path = beside.parent / "lemmas.json"
+    return path if path.is_file() else None
+
+
 def _entry(raw: dict[str, Any]) -> Entry:
     return Entry(
         id=str(raw["id"]),
