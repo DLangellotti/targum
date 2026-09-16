@@ -143,3 +143,25 @@ body.signin {
 .gate .foot > * { white-space: nowrap; }
 .gate .foot a { color: var(--ink-soft); text-decoration: none; }
 .gate .foot a:hover { color: var(--ink); }
+
+/* --- the second door (targum-internal#304) ---------------------------------- */
+
+/* An anchor styled as the same press the form carries, because it is the same act.
+   No Google mark: that would be an image off the network on the one page that must not
+   fetch anything, and the words say it. */
+.gate .with-google {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  margin-block-end: 0.75rem;
+}
+/* "or", between the two doors, as quiet as it can be while still separating them. */
+.gate .or {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+/* What went wrong last time. Ink, not red: a cancelled sign-in is not an error, and the
+   way out of every one of these is the form underneath. */
+.gate .trouble { margin-block-end: 0.75rem; }

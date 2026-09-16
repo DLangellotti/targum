@@ -1608,6 +1608,42 @@ class Store:
             )
         return token
 
+    def sign_in_verified(self, email: str) -> tuple[Person, str] | None:
+        """Sign in an address somebody else has proved, and hand back a session.
+
+        The mailed link proves an address by sending something to it. A sign-in provider
+        proves the same address a different way, and this is where that proof is spent:
+        no link is minted, because a token sitting in an inbox is the thing the provider
+        was used to avoid.
+
+        **The caller must have verified it.** This makes an account for any address it is
+        handed, exactly as `start_sign_in` does, so `serve` checks `may_join` and the
+        provider's own `email_verified` before ever reaching here (targum-internal#304).
+
+        None for somebody on their way out, the one refusal `finish_sign_in` also makes:
+        a person inside their deletion grace period does not get to sign in again by
+        another door.
+        """
+        address = tidy(email)
+        if not address:
+            return None
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+            row = db.execute(
+                "SELECT id, email, leaving FROM person WHERE email = ?", (address,)
+            ).fetchone()
+            if row is None or row["leaving"] is not None:
+                return None
+            session = secrets.token_urlsafe(TOKEN_BYTES)
+            db.execute(
+                "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
+                (digest(session), row["id"], now(), now()),
+            )
+        return Person(int(row["id"]), str(row["email"]), self.is_admin(str(row["email"]))), session
+
     def peek_sign_in(self, token: str) -> Person | None:
         """Who this link would sign in, without spending it.
 
