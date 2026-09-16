@@ -139,6 +139,15 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     install -o root -g targum -m 0640 "\$held" /etc/targum/published/
   done
   rm -rf /tmp/targum-published
+
+  # Before the wheel goes in, not after: a deploy that cannot finish must not start.
+  if systemctl is-active --quiet targum-deploy.service; then
+    echo "   a deploy is already running on this box (targum-deploy.service)." >&2
+    echo "   Its rebuild may be hours. Wait for it, or stop it, then deploy again:" >&2
+    echo "     journalctl -u targum-deploy -f" >&2
+    exit 1
+  fi
+
   install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
   rm -f /tmp/targum.service
   systemctl daemon-reload
@@ -174,14 +183,38 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # environment, as before; the outer one is root, because the restart is.
   #
   # Named, so the laptop has something to ask about, and so a second deploy started
-  # during a rebuild is refused at this line rather than run two rebuilds over one
-  # shelf. Not --collect: that forgets a failed unit the moment it fails, and the
-  # laptop would read the absence as a finish. The last deploy's failed state is
-  # cleared here instead, its journal having been read by whoever ran it.
+  # during a rebuild is refused rather than running two rebuilds over one shelf. Not
+  # --collect: that forgets a failed unit the moment it fails, and the laptop would read
+  # the absence as a finish. The last deploy's failed state is cleared here instead, its
+  # journal having been read by whoever ran it.
+  #
+  # The refusal used to happen at the systemd-run below, which is far too late: the wheel
+  # had already been installed by then, so the second deploy shipped its code and lost
+  # its rebuild and its seed — and if it carried catalogue changes, the shelf on the box
+  # never learned about them. Silently, because the failure was inside a heredoc whose
+  # output nobody reads when the line above it said the wheel went in
+  # (targum-internal#295). Checked at the top of this block instead, where refusing
+  # costs nothing that has not already been undone.
   systemctl reset-failed targum-deploy.service 2>/dev/null || true
   systemd-run --quiet --unit=targum-deploy \
     --description="targum deploy: rebuild, seed, restart" \
     /bin/bash -euo pipefail -c '
+      # Live first. This restart used to sit at the end, behind the rebuild, so the
+      # wheel was installed, the deploy said it had shipped, and the box went on serving
+      # the old process for as long as the rebuild took — an hour on 2026-09-16, and two
+      # when an annotator rename makes it re-annotate everything. A deploy whose code
+      # does not reach a reader for two hours is not a deploy (targum-internal#295).
+      #
+      # Inside the unit and not on the connection above it, which is where the first
+      # attempt at this put it: everything past this point has to survive the laptop
+      # going away, which is the whole reason the unit exists (targum-internal#177), and
+      # a restart on the connection is one a dropped connection loses.
+      #
+      # Safe here because the rebuild writes reader pages and never code: the new
+      # process serves the old shelf until each text is rewritten under it, which is
+      # what every reader sees mid-rebuild anyway.
+      systemctl restart targum
+
       # The weights the tree expects, before the rebuild that expects them. The menaked
       # points modern Hebrew since targum#109, and a box without its 1.2 GB compares
       # Nakdimon with Nakdimon and re-points nothing, quietly, so a deploy would report
@@ -209,11 +242,23 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum seed --out /var/lib/targum/targums
 
+      # Restarted again at the end, now that the shelf has been rewritten under it. The
+      # first restart put the new code in front of readers; this one is cheap and makes
+      # sure nothing the rebuild wrote is being served by a process that started before
+      # it existed.
       systemctl restart targum
     '
 EOF
 
-echo "== rebuild, seed, restart =="
+echo "== live now; rebuilding the shelf behind it =="
+# Said plainly, because both halves surprise somebody the first time. The box is already
+# serving the new code — that happened before this step — so a deploy interrupted from
+# here on has still shipped. And the rebuild buys: --gloss reads the meanings that
+# re-annotation left unbought, which on the first deploy after a languages change was
+# "338 meanings bought" for a single text across 216 of them. That is live spend on
+# somebody's card, and a deploy should not be the one command that does it quietly.
+echo "   the box is serving the new code already; the rebuild below only rewrites pages"
+echo "   it can buy word meanings (--gloss). Watch: ssh $HOST journalctl -u targum-deploy -f"
 # The box is doing these on its own (the block above). Asked after, on a fresh connection
 # each time, so there is nothing for an idle drop to take: a poll that cannot reach the
 # box is a poll to repeat, not a deploy that failed — up to a point, because a box that
