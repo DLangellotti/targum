@@ -4,6 +4,8 @@
   "mail.invitation.subject": "Your turn: targum is open for you",
   "mail.invitation.body": "Your turn has come. You can open your targum now:\n\n{link}\n\nSign in with this address and we'll email you a link. The library is free to read and stays free, and there's no card to add.\n\nWe're opening in small groups, so if anything is broken or confusing, reply to this and tell us. That is most of what a small group is for.\n",
   "add.page.add": "Add",
+  "add.hours.left": "You have {left} of your {all} hours this month. The library costs none of them.",
+  "add.hours.none": "You've used your {all} hours this month. They come back on {date}, and the library is always free.",
   "add.page.add-targum": "Add — targum",
   "add.page.ask-targum": "Ask targum",
   "add.page.change": "Change",
