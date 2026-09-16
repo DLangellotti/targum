@@ -404,7 +404,9 @@
   drawTorah();
 
   /* ---- the ladder ---- */
-  var RUNGS = [[250, "א", "aleph", "A1"], [900, "א+", "aleph plus", "A1"], [1800, "ב", "bet", "A2"], [3000, "ב+", "bet plus", "A2+"], [4500, "ג", "gimel", "B1"], [6500, "ד", "dalet", "B2"], [9000, "ה", "hey", "C1"], [12000, "ו", "vav", "C2"]];
+  // [words, the letter, ] — the rung's own name and its CEFR step went with the
+  // tooltip that said them in English on a Russian page (2026-09-16).
+  var RUNGS = [[250, "א"], [900, "א+"], [1800, "ב"], [3000, "ב+"], [4500, "ג"], [6500, "ד"], [9000, "ה"], [12000, "ו"]];
   var known = 2140;
   // Built as elements for the reason the waveforms are: the two heights on every rung
   // are an inline `style` the server's policy refuses, and the whole chart drew flat.
@@ -415,7 +417,6 @@
     var share = Math.max(0, Math.min(1, (known - lo) / (r[0] - lo)));
     var step = document.createElement("div");
     step.className = "step";
-    step.title = r[2] + " · " + r[0].toLocaleString("en") + " words";
     var bar = document.createElement("span");
     bar.className = "bar-s";
     bar.style.blockSize = 18 + n * 11.5 + "%";
