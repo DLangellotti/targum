@@ -10,6 +10,11 @@
   <a href="/library">{{ back }}</a>
   {%- endif %}
   <a href="/about">{{ t("foot.whats-built", "What's built") }}</a>
+  {#- The front door hides its bar's sign-in on a phone, where four controls wrapped the
+      bar onto two lines; asked for, the door stands here instead. -#}
+  {%- if signin %}
+  <a href="/account/signin">{{ t("foot.sign-in", "Sign in") }}</a>
+  {%- endif %}
   {#- Shown only once the documents are open. See `_foot.html.j2`. -#}
   {%- if legal_is_public() %}
   <a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a>

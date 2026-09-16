@@ -214,8 +214,12 @@ h1, h2, h3 { text-wrap: balance; }
 .tongue a { color: var(--muted); }
 .tongue a:hover { color: var(--ink); text-decoration: none; }
 .bar .end { margin-inline-start: auto; display: flex; align-items: center; gap: 0.5rem; }
-.bar .signin { color: var(--ink); font-size: 0.875rem; padding: 0.35rem 0.6rem; }
+.bar .signin { color: var(--ink); font-size: 0.875rem; padding: 0.35rem 0.6rem; white-space: nowrap; }
 @media (max-width: 52rem) { .places { display: none; } }
+/* On a phone the bar holds the name, the language and the one thing it is asking for.
+   Sign in was the fourth, and it wrapped to a second line and took the bar with it; it
+   stands in the foot instead, where somebody who already has a key will look for it. */
+@media (max-width: 30rem) { .bar .signin { display: none; } }
 
 /* hero */
 /* The headline sits against the middle of the column beside it. Bottom-aligned,
