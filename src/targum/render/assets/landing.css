@@ -542,4 +542,30 @@ footer { padding-block: 2rem 3rem; border-block-start: 1px solid var(--hairline)
 footer .row { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; align-items: center; }
 footer .mock { max-inline-size: 48rem; }
 
+/* The foot the rest of the public side wears. It comes from `_public_foot.html.j2` and
+   is styled per page — holding and about each carry their own — so without this the
+   front door's ended in four unstyled links flush against the left edge of the glass. */
+.foot {
+  max-inline-size: 64rem;
+  margin-inline: auto;
+  padding: 1.5rem 1.25rem 3rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.25rem;
+  border-block-start: 1px solid var(--hairline);
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+.foot > * { white-space: nowrap; }
+.foot a { color: var(--muted); }
+.foot a:hover { color: var(--ink); text-decoration: none; }
+
+/* Nine mediums are nine rows on a phone. Tighter, so they read as one list rather
+   than as nine cards with the library pushed off the bottom of the screen. */
+@media (max-width: 30rem) {
+  .mediums { gap: 0.4rem; }
+  .mediums li { padding: 0.55rem 0.75rem; }
+}
+
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
