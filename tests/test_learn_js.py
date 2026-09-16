@@ -1009,3 +1009,77 @@ def test_the_page_says_its_words_in_the_readers_language() -> None:
     assert drawn["known"] == "Вы знаете 12 слов: Hebrew."
     assert drawn["carry"]["heading"] == "Start here"
     assert drawn["carry"]["meta"] == "Where most people start · 10 мин"
+
+
+# --- the arrival (targum-internal#294) --------------------------------------------
+
+
+def seeded() -> list[dict[str, Any]]:
+    """The four shelves the arrival can offer, each with something already seeded."""
+    return [
+        reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
+        reader("ruth", "רות", "ruth", register="biblical"),
+        reader("weekly-1", "חדשות", "weekly-1", kind="weekly", register="modern"),
+        reader("video-1", "סרטון", "video-1", kind="video", register="modern"),
+    ]
+
+
+def test_a_new_reader_is_asked_which_hebrew_they_came_for() -> None:
+    drawn = draw([], shared=seeded())
+    assert drawn["arrival"] == [
+        "Everyday Hebrew, spoken",
+        "The week's Torah portion",
+        "This week's news",
+        "Something to watch",
+    ]
+    # And the sheet is open under it: ignoring the question costs nothing.
+    assert not drawn["carry"]["hidden"]
+
+
+def test_the_answer_picks_the_track_and_the_question_goes_away() -> None:
+    came = draw([], {"targum:arrived": "portion"}, shared=seeded())
+    assert came["arrival"] == [], "answered once, never asked again"
+    assert came["carry"]["title"] == "רות"
+
+    news = draw([], {"targum:arrived": "news"}, shared=seeded())
+    assert news["carry"]["title"] == "חדשות"
+
+    watch = draw([], {"targum:arrived": "video"}, shared=seeded())
+    assert watch["carry"]["title"] == "סרטון"
+
+
+def test_a_reader_already_reading_is_never_asked() -> None:
+    """It is a question for somebody who has just arrived, not an interruption."""
+    already = draw([], {"targum:opened": json.dumps({"scene-1": 7})}, shared=seeded())
+    assert already["arrival"] == []
+
+
+def test_a_door_with_nothing_seeded_behind_it_is_not_drawn() -> None:
+    """Four doors of which one leads nowhere is worse than three that all work."""
+    thin = draw(
+        [],
+        shared=[
+            reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
+            reader("ruth", "רות", "ruth", register="biblical"),
+        ],
+    )
+    assert thin["arrival"] == ["Everyday Hebrew, spoken", "The week's Torah portion"]
+
+
+def test_one_door_is_not_a_choice() -> None:
+    """A row with one button in it is a page telling somebody what they wanted."""
+    alone = draw([], shared=[reader("ruth", "רות", "ruth", register="biblical")])
+    assert alone["arrival"] == []
+
+
+def test_an_answer_for_a_shelf_that_is_not_there_falls_back(tmp_path: Path) -> None:
+    """A suggestion that would have to be built first is not a suggestion."""
+    asked = draw(
+        [],
+        {"targum:arrived": "video"},
+        shared=[
+            reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
+            reader("ruth", "רות", "ruth", register="biblical"),
+        ],
+    )
+    assert asked["carry"]["title"] == "סצנה", "its register's own door, not nothing"

@@ -1034,3 +1034,48 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   /* How far through: the sheet's line, along the card's foot. */
   .learn-card .page-progress { inset-block-end: 0; }
 }
+
+/* --- the arrival (targum-internal#294) -------------------------------------- */
+
+/* The one question a new reader is asked, above the sheet. It sits on the desk ground
+   rather than in a card: the sheet under it is the brightest thing on the page and this
+   must not compete with it — somebody who ignores the question entirely still has a text
+   open and loses nothing. */
+.arrival { margin: 0 0 1.25rem; }
+.arrival[hidden] { display: none; }
+.arrival-asks {
+  margin: 0 0 0.6rem;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.arrival-doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+/* Each door a pill on the desk, the shape the ways row already uses, so the two read as
+   the same kind of control. */
+.arrival-door {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink);
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  cursor: pointer;
+}
+.arrival-door:hover { background: var(--card-hover, var(--card)); }
+.arrival-door:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* On a phone the doors stack to full width: four pills wrapping into three ragged rows
+   is worse than four rows that line up. */
+@media (max-width: 30rem) {
+  .arrival-doors { display: grid; grid-template-columns: 1fr; }
+  .arrival-door { text-align: start; }
+}
