@@ -119,3 +119,23 @@ def test_the_back_office_counts_the_list_and_names_nobody(tmp_path: Path) -> Non
     store.join_waitlist("not-yet@example.com")
     found = survey(store.db)
     assert found.waiting == {"pending": 1, "on": 1, "off": 0}
+
+
+def test_the_back_office_lists_who_is_waiting_oldest_first(tmp_path: Path) -> None:
+    """The counts answer "how many", which is the one question the operator does not
+    have: a waitlist is a list of people to write to, and a list you cannot read is a
+    number. Oldest first, which is the order they would be let in."""
+    from targum.backoffice import survey
+
+    store = Store(tmp_path / "targum.db")
+    first = store.join_waitlist("first@example.com")
+    assert first and store.confirm_waiting(first)
+    store.join_waitlist("second@example.com")
+    found = survey(store.db)
+    assert [w.email for w in found.waiting_list] == ["first@example.com", "second@example.com"]
+    assert [w.state for w in found.waiting_list] == ["on", "pending"]
+    assert found.waiting_list[0].asked and found.waiting_list[0].joined
+    assert found.waiting_list[1].joined == "", "an address that has not answered has no date"
+    assert all(w.invited == "" for w in found.waiting_list)
+    store.waiting_invited("first@example.com")
+    assert survey(store.db).waiting_list[0].invited

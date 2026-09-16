@@ -61,6 +61,28 @@
     {{ survey.waiting.off }} left the list</p>
   {%- endif %}
 
+  {#- Who is waiting, oldest first, which is the order they would be let in. The counts
+      above answer "how many", which is the one question the operator does not have. -#}
+  {%- if survey.waiting_list %}
+  <h2>The waitlist</h2>
+  <table>
+    <thead>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th></tr>
+    </thead>
+    <tbody>
+      {% for who in survey.waiting_list %}
+      <tr>
+        <td>{{ who.email }}</td>
+        <td class="quiet">{{ who.asked }}</td>
+        <td class="quiet">{{ who.joined or '—' }}</td>
+        <td class="quiet">{{ who.state }}</td>
+        <td class="quiet">{{ who.invited or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+
   <h2>Accounts</h2>
   <table>
     <thead>

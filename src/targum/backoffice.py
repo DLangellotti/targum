@@ -81,14 +81,32 @@ class Day:
 
 
 @dataclass
+class Waiting:
+    """One address at the front door, and where it has got to.
+
+    The counts alone answered "how many", which is the one question the operator does
+    not have: a waitlist is a list of people to write to, and a list you cannot read is
+    a number. This page already names accounts, for the reason its own docstring gives,
+    and these are the same kind of fact about the same kind of person.
+    """
+
+    email: str
+    #: pending until the address answers its confirmation, on once it has, off once they
+    #: asked to come off.
+    state: str
+    asked: str
+    joined: str = ""
+    invited: str = ""
+
+
+@dataclass
 class Survey:
     accounts: list[Account] = field(default_factory=list)
     days: list[Day] = field(default_factory=list)
     taken: str = ""
-    #: How many are waiting at the front door, by state (targum-internal#69). Three
-    #: numbers and no addresses: this page names nobody, and a waitlist is a list of
-    #: people who have not agreed to be anything yet.
+    #: How many are waiting at the front door, by state (targum-internal#69), and who.
     waiting: dict[str, int] = field(default_factory=dict)
+    waiting_list: list[Waiting] = field(default_factory=list)
 
     def active(self) -> int:
         """Accounts that did anything at all in the window."""
@@ -128,6 +146,17 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
             for row in _rows(db, "SELECT state, COUNT(*) AS n FROM waiting GROUP BY state")
         }
         found.waiting = {state: counted_waiting.get(state, 0) for state in ("pending", "on", "off")}
+        found.waiting_list = [
+            Waiting(
+                email=str(row["email"]),
+                state=str(row["state"]),
+                asked=_day(int(row["asked"])),
+                joined=_day(int(row["joined"])) if row["joined"] else "",
+                invited=_day(int(row["invited"])) if row["invited"] else "",
+            )
+            # Oldest first: that is the order they would be let in.
+            for row in _rows(db, "SELECT * FROM waiting ORDER BY asked")
+        ]
 
     people = _rows(db, "SELECT id, email, name, made, leaving FROM person ORDER BY id")
     counted = {
