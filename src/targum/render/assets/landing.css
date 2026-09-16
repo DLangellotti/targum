@@ -197,10 +197,15 @@ h1, h2, h3 { text-wrap: balance; }
 /* The headline sits against the middle of the column beside it. Bottom-aligned,
    which is what the mockup did, the taller right-hand column pushed the headline
    down the page and left a hole above it that grew with the window. */
-.hero { padding-block: 2rem 1.25rem; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1rem 2.5rem; align-items: center; }
-.hero h1 { font: 600 2.75rem/1.08 var(--chrome); letter-spacing: -0.02em; max-inline-size: 24ch; }
-.hero .lede { font-size: 1.0625rem; line-height: 1.5; max-inline-size: 30rem; }
-.hero .side { display: grid; gap: 0.75rem; }
+/* Two columns of about the same height. The lede belongs under the headline, not
+   above the form: with it on the right the column beside the headline ran half as
+   long again, which left the headline floating in the middle of its own row and
+   stacked five things on top of each other in the other one. */
+.hero { padding-block: 2.5rem 1.5rem; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.5rem 3rem; align-items: center; }
+.hero .headline { display: grid; gap: 1.25rem; }
+.hero h1 { font: 600 2.75rem/1.08 var(--chrome); letter-spacing: -0.02em; max-inline-size: 22ch; }
+.hero .lede { font-size: 1.0625rem; line-height: 1.55; max-inline-size: 34rem; }
+.hero .side { display: grid; gap: 1.1rem; }
 .hero .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .hero .facts { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.875rem; color: var(--muted); }
 .join-form { display: grid; gap: 0.5rem; max-inline-size: 27rem; }

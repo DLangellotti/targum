@@ -45,9 +45,11 @@
 <main id="top">
   <div class="col">
     <div class="hero">
-      <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
+      <div class="headline">
+        <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
+          <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
+      </div>
       <div class="side">
-        <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
         <form class="join-form" method="post" action="/waitlist">
           <label class="field">
             <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}" required>
