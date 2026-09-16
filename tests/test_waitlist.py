@@ -139,3 +139,16 @@ def test_the_back_office_lists_who_is_waiting_oldest_first(tmp_path: Path) -> No
     assert all(w.invited == "" for w in found.waiting_list)
     store.waiting_invited("first@example.com")
     assert survey(store.db).waiting_list[0].invited
+
+
+def test_an_address_with_a_space_in_it_is_not_an_address() -> None:
+    """`+` in a posted body means space, so `you+list@example.com` sent unencoded
+    arrives as `you list@example.com`. It was being stored and mailed to (found on the
+    live box the hour the front door opened, 2026-09-16)."""
+    from targum.accounts import plausible
+
+    assert plausible("dina@example.com")
+    assert plausible("dina+waitlist@example.com")
+    assert not plausible("dina waitlist@example.com")
+    assert not plausible("dina@exa mple.com")
+    assert not plausible("dina\t@example.com")

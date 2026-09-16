@@ -658,7 +658,13 @@ def plausible(email: str) -> bool:
     does anyway. This only rejects what cannot possibly be one.
     """
     address = tidy(email)
+    # No address has a space in it, and one that arrives with a space is a form that
+    # was decoded wrong or a paste that brought its neighbour: `+` in a posted body
+    # means space, so `you+list@example.com` sent unencoded arrives broken and was
+    # being stored and mailed to (found live, 2026-09-16).
     if len(address) < 3 or len(address) > 254 or address.count("@") != 1:
+        return False
+    if any(c.isspace() for c in address):
         return False
     local, _, host = address.partition("@")
     return bool(local) and "." in host and not host.startswith(".") and not host.endswith(".")
