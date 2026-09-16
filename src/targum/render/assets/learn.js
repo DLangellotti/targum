@@ -1167,6 +1167,116 @@
      The fixed sequence is the numbered scenes for modern Hebrew and the shared Biblical
      texts (Ruth) for the other; a box with no scenes seeded falls back to whatever
      shared modern text it has. */
+  /* --- the arrival (targum-internal#294) ------------------------------------ */
+
+  /* The one question a new reader is asked: which Hebrew they came for.
+   *
+   * Deliberately **not** a level. The comment on the doors above has said since it was
+   * written that nobody is asked how good they are, and that what tells a beginner from
+   * a false beginner is what they have marked — which the claim grid measures and this
+   * could only guess at. This asks the thing no measurement can answer: somebody who
+   * came for the week's portion and somebody who came for the news have the same word
+   * count and want different shelves.
+   *
+   * Each answer names a register and, where it is narrower than a register, a kind. The
+   * four are the four things that are seeded and open at once; a door onto something
+   * that has to be built first is not a door.
+   */
+  var INTERESTS = [
+    { id: "spoken", register: "modern", kind: "dialogue" },
+    { id: "portion", register: "biblical", kind: "" },
+    { id: "news", register: "modern", kind: "weekly" },
+    { id: "video", register: "modern", kind: "video" },
+  ];
+
+  function interestLabels() {
+    return {
+      spoken: t("learn.arrival.spoken", "Everyday Hebrew, spoken"),
+      portion: t("learn.arrival.portion", "The week's Torah portion"),
+      news: t("learn.arrival.news", "This week's news"),
+      video: t("learn.arrival.video", "Something to watch"),
+    };
+  }
+
+  function interestOf(id) {
+    for (var i = 0; i < INTERESTS.length; i++) if (INTERESTS[i].id === id) return INTERESTS[i];
+    return null;
+  }
+
+  //: What this reader said they came for. Kept on the account, so it travels between
+  //: devices the way the rest of the profile does; the browser holds a copy so the row
+  //: does not flash back on a page drawn before `/account/me` answers.
+  var ARRIVED = "targum:arrived";
+  var arrived = "";
+  try {
+    arrived = localStorage.getItem(ARRIVED) || "";
+  } catch (e) {
+    arrived = "";
+  }
+
+  function remember(id) {
+    arrived = id;
+    try {
+      if (window.targumKeep) window.targumKeep(ARRIVED, id);
+      else localStorage.setItem(ARRIVED, id);
+    } catch (e) {
+      /* nowhere to keep it; the account still has it */
+    }
+    fetch(keyed("/account/interest"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ interest: id }),
+    }).catch(function () {
+      /* the browser's copy still decides this visit */
+    });
+  }
+
+  /* The row itself. Shown only to a reader who has opened nothing in Hebrew and
+     answered nothing — so it is asked once, it never interrupts somebody who is already
+     reading, and answering it makes it go away for good.
+
+     A door whose shelf has nothing seeded behind it is left out rather than drawn and
+     disappointing: four doors of which one leads nowhere is worse than three that all
+     work. */
+  function drawArrival(asking, readers, shared, again) {
+    var host = document.getElementById("arrival");
+    var row = document.getElementById("arrival-doors");
+    if (!host || !row) return;
+    if (!asking) {
+      host.hidden = true;
+      return;
+    }
+    var labels = interestLabels();
+    var pool = (shared || []).concat(readers || []);
+    row.textContent = "";
+    var drawn = 0;
+    INTERESTS.forEach(function (want) {
+      var there = pool.some(function (reader) {
+        if (base(reader.language) !== lang.HOME) return false;
+        if (want.kind && want.kind !== "dialogue") return reader.kind === want.kind;
+        return reader.register === want.register;
+      });
+      if (!there) return;
+      var press = document.createElement("button");
+      press.type = "button";
+      press.className = "arrival-door";
+      press.textContent = labels[want.id] || want.id;
+      press.addEventListener("click", function () {
+        remember(want.id);
+        host.hidden = true;
+        // Drawn again rather than navigated: the sheet swaps to what they asked for, on
+        // the page they are already looking at.
+        if (again) again();
+      });
+      row.appendChild(press);
+      drawn += 1;
+    });
+    // Fewer than two is not a choice, and a row with one button in it is a page telling
+    // somebody what they wanted.
+    host.hidden = drawn < 2;
+  }
+
   function trackDoor(code, register, readers, shared) {
     var docs = stored("targum:docs");
     function ofHere(list) {
@@ -1309,10 +1419,31 @@
         });
         if (code === lang.HOME) {
           // Hebrew: two tracks, one sheet. The track opened most recently takes it; on
-          // a first sign-in modern does, and the Biblical track is on the Library.
+          // a first sign-in modern did, and the Biblical track was on the Library —
+          // which was the right default for somebody with no way to say otherwise and
+          // the wrong one for the reader who came for the week's portion. Since
+          // targum-internal#294 they can say, once, and the answer picks the track
+          // until they have opened something of their own.
           var modern = trackDoor(code, "modern", readers, shared);
           var biblical = trackDoor(code, "biblical", readers, shared);
           var door = biblical.reader && biblical.opened > modern.opened ? biblical : modern;
+          var came = interestOf(arrived);
+          if (came && !modern.opened && !biblical.opened) {
+            var wanted = came.register === "biblical" ? biblical : modern;
+            // Narrower than a register where the answer was: the news is a weekly, a
+            // video is a video. Only among what is already seeded — a suggestion that
+            // has to be built first is not one, so anything narrower that is not here
+            // falls back to its register's own door rather than to nothing.
+            if (came.kind && came.kind !== "dialogue") {
+              var narrower = handed.filter(function (reader) {
+                return reader.kind === came.kind;
+              })[0];
+              if (narrower) {
+                wanted = { state: "start", reader: narrower, opened: 0, register: narrower.register };
+              }
+            }
+            if (wanted.reader) door = wanted;
+          }
           // A text of another register — revival, rabbinic, a novel — belongs to neither
           // track; opened more recently than either track's door, it is what the reader
           // came back for, and the sheet is theirs (2026-09-11).
@@ -1320,6 +1451,9 @@
           if (latest && latest.opened > Math.max(modern.opened || 0, biblical.opened || 0)) {
             door = { state: "carry", reader: latest, opened: latest.opened, register: latest.register };
           }
+          drawArrival(!arrived && !modern.opened && !biblical.opened, readers, shared, function () {
+            show(code);
+          });
           door.primary = true;
           door.id = "main";
           doors = [{ id: "main", label: STATES[door.state] || CONTINUE, reader: door.reader, door: door }].concat(
@@ -1402,6 +1536,20 @@
     ask("/account/me")
       .then(function (me) {
         if (me && me.signedIn && me.name) drawHello(me.name, []);
+        // What they answered on arrival, from the account rather than this browser: the
+        // question belongs to the person, so somebody who answered it on a phone is not
+        // asked again on a laptop. Only ever adopted, never cleared from here — an
+        // answer this browser has and the account has not is one that has not reached
+        // the server yet (targum-internal#294).
+        if (me && me.signedIn && me.interest && me.interest !== arrived) {
+          arrived = me.interest;
+          try {
+            if (window.targumKeep) window.targumKeep(ARRIVED, me.interest);
+            else localStorage.setItem(ARRIVED, me.interest);
+          } catch (e) {
+            /* this visit still has it in memory */
+          }
+        }
       })
       .catch(function () {});
   }

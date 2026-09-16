@@ -106,10 +106,17 @@ SESSION_DAYS = 90
 #    honestly because nothing recorded how long the last thousand took
 #    (targum-internal#303).
 #
+# 20: person.interest — what a reader said they came to read, asked once on arrival and
+#    never again (targum-internal#294). Deliberately not a level: `learn.js` has said
+#    since it was written that nobody is asked how good they are, and what tells a
+#    beginner from a false beginner is what they have marked. This is the other
+#    question, the one no measurement can answer — not how much Hebrew somebody has,
+#    but which Hebrew they came for.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 19
+SCHEMA_VERSION = 20
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -211,6 +218,9 @@ MIGRATIONS: tuple[str, ...] = (
     # on the reader's row, so a page that comes back to the conversation draws every
     # word with its state without reading the lines again. See `chat/record.py`.
     "ALTER TABLE chat_turn ADD COLUMN words TEXT NOT NULL DEFAULT ''",
+    # What a reader said they came to read, on arrival. Empty for everybody who arrived
+    # before there was a question, and for anybody who has not answered it.
+    "ALTER TABLE person ADD COLUMN interest TEXT NOT NULL DEFAULT ''",
     # When a build stopped, so that how long one takes can be counted. Zero for every
     # row that predates it, which is why the reckoning below ignores zeros rather than
     # treating them as instant builds.
@@ -939,7 +949,8 @@ class Store:
         they", which two pages need.
         """
         row = self.db.execute(
-            "SELECT email, name, picture, made, address FROM person WHERE id = ?", (person.id,)
+            "SELECT email, name, picture, made, address, interest FROM person WHERE id = ?",
+            (person.id,),
         ).fetchone()
         if row is None:
             return {}
@@ -950,7 +961,42 @@ class Store:
             "initials": initials(row["name"], row["email"]),
             "since": row["made"],
             "address": row["address"] or "",
+            "interest": row["interest"] or "",
         }
+
+    #: What a reader can say they came to read, asked once when they arrive
+    #: (targum-internal#294). Four, because the shelf has four things that are seeded
+    #: and open at once — everyday spoken Hebrew, the week's portion, the news, and a
+    #: video — and a door onto something that has to be built first is not a door.
+    #:
+    #: **Not a level.** `learn.js` has said since it was written that nobody is asked how
+    #: good they are, and it is right: what tells a beginner from a false beginner is
+    #: what they have marked, which the claim grid measures. This asks the question no
+    #: measurement can answer — which Hebrew somebody came for, not how much they have.
+    INTERESTS = ("", "spoken", "portion", "news", "video")
+
+    def interest(self, person_id: int | None) -> str:
+        """What they said they came to read, or '' where they have not said."""
+        if person_id is None:
+            return ""
+        row = self.db.execute(
+            "SELECT interest FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return str(row["interest"] or "") if row is not None else ""
+
+    def set_interest(self, person: Person, interest: str) -> str:
+        """Keep what they came for; anything else is refused.
+
+        Settable again rather than once: somebody who came for the portion and now wants
+        the news should be able to say so, and a question that can only be answered once
+        is a question people answer carefully instead of quickly.
+        """
+        value = str(interest or "").strip().lower()
+        if value not in self.INTERESTS:
+            raise ValueError("No such choice.")
+        with self.write() as db:
+            db.execute("UPDATE person SET interest = ? WHERE id = ?", (value, person.id))
+        return value
 
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.

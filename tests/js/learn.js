@@ -233,6 +233,11 @@ setTimeout(() => {
         : withDoors(at("doors"))
             .filter((p) => !String(p.className).includes("ways-item"))
             .map((p) => ({ id: p.attrs["data-door"], label: p.textContent, on: p.classList.contains("on") })),
+      // The one question a new reader is asked (targum-internal#294): the doors it
+      // offers, or nothing at all where it is not asking.
+      arrival: at("arrival").hidden
+        ? []
+        : Array.from(at("arrival-doors").children).map((p) => p.textContent),
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
       menu: menuOf("subscriptions"),
       // Recently read (2026-09-11): the same shape, with the way to the whole list.

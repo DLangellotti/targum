@@ -4770,6 +4770,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._sync(payload)
         if route == "/account/name":
             return self._rename(payload)
+        if route == "/account/interest":
+            return self._interest(payload)
         if route == "/account/address":
             return self._address(payload)
         if route == "/account/languages":
@@ -5662,6 +5664,17 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "name": stored}
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _interest(self, payload: dict[str, Any]) -> None:
+        """What a reader came to read, answered once on arrival (targum-internal#294)."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            kept = self.store.set_interest(person, str(payload.get("interest") or ""))
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "interest": kept})
 
     def _address(self, payload: dict[str, Any]) -> None:
         """How the conversation addresses them in Hebrew (2026-09-14)."""
