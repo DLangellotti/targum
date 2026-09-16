@@ -1,6 +1,8 @@
 {
   "mail.sign_in.body": "Here is your link back into targum:\n\n{link}\n\nIt works once, and it stops working in twenty minutes. If you did not ask for it,\nnothing has happened to your account and you can ignore this.\n",
   "mail.sign_in.subject": "Your targum sign-in link",
+  "mail.invitation.subject": "Your turn: targum is open for you",
+  "mail.invitation.body": "Your turn has come. You can open your targum now:\n\n{link}\n\nSign in with this address and we'll email you a link. The library is free to read and stays free, and there's no card to add.\n\nWe're opening in small groups, so if anything is broken or confusing, reply to this and tell us. That is most of what a small group is for.\n",
   "add.page.add": "Add",
   "add.page.add-targum": "Add — targum",
   "add.page.ask-targum": "Ask targum",
