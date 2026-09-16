@@ -973,7 +973,10 @@ class Store:
     #: good they are, and it is right: what tells a beginner from a false beginner is
     #: what they have marked, which the claim grid measures. This asks the question no
     #: measurement can answer — which Hebrew somebody came for, not how much they have.
-    INTERESTS = ("", "spoken", "portion", "news", "video")
+    #: "news" was here and is not: the weekly is a series (`/series`), never a row on
+    #: `/readers`, so a door for it could not be satisfied from the shelf at all. It
+    #: comes back when it can be answered honestly — see targum-internal#294.
+    INTERESTS = ("", "spoken", "portion", "video")
 
     def interest(self, person_id: int | None) -> str:
         """What they said they came to read, or '' where they have not said."""
