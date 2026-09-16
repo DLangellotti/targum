@@ -1565,17 +1565,34 @@ def rebuild(
 #: off: Hapoel Holon taking the basketball title — the easiest text in the catalogue,
 #: five minutes. A placeholder until something better is found. It was translated once,
 #: on Opus, and the cache holds it; a box without that cache pays for it once.
+#: The language the seeded shelf is for: the one a new account arrives on, and the only
+#: one whose first screen offers a choice of track (targum-internal#294).
+HOME_LANGUAGE = "he"
+
 SEED = ("ruth", "sport-holon-basketball")
 
 
 def seeds() -> list[str]:
-    """Every id `targum seed` builds: the two above, then every scene in scene order.
+    """Every id `targum seed` builds: the two above, every scene, and the first text of
+    every ordered collection.
 
     The scenes are the modern reader's path — Learn opens a new account on Scene 1 and
     offers the next after each finish — and a path with a gap in it is a row of build
     buttons a reader who knows no Hebrew can press. So all of them, always: the list is
     computed from the catalogue rather than written down, and a test pins that no
     dialogue entry is left out.
+
+    **The head of each ordered collection**, since targum-internal#296. A collection
+    whose order means something — the five books, the sixty-three tractates — is a track
+    a reader starts at the front of, and until now the front of every one of them except
+    the scenes was an unbuilt button. The arrival (#294) made that visible: somebody who
+    says they came for the week's portion was handed whichever biblical text happened to
+    be seeded, because only Ruth was.
+
+    Heads only, deliberately. Seeding a whole collection is 93 texts for the Tanakh
+    alone, at about a minute each on a box with no GPU, and the reader who finishes
+    Genesis has by then earned the wait for Exodus. This is about the first press, which
+    is the one nobody has invested anything in yet.
     """
     from . import catalogue as catalogue_module
 
@@ -1583,7 +1600,22 @@ def seeds() -> list[str]:
         (e for e in catalogue_module.CATALOGUE if e.kind is catalogue_module.Kind.dialogue),
         key=lambda e: (catalogue_module.scene_number(e.id), e.id),
     )
-    return [*SEED, *(e.id for e in scenes)]
+    # Hebrew only. The arrival's doors are Hebrew's — every other shelf reaches its own
+    # first text through the Library — and seeding the head of every ordered collection
+    # in every language turned 102 texts into 135, most of them Russian and Italian, for
+    # a door that never opens them. Widen this when another language grows an arrival of
+    # its own, and pay the annotator hours then.
+    hebrew = {e.id: e for e in catalogue_module.CATALOGUE if e.language.startswith(HOME_LANGUAGE)}
+    heads = [
+        group.members[0]
+        for group in catalogue_module.collections()
+        # An unordered collection is an author's shelf, where the first member is only
+        # the first somebody typed in and is no more a starting point than any other.
+        if group.ordered and group.members and group.members[0] in hebrew
+    ]
+    out = [*SEED, *(e.id for e in scenes), *heads]
+    # Stable, and each id once: a collection's head may be one of the two above.
+    return list(dict.fromkeys(out))
 
 
 @app.command()
