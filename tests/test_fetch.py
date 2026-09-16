@@ -506,3 +506,19 @@ def test_what_counts_as_html(content_type: str, html: bool) -> None:
     from targum.ingest.url import Fetched
 
     assert Fetched("", content_type).is_html is html
+
+
+def test_a_single_page_loses_the_wikis_sister_project_box() -> None:
+    """ru.wikisource opens each story with a `ws-noexport searchaux` box of links to
+    Wikipedia, Wikidata and the rest. Read on its own — not as one page of a walked work —
+    that box used to arrive as the reader's first four lines (2026-09-16)."""
+    from targum.ingest.fetch.wikisource import _read
+
+    html = (
+        '<div class="ws-noexport searchaux"><p>Энциклопедии внешние ссылки</p>'
+        "<p>Википроекты Википедия Данные</p></div>"
+        "<p>Говорили, что на набережной появилось новое лицо: дама с собачкой.</p>"
+    )
+    assert [text for _, _, text in _read(html)] == [
+        "Говорили, что на набережной появилось новое лицо: дама с собачкой."
+    ]
