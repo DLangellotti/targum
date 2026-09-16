@@ -24,6 +24,7 @@ and there is no version of "how much are they reading" that needs it.
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -84,6 +85,10 @@ class Survey:
     accounts: list[Account] = field(default_factory=list)
     days: list[Day] = field(default_factory=list)
     taken: str = ""
+    #: How many are waiting at the front door, by state (targum-internal#69). Three
+    #: numbers and no addresses: this page names nobody, and a waitlist is a list of
+    #: people who have not agreed to be anything yet.
+    waiting: dict[str, int] = field(default_factory=dict)
 
     def active(self) -> int:
         """Accounts that did anything at all in the window."""
@@ -115,6 +120,14 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
     )
 
     found = Survey(taken=datetime.now(UTC).isoformat(timespec="seconds"))
+    # The front door, if this database has one yet. A store written before schema 17
+    # has no such table, and the page is not the place to find that out.
+    with contextlib.suppress(sqlite3.Error):
+        counted_waiting = {
+            str(row["state"]): int(row["n"])
+            for row in _rows(db, "SELECT state, COUNT(*) AS n FROM waiting GROUP BY state")
+        }
+        found.waiting = {state: counted_waiting.get(state, 0) for state in ("pending", "on", "off")}
 
     people = _rows(db, "SELECT id, email, name, made, leaving FROM person ORDER BY id")
     counted = {

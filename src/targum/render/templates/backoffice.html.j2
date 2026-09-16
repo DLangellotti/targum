@@ -52,6 +52,14 @@
   <h1>back office</h1>
   <p class="taken">{{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
     {{ survey.active() }} active in the last {{ days }} days &middot; taken {{ survey.taken }}</p>
+  {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
+      of this page names nobody either. `on` is the number that matters — an address
+      that answered its confirmation — and `pending` is how many have not yet. -#}
+  {%- if survey.waiting %}
+  <p class="taken">{{ survey.waiting.on }} waiting &middot;
+    {{ survey.waiting.pending }} not yet confirmed &middot;
+    {{ survey.waiting.off }} left the list</p>
+  {%- endif %}
 
   <h2>Accounts</h2>
   <table>

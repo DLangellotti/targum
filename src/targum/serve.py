@@ -49,6 +49,7 @@ from .render.builder import (
     about_page,
     back_office_page,
     daily_page,
+    front_page,
     holding_page,
     legal_is_public,
     legal_page,
@@ -338,6 +339,12 @@ OPEN_TO_STRANGERS = frozenset(
         # The door out of a series, followed from an email with no account at hand
         # (2026-09-11): its token is the whole of what it needs.
         "/series/stop",
+        # The front door's form and the two doors its mail carries (2026-09-16). Nobody
+        # joining a waitlist has an account, and the point of the list is that they
+        # cannot get one yet.
+        "/waitlist",
+        "/waitlist/confirm",
+        "/waitlist/stop",
     }
 ) | frozenset(LEGAL_ROUTES)
 
@@ -404,6 +411,11 @@ def parasha_url(entry_id: str) -> str | None:
 log = logging.getLogger(__name__)
 
 WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"})
+
+#: The front door's three, and the only doors that answer while the product is shut
+#: (2026-09-16, targum-internal#69). Joining is a plain form post; confirming and
+#: leaving are a page with a button, for the reason the weekly's two are.
+WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
 
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
@@ -480,6 +492,20 @@ MAX_PENDING = 500
 def shelves_are_public() -> bool:
     """Whether strangers may see the catalogue. Off unless the deployment says so."""
     return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
+
+
+def front_door_is_open() -> bool:
+    """Whether a stranger at `/` gets the front door or the holding page.
+
+    Off unless the deployment says so, which is what lets the page merge, deploy and be
+    looked at on the box before anybody outside sees it: the day it goes public is one
+    line in `targum.env` rather than a release (targum-internal#69, 2026-09-16).
+
+    While it is off, `/waitlist` and its two doors answer 404 as well — a form that
+    takes an address is not something to leave reachable beside a page that says
+    "Coming soon".
+    """
+    return os.environ.get("TARGUM_FRONT_DOOR", "").strip().lower() in {"1", "true", "yes"}
 
 
 def weekly_is_indexed() -> bool:
@@ -3722,6 +3748,92 @@ class Handler(BaseHTTPRequestHandler):
         page = weekly_note(message, address=self.address, done=done)
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
+    def _waitlist_note(self, message: str, done: bool = True, **rest: Any) -> None:
+        """A sentence back from the front door, on the furniture the weekly's doors use.
+
+        The same page, a different heading and a different way home: this is read in a
+        mail client by somebody who has no account, may never have seen targum, and is
+        being asked one question about an address they typed.
+        """
+        page = weekly_note(
+            message, address=self.address, done=done, heading="the waitlist", home="/", **rest
+        )
+        return self._send(200 if done else 429, page.encode("utf-8"), HTML)
+
+    def _waitlist_get(self, route: str) -> None:
+        """The two doors that arrive from an email: a page with a button, never an act.
+
+        A mail client that fetches every link in a message would otherwise answer for
+        the person it was sent to, which is why `/account/enter` and the weekly's own
+        two stopped being bare GETs.
+        """
+        store = self.library.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+        token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+        if route == "/waitlist/confirm":
+            waiting = store.peek_waiting(token)
+            if waiting is None:
+                return self._waitlist_note("That link has already been used, or it's expired.")
+            message = f"Should we keep {waiting} on the waitlist?"
+            button = "Yes, keep me on it"
+        else:
+            message = "Should we take you off the waitlist?"
+            button = "Yes, take me off"
+        return self._waitlist_note(
+            message, pending={"action": route, "token": token, "button": button}
+        )
+
+    def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
+        """Joining, confirming and leaving. Public by necessity, and public by design:
+        nobody joining a waitlist has an account, and the whole point is that they
+        cannot get one yet."""
+        store = self.library.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+
+        if route == "/waitlist":
+            address = (form.get("email") or "").strip()
+            if not plausible(address):
+                return self._waitlist_note(
+                    "We couldn't read that as an email address. Check it and try again.",
+                    done=False,
+                )
+            if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
+                return self._waitlist_note(
+                    "We've had a few requests for that address. Try again in an hour.", False
+                )
+            token = store.join_waitlist(address)
+            # `can_mail` asks about a build's owner, and somebody waiting has none; the
+            # two halves it actually needs are checked here, as the weekly's door does.
+            postable = self.library.mailer is not None and bool(self.address)
+            if token is not None and postable:
+                where = f"{self.address.rstrip('/')}/waitlist/confirm?t={token}"
+                with contextlib.suppress(Exception):
+                    self.library.mailer.notify(  # type: ignore[union-attr]
+                        address,
+                        "Confirm your place on the targum waitlist",
+                        f"Press the button on this page and you're on the list:\n\n{where}\n\n"
+                        f"We're opening in small groups, and we'll email you when it's "
+                        f"your turn.\n\n"
+                        f"If you did not ask for this, nothing has happened and you can "
+                        f"ignore this.\n",
+                    )
+            # The same sentence whatever state the address is in, including already on:
+            # an endpoint that answered differently would be a way to ask who is waiting.
+            return self._waitlist_note("Thanks. Check your email and press the button in it.")
+
+        if route == "/waitlist/confirm":
+            if store.confirm_waiting(form.get("t", "")) is None:
+                return self._waitlist_note("That link has already been used, or it's expired.")
+            return self._waitlist_note("You're on the list. We'll email you when it's your turn.")
+
+        # Nothing is said about whether the token was one, for the reason the weekly's
+        # unsubscribe says nothing: an endpoint that reported back would answer whether
+        # an address is on the list.
+        store.leave_waitlist(form.get("t", ""))
+        return self._waitlist_note("We've taken you off the waitlist.")
+
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
         store = self.library.store
         if store is None:
@@ -4192,6 +4304,9 @@ class Handler(BaseHTTPRequestHandler):
         # A text's own page. It carries a sample rather than the whole text, so there is
         # nothing here to protect — but it stays shut with the rest until the catalogue
         # is opened, because a shop window onto an empty shop is not worth having.
+        # The two doors the waitlist's mail carries, read by somebody with no account.
+        if front_door_is_open() and route in {"/waitlist/confirm", "/waitlist/stop"}:
+            return self._waitlist_get(route)
         if shelves_are_public() and (route == "/weekly" or route.startswith("/weekly/")):
             return self._serve_weekly(route)
         if shelves_are_public() and (route == "/parasha" or route.startswith("/parasha/")):
@@ -4255,6 +4370,12 @@ class Handler(BaseHTTPRequestHandler):
                 )
             if not self._is_a_page(route):
                 return self._not_found()
+            # The front door, once there is one. Only at `/`: every other page a
+            # signed-out visitor asks for is still the holding page, because the front
+            # door is a page about the product and not a stand-in for one of its rooms.
+            if route == "/" and front_door_is_open():
+                page = front_page(language=self._page_language(), address=self.address)
+                return self._send(200, page.encode("utf-8"), HTML)
             return self._send(
                 200, holding_page(language=self._page_language()).encode("utf-8"), HTML
             )
@@ -4441,6 +4562,11 @@ class Handler(BaseHTTPRequestHandler):
         # account check and before the start-up key, exactly as the door above is.
         if route in WEEKLY_POSTS and shelves_are_public():
             return self._weekly_post(route, self._form())
+        # The front door's form, and the two doors its mail carries. Open exactly while
+        # the door itself is, and before the account check for the same reason the
+        # weekly's are: nobody here has an account, or could get one.
+        if route in WAITLIST_POSTS and front_door_is_open():
+            return self._waitlist_post(route, self._form())
         if route == "/series/stop":
             return self._series_stop(self._form())
         if self._needs_account(route):

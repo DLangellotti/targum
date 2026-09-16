@@ -1272,6 +1272,34 @@ def about_page(language: str = "en") -> str:
     )
 
 
+def front_page(language: str = "en", address: str = "") -> str:
+    """The front door: what a stranger meets once there is something to meet them with.
+
+    The page `holding_page` stands in for. It is served at `/` only while
+    `serve.front_door_is_open()` says so, which is what lets it be built, deployed and
+    looked at on the box before anybody outside sees it (targum-internal#69).
+
+    Everything it needs is baked in, as a reader's is: the two faces, the stylesheet and
+    the one script are inlined, and nothing on the page fetches anything.
+    """
+    return (
+        _environment()
+        .get_template("landing.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            title="targum — learn modern and biblical Hebrew",
+            description=(
+                "Learn modern and biblical Hebrew from videos, podcasts and books. "
+                "Vowels on every word, English beside every line, and any word explained "
+                "the moment you tap it."
+            ),
+            canonical=address.rstrip("/") + "/" if address else "",
+            strings=script_strings(language, "landing."),
+        )
+    )
+
+
 def holding_page(language: str = "en") -> str:
     """What a stranger sees while the product is not open yet.
 
