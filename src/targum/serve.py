@@ -723,6 +723,14 @@ class Job:
     parts: int = 0
     transcription: float = 0.0
     made: int = field(default_factory=now)
+    #: Seconds a build of this shape has taken here lately, or zero where this box has
+    #: not finished enough of them to say. Never stored — a fact about the box, not
+    #: about this job — and worked out once, when the quote is written.
+    usually: float = 0.0
+    #: When it stopped, however it stopped: done, failed or blocked. Zero while it runs.
+    #: How long a build takes was never written down, so nothing could answer "when will
+    #: this be ready?" with a number anybody had counted (targum-internal#303).
+    finished: int = 0
     #: `build` for everything the queue runs; `chat` for one turn of conversation, which
     #: takes a row here so the rails see it and is never queued. See `chat/session.py`.
     kind: str = "build"
@@ -780,6 +788,9 @@ class Job:
             "doubtful": self.doubtful,
             "conversation": self.conversation,
             "excerpt": list(self.excerpt),
+            # How long one of these has taken here lately. Zero means "not enough
+            # finished builds to say", and the card shows nothing rather than a guess.
+            "usually": round(self.usually, 1),
             "known_share": None if self.known_share is None else round(self.known_share, 2),
             "known_line": level_module.words_in_ten(self.known_share),
             # Where the text is from, so the card can link to it (2026-09-11: "don't
@@ -1055,13 +1066,24 @@ class Library:
                 # run came back made at start-up, so each deploy made the whole history
                 # "lately finished" for an hour and the bell filled with it (2026-09-14).
                 made=int(row["made"] or 0) or now(),
+                finished=int(row["finished"] or 0),
             )
             self.jobs[job.id] = job
+
+    #: Stages a job does not come back from. Reaching one stamps `finished`.
+    SETTLED = ("done", "failed", "blocked")
 
     def remember(self, job: Job) -> None:
         """Put a job's current state on disk. Cheap, and safe to call often."""
         if self.store is None:
             return
+        # Stamped here rather than at each of the nine places a stage becomes "done":
+        # this is the one road they all travel, and a stamp that depends on somebody
+        # remembering to write it is a stamp that is missing from the interesting rows.
+        # Written once — the first settled state wins, so a job remembered again after
+        # it ended keeps the time it actually ended.
+        if not job.finished and job.stage in self.SETTLED:
+            job.finished = now()
         self.store.save_job(
             {
                 "id": job.id,
@@ -1086,6 +1108,7 @@ class Library:
                 "spent": job.spent,
                 "made": job.made,
                 "kind": job.kind,
+                "finished": job.finished,
             }
         )
 
@@ -1406,6 +1429,20 @@ class Library:
             "We've hit our limit for today. Try again in {hours} hours, or read from the library.",
             hours=BUDGET_HOURS,
         )
+
+    def _how_long(self, job: Job) -> float:
+        """How long a build of this shape has taken here lately, in seconds.
+
+        Asked of the store when the quote is written and never stored on the job: it is
+        a fact about the box's recent history, and one kept on the row would be the
+        answer as it stood the day that row was written.
+
+        Zero — and the card says nothing — until enough builds have finished to have a
+        middle worth quoting.
+        """
+        if self.store is None:
+            return 0.0
+        return self.store.how_long_builds_take(language=job.language, audio=job.audio)
 
     def why_blocked(self, estimate: float, ui: str = "en") -> str:
         """Whether this build may go ahead, in words the page can show."""
@@ -1980,6 +2017,7 @@ class Library:
                 # should still hand a reader the whole shelf that costs nothing.
                 job.blocked = said_in(job.ui, "job.no-key", NO_KEY)
             else:
+                job.usually = self._how_long(job)
                 job.blocked = self.why_blocked(job.estimate, job.ui)
             if not job.blocked and builder.gloss and plan.segmented is not None:
                 # Glossing is priced from the real count of distinct dictionary forms,
@@ -1989,6 +2027,7 @@ class Library:
                 cost, job.lemmas = self._gloss_cost(builder, plan.segmented, plan.buying_segments)
                 job.meanings = cost
                 job.estimate += cost
+                job.usually = self._how_long(job)
                 job.blocked = self.why_blocked(job.estimate, job.ui)
             job.stage = "blocked" if job.blocked else "ready"
         except TargumError as error:
@@ -2211,6 +2250,7 @@ class Library:
         )
         job.transcription = round(transcription, 4)
         job.estimate = round(transcription + translating, 4)
+        job.usually = self._how_long(job)
         job.blocked = self.why_blocked(job.estimate, job.ui)
         job.stage = "blocked" if job.blocked else "ready"
 
@@ -2255,6 +2295,7 @@ class Library:
             job.transcription = 0.0
             job.estimate = round(translating, 4)
         job.options["episode"] = True
+        job.usually = self._how_long(job)
         job.blocked = self.why_blocked(job.estimate, job.ui)
         job.stage = "blocked" if job.blocked else "ready"
 

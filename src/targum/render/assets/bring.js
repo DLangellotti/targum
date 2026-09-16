@@ -204,13 +204,28 @@
     return host.replace(/^www\./, "");
   }
 
+  /* How long a build of this shape has actually taken on this box lately, in minutes,
+     or 0 where it has not finished enough of them to have a middle worth quoting
+     (targum-internal#303).
+
+     The formulas below — a segment takes a twenty-fifth of a minute, audio runs at six
+     times real time — are guesses that nobody ever checked against a clock, because
+     until `job.finished` existed there was no clock to check them against. Where the
+     box can answer from its own history it does, and the guesses stay as the fallback
+     for a new box and for the first dozen builds on any box. */
+  function measured(job) {
+    if (!job.usually) return 0;
+    return Math.max(1, Math.round(job.usually / 60));
+  }
+
   function wait(job) {
+    var seen = measured(job);
     if (job.audio && job.parts > 0) {
       // The wait is the first part's: hearing it, then translating it.
       var spoken = job.seconds / job.parts / 60;
       var listening = Math.max(1, Math.round(spoken / 6));
       var translating = Math.max(1, Math.round((job.total || 25) / 25));
-      var minutes = listening + translating;
+      var minutes = seen || listening + translating;
       var part = job.parts > 1;
       if (minutes <= 1) {
         return part
@@ -229,7 +244,7 @@
     if (!job.estimate) return t("bring.wait.moment", "Ready in a moment.");
     // A book opens on its first chapter, so the wait is that chapter's — not the
     // novel's. `total` is what is being translated now.
-    var mins = Math.max(1, Math.round((job.total || job.segments) / 25));
+    var mins = seen || Math.max(1, Math.round((job.total || job.segments) / 25));
     var chapter = job.chapters > 1;
     if (mins <= 1) {
       return chapter
