@@ -321,10 +321,17 @@ def _plain(html: str | None) -> str:
 
 
 def _read(html: str) -> list[Paragraph]:
-    """One page's text, with the wiki's furniture cut from the top and the bottom."""
+    """One page's text, with the wiki's furniture cut from the top and the bottom.
+
+    `drop_apparatus` runs here rather than only on the multi-page path, because a page
+    read on its own carried the same furniture through: ru.wikisource opens every story
+    with a `ws-noexport searchaux` box of sister-project links, and a reader met
+    "Энциклопедии внешние ссылки Лаборатория Фантастики Википроекты" before Chekhov's
+    first sentence. Calling it twice on the walked path costs a parse and changes nothing.
+    """
     paragraphs: list[Paragraph] = [
         (kind, level, normalize(text))
-        for kind, level, text in paragraphs_from_html(drop_link_lists(html))
+        for kind, level, text in paragraphs_from_html(drop_link_lists(drop_apparatus(html)))
     ]
     return drop_unpointed_copies(drop_leading_notices(drop_trailing_navigation(paragraphs)))
 
@@ -336,7 +343,11 @@ class WikisourceFetcher:
     # did under 2, and the bump is so that a contents page already ingested as its list of
     # titles is read again rather than kept as though somebody had edited it. Free to
     # bump; nothing downstream is bought again.
-    name = "wikisource/3"
+    # 4: `ws-noexport` is dropped from a single page too, not only from the pages of a
+    # walked work. It takes ru.wikisource's sister-project box off the front of every
+    # story, and it also takes the edition box off it.wikisource pages, which is why the
+    # bump is here: the Italian shelf's pages are read again rather than kept.
+    name = "wikisource/4"
 
     def _parse(self, language: str, title: str) -> dict[str, Any]:
         payload: Any = json.loads(
