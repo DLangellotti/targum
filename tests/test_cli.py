@@ -738,13 +738,43 @@ def test_seed_builds_ruth_the_news_piece_and_every_scene_in_order() -> None:
     planned = seeds()
     assert planned[: len(SEED)] == list(SEED)
     scenes = [e.id for e in CATALOGUE if e.kind is Kind.dialogue]
-    assert set(planned[len(SEED) :]) == set(scenes) and scenes, "every dialogue entry"
-    assert planned[len(SEED) :] == [
+    assert set(scenes) <= set(planned) and scenes, "every dialogue entry"
+    assert planned[len(SEED) : len(SEED) + len(scenes)] == [
         "scene-01-nice-to-meet-you",
         "scene-02-in-a-cafe",
         "scene-03-which-way",
         "scene-18-two-coffees",
     ]
+
+
+def test_seed_hands_a_reader_the_front_of_every_hebrew_track() -> None:
+    """targum-internal#296. A collection whose order means something is a track somebody
+    starts at the front of, and until now the front of every one but the scenes was an
+    unbuilt button — which the arrival made visible, by offering a door onto it."""
+    from targum.catalogue import by_id, collections
+    from targum.cli import HOME_LANGUAGE, seeds
+
+    planned = set(seeds())
+    ordered = [g for g in collections() if g.ordered and g.members]
+    assert ordered, "the catalogue has ordered collections to seed the front of"
+    for group in ordered:
+        head = group.members[0]
+        entry = by_id(head)
+        if entry is None or not entry.language.startswith(HOME_LANGUAGE):
+            # Another language's shelf reaches its first text through the Library; the
+            # arrival's doors are Hebrew's alone.
+            assert head not in planned, f"{group.id}: not Hebrew, not seeded"
+            continue
+        assert head in planned, f"{group.id}: its first text is a build button"
+
+
+def test_seed_names_each_text_once() -> None:
+    """A collection's head may be one of the two named outright, and building a text
+    twice is an annotator minute spent on nothing."""
+    from targum.cli import seeds
+
+    planned = seeds()
+    assert len(planned) == len(set(planned))
 
 
 def test_seed_shares_one_lemmatizer_per_register(
