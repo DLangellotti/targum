@@ -85,6 +85,12 @@ setTimeout(() => {
       // or nothing. One word, never two — a video row does not also say audio.
       media: (open.children[1].children.find((c) => c.className === "row-audio" || c.className === "row-video") || {}).textContent || "",
       english: (open.children[1].children.find((c) => c.className === "row-english") || {}).textContent || "",
+      // The language that cell claims to be in (targum-internal#289): `en` until the
+      // catalogue had a title in anything else.
+      englishLang: (() => {
+        const line = open.children[1].children.find((c) => c.className === "row-english");
+        return line ? line.attrs["lang"] || "" : "";
+      })(),
       // What follows the English on the same line: a byline on a text, "· 6 texts" on a
       // collection. Its own child, so the stub's textContent does not carry it.
       after: (() => {

@@ -274,6 +274,18 @@ class Entry:
     #: `scripts/english_titles.py` and reviewed by hand; empty means nothing is shown,
     #: never a fallback to the blurb, which in a title's place reads as a title.
     english: str = ""
+    #: The same title in the other languages the interface is read in
+    #: (targum-internal#289), by language code. English lives in `english` rather than
+    #: in here: it is the one every other language falls back to, and a fallback that
+    #: sits in the same map as the things falling back to it is a fallback you can
+    #: delete by accident.
+    #:
+    #: A Russian reader met an all-English library — the front door sells in Russian and
+    #: the shelf behind it did not. Empty means "not drafted yet" and the English shows,
+    #: which is what every row did before and is never wrong, only foreign.
+    named: dict[str, str] = field(default_factory=dict)
+    #: And the blurb, the same way and for the same reason.
+    blurbs: dict[str, str] = field(default_factory=dict)
     tags: frozenset[Tag] = frozenset()
     translations: list[Rendering] = field(default_factory=list)
 
@@ -359,6 +371,8 @@ class Entry:
             "source": self.source,
             "blurb": self.blurb,
             "english": self.english,
+            "named": dict(self.named),
+            "blurbs": dict(self.blurbs),
             "words": self.words,
             "minutes": self.minutes,
             "kind": self.kind.value,
@@ -547,6 +561,22 @@ def lemmas_path() -> Path | None:
     return path if path.is_file() else None
 
 
+def _said_in(raw: object) -> dict[str, str]:
+    """A language-code map off the catalogue file, with anything unusable dropped.
+
+    The catalogue is edited by hand and by scripts, so a half-written entry is a thing
+    that happens; a row that is not a string keyed by a language code is not a title in
+    a language and is left out rather than shown as one.
+    """
+    if not isinstance(raw, dict):
+        return {}
+    return {
+        str(code): str(said)
+        for code, said in raw.items()
+        if str(code).isalpha() and str(said).strip()
+    }
+
+
 def _entry(raw: dict[str, Any]) -> Entry:
     return Entry(
         id=str(raw["id"]),
@@ -556,6 +586,8 @@ def _entry(raw: dict[str, Any]) -> Entry:
         source=str(raw["source"]),
         blurb=str(raw.get("blurb", "")),
         english=str(raw.get("english", "")),
+        named=_said_in(raw.get("named")),
+        blurbs=_said_in(raw.get("blurbs")),
         words=int(raw.get("words", 0)),
         tags=frozenset(Tag(tag) for tag in raw.get("tags", [])),
         translations=[

@@ -301,6 +301,28 @@
     return measured && typeof measured.known === "number" ? measured.known : null;
   }
 
+  //: The language this page is being read in. `TargumStrings` carries it already; the
+  //: page says `en` when it has no catalogue of its own, which is the right fallback.
+  var uiLanguage = (words && words.language) || "en";
+
+  /* The title a reader who cannot read the Hebrew can read, in their own language where
+     the catalogue has one (targum-internal#289).
+
+     The front door sells in Russian and the shelf behind it was entirely English, which
+     is the whole of the complaint. English is the fallback and never wrong, only
+     foreign. */
+  function namedIn(entry) {
+    return (entry && entry.named && entry.named[uiLanguage]) || "";
+  }
+
+  function titleIn(entry) {
+    return namedIn(entry) || (entry && entry.english) || "";
+  }
+
+  function blurbIn(entry) {
+    return (entry && entry.blurbs && entry.blurbs[uiLanguage]) || (entry && entry.blurb) || "";
+  }
+
   function rows(readers, shared) {
     var mine = {};
     var out = [];
@@ -321,7 +343,8 @@
         id: entry.id,
         entry: entry,
         title: entry.title,
-        english: entry.english || "",
+        english: titleIn(entry),
+        englishLang: namedIn(entry) ? uiLanguage : "en",
         author: entry.author,
         language: entry.language,
         // Every language it can be read in: Daniel's Hebrew and Aramaic, a Torah book's
@@ -608,7 +631,10 @@
     // line as it was.
     if (row.english) {
       var english = el("span", "row-english", row.english);
-      english.setAttribute("lang", "en");
+      // The language it is actually in, so a screen reader and the font stack both get
+      // it right: this used to be `en` whatever the row said, which was true until a
+      // row could say something else (targum-internal#289).
+      english.setAttribute("lang", row.englishLang || "en");
       english.setAttribute("dir", "ltr");
       if (row.author) {
         // A byline is often half Hebrew ("Omid Memarian, תרגום Gallia Hoz"): isolated, so
@@ -919,7 +945,10 @@
         row.title,
         row.english,
         row.author,
+        // Both blurbs: a Russian reader searching a Russian word should find the row,
+        // and one searching the English it was drafted from should still find it too.
         row.entry ? row.entry.blurb : "",
+        row.entry ? blurbIn(row.entry) : "",
         row.id,
         holds ? holds.title + " " + holds.english : "",
       ]
