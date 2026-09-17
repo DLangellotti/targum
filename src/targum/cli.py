@@ -2629,9 +2629,9 @@ def weekly_draft(
             brief_at, json.dumps(brief.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n"
         )
 
-    from .weekly.entries import BYLINE_HE
-
-    issue, files = compose(brief, BYLINE_HE, on=lambda note: console.print(f"[dim]{note}[/dim]"))
+    # No byline: nobody reads an issue before it goes out, so there is nobody to name
+    # (2026-09-17, see `weekly/entries.py`). Issues written before then keep theirs.
+    issue, files = compose(brief, "", on=lambda note: console.print(f"[dim]{note}[/dim]"))
 
     for level, page in files.items():
         write_atomic(where / f"weekly-{week}-{level.value}.md", page)
@@ -2741,10 +2741,20 @@ def weekly_publish(
 ) -> None:
     """Release a drafted issue.
 
-    The gate the whole design rests on: nothing written by a model goes out under the
-    targum name unread. It is also what makes the line on every page true — "compiled by
-    a model and curated by the targum team" is an accurate sentence only while somebody
-    presses this.
+    This was the gate the whole design rested on — nothing written by a model went out
+    under the targum name unread — and on 2026-09-17 David took it out: an issue every
+    week is worth more than an issue whenever somebody had a free evening, and
+    `deploy/weekly-run.sh` presses this on a schedule now.
+
+    What went with it is the claim. The byline and the notice both said the issue had
+    been curated, and neither is on the page any more: see `weekly/entries.py`, which
+    records what they said and why they stopped saying it.
+
+    What did **not** go with it are the refusals below, and they are the reason this is
+    still a command rather than a line in the script. A level carrying a source's own
+    wording is the licence boundary and is refused outright; a level that missed the band
+    it is labelled with is refused unless a person passes `--anyway`, and the scheduled
+    run never does. Automatic means nobody reads it. It does not mean nothing checks it.
     """
     from .weekly import index as weekly_index
     from .weekly.models import LEVELS, State

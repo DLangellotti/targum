@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The weekly, once a week, from this laptop.
+
+  Copy to ~/Library/LaunchAgents/page.targum.weekly.plist, put your own paths in it, and
+  load it:
+
+      cp deploy/weekly.plist.example ~/Library/LaunchAgents/page.targum.weekly.plist
+      # edit the two paths below
+      launchctl load ~/Library/LaunchAgents/page.targum.weekly.plist
+
+  To stop it:  launchctl unload ~/Library/LaunchAgents/page.targum.weekly.plist
+  To test it now, without waiting for Monday:
+
+      launchctl start page.targum.weekly && tail -f /tmp/targum-weekly.log
+
+  **It is not loaded by installing it.** Nothing here arms itself: this job writes an
+  issue with a model, publishes it under the targum name and mails whoever asked for it,
+  and a thing that does all three starts when a person says so.
+
+  **Why a laptop and not the box.** The half of the weekly that writes an issue is eight
+  gitignored modules — not in the wheel, not on the box, and not in any worktree. Putting
+  them on the box would also put the generator on the machine that serves, which is the
+  AGPL §13 exposure the split exists to avoid. So it runs where the code is.
+
+  **StartCalendarInterval, not StartInterval.** A laptop that was asleep at the appointed
+  minute runs the job when it wakes, which is the behaviour wanted: a shut lid delays an
+  issue rather than skipping a week. `StartInterval` would fire on a timer that does not
+  survive sleep at all.
+
+  Monday at 07:00, which is after the week it reports on has ended and before anybody
+  reads their mail. The run takes a few minutes and spends at `draft`.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>page.targum.weekly</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <!-- Your own checkout. The main one: a worktree has no weekly writer in it. -->
+    <string>/Users/CHANGE-ME/Vaults/Projects/targum/deploy/weekly-run.sh</string>
+  </array>
+
+  <!-- The script cds to the repository root itself, and this makes a relative run work
+       from a shell too. -->
+  <key>WorkingDirectory</key>
+  <string>/Users/CHANGE-ME/Vaults/Projects/targum</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>1</integer>
+    <key>Hour</key><integer>7</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <!-- Both, to one file. A failed run says which step stopped it and why, and that
+       sentence is the whole of what this job is worth reading. There is no MTA here, so
+       output that went nowhere would be output nobody ever sees: `provision.sh` records
+       two backup nights that vanished exactly that way. -->
+  <key>StandardOutPath</key>
+  <string>/tmp/targum-weekly.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/targum-weekly.log</string>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <!-- launchd hands a job almost no environment. The script loads `.env` itself for the
+       API key; these two are the ones it reads from here, and leaving either out is a
+       run that publishes and then says it did not mail or ship. -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>TARGUM_HOST</key>
+    <string>root@targum.page</string>
+    <key>TARGUM_PUBLIC_ADDRESS</key>
+    <string>https://targum.page</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

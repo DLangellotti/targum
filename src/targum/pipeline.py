@@ -126,10 +126,10 @@ def named_in(source: Document, segmented: SegmentedDocument) -> dict[str, str]:
     """
     if not source.source.startswith("weekly:"):
         return {}
-    from .weekly.entries import BYLINE, BYLINES_HE
+    from .weekly.entries import BYLINE_WAS, BYLINES_HE
 
     return {
-        segment.id: BYLINE
+        segment.id: BYLINE_WAS
         for segment in segmented.segments
         if segment.kind is BlockKind.byline
         and segment.text.strip() in {line.strip() for line in BYLINES_HE}

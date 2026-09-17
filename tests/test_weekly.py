@@ -176,14 +176,24 @@ def test_an_edition_is_a_shared_public_text(weekly_root: Path) -> None:
     assert entry.source.startswith(Build.PUBLIC_SOURCES)
 
 
-def test_an_edition_says_how_it_was_made(weekly_root: Path) -> None:
+def test_an_edition_claims_nothing_about_how_it_was_made(weekly_root: Path) -> None:
+    """There was a byline and a disclosure under the reader, and both said the issue had
+    been curated by the targum team before it went out. That was true while a person read
+    every issue and pressed publish; on 2026-09-17 the gate came out and the scheduled run
+    publishes without anybody reading it.
+
+    So neither line is on anything new. Saying nothing about how an issue was made is
+    honest; saying something that used to be true is not. An issue published before the
+    change keeps its byline, because it was curated.
+    """
     entry = catalogue.by_id("weekly-2026-w36-gimel")
     assert entry is not None
-    assert entry.author == entries.BYLINE
-    assert "targum team" in entry.author
-    # The disclosure is not the byline's job. It is under the reader, in full.
-    assert "model" not in entry.author.lower()
-    assert "model" in entries.NOTICE.lower()
+    assert entry.author == ""
+    assert not hasattr(entries, "NOTICE"), "the disclosure is gone, not merely unused"
+    assert not hasattr(entries, "BYLINE"), "and so is the line that named a curator"
+    # What old issues carry, kept so they still read as they always did.
+    assert "תרגום" in entries.BYLINE_HE
+    assert entries.BYLINE_WAS == "Compiled by the targum team"
     assert entry.register is catalogue.Register.modern
     assert entry.kind is catalogue.Kind.article
     assert catalogue.Tag.journalism in entry.tags
@@ -464,7 +474,7 @@ def test_the_bylines_english_is_not_bought(tmp_path: Path) -> None:
     """
     from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument
     from targum.pipeline import Build
-    from targum.weekly.entries import BYLINE, BYLINE_HE
+    from targum.weekly.entries import BYLINE_HE, BYLINE_WAS
 
     document = Document(
         source="weekly:2026-w36-bet",
@@ -496,7 +506,7 @@ def test_the_bylines_english_is_not_bought(tmp_path: Path) -> None:
     )
     build = Build("weekly:2026-w36-bet", target_language="en", out_root=tmp_path)
     named = build.named(document, segmented)
-    assert named == {"0000.000-aaaaaa": BYLINE}, "the byline, and nothing else in the issue"
+    assert named == {"0000.000-aaaaaa": BYLINE_WAS}, "the byline, and nothing else in the issue"
 
     # And the same answer without a Build to ask, because a build is not the only thing
     # that renders these artifacts. The correction is applied in memory and never written
@@ -588,3 +598,43 @@ def test_the_composed_markdown_is_dated_in_both_places() -> None:
     dated = f"{written.title} · 24 באוגוסט 2026"
     assert f"title: {dated}" in page, "the frontmatter, which is the reader's title"
     assert f"# {dated}" in page, "and the masthead on the page"
+
+
+# --- the weekly runs itself (design.md §12, 2026-09-17) -------------------------------
+
+
+def test_the_scheduled_run_never_waives_a_refusal() -> None:
+    """Automatic means nobody reads an issue. It does not mean nothing checks one.
+
+    `--anyway` exists for a person who has looked at a level that missed its band and
+    decided to publish it anyway. A scheduled run has not looked at anything, so it must
+    never pass it — and a level carrying a source's own wording is the licence boundary
+    and was never waivable by anybody.
+    """
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "deploy" / "weekly-run.sh").read_text(encoding="utf-8")
+    # Every mention of it is prose about why it is not passed. A line that is not a
+    # comment and names it is a line that runs it.
+    running = [
+        line
+        for line in script.splitlines()
+        if "--anyway" in line and not line.lstrip().startswith("#")
+    ]
+    assert running == [], f"the run must not wave a refusal through: {running}"
+    # And it stops on a refusal rather than carrying on to announce and ship.
+    assert "weekly publish" in script
+    assert 'publish "$WEEK" || die' in script
+
+
+def test_the_scheduled_run_needs_the_private_half_and_says_so_before_it_spends() -> None:
+    """`draft` is the first step that would fail without the weekly writer and the first
+    step that costs money. Finding out afterwards is finding out too late."""
+    root = Path(__file__).resolve().parents[1]
+    script = (root / "deploy" / "weekly-run.sh").read_text(encoding="utf-8")
+    assert "weekly/write.py" in script, "it checks for the private half"
+    assert script.index("weekly/write.py") < script.index("weekly draft"), (
+        "and checks before it drafts, which is the step that spends"
+    )
+    # And loads the key itself: nothing else does, and the failure without it blames the
+    # key rather than the loading of it.
+    assert ". ./.env" in script

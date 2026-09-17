@@ -74,6 +74,25 @@ copied checkout, which would build a wheel with holes in it. Three lint errors w
 sitting in the private half on 2026-09-09, the first time anything looked; installing the
 hook the same day found three more and a formatting divergence.
 
+## The weekly runs itself now, from this laptop
+
+`deploy/weekly-run.sh` does the whole chain — brief, draft, build, publish, announce,
+ship — and `deploy/weekly.plist.example` is the `launchd` job that runs it on a Monday.
+**Installing the plist does not arm it**; `launchctl load` does, and nothing here loads
+it for you, because the job writes an issue with a model, publishes it under the targum
+name and mails whoever asked for it.
+
+It runs *here*, from the main checkout, for the reason the private half exists: the eight
+gitignored modules are not in the wheel, not on the box and not in any worktree. The
+script checks for `weekly/write.py` before `draft`, which is the first step that spends.
+
+**The gate came out on 2026-09-17 and the guards did not.** Nobody reads an issue before
+it goes out, so no issue claims anybody did: the byline and the notice are both off the
+page, and `BYLINE_HE` survives only so issues published before the change still read as
+they did. `publish` still refuses a lifted phrase (the licence boundary) and still refuses
+a missed band, and the scheduled run never passes `--anyway`. A run that stops has found
+something.
+
 ## The API key is in `.env`, and nothing loads it for you
 
 `ANTHROPIC_API_KEY` lives in `.env` (gitignored, never committed). Neither `uv run` nor

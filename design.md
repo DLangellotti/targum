@@ -320,6 +320,38 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The weekly goes out unread, and claims nothing — 2026-09-17
+
+`weekly publish` was the gate the whole design rested on: nothing written by a model went
+out under the targum name until a person had read it. §6 said so and every issue said so,
+twice — a byline, "Compiled by the targum team", and a notice under the reader, "Compiled
+by a model from this week's reporting and curated by the targum team before it went out".
+
+David took the gate out. The reasoning is worth keeping because the trade is a real one:
+an issue every week is worth more than an issue whenever somebody had a free evening, and
+the weekly had been going out when there was time for it. `deploy/weekly-run.sh` writes,
+builds, publishes, announces and ships one on a schedule, and nobody reads it first.
+
+- **Both lines come off the page.** Not softened, not reworded: removed. An issue carries
+  its sources at the foot and says nothing about how it was made. The alternative on the
+  table was a shorter line saying a model compiled it, and the objection to it is that a
+  page explaining its own provenance in one sentence invites the reader to stop there —
+  the sources are the honest answer and they are still printed.
+
+  This was raised as a cost before it was chosen, and chosen anyway. It is written down
+  here so that nobody restores either line thinking it was lost rather than retired.
+
+- **Issues published before today keep their byline**, because they were curated and the
+  line is a fact about them. `BYLINE_HE` and `pipeline.byline_for` survive for exactly
+  that, and nothing new is composed with an author.
+
+- **Automatic means nobody reads it. It does not mean nothing checks it.** `publish` still
+  refuses a level carrying a source's own wording — that is the licence boundary, and it
+  was never waivable — and still refuses a level that missed the band it is labelled with.
+  The scheduled run never passes `--anyway`. A run that stops has found something.
+
+Built under targum-internal#316.
+
 ### A build is on the shelf while it is building — 2026-09-17
 
 "When I upload something via /add or when I start a build a chat, I need a more obvious
