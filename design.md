@@ -320,6 +320,41 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A video text opens as its transcript, and a vertical one is vertical — 2026-09-17
+
+This reverses "A video text opens as video" below, which is a fortnight old and came from
+the first stranger session. That session is still the evidence, so it is worth being exact
+about what it proved and what it did not.
+
+The olah's complaint was that she never found out the page could be heard. What answers it
+is that the media is **visible and named** when the page opens. The 2026-09-03 entry went
+further — the picture is not on beside the page, *it is the page* — and that further step
+is the one being withdrawn. A reader who imported an hour of speech to watch it presses one
+key; a reader who came to read Hebrew, which is everybody who stays, was handed a film and
+had to dismiss it every time.
+
+- **A text carrying a video opens as its transcript, with the picture docked and on.**
+  Reading is the default and watching is one press. The picture is still there, still
+  named, still the first thing a stranger can say about the page — so the sentence that
+  entry was protecting is kept.
+
+- **The preference is stored the other way up, under a new key.** `targum:video-read:`
+  records the departure from the old default — a `1` means "this reader chose to read
+  alongside" — and inverting its meaning would shut the picture for exactly the readers who
+  liked it. `targum:video-watch:` now records the new departure, and the old key is left
+  where it is and ignored, the way `targum:video-open` already was. That mistake has been
+  made once on this panel and the file says so.
+
+- **A vertical film fills a vertical frame.** The docked panel and the portrait full-screen
+  frame both wrote `aspect-ratio: 16 / 9` into the stylesheet, so a phone video — a Short,
+  a reel, anything shot upright — sat in a letterbox with two thirds of the frame black.
+  The shape is read off the file itself (`videoWidth`/`videoHeight` when the metadata
+  arrives) and the frame takes it. Nothing is fetched to learn it; the element already
+  knows. A picture taller than it is wide is sized by its height, or a 9:16 at panel width
+  would be a column of video down the whole window.
+
+Built under targum-internal#312.
+
 ### The library is browsed, not looked up — 2026-09-17
 
 "Library currently is not usable in my opinion," David wrote, and asked for four things:

@@ -24,7 +24,18 @@ MAX_VIDEO_BYTES = 4 * 1024**3
 
 #: What a part is transcoded to: enough to read a face and a slide, small enough that a
 #: twelve-minute part stays under ~100 MB beside the reader.
+#:
+#: It is the **short** side, not the height, and the name is kept because the stylesheets
+#: and the format string cite it. A landscape film is 854×480 as it always was; a film
+#: shot upright — a Short, a reel, a phone held the ordinary way — is 480×854 rather than
+#: the 270×480 that capping the literal height gave it. Both are the same pixel count and
+#: the same bill; one of them is legible (design.md §12, 2026-09-17).
 VIDEO_HEIGHT = 480
+
+#: The long side that short side implies at 16:9, which is what a format selector can
+#: actually filter on: yt-dlp has `width` and `height` and no notion of "the short one",
+#: so capping both at 854 admits 854×480 and 480×854 and refuses 1280×720 and 1080×1920.
+VIDEO_EDGE = round(VIDEO_HEIGHT * 16 / 9)
 VIDEO_CRF = 28
 VIDEO_AUDIO_BITRATE = "64k"
 
