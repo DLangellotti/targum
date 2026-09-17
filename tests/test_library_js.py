@@ -840,3 +840,83 @@ def test_the_aramaic_shelf_is_aramaic_texts_and_not_the_hebrew_torah(tmp_path: P
     assert titles == {"תרגום אונקלוס על בראשית", "תרגום יונתן על יונה", "דניאל"}
     hebrew = {row["title"] for row in draw(tmp_path, catalogue=catalogue, collections=[])["rows"]}
     assert hebrew == {"בראשית", "דניאל"}
+
+
+# --- a title in the reader's own language (targum-internal#289) --------------------
+
+
+def test_a_russian_reader_sees_a_russian_title_where_the_catalogue_has_one(
+    tmp_path: Path,
+) -> None:
+    """The front door sells in Russian and the shelf behind it was entirely English."""
+    entry = {
+        "id": "ruth",
+        "title": "רות",
+        "english": "Ruth",
+        "named": {"ru": "Руфь"},
+        "author": "",
+        "language": "he",
+        "source": "sefaria:he:Ruth",
+        "blurb": "A short book.",
+        "blurbs": {"ru": "Короткая книга."},
+        "words": 100,
+        "minutes": 4,
+        "kind": "prose",
+        "register": "biblical",
+        "difficulty": 20,
+    }
+    russian = draw(
+        tmp_path,
+        catalogue=[entry],
+        collections=[],
+        strings={"language": "ru", "strings": {}},
+    )
+    row = next(r for r in russian["rows"] if r["title"] == "רות")
+    assert row["english"].startswith("Руфь")
+    assert row["englishLang"] == "ru", "the cell claimed to be English"
+
+
+def test_english_is_the_fallback_and_is_never_wrong_only_foreign(tmp_path: Path) -> None:
+    """A row the catalogue has not drafted yet shows what it always showed."""
+    entry = {
+        "id": "ruth",
+        "title": "רות",
+        "english": "Ruth",
+        "author": "",
+        "language": "he",
+        "source": "sefaria:he:Ruth",
+        "blurb": "A short book.",
+        "words": 100,
+        "minutes": 4,
+        "kind": "prose",
+        "register": "biblical",
+        "difficulty": 20,
+    }
+    russian = draw(
+        tmp_path, catalogue=[entry], collections=[], strings={"language": "ru", "strings": {}}
+    )
+    row = next(r for r in russian["rows"] if r["title"] == "רות")
+    assert row["english"].startswith("Ruth")
+    assert row["englishLang"] == "en"
+
+
+def test_an_english_reader_is_unaffected(tmp_path: Path) -> None:
+    entry = {
+        "id": "ruth",
+        "title": "רות",
+        "english": "Ruth",
+        "named": {"ru": "Руфь"},
+        "author": "",
+        "language": "he",
+        "source": "sefaria:he:Ruth",
+        "blurb": "A short book.",
+        "words": 100,
+        "minutes": 4,
+        "kind": "prose",
+        "register": "biblical",
+        "difficulty": 20,
+    }
+    drawn = draw(tmp_path, catalogue=[entry], collections=[])
+    row = next(r for r in drawn["rows"] if r["title"] == "רות")
+    assert row["english"].startswith("Ruth")
+    assert row["englishLang"] == "en"
