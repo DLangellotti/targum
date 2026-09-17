@@ -3134,7 +3134,12 @@ class Handler(BaseHTTPRequestHandler):
             "/account/follows",
         }
     )
-    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/")
+    #: `/open/` is here because a person clicks it (targum-internal#313): a signed-out
+    #: visitor following a link to a text should meet the door, not a 404 saying the text
+    #: does not exist. It is not a page in the sense of having markup — it redirects —
+    #: but it is a page in the sense this list is about, which is "could somebody be
+    #: looking at this".
+    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/", "/open/")
 
     def _is_a_page(self, route: str) -> bool:
         return (
@@ -7116,7 +7121,14 @@ class Handler(BaseHTTPRequestHandler):
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
             return sent("/library")
-        folder = self.library.built_from(self._home(), entry.source)
+        # Their own shelf first, then the shared one — the precedence the library page
+        # already uses when it merges the two into one list. A reader with nothing of
+        # their own is handed the shared copy to start with, and it opens like any built
+        # text; a door that looked only at their own home sent them to the offer for a
+        # text they can already read.
+        folder = self.library.built_from(self._home(), entry.source) or self.library.built_from(
+            self.library.shared, entry.source
+        )
         if folder:
             return sent("/reader/" + quote(folder) + "/reader/index.html")
         # `#build:` rather than `#<id>`: the library opens the row's offer on this one

@@ -1371,3 +1371,28 @@ def test_a_build_waiting_its_turn_says_so_rather_than_looking_stuck(tmp_path: Pa
     drawn = browse(tmp_path, jobs=[queued], view={"where": "mine"})
     row = next(row for row in drawn["rows"] if row["title"] == "ספר חדש")
     assert row["meta"] == "Waiting behind 2 builds", row["meta"]
+
+
+def test_a_text_inside_a_shut_shelf_that_a_filter_also_hides_is_still_reached(
+    tmp_path: Path,
+) -> None:
+    """Two things stood between the reader and the text, and one flag covered both.
+
+    `lifted` meant "I have opened a collection" and "I have lifted the filters" at once,
+    so opening the collection spent the one chance to lift them: the second pass found
+    nothing and gave up before it looked at the filters. Found on the running page
+    following `/open/ruth`, which opens Ketuvim and then needs the band lifted too.
+    """
+    from targum.catalogue import CATALOGUE, collections
+
+    inside = {member: group.id for group in collections() for member in group.members}
+    wanted = next(
+        entry for entry in CATALOGUE if entry.id in inside and entry.language.startswith("he")
+    )
+    sent = draw(
+        tmp_path,
+        # Shut, and narrowed to something this text is not.
+        view={"kind": "dialogue", "register": "modern", "level": "hard"},
+        hash=f"#build:{wanted.id}",
+    )
+    assert sent["pointed"] == [wanted.title], sent["pointed"]

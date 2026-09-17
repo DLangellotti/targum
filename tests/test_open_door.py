@@ -71,13 +71,13 @@ def where(port: int, path: str) -> tuple[int, str]:
         connection.close()
 
 
-def build_a_reader(out: Path, name: str, source: str) -> None:
+def build_a_reader(out: Path, name: str, source: str, home: str = "local") -> None:
     """A reader on the shelf, as a build leaves one: an index and a document beside it.
 
     Under `local/`, which is the signed-out home — every home is a directory of its own
     so that none contains another (`Library.home`).
     """
-    folder = out / "local" / name
+    folder = out / home / name
     (folder / "reader").mkdir(parents=True)
     (folder / "reader" / "index.html").write_text("<html>read</html>", encoding="utf-8")
     (folder / "document.json").write_text(
@@ -102,6 +102,35 @@ def test_a_text_you_have_built_opens_at_your_copy(served) -> None:
 
     status, location = where(port, f"/open/{entry.id}?k={token}")
     assert status == 302, status
+    assert location.startswith("/reader/mine-he/reader/index.html"), location
+
+
+def test_a_text_on_the_shared_shelf_opens_too(served) -> None:
+    """A reader with nothing of their own is handed the shared shelf to start with, and
+    a shared text opens like any built one — the library page merges the two into one
+    list and links straight at it.
+
+    Found on the running page: the door looked only at the reader's own home, so it sent
+    somebody to the offer for a text they could already read. Every Tanakh book on a new
+    account is in exactly that position.
+    """
+    port, token, out = served
+    entry = an_entry()
+    build_a_reader(out, "shared-he", entry.source, home="shared")
+
+    status, location = where(port, f"/open/{entry.id}?k={token}")
+    assert status == 302, status
+    assert location.startswith("/reader/shared-he/reader/index.html"), location
+
+
+def test_your_own_copy_wins_over_the_shared_one(served) -> None:
+    """The precedence the library page already uses when it merges the two lists."""
+    port, token, out = served
+    entry = an_entry()
+    build_a_reader(out, "shared-he", entry.source, home="shared")
+    build_a_reader(out, "mine-he", entry.source)
+
+    _, location = where(port, f"/open/{entry.id}?k={token}")
     assert location.startswith("/reader/mine-he/reader/index.html"), location
 
 

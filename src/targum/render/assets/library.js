@@ -2273,6 +2273,14 @@
        were sent for could be anywhere in it. Marked and scrolled to, never pressed —
        what pressing an unbuilt row does is start spending, and nothing arrives at a page
        with permission to do that. */
+    /* Two flags, not one. `lifted` used to do both jobs — "I have opened a collection"
+       and "I have lifted the filters" — and opening a collection therefore spent the one
+       chance to lift them: a reader sent to a text inside a shut shelf that a filter also
+       hid had the shelf opened, the second pass find nothing, and `if (lifted) return`
+       give up before it ever looked at the filters. Found on the running page following
+       `/open/ruth`, which opens Ketuvim and then needs the band lifted as well
+       (targum-internal#313). Each does its own job once. */
+    var unfolded_once = false;
     var lifted = false;
     function pointAt() {
       var wanted = decodeURIComponent((location.hash || "").slice(1));
@@ -2290,8 +2298,8 @@
          reader's page than lifting every filter they set, so it is tried first — and
          only once, for the reason `lifted` exists. */
       var holding = GROUP_OF[wanted];
-      if (holding && !unfolded[holding.id] && !lifted) {
-        lifted = true;
+      if (holding && !unfolded[holding.id] && !unfolded_once) {
+        unfolded_once = true;
         unfolded[holding.id] = true;
         remember("targum:opened-groups", unfolded);
         redraw();
