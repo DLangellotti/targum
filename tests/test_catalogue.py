@@ -209,3 +209,34 @@ def test_a_text_says_every_language_it_can_be_read_in() -> None:
     assert onkelos.languages == ["arc"]
     assert entry("sefaria:Ruth", "sefaria:en:Ruth").languages == ["he"]
     assert entry("sefaria:Ruth").state()["languages"] == ["he"]
+
+
+def test_every_subject_the_arrival_asks_for_can_be_filed() -> None:
+    """`accounts` asks the question and `catalogue` files the texts, and the two grow
+    apart silently: a subject with no tag behind it is a door that can never be answered
+    however many texts arrive, and a tag no door offers is a shelf nobody is sent to.
+
+    The three matched by `Kind` rather than by tag are named here rather than tagged —
+    `dialogue`, `story`/`novel`/`play` and `poetry` are forms the catalogue already
+    files by, and a second vocabulary saying the same thing would go out of step with
+    the first.
+    """
+    from targum.accounts import Store
+    from targum.catalogue import Tag
+
+    by_kind = {"everyday", "stories", "poetry"}
+    # The two the catalogue spells differently, because the tags predate the doors and
+    # a rename would re-file every text to no purpose.
+    spelled = {"judaism": {"tanakh", "judaica"}, "news": {"journalism"}}
+
+    tags = {tag.value for tag in Tag}
+    for subject in Store.INTERESTS:
+        if subject in by_kind:
+            continue
+        wanted = spelled.get(subject, {subject})
+        assert wanted <= tags, f"{subject} is asked for and cannot be filed"
+
+    offered = set()
+    for subject in Store.INTERESTS:
+        offered |= spelled.get(subject, {subject})
+    assert tags <= offered, f"filed under a subject nothing offers: {sorted(tags - offered)}"

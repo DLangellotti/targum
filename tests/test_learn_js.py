@@ -44,6 +44,9 @@ def reader(name: str, title: str, entry: str = "", **extra: Any) -> dict[str, An
         "kind": "prose",
         "register": "modern",
         "difficulty": 20,
+        # What the text is about, so the arrival's subject doors can be answered from
+        # the shelf (2026-09-17). A reader's own text carries none.
+        "tags": [],
     }
     row.update(extra)
     return row
@@ -1011,62 +1014,124 @@ def test_the_page_says_its_words_in_the_readers_language() -> None:
     assert drawn["carry"]["meta"] == "Where most people start · 10 мин"
 
 
-# --- the arrival (targum-internal#294) --------------------------------------------
+# --- the arrival (targum-internal#294, subjects since 2026-09-17) -------------------
 
 
 def seeded() -> list[dict[str, Any]]:
-    """The three shelves the arrival can offer, each with something already seeded.
+    """Shelves the arrival can answer, each carrying the subject it is filed under.
 
-    `video` is a flag on the row and not one of the eleven `Kind`s — the first version of
-    these fixtures invented `kind="video"` and `kind="weekly"`, which made the tests pass
-    against a data model that does not exist. The shapes here are the ones `/readers`
-    really sends.
+    `tags` are `catalogue.Tag` values and arrive on the `/readers` row; `kind` is what it
+    always was. The first version of these fixtures invented `kind="video"`, which made
+    the tests pass against a data model that does not exist — the shapes here are the
+    ones `/readers` really sends.
     """
     return [
         reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
-        reader("ruth", "רות", "ruth", register="biblical"),
-        reader("video-1", "סרטון", "video-1", kind="talk", register="modern", video=True),
+        reader("ruth", "רות", "ruth", register="biblical", tags=["tanakh"]),
+        reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"]),
     ]
 
 
 def test_the_page_does_not_quietly_give_up_drawing() -> None:
     """`learn.js` catches around its whole draw, so a bug in it shows as "we couldn't
     load your texts" rather than as a stack trace. Every arrival fixture is checked."""
-    for stamps in ({}, {"targum:arrived": "video"}, {"targum:arrived": "portion"}):
+    for stamps in ({}, {"targum:arrived": "sport"}, {"targum:arrived": "judaism,sport,food"}):
         assert not draw([], stamps, shared=seeded())["broke"], stamps
 
 
-def test_a_new_reader_is_asked_which_hebrew_they_came_for() -> None:
+def test_a_new_reader_is_asked_what_they_are_interested_in() -> None:
+    """In subjects, in the words somebody uses about themselves — not in the register,
+    collection and file format the library happens to be built from."""
     drawn = draw([], shared=seeded())
     assert not drawn["broke"]
-    assert drawn["arrival"] == [
-        "Everyday Hebrew, spoken",
-        "The week's Torah portion",
-        "Something to watch",
-    ]
+    assert drawn["arrival"][:4] == ["Everyday life in Israel", "Torah and Judaism", "News", "Sport"]
+    assert "Archaeology" in drawn["arrival"]
     # And the sheet is open under it: ignoring the question costs nothing.
     assert not drawn["carry"]["hidden"]
 
 
-def test_the_answer_picks_the_track_and_the_question_goes_away() -> None:
-    came = draw([], {"targum:arrived": "portion"}, shared=seeded())
-    assert came["arrival"] == [], "answered once, never asked again"
-    assert came["carry"]["title"] == "רות"
+def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() -> None:
+    """The rule the one-door version held to — a door with nothing seeded behind it is
+    left out — belonged to an answer that routed straight to a text. Three answers are a
+    profile, and a profile may name something the library has not got yet. That it was
+    named is the most useful thing anybody can say about what to build next."""
+    thin = draw(
+        [], shared=[reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern")]
+    )
+    assert "Archaeology" in thin["arrival"], "asked for whether or not it can be answered"
+    assert "Poetry" in thin["arrival"]
+    assert len(thin["arrival"]) == 19
 
-    watch = draw([], {"targum:arrived": "video"}, shared=seeded())
-    assert watch["carry"]["title"] == "סרטון"
+
+def test_the_level_is_asked_and_the_ladder_is_the_ulpan_one() -> None:
+    """This file refused to ask for a long time, on the grounds that what tells a
+    beginner from a false beginner is what they have marked. True, and useless on a
+    screen where nothing has been marked yet."""
+    drawn = draw([], shared=seeded())
+    assert drawn["levels"][0].startswith("Just starting")
+    assert drawn["levels"][0].endswith("א"), "the kitah beside the words, for whoever did one"
+    assert len(drawn["levels"]) == 8
 
 
-def test_a_video_is_found_by_its_flag_and_not_by_a_kind() -> None:
-    """The bug this file shipped: `kind === "video"` matches nothing that exists."""
-    only = draw(
+def test_three_subjects_and_a_level_before_the_answer_is_taken() -> None:
+    """One subject is a label and two is a preference; three is the first number that
+    describes somebody."""
+    two = draw(
         [],
-        shared=[
-            reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
-            reader("talk-1", "הרצאה", "talk-1", kind="talk", register="modern"),
+        shared=seeded(),
+        do=[{"subject": "Sport"}, {"subject": "History"}],
+    )
+    assert two["done"] is False, "two is not enough"
+    assert two["counted"] == "Pick 1 more"
+
+    three = draw(
+        [],
+        shared=seeded(),
+        do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}],
+    )
+    assert three["done"] is False, "the subjects are not the whole question"
+    assert three["counted"] == ""
+
+    both = draw(
+        [],
+        shared=seeded(),
+        do=[
+            {"subject": "Sport"},
+            {"subject": "History"},
+            {"subject": "Archaeology"},
+            {"rung": "I read slowly, with help\u05d1+"},
         ],
     )
-    assert "Something to watch" not in only["arrival"], "a talk is not a video"
+    assert both["done"] is True
+
+
+def test_a_subject_pressed_twice_is_put_back() -> None:
+    off = draw(
+        [],
+        shared=seeded(),
+        do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Sport"}],
+    )
+    assert off["picked"] == ["History"]
+
+
+def test_the_answer_goes_away_and_picks_the_first_subject_the_shelf_can_answer() -> None:
+    """Most of the nineteen have nothing behind them. The sheet is chosen from whichever
+    of the reader's subjects the shelf can actually satisfy, in the order offered."""
+    came = draw([], {"targum:arrived": "judaism,sport,archaeology"}, shared=seeded())
+    assert came["arrival"] == [], "answered once, never asked again"
+    assert came["carry"]["title"] == "רות", "judaism is offered before sport"
+
+    # Nothing seeded for archaeology or history, so the one subject that is answerable
+    # decides the sheet rather than the whole answer falling back to the default track.
+    thin = draw([], {"targum:arrived": "archaeology,history,sport"}, shared=seeded())
+    assert thin["carry"]["title"] == "הפועל"
+
+
+def test_a_subject_nothing_is_filed_under_falls_back_to_the_track() -> None:
+    """Three subjects the shelf cannot answer is not a reason to draw no sheet."""
+    none = draw([], {"targum:arrived": "archaeology,art,music"}, shared=seeded())
+    assert not none["broke"]
+    assert not none["carry"]["hidden"], "the default track still has the sheet"
 
 
 def test_a_reader_already_reading_is_never_asked() -> None:
@@ -1075,32 +1140,18 @@ def test_a_reader_already_reading_is_never_asked() -> None:
     assert already["arrival"] == []
 
 
-def test_a_door_with_nothing_seeded_behind_it_is_not_drawn() -> None:
-    """A door that leads nowhere is worse than one fewer door that works."""
-    thin = draw(
-        [],
-        shared=[
-            reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
-            reader("ruth", "רות", "ruth", register="biblical"),
-        ],
-    )
-    assert thin["arrival"] == ["Everyday Hebrew, spoken", "The week's Torah portion"]
-
-
-def test_one_door_is_not_a_choice() -> None:
-    """A row with one button in it is a page telling somebody what they wanted."""
-    alone = draw([], shared=[reader("ruth", "רות", "ruth", register="biblical")])
-    assert alone["arrival"] == []
-
-
-def test_an_answer_for_a_shelf_that_is_not_there_falls_back(tmp_path: Path) -> None:
-    """A suggestion that would have to be built first is not a suggestion."""
+def test_a_retired_answer_is_dropped_and_the_question_asked_again(tmp_path: Path) -> None:
+    """`spoken`, `portion` and `video` were the old vocabulary. The account's copy is
+    migrated; a browser holding one of them is not, so the word is dropped on the way in
+    and the reader is asked in the new terms rather than routed on a word nothing
+    means any more."""
     asked = draw(
         [],
         {"targum:arrived": "video"},
         shared=[
             reader("scene-1", "סצנה", "scene-1", kind="dialogue", register="modern"),
-            reader("ruth", "רות", "ruth", register="biblical"),
+            reader("ruth", "רות", "ruth", register="biblical", tags=["tanakh"]),
         ],
     )
+    assert asked["arrival"], "asked again rather than acted on"
     assert asked["carry"]["title"] == "סצנה", "its register's own door, not nothing"
