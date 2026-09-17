@@ -61,7 +61,15 @@ if (payload.hash) global.location.hash = payload.hash;
 global.fetch = () =>
   Promise.resolve({
     json: () =>
-      Promise.resolve({ readers: payload.readers || [], shared: payload.shared || [], covers: !!payload.covers }),
+      Promise.resolve({
+        readers: payload.readers || [],
+        shared: payload.shared || [],
+        covers: !!payload.covers,
+        // How much of each catalogue text this reader knows, for the rows they have not
+        // built (targum-internal#293). It is what "at my level" is measured with, so a
+        // test of that has to be able to set it.
+        catalogue: payload.catalogueKnown || {},
+      }),
   });
 
 require(path.join(assets, "strings.js"));
@@ -74,8 +82,44 @@ require(path.join(assets, "library.js"));
 // queue is enough; nothing here waits on a timer.
 setTimeout(() => {
   if (payload.switchTo) global.targumPick(payload.switchTo);
-  const rows = byId["catalogue"].children;
+  /* Two shapes over one list since 2026-09-17 (design.md §12): cards by default, the
+     table one press away. Whichever is on is the one filled, so the rows reported are
+     read off the host that has them. A card has no columns, so `cells` comes back empty
+     there and a test wanting them asks for the table — see `draw()` in the Python. */
+  const browsing = byId["catalogue"].children.length === 0 && byId["cards"].children.length > 0;
+  const rows = browsing ? byId["cards"].children : byId["catalogue"].children;
+  const readCard = (item) => {
+    const open = item.children[0];
+    const what = open.children[1] || { children: [] };
+    const find = (name) => what.children.find((c) => c.className === name) || {};
+    return {
+      title: (what.children.find((c) => c.className === "card-title") || {}).textContent || "",
+      fit: "",
+      media: (open.children[0].children.find((c) => c.className === "card-media") || {}).attrs
+        ? open.children[0].children.find((c) => c.className === "card-media").attrs["aria-label"] || ""
+        : "",
+      english: find("card-english").textContent || "",
+      englishLang: (find("card-english").attrs || {})["lang"] || "",
+      after: "",
+      scene: find("card-scene").textContent || "",
+      chip: find("row-next").textContent || "",
+      state: find("row-state").textContent || "",
+      meta: find("card-meta").textContent || "",
+      known: (find("card-known").children || []).map((c) => c.textContent).join(""),
+      group: open.getAttribute("data-group") || "",
+      expanded: open.getAttribute("aria-expanded") || "",
+      member: false,
+      cells: [],
+      draws: "",
+      opens: open.tagName,
+    };
+  };
   const read = (row) => {
+    // A collection stays a row even among cards, so the shape is read off the element
+    // rather than off the mode: `.card` is a card and anything else is a row.
+    if (browsing && String(row.children[0].className || "").indexOf("card") === 0) {
+      return readCard(row);
+    }
     const open = row.children[0];
     return {
       // The title cell holds a scene label and a chip beside the Hebrew; the bdi is it.
@@ -122,6 +166,37 @@ setTimeout(() => {
       tally: byId["tally"].textContent,
       kinds: byId["kind-chips"].children.map((c) => c.textContent),
       registers: byId["register-chips"].children.map((c) => c.textContent),
+      /* What the page is browsed by since 2026-09-17: the subjects with rows behind
+         them, each with its count, and the sentence above the list saying how far it has
+         been narrowed to fit the reader. A subject chip's name and number are separate
+         children, so the name alone is the first of them. */
+      subjects: byId["subject-chips"].hidden
+        ? []
+        : byId["subject-chips"].children.map((c) => (c.children[0] || {}).textContent || c.textContent),
+      subjectCounts: byId["subject-chips"].hidden
+        ? []
+        : byId["subject-chips"].children.map((c) =>
+            Number((c.children.find((k) => k.className === "chip-n") || {}).textContent || 0)
+          ),
+      subjectOn: (byId["subject-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {
+        children: [],
+      }).children[0]
+        ? byId["subject-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true").children[0].textContent
+        : "",
+      said: byId["said"].textContent,
+      /* Which band the list is narrowed to. Read off the selected option rather than off
+         the line's text: a stub's textContent walks every child, so the sentence comes
+         back with all three options run together. */
+      fitOn: (() => {
+        const pick = byId["said"].children
+          .map((c) => (c.children || []).find((k) => k.tagName === "select"))
+          .find(Boolean);
+        const chosen = pick && (pick.children || []).find((o) => o.selected);
+        return chosen ? chosen.textContent : "";
+      })(),
+      shape: browsing ? "cards" : "list",
+      shapeOn:
+        (byId["shape"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
       empty: byId["picked-empty"].textContent,
       // The one line that says what the list is, and whether it was drawn under the
       // heading (a first visit that opened on the Scenes) or under the controls.
@@ -135,7 +210,13 @@ setTimeout(() => {
       find: byId["find"].value || "",
       views: JSON.parse(global.localStorage.getItem("targum:library") || "{}"),
       kindOn: (byId["kind-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
-      gauges: rows.map((row) => row.children[0].children.find((c) => String(c.className).includes("gauge")).getAttribute("aria-label") || ""),
+      // The hard-words gauge is a column, so it exists on a row and not on a card.
+      gauges: rows.map(
+        (row) =>
+          (row.children[0].children.find((c) => String(c.className).includes("gauge")) || {
+            getAttribute: () => "",
+          }).getAttribute("aria-label") || ""
+      ),
     })
   );
 }, 20);

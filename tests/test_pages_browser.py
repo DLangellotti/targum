@@ -377,10 +377,16 @@ def test_a_description_is_never_priced(browser) -> None:
     assert asked == [], "a description never reaches /prepare"
 
 
-def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) -> None:
-    """A row now carries a scene label, a chip, a Hebrew title and an English one. At
-    390px the chip takes a line of its own under the Hebrew, and the Hebrew title never
-    breaks across lines — a title in two pieces reads as two titles."""
+def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -> None:
+    """A text carries a scene label, a chip, a Hebrew title and an English one. At 390px
+    the chip takes a line of its own under the Hebrew, and the Hebrew title never breaks
+    across lines — a title in two pieces reads as two titles.
+
+    Measured on the card, which is what the page opens in since 2026-09-17 (design.md
+    §12) and so what a phone actually shows. It measured the table's row until then, and
+    the row is still there behind List view; what this is really pinning is the phone,
+    and the phone gets cards.
+    """
     page_file = tmp_path / "library.html"
     page_file.write_text(library_page(TOKEN), encoding="utf-8")
 
@@ -432,8 +438,9 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
         """() => {
           const row = document.querySelector('[data-row="scene-01-nice-to-meet-you"]');
           if (!row) return { missing: true };
-          const bdi = row.querySelector('.row-title bdi');
+          const bdi = row.querySelector('.card-title');
           const chip = row.querySelector('.row-next');
+          if (!bdi) return { missing: true };
           const b = bdi.getBoundingClientRect();
           const c = chip ? chip.getBoundingClientRect() : null;
           return {
@@ -446,7 +453,7 @@ def test_a_library_row_holds_together_at_phone_width(browser, tmp_path: Path) ->
     )
     context.close()
 
-    assert not measured.get("missing"), "the shared scene has a row"
+    assert not measured.get("missing"), "the shared scene has a card"
     assert measured["titleLines"] == 1, "the Hebrew title never breaks"
     assert measured["chipText"] == "Start here"
     assert measured["chipBelow"] is True, "the chip sits on its own line under the title"

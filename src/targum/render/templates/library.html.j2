@@ -33,6 +33,18 @@
   <section class="panel" id="picked">
     <p class="note" id="picked-note">{{ t("library.page.tap-a-text-to-read-it", "Tap a text to read it.") }}</p>
 
+    {#- How many texts there are, and how much of them is being shown — with the second
+        half of that sentence as the control (design.md §12, 2026-09-17). "I want to be
+        able to immediately choose a reading AT MY LEVEL" is answered by the list opening
+        already narrowed and saying so, rather than by a filter that could be found. -#}
+    <p class="said" id="said"></p>
+
+    {#- What the texts are about. The row a reader browses by, above everything that
+        narrows: drawn from the subjects that have rows behind them, never from the
+        catalogue's whole vocabulary, and each one carrying its count. -#}
+    <p class="chips-label" id="subject-label">{{ t("library.page.what-its-about", "What it's about") }}</p>
+    <div class="chips subjects" id="subject-chips" role="group" aria-label="{{ t("library.page.what-its-about", "What it's about") }}"></div>
+
     {#- The controls are the page. A library of a hundred texts is only as good as the
         speed of getting to the one you want, so they sit above the list and act on it
         as you type. -#}
@@ -66,8 +78,16 @@
       <label class="pick"><span>{{ t("library.page.hard-words", "Hard words") }}</span><select id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>{{ t("library.page.clear", "Clear") }}</button>
       </details>
+      {#- Cards or the table. The grid is how the page is browsed; the table is what it
+          was, kept one press away because the complaint that retired the last card grid
+          — that a card cannot be sorted — was a fair one. The choice is remembered. -#}
+      <div class="shape" id="shape" role="group" aria-label="{{ t("library.page.how-to-show-them", "How to show them") }}"></div>
     </div>
 
+    {#- Two shapes over one list: whichever is on is filled and the other is emptied, so
+        nothing is ever drawn twice. The heading belongs to the table and is hidden with
+        it — over a grid it is a row of sort buttons pointing at columns nobody can see. -#}
+    <ul class="cards" id="cards"></ul>
     <div class="rows-head" id="rows-head" role="row"></div>
     <ul class="rows" id="catalogue"></ul>
     <p class="empty" id="picked-empty" hidden></p>
