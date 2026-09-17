@@ -26,6 +26,26 @@ UNRATED = 0
 # every name in a chronicle as a hard word would move it a shelf up the library.
 NOT_VOCABULARY = frozenset({"PROPN", "NUM"})
 
+# What a lemmatizer writes when it could not read a token at all. DICTA's, and the only
+# one measured here: 318 tokens across the shelf on 2026-09-17. It is not a word, and
+# every one of them entered a reader's ledger as a word nobody knows, banded hardest
+# (targum-internal#305).
+NOT_A_WORD = frozenset({"[unk]", "[UNK]", "<unk>", ""})
+
+# Hebrew words a lemmatizer keeps calling verbs that are not verbs. A closed set, small
+# and unlikely to grow, so it is written out rather than inferred.
+#
+# `יש` and `אין` are the existential particles — "there is", "there is not" — and have no
+# root, no binyan and no conjugation. DICTA tagged `יש` VERB 2,521 times across the shelf.
+# The ledger survives it, because the lemma is right and that is what a word is filed
+# under; what does not survive is everything keyed to the part of speech. A card offering
+# the conjugations of `יש` is offering a table that does not exist.
+#
+# Written as the bare (unpointed) form, which is what a lemma is compared as everywhere
+# else here.
+NEVER_A_VERB = frozenset({"יש", "אין"})
+
+
 # The same fact, as the reader receives it: a seventh column on every token row, 0 for
 # a word, 1 for a name, 2 for a number. What the reader calls them is `KIND_NAMES` in
 # reader.js, and a word marked while wearing one of those keeps it as its band — which
@@ -86,7 +106,13 @@ NO_METHOD = "none"
 #: "Chananel", "22:15" and a calendar emoji inside its Hebrew, and every one came back
 #: a word: tappable, counted against "N of M known", and "Hannah" filed in the ledger as
 #: extremely hard. English inside a Hebrew text is something a Hebrew reader reads past.
-LANGUAGES = "languages/3"
+#: `languages/4` (2026-09-17): a token the lemmatizer could not read is not a word
+#: either. `[unk]` is what DICTA writes when it fails, and 318 of them across the shelf
+#: went into readers' ledgers as words nobody knows, banded hardest. And `יש` is not a
+#: verb however often it is tagged one — 2,521 times here — which the ledger survives and
+#: the card does not: conjugations offered for a word that has none. See `NOT_A_WORD` and
+#: `NEVER_A_VERB` above, and targum-internal#305.
+LANGUAGES = "languages/4"
 
 #: The rule that English inside a text in another Latin-script language is not a word of
 #: that text, in the annotator's name for the same reason as `LANGUAGES` above.

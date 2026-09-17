@@ -14,6 +14,8 @@ from .base import (
     FOREIGN,
     HIGHLIGHT_LABELS,
     LANGUAGES,
+    NEVER_A_VERB,
+    NOT_A_WORD,
     NOT_VOCABULARY,
     UNRATED,
     Bands,
@@ -68,6 +70,17 @@ def _spells(root: str, surface: str) -> bool:
     if not have:
         return False
     return _shared(root, surface) >= max(2, len(have) - 1)
+
+
+def _unpointed(lemma: str) -> str:
+    """A lemma without its nikkud, for comparing against a table written bare.
+
+    Deliberately not `canonical.bare`, which keeps only Hebrew letters: that is right for
+    comparing two Hebrew lemmas and catastrophic here, where it would empty every Russian
+    and Italian lemma and drop the token with it.
+    """
+    stripped, _ = strip_nikkud(lemma or "")
+    return stripped.strip()
 
 
 class Annotator:
@@ -209,6 +222,18 @@ class Annotator:
                     # The Hebrew prefix on an English word — ה-AI, "ה AI" — belongs to
                     # the word it is read past with. See `PREFIXES`.
                     continue
+                if str(token.lemma or "").strip() in NOT_A_WORD:
+                    # The lemmatizer could not read it. Read past it the way an emoji or
+                    # an English name is read past: the reader still sees the text, and
+                    # `[unk]` never reaches a ledger as a word nobody knows
+                    # (targum-internal#305).
+                    continue
+                if token.pos == "VERB" and _unpointed(token.lemma) in NEVER_A_VERB:
+                    # `יש` is not a verb however often it is tagged one. The lemma is
+                    # right and the ledger is fine; what is wrong is everything keyed to
+                    # the part of speech, and a card offering its conjugations offers a
+                    # table that does not exist.
+                    token = token.model_copy(update={"pos": "AUX"})
                 if segment_id in elsewhere:
                     # Read, and deliberately not rated. See `elsewhere` above.
                     band = UNRATED
