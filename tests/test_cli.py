@@ -1298,3 +1298,51 @@ def test_rebuild_skips_a_text_it_cannot_read_and_keeps_going(
     assert "Rewrote 1 targum" in result.output, result.output
     assert "skipped a-unreadable-ru" in result.output, result.output
     assert "No word of this 'ru' text could be read." in result.output, result.output
+
+
+def test_seed_skips_a_row_it_cannot_build_and_keeps_going(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """One row this machine cannot build is one skipped row, not a dead seed.
+
+    On 2026-09-17 the deploy's rebuild survived four texts it could not read — and then
+    `seed` stopped dead eleven minutes later on the first catalogue row that needed its
+    translation aligned to the source. The box installs `[difficulty,covers,bring,stress]`
+    and never `align`, so `sentence_transformers` was not there and never had been; the
+    row was new, so nothing had asked before. Every row behind it went unbuilt and the
+    restart that follows `seed` never ran.
+    """
+    from targum import cli
+    from targum.errors import TargumError
+
+    built: list[str] = []
+    refused = cli.seeds()[0]
+
+    class FakeBuild:
+        def __init__(self, source: str, **options: object) -> None:
+            self.source = source
+
+        def run(self) -> object:
+            from targum.catalogue import by_id
+
+            if self.source == by_id(refused).source:
+                raise TargumError(
+                    "Alignment needs the embedding model, which is not installed.", ""
+                )
+            built.append(self.source)
+            out = tmp_path / "shared" / self.source.replace(":", "-").replace("/", "-")
+            out.mkdir(parents=True, exist_ok=True)
+            return type("Result", (), {"out_dir": out})()
+
+    monkeypatch.setattr(cli, "Build", FakeBuild)
+    monkeypatch.setattr("targum.coverage.lemmas", lambda folder: {})
+    monkeypatch.setattr("targum.annotate.lemma.for_source", lambda source, **kw: object())
+
+    # The whole point: this returns rather than raising.
+    cli.seed(out=tmp_path)
+
+    # Every other row was built, and the one that could not be is not among them.
+    from targum.catalogue import by_id
+
+    assert len(built) == len(cli.seeds()) - 1
+    assert by_id(refused).source not in built
