@@ -1063,29 +1063,24 @@ def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() 
     assert len(thin["arrival"]) == 19
 
 
-def test_nothing_on_the_arrival_asks_how_good_the_reader_is() -> None:
-    """The subjects row asks what somebody is interested in and stops there.
+def test_the_ladder_is_the_ulpan_one_and_says_it_in_words() -> None:
+    """targum-internal#306, decided 2026-09-17: the rung is asked, narrowly.
 
-    targum-internal#306 — whether a reader may declare a starting rung — is open and
-    undecided, and until it is answered nothing here stores how good anybody says they
-    are. A first cut of this screen asked for the ulpan rung beside the subjects; it was
-    taken out rather than shipped ahead of the decision.
+    Eight rungs, aleph to vav, the ladder `level.py` already climbs. The words come
+    first and the kitah second, because the letter is the whole label to somebody who
+    did an ulpan and noise to everybody else.
     """
     drawn = draw([], shared=seeded())
-    assert "levels" not in drawn, "no ladder is drawn"
-    for chip in drawn["arrival"]:
-        for rung in ("Just starting", "Simple conversations", "kitah", "\u05d0", "\u05d1+"):
-            assert rung not in chip, f"{chip!r} names a level"
+    assert len(drawn["levels"]) == 8
+    assert drawn["levels"][0].startswith("Just starting")
+    assert drawn["levels"][0].endswith("\u05d0"), "the kitah beside the words, not instead"
+    assert drawn["levels"][-1].endswith("\u05d5")
 
 
-def test_three_subjects_before_the_answer_is_taken() -> None:
+def test_three_subjects_and_a_rung_before_the_answer_is_taken() -> None:
     """One subject is a label and two is a preference; three is the first number that
-    describes somebody."""
-    two = draw(
-        [],
-        shared=seeded(),
-        do=[{"subject": "Sport"}, {"subject": "History"}],
-    )
+    describes somebody. The rung is the other half of the question."""
+    two = draw([], shared=seeded(), do=[{"subject": "Sport"}, {"subject": "History"}])
     assert two["done"] is False, "two is not enough"
     assert two["counted"] == "Pick 1 more"
 
@@ -1094,8 +1089,49 @@ def test_three_subjects_before_the_answer_is_taken() -> None:
         shared=seeded(),
         do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}],
     )
-    assert three["done"] is True, "three is the whole question now"
+    assert three["done"] is False, "the subjects are not the whole question"
     assert three["counted"] == ""
+
+    both = draw(
+        [],
+        shared=seeded(),
+        do=[
+            {"subject": "Sport"},
+            {"subject": "History"},
+            {"subject": "Archaeology"},
+            {"rung": "I read slowly, with help"},
+        ],
+    )
+    assert both["done"] is True
+
+
+def test_the_rung_is_kept_nowhere() -> None:
+    """The whole of #306's decision: asked, used once, thrown away.
+
+    The subjects are kept — they are a profile and they travel between devices. The rung
+    is not: no key in the browser, nothing posted to the account, no column behind it. A
+    number nobody keeps is a number nobody can be wrong about a month later.
+    """
+    after = draw(
+        [],
+        shared=seeded(),
+        do=[
+            {"subject": "Sport"},
+            {"subject": "Torah and Judaism"},
+            {"subject": "Archaeology"},
+            {"rung": "I read almost anything"},
+            {"press": "arrival-done"},
+        ],
+    )
+    kept = after.get("kept") or {}
+    posted = after.get("posted") or []
+    # The harness would have shown it: the subjects went both places on the same press.
+    assert "targum:arrived" in kept, "the subjects are kept, so this test can see keeping"
+    assert any("/account/interest" in str(where) for where in posted), (
+        "the subjects are posted, so this test can see posting"
+    )
+    assert not any("level" in key for key in kept), f"the rung was stored: {kept}"
+    assert not any("level" in str(where) for where in posted), f"the rung was posted: {posted}"
 
 
 def test_a_subject_pressed_twice_is_put_back() -> None:

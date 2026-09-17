@@ -607,15 +607,13 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
 
     script = (ASSETS / "learn.js").read_text(encoding="utf-8")
     sheet = (ASSETS / "learn.css").read_text(encoding="utf-8")
-    # Classes the script gives something it also marks `aria-pressed`.
-    marked = set(re.findall(r'className\s*=\s*"([a-z-]+)"', script))
+    # The class given to the *same* element that is marked `aria-pressed`. Bound by the
+    # variable, not by nearness: a first cut looked within 400 characters and caught
+    # `arrival-rung-letter`, a span inside the button, which is never pressed itself.
     pressed = {
         name
-        for name in marked
-        if re.search(
-            r'className\s*=\s*"' + re.escape(name) + r'"[\s\S]{0,400}?setAttribute\("aria-pressed"',
-            script,
-        )
+        for holder, name in re.findall(r"(\w+)\.className\s*=\s*\"([a-z-]+)\"", script)
+        if re.search(re.escape(holder) + r'\.setAttribute\("aria-pressed"', script)
     }
     assert pressed, "no pressable control found in learn.js — has the arrival moved?"
     for name in sorted(pressed):
