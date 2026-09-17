@@ -589,3 +589,36 @@ def test_a_translated_label_stays_near_the_length_of_its_english() -> None:
                 continue  # a sentence, not a label
             limit = max(1.6 * len(source), len(source) + 6)
             assert len(text) <= limit, f"{code}: {key} {text!r} is long for {source!r}"
+
+
+def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
+    """A control the script toggles must look toggled, or the press does nothing visible.
+
+    Shipped broken on 2026-09-17 and deployed: the arrival's subject chips set
+    `aria-pressed` and `.is-picked` in `learn.js`, and the one rule that styled them was
+    a grouped selector — `.arrival-door[aria-pressed="true"], .arrival-rung[...]`. A
+    clean-up that dropped every rule naming `.arrival-rung` took the door half with it,
+    so picking a subject changed nothing on screen and nothing failed.
+
+    Checked from the script, not from a list here: whatever `learn.js` marks as pressed
+    is what `learn.css` has to answer for, so a new toggle cannot be added without one.
+    """
+    import re
+
+    script = (ASSETS / "learn.js").read_text(encoding="utf-8")
+    sheet = (ASSETS / "learn.css").read_text(encoding="utf-8")
+    # Classes the script gives something it also marks `aria-pressed`.
+    marked = set(re.findall(r'className\s*=\s*"([a-z-]+)"', script))
+    pressed = {
+        name
+        for name in marked
+        if re.search(
+            r'className\s*=\s*"' + re.escape(name) + r'"[\s\S]{0,400}?setAttribute\("aria-pressed"',
+            script,
+        )
+    }
+    assert pressed, "no pressable control found in learn.js — has the arrival moved?"
+    for name in sorted(pressed):
+        assert re.search(r"\." + re.escape(name) + r'\[aria-pressed="true"\]', sheet), (
+            f".{name} is marked aria-pressed by learn.js and styled by nothing in learn.css"
+        )

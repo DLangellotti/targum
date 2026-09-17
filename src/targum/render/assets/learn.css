@@ -1074,6 +1074,15 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   outline-offset: 2px;
 }
 
+/* §4: selection in UI is quiet ink, never the accent — the accent belongs to the one
+   primary action in a view, which here is Done. A picked subject is not an action; it
+   is where you are. Same rule the library's filter chips follow. */
+.arrival-door[aria-pressed="true"] {
+  background: var(--ink-soft);
+  color: var(--paper);
+  box-shadow: none;
+}
+
 .arrival-hint {
   margin: -0.35rem 0 0.6rem;
   font-family: var(--chrome);
