@@ -233,6 +233,19 @@ var targumReader = function () {
   var extensions = data.extensions || {};
   var roots = extensions.roots || [];
   var binyanim = extensions.binyanim || [];
+  // The conjugations this page carries (targum-internal#300): an index per lemma into
+  // the tables, the tables themselves, and the feature names they point into. All three
+  // absent on a page with no Hebrew verb that has one, which is most pages.
+  var paradigmAt = extensions.paradigms || [];
+  var conjugationTables = extensions.conjugations || [];
+  var conjugationFeatures = extensions.features || [];
+
+  // The letters of a pointed word, for comparing one spelling with another. Hebrew
+  // points are combining marks; U+05BD..U+05C7 are the ones that are not caught by the
+  // combining-class test on every engine, so the range is given outright.
+  function bareOf(text) {
+    return String(text || "").replace(/[\u0591-\u05C7]/g, "");
+  }
   var POINTED_BINYANIM = {
     "פעל": "פָּעַל",
     "נפעל": "נִפְעַל",
@@ -4034,6 +4047,96 @@ var targumReader = function () {
     return language === "fr" && (pos === "VERB" || pos === "AUX");
   }
 
+  /* The conjugations of the tapped verb, with the form in front of the reader picked
+     out (targum-internal#300).
+
+     Baked into the page by the build, from Wikidata's CC0 lexemes: no fetch, which §11
+     requires, and no licence door, which is why that source and not DICTA's or
+     Wiktionary's.
+
+     Folded shut. A learner who wants the table opens it; one reading a sentence is not
+     handed thirty-three forms they did not ask for. */
+  var CONJ_TENSES = ["past", "present", "future", "imperative", "infinitive"];
+
+  function conjugations(index, surface) {
+    var rows = conjugationTables[paradigmAt[index] || 0];
+    if (!rows || !rows.length) return null;
+
+    var box = document.createElement("details");
+    box.className = "card-conj";
+    var head = document.createElement("summary");
+    head.textContent = t("reader.card.the-table", "The table");
+    box.appendChild(head);
+
+    // Grouped by tense, in the order a table is laid out, with anything the source did
+    // not place kept at the end rather than dropped.
+    var seen = bareOf(surface);
+    var byTense = {};
+    var order = [];
+    rows.forEach(function (row) {
+      var names = (row[1] || []).map(function (at) {
+        return conjugationFeatures[at] || "";
+      });
+      var tense = "";
+      for (var i = 0; i < CONJ_TENSES.length; i++) {
+        if (names.indexOf(CONJ_TENSES[i]) >= 0) {
+          tense = CONJ_TENSES[i];
+          break;
+        }
+      }
+      if (!byTense[tense]) {
+        byTense[tense] = [];
+        order.push(tense);
+      }
+      byTense[tense].push({ written: row[0], names: names });
+    });
+    order.sort(function (a, b) {
+      var at = CONJ_TENSES.indexOf(a);
+      var bt = CONJ_TENSES.indexOf(b);
+      return (at < 0 ? 99 : at) - (bt < 0 ? 99 : bt);
+    });
+
+    order.forEach(function (tense) {
+      var group = document.createElement("div");
+      group.className = "conj-group";
+      if (tense) {
+        var name = document.createElement("p");
+        name.className = "conj-tense";
+        name.textContent = t("reader.tense." + tense, tense);
+        group.appendChild(name);
+      }
+      byTense[tense].forEach(function (form) {
+        var line = document.createElement("p");
+        line.className = "conj-form";
+        var written = document.createElement("span");
+        written.className = "he";
+        written.textContent = form.written;
+        // The one the reader is looking at, marked rather than moved: a table that
+        // reorders itself around the tapped word is a table you cannot learn the shape
+        // of.
+        if (seen && bareOf(form.written) === seen) line.className += " here";
+        line.appendChild(written);
+        var says = form.names
+          .filter(function (n) {
+            return n && CONJ_TENSES.indexOf(n) < 0;
+          })
+          .map(function (n) {
+            return t("reader.feature." + n, n);
+          })
+          .join(" · ");
+        if (says) {
+          var note = document.createElement("span");
+          note.className = "conj-says";
+          note.textContent = says;
+          line.appendChild(note);
+        }
+        group.appendChild(line);
+      });
+      box.appendChild(group);
+    });
+    return box;
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
@@ -4244,6 +4347,11 @@ var targumReader = function () {
       pealim.textContent = t("reader.card.conjugations", "conjugations");
       verb.appendChild(pealim);
       card.appendChild(verb);
+      // The table itself, where this page carries one (targum-internal#300). About six
+      // verbs in ten have one; Pealim above stays for the rest, and for anybody who
+      // wants more than a table.
+      var drawn = conjugations(index, word.textContent);
+      if (drawn) card.appendChild(drawn);
     }
 
     // The part of speech's own line. A name and a number say which they are — that is

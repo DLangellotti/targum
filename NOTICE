@@ -12,3 +12,18 @@ ordinary description and needs no permission.
 
 targum is a transliteration of a common Hebrew word for a translation, and this notice
 claims nothing over the word.
+
+---
+
+Data that ships inside this package
+-----------------------------------
+
+`src/targum/annotate/paradigms.json.gz` — Hebrew verb conjugations, 4,703 verbs and
+about 145,000 forms, derived from the Wikidata lexeme dump of 2026-09-11.
+
+Wikidata's data is released under CC0 1.0 Universal, which waives copyright entirely:
+<https://creativecommons.org/publicdomain/zero/1.0/>. No attribution is required and this
+notice claims nothing over it. It is recorded here because knowing where a file came from
+and on what terms is worth more than the paperwork it saves.
+
+Rebuilt by `scripts/hebrew_paradigms.py`, which names the dump it read.

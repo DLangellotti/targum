@@ -1447,6 +1447,45 @@ def legal_page(which: str, address: str = "") -> str:
     )
 
 
+def _paradigm_at(
+    token: object,
+    tables: list[list[list[object]]],
+    table_at: dict[str, int],
+    feature_at: dict[str, int],
+) -> int:
+    """Where this word's conjugations sit in the page's own tables, or 0 for none.
+
+    Only Hebrew verbs, and only where the lookup is unambiguous — `Table.of` answers None
+    for a spelling two verbs share, because choosing between them without the sentence
+    would be guessing and a wrong table is worse than no table.
+
+    The same verb twice on a page is one table: `table_at` is keyed on the lemma, which
+    is what the reader's marks are filed under anyway.
+    """
+    from ..annotate.paradigms import table as paradigm_table
+
+    lemma = str(getattr(token, "lemma", "") or "")
+    if not lemma or getattr(token, "pos", "") != "VERB":
+        return 0
+    if lemma in table_at:
+        return table_at[lemma]
+    found = paradigm_table().of(lemma)
+    if found is None:
+        table_at[lemma] = 0
+        return 0
+    rows: list[list[object]] = []
+    for form in found.forms:
+        codes = []
+        for feature in form.features:
+            if feature not in feature_at:
+                feature_at[feature] = len(feature_at)
+            codes.append(feature_at[feature])
+        rows.append([form.written, codes])
+    tables.append(rows)
+    table_at[lemma] = len(tables) - 1
+    return table_at[lemma]
+
+
 def signin_page(
     *,
     landing: str = "",
@@ -2428,6 +2467,17 @@ def render(
         # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
         binyanim: list[str] = []
+        # The conjugations of each verb on this page (targum-internal#300). A paradigm is
+        # thirty-odd forms, so it cannot ride as one string per lemma the way a root
+        # does: `paradigms` is an index per lemma into `tables`, and 0 means "no table
+        # for this word". Only the verbs this page actually has, so a chapter carries its
+        # own conjugations and not a dictionary.
+        paradigms: list[int] = []
+        tables: list[list[list[object]]] = [[]]
+        table_at: dict[str, int] = {}
+        # The feature names the tables point into, once per page rather than on every
+        # form: `masculine` spelled out 200 times is most of what a table would weigh.
+        feature_at: dict[str, int] = {}
         # And so does the register, for the same reason: which Hebrew a word belongs to
         # is a fact about the dictionary form. Codes rather than sentences, so the words
         # on the card can be rewritten without re-annotating a library.
@@ -2464,6 +2514,7 @@ def render(
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
                         registers.append(token.word_register or "")
+                        paradigms.append(_paradigm_at(token, tables, table_at, feature_at))
                     # Offsets arrive measured against the segment as ingested, which may
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the
@@ -2535,6 +2586,17 @@ def render(
             for name, table in (
                 ("roots", roots),
                 ("binyanim", binyanim),
+                ("paradigms", paradigms),
+                # The tables themselves, and the feature names they point into. Both
+                # left out entirely where no word on the page is a verb with a paradigm,
+                # which is every non-Hebrew page and most short ones.
+                # Whole, including the empty row at 0: `paradigms` indexes into this,
+                # and 0 means "no table". Slicing it off would shift every index by one.
+                ("conjugations", tables),
+                (
+                    "features",
+                    [name for name, _ in sorted(feature_at.items(), key=lambda kv: kv[1])],
+                ),
                 ("partners", partners),
                 ("stress", stresses),
             )
