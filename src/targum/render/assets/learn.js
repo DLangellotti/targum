@@ -1016,7 +1016,8 @@
       door.src = row.reader;
       door.href = row.reader;
     } else {
-      door.href = "/library#" + encodeURIComponent(row.id);
+      // targum-internal#313: the door opens the text, not the library.
+      door.href = "/open/" + encodeURIComponent(row.id);
     }
     return { id: "suggested", label: t("learn.suggested", "Suggested"), reader: reader, door: door };
   }
@@ -1775,7 +1776,7 @@
                   state: up.level ? "up" : "start",
                   register: "modern",
                   primary: true,
-                  href: "/library#" + encodeURIComponent(up.pick.id),
+                  href: "/open/" + encodeURIComponent(up.pick.id),
                   meta: up.pick.minutes ? up.why + " · " + t("learn.minutes", "{n} min", { n: up.pick.minutes }) : up.why,
                 }
               );

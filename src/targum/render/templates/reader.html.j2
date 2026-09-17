@@ -688,11 +688,16 @@
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
   <span class="next-up-lead">{{ t("reader.page.read-next", "Read next") }}{% if suggested.scene %} · {{ suggested.scene }}{% endif %}</span>
-  {#- `/library#id`, which is where Learn sends a reader for the same reason: the library
-      marks the row and scrolls to it, and lifts a filter that would have hidden it.
+  {#- `/open/<id>`, the one door onto a catalogue text (targum-internal#313). It sends a
+      reader straight to their copy where they have one and to its row with the offer up
+      where they have not — never into a build, which is a press and not a redirect. It
+      used to be `/library#<id>`, which marks the row and scrolls to it: right about the
+      spending and wrong about everything else, because "it should open that targum
+      immediately, and not merely bring me to library".
+
       `/library/<id>` is a different page — the public one, off unless the shelves are —
       and linking there gave a signed-in reader "not found". -#}
-  <a class="next-up-link" href="/library#{{ suggested.id }}"><bdi lang="{{ source_language }}" dir="auto">{{ suggested.title }}</bdi>{% if suggested.english %} <span class="next-up-english" lang="en">· {{ suggested.english }}</span>{% endif %}</a>
+  <a class="next-up-link" href="/open/{{ suggested.id }}"><bdi lang="{{ source_language }}" dir="auto">{{ suggested.title }}</bdi>{% if suggested.english %} <span class="next-up-english" lang="en">· {{ suggested.english }}</span>{% endif %}</a>
   {#- Why this one, and how long it is. The blurb used to stand here, and a blurb says
       what a text is rather than why it is next: an offer nobody explained is a curator's
       opinion (targum-internal#176). The blurb is one tap away on the library row this

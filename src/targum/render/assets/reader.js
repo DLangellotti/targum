@@ -8653,7 +8653,9 @@ var targumReader = function () {
     var pick = more.shift();
     if (!pick) return;
     if (link) {
-      link.href = "/library#" + encodeURIComponent(pick.id);
+      // The same door the first offer uses: straight to the text where it is built, to
+      // its row with the offer up where it is not (targum-internal#313).
+      link.href = "/open/" + encodeURIComponent(pick.id);
       link.textContent = "";
       var named = document.createElement("bdi");
       named.lang = document.documentElement.getAttribute("data-language") || "";
