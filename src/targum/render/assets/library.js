@@ -439,6 +439,51 @@
     return (entry && entry.blurbs && entry.blurbs[uiLanguage]) || (entry && entry.blurb) || "";
   }
 
+  /* Builds that have not finished, as rows on the shelf (design.md §12, 2026-09-17).
+   *
+   * "I need a more obvious place to see the progress — the notifications tab is too easy
+   * to miss." The bell follows the reader from page to page, which is what it is for and
+   * also why it is ambient; a text being built belongs where the reader was going, which
+   * is here. It carries its title and how far it has got, and becomes the ordinary row
+   * the moment it is done.
+   *
+   * Filed under Your uploads whatever it was built from, because that tab is "texts of
+   * mine" and a build is exactly that until it exists. Nothing on one can be pressed: it
+   * is not a link yet and it is certainly not a button that would buy it again.
+   */
+  var buildingNow = [];
+
+  function buildingRows() {
+    return buildingNow
+      .filter(function (job) {
+        return job.stage !== "done" && !job.error && job.title;
+      })
+      .map(function (job) {
+        return {
+          id: "building:" + job.id,
+          entry: null,
+          building: job,
+          title: job.title,
+          english: job.english || "",
+          author: "",
+          language: job.language || lang.HOME,
+          kind: "",
+          register: "",
+          difficulty: 0,
+          // Nothing measured yet, and a zero here would be a claim. The row says what it
+          // is doing instead of pretending to be a text with facts.
+          minutes: 0,
+          spoken: false,
+          video: false,
+          tags: [],
+          built: null,
+          opened: 0,
+          // Newest of everything: it is the most recently arrived thing there is.
+          place: 1e9,
+        };
+      });
+  }
+
   function rows(readers, shared) {
     var mine = {};
     var out = [];
@@ -482,6 +527,10 @@
         drawn: !!(built && built.drawn),
         opened: built ? built.opened || 0 : 0,
       });
+    });
+    // What is building, above what is built: it is the thing the reader is waiting on.
+    buildingRows().forEach(function (row) {
+      out.push(row);
     });
     readers.forEach(function (reader) {
       if (reader.entry && mine[reader.entry]) return;
@@ -715,6 +764,7 @@
    * cheaper way to do that.
    */
   function card(row) {
+    if (row.building) return buildingCard(row);
     var item = el("li", "card-item");
     item.setAttribute("data-row", row.id);
 
@@ -821,6 +871,65 @@
 
     open.appendChild(what);
     item.appendChild(open);
+    return item;
+  }
+
+  /* A text being built, as a card that says so.
+   *
+   * Neither a link nor a button: there is nothing to open yet and nothing to buy again.
+   * A span, so nothing about it invites a press and a keyboard passes straight over it.
+   * It carries what is known — the title, and how far the build has got — and the moment
+   * the build finishes it is replaced by the ordinary row for the text it became.
+   */
+  function buildingCard(row) {
+    var job = row.building;
+    var item = el("li", "card-item");
+    item.setAttribute("data-row", row.id);
+
+    var box = el("span", "card card-building");
+    // Said aloud when it changes, because a reader watching this is waiting on it.
+    box.setAttribute("role", "status");
+
+    var cover = el("span", "card-cover");
+    cover.setAttribute("aria-hidden", "true");
+    cover.appendChild(
+      window.TargumCovers.tile("", { title: row.title, language: row.language, drawn: false })
+    );
+    box.appendChild(cover);
+
+    var what = el("span", "card-what");
+    var mark = el("span", "card-scene card-making", t("library.building", "Building"));
+    mark.setAttribute("lang", saidIn);
+    what.appendChild(mark);
+    var title = el("bdi", "card-title", row.title);
+    title.setAttribute("lang", row.language);
+    title.setAttribute("dir", "auto");
+    what.appendChild(title);
+    if (row.english) {
+      var english = el("span", "card-english", row.english);
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      what.appendChild(english);
+    }
+
+    // The pipeline narrates itself in its own vocabulary; this is the reader's, from the
+    // same table the row's own build sentence uses.
+    var said = job.behind
+      ? tn("library.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+      : say(job.message) || t("library.build.almost", "Almost there…");
+    what.appendChild(el("span", "card-meta", said));
+
+    var share = job.total ? job.done / job.total : 0;
+    var track = el("span", "card-known-track");
+    var fill = el("span");
+    fill.style.inlineSize = Math.max(2, Math.min(100, Math.round(share * 100))) + "%";
+    track.appendChild(fill);
+    var going = el("span", "card-known card-going");
+    going.appendChild(track);
+    what.appendChild(going);
+
+    box.appendChild(what);
+    item.appendChild(box);
     return item;
   }
 
@@ -1385,6 +1494,13 @@
   function matches(row, code, using) {
     var state = using || view;
     if (!inLanguage(row, code)) return false;
+    /* A build in progress is on the shelf whatever the filters say (design.md §12,
+       2026-09-17). Nothing about it is measured yet — no kind, no register, no hard-word
+       share — so every narrowing control would hide it, and the one row the reader is
+       actually waiting on would be the one row they could not find. It answers to the
+       tab and to the language, which are the two questions about *where* it is rather
+       than about what it is like. */
+    if (row.building) return state.where === "mine";
     if (state.kind && row.kind !== state.kind) return false;
     if (code === lang.HOME && state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
@@ -1975,7 +2091,12 @@
     return found;
   }
 
-  ask("/readers").then(function (data) {
+  /* The shelf and what is building on it, asked for together (design.md §12,
+     2026-09-17). `/jobs` is what the bell polls; the library reads the same answer, so
+     the two can never disagree about what is happening. */
+  Promise.all([ask("/readers"), ask("/jobs").catch(function () { return {}; })]).then(function (both) {
+    var data = both[0] || {};
+    buildingNow = (both[1] && both[1].jobs) || [];
     var readers = data.readers || [];
     var shared = data.shared || [];
     catalogueKnown = data.catalogue || {};
@@ -2225,6 +2346,43 @@
       if (code && code !== chosen) return show(code);
       redraw();
     }
+
+    /* While anything is building, ask again (design.md §12, 2026-09-17).
+     *
+     * Only while: a shelf with nothing on the way polls nothing, the same rule the bell
+     * follows, and for the same reason — a page left open overnight should not be a page
+     * asking a question every three seconds until morning. When a build finishes, its row
+     * stops being a build and `/readers` has the text it became, so both are asked for
+     * again and the card turns into the real one in the same draw.
+     */
+    var following = null;
+    function follow() {
+      var going = buildingNow.some(function (job) {
+        return job.stage !== "done" && !job.error;
+      });
+      if (!going) {
+        if (following) clearInterval(following);
+        following = null;
+        return;
+      }
+      if (following) return;
+      following = setInterval(function () {
+        var nothing = function () {
+          return {};
+        };
+        Promise.all([ask("/jobs").catch(nothing), ask("/readers").catch(nothing)]).then(
+          function (both) {
+            buildingNow = (both[0] && both[0].jobs) || [];
+            if (both[1] && both[1].readers) {
+              everything = rows(both[1].readers, both[1].shared || []);
+            }
+            redraw();
+            follow();
+          }
+        );
+      }, 3000);
+    }
+    follow();
 
     find.value = view.find || "";
     find.addEventListener("input", function () {

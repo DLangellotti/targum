@@ -58,18 +58,26 @@ const byId = install({
 // Learn links here with the id in the hash, and `pointAt` is what answers it.
 if (payload.hash) global.location.hash = payload.hash;
 
-global.fetch = () =>
+/* Two answers now: the shelf, and what is building on it (design.md §12, 2026-09-17).
+   The library asks for both at once, so the stub tells them apart by the address rather
+   than answering everything with the readers. */
+var shelfAnswer = {
+  readers: payload.readers || [],
+  shared: payload.shared || [],
+  covers: !!payload.covers,
+  // How much of each catalogue text this reader knows, for the rows they have not
+  // built (targum-internal#293). It is what "at my level" is measured with, so a
+  // test of that has to be able to set it.
+  catalogue: payload.catalogueKnown || {},
+};
+
+global.fetch = (address) =>
   Promise.resolve({
+    ok: true,
     json: () =>
-      Promise.resolve({
-        readers: payload.readers || [],
-        shared: payload.shared || [],
-        covers: !!payload.covers,
-        // How much of each catalogue text this reader knows, for the rows they have not
-        // built (targum-internal#293). It is what "at my level" is measured with, so a
-        // test of that has to be able to set it.
-        catalogue: payload.catalogueKnown || {},
-      }),
+      Promise.resolve(
+        String(address).indexOf("/jobs") >= 0 ? { jobs: payload.jobs || [] } : shelfAnswer
+      ),
   });
 
 require(path.join(assets, "strings.js"));
@@ -110,6 +118,9 @@ setTimeout(() => {
       fresh: find("card-new").textContent || "",
       chip: find("row-next").textContent || "",
       state: find("row-state").textContent || "",
+      // A build in progress, drawn as a card that is not a press (design.md §12,
+      // 2026-09-17): the word over the title, and the sentence saying where it has got.
+      making: find("card-making").textContent || "",
       meta: find("card-meta").textContent || "",
       known: (find("card-known").children || []).map((c) => c.textContent).join(""),
       group: open.getAttribute("data-group") || "",
@@ -163,6 +174,10 @@ setTimeout(() => {
       opens: open.tagName,
     };
   };
+  /* Written, then done. The page polls while anything is building (design.md §12,
+     2026-09-17) and an interval keeps node alive for ever; this is a reporter, so it
+     says what it drew and stops rather than waiting for a build that will never
+     finish. */
   process.stdout.write(
     JSON.stringify({
       rows: rows.map(read),
@@ -225,4 +240,5 @@ setTimeout(() => {
       ),
     })
   );
+  process.exit(0);
 }, 20);

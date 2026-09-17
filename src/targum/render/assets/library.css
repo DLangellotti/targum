@@ -1102,3 +1102,13 @@
    a numbered scene is never new; leaf, because §4 gives green to progress and what is new
    on a shelf is the shelf's own progress. Not a badge: no fill, no count, no reward. */
 .card-new { color: var(--leaf); }
+
+/* A text being built (design.md §12, 2026-09-17). A card that is not a press: there is
+   nothing to open yet and nothing to buy again, so it has no hover lift and no pointer.
+   Quieter than its neighbours, because it is not offering itself — it is reporting. */
+.card-building { cursor: default; background: color-mix(in srgb, var(--card) 70%, var(--ground)); }
+.card-building:hover { box-shadow: var(--shadow-rest); }
+.card-making { color: var(--teal); }
+/* Teal, not leaf: this is a control's colour because it is the product working, and §4
+   keeps green for what the reader has achieved. Nothing here is theirs yet. */
+.card-going .card-known-track > span { background: var(--teal); }

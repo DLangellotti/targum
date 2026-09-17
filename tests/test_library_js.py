@@ -1303,3 +1303,71 @@ def test_undated_rows_keep_the_order_the_catalogue_put_them_in(tmp_path: Path) -
     assert order[0] == "מתוארך", f"a dated row outranks every undated one: {order}"
     assert order[1:] == ["שלישי", "שני", "ראשון"], order
     assert all(row["fresh"] == "" for row in drawn["rows"]), "and none of them is New"
+
+
+# --- a build is on the shelf while it is building (design.md §12, 2026-09-17) ---------
+
+
+def job(**extra):
+    """One build in progress, as `/jobs` describes it."""
+    row = {
+        "id": "j1",
+        "title": "ספר חדש",
+        "english": "A new book",
+        "language": "he",
+        "stage": "working",
+        "done": 3,
+        "total": 10,
+        "message": "Adding vowel points…",
+        "error": "",
+        "reader": "",
+        "behind": 0,
+    }
+    row.update(extra)
+    return row
+
+
+def test_a_text_being_built_is_on_the_shelf_already(tmp_path: Path) -> None:
+    """ "I need a more obvious place to see the progress — the notifications tab is too
+    easy to miss." The bell follows the reader everywhere, which is what makes it
+    ambient; the shelf is where they were going."""
+    drawn = browse(tmp_path, jobs=[job()], view={"where": "mine"})
+    row = next(row for row in drawn["rows"] if row["title"] == "ספר חדש")
+    assert row["making"] == "Building"
+    assert row["meta"] == "We're adding vowel points…", row["meta"]
+    assert row["opens"] == "span", "not a link and not a button: nothing to press yet"
+
+
+def test_a_build_is_filed_under_your_uploads_and_not_the_catalogue(tmp_path: Path) -> None:
+    """That tab is "texts of mine", and a build is exactly that until it exists."""
+    mine = browse(tmp_path, jobs=[job()], view={"where": "mine"})
+    assert any(row["title"] == "ספר חדש" for row in mine["rows"])
+    everybody = browse(tmp_path, jobs=[job()], view={"where": "library"})
+    assert not any(row["title"] == "ספר חדש" for row in everybody["rows"])
+
+
+def test_no_filter_can_hide_the_text_you_are_waiting_on(tmp_path: Path) -> None:
+    """Nothing about a build is measured yet — no kind, no register, no hard-word share —
+    so every narrowing control would hide it, and the one row the reader is actually
+    waiting on would be the one they could not find."""
+    narrow = {"where": "mine", "kind": "poetry", "register": "biblical", "fit": "now"}
+    drawn = browse(tmp_path, jobs=[job()], view=narrow)
+    assert [row["title"] for row in drawn["rows"]] == ["ספר חדש"], drawn["rows"]
+
+
+def test_a_finished_or_failed_build_is_not_a_row(tmp_path: Path) -> None:
+    """It became a text, or it did not happen. Either way the shelf has the truth about
+    it and this row would be a second, older copy of that truth."""
+    made = job(stage="done", reader="mine-he/reader")
+    done = browse(tmp_path, jobs=[made], view={"where": "mine"})
+    assert not any(row["title"] == "ספר חדש" for row in done["rows"])
+    broke = browse(tmp_path, jobs=[job(error="it broke")], view={"where": "mine"})
+    assert not any(row["title"] == "ספר חדש" for row in broke["rows"])
+
+
+def test_a_build_waiting_its_turn_says_so_rather_than_looking_stuck(tmp_path: Path) -> None:
+    """A second build behind a first one showed no progress at all and read as broken."""
+    queued = job(stage="queued", behind=2, message="")
+    drawn = browse(tmp_path, jobs=[queued], view={"where": "mine"})
+    row = next(row for row in drawn["rows"] if row["title"] == "ספר חדש")
+    assert row["meta"] == "Waiting behind 2 builds", row["meta"]

@@ -320,6 +320,44 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A build is on the shelf while it is building — 2026-09-17
+
+"When I upload something via /add or when I start a build a chat, I need a more obvious
+place to see the progress → Notifications tab is too easy to miss."
+
+The bell was not wrong about what it fixed. `building.js` records what it replaced: one
+pill, fixed at the foot, showing one build at a time, which could not survive leaving the
+page that started it. The panel shows every build, newest first, each dismissable, and it
+follows the reader from page to page. What it is not is **findable while you are waiting**
+— a corner glyph with a count is ambient, and a build you have just started is the
+opposite of ambient.
+
+- **A text being built is a row on the shelf, from the moment it starts.** It appears in
+  Your uploads with its title and a line saying how far it has got, and becomes the
+  ordinary row when it is done. That is where the reader was going anyway; the library is
+  the one page that can honestly say "everything of yours is here", and a text that only
+  existed in a notification until it finished made that false for the ten minutes it
+  mattered.
+
+- **The page that started it still narrates it.** `/add` already did and keeps doing it.
+  The two are not a duplicate: one is where you are, the other is where you go.
+
+- **The bell keeps everything else** — finished builds, followed series, anything landing
+  while the reader is elsewhere.
+
+**Nothing new is fixed at the foot of the window.** §13 ends "nothing is fixed at the foot
+of the window but the pill", and the straightforward reading of the note was to put the
+old pill back and amend that sentence. This does not, and the reason is worth keeping: a
+thing fixed over the page is a thing that covers the page, and the reader already has two
+of them. Walking away wanted a *destination*, not a second badge, and the shelf is the
+destination.
+
+Not in tension with "any notification is fatal" (2026-09-16), which is about pushing at a
+reader who is not there. This is a page telling a reader who is there, and waiting, what
+is happening.
+
+Built under targum-internal#317.
+
 ### A video text opens as its transcript, and a vertical one is vertical — 2026-09-17
 
 This reverses "A video text opens as video" below, which is a fortnight old and came from

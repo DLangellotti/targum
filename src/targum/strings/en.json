@@ -1649,5 +1649,8 @@
   "library.sort.added": "Newest",
   "library.sort.difficulty": "Easiest",
   "library.sort.known": "Words you know",
-  "library.page.order-them-by": "Order them by"
+  "library.page.order-them-by": "Order them by",
+  "library.building": "Building",
+  "library.building.behind.one": "Waiting behind {n} build",
+  "library.building.behind.other": "Waiting behind {n} builds"
 }
