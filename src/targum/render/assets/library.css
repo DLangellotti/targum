@@ -947,8 +947,20 @@
 }
 .chip-n { font-size: 0.8125rem; opacity: 0.66; font-variant-numeric: tabular-nums; }
 
-/* Cards or the table, as two quiet words at the end of the controls. */
-.shape { display: flex; gap: 0.2rem; }
+/* How the list is ordered and which shape it is in, as quiet words at the end of the
+   controls. They sit together and wrap together: two groups that broke onto separate
+   lines read as two unrelated rows, and they are one question asked twice — what order,
+   and in what shape. `margin-inline-start: auto` on the first puts both at the far end
+   on a wide row and does nothing once the row wraps. */
+.shape { display: flex; gap: 0.2rem; align-items: center; }
+#sorts { margin-inline-start: auto; }
+/* A hairline between the two groups, so "Words you know" and "Cards" are not read as one
+   list of five. Drawn on the second group so it never shows when the first is hidden —
+   which it is under the table, where the headings say the order already. */
+#sorts:not([hidden]) + #shape {
+  padding-inline-start: 0.5rem;
+  border-inline-start: 1px solid var(--hairline);
+}
 .shape button {
   border: 0;
   border-radius: 999px;
