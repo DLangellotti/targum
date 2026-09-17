@@ -1167,44 +1167,98 @@
      The fixed sequence is the numbered scenes for modern Hebrew and the shared Biblical
      texts (Ruth) for the other; a box with no scenes seeded falls back to whatever
      shared modern text it has. */
-  /* --- the arrival (targum-internal#294) ------------------------------------ */
+  /* --- the arrival (targum-internal#294, rewritten as subjects 2026-09-17) --- */
 
-  /* The one question a new reader is asked: which Hebrew they came for.
+  /* The one question a new reader is asked: what they are interested in.
    *
-   * Deliberately **not** a level. The comment on the doors above has said since it was
-   * written that nobody is asked how good they are, and that what tells a beginner from
-   * a false beginner is what they have marked — which the claim grid measures and this
-   * could only guess at. This asks the thing no measurement can answer: somebody who
-   * came for the week's portion and somebody who came for the news have the same word
-   * count and want different shelves.
+   * **Subjects, in a person's own words.** The first version asked in the library's
+   * terms — "Everyday Hebrew, spoken", "The week's Torah portion", "Something to watch"
+   * — which are a register, a collection and a file format. Nobody thinks of themselves
+   * that way. They think they like sport, or history, or archaeology. The shelf is the
+   * thing that should do the translating, and this is where it starts.
    *
-   * Each answer names a register and, where it is narrower than a register, a kind. The
-   * four are the four things that are seeded and open at once; a door onto something
-   * that has to be built first is not a door.
+   * **Three at least.** One subject is a label and two is a preference; three is the
+   * first number that describes somebody. It also stops the answer being a route: with
+   * one door the next press had to land on a text, so a door with nothing behind it was
+   * a dead end and was left out. Three is a profile, a profile may name something the
+   * library has not got, and that it was named is the most useful thing anybody can
+   * say about what to build next. So every subject is offered, including the empty
+   * ones, and the texts are filed behind them as they arrive.
+   *
+   * **Still not a level.** Nobody is asked how good they are, and nothing is stored
+   * about which rung they are on. That question is real — the reader who already reads
+   * Hebrew meets a beginner's shelf and nothing on the first screen has been marked yet
+   * to tell them apart — and it is open as targum-internal#306 rather than settled here.
+   * Until it is answered the claim grid below is the only thing that sets a count, and
+   * it sets it by measuring.
    */
   var INTERESTS = [
-    { id: "spoken", register: "modern", kind: "dialogue" },
-    { id: "portion", register: "biblical" },
-    // Video is a fact about a text's source, not one of the eleven `Kind`s — the shelf
-    // row carries it as a flag, and asking for `kind === "video"` matched nothing.
-    { id: "video", register: "modern", video: true },
+    // `tags` are `catalogue.Tag` values carried on the shelf row; `kinds` are `Kind`s,
+    // for the subjects the catalogue files by form rather than by topic. A subject
+    // matches a row if any of either does.
+    { id: "everyday", kinds: ["dialogue"] },
+    { id: "judaism", tags: ["tanakh", "judaica"] },
+    { id: "news", tags: ["journalism"] },
+    { id: "sport", tags: ["sport"] },
+    { id: "stories", kinds: ["story", "novel", "play"] },
+    { id: "poetry", kinds: ["poetry"] },
+    { id: "history", tags: ["history"] },
+    { id: "archaeology", tags: ["archaeology"] },
+    { id: "science", tags: ["science"] },
+    { id: "technology", tags: ["technology"] },
+    { id: "health", tags: ["health"] },
+    { id: "food", tags: ["food"] },
+    { id: "travel", tags: ["travel"] },
+    { id: "music", tags: ["music"] },
+    { id: "art", tags: ["art"] },
+    { id: "politics", tags: ["politics"] },
+    { id: "business", tags: ["business"] },
+    { id: "philosophy", tags: ["philosophy"] },
+    { id: "language", tags: ["language"] },
   ];
+
+  //: How many subjects the reader is held to. Matches `accounts.Store.INTERESTS_WANTED`.
+  var WANTED = 3;
 
   function interestLabels() {
     return {
-      spoken: t("learn.arrival.spoken", "Everyday Hebrew, spoken"),
-      portion: t("learn.arrival.portion", "The week's Torah portion"),
-      video: t("learn.arrival.video", "Something to watch"),
+      everyday: t("learn.arrival.everyday", "Everyday life in Israel"),
+      judaism: t("learn.arrival.judaism", "Torah and Judaism"),
+      news: t("learn.arrival.news", "News"),
+      sport: t("learn.arrival.sport", "Sport"),
+      stories: t("learn.arrival.stories", "Stories and novels"),
+      poetry: t("learn.arrival.poetry", "Poetry"),
+      history: t("learn.arrival.history", "History"),
+      archaeology: t("learn.arrival.archaeology", "Archaeology"),
+      science: t("learn.arrival.science", "Science and nature"),
+      technology: t("learn.arrival.technology", "Technology"),
+      health: t("learn.arrival.health", "Health and medicine"),
+      food: t("learn.arrival.food", "Food and cooking"),
+      travel: t("learn.arrival.travel", "Travel and places"),
+      music: t("learn.arrival.music", "Music and songs"),
+      art: t("learn.arrival.art", "Art"),
+      politics: t("learn.arrival.politics", "Politics"),
+      business: t("learn.arrival.business", "Business and money"),
+      philosophy: t("learn.arrival.philosophy", "Philosophy and ideas"),
+      language: t("learn.arrival.language", "The Hebrew language itself"),
     };
   }
 
-  //: Whether one shelf row is the thing a door asks for. Register always; a kind or the
-  //: video flag where the door is narrower than its register.
+  //: Whether one shelf row is a thing this subject asks for. Any tag, or any kind.
   function wanted(reader, want) {
-    if (reader.register !== want.register) return false;
-    if (want.video) return !!reader.video;
-    if (want.kind) return reader.kind === want.kind;
-    return true;
+    var i;
+    var carried = reader.tags || [];
+    if (want.tags) {
+      for (i = 0; i < want.tags.length; i++) {
+        if (carried.indexOf(want.tags[i]) !== -1) return true;
+      }
+    }
+    if (want.kinds) {
+      for (i = 0; i < want.kinds.length; i++) {
+        if (reader.kind === want.kinds[i]) return true;
+      }
+    }
+    return false;
   }
 
   function interestOf(id) {
@@ -1212,76 +1266,119 @@
     return null;
   }
 
-  //: What this reader said they came for. Kept on the account, so it travels between
-  //: devices the way the rest of the profile does; the browser holds a copy so the row
-  //: does not flash back on a page drawn before `/account/me` answers.
+  /* What this reader said, kept on the account so it travels between devices the way the
+     rest of the profile does. The browser holds a copy so the row does not flash back on
+     a page drawn before `/account/me` answers. A comma-separated list since the answer
+     stopped being one word. */
   var ARRIVED = "targum:arrived";
-  var arrived = "";
-  try {
-    arrived = localStorage.getItem(ARRIVED) || "";
-  } catch (e) {
-    arrived = "";
+
+  function readList(key) {
+    var raw = "";
+    try {
+      raw = localStorage.getItem(key) || "";
+    } catch (e) {
+      raw = "";
+    }
+    var out = [];
+    raw.split(",").forEach(function (word) {
+      var id = word.replace(/^\s+|\s+$/g, "");
+      if (id && interestOf(id)) out.push(id);
+    });
+    return out;
   }
 
-  function remember(id) {
-    arrived = id;
+  var arrived = readList(ARRIVED);
+
+  function keep(key, value) {
     try {
-      if (window.targumKeep) window.targumKeep(ARRIVED, id);
-      else localStorage.setItem(ARRIVED, id);
+      if (window.targumKeep) window.targumKeep(key, value);
+      else localStorage.setItem(key, value);
     } catch (e) {
       /* nowhere to keep it; the account still has it */
     }
-    fetch(keyed("/account/interest"), {
+  }
+
+  function post(where, body) {
+    fetch(keyed(where), {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ interest: id }),
+      body: JSON.stringify(body),
     }).catch(function () {
       /* the browser's copy still decides this visit */
     });
+  }
+
+  function remember(ids) {
+    arrived = ids.slice();
+    keep(ARRIVED, arrived.join(","));
+    post("/account/interest", { interest: arrived });
   }
 
   /* The row itself. Shown only to a reader who has opened nothing in Hebrew and
      answered nothing — so it is asked once, it never interrupts somebody who is already
      reading, and answering it makes it go away for good.
 
-     A door whose shelf has nothing seeded behind it is left out rather than drawn and
-     disappointing: four doors of which one leads nowhere is worse than three that all
-     work. */
+     Every subject is drawn, whether or not the shelf can answer it yet. The rule this
+     drops — a door with nothing seeded behind it is left out rather than drawn and
+     disappointing — belonged to the version where one answer routed straight to a text.
+     Nothing is routed on a press now: the reader picks three, says where they are, and
+     the sheet underneath is chosen from whichever of their subjects the shelf can
+     actually satisfy. */
   function drawArrival(asking, readers, shared, again) {
     var host = document.getElementById("arrival");
     var row = document.getElementById("arrival-doors");
-    if (!host || !row) return;
+    var done = document.getElementById("arrival-done");
+    var count = document.getElementById("arrival-count");
+    if (!host || !row || !done) return;
     if (!asking) {
       host.hidden = true;
       return;
     }
     var labels = interestLabels();
-    var pool = (shared || []).concat(readers || []);
+    var picked = [];
     row.textContent = "";
-    var drawn = 0;
+
+    function settle() {
+      var enough = picked.length >= WANTED;
+      done.disabled = !enough;
+      if (!count) return;
+      var short = WANTED - picked.length;
+      count.textContent =
+        short > 0
+          ? t("learn.arrival.pick-more", "Pick {n} more").replace("{n}", String(short))
+          : "";
+    }
+
     INTERESTS.forEach(function (want) {
-      var there = pool.some(function (reader) {
-        return base(reader.language) === lang.HOME && wanted(reader, want);
-      });
-      if (!there) return;
       var press = document.createElement("button");
       press.type = "button";
       press.className = "arrival-door";
+      press.setAttribute("aria-pressed", "false");
       press.textContent = labels[want.id] || want.id;
       press.addEventListener("click", function () {
-        remember(want.id);
-        host.hidden = true;
-        // Drawn again rather than navigated: the sheet swaps to what they asked for, on
-        // the page they are already looking at.
-        if (again) again();
+        var at = picked.indexOf(want.id);
+        if (at === -1) picked.push(want.id);
+        else picked.splice(at, 1);
+        var on = at === -1;
+        press.setAttribute("aria-pressed", on ? "true" : "false");
+        press.classList.toggle("is-picked", on);
+        settle();
       });
       row.appendChild(press);
-      drawn += 1;
     });
-    // Fewer than two is not a choice, and a row with one button in it is a page telling
-    // somebody what they wanted.
-    host.hidden = drawn < 2;
+
+
+    done.onclick = function () {
+      if (picked.length < WANTED) return;
+      remember(picked);
+      host.hidden = true;
+      // Drawn again rather than navigated: the sheet swaps to what they asked for, on
+      // the page they are already looking at.
+      if (again) again();
+    };
+    settle();
+    host.hidden = false;
   }
 
   /* --- words you may already know, on the way in (targum-internal#297) ------- */
@@ -1507,25 +1604,29 @@
           var modern = trackDoor(code, "modern", readers, shared);
           var biblical = trackDoor(code, "biblical", readers, shared);
           var door = biblical.reader && biblical.opened > modern.opened ? biblical : modern;
-          var came = interestOf(arrived);
-          if (came && !modern.opened && !biblical.opened) {
-            // Not `wanted`: that is the predicate above, and a local of the same name
-            // shadows it for the whole of `show`, which is how the video door came to
-            // call an object as a function and draw no sheet at all.
-            var toward = came.register === "biblical" ? biblical : modern;
-            // Narrower than a register where the answer was: the news is a weekly, a
-            // video is a video. Only among what is already seeded — a suggestion that
-            // has to be built first is not one, so anything narrower that is not here
-            // falls back to its register's own door rather than to nothing.
-            if (came.video || (came.kind && came.kind !== "dialogue")) {
-              var narrower = handed.filter(function (reader) {
+          if (arrived.length && !modern.opened && !biblical.opened) {
+            // The subjects in the order they are offered, first one the shelf can
+            // actually answer wins. Most of the nineteen have nothing behind them yet,
+            // on purpose — the answer is a profile, not a route — so this looks for the
+            // first that does rather than assuming the first named does.
+            //
+            // Not `wanted` as a variable: that is the predicate above, and a local of
+            // the same name shadows it for the whole of `show`, which is how the video
+            // door once came to call an object as a function and draw no sheet at all.
+            var found = null;
+            for (var w = 0; w < arrived.length && !found; w++) {
+              var came = interestOf(arrived[w]);
+              if (!came) continue;
+              found = handed.filter(function (reader) {
                 return wanted(reader, came);
               })[0];
-              if (narrower) {
-                toward = { state: "start", reader: narrower, opened: 0, register: narrower.register };
-              }
             }
-            if (toward.reader) door = toward;
+            if (found) {
+              // The track is read off the text rather than off the subject: "judaism"
+              // lands on a biblical row and "sport" on a modern one, and the row itself
+              // is the only thing that knows which.
+              door = { state: "start", reader: found, opened: 0, register: found.register };
+            }
           }
           // A text of another register — revival, rabbinic, a novel — belongs to neither
           // track; opened more recently than either track's door, it is what the reader
@@ -1534,7 +1635,7 @@
           if (latest && latest.opened > Math.max(modern.opened || 0, biblical.opened || 0)) {
             door = { state: "carry", reader: latest, opened: latest.opened, register: latest.register };
           }
-          drawArrival(!arrived && !modern.opened && !biblical.opened, readers, shared, function () {
+          drawArrival(!arrived.length && !modern.opened && !biblical.opened, readers, shared, function () {
             show(code);
           });
           door.primary = true;
@@ -1624,14 +1725,15 @@
         // asked again on a laptop. Only ever adopted, never cleared from here — an
         // answer this browser has and the account has not is one that has not reached
         // the server yet (targum-internal#294).
-        if (me && me.signedIn && me.interest && me.interest !== arrived) {
-          arrived = me.interest;
-          try {
-            if (window.targumKeep) window.targumKeep(ARRIVED, me.interest);
-            else localStorage.setItem(ARRIVED, me.interest);
-          } catch (e) {
-            /* this visit still has it in memory */
-          }
+        var theirs = (me && me.signedIn && me.interest) || [];
+        var same =
+          theirs.length === arrived.length &&
+          theirs.every(function (word, at) {
+            return word === arrived[at];
+          });
+        if (theirs.length && !same) {
+          arrived = theirs.slice();
+          keep(ARRIVED, arrived.join(","));
         }
       })
       .catch(function () {});

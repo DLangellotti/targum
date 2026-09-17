@@ -44,7 +44,13 @@ class Tag(StrEnum):
     What the split was really for survives, and is the reason this is data rather than a
     heading: some readers — ultra-Orthodox ones especially — would rather not be shown
     secular material at all. Tagging says which texts those readers came for, so a Beit
-    Midrash mode can one day show only them. Nothing filters on this today.
+    Midrash mode can one day show only them.
+
+    Since the arrival began asking in subjects (targum-internal#307) this is also the
+    vocabulary those doors are answered from, so the list runs well past what is filed
+    today. A tag with nothing behind it is not a mistake here: the door is drawn either
+    way and the texts are tagged as they arrive, which is the order those two jobs
+    actually happen in.
     """
 
     #: The twenty-four books.
@@ -61,6 +67,43 @@ class Tag(StrEnum):
     #: the fastest, most colloquial Hebrew in the catalogue and a reader either wants them
     #: or does not.
     sport = "sport"
+
+    # The subjects below arrived with the arrival's doors (targum-internal#307). They are
+    # named the way a person says what they are interested in, not the way a librarian
+    # files it: a reader says "archaeology", never "material culture, Levantine".
+    #
+    #: How things work — physics, biology, chemistry, the sky, the ground. The Khan
+    #: talks are the whole of it today.
+    science = "science"
+    #: What happened, and writing about it. Not a text that is merely old: the Tanakh is
+    #: not history to the reader who came for history.
+    history = "history"
+    #: Digs, finds and what they settle. Nothing carries it yet.
+    archaeology = "archaeology"
+    #: Machines, software, the internet.
+    technology = "technology"
+    #: Bodies, medicine, what to do about them.
+    health = "health"
+    #: Cooking and eating, which is the one subject every learner has a use for by the
+    #: end of their first week.
+    food = "food"
+    #: Places, and going to them.
+    travel = "travel"
+    #: Songs, players, the making of them. A song's words are the first Hebrew many
+    #: people learn on purpose.
+    music = "music"
+    #: Pictures, buildings, and looking at them.
+    art = "art"
+    #: Government, elections, argument. Its own tag rather than a corner of `journalism`,
+    #: because a reader who wants the news does not always want this.
+    politics = "politics"
+    #: Work, money, what things cost.
+    business = "business"
+    #: Ideas, argued. The revival essayists are here once they are filed.
+    philosophy = "philosophy"
+    #: Hebrew itself — its words, where they came from, how it is said. The Ben-Yehuda
+    #: articles about pronunciation are exactly this and nothing else.
+    language = "language"
 
 
 #: The tags a Beit Midrash mode would keep. Named explicitly because `Tag` stopped being a

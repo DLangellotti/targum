@@ -38,6 +38,7 @@ import secrets
 import sqlite3
 import threading
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -107,16 +108,20 @@ SESSION_DAYS = 90
 #    (targum-internal#303).
 #
 # 20: person.interest — what a reader said they came to read, asked once on arrival and
-#    never again (targum-internal#294). Deliberately not a level: `learn.js` has said
-#    since it was written that nobody is asked how good they are, and what tells a
-#    beginner from a false beginner is what they have marked. This is the other
-#    question, the one no measurement can answer — not how much Hebrew somebody has,
-#    but which Hebrew they came for.
+#    never again (targum-internal#294). It held one of four words describing a shelf.
+#    Since 21 it holds a comma-separated list of subjects; the migration below carries
+#    the old four across.
+#
+# 21: person.interest holds a list. The arrival asks in subjects a person would use
+#    rather than in the registers the shelf is built from, and takes three or more
+#    (targum-internal#294, 2026-09-17). A level is deliberately **not** asked here:
+#    targum-internal#306 is open and undecided, and until it is answered nothing about
+#    how good a reader says they are is stored.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 20
+SCHEMA_VERSION = 21
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -243,6 +248,13 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE job ADD COLUMN cache_read INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN cache_write INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN cache_cost REAL NOT NULL DEFAULT 0",
+    # `interest` held one word describing a shelf and now holds a list of subjects. The
+    # two that have a subject keep it; `video` was a format rather than a subject and
+    # nothing it meant survives translation, so it goes back to unanswered and the
+    # reader is asked again. Idempotent: after the first run no row holds the old words.
+    "UPDATE person SET interest = 'everyday' WHERE interest = 'spoken'",
+    "UPDATE person SET interest = 'judaism' WHERE interest = 'portion'",
+    "UPDATE person SET interest = '' WHERE interest = 'video'",
 )
 
 SCHEMA = """
@@ -961,45 +973,104 @@ class Store:
             "initials": initials(row["name"], row["email"]),
             "since": row["made"],
             "address": row["address"] or "",
-            "interest": row["interest"] or "",
+            # A list since 2026-09-17, and sent as one: a page that has to split a
+            # string on a comma is a page that will one day forget to.
+            "interest": list(self.interests_of(str(row["interest"] or ""))),
         }
 
-    #: What a reader can say they came to read, asked once when they arrive
-    #: (targum-internal#294). Four, because the shelf has four things that are seeded
-    #: and open at once — everyday spoken Hebrew, the week's portion, the news, and a
-    #: video — and a door onto something that has to be built first is not a door.
+    #: What a reader can say they are interested in, asked when they arrive
+    #: (targum-internal#294, rewritten as subjects 2026-09-17).
     #:
-    #: **Not a level.** `learn.js` has said since it was written that nobody is asked how
-    #: good they are, and it is right: what tells a beginner from a false beginner is
-    #: what they have marked, which the claim grid measures. This asks the question no
-    #: measurement can answer — which Hebrew somebody came for, not how much they have.
-    #: "news" was here and is not: the weekly is a series (`/series`), never a row on
-    #: `/readers`, so a door for it could not be satisfied from the shelf at all. It
-    #: comes back when it can be answered honestly — see targum-internal#294.
-    INTERESTS = ("", "spoken", "portion", "video")
+    #: **Subjects, in the words somebody uses about themselves.** The first version
+    #: asked in the library's own terms — "Everyday Hebrew, spoken", "The week's Torah
+    #: portion", "Something to watch" — which are a register, a collection and a file
+    #: format. Nobody describes themselves that way. They say they like sport, or
+    #: history, or archaeology, and the shelf is the thing that should do the
+    #: translating.
+    #:
+    #: **Longer than the shelf can answer.** Every subject is offered, including the
+    #: several with nothing behind them yet, and texts are filed under them as they
+    #: arrive. That drops the rule the first version held to — a door with nothing
+    #: seeded behind it is left out rather than drawn and disappointing — and the rule
+    #: was right for what it governed: one answer that had to route straight to a text,
+    #: where an empty door was a dead end on the first press. Three answers are a
+    #: profile rather than a routing decision. A profile is allowed to name something
+    #: the library has not got, and that it was named is the most useful thing anybody
+    #: can say about what to build next.
+    #:
+    #: Kept in step with `catalogue.Tag`: `targum.catalogue` files the texts and this
+    #: asks the question, and `tests/test_catalogue.py` pins that neither grows a
+    #: subject the other has never heard of.
+    INTERESTS: tuple[str, ...] = (
+        "everyday",
+        "judaism",
+        "news",
+        "sport",
+        "stories",
+        "poetry",
+        "history",
+        "archaeology",
+        "science",
+        "technology",
+        "health",
+        "food",
+        "travel",
+        "music",
+        "art",
+        "politics",
+        "business",
+        "philosophy",
+        "language",
+    )
 
-    def interest(self, person_id: int | None) -> str:
-        """What they said they came to read, or '' where they have not said."""
+    #: How many a reader is asked for. One is a label and two is a preference; three is
+    #: the first number that describes somebody, and it is cheap to give. The page
+    #: holds the reader to it — this is not enforced here, because clearing the answer
+    #: is a legitimate thing to do and a floor would make it impossible.
+    INTERESTS_WANTED = 3
+
+    def interest(self, person_id: int | None) -> tuple[str, ...]:
+        """The subjects they named, or empty where they have not answered."""
         if person_id is None:
-            return ""
+            return ()
         row = self.db.execute(
             "SELECT interest FROM person WHERE id = ?", (int(person_id),)
         ).fetchone()
-        return str(row["interest"] or "") if row is not None else ""
+        return self.interests_of(str(row["interest"] or "")) if row is not None else ()
 
-    def set_interest(self, person: Person, interest: str) -> str:
-        """Keep what they came for; anything else is refused.
+    @classmethod
+    def interests_of(cls, stored: str) -> tuple[str, ...]:
+        """The stored column read back as subjects, dropping anything retired.
+
+        Forgiving on the way out and strict on the way in: a column written by a newer
+        targum and read by an older one should lose the word it does not know rather
+        than refuse the whole row.
+        """
+        found = [word.strip().lower() for word in str(stored or "").split(",")]
+        return tuple(word for word in found if word in cls.INTERESTS)
+
+    def set_interest(self, person: Person, interest: str | Iterable[str]) -> tuple[str, ...]:
+        """Keep the subjects they named; anything not on the list is refused.
 
         Settable again rather than once: somebody who came for the portion and now wants
         the news should be able to say so, and a question that can only be answered once
         is a question people answer carefully instead of quickly.
+
+        Order is the vocabulary's, not the order they pressed in, so the column reads
+        the same for two readers who chose the same three.
         """
-        value = str(interest or "").strip().lower()
-        if value not in self.INTERESTS:
+        if isinstance(interest, str):
+            asked = [word.strip().lower() for word in interest.split(",")]
+        else:
+            asked = [str(word).strip().lower() for word in interest]
+        named = {word for word in asked if word}
+        unknown = named - set(self.INTERESTS)
+        if unknown:
             raise ValueError("No such choice.")
+        kept = tuple(word for word in self.INTERESTS if word in named)
         with self.write() as db:
-            db.execute("UPDATE person SET interest = ? WHERE id = ?", (value, person.id))
-        return value
+            db.execute("UPDATE person SET interest = ? WHERE id = ?", (",".join(kept), person.id))
+        return kept
 
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.

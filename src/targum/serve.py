@@ -1735,6 +1735,9 @@ class Library:
             return {
                 "kind": entry.kind.value,
                 "register": entry.register.value,
+                # What the text is about, so the arrival's subject doors can be answered
+                # from the shelf rather than from a second request (2026-09-17).
+                "tags": sorted(tag.value for tag in entry.tags),
                 "difficulty": entry.difficulty,
                 "minutes": entry.minutes,
                 "spoken": spoken.is_spoken(source),
@@ -1768,6 +1771,9 @@ class Library:
         return {
             "kind": kind,
             "register": "biblical" if is_biblical(source) else "modern",
+            # A reader's own text is not filed by subject: nothing has read it to say
+            # what it is about, and guessing would be worse than the empty list.
+            "tags": [],
             "difficulty": difficulty,
             "minutes": max(1, round(words / 130)),
             # The claim is made by whatever is actually there — for an import, the
@@ -5674,15 +5680,26 @@ class Handler(BaseHTTPRequestHandler):
         self._json(answer)
 
     def _interest(self, payload: dict[str, Any]) -> None:
-        """What a reader came to read, answered once on arrival (targum-internal#294)."""
+        """The subjects a reader named on arrival (targum-internal#294).
+
+        A list since 2026-09-17. A bare string is still read, because the column held
+        one word for three weeks and a page cached in somebody's browser will go on
+        sending one until it is reloaded.
+        """
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        asked = payload.get("interest")
+        named: str | list[str]
+        if isinstance(asked, list):
+            named = [str(word) for word in asked]
+        else:
+            named = str(asked or "")
         try:
-            kept = self.store.set_interest(person, str(payload.get("interest") or ""))
+            kept = self.store.set_interest(person, named)
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
-        self._json({"signedIn": True, "interest": kept})
+        self._json({"signedIn": True, "interest": list(kept)})
 
     def _address(self, payload: dict[str, Any]) -> None:
         """How the conversation addresses them in Hebrew (2026-09-14)."""

@@ -173,6 +173,13 @@ function act(step) {
     const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
     if (found) found.fire("click", {});
   }
+  // A subject on the arrival, by its label.
+  if (step.subject) {
+    const chip = Array.from(at("arrival-doors").children).find(
+      (p) => p.textContent === step.subject
+    );
+    if (chip) chip.fire("click", {});
+  }
   // A text offered by the conversation in the drawer, handed over by `talk.js`.
   if (step.offer) global.window.TargumLearn.open(step.offer);
   if (step.changed) global.window.TargumLearn.changed();
@@ -245,6 +252,15 @@ setTimeout(() => {
       arrival: at("arrival").hidden
         ? []
         : Array.from(at("arrival-doors").children).map((p) => p.textContent),
+      // What the arrival is holding: which subjects are pressed, and whether Done
+      // will take the answer yet.
+      picked: at("arrival").hidden
+        ? []
+        : Array.from(at("arrival-doors").children)
+            .filter((p) => p.getAttribute("aria-pressed") === "true")
+            .map((p) => p.textContent),
+      done: at("arrival").hidden ? null : !at("arrival-done").disabled,
+      counted: at("arrival").hidden ? "" : at("arrival-count").textContent,
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
       menu: menuOf("subscriptions"),
       // Recently read (2026-09-11): the same shape, with the way to the whole list.
