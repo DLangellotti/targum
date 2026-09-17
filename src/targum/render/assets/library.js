@@ -73,6 +73,56 @@
     ["liturgy", t("library.kind.liturgy", "Prayer")],
   ];
 
+  /* What a text is *about*, called what a person calls it when they say what they feel
+     like reading. The catalogue's `Tag` vocabulary runs well past what is filed — the
+     arrival draws its doors before the texts are tagged into them, on purpose — so this
+     names every value and the page draws only the ones with rows behind them
+     (design.md §12, 2026-09-17). An entry missing here is a subject nobody has named yet
+     and is simply not offered.
+
+     "Hebrew itself" rather than "Language": on a page about learning Hebrew, a chip
+     saying "Language" reads as the language switcher. "News" matches what the kinds
+     already call an article. */
+  var SUBJECTS = [
+    ["tanakh", t("library.subject.tanakh", "Tanakh")],
+    ["judaica", t("library.subject.judaica", "Judaica")],
+    ["journalism", t("library.subject.journalism", "News")],
+    ["sport", t("library.subject.sport", "Sport")],
+    ["science", t("library.subject.science", "Science")],
+    ["history", t("library.subject.history", "History")],
+    ["philosophy", t("library.subject.philosophy", "Philosophy")],
+    ["technology", t("library.subject.technology", "Technology")],
+    ["language", t("library.subject.language", "Hebrew itself")],
+    ["art", t("library.subject.art", "Art")],
+    ["business", t("library.subject.business", "Business")],
+    ["health", t("library.subject.health", "Health")],
+    ["archaeology", t("library.subject.archaeology", "Archaeology")],
+    ["food", t("library.subject.food", "Food")],
+    ["travel", t("library.subject.travel", "Travel")],
+    ["music", t("library.subject.music", "Music")],
+    ["politics", t("library.subject.politics", "Politics")],
+  ];
+
+  /* How much of a text this reader already knows, in three bands. The measure is the
+     share of *this text's* words they have marked as known — a fact about the pair of
+     them — and not `difficulty`, which is a fact about the text alone. A reader asking
+     "can I read this" is asking the first (design.md §12, 2026-09-17).
+
+     The cutoffs are the reading-comprehension ones: around 95% of running words known is
+     comfortable reading, and below about 80% a text stops being learnable by reading and
+     becomes a decoding exercise. Held a little lower than the literature's, because a
+     marked word here is a word somebody pressed rather than the whole of what they know. */
+  var COMFORTABLE = 85;
+  var WORKABLE = 65;
+
+  /* The one setting that is on before a reader touches anything. "Now" is the default and
+     the page says so in words above the list; the other two widen it. */
+  var FITS = [
+    ["now", t("library.fit.now", "you can read now")],
+    ["stretch", t("library.fit.stretch", "a step up from where you are")],
+    ["", t("library.fit.all", "everything")],
+  ];
+
   /* Which Hebrew a text is in, oldest first. Chronological rather than alphabetical, and
      never sorted: the five of them are a ramp a learner climbs, and putting Modern above
      Rabbinic because M precedes R would throw that away. */
@@ -279,6 +329,51 @@
     return minutes <= 120 ? "hour" : "long";
   }
 
+  /* Whether a row is within reach, and how far. Two answers to one question, because the
+     page has to give an honest one to a reader who has marked nothing yet.
+
+     With words marked, the measure is the reader's own: how much of this text they know.
+     With none — a first visit, or somebody who reads without pressing — every row would
+     answer 0% and "what you can read now" would be empty, which is the worst possible
+     first page. There the page falls back to the text's own hard-word share, which is
+     what it filtered on before any of this (design.md §12, 2026-09-17). */
+  var anyKnown = false;
+
+  function fitOf(row) {
+    if (anyKnown) {
+      var share = knownOf(row);
+      // `knownOf` answers in the unit the column prints it from — a fraction, not a
+      // percentage. Nothing measured is not a claim about the reader, so it sits in the
+      // middle rather than being hidden, the same way an unmeasured difficulty does.
+      if (typeof share !== "number") return "stretch";
+      var percent = share * 100;
+      if (percent >= COMFORTABLE) return "now";
+      return percent >= WORKABLE ? "stretch" : "hard";
+    }
+    // Nothing marked: the text's own difficulty stands in. Unmeasured is not "hard" —
+    // it is not a claim at all — so it sits in the middle rather than being hidden.
+    if (!measured(row)) return "stretch";
+    var band = level(row);
+    if (band === "easy") return "now";
+    return band === "mid" ? "stretch" : "hard";
+  }
+
+  /* Whether a row is filed under one subject. A list, not a value: a match report is
+     journalism and sport at once and belongs under both. */
+  function holdsSubject(row, tag) {
+    return (row.tags || []).indexOf(tag) >= 0;
+  }
+
+  /* "Now" means now; "a step up" means now *and* the step. A band that excluded what the
+     reader can already read would be a filter nobody wants: asked for something a little
+     harder, they still want the whole of what is open to them above it. */
+  function fits(row, want) {
+    if (!want) return true;
+    var where = fitOf(row);
+    if (want === "now") return where === "now";
+    return where === "now" || where === "stretch";
+  }
+
   function said(minutes) {
     if (minutes < 60) return t("library.minutes", "{n} min", { n: minutes });
     var hours = Math.round(minutes / 60);
@@ -356,6 +451,9 @@
         minutes: entry.minutes,
         spoken: !!entry.spoken,
         video: !!entry.video,
+        // What it is about (targum-internal#314). The server has sent these since the
+        // arrival began asking in subjects; nothing on this page read them until now.
+        tags: entry.tags || [],
         built: built || null,
         drawn: !!(built && built.drawn),
         opened: built ? built.opened || 0 : 0,
@@ -376,6 +474,9 @@
         minutes: reader.minutes,
         spoken: !!reader.spoken,
         video: !!reader.video,
+        // A reader's own text is filed under no subject: nothing has read it to say what
+        // it is about, and `serve.py` sends an empty list rather than a guess.
+        tags: reader.tags || [],
         built: reader,
         opened: reader.opened || 0,
       });
@@ -464,6 +565,16 @@
       video: rows.some(function (row) {
         return row.video;
       }),
+      // Every subject its texts are about, not only the ones they agree on. The Mishneh
+      // Torah is one row over thirteen sections; asking for Judaica must find it, and
+      // `shared()` — which is right for the kind and the register — would drop a subject
+      // that only some of its members carry.
+      tags: rows.reduce(function (all, row) {
+        (row.tags || []).forEach(function (tag) {
+          if (all.indexOf(tag) < 0) all.push(tag);
+        });
+        return all;
+      }, []),
       built: null,
       opened: 0,
     };
@@ -564,6 +675,200 @@
   function splitLevel(text) {
     var found = /^(.*[\u0590-\u05FF].*?) · ([A-Za-z][^\u0590-\u05FF]*)$/.exec(String(text || ""));
     return found ? { title: found[1], level: found[2] } : { title: text, level: "" };
+  }
+
+  /* One text as a card: the shape the page is browsed in (design.md §12, 2026-09-17).
+   *
+   * The same facts the row carries, laid out to be scanned rather than compared — the
+   * cover first, because a picture is what a browsing eye lands on, then the title in its
+   * own face, then one line of facts, then how much of it the reader knows. What the card
+   * adds over the row is the media mark, which sits on the cover: "without playing with
+   * checkboxes or dropdowns I want to see immediately what media is available" is
+   * answered by the layout and not by a control.
+   *
+   * A built text is a link and an unbuilt one is a button, exactly as in the table: what
+   * pressing an unbuilt row does is start spending, and a card must not quietly become a
+   * cheaper way to do that.
+   */
+  function card(row) {
+    var item = el("li", "card-item");
+    item.setAttribute("data-row", row.id);
+
+    var open = el(row.built ? "a" : "button", "card");
+    if (row.built) {
+      open.href = keyed("/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html");
+    } else {
+      open.type = "button";
+      open.setAttribute("data-build", row.id);
+    }
+
+    var cover = el("span", "card-cover");
+    cover.setAttribute("aria-hidden", "true");
+    cover.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(row.id)), {
+        title: row.title,
+        language: row.language,
+        drawn: row.entry ? row.drawn : false,
+      })
+    );
+    // One mark, never two: a video can be listened to as well, and a card saying both
+    // says less than one saying "video" does. The word is on the label rather than on
+    // the page, so the mark stays a mark.
+    if (row.video || row.spoken) {
+      var mark = el("span", "card-media");
+      mark.appendChild(glyph(row.video ? "video" : "audio"));
+      mark.setAttribute(
+        "aria-label",
+        row.video ? t("library.video", "Video") : t("library.audio", "Audio")
+      );
+      cover.appendChild(mark);
+    }
+    open.appendChild(cover);
+
+    var what = el("span", "card-what");
+    var number = window.TargumScenes ? window.TargumScenes.numberOf(row.id) : 0;
+    if (number) {
+      var scene = el("span", "card-scene", t("library.scene", "Scene {n}", { n: number }));
+      scene.setAttribute("lang", saidIn);
+      what.appendChild(scene);
+    }
+    // Its own direction and its own clip, so a long Hebrew title loses its end and never
+    // its start — the edge Hebrew begins at.
+    var split = splitLevel(row.title);
+    var title = el("bdi", "card-title", split.title);
+    title.setAttribute("lang", row.language);
+    title.setAttribute("dir", "auto");
+    what.appendChild(title);
+    // Where the beginner's path is, as the row carries it: "Start here" before anything
+    // has been read, "Next" after. A card that dropped this would take the one line on
+    // the page that says where to begin.
+    if (nextRow && row.id === nextRow.entry) {
+      var next = el(
+        "span",
+        "row-next",
+        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
+      );
+      next.setAttribute("role", "status");
+      next.setAttribute("lang", saidIn);
+      what.appendChild(next);
+    }
+    if (row.english) {
+      var english = el("span", "card-english", row.english);
+      english.setAttribute("lang", row.englishLang || "en");
+      english.setAttribute("dir", "ltr");
+      what.appendChild(english);
+    }
+
+    var meta = [named(KINDS, row.kind), said(row.minutes)];
+    if (measured(row)) {
+      meta.push(t("library.hard-words-share", "{share}% hard words", { share: row.difficulty || 0 }));
+    }
+    what.appendChild(el("span", "card-meta", meta.filter(Boolean).join(" · ")));
+
+    // The last line is the reader's own: how much of this text they already know. A text
+    // nobody has counted says so in words rather than claiming a nought.
+    var share = knownOf(row);
+    var mine = el("span", "card-known");
+    if (typeof share === "number") {
+      var shown = Math.round(share * 100);
+      var track = el("span", "card-known-track");
+      var fill = el("span");
+      fill.style.inlineSize = Math.max(2, Math.min(100, shown)) + "%";
+      track.appendChild(fill);
+      mine.appendChild(track);
+      mine.appendChild(
+        el("span", "card-known-say", t("library.you-know", "you know {share}% of its words", { share: shown }))
+      );
+    } else {
+      mine.appendChild(el("span", "card-known-say", t("library.known.none", "New to you")));
+    }
+    what.appendChild(mine);
+    // The cell a build narrates itself in, as the table's row has. Inside the pressed
+    // element and not beside it: `build()` finds it with `open.querySelector`, so a
+    // state cell hung on the list item is a state cell it throws on.
+    what.appendChild(el("span", "row-state"));
+
+    open.appendChild(what);
+    item.appendChild(open);
+    return item;
+  }
+
+  /* A collection, as a card among the cards.
+   *
+   * It is a shelf rather than a text: no cover of its own, and the press on it opens
+   * rather than reads. Drawn here rather than reusing the table's row, which was the
+   * first attempt and looked exactly like what it was — a row of grid cells with no grid
+   * around them, stacked vertically in the middle of a grid of cards.
+   *
+   * Its facts are its members' added up, the same ones `fold()` computes: how many texts,
+   * how long altogether, and whether any of them can be heard. */
+  function groupCard(row) {
+    var group = row.group;
+    var item = el("li", "card-item");
+    item.setAttribute("data-row", row.id);
+
+    var open = el("button", "card card-group" + (isOpen(group) ? " open" : ""));
+    open.type = "button";
+    open.setAttribute("aria-expanded", isOpen(group) ? "true" : "false");
+    open.setAttribute("data-group", group.id);
+
+    var caret = el("span", "card-fold");
+    caret.setAttribute("aria-hidden", "true");
+    open.appendChild(caret);
+
+    var what = el("span", "card-what");
+    var title = el("bdi", "card-title", row.title);
+    title.setAttribute("lang", row.language);
+    title.setAttribute("dir", "auto");
+    what.appendChild(title);
+    // Where the beginner's path is while the shelf holding it is shut. Once it is open
+    // the chip is on the scene itself; closed, a hundred scenes behind one card would
+    // otherwise take the only line on the page that says where to start.
+    if (nextRow && !isOpen(group) && group.members.indexOf(nextRow.entry) >= 0) {
+      var chip = el(
+        "span",
+        "row-next",
+        anyFinished ? t("library.next", "Next") : t("library.start-here", "Start here")
+      );
+      chip.setAttribute("role", "status");
+      chip.setAttribute("lang", saidIn);
+      what.appendChild(chip);
+    }
+    if (row.english) {
+      var english = el("span", "card-english", row.english);
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      what.appendChild(english);
+    }
+    var meta = [
+      tn("library.group-texts", row.rows.length, "{n} text", "{n} texts"),
+      said(row.minutes),
+    ];
+    if (row.video) meta.push(t("library.video", "Video"));
+    else if (row.spoken) meta.push(t("library.audio", "Audio"));
+    what.appendChild(el("span", "card-meta", meta.filter(Boolean).join(" · ")));
+    open.appendChild(what);
+    item.appendChild(open);
+    return item;
+  }
+
+  /* The two marks a cover can carry. §7: a 16 box, a 1.4 stroke, round caps, and no
+     fill — the same drawing rules the nav's glyphs follow. */
+  function glyph(which) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var paths =
+      which === "video"
+        ? ["M2.6 4.4h6.2a1.4 1.4 0 0 1 1.4 1.4v4.4a1.4 1.4 0 0 1-1.4 1.4H2.6a1.4 1.4 0 0 1-1.4-1.4V5.8a1.4 1.4 0 0 1 1.4-1.4z", "m10.2 8.2 4.2-2.4v4.8l-4.2-2.4z"]
+        : ["M8 2.6v10.8", "M5 5.4v5.2", "M2.4 7.2v1.6", "M11 4.8v6.4", "M13.6 7.2v1.6"];
+    paths.forEach(function (d) {
+      var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    });
+    return svg;
   }
 
   function draw(row, member) {
@@ -885,7 +1190,22 @@
   // somewhere else, and "Poetry, under ten minutes" set for one language is not what
   // the reader asked of the next. A store from before this is one flat view, and it was
   // Hebrew's.
-  var VIEW_FIELDS = ["sort", "dir", "kind", "register", "level", "length", "spoken", "where", "find"];
+  var VIEW_FIELDS = [
+    "sort",
+    "dir",
+    "kind",
+    "register",
+    "level",
+    "length",
+    "spoken",
+    "where",
+    "find",
+    // Since 2026-09-17: what a text is about, how far into reach it has to be, and
+    // whether the list is drawn as cards or as the table.
+    "subject",
+    "fit",
+    "shape",
+  ];
   var views = stored("targum:library");
   if (
     VIEW_FIELDS.some(function (field) {
@@ -907,7 +1227,56 @@
     if (!one.kind) one.kind = "";
     if (!one.register) one.register = "";
     if (!one.where) one.where = "library";
+    if (!one.subject) one.subject = "";
+    // `fit` is deliberately left unset here. What it defaults to depends on whether this
+    // reader has marked any words, which is not known until `/readers` answers — see
+    // `fitWanted`. Once they choose, the choice is stored and outranks both defaults.
+    if (!one.shape) one.shape = "cards";
     return one;
+  }
+
+  /* How much of the library to show, resolved rather than stored.
+   *
+   * The page opens on what the reader can read now: "I want to be able to immediately
+   * choose a reading AT MY LEVEL" is answered by the list already being there, not by a
+   * control that could be found (design.md §12, 2026-09-17).
+   *
+   * Except when that would be a near-empty page, which is the thing it must never be.
+   * Two readers would get one: somebody who has marked nothing, where the fallback
+   * measure is the text's own hard-word share and the page would be making a claim about
+   * a stranger; and somebody who has marked a dozen words, where every row honestly
+   * reads 2% known and nothing is within reach yet. Neither of them is helped by an
+   * empty shelf.
+   *
+   * So the default is the narrowest band that still leaves a screen's worth, and it
+   * widens on its own as a vocabulary grows. No threshold on how many words somebody
+   * knows: the question is whether the list it produces is worth showing, and that is
+   * the question this asks directly. A reader who picks a band gets it whatever it
+   * leaves — including an empty one, which is an answer rather than a greeting. */
+  var ENOUGH = 6;
+  var autoFit = "";
+
+  function fitWanted(state) {
+    var one = state || view;
+    if (typeof one.fit === "string") return one.fit;
+    return autoFit;
+  }
+
+  function defaultFit(everything, code) {
+    if (!anyKnown) return "";
+    var bands = ["now", "stretch", ""];
+    for (var i = 0; i < bands.length; i++) {
+      var pretend = {};
+      for (var key in view) pretend[key] = view[key];
+      // A string, so `fitWanted` answers from it and never comes back here.
+      pretend.fit = bands[i];
+      var standing = 0;
+      for (var j = 0; j < everything.length; j++) {
+        if (matches(everything[j], code, pretend)) standing++;
+        if (standing >= ENOUGH) return bands[i];
+      }
+    }
+    return "";
   }
 
   var view = viewFor(lang.HOME);
@@ -931,6 +1300,11 @@
     if (state.spoken === "yes" && !row.spoken) return false;
     if (state.spoken === "video" && !row.video) return false;
     if (state.level && level(row) !== state.level) return false;
+    // What it is about. A row's tags are a list, so this asks whether the chosen one is
+    // among them rather than whether it is the value — a match report is journalism and
+    // sport at once, and belongs under both chips.
+    if (state.subject && !holdsSubject(row, state.subject)) return false;
+    if (!fits(row, fitWanted(state))) return false;
     if (state.where === "mine" && row.entry) return false;
     if (state.where !== "mine" && !row.entry) return false;
     if (state.find) {
@@ -1007,6 +1381,104 @@
     return seen;
   }
 
+  /* How many rows each subject would leave standing, asked with the subject filter
+     itself lifted — the rule the kinds already follow, so choosing one never removes the
+     others from the row it lives in.
+
+     Counted rather than merely seen, because the count goes on the chip. Tanakh and
+     Judaica are the two biggest Hebrew subjects; a bare row of subject names tells a
+     modern-Hebrew learner this is a religious library, and the numbers tell them what is
+     really there (design.md §12, 2026-09-17). */
+  /* The kind is lifted with it, because the kind is no longer a peer of the subject —
+     it is a refinement under it, and it lives in the fold with the other refinements.
+     Left standing it takes the whole row away: the page opens a new reader on the
+     Scenes, no scene is filed under any subject, and the one row this page is browsed
+     by would vanish on the first visit of every reader who has it. So pressing a
+     subject clears the kind (see `subjects`), and these counts are what pressing it
+     actually leaves. */
+  function unsubjected() {
+    var pretend = {};
+    for (var key in view) pretend[key] = view[key];
+    pretend.subject = "";
+    pretend.kind = "";
+    return pretend;
+  }
+
+  function subjectTally(rows, code) {
+    var tally = {};
+    var pretend = unsubjected();
+    rows.forEach(function (row) {
+      if (!matches(row, code, pretend)) return;
+      (row.tags || []).forEach(function (tag) {
+        tally[tag] = (tally[tag] || 0) + 1;
+      });
+    });
+    return tally;
+  }
+
+  /* The subjects, as chips that carry their counts.
+   *
+   * Drawn from the rows that exist and never from `Tag`, which runs well past what is
+   * filed: the arrival draws a door before anything is tagged into it, on purpose, and
+   * on this page that same door is a dead end. Hebrew carries eight subjects with
+   * anything behind them, not seventeen.
+   *
+   * "All" leads and is the default. Nearly half the Hebrew shelf carries no subject at
+   * all, so a subject can only ever narrow — as the page's one division it would hide
+   * them (design.md §12, 2026-09-17). */
+  function subjects(host, rows, code, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    // The row and the word over it are one thing: a heading above nothing is a heading
+    // that says the page is broken.
+    var label = document.getElementById("subject-label");
+    var tally = subjectTally(rows, code);
+    var offered = SUBJECTS.filter(function (pair) {
+      return tally[pair[0]];
+    });
+    // One subject over a shelf divides nothing; the row is left empty rather than
+    // offering "All" and one word, which is the rule `chips()` already applies.
+    if (offered.length < 2) {
+      host.hidden = true;
+      if (label) label.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    if (label) label.hidden = false;
+    var here = rows.filter(function (row) {
+      return matches(row, code, unsubjected());
+    }).length;
+    var all = [["", t("library.filter.all", "All"), here]].concat(
+      offered.map(function (pair) {
+        return [pair[0], pair[1], tally[pair[0]]];
+      })
+    );
+    all.forEach(function (one) {
+      var chip = el("button", "chip subject");
+      chip.type = "button";
+      chip.appendChild(document.createTextNode(one[1]));
+      // Its own element, so the number can be quieted and given tabular figures without
+      // the name inheriting either.
+      chip.appendChild(el("span", "chip-n", String(one[2])));
+      chip.setAttribute("aria-pressed", view.subject === one[0] ? "true" : "false");
+      // The count is part of what the chip says, so a screen reader gets the sentence
+      // rather than "News 40" run together.
+      chip.setAttribute(
+        "aria-label",
+        tn("library.subject.count", one[2], "{name}, {n} text", "{name}, {n} texts", { name: one[1] })
+      );
+      chip.addEventListener("click", function () {
+        view.subject = one[0];
+        // Picking a subject is going somewhere, not narrowing where you are. The kind is
+        // a refinement inside the place you were, and carrying it along is how a reader
+        // opened on the Scenes presses "Science" and is shown nothing at all.
+        view.kind = "";
+        redraw();
+      });
+      host.appendChild(chip);
+    });
+  }
+
   function chips(host, options, field, redraw, shape, seen) {
     host.textContent = "";
     var offered = seen
@@ -1027,6 +1499,68 @@
         redraw();
       });
       host.appendChild(chip);
+    });
+  }
+
+  /* The line above the list, which says how many texts there are and how far the list
+     has been narrowed to fit the reader — with the narrowing itself as the control.
+     A sentence with one word in it you can press, rather than a filter to be found
+     (design.md §12, 2026-09-17).
+   *
+   * It is a `select` and not a menu of our own: three options, and the platform's own
+   * control is reachable by keyboard and by a thumb on every device without any of it
+   * being written here. */
+  function fitLine(host, count, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    // The number in its own element: ink and tabular, where the sentence around it is
+    // the quieter voice the page uses for what it is doing.
+    host.appendChild(
+      el("span", "count", tn("library.tally.all", count, "{n} text", "{n} texts", { n: count }))
+    );
+    host.appendChild(document.createTextNode(" · "));
+    var lead = el("label", "fit");
+    lead.appendChild(
+      document.createTextNode(t("library.fit.showing", "showing") + " ")
+    );
+    var pick = el("select", "fit-pick");
+    pick.id = "fit";
+    FITS.forEach(function (pair) {
+      var option = el("option", null, pair[1]);
+      option.value = pair[0];
+      if (fitWanted() === pair[0]) option.selected = true;
+      pick.appendChild(option);
+    });
+    pick.onchange = function () {
+      view.fit = pick.value;
+      redraw();
+    };
+    pick.setAttribute("aria-label", t("library.fit.how-much", "How much of the library to show"));
+    lead.appendChild(pick);
+    host.appendChild(lead);
+  }
+
+  /* Cards or the table, remembered. The table is the older shape and it is kept rather
+     than replaced: the complaint that retired the last card grid was that a card cannot
+     be sorted, and it was a fair one — so the sortable thing stays one press away
+     (design.md §12, 2026-09-17). */
+  var SHAPES = [
+    ["cards", t("library.shape.cards", "Cards")],
+    ["list", t("library.shape.list", "List")],
+  ];
+
+  function shapes(host, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    SHAPES.forEach(function (pair) {
+      var press = el("button", "shape", pair[1]);
+      press.type = "button";
+      press.setAttribute("aria-pressed", view.shape === pair[0] ? "true" : "false");
+      press.addEventListener("click", function () {
+        view.shape = pair[0];
+        redraw();
+      });
+      host.appendChild(press);
     });
   }
 
@@ -1316,6 +1850,19 @@
     var readers = data.readers || [];
     var shared = data.shared || [];
     catalogueKnown = data.catalogue || {};
+    /* Whether this reader has marked anything at all, which decides what "at my level"
+       is a measure of. With words marked it is the share of a text this reader knows;
+       with none, every row would answer 0% and the page would open on an empty list —
+       so the text's own difficulty stands in instead (see `fitOf`). */
+    anyKnown = Object.keys(catalogueKnown).some(function (id) {
+      var one = catalogueKnown[id];
+      return one && typeof one.known === "number" && one.known > 0;
+    });
+    if (!anyKnown) {
+      anyKnown = (readers || []).concat(shared || []).some(function (reader) {
+        return typeof reader.known === "number" && reader.known > 0;
+      });
+    }
     canDraw = !!data.covers;
     var opened = stored("targum:opened");
     readers.concat(shared).forEach(function (reader) {
@@ -1330,6 +1877,7 @@
 
     var everything = rows(readers, shared);
     var host = document.getElementById("catalogue");
+    var cards = document.getElementById("cards");
     var empty = document.getElementById("picked-empty");
     var tally = document.getElementById("tally");
     var find = document.getElementById("find");
@@ -1338,6 +1886,9 @@
 
     function redraw() {
       remember("targum:library", views);
+      // Resolved before anything is filtered, and before the chips are counted, so the
+      // whole page agrees about how much of the library it is showing.
+      autoFit = defaultFit(everything, chosen);
       // "Which Hebrew" asks nothing of another language (2026-09-13).
       var registerSet = document.getElementById("register-chips");
       if (registerSet && registerSet.parentNode) registerSet.parentNode.hidden = chosen !== lang.HOME;
@@ -1363,6 +1914,10 @@
         "chip",
         present(everything, "kind", chosen)
       );
+      // What it is about, above the list and always visible: the row a reader browses by
+      // (design.md §12, 2026-09-17).
+      subjects(document.getElementById("subject-chips"), everything, chosen, redraw);
+      shapes(document.getElementById("shape"), redraw);
       choices(document.getElementById("audio"), SPOKEN, "spoken", redraw);
       choices(document.getElementById("length"), LENGTHS, "length", redraw);
       choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
@@ -1379,7 +1934,26 @@
       if (top.length === 1 && top[0].group) top = top[0].rows;
       var showing = sorted(top);
       host.textContent = "";
+      cards.textContent = "";
+      /* Two shapes over one list. Whichever is on is filled and the other is emptied,
+         so nothing is drawn twice and a build narrating itself has exactly one cell to
+         write into. A collection folds the same way in both: one row, or one card, over
+         its texts, and opening it lays its members out beside it. */
+      var browsing = view.shape !== "list";
+      host.hidden = browsing;
+      cards.hidden = !browsing;
       showing.forEach(function (row) {
+        if (browsing) {
+          // A collection is a card of its own shape: a shelf rather than a text, with no
+          // cover and a press that opens rather than reads.
+          cards.appendChild(row.group ? groupCard(row) : card(row));
+          if (row.group && isOpen(row.group)) {
+            within(row.group, row.rows).forEach(function (member) {
+              cards.appendChild(card(member));
+            });
+          }
+          return;
+        }
         host.appendChild(draw(row));
         if (row.group && isOpen(row.group)) {
           within(row.group, row.rows).forEach(function (member) {
@@ -1387,6 +1961,10 @@
           });
         }
       });
+      // The table's heading belongs to the table; over a grid of cards it is a row of
+      // sort buttons pointing at columns nobody can see.
+      var head = document.getElementById("rows-head");
+      if (head) head.hidden = browsing;
       placeNote(noteFor(showing));
       pointAt();
       // Counted within the list being looked at, not across both: "2 of 116" under Your
@@ -1425,7 +2003,18 @@
         found === total
           ? tn("library.tally.all", total, "{n} text", "{n} texts")
           : t("library.tally.found", "{found} of {total}", { found: found, total: total });
-      clear.hidden = !(view.find || view.kind || view.register || view.length || view.level);
+      // The sentence above the list: how many there are in this language, and how much
+      // of it is being shown. The count is every text on this shelf, not the surviving
+      // ones — it is the thing the narrowing is measured against.
+      fitLine(document.getElementById("said"), total, redraw);
+      clear.hidden = !(
+        view.find ||
+        view.kind ||
+        view.register ||
+        view.length ||
+        view.level ||
+        view.subject
+      );
     }
 
     /* Learn suggests something to read and links here with the id in the hash. Finding it
@@ -1448,7 +2037,11 @@
         redraw();
         return;
       }
-      var row = host.querySelector('[data-row="' + wanted.replace(/"/g, "") + '"]');
+      // Whichever host is drawn. The rows live in the table or in the grid, never both,
+      // and looking only in the table meant a reader sent to a text while browsing was
+      // silently sent nowhere.
+      var mark = '[data-row="' + wanted.replace(/"/g, "") + '"]';
+      var row = host.querySelector(mark) || (cards && cards.querySelector(mark));
       if (row) {
         row.classList.add("pointed");
         if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
@@ -1473,7 +2066,11 @@
       var code = base(target.language);
       // The filters lifted are the ones on the shelf the text is on.
       if (code && code !== chosen) view = viewFor(code);
-      view.find = view.kind = view.register = view.length = view.level = "";
+      view.find = view.kind = view.register = view.length = view.level = view.subject = "";
+      // And how far the list was narrowed to fit them. Being sent to a text is a
+      // stronger claim than any setting made earlier, and the one text somebody was sent
+      // for is exactly the one a "what you can read now" list is entitled to hide.
+      view.fit = "";
       view.where = target.entry ? "library" : "mine";
       find.value = "";
       // show() redraws, and redraw() comes back through here with the row in the list.
@@ -1489,12 +2086,16 @@
     clear.addEventListener("click", function () {
       // Not `where`: Clear empties the filters, and which of the two lists you are
       // looking at is not one of them.
-      view.find = view.kind = view.register = view.length = view.level = "";
+      view.find = view.kind = view.register = view.length = view.level = view.subject = "";
       find.value = "";
       redraw();
     });
 
-    host.addEventListener("click", function (event) {
+    /* One handler over both shapes. A card and a row carry the same three things that
+       can be pressed — draw a cover, fold a collection, start a build — so the listener
+       is written once and hung on each host, rather than the cards growing a second
+       copy that would drift from this one. */
+    function pressed(event) {
       var drawing = event.target.closest ? event.target.closest("[data-draw]") : null;
       if (drawing) return drawCovers(drawing, drawing.getAttribute("data-draw"));
       var folding = event.target.closest ? event.target.closest("[data-group]") : null;
@@ -1513,7 +2114,10 @@
           return;
         }
       }
-    });
+    }
+
+    host.addEventListener("click", pressed);
+    if (cards) cards.addEventListener("click", pressed);
 
     // Hebrew is always on offer, whether or not anything is on the shelf in it.
     //

@@ -648,14 +648,25 @@ def test_the_chart_kit_is_bound_before_it_is_used(page: str) -> None:
     assert bound < first.start(), f"{page}.js reads {first.group(0)} before binding charts"
 
 
-def test_the_library_is_a_list_you_can_sift() -> None:
-    """Cards were the wrong shape once there was more than a screenful: a card cannot be
-    sorted, and twenty-six of them are a wall."""
+def test_the_library_is_browsed_as_cards_and_sifted_as_a_list() -> None:
+    """Both shapes, over one list (design.md §12, 2026-09-17).
+
+    This asserted for months that "the card grid is gone", and it was right: a card
+    cannot be sorted, and the grid it replaced could not answer "which of these can I
+    read". The page is browsed now, so the grid is back — and the complaint that retired
+    it is answered rather than forgotten, because the sortable table is still here and is
+    one press away.
+    """
     library = PAGES["library"]
     for control in ("find", "register-chips", "kind-chips", "length", "difficulty"):
         assert f'id="{control}"' in library, f"the library cannot filter by {control}"
-    assert 'id="rows-head"' in library, "and the columns sort"
-    assert 'class="cards"' not in library, "the card grid is gone"
+    assert 'id="rows-head"' in library, "the columns still sort"
+    assert 'id="catalogue"' in library, "and the table is still a table"
+    assert 'id="cards"' in library, "and the grid is what it opens in"
+    assert 'id="shape"' in library, "with one control to change between them"
+    # What it is browsed by, and how much of it is shown: the two the browse view adds.
+    assert 'id="subject-chips"' in library, "the subjects are the row it browses by"
+    assert 'id="said"' in library, "and the line that says how far it is narrowed"
 
 
 def test_the_catalogue_and_your_uploads_are_tabs_rather_than_a_filter() -> None:

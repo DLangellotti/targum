@@ -320,6 +320,68 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The library is browsed, not looked up — 2026-09-17
+
+"Library currently is not usable in my opinion," David wrote, and asked for four things:
+a reading at his level, straight away; topics rather than kinds of media; what media a
+text has without opening a control; and what was added lately.
+
+The four are one diagnosis. The page is a **sortable table with its filters folded away**,
+and that is the shape for somebody who knows what they are looking for. Browsing is the
+other posture, and the page had no answer for it. `library.js` is honest that the table
+was itself a reaction — to a grid of cards that could not be sorted — and it over-corrected
+into a spreadsheet.
+
+What stands in its place:
+
+- **Level is a setting; subject is the navigation.** They were two filters of equal
+  weight, folded away together. But "at my level" is not a thing to pick each time you
+  browse — it is who the reader is — so it sits in the line above the list, in words, as
+  part of a sentence rather than as a filter to be found. The subject is what a reader
+  browses by, and it is the visible row of chips.
+- **"At my level" is the share of a text's words the reader knows**, not the hard-word
+  tier. `difficulty` is a fact about the text — how rare its words are in Hebrew — and
+  `known` is a fact about this reader and this text. The second is the question the front
+  door sells.
+- **And the page never opens on an almost-empty shelf**, which is what makes the setting
+  safe to have on by default. Two readers would get one: a stranger, where the fallback
+  measure is the text's own hard-word share and the page would be making a claim about
+  somebody it knows nothing about; and a reader who has marked a dozen words, where every
+  row honestly reads 2% known and nothing is in reach yet. So the default is the narrowest
+  band that still leaves a screen's worth, and it widens on its own as a vocabulary grows.
+  A reader who *picks* a band gets it whatever it leaves, including nothing — that is an
+  answer, where the default is a greeting.
+- **A row of chips is drawn from the rows that exist, never from the vocabulary.**
+  `Tag` runs well past what is filed, on purpose, because the arrival's doors are drawn
+  before the texts are tagged into them. On this page an empty door is a dead end. Hebrew
+  carries eight subjects with anything behind them, not seventeen. This is the rule the
+  kinds already followed.
+- **All is the default, and a subject only ever narrows.** Nearly half the Hebrew shelf
+  carries no subject at all (232 of 499 on the day this was written). Subject as the
+  primary division would hide them; subject as a filter over everything does not.
+- **Each chip carries its count.** The two biggest Hebrew subjects are Tanakh and Judaica.
+  Unqualified, a row of subjects tells a modern-Hebrew learner this is a religious
+  library; with counts it tells them what is actually there.
+- **A text says what it carries on its cover.** Audio and video were a word in a cell and
+  a select called Media behind the fold. A mark on the cover is read without opening
+  anything, which is the whole of the request.
+- **Cards for browsing, the table one press away.** This is the shape the page already
+  tried and abandoned, and the reason it failed is answered rather than forgotten: the
+  complaint was that a card cannot be sorted, so the sortable table stays, as **List
+  view**, and the reader's choice is remembered. Covers exist now, which they did not
+  when the grid was first drawn.
+
+The cost, stated: the kinds leave the visible row to make room and go in with the other
+filters. That has one consequence worth writing down, because it was found on the running
+page and not in a test. The page opens a new reader on the Scenes — the first-visit rule
+above — and no scene is filed under any subject, so a subject row computed with the kind
+still standing vanished entirely on the first visit of every reader who had it. **The kind
+is lifted when the subjects are counted, and pressing a subject clears it.** Picking a
+subject is going somewhere, not narrowing where you are; the kind is a refinement inside
+the place you were. The number on a chip is therefore what pressing it actually leaves.
+
+Nothing here moves the palette, the type or the desk. Built under targum-internal#314.
+
 ### The modern shelf reads in a sans — 2026-09-17
 
 2026-08-29 chose Frank Ruhl Libre for everything outside the Tanakh, and gave the reason

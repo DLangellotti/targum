@@ -55,8 +55,27 @@ def shelf(entry_id: str, name: str, **extra: Any) -> dict[str, Any]:
 
 
 def draw(tmp_path: Path, **payload: Any) -> dict[str, Any]:
+    """The page as a reader gets it, drawn as the **table**.
+
+    The library is browsed as cards since 2026-09-17 (design.md §12) and the table is one
+    press away. Almost everything asserted here is about a column — the kind, the
+    register, the length, the two shares — and a column is a thing only the table has, so
+    these ask for the table by name rather than testing a shape the page no longer opens
+    in. What the cards draw is asserted by `browse()`, and which of the two a reader gets
+    is asserted on its own.
+
+    A first visit is the exception: there is no remembered view to carry the shape, which
+    is the whole meaning of `firstVisit`, so those tests get the cards and say so.
+    """
     from targum.catalogue import CATALOGUE, collections
 
+    if not payload.get("firstVisit"):
+        views = payload.setdefault("views", {}) if "views" in payload else None
+        if views is not None:
+            for one in views.values():
+                one.setdefault("shape", "list")
+        else:
+            payload.setdefault("view", {}).setdefault("shape", "list")
     payload.setdefault("catalogue", [entry.state() for entry in CATALOGUE])
     # The real collections, for the same reason the catalogue is real: a fixture of them
     # would be a second copy of the thing under test.
@@ -920,3 +939,267 @@ def test_an_english_reader_is_unaffected(tmp_path: Path) -> None:
     row = next(r for r in drawn["rows"] if r["title"] == "רות")
     assert row["english"].startswith("Ruth")
     assert row["englishLang"] == "en"
+
+
+# --- the library is browsed (design.md §12, 2026-09-17) -----------------------------
+#
+# `draw()` above asks for the table, because almost everything it asserts is a column.
+# These are about the shape a reader actually gets, and about the two controls the browse
+# view is steered by: what a text is about, and how much of the library is in reach.
+#
+# They bring their own catalogue. The fixture is twenty-two texts with one subject among
+# them, which cannot exercise a row of subject chips at all — and a test that leaned on
+# the private catalogue instead would pass here and fail in CI, which has none.
+
+
+def text(entry_id: str, title: str, **extra: Any) -> dict[str, Any]:
+    """One catalogue entry, as the page receives it."""
+    row = {
+        "id": entry_id,
+        "title": title,
+        "english": entry_id.replace("-", " ").title(),
+        "author": "",
+        "language": "he",
+        "source": f"wikisource:{entry_id}",
+        "blurb": "",
+        "words": 900,
+        "minutes": 7,
+        "kind": "story",
+        "register": "modern",
+        "difficulty": 18,
+        "tags": [],
+    }
+    row.update(extra)
+    return row
+
+
+#: A shelf with enough shape to browse: three subjects, one text under two of them, and
+#: a third of it filed under nothing — which is the catalogue's real proportion.
+SHELF = [
+    text("news-one", "ידיעה", kind="article", tags=["journalism"]),
+    text("news-two", "ידיעה שנייה", kind="article", tags=["journalism"]),
+    text("match", "משחק", kind="article", tags=["journalism", "sport"]),
+    text("league", "ליגה", kind="article", tags=["sport"]),
+    text("physics", "פיזיקה", kind="talk", tags=["science"], spoken=True, video=True),
+    text("chemistry", "כימיה", kind="talk", tags=["science"], spoken=True),
+    text("story-one", "סיפור"),
+    text("story-two", "סיפור שני"),
+    text("story-three", "סיפור שלישי"),
+    text("story-four", "סיפור רביעי"),
+]
+
+
+def browse(tmp_path: Path, **payload: Any) -> dict[str, Any]:
+    """The page as a reader gets it: cards, which is what it opens in."""
+    view = dict(payload.pop("view", {}))
+    view["shape"] = "cards"
+    payload.setdefault("catalogue", SHELF)
+    payload.setdefault("collections", [])
+    return draw(tmp_path, view=view, **payload)
+
+
+def test_the_library_opens_as_cards_and_the_table_is_one_press_away(tmp_path: Path) -> None:
+    """A card cannot be sorted, which is what retired the last card grid and was fair.
+    The sortable thing is kept rather than argued with."""
+    fresh = draw(tmp_path, firstVisit=True)
+    assert fresh["shape"] == "cards", "a reader who has chosen nothing browses"
+    assert fresh["shapeOn"] == "Cards"
+
+    listed = draw(tmp_path, view={"shape": "list"})
+    assert listed["shape"] == "list"
+    assert listed["shapeOn"] == "List"
+    assert listed["columns"][:2] == ["Text", "Kind"], "the table keeps its columns"
+
+
+def test_only_the_subjects_with_texts_behind_them_are_offered(tmp_path: Path) -> None:
+    """`Tag` runs well past what is filed, on purpose: the arrival draws a door before
+    anything is tagged into it. On this page that same door is a dead end."""
+    from targum.catalogue import Tag
+
+    offered = browse(tmp_path)["subjects"]
+    assert offered == ["All", "News", "Sport", "Science"], offered
+    assert len(offered) - 1 < len(list(Tag)), "not the whole vocabulary"
+
+
+def test_a_shelf_with_one_subject_offers_none(tmp_path: Path) -> None:
+    """ "All" and one word is not a choice — the rule the kinds already follow."""
+    only = [row for row in SHELF if row["tags"] in ([], ["journalism"])]
+    assert browse(tmp_path, catalogue=only)["subjects"] == []
+
+
+def test_a_subject_chip_carries_its_count(tmp_path: Path) -> None:
+    """Tanakh and Judaica are the two biggest Hebrew subjects. A bare row of names tells a
+    modern-Hebrew learner this is a religious library; the numbers tell them what is
+    really there."""
+    drawn = browse(tmp_path)
+    assert drawn["subjectCounts"] == [10, 3, 2, 2], drawn["subjectCounts"]
+    assert drawn["subjectCounts"][0] == len(SHELF), "All is every text on the shelf"
+
+
+def test_a_subject_narrows_and_the_other_subjects_stay(tmp_path: Path) -> None:
+    """The row is computed with its own filter lifted, the way the kinds already are.
+    Without it, choosing News would leave All and News and no way back."""
+    everything = browse(tmp_path)
+    news = browse(tmp_path, view={"subject": "journalism"})
+    assert news["subjectOn"] == "News"
+    assert news["subjects"] == everything["subjects"], "no subject disappears"
+    assert {row["title"] for row in news["rows"]} == {"ידיעה", "ידיעה שנייה", "משחק"}
+
+
+def test_a_text_under_two_subjects_is_found_under_both(tmp_path: Path) -> None:
+    """A match report is journalism and sport at once. Tags are a list, not a value."""
+    for subject in ("journalism", "sport"):
+        titles = {row["title"] for row in browse(tmp_path, view={"subject": subject})["rows"]}
+        assert "משחק" in titles, f"the match belongs under {subject}"
+
+
+def test_a_text_filed_under_nothing_is_still_on_the_shelf(tmp_path: Path) -> None:
+    """Nearly half the Hebrew shelf carries no subject at all. Subject as the page's one
+    division would hide them; as a filter over everything it does not."""
+    titles = {row["title"] for row in browse(tmp_path)["rows"]}
+    assert "סיפור" in titles
+
+
+def test_a_stranger_is_shown_everything_rather_than_a_guess(tmp_path: Path) -> None:
+    """The fallback measure is the text's own hard-word share, which is a fact about the
+    text and not about the reader. A page greeting somebody it knows nothing about with
+    "showing the 358 you can read now" would be making a claim it cannot support."""
+    drawn = browse(tmp_path, readers=[])
+    assert drawn["fitOn"] == "everything"
+    assert drawn["said"].startswith(f"{len(SHELF)} texts")
+    assert len(drawn["rows"]) == len(SHELF)
+
+
+def test_a_reader_with_a_vocabulary_opens_on_what_they_can_read(tmp_path: Path) -> None:
+    """ "I want to be able to immediately choose a reading AT MY LEVEL" — answered by the
+    list already being there, not by a control that could be found."""
+    known = {row["id"]: {"known": 0.9} for row in SHELF[:7]}
+    known.update({row["id"]: {"known": 0.3} for row in SHELF[7:]})
+    drawn = browse(tmp_path, catalogueKnown=known)
+    assert drawn["fitOn"] == "you can read now"
+    assert len(drawn["rows"]) == 7, "the ones they know nine words in ten of"
+
+
+def test_the_page_never_opens_on_an_almost_empty_shelf(tmp_path: Path) -> None:
+    """Somebody who has marked a dozen words honestly reads 2% known on every row, and
+    nothing is within reach yet. The default is the narrowest band that still leaves a
+    screen's worth, so it widens on its own rather than greeting them with nothing."""
+    barely = {row["id"]: {"known": 0.02} for row in SHELF}
+    drawn = browse(tmp_path, catalogueKnown=barely)
+    assert drawn["fitOn"] == "everything", "not a greeting of nothing"
+    assert len(drawn["rows"]) == len(SHELF)
+
+
+def test_a_reader_who_asks_for_a_band_gets_it_however_little_it_leaves(tmp_path: Path) -> None:
+    """The self-correcting default is a greeting, not a rule. A chosen band is an answer,
+    and an empty one is an answer too."""
+    barely = {row["id"]: {"known": 0.02} for row in SHELF}
+    drawn = browse(tmp_path, catalogueKnown=barely, view={"fit": "now"})
+    assert drawn["fitOn"] == "you can read now"
+    assert drawn["rows"] == []
+
+
+def test_a_card_says_what_there_is_to_play_without_opening_anything(tmp_path: Path) -> None:
+    """ "Without playing w/ checkboxes or dropdowns I want to see immediately what media is
+    available." One mark, never two: a video can be listened to as well."""
+    marks = {row["title"]: row["media"] for row in browse(tmp_path)["rows"]}
+    assert marks["פיזיקה"] == "Video"
+    assert marks["כימיה"] == "Audio"
+    assert marks["סיפור"] == ""
+
+
+def test_a_card_carries_the_facts_a_reader_chooses_by(tmp_path: Path) -> None:
+    """What it is, how long it takes, how hard its words are — and what share of them
+    this reader knows, which is the line the front door sells."""
+    known = {"story-one": {"known": 0.72}}
+    rows = browse(tmp_path, catalogueKnown=known)["rows"]
+    one = next(row for row in rows if row["title"] == "סיפור")
+    assert one["meta"] == "Stories · 7 min · 18% hard words"
+    assert "72%" in one["known"]
+    two = next(row for row in rows if row["title"] == "סיפור שני")
+    assert two["known"] == "New to you", "never 0%, which is a claim about the reader"
+
+
+def test_a_card_keeps_the_cell_a_build_narrates_itself_in(tmp_path: Path) -> None:
+    """`build()` finds it with `open.querySelector`, so a state cell hung on the list item
+    rather than inside the pressed element is one it throws on."""
+    row = browse(tmp_path)["rows"][0]
+    assert row["state"] == "", "empty until a build speaks"
+
+
+def test_an_unbuilt_card_is_a_button_and_a_built_one_is_a_link(tmp_path: Path) -> None:
+    """What pressing an unbuilt row does is start spending. A card must not quietly
+    become a cheaper way to do that."""
+    own = shelf("story-one", "mine-he")
+    rows = browse(tmp_path, readers=[own])["rows"]
+    opens = {row["title"]: row["opens"] for row in rows}
+    assert opens["סיפור"] == "a", "a text this reader has built is a link"
+    assert opens["סיפור שני"] == "button", "one they have not is pressed"
+
+
+def test_being_sent_to_a_text_lifts_the_subject_and_the_band(tmp_path: Path) -> None:
+    """Being sent is a stronger claim than a setting made earlier, and the one text
+    somebody was sent for is exactly the one a "what you can read now" list may hide."""
+    known = {row["id"]: {"known": 0.9} for row in SHELF[:7]}
+    known.update({"story-four": {"known": 0.1}})
+    drawn = browse(
+        tmp_path,
+        catalogueKnown=known,
+        view={"subject": "journalism"},
+        hash="#story-four",
+    )
+    assert drawn["pointed"] == ["סיפור רביעי"], drawn["pointed"]
+    assert drawn["subjectOn"] == "All"
+    assert drawn["fitOn"] == "everything"
+
+
+def test_the_subjects_survive_the_kind_the_page_opens_on(tmp_path: Path) -> None:
+    """The page opens a new reader on the Scenes, and no scene is filed under a subject.
+    Computed with the kind still standing, the one row this page is browsed by vanished
+    on the first visit of every reader who had it — found on the running page, not here.
+    """
+    scenes = SHELF + [
+        text(f"scene-{n:02d}", f"סצנה {n}", kind="dialogue", spoken=True) for n in range(1, 5)
+    ]
+    drawn = browse(tmp_path, catalogue=scenes, view={"kind": "dialogue"})
+    assert drawn["subjects"] == ["All", "News", "Sport", "Science"], drawn["subjects"]
+    assert {row["title"] for row in drawn["rows"]} == {f"סצנה {n}" for n in range(1, 5)}
+
+
+def test_a_chips_count_is_what_pressing_it_leaves(tmp_path: Path) -> None:
+    """Picking a subject is going somewhere, not narrowing where you are: the kind is a
+    refinement inside the place you were, and it is dropped. So the number on the chip is
+    the number of texts that actually arrive."""
+    scenes = SHELF + [
+        text(f"scene-{n:02d}", f"סצנה {n}", kind="dialogue", spoken=True) for n in range(1, 5)
+    ]
+    shown = browse(tmp_path, catalogue=scenes, view={"kind": "dialogue"})
+    promised = dict(zip(shown["subjects"], shown["subjectCounts"], strict=True))
+    # What the press leaves: the subject set and the kind dropped, which is what the
+    # chip's own handler does. A stored pair of both is a reader who chose both, and an
+    # empty list is the honest answer to that.
+    pressed = browse(tmp_path, catalogue=scenes, view={"kind": "", "subject": "science"})
+    assert len(pressed["rows"]) == promised["Science"]
+    assert pressed["subjectOn"] == "Science"
+
+
+def test_a_collection_is_a_card_of_its_own_shape(tmp_path: Path) -> None:
+    """A shelf, not a text: no cover, a caret, and a press that opens rather than reads.
+
+    The first attempt reused the table's row here, and it looked exactly like what it was
+    — a row of grid cells with no grid around them, stacked upright in the middle of a
+    grid of cards. Found on the running page.
+    """
+    drawn = draw(tmp_path, view={"shape": "cards"})
+    folded = next(row for row in drawn["rows"] if row["group"] == "tanakh")
+    assert folded["opens"] == "button", "a collection is pressed open"
+    assert folded["expanded"] == "false"
+    assert folded["title"] == "תנ״ך"
+    assert "6 texts" in folded["meta"], folded["meta"]
+    assert folded["cells"] == [], "it is a card, so it has no columns"
+
+    opened = draw(tmp_path, view={"shape": "cards"}, opened={"tanakh": True})
+    shelf_row = next(row for row in opened["rows"] if row["group"] == "tanakh")
+    assert shelf_row["expanded"] == "true"
+    inside = {row["title"] for row in opened["rows"] if not row["group"]}
+    assert {"רות", "אסתר"} <= inside, "and its texts are cards beside it"

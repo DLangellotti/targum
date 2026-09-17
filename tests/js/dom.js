@@ -148,6 +148,11 @@ function install(globals) {
   const listeners = {};
   global.document = {
     createElement: element,
+    /* The library's cards draw their audio and video marks as SVG, and a stub with no
+       namespace-aware constructor threw before a single card was built. The namespace
+       itself is not under test — nothing here asserts about a glyph — so it is dropped
+       and the tag behaves like any other element. */
+    createElementNS: (namespace, tag) => element(tag),
     createTextNode: (text) => ({ textContent: text, children: [] }),
     getElementById(id) {
       byId[id] = byId[id] || element("div");

@@ -896,3 +896,204 @@
 @media (hover: none) and (pointer: coarse) {
   .rows > li > .row-go, .rows > li > .row-not { min-height: 44px; }
 }
+
+/* --- the library is browsed (design.md §12, 2026-09-17) -------------------------------
+   The page had one shape, a sortable table with its filters folded away, and that is the
+   shape for somebody who already knows what they want. These are the parts that answer
+   the other posture: the sentence that says how far the list is narrowed, the row of
+   subjects, and the cards themselves. */
+
+/* The sentence above the list. The count is ink because it is a fact the reader is being
+   given; the rest is the quieter voice the page uses for what it is doing. */
+.said {
+  margin: 0 0 0.75rem;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+.said .count { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.fit { display: inline-flex; align-items: center; gap: 0.3rem; }
+/* A select drawn as a word you can press, not as a field: it sits inside a sentence, and
+   a boxed control mid-sentence reads as a form. The primary, because it is a control. */
+.fit-pick {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.15rem 0.4rem;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fit-pick:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+
+/* The row of subjects. Bigger than the filter chips below it, because it is navigation
+   rather than a refinement, and it carries a count on each. */
+/* Not `.label`: the table's kind and register cells are `.col.label`, and a bare class
+   of that name leaked a margin, a colour and a size onto every one of them. */
+.chips-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.chips.subjects { gap: 0.35rem; margin-block-end: 1rem; }
+.chips.subjects .chip {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: baseline;
+}
+.chip-n { font-size: 0.8125rem; opacity: 0.66; font-variant-numeric: tabular-nums; }
+
+/* Cards or the table, as two quiet words at the end of the controls. */
+.shape { display: flex; gap: 0.2rem; }
+.shape button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.shape button[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+
+/* The grid. `auto-fill` rather than a fixed count, so one rule serves a phone, a laptop
+   and the television §13 sizes the rem for. */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  align-items: stretch;
+}
+/* `display: none` spelled out, because the author rules above set a display on both of
+   these — `.rows-head` is a grid — and an author's `display` beats the browser's own
+   `[hidden]`. Without it the table's row of sort buttons stayed over the cards, pointing
+   at columns that were not on the page. */
+.cards[hidden], .rows[hidden], .rows-head[hidden] { display: none; }
+.cards > li { display: flex; min-width: 0; }
+.card {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow 0.18s ease;
+}
+@media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+.card:hover { box-shadow: var(--shadow-raised); }
+.card:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* `align-self` so the cover hugs its own picture. The card is a flex row, so without it
+   the cover box stretched to the full height of the card and the media mark — pinned to
+   its block end — floated free at the card's foot, level with the known line. */
+.card-cover { position: relative; flex: none; align-self: start; }
+.card-cover .thumb { inline-size: 3.4rem; block-size: 4.6rem; }
+/* The one thing a card says that a row does not: what there is to play. On the cover, so
+   it is read without opening anything — which is the whole of the request. */
+.card-media {
+  position: absolute;
+  inset-block-end: -0.25rem;
+  inset-inline-end: -0.25rem;
+  inline-size: 1.3rem;
+  block-size: 1.3rem;
+  border-radius: 999px;
+  background: var(--bar);
+  display: grid;
+  place-items: center;
+}
+.card-media svg {
+  inline-size: 0.8rem;
+  block-size: 0.8rem;
+  fill: none;
+  stroke: var(--bar-ink);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.card-what { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1 1 auto; }
+.card-scene { font-size: 0.6875rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+/* Its own direction and its own clip, so a long Hebrew title loses its end and never its
+   start, which is the edge Hebrew begins at. */
+.card-title {
+  display: block;
+  font-family: var(--reading-hebrew);
+  /* §13's card title, which is also §5's reading size. 1.125 was off the scale and
+     `test_brand` was right to say so. */
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-title:not(:lang(he)) { font-family: var(--reading); }
+.card-english {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.card-meta {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The reader's own line, at the foot of the card whatever height its neighbours are.
+   Leaf, because §4 says green is progress and this is the only progress on the card. */
+.card-known { margin-block-start: auto; padding-block-start: 0.4rem; display: flex; flex-direction: column; gap: 0.2rem; }
+.card-known-track {
+  display: block;
+  block-size: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+  overflow: hidden;
+}
+.card-known-track > span { display: block; block-size: 100%; background: var(--leaf); border-radius: 999px; }
+.card-known-say { font-size: 0.6875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* A build narrates itself here, as it does in a row's own cell. Empty the rest of the
+   time, and taking no room when it is. */
+.card .row-state:empty { display: none; }
+.card .row-state { font-size: 0.6875rem; color: var(--teal); padding-block-start: 0.3rem; }
+
+@media (hover: none) and (pointer: coarse) {
+  .chips.subjects .chip { min-height: 44px; }
+  .shape button { min-height: 44px; }
+}
+
+/* A collection among the cards: a shelf, not a text. No cover, a caret where a cover
+   would be, and the whole card is the press that opens it. The caret is the glyph the
+   rows already use, so the two shapes fold with the same mark. */
+.card-group { align-items: flex-start; gap: 0.6rem; }
+.card-fold {
+  flex: none;
+  align-self: start;
+  inline-size: 1rem;
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  text-align: center;
+}
+.card-fold::before { content: "\25b8"; }
+[dir="rtl"] .card-fold::before { content: "\25c2"; }
+.card-group.open .card-fold::before,
+[dir="rtl"] .card-group.open .card-fold::before { content: "\25be"; }
+.card-group[aria-expanded="true"] .card-fold { color: var(--ink); }
+.card-group .card-title { font-weight: 600; }
