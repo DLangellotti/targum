@@ -112,14 +112,11 @@ SESSION_DAYS = 90
 #    Since 21 it holds a comma-separated list of subjects; the migration below carries
 #    the old four across.
 #
-# 21: person.level — what a reader says their Hebrew is, asked beside the subjects
-#    (targum-internal#307, 2026-09-17). This reverses a rule: `learn.js` had said since
-#    it was written that nobody is asked how good they are, on the grounds that what
-#    tells a beginner from a false beginner is what they have marked. That is true and
-#    it is also useless on the first screen, where nothing has been marked yet. So the
-#    reader is asked, the answer seeds the ladder `level.py` measures, and the
-#    measurement overrules it as soon as there is one. What does not change is what
-#    design.md §6 actually forbids: a level is never shown back as a score.
+# 21: person.interest holds a list. The arrival asks in subjects a person would use
+#    rather than in the registers the shelf is built from, and takes three or more
+#    (targum-internal#294, 2026-09-17). A level is deliberately **not** asked here:
+#    targum-internal#306 is open and undecided, and until it is answered nothing about
+#    how good a reader says they are is stored.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
@@ -251,9 +248,6 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE job ADD COLUMN cache_read INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN cache_write INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN cache_cost REAL NOT NULL DEFAULT 0",
-    # What a reader says their Hebrew is (2026-09-17). Empty for everybody who arrived
-    # before there was a question, which is the same thing as not having answered it.
-    "ALTER TABLE person ADD COLUMN level TEXT NOT NULL DEFAULT ''",
     # `interest` held one word describing a shelf and now holds a list of subjects. The
     # two that have a subject keep it; `video` was a format rather than a subject and
     # nothing it meant survives translation, so it goes back to unanswered and the
@@ -967,7 +961,7 @@ class Store:
         they", which two pages need.
         """
         row = self.db.execute(
-            "SELECT email, name, picture, made, address, interest, level FROM person WHERE id = ?",
+            "SELECT email, name, picture, made, address, interest FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
         if row is None:
@@ -982,7 +976,6 @@ class Store:
             # A list since 2026-09-17, and sent as one: a page that has to split a
             # string on a comma is a page that will one day forget to.
             "interest": list(self.interests_of(str(row["interest"] or ""))),
-            "level": row["level"] or "",
         }
 
     #: What a reader can say they are interested in, asked when they arrive
@@ -1036,27 +1029,6 @@ class Store:
     #: is a legitimate thing to do and a floor would make it impossible.
     INTERESTS_WANTED = 3
 
-    #: What a reader says their Hebrew is (2026-09-17).
-    #:
-    #: The rungs are the ulpan ladder `level.py` already climbs, aleph to vav, because
-    #: anybody who has studied Hebrew in Israel knows which kitah they were in and
-    #: anybody who has not is given the plain words instead. **A seed, not a verdict:**
-    #: `level.py` measures the same ladder off known words and overrules this the
-    #: moment there are enough of them. What it buys is the first week, when there is
-    #: nothing to measure and a shelf sorted for a beginner is wrong for half the
-    #: people looking at it.
-    LEVELS: tuple[str, ...] = (
-        "",
-        "aleph",
-        "aleph-plus",
-        "bet",
-        "bet-plus",
-        "gimel",
-        "dalet",
-        "hey",
-        "vav",
-    )
-
     def interest(self, person_id: int | None) -> tuple[str, ...]:
         """The subjects they named, or empty where they have not answered."""
         if person_id is None:
@@ -1099,22 +1071,6 @@ class Store:
         with self.write() as db:
             db.execute("UPDATE person SET interest = ? WHERE id = ?", (",".join(kept), person.id))
         return kept
-
-    def level(self, person_id: int | None) -> str:
-        """Which rung they said they were on, or '' where they have not said."""
-        if person_id is None:
-            return ""
-        row = self.db.execute("SELECT level FROM person WHERE id = ?", (int(person_id),)).fetchone()
-        return str(row["level"] or "") if row is not None else ""
-
-    def set_level(self, person: Person, level: str) -> str:
-        """Keep the rung they named; anything else is refused."""
-        value = str(level or "").strip().lower()
-        if value not in self.LEVELS:
-            raise ValueError("No such choice.")
-        with self.write() as db:
-            db.execute("UPDATE person SET level = ? WHERE id = ?", (value, person.id))
-        return value
 
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.

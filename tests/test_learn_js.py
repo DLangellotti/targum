@@ -1063,17 +1063,22 @@ def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() 
     assert len(thin["arrival"]) == 19
 
 
-def test_the_level_is_asked_and_the_ladder_is_the_ulpan_one() -> None:
-    """This file refused to ask for a long time, on the grounds that what tells a
-    beginner from a false beginner is what they have marked. True, and useless on a
-    screen where nothing has been marked yet."""
+def test_nothing_on_the_arrival_asks_how_good_the_reader_is() -> None:
+    """The subjects row asks what somebody is interested in and stops there.
+
+    targum-internal#306 — whether a reader may declare a starting rung — is open and
+    undecided, and until it is answered nothing here stores how good anybody says they
+    are. A first cut of this screen asked for the ulpan rung beside the subjects; it was
+    taken out rather than shipped ahead of the decision.
+    """
     drawn = draw([], shared=seeded())
-    assert drawn["levels"][0].startswith("Just starting")
-    assert drawn["levels"][0].endswith("א"), "the kitah beside the words, for whoever did one"
-    assert len(drawn["levels"]) == 8
+    assert "levels" not in drawn, "no ladder is drawn"
+    for chip in drawn["arrival"]:
+        for rung in ("Just starting", "Simple conversations", "kitah", "\u05d0", "\u05d1+"):
+            assert rung not in chip, f"{chip!r} names a level"
 
 
-def test_three_subjects_and_a_level_before_the_answer_is_taken() -> None:
+def test_three_subjects_before_the_answer_is_taken() -> None:
     """One subject is a label and two is a preference; three is the first number that
     describes somebody."""
     two = draw(
@@ -1089,20 +1094,8 @@ def test_three_subjects_and_a_level_before_the_answer_is_taken() -> None:
         shared=seeded(),
         do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}],
     )
-    assert three["done"] is False, "the subjects are not the whole question"
+    assert three["done"] is True, "three is the whole question now"
     assert three["counted"] == ""
-
-    both = draw(
-        [],
-        shared=seeded(),
-        do=[
-            {"subject": "Sport"},
-            {"subject": "History"},
-            {"subject": "Archaeology"},
-            {"rung": "I read slowly, with help\u05d1+"},
-        ],
-    )
-    assert both["done"] is True
 
 
 def test_a_subject_pressed_twice_is_put_back() -> None:

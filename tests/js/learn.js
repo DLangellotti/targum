@@ -173,16 +173,10 @@ function act(step) {
     const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
     if (found) found.fire("click", {});
   }
-  // A subject on the arrival, by its label; and a rung of the ladder beside it.
+  // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
       (p) => p.textContent === step.subject
-    );
-    if (chip) chip.fire("click", {});
-  }
-  if (step.rung) {
-    const chip = Array.from(at("arrival-levels").children).find(
-      (p) => p.textContent === step.rung
     );
     if (chip) chip.fire("click", {});
   }
@@ -258,21 +252,13 @@ setTimeout(() => {
       arrival: at("arrival").hidden
         ? []
         : Array.from(at("arrival-doors").children).map((p) => p.textContent),
-      // What the arrival is holding: which subjects are pressed, which rung, and
-      // whether Done will take the answer yet.
+      // What the arrival is holding: which subjects are pressed, and whether Done
+      // will take the answer yet.
       picked: at("arrival").hidden
         ? []
         : Array.from(at("arrival-doors").children)
             .filter((p) => p.getAttribute("aria-pressed") === "true")
             .map((p) => p.textContent),
-      levels: at("arrival").hidden
-        ? []
-        : Array.from(at("arrival-levels").children).map((p) => p.textContent),
-      rung: at("arrival").hidden
-        ? ""
-        : (Array.from(at("arrival-levels").children).find(
-            (p) => p.getAttribute("aria-pressed") === "true"
-          ) || { textContent: "" }).textContent,
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
       counted: at("arrival").hidden ? "" : at("arrival-count").textContent,
       // The subscriptions menu: its rows, whether it is open, and which are fresh.

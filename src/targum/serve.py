@@ -4786,8 +4786,6 @@ class Handler(BaseHTTPRequestHandler):
             return self._rename(payload)
         if route == "/account/interest":
             return self._interest(payload)
-        if route == "/account/level":
-            return self._level(payload)
         if route == "/account/address":
             return self._address(payload)
         if route == "/account/languages":
@@ -5702,22 +5700,6 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         self._json({"signedIn": True, "interest": list(kept)})
-
-    def _level(self, payload: dict[str, Any]) -> None:
-        """Which rung of the ulpan ladder a reader says they are on (2026-09-17).
-
-        Kept beside the subjects and never shown back as a score: it seeds the sort
-        until the reader's own marked words are enough to measure, which is what
-        `level.py` does with the same ladder.
-        """
-        person = self._person()
-        if person is None:
-            return self._json({"signedIn": False}, 401)
-        try:
-            kept = self.store.set_level(person, str(payload.get("level") or ""))
-        except ValueError as error:
-            return self._json({"error": str(error)}, 400)
-        self._json({"signedIn": True, "level": kept})
 
     def _address(self, payload: dict[str, Any]) -> None:
         """How the conversation addresses them in Hebrew (2026-09-14)."""

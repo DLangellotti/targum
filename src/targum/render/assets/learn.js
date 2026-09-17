@@ -1169,8 +1169,7 @@
      shared modern text it has. */
   /* --- the arrival (targum-internal#294, rewritten as subjects 2026-09-17) --- */
 
-  /* What a new reader is asked: what they are interested in, and how much Hebrew they
-   * have. Two questions, one press.
+  /* The one question a new reader is asked: what they are interested in.
    *
    * **Subjects, in a person's own words.** The first version asked in the library's
    * terms — "Everyday Hebrew, spoken", "The week's Torah portion", "Something to watch"
@@ -1186,15 +1185,12 @@
    * say about what to build next. So every subject is offered, including the empty
    * ones, and the texts are filed behind them as they arrive.
    *
-   * **And the level, which this file used to refuse to ask for.** The comment on the
-   * track doors above said for a long time that nobody is asked how good they are,
-   * because what tells a beginner from a false beginner is what they have marked. That
-   * is true, and on the first screen it is useless: nothing has been marked yet, so the
-   * shelf sorts for a beginner and every row reads as out of reach to the reader who
-   * already reads Hebrew. So the reader is asked. The answer seeds the ladder and the
-   * measurement overrules it the moment there is one — the claim grid below is the
-   * fastest way to get there. What has not changed is the rule design.md §6 actually
-   * sets: a level is never shown back as a score.
+   * **Still not a level.** Nobody is asked how good they are, and nothing is stored
+   * about which rung they are on. That question is real — the reader who already reads
+   * Hebrew meets a beginner's shelf and nothing on the first screen has been marked yet
+   * to tell them apart — and it is open as targum-internal#306 rather than settled here.
+   * Until it is answered the claim grid below is the only thing that sets a count, and
+   * it sets it by measuring.
    */
   var INTERESTS = [
     // `tags` are `catalogue.Tag` values carried on the shelf row; `kinds` are `Kind`s,
@@ -1224,21 +1220,6 @@
   //: How many subjects the reader is held to. Matches `accounts.Store.INTERESTS_WANTED`.
   var WANTED = 3;
 
-  /* The rungs are the ulpan ladder `level.py` climbs, aleph to vav. Anybody who has
-     studied in Israel knows their kitah; anybody who has not reads the plain words and
-     ignores the letter. The word counts are not shown — they are what the rung means
-     to the sort, not a score to hit. */
-  var LEVELS = [
-    { id: "aleph", letter: "א" },
-    { id: "aleph-plus", letter: "א+" },
-    { id: "bet", letter: "ב" },
-    { id: "bet-plus", letter: "ב+" },
-    { id: "gimel", letter: "ג" },
-    { id: "dalet", letter: "ד" },
-    { id: "hey", letter: "ה" },
-    { id: "vav", letter: "ו" },
-  ];
-
   function interestLabels() {
     return {
       everyday: t("learn.arrival.everyday", "Everyday life in Israel"),
@@ -1260,19 +1241,6 @@
       business: t("learn.arrival.business", "Business and money"),
       philosophy: t("learn.arrival.philosophy", "Philosophy and ideas"),
       language: t("learn.arrival.language", "The Hebrew language itself"),
-    };
-  }
-
-  function levelLabels() {
-    return {
-      aleph: t("learn.level.aleph", "Just starting"),
-      "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
-      bet: t("learn.level.bet", "Simple conversations"),
-      "bet-plus": t("learn.level.bet-plus", "I read slowly, with help"),
-      gimel: t("learn.level.gimel", "I read a newspaper with a dictionary"),
-      dalet: t("learn.level.dalet", "I read most things comfortably"),
-      hey: t("learn.level.hey", "I read almost anything"),
-      vav: t("learn.level.vav", "Hebrew is a language I live in"),
     };
   }
 
@@ -1303,7 +1271,6 @@
      a page drawn before `/account/me` answers. A comma-separated list since the answer
      stopped being one word. */
   var ARRIVED = "targum:arrived";
-  var RUNG = "targum:level";
 
   function readList(key) {
     var raw = "";
@@ -1321,12 +1288,6 @@
   }
 
   var arrived = readList(ARRIVED);
-  var rung = "";
-  try {
-    rung = localStorage.getItem(RUNG) || "";
-  } catch (e) {
-    rung = "";
-  }
 
   function keep(key, value) {
     try {
@@ -1348,13 +1309,10 @@
     });
   }
 
-  function remember(ids, said) {
+  function remember(ids) {
     arrived = ids.slice();
-    rung = said;
     keep(ARRIVED, arrived.join(","));
-    keep(RUNG, rung);
     post("/account/interest", { interest: arrived });
-    post("/account/level", { level: rung });
   }
 
   /* The row itself. Shown only to a reader who has opened nothing in Hebrew and
@@ -1370,23 +1328,19 @@
   function drawArrival(asking, readers, shared, again) {
     var host = document.getElementById("arrival");
     var row = document.getElementById("arrival-doors");
-    var rungs = document.getElementById("arrival-levels");
     var done = document.getElementById("arrival-done");
     var count = document.getElementById("arrival-count");
-    if (!host || !row || !rungs || !done) return;
+    if (!host || !row || !done) return;
     if (!asking) {
       host.hidden = true;
       return;
     }
     var labels = interestLabels();
-    var said = levelLabels();
     var picked = [];
-    var standing = "";
     row.textContent = "";
-    rungs.textContent = "";
 
     function settle() {
-      var enough = picked.length >= WANTED && !!standing;
+      var enough = picked.length >= WANTED;
       done.disabled = !enough;
       if (!count) return;
       var short = WANTED - picked.length;
@@ -1414,35 +1368,10 @@
       row.appendChild(press);
     });
 
-    LEVELS.forEach(function (step) {
-      var press = document.createElement("button");
-      press.type = "button";
-      press.className = "arrival-rung";
-      press.setAttribute("aria-pressed", "false");
-      // The letter beside the words, not instead of them: it is the whole label to a
-      // reader who did an ulpan and noise to everybody else, so it is the smaller half.
-      press.appendChild(document.createTextNode(said[step.id] || step.id));
-      var letter = document.createElement("span");
-      letter.className = "arrival-rung-letter";
-      letter.setAttribute("lang", "he");
-      letter.textContent = step.letter;
-      press.appendChild(letter);
-      press.addEventListener("click", function () {
-        standing = step.id;
-        Array.prototype.forEach.call(rungs.children, function (other) {
-          other.setAttribute("aria-pressed", "false");
-          other.classList.remove("is-picked");
-        });
-        press.setAttribute("aria-pressed", "true");
-        press.classList.add("is-picked");
-        settle();
-      });
-      rungs.appendChild(press);
-    });
 
     done.onclick = function () {
-      if (picked.length < WANTED || !standing) return;
-      remember(picked, standing);
+      if (picked.length < WANTED) return;
+      remember(picked);
       host.hidden = true;
       // Drawn again rather than navigated: the sheet swaps to what they asked for, on
       // the page they are already looking at.
@@ -1805,10 +1734,6 @@
         if (theirs.length && !same) {
           arrived = theirs.slice();
           keep(ARRIVED, arrived.join(","));
-        }
-        if (me && me.signedIn && me.level && me.level !== rung) {
-          rung = me.level;
-          keep(RUNG, rung);
         }
       })
       .catch(function () {});
