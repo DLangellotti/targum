@@ -244,13 +244,23 @@ def test_the_weekly_is_in_robots_and_the_sitemap_when_indexed(
 # -- what the page says ---------------------------------------------------------------
 
 
-def test_the_page_says_how_it_was_made_before_anything_it_made(
+def test_the_page_claims_nothing_about_how_it_was_made(
     open_shelves: tuple[int, Path],
 ) -> None:
-    """Not a badge and not a footnote — a line of type, above the article."""
+    """There was a line of type above the article saying the issue had been compiled by a
+    model and curated by the targum team before it went out. It was true while a person
+    read every issue and pressed publish, and on 2026-09-17 that stopped being how an
+    issue goes out (design.md §12).
+
+    The sources stayed and the sentence went. Saying nothing about how it was made is
+    honest; saying something that used to be true is not.
+    """
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
-    assert "Compiled by a model" in page
-    assert "curated by the targum team" in page
+    assert "curated by the targum team" not in page
+    assert "Compiled by a model" not in page
+    # What replaced it is nothing: the section it stood in is where the sources are, and
+    # they are the honest answer to the question it was pretending to answer.
+    assert "Made honestly" in page
 
 
 def test_the_page_names_its_sources(open_shelves: tuple[int, Path]) -> None:

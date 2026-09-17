@@ -1742,7 +1742,6 @@ def weekly_page(
     the template had stopped using — and it meant a box serving the weekly needed the
     source files as well as the built readers. It needs the readers and the index.
     """
-    from ..weekly.entries import NOTICE
     from ..weekly.models import LEVELS
     from ..weekly.models import folder as weekly_folder
 
@@ -1772,7 +1771,6 @@ def weekly_page(
                 one: said(f"weekly.level.{one}.explained", text)
                 for one, text in WEEKLY_LEVELS.items()
             },
-            notice=NOTICE,
             shelf_name=SHELF[0],
             press=press,
             archive=[other for other in (archive or []) if other.id != issue.id],

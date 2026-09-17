@@ -28,7 +28,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from ..errors import TargumError
-from . import MAX_VIDEO_BYTES, VIDEO_HEIGHT, ytdlp_available
+from . import MAX_VIDEO_BYTES, VIDEO_EDGE, ytdlp_available
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +46,14 @@ WATCH = "https://www.youtube.com/watch?v="
 
 #: Never more than the sidecar needs. The format is chosen at the download, because
 #: fetching 1080p to throw three quarters of it away is paying twice.
-FORMAT = f"bv*[height<={VIDEO_HEIGHT}]+ba/b[height<={VIDEO_HEIGHT}]/b"
+#:
+#: Both edges, not the height alone. A vertical film's height is its *long* side, so a
+#: height cap of 480 bought 270×480 — a Short delivered a quarter the width of the
+#: landscape films beside it, and unreadable wherever one has words on screen. Capping
+#: both edges at the same number admits 854×480 and 480×854 and refuses 1280×720 and
+#: 1080×1920, which is the rule that was meant all along.
+_FITS = f"[width<={VIDEO_EDGE}][height<={VIDEO_EDGE}]"
+FORMAT = f"bv*{_FITS}+ba/b{_FITS}/b"
 
 #: Where YouTube is fetched *from*, and on a datacenter box the only thing that works.
 #:

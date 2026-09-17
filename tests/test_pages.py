@@ -828,15 +828,51 @@ def test_a_list_page_marks_learn_in_the_nav() -> None:
         assert current == [], which
 
 
+def _body_of(source: str, opening: str) -> str:
+    """One function's source, by counting its braces.
+
+    This used to be a slice between two landmarks — `function pointAt` and the next line
+    that happened to follow it — and a block inserted between them put `ask(` inside the
+    slice and failed a test about a function that does not call it. A function's body is
+    the thing being asserted about, so the body is what this returns.
+    """
+    start = source.index(opening)
+    depth = 0
+    for at in range(source.index("{", start), len(source)):
+        if source[at] == "{":
+            depth += 1
+        elif source[at] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : at + 1]
+    raise AssertionError(f"{opening} never closes")
+
+
 def test_the_suggestion_points_at_a_row_without_pressing_it() -> None:
-    """Learn links here with an id in the hash. An unbuilt row is a button that starts
-    spending, so arriving with an id marks the row and scrolls to it — it never presses
-    it. A page that could be made to buy something by its own address is a hole."""
+    """Learn and `/open/<id>` both link here with an id in the hash. An unbuilt row is a
+    button that starts spending, so arriving with an id marks the row and scrolls to it —
+    it never presses it. A page that could be made to buy something by its own address is
+    a hole.
+
+    Since targum-internal#313 an id may arrive as `build:<id>`, which additionally puts
+    the row's own press under the reader's hand. Focused, not pressed, and not quoted
+    either: this used to be checked by forbidding the words `data-build` outright, and
+    that was a proxy for the rule rather than the rule. What must never appear is
+    anything that *fires* the button.
+    """
     library = (ASSETS / "library.js").read_text(encoding="utf-8")
-    pointing = library[library.index("function pointAt") : library.index("find.value = view.find")]
+    pointing = _body_of(library, "function pointAt")
     assert "scrollIntoView" in pointing
     assert 'classList.add("pointed")' in pointing
-    assert "click()" not in pointing and "data-build" not in pointing
+    # Nothing here presses anything, by any of the names a press goes by.
+    for firing in ("click()", ".submit(", "dispatchEvent", "requestSubmit"):
+        assert firing not in pointing, f"pointAt must not fire a control: {firing}"
+    # And nothing here asks the server for anything either — a quote costs nothing today
+    # and a page that requests one because of what was in an address is one source type
+    # away from spending on a link somebody followed.
+    for asking in ("ask(", "fetch(", "build("):
+        assert asking not in pointing, f"pointAt must not call {asking}"
+    assert "focus(" in pointing, "it does put the press under their hand"
 
 
 def test_which_hebrew_is_a_switch_rather_than_two_more_filter_pills() -> None:

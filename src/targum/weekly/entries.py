@@ -15,39 +15,31 @@ from .models import LEVELS, Issue, Level, identifier
 #: on the contents page of every built reader by machinery that already exists, and it
 #: cannot be lost by a change to a template.
 #:
-#: "Compiled and curated" rather than "written by AI" because that is the accurate
-#: description and not merely the softer one — a model assembles the issue from the fact
-#: base, and a person reads it and presses publish. It is true only while that gate is
-#: manual. Automate the gate and this sentence has to change with it; see `publish`.
-#: The byline, and only the byline: who this is from.
+#: What issues written before 2026-09-17 carry, in Hebrew, and nothing new does.
 #:
-#: It said "compiled by a model, curated by the targum team" and now does not, because
-#: a byline is not the place for a disclosure. The disclosure is under the reader, in
-#: full, where somebody reading the issue meets it having read the issue rather than
-#: instead of it. See `NOTICE`, and see the note below about where that leaves a reader
-#: who never sees the page around it.
-BYLINE = "Compiled by the targum team"
-
-#: The same line, in the language of the text it stands under.
+#: There was a byline — "Compiled by the targum team" — and a notice under the reader:
+#: "Compiled by a model from this week's reporting and curated by the targum team before
+#: it went out." Both were accurate while a person read every issue and pressed publish.
 #:
-#: The byline is a block of the document, so it is set in the source column and read as
-#: source: annotated, tokenised, tappable. In English it came out as English words on
-#: the Hebrew side of a Hebrew page, with the translation column repeating them back
-#: identically — not a byline, a bug that happens to be legible. A Hebrew paper's byline
-#: is in Hebrew, the translation column renders the English for free, and `Entry.author`
-#: keeps the English for the library, where the surrounding page is English too.
+#: On 2026-09-17 that gate came out: `deploy/weekly-run.sh` writes, builds, publishes,
+#: announces and ships an issue on a schedule, and nobody reads it first. David's call,
+#: made knowing the alternative, was that neither line survives — an issue carries its
+#: sources at the foot and says nothing about how it was made, rather than saying
+#: something that used to be true.
+#:
+#: These two stay because **old issues still carry them**. An issue published before the
+#: change was curated, its byline is a fact about it, and `pipeline.byline_for` still
+#: renders the Hebrew one into English so those issues read as they always did. Nothing
+#: new is composed with a byline: `weekly draft` passes an empty author now.
 BYLINE_HE = "נערך בידי מערכת ״תרגום״"
 
-#: What the byline said until 2026-09-14. "חובר בידי צוות תרגום" is a book's colophon
-#: rather than a paper's, and it reads as "compiled by the translation team": תרגום is the
-#: ordinary word, and nothing marked it as a name. The gershayim do now. Issues written
-#: before the change still carry the old line, and it is still a byline.
+#: And what it said before 2026-09-14. "חובר בידי צוות תרגום" is a book's colophon rather
+#: than a paper's, and it reads as "compiled by the translation team": תרגום is the
+#: ordinary word, and nothing marked it as a name. The gershayim did.
 BYLINES_HE = (BYLINE_HE, "חובר בידי צוות תרגום")
 
-NOTICE = (
-    "Compiled by a model from this week's reporting and curated by the targum team "
-    "before it went out. The sources are listed at the foot."
-)
+#: The English those old Hebrew bylines are rendered as. Not put on anything new.
+BYLINE_WAS = "Compiled by the targum team"
 
 
 def title_for(issue: Issue, level: Level) -> str:
@@ -61,7 +53,9 @@ def entries_for(issue: Issue) -> list[Entry]:
             Entry(
                 id=edition.entry_id,
                 title=title_for(issue, edition.level),
-                author=BYLINE,
+                # No author since 2026-09-17: nobody reads an issue before it goes out,
+                # so there is nobody to name. Issues published before then keep theirs.
+                author="",
                 language="he",
                 # The prefix `Build.PUBLIC_SOURCES` recognises, so the English is bought
                 # once and shared by every reader rather than per person. It is one

@@ -181,11 +181,17 @@
     </ol>
   </section>
 
-  {#- How the issue was made, and where it came from: the honesty a stranger deciding
-      whether to trust a news digest is looking for, in one place. -#}
+  {#- Where the issue came from: the honesty a stranger deciding whether to trust a news
+      digest is looking for.
+
+      There was a sentence above the sources saying the issue had been compiled by a
+      model and curated by the targum team before it went out. It was true while a person
+      read every issue and pressed publish, and on 2026-09-17 that stopped being how an
+      issue goes out (`weekly/entries.py`). The sources stayed and the sentence went:
+      saying nothing about how it was made is honest, and saying something that used to
+      be true is not. -#}
   <section class="honest">
     <h2 class="label">{{ t("weekly.page.made-honestly", "Made honestly") }}</h2>
-    <p class="made">{{ notice }}</p>
 
 
   {%- if issue.sources %}

@@ -100,7 +100,9 @@
           title: entry.title || entry.id,
           english: entry.english || "",
           language: entry.language || "",
-          href: "/library#" + encodeURIComponent(entry.id),
+          // The door, not the shelf (targum-internal#313): finding a text and then
+          // being shown where it is filed is finding it twice.
+          href: "/open/" + encodeURIComponent(entry.id),
         });
       });
       ((got[1] && got[1].chats) || []).forEach(function (chat) {

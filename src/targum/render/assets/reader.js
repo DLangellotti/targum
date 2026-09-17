@@ -8653,7 +8653,9 @@ var targumReader = function () {
     var pick = more.shift();
     if (!pick) return;
     if (link) {
-      link.href = "/library#" + encodeURIComponent(pick.id);
+      // The same door the first offer uses: straight to the text where it is built, to
+      // its row with the offer up where it is not (targum-internal#313).
+      link.href = "/open/" + encodeURIComponent(pick.id);
       link.textContent = "";
       var named = document.createElement("bdi");
       named.lang = document.documentElement.getAttribute("data-language") || "";
@@ -8920,6 +8922,30 @@ var targumReader = function () {
        request must carry the same or be turned away as a stranger. Off a disk the
        search is empty and the relative address stands alone. */
     videoEl.src = videoEl.getAttribute("data-src") + (location.search || "");
+
+    /* The film's own shape, taken from the film (design.md §12, 2026-09-17).
+     *
+     * The stylesheet wrote 16/9 into the docked panel and into the portrait frame, so
+     * anything shot upright — a Short, a reel, a phone held the ordinary way — sat in a
+     * letterbox with two thirds of the frame black. Nothing is fetched to learn better:
+     * the element knows its own dimensions once the metadata lands, and the frame takes
+     * them.
+     *
+     * Written on the panel rather than on the element, so the one custom property serves
+     * the picture, the tap target over it and the full-screen frame at once, and so the
+     * stylesheet keeps the 16/9 it had as the value before the metadata arrives. `tall`
+     * is the switch the layout needs: a picture taller than it is wide is sized by its
+     * height, or a 9:16 at the panel's width would be a column of video down the window.
+     */
+    videoEl.addEventListener("loadedmetadata", function () {
+      var wide = videoEl.videoWidth;
+      var high = videoEl.videoHeight;
+      if (!wide || !high || !videoBox) return;
+      videoBox.style.setProperty("--film", wide + " / " + high);
+      videoBox.classList.toggle("tall", high > wide);
+      var reader = window.TargumReader;
+      if (reader && reader.relayout) reader.relayout();
+    });
   }
   var videoDead = false;
   var audio = videoEl || new Audio(speech.audio);
@@ -9809,9 +9835,17 @@ var targumReader = function () {
        reads. Two stores, kept the two different ways for the two different reasons the
        rate and the shut picture are: what the picture is doing is a fact about this
        text, and where a reader likes it to stand is a fact about the reader, like the
-       type size. The mode store records the departure — a 1 means "read this one
-       alongside" — so the default can move again without reading old rows backwards. */
-    var READ_STORE = "targum:video-read:" + spokenOf;
+       type size. The mode store records the departure, so the default can move again
+       without reading old rows backwards.
+
+       And it moved (design.md §12, 2026-09-17): a video text opens as its transcript
+       now, so the departure is watching rather than reading. That inverts what the store
+       means, which is exactly the bug this file has already had once — see
+       `targum:video-open` above. So the key is new, `targum:video-watch:`, a 1 means
+       "this reader chose full screen here", and the old key is left where it is and
+       ignored. Inverting it in place would have opened full screen for precisely the
+       readers who had asked for the opposite. */
+    var WATCH_STORE = "targum:video-watch:" + spokenOf;
     var CORNER_STORE = "targum:video-corner";
     var CORNERS = ["bottom-end", "bottom-start", "top-start", "top-end"];
     var SAID_CORNER = {
@@ -9860,8 +9894,9 @@ var targumReader = function () {
       }
       if (chosen) {
         try {
-          if (watching) targumForget(READ_STORE);
-          else targumKeep(READ_STORE, "1");
+          // The store records the departure, and the departure is watching now.
+          if (watching) targumKeep(WATCH_STORE, "1");
+          else targumForget(WATCH_STORE);
         } catch (e) {}
         var reader = window.TargumReader;
         if (reader && reader.say) reader.say(watching ? "Watching." : "Reading.");
@@ -10199,16 +10234,16 @@ var targumReader = function () {
       whenKnown(resume);
     });
 
-    /* On unless this reader put it away here before, and watching unless they left it
-       for the page here before. Not `chosen` in either case, so opening a text never
-       writes a preference the reader did not express. The corner is a fact about the
-       reader and comes from wherever they last set it, on any text. */
+    /* On unless this reader put it away here before, and reading unless they asked for
+       full screen here before (design.md §12, 2026-09-17). Not `chosen` in either case,
+       so opening a text never writes a preference the reader did not express. The corner
+       is a fact about the reader and comes from wherever they last set it, on any text. */
     var putAway = false;
-    var alongside = false;
+    var wantsFullScreen = false;
     var where = CORNERS[0];
     try {
       putAway = localStorage.getItem(VIDEO_STORE) === "1";
-      alongside = localStorage.getItem(READ_STORE) === "1";
+      wantsFullScreen = localStorage.getItem(WATCH_STORE) === "1";
       var stored = localStorage.getItem(CORNER_STORE);
       if (CORNERS.indexOf(stored) >= 0) where = stored;
       /* Read with suspicion: a row from a later build, or a hand, may hold anything,
@@ -10222,7 +10257,7 @@ var targumReader = function () {
     } catch (e) {}
     setCorner(where, false);
     showVideo(!putAway, false);
-    showWatch(!putAway && !alongside, false);
+    showWatch(!putAway && wantsFullScreen, false);
   }
 
   /* The video's home, opened at the line in front of the reader. The sidecar stays

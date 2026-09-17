@@ -160,9 +160,18 @@ def cut_video(source: Path, into: Path, start: float, end: float) -> None:
                 "-i",
                 str(source),
                 "-vf",
-                # floor to even: -2 keeps the width even, and an odd source height
-                # under the ceiling would otherwise fail yuv420p outright.
-                f"scale=-2:'min({VIDEO_HEIGHT},floor(ih/2)*2)'",
+                # The short side is what is capped, whichever side that is: a film
+                # shot upright has its long side in `ih`, and capping that gave a
+                # 270-wide Short beside 854-wide lectures. `a` is the source's aspect,
+                # so landscape constrains the height and portrait the width.
+                #
+                # floor to even: -2 keeps the other side even, and an odd source
+                # dimension under the ceiling would otherwise fail yuv420p outright.
+                # `min` with the input keeps this from ever upscaling.
+                (
+                    f"scale=w='if(gt(a,1),-2,min({VIDEO_HEIGHT},floor(iw/2)*2))'"
+                    f":h='if(gt(a,1),min({VIDEO_HEIGHT},floor(ih/2)*2),-2)'"
+                ),
                 "-c:v",
                 "libx264",
                 "-preset",

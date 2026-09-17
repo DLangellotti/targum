@@ -320,6 +320,111 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The weekly goes out unread, and claims nothing — 2026-09-17
+
+`weekly publish` was the gate the whole design rested on: nothing written by a model went
+out under the targum name until a person had read it. §6 said so and every issue said so,
+twice — a byline, "Compiled by the targum team", and a notice under the reader, "Compiled
+by a model from this week's reporting and curated by the targum team before it went out".
+
+David took the gate out. The reasoning is worth keeping because the trade is a real one:
+an issue every week is worth more than an issue whenever somebody had a free evening, and
+the weekly had been going out when there was time for it. `deploy/weekly-run.sh` writes,
+builds, publishes, announces and ships one on a schedule, and nobody reads it first.
+
+- **Both lines come off the page.** Not softened, not reworded: removed. An issue carries
+  its sources at the foot and says nothing about how it was made. The alternative on the
+  table was a shorter line saying a model compiled it, and the objection to it is that a
+  page explaining its own provenance in one sentence invites the reader to stop there —
+  the sources are the honest answer and they are still printed.
+
+  This was raised as a cost before it was chosen, and chosen anyway. It is written down
+  here so that nobody restores either line thinking it was lost rather than retired.
+
+- **Issues published before today keep their byline**, because they were curated and the
+  line is a fact about them. `BYLINE_HE` and `pipeline.byline_for` survive for exactly
+  that, and nothing new is composed with an author.
+
+- **Automatic means nobody reads it. It does not mean nothing checks it.** `publish` still
+  refuses a level carrying a source's own wording — that is the licence boundary, and it
+  was never waivable — and still refuses a level that missed the band it is labelled with.
+  The scheduled run never passes `--anyway`. A run that stops has found something.
+
+Built under targum-internal#316.
+
+### A build is on the shelf while it is building — 2026-09-17
+
+"When I upload something via /add or when I start a build a chat, I need a more obvious
+place to see the progress → Notifications tab is too easy to miss."
+
+The bell was not wrong about what it fixed. `building.js` records what it replaced: one
+pill, fixed at the foot, showing one build at a time, which could not survive leaving the
+page that started it. The panel shows every build, newest first, each dismissable, and it
+follows the reader from page to page. What it is not is **findable while you are waiting**
+— a corner glyph with a count is ambient, and a build you have just started is the
+opposite of ambient.
+
+- **A text being built is a row on the shelf, from the moment it starts.** It appears in
+  Your uploads with its title and a line saying how far it has got, and becomes the
+  ordinary row when it is done. That is where the reader was going anyway; the library is
+  the one page that can honestly say "everything of yours is here", and a text that only
+  existed in a notification until it finished made that false for the ten minutes it
+  mattered.
+
+- **The page that started it still narrates it.** `/add` already did and keeps doing it.
+  The two are not a duplicate: one is where you are, the other is where you go.
+
+- **The bell keeps everything else** — finished builds, followed series, anything landing
+  while the reader is elsewhere.
+
+**Nothing new is fixed at the foot of the window.** §13 ends "nothing is fixed at the foot
+of the window but the pill", and the straightforward reading of the note was to put the
+old pill back and amend that sentence. This does not, and the reason is worth keeping: a
+thing fixed over the page is a thing that covers the page, and the reader already has two
+of them. Walking away wanted a *destination*, not a second badge, and the shelf is the
+destination.
+
+Not in tension with "any notification is fatal" (2026-09-16), which is about pushing at a
+reader who is not there. This is a page telling a reader who is there, and waiting, what
+is happening.
+
+Built under targum-internal#317.
+
+### A video text opens as its transcript, and a vertical one is vertical — 2026-09-17
+
+This reverses "A video text opens as video" below, which is a fortnight old and came from
+the first stranger session. That session is still the evidence, so it is worth being exact
+about what it proved and what it did not.
+
+The olah's complaint was that she never found out the page could be heard. What answers it
+is that the media is **visible and named** when the page opens. The 2026-09-03 entry went
+further — the picture is not on beside the page, *it is the page* — and that further step
+is the one being withdrawn. A reader who imported an hour of speech to watch it presses one
+key; a reader who came to read Hebrew, which is everybody who stays, was handed a film and
+had to dismiss it every time.
+
+- **A text carrying a video opens as its transcript, with the picture docked and on.**
+  Reading is the default and watching is one press. The picture is still there, still
+  named, still the first thing a stranger can say about the page — so the sentence that
+  entry was protecting is kept.
+
+- **The preference is stored the other way up, under a new key.** `targum:video-read:`
+  records the departure from the old default — a `1` means "this reader chose to read
+  alongside" — and inverting its meaning would shut the picture for exactly the readers who
+  liked it. `targum:video-watch:` now records the new departure, and the old key is left
+  where it is and ignored, the way `targum:video-open` already was. That mistake has been
+  made once on this panel and the file says so.
+
+- **A vertical film fills a vertical frame.** The docked panel and the portrait full-screen
+  frame both wrote `aspect-ratio: 16 / 9` into the stylesheet, so a phone video — a Short,
+  a reel, anything shot upright — sat in a letterbox with two thirds of the frame black.
+  The shape is read off the file itself (`videoWidth`/`videoHeight` when the metadata
+  arrives) and the frame takes it. Nothing is fetched to learn it; the element already
+  knows. A picture taller than it is wide is sized by its height, or a 9:16 at panel width
+  would be a column of video down the whole window.
+
+Built under targum-internal#312.
+
 ### The library is browsed, not looked up — 2026-09-17
 
 "Library currently is not usable in my opinion," David wrote, and asked for four things:

@@ -65,7 +65,12 @@ def test_fetch_pins_the_arguments_that_guard_it(monkeypatch, tmp_path: Path) -> 
     assert "--no-playlist" in argv
     assert "--max-filesize" in argv
     assert "--merge-output-format" in argv and "mp4" in argv
-    assert any("height<=480" in part for part in argv), "the format is chosen at the download"
+    # Both edges, not the height alone (2026-09-17). A vertical film's height is its
+    # *long* side, so a height cap of 480 bought 270x480 — a Short a quarter the width of
+    # the landscape films beside it. Capping both at 854 admits 854x480 and 480x854 and
+    # refuses 1280x720 and 1080x1920, which is the rule that was meant all along.
+    assert any("height<=854" in part for part in argv), "the format is chosen at the download"
+    assert any("width<=854" in part for part in argv), "and a vertical film is not squashed"
     assert "--embed-metadata" in argv, "without the tags a video is titled after its id"
 
 

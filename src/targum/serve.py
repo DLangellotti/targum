@@ -1744,6 +1744,11 @@ class Library:
                 "video": spoken.is_video(source),
                 "entry": entry.id,
                 "english": entry.english,
+                # When it joined the catalogue, so the shelf can say what is new
+                # (targum-internal#315). An upload has no such date and needs none: the
+                # reader's own row already carries `built`, which is when it arrived for
+                # them, and that is the more honest answer for a text only they have.
+                "added": entry.added,
                 "drawn": any(
                     (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
                 ),
@@ -1822,6 +1827,32 @@ class Library:
         if "modern" in registers:
             return True
         return "biblical" not in registers
+
+    def built_from(self, home: Path, source: str) -> str | None:
+        """The folder holding this reader's copy of one source, or None.
+
+        `readers()` answers this too, and answers a great deal else with it: every
+        chapter, every share, every cover, for every text on the shelf. That is the right
+        shape for a page being drawn and the wrong one for a link being followed — it
+        took seventeen seconds on a cold box, and a link is something somebody is waiting
+        on. This reads one cached fact per folder and stops at the first match.
+        """
+        if not home.is_dir():
+            return None
+        for folder in sorted(home.iterdir()):
+            if not (folder / "reader" / "index.html").is_file():
+                continue
+            # A text in the bin is not on the shelf, and sending somebody into it would
+            # be answering a question they did not ask.
+            if self.trashed_at(folder):
+                continue
+            document = folder / "document.json"
+            facts = self.remembered.get(
+                folder, "document", [document], partial(self._document_facts, document)
+            )
+            if facts.get("source") == source:
+                return folder.name
+        return None
 
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
@@ -3103,7 +3134,12 @@ class Handler(BaseHTTPRequestHandler):
             "/account/follows",
         }
     )
-    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/")
+    #: `/open/` is here because a person clicks it (targum-internal#313): a signed-out
+    #: visitor following a link to a text should meet the door, not a 404 saying the text
+    #: does not exist. It is not a page in the sense of having markup — it redirects —
+    #: but it is a page in the sense this list is about, which is "could somebody be
+    #: looking at this".
+    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/", "/open/")
 
     def _is_a_page(self, route: str) -> bool:
         return (
@@ -4534,6 +4570,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
+        if route.startswith("/open/"):
+            return self._open_entry(route[len("/open/") :])
         if route.startswith("/thumb/"):
             return self._serve_thumb(route[len("/thumb/") :])
         if route == "/":
@@ -7045,6 +7083,57 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(entries, dict):
             return self._json({"ready": False, "target": wanted})
         self._json({"ready": True, "target": wanted, "entries": entries})
+
+    def _open_entry(self, name: str) -> None:
+        """One door onto a catalogue text, wherever the link to it was written.
+
+        "When I click on any link to a targum anywhere it should open that targum
+        immediately, and not merely bring me to library" (2026-09-17). Every such link
+        pointed at `/library#<id>`, which marks the row and scrolls to it — five call
+        sites, in the reader, on Learn twice and in the command palette, each of which
+        would otherwise have to learn this reader's shelf for itself. A door is one
+        place instead, and it works from a page that fetches nothing.
+
+        Two answers, and the second is the one that matters:
+
+        * Built already — go to it. That is the address the library row is a link to.
+        * Not built — go to its row with the offer up. **Never straight into a build.**
+          What pressing an unbuilt row does is start spending, and a redirect the reader
+          did not press is exactly the thing that must not be able to do that. The row
+          is one press from reading, which is the whole of the fixable complaint.
+
+        An id nobody has heard of lands on the library too, rather than on a 404: the
+        library is the honest answer to "I could not find that text".
+        """
+        from . import catalogue as catalogue_module
+
+        # The key the request itself arrived with, carried on. Locally it rides in every
+        # address and a redirect that dropped it would land on a 403; hosted there is no
+        # key and the session cookie travels on its own.
+        query = urlparse(self.path).query
+
+        def sent(where: str, fragment: str = "") -> None:
+            if query:
+                where += ("&" if "?" in where else "?") + query
+            self._sent_on(where + fragment)
+
+        entry_id = unquote(name).strip("/")
+        entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
+        if entry is None:
+            return sent("/library")
+        # Their own shelf first, then the shared one — the precedence the library page
+        # already uses when it merges the two into one list. A reader with nothing of
+        # their own is handed the shared copy to start with, and it opens like any built
+        # text; a door that looked only at their own home sent them to the offer for a
+        # text they can already read.
+        folder = self.library.built_from(self._home(), entry.source) or self.library.built_from(
+            self.library.shared, entry.source
+        )
+        if folder:
+            return sent("/reader/" + quote(folder) + "/reader/index.html")
+        # `#build:` rather than `#<id>`: the library opens the row's offer on this one
+        # instead of only marking it, so the press that spends is still a press.
+        return sent("/library", "#build:" + quote(entry.id))
 
     def _serve_thumb(self, name: str) -> None:
         """The cover drawn for one text, where somebody has made one.

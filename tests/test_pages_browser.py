@@ -1297,7 +1297,9 @@ def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
     if width <= 640:
         assert got["cards"] == [
             ["Continue reading", "תור לרופא", "/reader/doctor-he/reader/index.html"],
-            ["Suggested for you", "מחאה בתל אביב", "/library"],
+            # `/open/<id>` since targum-internal#313: a card offering a text links at
+            # the text, not at where it is filed. The id is the catalogue row's.
+            ["Suggested for you", "מחאה בתל אביב", "/open/ynet-1"],
             ["Recently read", "בבנק", "/reader/bank-he/reader/index.html"],
         ], got
         assert not got["sheet"] and not got["doors"], "no sheet and no row of doors on a phone"

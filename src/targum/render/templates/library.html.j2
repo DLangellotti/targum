@@ -78,6 +78,11 @@
       <label class="pick"><span>{{ t("library.page.hard-words", "Hard words") }}</span><select id="difficulty"></select></label>
       <button type="button" class="clear" id="clear" hidden>{{ t("library.page.clear", "Clear") }}</button>
       </details>
+      {#- How the list is ordered, for the shape that has no columns to press: a grid of
+          cards with no way to reorder itself is a grid you can only scroll. It writes the
+          same sort the table's headings do, and it is hidden under the table, where those
+          headings say it already. -#}
+      <div class="shape" id="sorts" role="group" aria-label="{{ t("library.page.order-them-by", "Order them by") }}"></div>
       {#- Cards or the table. The grid is how the page is browsed; the table is what it
           was, kept one press away because the complaint that retired the last card grid
           — that a card cannot be sorted — was a fair one. The choice is remembered. -#}

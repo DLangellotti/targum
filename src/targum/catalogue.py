@@ -373,6 +373,21 @@ class Entry:
     #: than against somebody's summary of it. Empty rather than guessed.
     licence_url: str = ""
 
+    #: The day this row joined the catalogue, as `YYYY-MM-DD`.
+    #:
+    #: "I want to see what was recently added right away" (2026-09-17), and the catalogue
+    #: carried no date at all: not when a row arrived, not when it changed, nothing. A
+    #: shelf that grows every week and cannot say what is new is a shelf where the new
+    #: thing is found by whoever already knew it was coming.
+    #:
+    #: A day and not a timestamp. What the reader is asking is "what is new since I last
+    #: looked", which is a question about days; an hour would be precision nobody can use
+    #: and one more thing to keep true. Rows added before this field existed were dated
+    #: from the catalogue file's own history — see `scripts/backfill_added.py` — and a row
+    #: that was never dated sorts last under Newest rather than first, because "we do not
+    #: know" must never read as "just arrived".
+    added: str = ""
+
     @property
     def sample(self) -> list[Line]:
         """The opening, both languages, for the public page.
@@ -432,6 +447,8 @@ class Entry:
             # imported the lecture could not find it again by looking.
             "video": _is_video(self.source),
             "tags": sorted(tag.value for tag in self.tags),
+            # When it arrived, so the shelf can say what is new (targum-internal#315).
+            "added": self.added,
             # Not the model: the page has no use for it and it is not the browser's to
             # ask for. The server reads it back from here when a build starts.
             "translations": [
@@ -650,6 +667,9 @@ def _entry(raw: dict[str, Any]) -> Entry:
         licence=str(raw.get("licence", "")),
         credit=str(raw.get("credit", "")),
         licence_url=str(raw.get("licence_url", "")),
+        # A row written before the field existed has no date, and the shelf reads that as
+        # "not known" rather than as "new" — see `Entry.added`.
+        added=str(raw.get("added", "")),
     )
 
 

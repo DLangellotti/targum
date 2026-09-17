@@ -2950,13 +2950,24 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
   box-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 20px -14px rgb(0 0 0 / 35%);
 }
 
+/* A vertical film docks as a vertical panel. At the landscape panel's width a 9:16
+   picture is six hundred pixels of video down the corner of the page, which is not a
+   dock — it is a takeover. `:not(.free)` so a reader who sized it by hand keeps their
+   size; the dock is only the starting shape. */
+.video.tall:not(.watching):not(.free) {
+  inline-size: min(11rem, calc(100vw - 2.5rem));
+}
+
 .video[hidden] { display: none; }
 
 .video-el {
   flex: 1 1 auto;
   min-inline-size: 0;
   inline-size: 100%;
-  aspect-ratio: 16 / 9;
+  /* The film's own shape once its metadata lands, and 16/9 until then (design.md §12,
+     2026-09-17). `--film` is written on the panel by `reader.js`, so the picture, the
+     tap target over it and the full-screen frame all take the same value. */
+  aspect-ratio: var(--film, 16 / 9);
   object-fit: contain;
   border-radius: 4px;
   /* A letterbox is dark in both themes — `--ink` flips to cream on the dark page,
@@ -3366,8 +3377,20 @@ body.watching { overflow: hidden; }
     align-self: start;
     margin-block-start: 3rem;
     block-size: auto;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: var(--film, 16 / 9);
   }
+  /* A film taller than it is wide fills the window's height instead, and the line it is
+     saying goes under it as any portrait frame's does. Upright is the shape a phone
+     holds, so this is the common case on a phone and not the exception. */
+  .video.watching.tall .video-el {
+    margin-block-start: 0;
+    block-size: 100%;
+    inline-size: auto;
+    justify-self: center;
+  }
+  .video.watching.tall { grid-template-rows: 1fr auto auto; }
+  .video.watching.tall .video-titles { grid-row: 2; }
+  .video.watching.tall .player { grid-row: 3; }
   .video.watching .video-keys { grid-row: 1; align-self: start; }
   .video.watching .video-titles {
     grid-row: 2;
@@ -3420,7 +3443,15 @@ body.watching { overflow: hidden; }
     align-self: start;
     margin-block-start: 3rem;
     inline-size: 100%;
-    aspect-ratio: 16 / 9;
+    aspect-ratio: var(--film, 16 / 9);
+  }
+  /* The tap that plays is the picture's, so it follows the picture when that fills the
+     window rather than sitting in a 16/9 box over the top of it. */
+  .video.watching.tall .video-tap {
+    margin-block-start: 0;
+    block-size: 100%;
+    inline-size: auto;
+    justify-self: center;
   }
   .video.watching .video-tap-glyph { display: none; }
 }

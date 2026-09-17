@@ -358,6 +358,27 @@
     return band === "mid" ? "stretch" : "hard";
   }
 
+  /* How lately a text has to have arrived to be worth marking. A fortnight, which is
+     about how long somebody goes between looking at a library — long enough that a
+     reader who visits every other week never misses one, short enough that the mark
+     still means something when a dozen rows arrive at once.
+
+     Not a badge and not a count. §6 forbids gamification, and this is not a reward for
+     anything: it is the shelf answering "what is new", which is what was asked for. */
+  var LATELY_DAYS = 14;
+
+  function isNew(row) {
+    var when = dateOf(row);
+    if (!when) return false;
+    var day = 24 * 60 * 60 * 1000;
+    var then = Date.parse(when + "T00:00:00Z");
+    if (isNaN(then)) return false;
+    var since = (Date.now() - then) / day;
+    // Never a future date: a row dated tomorrow by a bad clock or a bad hand is a row
+    // that would sit marked New for ever.
+    return since >= -1 && since <= LATELY_DAYS;
+  }
+
   /* Whether a row is filed under one subject. A list, not a value: a match report is
      journalism and sport at once and belongs under both. */
   function holdsSubject(row, tag) {
@@ -418,6 +439,51 @@
     return (entry && entry.blurbs && entry.blurbs[uiLanguage]) || (entry && entry.blurb) || "";
   }
 
+  /* Builds that have not finished, as rows on the shelf (design.md §12, 2026-09-17).
+   *
+   * "I need a more obvious place to see the progress — the notifications tab is too easy
+   * to miss." The bell follows the reader from page to page, which is what it is for and
+   * also why it is ambient; a text being built belongs where the reader was going, which
+   * is here. It carries its title and how far it has got, and becomes the ordinary row
+   * the moment it is done.
+   *
+   * Filed under Your uploads whatever it was built from, because that tab is "texts of
+   * mine" and a build is exactly that until it exists. Nothing on one can be pressed: it
+   * is not a link yet and it is certainly not a button that would buy it again.
+   */
+  var buildingNow = [];
+
+  function buildingRows() {
+    return buildingNow
+      .filter(function (job) {
+        return job.stage !== "done" && !job.error && job.title;
+      })
+      .map(function (job) {
+        return {
+          id: "building:" + job.id,
+          entry: null,
+          building: job,
+          title: job.title,
+          english: job.english || "",
+          author: "",
+          language: job.language || lang.HOME,
+          kind: "",
+          register: "",
+          difficulty: 0,
+          // Nothing measured yet, and a zero here would be a claim. The row says what it
+          // is doing instead of pretending to be a text with facts.
+          minutes: 0,
+          spoken: false,
+          video: false,
+          tags: [],
+          built: null,
+          opened: 0,
+          // Newest of everything: it is the most recently arrived thing there is.
+          place: 1e9,
+        };
+      });
+  }
+
   function rows(readers, shared) {
     var mine = {};
     var out = [];
@@ -432,11 +498,14 @@
     readers.forEach(function (reader) {
       if (reader.entry) mine[reader.entry] = reader;
     });
-    catalogue.forEach(function (entry) {
+    catalogue.forEach(function (entry, place) {
       var built = mine[entry.id];
       out.push({
         id: entry.id,
         entry: entry,
+        // Where it sits in the catalogue file, which is the only evidence of arrival
+        // order the nine hundred undated rows have. See `SORTS.added`.
+        place: place + 1,
         title: entry.title,
         english: titleIn(entry),
         englishLang: namedIn(entry) ? uiLanguage : "en",
@@ -458,6 +527,10 @@
         drawn: !!(built && built.drawn),
         opened: built ? built.opened || 0 : 0,
       });
+    });
+    // What is building, above what is built: it is the thing the reader is waiting on.
+    buildingRows().forEach(function (row) {
+      out.push(row);
     });
     readers.forEach(function (reader) {
       if (reader.entry && mine[reader.entry]) return;
@@ -691,6 +764,7 @@
    * cheaper way to do that.
    */
   function card(row) {
+    if (row.building) return buildingCard(row);
     var item = el("li", "card-item");
     item.setAttribute("data-row", row.id);
 
@@ -731,6 +805,13 @@
       var scene = el("span", "card-scene", t("library.scene", "Scene {n}", { n: number }));
       scene.setAttribute("lang", saidIn);
       what.appendChild(scene);
+    } else if (isNew(row)) {
+      // "I want to see what was recently added right away" — answered by the card
+      // rather than by a sort, so it is true of the page whatever order it is in.
+      // In the scene's place, because a numbered scene is never new.
+      var fresh = el("span", "card-scene card-new", t("library.new", "New"));
+      fresh.setAttribute("lang", saidIn);
+      what.appendChild(fresh);
     }
     // Its own direction and its own clip, so a long Hebrew title loses its end and never
     // its start — the edge Hebrew begins at.
@@ -790,6 +871,65 @@
 
     open.appendChild(what);
     item.appendChild(open);
+    return item;
+  }
+
+  /* A text being built, as a card that says so.
+   *
+   * Neither a link nor a button: there is nothing to open yet and nothing to buy again.
+   * A span, so nothing about it invites a press and a keyboard passes straight over it.
+   * It carries what is known — the title, and how far the build has got — and the moment
+   * the build finishes it is replaced by the ordinary row for the text it became.
+   */
+  function buildingCard(row) {
+    var job = row.building;
+    var item = el("li", "card-item");
+    item.setAttribute("data-row", row.id);
+
+    var box = el("span", "card card-building");
+    // Said aloud when it changes, because a reader watching this is waiting on it.
+    box.setAttribute("role", "status");
+
+    var cover = el("span", "card-cover");
+    cover.setAttribute("aria-hidden", "true");
+    cover.appendChild(
+      window.TargumCovers.tile("", { title: row.title, language: row.language, drawn: false })
+    );
+    box.appendChild(cover);
+
+    var what = el("span", "card-what");
+    var mark = el("span", "card-scene card-making", t("library.building", "Building"));
+    mark.setAttribute("lang", saidIn);
+    what.appendChild(mark);
+    var title = el("bdi", "card-title", row.title);
+    title.setAttribute("lang", row.language);
+    title.setAttribute("dir", "auto");
+    what.appendChild(title);
+    if (row.english) {
+      var english = el("span", "card-english", row.english);
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      what.appendChild(english);
+    }
+
+    // The pipeline narrates itself in its own vocabulary; this is the reader's, from the
+    // same table the row's own build sentence uses.
+    var said = job.behind
+      ? tn("library.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+      : say(job.message) || t("library.build.almost", "Almost there…");
+    what.appendChild(el("span", "card-meta", said));
+
+    var share = job.total ? job.done / job.total : 0;
+    var track = el("span", "card-known-track");
+    var fill = el("span");
+    fill.style.inlineSize = Math.max(2, Math.min(100, Math.round(share * 100))) + "%";
+    track.appendChild(fill);
+    var going = el("span", "card-known card-going");
+    going.appendChild(track);
+    what.appendChild(going);
+
+    box.appendChild(what);
+    item.appendChild(box);
     return item;
   }
 
@@ -1142,10 +1282,67 @@
       var share = knownOf(row);
       return typeof share === "number" ? share : -1;
     },
+    /* When it arrived: the catalogue's own date for a catalogue row, and the day it was
+       built for a text of the reader's own, which is when it arrived *for them*
+       (targum-internal#315).
+
+       A row nobody dated sorts last under Newest rather than first. Nine hundred rows
+       predate the field and were dated from the file's history where it has one and from
+       a floor where it has none (`scripts/backfill_added.py`); a row that fell through
+       even that is "we do not know", and "we do not know" must never read as "just
+       arrived". Compared as text because `YYYY-MM-DD` sorts correctly as text and a date
+       parsed in the browser is a date in the browser's timezone. */
+    added: function (row) {
+      var when = dateOf(row);
+      // Any dated row outranks every undated one, whatever their positions. The offset
+      // is well past any day count this century, so the two scales never meet.
+      if (when) return 1e6 + daysSince(when);
+      /* And among the undated, where it sits in the catalogue file. Nine hundred rows
+         predate the field and nothing can date them (`scripts/backfill_added.py`), so
+         without this "Newest" would be alphabetical among them, which is no order at
+         all. Rows are appended as they are added, so a later position is a later
+         arrival — evidence of *order*, never of date, which is why it can never put an
+         undated row above a dated one and why no row is ever marked New by it. */
+      return row.place || 0;
+    },
   };
 
+  /* The day a row arrived, from whichever side knows. A catalogue row carries the
+     catalogue's date; a text of the reader's own carries the day they built it, which is
+     when it arrived for them and is the more honest answer for a text only they have. */
+  function dateOf(row) {
+    if (row.entry && row.entry.added) return row.entry.added;
+    if (row.built && row.built.built) return dayOf(row.built.built);
+    return "";
+  }
+
+  function daysSince(day) {
+    var then = Date.parse(day + "T00:00:00Z");
+    return isNaN(then) ? 0 : Math.round(then / 86400000);
+  }
+
+  /* A day from the seconds a built reader records, in the reader's own timezone, which
+     is the one they would name the day by. */
+  function dayOf(seconds) {
+    try {
+      var when = new Date(seconds * 1000);
+      var month = String(when.getMonth() + 1);
+      var day = String(when.getDate());
+      return (
+        when.getFullYear() +
+        "-" +
+        (month.length < 2 ? "0" + month : month) +
+        "-" +
+        (day.length < 2 ? "0" + day : day)
+      );
+    } catch (e) {
+      return "";
+    }
+  }
+
   //: Columns a reader means "most first" by. Every other column reads smallest first.
-  var DESCENDING = { known: true };
+  //: Newest is the whole of what "added" is for, so it never reads oldest first.
+  var DESCENDING = { known: true, added: true };
 
   var COLUMNS = [
     ["", ""],
@@ -1223,7 +1420,10 @@
     // reader can. Somebody arriving at forty texts in a language they are learning is
     // asking which of them they can read now, and that is what the list answers.
     if (!one.sort) one.sort = "difficulty";
-    if (!one.dir) one.dir = 1;
+    // The direction the sort itself means, not 1 by default: Newest reads newest first
+    // and "Words you know" reads most first, and a view that carried a sort without a
+    // direction — a stored one from before either existed — showed them backwards.
+    if (!one.dir) one.dir = DESCENDING[one.sort] ? -1 : 1;
     if (!one.kind) one.kind = "";
     if (!one.register) one.register = "";
     if (!one.where) one.where = "library";
@@ -1294,6 +1494,13 @@
   function matches(row, code, using) {
     var state = using || view;
     if (!inLanguage(row, code)) return false;
+    /* A build in progress is on the shelf whatever the filters say (design.md §12,
+       2026-09-17). Nothing about it is measured yet — no kind, no register, no hard-word
+       share — so every narrowing control would hide it, and the one row the reader is
+       actually waiting on would be the one row they could not find. It answers to the
+       tab and to the language, which are the two questions about *where* it is rather
+       than about what it is like. */
+    if (row.building) return state.where === "mine";
     if (state.kind && row.kind !== state.kind) return false;
     if (code === lang.HOME && state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
@@ -1548,6 +1755,44 @@
     ["cards", t("library.shape.cards", "Cards")],
     ["list", t("library.shape.list", "List")],
   ];
+
+  /* Sorting, for the shape that has no columns to press.
+   *
+   * The table sorts by its headings and always did; a grid of cards has no headings, so
+   * a browse view with no way to reorder itself would be a browse view you can only
+   * scroll. These are the three orders somebody browsing actually asks for — what is
+   * new, what is easy, what I nearly know — and they write the same `view.sort` the
+   * headings do, because they are the same state shown two ways.
+   *
+   * Only three. "A to Z" is not one of them: the shelf is in Hebrew, a reader who wants
+   * one text by name has the search field, and a fourth word here would be a fourth
+   * thing to read before choosing. The table keeps every column it had.
+   */
+  var SORTS_OFFERED = [
+    ["added", t("library.sort.added", "Newest")],
+    ["difficulty", t("library.sort.difficulty", "Easiest")],
+    ["known", t("library.sort.known", "Words you know")],
+  ];
+
+  function sorts(host, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    // The table says this with its headings, and one state wearing two controls at once
+    // is two things to keep in step and one of them always wrong.
+    host.hidden = view.shape === "list";
+    if (host.hidden) return;
+    SORTS_OFFERED.forEach(function (pair) {
+      var press = el("button", "shape", pair[1]);
+      press.type = "button";
+      press.setAttribute("aria-pressed", view.sort === pair[0] ? "true" : "false");
+      press.addEventListener("click", function () {
+        view.sort = pair[0];
+        view.dir = DESCENDING[pair[0]] ? -1 : 1;
+        redraw();
+      });
+      host.appendChild(press);
+    });
+  }
 
   function shapes(host, redraw) {
     if (!host) return;
@@ -1846,7 +2091,12 @@
     return found;
   }
 
-  ask("/readers").then(function (data) {
+  /* The shelf and what is building on it, asked for together (design.md §12,
+     2026-09-17). `/jobs` is what the bell polls; the library reads the same answer, so
+     the two can never disagree about what is happening. */
+  Promise.all([ask("/readers"), ask("/jobs").catch(function () { return {}; })]).then(function (both) {
+    var data = both[0] || {};
+    buildingNow = (both[1] && both[1].jobs) || [];
     var readers = data.readers || [];
     var shared = data.shared || [];
     catalogueKnown = data.catalogue || {};
@@ -1917,6 +2167,7 @@
       // What it is about, above the list and always visible: the row a reader browses by
       // (design.md §12, 2026-09-17).
       subjects(document.getElementById("subject-chips"), everything, chosen, redraw);
+      sorts(document.getElementById("sorts"), redraw);
       shapes(document.getElementById("shape"), redraw);
       choices(document.getElementById("audio"), SPOKEN, "spoken", redraw);
       choices(document.getElementById("length"), LENGTHS, "length", redraw);
@@ -2022,16 +2273,33 @@
        were sent for could be anywhere in it. Marked and scrolled to, never pressed —
        what pressing an unbuilt row does is start spending, and nothing arrives at a page
        with permission to do that. */
+    /* Two flags, not one. `lifted` used to do both jobs — "I have opened a collection"
+       and "I have lifted the filters" — and opening a collection therefore spent the one
+       chance to lift them: a reader sent to a text inside a shut shelf that a filter also
+       hid had the shelf opened, the second pass find nothing, and `if (lifted) return`
+       give up before it ever looked at the filters. Found on the running page following
+       `/open/ruth`, which opens Ketuvim and then needs the band lifted as well
+       (targum-internal#313). Each does its own job once. */
+    var unfolded_once = false;
     var lifted = false;
     function pointAt() {
       var wanted = decodeURIComponent((location.hash || "").slice(1));
       if (!wanted) return;
+      /* `#build:<id>` is what `/open/<id>` sends when this reader has not built the text
+         yet (targum-internal#313). It means the same as a bare id — find that row and
+         show it — and adds one thing: the row's own offer is put up, so the reader lands
+         one press from reading rather than on a marked line with nothing to press.
+
+         The press itself is still theirs. The offer states the price and waits; nothing
+         here starts a build, because an address is not consent. */
+      var offering = wanted.indexOf("build:") === 0;
+      if (offering) wanted = wanted.slice("build:".length);
       /* Inside a collection that is shut. Opening it is a smaller thing to do to the
          reader's page than lifting every filter they set, so it is tried first — and
          only once, for the reason `lifted` exists. */
       var holding = GROUP_OF[wanted];
-      if (holding && !unfolded[holding.id] && !lifted) {
-        lifted = true;
+      if (holding && !unfolded[holding.id] && !unfolded_once) {
+        unfolded_once = true;
         unfolded[holding.id] = true;
         remember("targum:opened-groups", unfolded);
         redraw();
@@ -2045,6 +2313,15 @@
       if (row) {
         row.classList.add("pointed");
         if (row.scrollIntoView) row.scrollIntoView({ block: "center" });
+        /* Sent here to build it: put the press under their hand. Focused, not pressed —
+           and not quoted either. The quote costs nothing today, but a page that asks the
+           server for a price because of what was in an address is a page one source type
+           away from spending on a link somebody followed. The reader arrives on the row,
+           on the button, one key or one tap from reading. */
+        if (offering) {
+          var press = row.querySelector("[data-build]");
+          if (press && press.focus) press.focus({ preventScroll: true });
+        }
         return;
       }
       /* Not drawn. The filters, the tab and the language are all remembered between
@@ -2077,6 +2354,43 @@
       if (code && code !== chosen) return show(code);
       redraw();
     }
+
+    /* While anything is building, ask again (design.md §12, 2026-09-17).
+     *
+     * Only while: a shelf with nothing on the way polls nothing, the same rule the bell
+     * follows, and for the same reason — a page left open overnight should not be a page
+     * asking a question every three seconds until morning. When a build finishes, its row
+     * stops being a build and `/readers` has the text it became, so both are asked for
+     * again and the card turns into the real one in the same draw.
+     */
+    var following = null;
+    function follow() {
+      var going = buildingNow.some(function (job) {
+        return job.stage !== "done" && !job.error;
+      });
+      if (!going) {
+        if (following) clearInterval(following);
+        following = null;
+        return;
+      }
+      if (following) return;
+      following = setInterval(function () {
+        var nothing = function () {
+          return {};
+        };
+        Promise.all([ask("/jobs").catch(nothing), ask("/readers").catch(nothing)]).then(
+          function (both) {
+            buildingNow = (both[0] && both[0].jobs) || [];
+            if (both[1] && both[1].readers) {
+              everything = rows(both[1].readers, both[1].shared || []);
+            }
+            redraw();
+            follow();
+          }
+        );
+      }, 3000);
+    }
+    follow();
 
     find.value = view.find || "";
     find.addEventListener("input", function () {

@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ..mail import Mailer, SmtpMailer
-from .entries import NOTICE
 from .models import LEVELS, Issue, Level
 
 if TYPE_CHECKING:
@@ -36,8 +35,6 @@ BODY = """This week's issue, for the week of {dated}: \u2068{title}\u2069.
 Five sections in Modern Hebrew, written at three levels:
 
 {levels}
-
-{notice}
 
 Read it: {where}
 
@@ -74,7 +71,6 @@ def letter(issue: Issue, address: str, stop_token: str) -> tuple[str, str]:
         title=issue.title,
         dated=issue.dated,
         levels=levels,
-        notice=NOTICE,
         where=where,
         stop=f"{address.rstrip('/')}/weekly/stop?t={stop_token}",
     )
