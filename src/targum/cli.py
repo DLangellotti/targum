@@ -1522,17 +1522,32 @@ def rebuild(
         if folder.parent.name == "weekly" and siblings is None:
             skipped.append((folder.name, "not in the weekly index"))
             continue
-        title, outcome = rebuild_one(
-            folder,
-            reads=reading_of(folder.parent.name),
-            siblings=siblings,
-            whole=siblings is not None,
-            covers=root / "thumbs",
-            annotate=annotate,
-            provider=provider,
-            bought=bought,
-            vocalize=vocalize,
-        )
+        # A text this machine cannot read is one skipped text, not a dead deploy. The
+        # box stopped 47% of the way through a rebuild on 2026-09-17 because the four
+        # Russian texts on the shared shelf sort first there and none of them could be
+        # annotated: their lemmas are bought from the model, a rebuild is cache only by
+        # design, and the cache that holds them is the laptop's. The guard that said so
+        # is right — a reader in which no word can be tapped must not be written — but it
+        # raised into a loop that had no answer for it, and 105 texts behind those four
+        # were never rewritten. `skipped` is where a text that cannot be rebuilt already
+        # goes; this is the third road into it.
+        try:
+            title, outcome = rebuild_one(
+                folder,
+                reads=reading_of(folder.parent.name),
+                siblings=siblings,
+                whole=siblings is not None,
+                covers=root / "thumbs",
+                annotate=annotate,
+                provider=provider,
+                bought=bought,
+                vocalize=vocalize,
+            )
+        except TargumError as error:
+            # Kept as it was: the copy already on the shelf is the older annotator's and
+            # still reads. Writing nothing is the point.
+            skipped.append((folder.name, error.message))
+            continue
         if title is None:
             skipped.append((folder.name, str(outcome)))
             continue
