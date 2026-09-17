@@ -6,14 +6,19 @@ whatever the machine happens to have.
 - **Taamey Frank CLM** — the Tanakh. Cut for pointed and accented scripture; its accents
   are designed rather than tolerated, and its letters hold one size. Koren Type is the face this shelf would want, and it
   is © Koren Publishers Jerusalem, so it is not an option at any price.
-- **Frank Ruhl Libre** — everything else. A modern cut of the Hebrew book serif, and a
-  serif on purpose: a Hebrew column and the Latin one beside it should read as one
-  document, which is what §5 asks for.
+- **Noto Sans Hebrew** — everything else, since 2026-09-17. Everyday Hebrew is sans: news
+  sites, apps, signage, the ulpan handout. The modern shelf was Frank Ruhl Libre until
+  then, a serif chosen so a Hebrew column and the Latin one beside it would read as one
+  document; the first stranger to read a modern scene called it "too much like these hard
+  to read Torah fonts they always use", and design.md §12 (2026-09-17) records the change
+  and what it costs.
+- **Frank Ruhl Libre** — carried no longer, but the licence note below is kept: it is the
+  face to come back to if the sans does not hold up with the next Israeli readers.
 
 Taamey Frank CLM is Yoram Gnat's, from the [Culmus](https://culmus.sourceforge.io/) project
 — though not from the 0.133 tarball; see *Rebuilding them* below. Frank Ruhl Libre is from
 [the Frank Ruhl Libre project](https://github.com/fontef/frankruhllibre) by way of Google
-Fonts.
+Fonts. Noto Sans Hebrew is from [the Noto project](https://github.com/notofonts/hebrew).
 
 ## Why they are in the repository at all
 
@@ -53,7 +58,10 @@ check passed while every served page was broken. Check a reader the way it is se
 
 ## Licence
 
-Two, one per face.
+Three, one per face.
+
+**Noto Sans Hebrew** — SIL Open Font License 1.1 (`LICENSE.notosanshebrew`), which permits
+embedding outright. Copyright 2022 The Noto Project Authors.
 
 **Frank Ruhl Libre** — SIL Open Font License 1.1 (`LICENSE.frankruhllibre`), which permits
 embedding outright and declares no Reserved Font Name, so the copy here may keep the name.

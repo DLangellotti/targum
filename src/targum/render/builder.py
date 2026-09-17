@@ -453,16 +453,24 @@ def _asset(name: str) -> Markup:
 # accented scripture, and its accents are designed rather than tolerated — and its letters
 # hold one size, which Taamey Ashkenaz beside it in the same collection does not: its shin,
 # mem and final mem draw visibly larger than their neighbours, which on a page of verses
-# reads as broken text. Frank Ruhl Libre
-# is a modern cut of the Hebrew book serif, for a newspaper — and a serif, so a Hebrew
-# column and the Latin one beside it still read as one document, which is what §5 asks.
-# Taamey Frank CLM is Yoram Gnat's, GPL with the font-embedding exception that says a
-# document carrying the font is not itself covered — which is exactly what a reader is.
-# Frank Ruhl Libre is OFL, which permits the same thing outright. The exception is per
-# author and not per project: Taamey David CLM sits in the same collection and does not
-# carry it, because its glyphs are Maxim Iorsh's. Check before swapping either of these.
+# reads as broken text.
+#
+# The modern face was Frank Ruhl Libre until 2026-09-17 — a serif, chosen so a Hebrew
+# column and the Latin one beside it would read as one document. It is a sans now, and
+# design.md §12 (2026-09-17) records why: the first stranger to read a modern scene here
+# said the face was "too much like these hard to read Torah fonts they always use", and
+# from the Israeli side serif Hebrew is the siddur and the Orthodox publisher's shelf,
+# which §1 names as a position targum avoids. Everyday Hebrew is sans. The old argument
+# was overridden rather than refuted, and the entry says so.
+#
+# Licences, and check before swapping any of these: Taamey Frank CLM is Yoram Gnat's, GPL
+# with the font-embedding exception that says a document carrying the font is not itself
+# covered — which is exactly what a reader is. The exception is per author and not per
+# project: Taamey David CLM sits in the same collection and does not carry it, because
+# its glyphs are Maxim Iorsh's. Noto Sans Hebrew is SIL OFL 1.1, which permits embedding
+# outright, as Frank Ruhl Libre's OFL did before it.
 BIBLICAL_FACE = ("Taamey Frank CLM", "fonts/TaameyFrankCLM-Medium.woff2")
-MODERN_FACE = ("Frank Ruhl Libre", "fonts/FrankRuhlLibre-Regular.woff2")
+MODERN_FACE = ("Noto Sans Hebrew", "fonts/NotoSansHebrew-Regular.woff2")
 
 # What a page falls back through if it somehow carries no face of its own. Kept in step
 # with `--reading-hebrew` in reader.css.

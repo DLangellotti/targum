@@ -320,6 +320,41 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The modern shelf reads in a sans — 2026-09-17
+
+2026-08-29 chose Frank Ruhl Libre for everything outside the Tanakh, and gave the reason
+below: "A serif on purpose: these pages are parallel text, and a Hebrew sans beside a
+Latin serif reads as two documents rather than one." That reasoning is sound and it comes
+from the Latin side of the page.
+
+From the Israeli side the association runs the other way. Shown a modern scene on
+2026-09-03, the first stranger to use targum — an olah — said before anything else that
+she did not like the font: *"too much like these hard to read Torah fonts they always
+use."* Serif Hebrew is the siddur, the Tanakh and the Orthodox publisher's shelf.
+Everyday Hebrew — news sites, apps, signage, the ulpan handout — is sans. §1 already
+names the Orthodox-publisher shelf as a position deliberately avoided; it named it in
+colour, and this extends the same avoidance to type, which is where a Hebrew reader
+meets it first.
+
+So **the modern shelf is set in Noto Sans Hebrew** and the Tanakh keeps Taamey Frank CLM.
+The mechanism needed no work: the face already follows the text rather than the shelf, so
+a modern essay quoting one accented verse still takes the biblical face. Noto Sans Hebrew
+is SIL Open Font License 1.1, which permits embedding outright, as Frank Ruhl Libre's OFL
+did.
+
+**What this costs, stated plainly.** The 2026-08-29 argument is not wrong, and it is now
+being overridden rather than refuted: a Hebrew sans beside a Latin serif genuinely does
+read as two faces. The judgement is that two faces that each belong to their own language
+beats one face that makes the Hebrew look like liturgy — because the reader whose Hebrew
+this is notices the second thing and not the first.
+
+**Decided against this card's own gate.** targum-internal#169 said: "ask the next two
+Israeli-Hebrew readers the same open question, unprompted. One person's phrase is not a
+rule; the same phrase from three is." Those two were never asked. David decided on one
+reader's phrase on 2026-09-17 rather than wait. Recorded here because a decision taken
+ahead of its own evidence should say so, and because if the next Israeli readers like the
+serif, this is the entry to come back to.
+
 ### The interface speaks Russian — 2026-09-15
 
 Every word the product says to a reader now comes from `src/targum/strings/<code>.json`
@@ -1333,7 +1368,9 @@ So targum carries its own, one per register, embedded in the page:
   a licence allows.
 - **Frank Ruhl Libre** everywhere else — a modern cut of the Hebrew book serif. A serif on
   purpose: these pages are parallel text, and a Hebrew sans beside a Latin serif reads as
-  two documents rather than one.
+  two documents rather than one. **Superseded 2026-09-17: the modern shelf is set in Noto
+  Sans Hebrew** — see the entry of that date. The two-face mechanism below is unchanged;
+  only which face is the modern one moved.
 
 **A font a page merely names is a font some readers do not have.** Each page inlines only
 the face it needs — and which face it needs follows *the text*, not the shelf: a modern
