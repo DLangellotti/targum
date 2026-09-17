@@ -243,31 +243,42 @@ def test_every_subject_the_arrival_asks_for_can_be_filed() -> None:
 
 
 def test_a_row_arriving_in_the_catalogue_is_dated_and_an_old_one_keeps_its_date(
-    tmp_path, monkeypatch
+    tmp_path,
 ) -> None:
     """The one door the catalogue grows through, so "what is new" is a question about
     when a text arrived and not about how it got here (targum-internal#315)."""
     import datetime
     import json
+    import os
 
     from targum import catalogue as catalogue_module
     from targum.promote import merge_into_catalogue
 
     path = tmp_path / "catalogue.json"
     whole = {"language": "he", "source": "x:y", "words": 10}
-    path.write_text(
-        json.dumps(
-            {"entries": [{"id": "old-one", "title": "ישן", "added": "2020-02-02", **whole}]}
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setenv("TARGUM_CATALOGUE", str(path))
+    was_here = {"id": "old-one", "title": "ישן", "added": "2020-02-02", **whole}
+    path.write_text(json.dumps({"entries": [was_here]}), encoding="utf-8")
+
+    # Not `monkeypatch`: `reload()` fills a module-level cache from the environment, and
+    # monkeypatch puts the environment back at teardown without telling the cache — so
+    # the catalogue stayed pointed at this two-row temporary file for the rest of the
+    # session. 85 tests failed across `test_serve`, `test_render` and `test_public`, none
+    # of them about the code they named. The env is put back and the cache reloaded here,
+    # in that order, where the order can be seen.
+    was = os.environ.get("TARGUM_CATALOGUE")
+    os.environ["TARGUM_CATALOGUE"] = str(path)
     catalogue_module.reload()
+    try:
+        merge_into_catalogue({"id": "new-one", "title": "חדש", **whole})
+        merge_into_catalogue({"id": "old-one", "title": "ישן שונה", **whole})
 
-    merge_into_catalogue({"id": "new-one", "title": "חדש", **whole})
-    merge_into_catalogue({"id": "old-one", "title": "ישן שונה", **whole})
-
-    rows = {row["id"]: row for row in json.loads(path.read_text(encoding="utf-8"))["entries"]}
-    assert rows["new-one"]["added"] == datetime.date.today().isoformat()
-    assert rows["old-one"]["added"] == "2020-02-02", "accepting it again is not it arriving"
-    assert rows["old-one"]["title"] == "ישן שונה", "and the merge still merges"
+        rows = {row["id"]: row for row in json.loads(path.read_text(encoding="utf-8"))["entries"]}
+        assert rows["new-one"]["added"] == datetime.date.today().isoformat()
+        assert rows["old-one"]["added"] == "2020-02-02", "accepting it again is not it arriving"
+        assert rows["old-one"]["title"] == "ישן שונה", "and the merge still merges"
+    finally:
+        if was is None:
+            os.environ.pop("TARGUM_CATALOGUE", None)
+        else:
+            os.environ["TARGUM_CATALOGUE"] = was
+        catalogue_module.reload()

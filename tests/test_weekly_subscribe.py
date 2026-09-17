@@ -179,7 +179,11 @@ def test_every_letter_carries_the_way_out(store: Store, issue: Issue) -> None:
     _, body = letter(issue, "https://targum.page", "abc123")
     assert "/weekly/stop?t=abc123" in body
     assert "/weekly/2026-w36" in body
-    assert "compiled by a model" in body.lower(), "how it was made travels with it"
+    # The letter said "compiled by a model … and curated by the targum team" until
+    # 2026-09-17, when the gate came out and nobody reads an issue before it goes out.
+    # A mail that carried the claim the page had stopped making would be the one place
+    # it survived.
+    assert "curated by the targum team" not in body.lower()
     assert "/account/signin" not in body, "a subscriber is not being asked to sign in"
 
 
