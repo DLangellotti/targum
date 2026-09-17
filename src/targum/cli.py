@@ -1693,6 +1693,9 @@ def seed(
     # scenes each loading their own Stanza reached six and a half gigabytes on the box
     # and were killed twenty-four texts in; shared, the run holds two.
     lemmatizers: dict[bool, LemmatizerProtocol] = {}
+    #: Rows this machine could not build, said again at the end so a long run's skips
+    #: are not lost in the scroll.
+    unbuilt: list[tuple[str, str]] = []
     for entry_id in seeds():
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
@@ -1724,12 +1727,32 @@ def seed(
             difficulty=True,
             notify=lambda message: console.print(f"[dim]{message}[/dim]"),
         )
-        with console.status(f"Building {entry.title}…"):
-            result = builder.run()
-        # Written now rather than on the first reader's first visit: nothing a request
-        # does should write into the shared home.
-        lemmas(result.out_dir)
+        # A row this machine cannot build is one skipped row, not a dead seed — the same
+        # rule `rebuild` learned on 2026-09-17, learned again eleven minutes later. That
+        # deploy's rebuild survived four texts it could not read, and then `seed` stopped
+        # dead on the first catalogue row that needed its translation aligned to the
+        # source: the box installs `[difficulty,covers,bring,stress]` and never `align`,
+        # so `sentence_transformers` is not there and never was. The row was new, so
+        # nothing had asked before. Every row behind it went unbuilt, and the restart
+        # that follows `seed` never ran.
+        #
+        # A half-built row leaves `document.json` and `segments.json` with no reader
+        # beside them, which `rebuild` already reads as "never translated" and steps
+        # over. So the shelf is short a text and nothing else, which is what a missing
+        # optional model should cost.
+        try:
+            with console.status(f"Building {entry.title}…"):
+                result = builder.run()
+            # Written now rather than on the first reader's first visit: nothing a request
+            # does should write into the shared home.
+            lemmas(result.out_dir)
+        except TargumError as error:
+            unbuilt.append((entry.title, error.message))
+            console.print(f"[dim]  skipped {entry.title} — {error.message}[/dim]")
+            continue
         console.print(f"[green]{entry.title}[/green] [dim]→ {result.out_dir}[/dim]")
+    for title, why in unbuilt:
+        console.print(f"[dim]  unbuilt: {title} — {why}[/dim]")
     console.print("[dim]Done.[/dim]")
 
 
