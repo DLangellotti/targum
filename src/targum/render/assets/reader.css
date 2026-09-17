@@ -4005,3 +4005,14 @@ html:fullscreen { background: var(--paper); }
    shape of. */
 .conj-form.here { font-weight: 600; }
 .conj-form.here .conj-says { color: var(--ink); }
+
+/* The one line that teaches the first tap (targum-internal#298). On the card itself, so
+   what it says and what it points at are the same object — no bubble, no arrow, nothing
+   floating over the text. */
+.card-taught {
+  margin-block-start: 0.6rem;
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--hairline);
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}

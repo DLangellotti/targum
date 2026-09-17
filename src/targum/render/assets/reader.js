@@ -4137,6 +4137,52 @@ var targumReader = function () {
     return box;
   }
 
+  /* --- the first tap, taught once (targum-internal#298) --------------------- */
+
+  /* Tapping a word is the product, and nothing said so. A reader who does not think to
+   * tap reads a bilingual text and leaves, having seen none of what they came for.
+   *
+   * **Taught on their own first tap, not by opening a card at them.** The first build of
+   * this opened the card on load, and the reader browser suite said what that costs:
+   * eleven tests failed, and the one that explained it was a click timing out on an
+   * element that "is not stable" — the page moving under the reader while they arrive.
+   * A card that seizes the band before anybody has touched anything is not a tour, it is
+   * a page rearranging itself.
+   *
+   * Taught here it is better on every count. The page never moves on arrival. The line
+   * lands at the moment the word actually goes on the list, which is the thing being
+   * explained. And nothing synthetic is written to the look-up signal, because the
+   * reader really did tap — which was the whole difficulty (#127).
+   */
+  var TAUGHT = "targum:taught-the-tap";
+
+  function alreadyTaught() {
+    try {
+      return !!localStorage.getItem(TAUGHT);
+    } catch (e) {
+      // No storage is a private window or blocked site data. Saying "already taught"
+      // means the line never appears there, which is a smaller fault than a card that
+      // throws before it draws.
+      return true;
+    }
+  }
+
+  function teachTheTap() {
+    if (alreadyTaught() || !card) return;
+    try {
+      targumKeep(TAUGHT, "1");
+    } catch (e) {
+      /* it is said again on the next card, which is better than never */
+    }
+    var said = document.createElement("p");
+    said.className = "card-taught";
+    said.textContent = t(
+      "reader.taught.tap-any-word",
+      "Tap any word you don't know. It goes on your list, and you can come back to it."
+    );
+    card.appendChild(said);
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
@@ -4144,6 +4190,7 @@ var targumReader = function () {
     if (!lemma) return;
     // A card opened is a look-up, whether a tap or Enter asked for it: the reader wanted
     // to know what the word was, and that is the whole of the signal the foot reports.
+    //
     noteLookUp(index);
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
@@ -4458,6 +4505,10 @@ var targumReader = function () {
     // action: ask targum about this word, here, in this sentence, and read the answer
     // in the card. Two turns at most; the conversation page is the way on from there.
     if (canAsk()) card.appendChild(askRow(index, word, shown, wordOf(lemma)));
+
+    // The first card this browser has ever opened says what just happened to the word.
+    // Last on the card, under everything it came for (targum-internal#298).
+    teachTheTap();
 
     card.hidden = false;
     seatNear(card, word.getBoundingClientRect());

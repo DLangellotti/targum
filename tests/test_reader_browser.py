@@ -6484,3 +6484,63 @@ def test_a_french_participle_names_the_tense_its_auxiliary_makes(browser, tmp_pa
     assert apple["use"] == "noun · f", "-me says masculine, so the rule is not said"
     assert page.evaluate(CARD_LINES, "nation")["use"] == "noun · f · like most nouns in -tion"
     context.close()
+
+
+# --- the first tap, taught once (targum-internal#298) ------------------------------
+
+
+TAUGHT = """() => {
+  const line = document.querySelector('#gloss-card .card-taught');
+  const kept = (name, fallback) => {
+    try {
+      return localStorage.getItem(name);
+    } catch (e) {
+      return fallback;
+    }
+  };
+  let looked = {};
+  try {
+    looked = JSON.parse(kept('targum:vocab', '') || '{}');
+  } catch (e) {
+    looked = {};
+  }
+  return {
+    open: !!line,
+    said: line ? line.textContent : '',
+    flag: kept('targum:taught-the-tap', null),
+    looked: looked,
+  };
+}"""
+
+
+def test_arriving_at_a_text_moves_nothing(browser, built: Path) -> None:
+    """The first build of the tour opened a card on load. Eleven tests in this file went
+    red and the one that explained it was a click timing out on an element that "is not
+    stable" — the page rearranging itself while the reader arrives."""
+    context, page = open_reader(browser, built)
+    assert not page.evaluate(TAUGHT)["open"], "a card opened before anybody touched anything"
+    context.close()
+
+
+def test_the_first_word_a_reader_taps_says_what_happened_to_it(browser, built: Path) -> None:
+    """Tapping a word is the product and nothing said so. Said once, on their own first
+    card, at the moment the word actually goes on the list."""
+    context, page = open_reader(browser, built)
+    page.click(".w[data-lemma]")
+    first = page.evaluate(TAUGHT)
+    assert first["open"], "the first card did not say what a tap does"
+    assert "Tap any word" in first["said"]
+    assert first["flag"], "and it did not remember having said it"
+    context.close()
+
+
+def test_it_is_said_once_and_never_again(browser, built: Path) -> None:
+    """A page that keeps explaining itself is a page that is not listening."""
+    context, page = open_reader(browser, built)
+    page.click(".w[data-lemma]")
+    assert page.evaluate(TAUGHT)["open"], "the first tap says it"
+
+    words = page.query_selector_all(".w[data-lemma]")
+    words[1].click()
+    assert not page.evaluate(TAUGHT)["open"], "it said it twice"
+    context.close()
