@@ -330,7 +330,9 @@ def test_a_reader_with_no_texts_is_pointed_at_the_easiest_thing() -> None:
     assert drawn["carry"]["title"] == "קל"
     assert drawn["carry"]["meta"] == "Where most people start · 10 min"
     assert drawn["carry"]["entry"] == "easy"
-    assert "/library" in drawn["carry"]["href"] and drawn["carry"]["href"].endswith("#easy")
+    # `/open/<id>` since targum-internal#313: the door, which sends them to their copy
+    # where they have one and to its row with the offer up where they have not.
+    assert drawn["carry"]["href"].startswith("/open/easy")
 
 
 def test_the_suggestion_is_a_step_up_from_the_hardest_thing_read() -> None:
@@ -568,7 +570,9 @@ def test_past_the_last_scene_the_modern_door_steps_up() -> None:
     drawn = draw([], done, shared=SCENES + [RUTH], catalogue=CATALOGUE)
     assert drawn["carry"]["heading"] == "Start here", "nothing built yet on this track"
     assert drawn["carry"]["title"] == "קל"
-    assert "/library" in drawn["carry"]["href"] and drawn["carry"]["href"].endswith("#easy")
+    # `/open/<id>` since targum-internal#313: the door, which sends them to their copy
+    # where they have one and to its row with the offer up where they have not.
+    assert drawn["carry"]["href"].startswith("/open/easy")
 
 
 def test_an_upload_takes_the_door_of_its_own_hebrew() -> None:
@@ -885,7 +889,10 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
     )
     assert pressed["carry"]["meta"] == "You know 50% of its words. · 25 min"
     assert pressed["carry"]["frame"] == "", "not built for this reader: nothing to frame"
-    assert pressed["carry"]["href"] == "/library?k=k#esther", "Open goes to its library row"
+    # The door, not the shelf (targum-internal#313). It sends a reader straight to their
+    # copy where they have one and to its row with the offer up where they have not —
+    # which is what this text is, and which the library row still handles.
+    assert pressed["carry"]["href"] == "/open/esther?k=k", "Open goes to the text"
     assert pressed["carry"]["known"] == "You know 50%"
     built_ = draw(
         [mine],
@@ -943,7 +950,7 @@ def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:
     pressed = draw([mine], stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert pressed["carry"]["title"] == "קשה" and pressed["carry"]["heading"] == "Suggested for you"
     assert pressed["carry"]["meta"].startswith("A step up from what you've read")
-    assert pressed["carry"]["href"] == "/library?k=k#harder"
+    assert pressed["carry"]["href"] == "/open/harder?k=k"
 
 
 def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:

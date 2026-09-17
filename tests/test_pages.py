@@ -828,6 +828,26 @@ def test_a_list_page_marks_learn_in_the_nav() -> None:
         assert current == [], which
 
 
+def _body_of(source: str, opening: str) -> str:
+    """One function's source, by counting its braces.
+
+    This used to be a slice between two landmarks — `function pointAt` and the next line
+    that happened to follow it — and a block inserted between them put `ask(` inside the
+    slice and failed a test about a function that does not call it. A function's body is
+    the thing being asserted about, so the body is what this returns.
+    """
+    start = source.index(opening)
+    depth = 0
+    for at in range(source.index("{", start), len(source)):
+        if source[at] == "{":
+            depth += 1
+        elif source[at] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start : at + 1]
+    raise AssertionError(f"{opening} never closes")
+
+
 def test_the_suggestion_points_at_a_row_without_pressing_it() -> None:
     """Learn and `/open/<id>` both link here with an id in the hash. An unbuilt row is a
     button that starts spending, so arriving with an id marks the row and scrolls to it —
@@ -841,7 +861,7 @@ def test_the_suggestion_points_at_a_row_without_pressing_it() -> None:
     anything that *fires* the button.
     """
     library = (ASSETS / "library.js").read_text(encoding="utf-8")
-    pointing = library[library.index("function pointAt") : library.index("find.value = view.find")]
+    pointing = _body_of(library, "function pointAt")
     assert "scrollIntoView" in pointing
     assert 'classList.add("pointed")' in pointing
     # Nothing here presses anything, by any of the names a press goes by.
