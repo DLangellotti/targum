@@ -587,3 +587,12 @@ footer .mock { max-inline-size: 48rem; }
 }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* A medium the box cannot fetch a link for yet (targum-internal#255). Quiet: the row is
+   still a promise about what targum reads, and the word only says "not by a pasted link
+   today". Never a badge, never a colour — §4 gives no accent to a caveat. */
+.mediums .soon {
+  margin-inline-start: 0.4rem;
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+}
