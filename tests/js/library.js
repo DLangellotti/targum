@@ -91,7 +91,10 @@ setTimeout(() => {
   const readCard = (item) => {
     const open = item.children[0];
     const what = open.children[1] || { children: [] };
-    const find = (name) => what.children.find((c) => c.className === name) || {};
+    /* By word, not by whole string: the lately-arrived mark shares the scene label's
+       element and its class, and an exact match came back empty for both. */
+    const wearing = (c, name) => String(c.className || "").split(" ").indexOf(name) >= 0;
+    const find = (name) => what.children.find((c) => wearing(c, name)) || {};
     return {
       title: (what.children.find((c) => c.className === "card-title") || {}).textContent || "",
       fit: "",
@@ -102,6 +105,9 @@ setTimeout(() => {
       englishLang: (find("card-english").attrs || {})["lang"] || "",
       after: "",
       scene: find("card-scene").textContent || "",
+      // Arrived lately (targum-internal#315). Its own field: it stands where the scene
+      // label does, and a test asking "is this marked new" should not have to know that.
+      fresh: find("card-new").textContent || "",
       chip: find("row-next").textContent || "",
       state: find("row-state").textContent || "",
       meta: find("card-meta").textContent || "",

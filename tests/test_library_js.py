@@ -1203,3 +1203,103 @@ def test_a_collection_is_a_card_of_its_own_shape(tmp_path: Path) -> None:
     assert shelf_row["expanded"] == "true"
     inside = {row["title"] for row in opened["rows"] if not row["group"]}
     assert {"רות", "אסתר"} <= inside, "and its texts are cards beside it"
+
+
+def test_being_sent_to_build_a_text_lands_on_its_press(tmp_path: Path) -> None:
+    """`/open/<id>` sends `#build:<id>` when this reader has not built the text yet
+    (targum-internal#313). It means the same as a bare id and adds one thing: the row's
+    own offer goes under the reader's hand, so they land one press from reading rather
+    than on a marked line with nothing to press."""
+    from targum.catalogue import CATALOGUE
+
+    wanted = next(entry for entry in CATALOGUE if entry.language.startswith("he"))
+    sent = draw(tmp_path, hash=f"#build:{wanted.id}")
+    assert sent["pointed"] == [wanted.title], sent["pointed"]
+
+
+def test_the_build_prefix_never_starts_a_build(tmp_path: Path) -> None:
+    """An address is not consent. The row is marked and its press is focused; nothing is
+    quoted and nothing is bought, which is the half of this that must not bend."""
+    from targum.catalogue import CATALOGUE
+
+    wanted = next(entry for entry in CATALOGUE if entry.language.startswith("he"))
+    sent = draw(tmp_path, hash=f"#build:{wanted.id}")
+    row = next(row for row in sent["rows"] if row["title"] == wanted.title)
+    # Still the unpressed button it was: a build writes its own sentence into this cell.
+    assert row["opens"] == "button"
+    assert row["state"] == "", row["state"]
+
+
+def test_the_newest_sort_puts_the_lately_added_first(tmp_path: Path) -> None:
+    """ "I want to see what was recently added right away." The catalogue carried no date
+    at all before targum-internal#315."""
+    shelf = [
+        text("old-one", "ישן", added="2026-01-05"),
+        text("newest", "חדש", added="2026-09-16"),
+        text("middle", "אמצעי", added="2026-05-01"),
+    ]
+    drawn = browse(tmp_path, catalogue=shelf, view={"sort": "added"})
+    order = [row["title"] for row in drawn["rows"]]
+    assert order == ["חדש", "אמצעי", "ישן"], order
+
+
+def test_a_text_nobody_dated_sorts_last_and_not_first(tmp_path: Path) -> None:
+    """Nine hundred rows predate the field. "We do not know when this arrived" must never
+    read as "this just arrived", which is what an empty date sorting first would say."""
+    shelf = [
+        text("undated", "ללא תאריך"),
+        text("old-one", "ישן", added="2026-01-05"),
+        text("newest", "חדש", added="2026-09-16"),
+    ]
+    drawn = browse(tmp_path, catalogue=shelf, view={"sort": "added"})
+    order = [row["title"] for row in drawn["rows"]]
+    assert order[-1] == "ללא תאריך", order
+
+
+def test_a_text_that_arrived_lately_says_so_on_its_card(tmp_path: Path) -> None:
+    """Answered by the card rather than by a sort, so it is true of the page whatever
+    order the reader has it in."""
+    import datetime
+
+    today = datetime.date.today()
+    shelf = [
+        text("fresh", "טרי", added=(today - datetime.timedelta(days=2)).isoformat()),
+        text("stale", "ישן", added=(today - datetime.timedelta(days=90)).isoformat()),
+        text("undated", "ללא תאריך"),
+    ]
+    marks = {row["title"]: row["fresh"] for row in browse(tmp_path, catalogue=shelf)["rows"]}
+    assert marks["טרי"] == "New"
+    assert marks["ישן"] == "", "a text from three months ago is not news"
+    assert marks["ללא תאריך"] == "", "and neither is one nobody dated"
+
+
+def test_a_date_in_the_future_is_not_new_for_ever(tmp_path: Path) -> None:
+    """A row dated tomorrow by a bad clock or a bad hand would otherwise sit marked
+    New until somebody noticed, which is the kind of thing nobody notices."""
+    import datetime
+
+    ahead = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+    shelf = [text("ahead", "מחר", added=ahead), text("fine", "היום", added="2020-01-01")]
+    marks = {row["title"]: row["fresh"] for row in browse(tmp_path, catalogue=shelf)["rows"]}
+    assert marks["מחר"] == "", marks
+
+
+def test_undated_rows_keep_the_order_the_catalogue_put_them_in(tmp_path: Path) -> None:
+    """Nine hundred rows predate the field and nothing can date them. Without this,
+    "Newest" would be alphabetical among them, which is no order at all — so they fall
+    back to where they sit in the file, which is where they were appended.
+
+    Evidence of order, never of date: it can never lift an undated row above a dated one,
+    and it never marks one New.
+    """
+    shelf = [
+        text("first-in", "ראשון"),
+        text("second-in", "שני"),
+        text("third-in", "שלישי"),
+        text("dated", "מתוארך", added="2020-01-01"),
+    ]
+    drawn = browse(tmp_path, catalogue=shelf, view={"sort": "added"})
+    order = [row["title"] for row in drawn["rows"]]
+    assert order[0] == "מתוארך", f"a dated row outranks every undated one: {order}"
+    assert order[1:] == ["שלישי", "שני", "ראשון"], order
+    assert all(row["fresh"] == "" for row in drawn["rows"]), "and none of them is New"

@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import secrets
 from dataclasses import asdict, dataclass
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -261,9 +262,17 @@ def merge_into_catalogue(entry: dict[str, Any]) -> Path:
     rows: list[dict[str, Any]] = list(loaded.get("entries") or [])
     for index, row in enumerate(rows):
         if row.get("id") == entry["id"]:
+            # A row already here keeps the day it arrived. Accepting the same text again
+            # is not it arriving again, and the merge below drops empty values anyway,
+            # so an entry with no date of its own can never blank one that has one.
             rows[index] = {**row, **{k: v for k, v in entry.items() if v not in ("", 0, [])}}
             break
     else:
+        # And a row arriving now is dated now (targum-internal#315). Here rather than at
+        # each caller because this is the one door the catalogue grows through: a date
+        # stamped in `accept()` alone would be missing from every other way a row is
+        # added, and "what is new" would be a question about how a text got here.
+        entry.setdefault("added", date.today().isoformat())
         rows.append(entry)
     loaded["entries"] = rows
     write_atomic(path, json.dumps(loaded, ensure_ascii=False, indent=2) + "\n")

@@ -240,3 +240,34 @@ def test_every_subject_the_arrival_asks_for_can_be_filed() -> None:
     for subject in Store.INTERESTS:
         offered |= spelled.get(subject, {subject})
     assert tags <= offered, f"filed under a subject nothing offers: {sorted(tags - offered)}"
+
+
+def test_a_row_arriving_in_the_catalogue_is_dated_and_an_old_one_keeps_its_date(
+    tmp_path, monkeypatch
+) -> None:
+    """The one door the catalogue grows through, so "what is new" is a question about
+    when a text arrived and not about how it got here (targum-internal#315)."""
+    import datetime
+    import json
+
+    from targum import catalogue as catalogue_module
+    from targum.promote import merge_into_catalogue
+
+    path = tmp_path / "catalogue.json"
+    whole = {"language": "he", "source": "x:y", "words": 10}
+    path.write_text(
+        json.dumps(
+            {"entries": [{"id": "old-one", "title": "ישן", "added": "2020-02-02", **whole}]}
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_CATALOGUE", str(path))
+    catalogue_module.reload()
+
+    merge_into_catalogue({"id": "new-one", "title": "חדש", **whole})
+    merge_into_catalogue({"id": "old-one", "title": "ישן שונה", **whole})
+
+    rows = {row["id"]: row for row in json.loads(path.read_text(encoding="utf-8"))["entries"]}
+    assert rows["new-one"]["added"] == datetime.date.today().isoformat()
+    assert rows["old-one"]["added"] == "2020-02-02", "accepting it again is not it arriving"
+    assert rows["old-one"]["title"] == "ישן שונה", "and the merge still merges"

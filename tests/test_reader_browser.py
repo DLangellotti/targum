@@ -4865,7 +4865,7 @@ def test_the_link_home_opens_at_the_line_in_front_of_the_reader(browser, tmp_pat
 # -- a text that carries media opens as its media ---------------------------------------
 
 
-def video_reader(tmp_path: Path, spans=None, lines: int = 2) -> Path:
+def video_reader(tmp_path: Path, spans=None, lines: int = 2, film: str = "tiny.webm") -> Path:
     """A one-part reader whose import kept its picture, built the way a real one is.
 
     `spans` puts the lines somewhere the fixture film actually reaches — it is one
@@ -4894,8 +4894,10 @@ def video_reader(tmp_path: Path, spans=None, lines: int = 2) -> Path:
     # that puts the film at a second rather than playing it through was testing a
     # currentTime the browser silently refused.
     (tmp_path / "video" / "parts").mkdir(parents=True)
+    # `film` picks the shape: `tiny.webm` is 64x36 and `tall.webm` is 36x64, which is
+    # what a phone shoots and what the frame has to take (design.md §12, 2026-09-17).
     (tmp_path / "video" / "parts" / "part-001.webm").write_bytes(
-        (Path(__file__).parent / "fixtures" / "tiny.webm").read_bytes()
+        (Path(__file__).parent / "fixtures" / film).read_bytes()
     )
 
     segments = [
@@ -5017,15 +5019,50 @@ WATCHING = """
 """
 
 
-def test_a_text_with_a_picture_opens_watching(browser, tmp_path) -> None:
-    """The picture is not on beside the page; it is the page. The section above reversed
-    the default the same day and stopped one step short of it — the picture came on in
-    the band, at the size a panel is, which is not what a reader who has just been told
-    "this is a video" sees."""
+def watch(page) -> None:
+    """Put the page into full screen, which it used to open in.
+
+    A video text opens as its transcript since 2026-09-17 (design.md §12), so the mode
+    most of these tests are about is now one press away rather than the state they are
+    handed. `#video.watching` was doing two jobs in every one of them — waiting for the
+    panel to exist, and being the mode under test — and this separates them.
+    """
+    page.wait_for_selector("#video:not([hidden])")
+    page.click(".video-mode")
+    page.wait_for_selector("#video.watching")
+
+
+def test_a_text_with_a_picture_opens_reading(browser, tmp_path) -> None:
+    """Reversed 2026-09-17 (design.md §12). The picture came on as the whole page, which
+    is right for the reader who imported an hour of speech to watch it and wrong for
+    everybody who came to read Hebrew — they were handed a film and dismissed it every
+    time. It opens docked and on: still visible, still named, one press from full screen.
+    """
     built = video_reader(tmp_path)
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
+        page.wait_for_selector("#video:not([hidden])")
+        seen = page.evaluate(WATCHING)
+        assert not seen["watching"] and not seen["body"], seen
+        assert seen["dock"], "the picture stands in a corner"
+        assert not seen["transportInside"], "and the strip is in its own"
+        # The text is the page, which is the whole of the change.
+        assert page.locator(".pair").count() > 0
+        # Still nothing plays until pressed, which never depended on the mode.
+        assert page.evaluate(
+            "() => Array.from(document.querySelectorAll('video, audio')).every((m) => m.paused)"
+        )
+    finally:
+        context.close()
+
+
+def test_one_press_puts_the_picture_on_the_whole_page(browser, tmp_path) -> None:
+    """And it is still one transport, moved rather than copied, so the speed and the
+    place are the ones the reader already had."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        watch(page)
         seen = page.evaluate(WATCHING)
         assert seen["watching"] and seen["body"], seen
         # Item 4 of the note: one transport on screen, never two. It is the same strip,
@@ -5043,26 +5080,56 @@ def test_a_text_with_a_picture_opens_watching(browser, tmp_path) -> None:
         context.close()
 
 
-def test_leaving_the_watch_puts_the_reader_on_the_page(browser, tmp_path) -> None:
-    """One press out, remembered per text, and the transport goes back to its corner."""
+def test_choosing_to_watch_is_remembered_for_that_text(browser, tmp_path) -> None:
+    """One press in, remembered per text, and the transport comes with it.
+
+    The store is the other way up since 2026-09-17: it records the departure, and the
+    departure is watching now. `targum:video-read:` recorded the old one and was left
+    where it is rather than inverted, because reading those stored 1s backwards would
+    have opened full screen for exactly the readers who had asked for the opposite.
+    """
     built = video_reader(tmp_path)
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
-        page.click(".video-mode")
+        watch(page)
         seen = page.evaluate(WATCHING)
-        assert not seen["watching"] and not seen["body"], seen
-        assert not seen["transportInside"], "the strip went back to its own corner"
-        assert seen["dock"], "and the picture stands in one"
+        assert seen["watching"] and seen["body"], seen
+        assert seen["transportInside"], "the strip came with it"
 
         page.reload()
         page.wait_for_selector(".pair")
         page.wait_for_selector("#video:not([hidden])")
-        assert page.evaluate(WATCHING)["watching"] is False, "the choice outlived the page"
+        assert page.evaluate(WATCHING)["watching"] is True, "the choice outlived the page"
+        assert page.evaluate(
+            "() => Object.keys(localStorage).some((k) => k.indexOf('targum:video-watch:') === 0)"
+        ), "under the new key"
 
-        # And back in, which is what having two modes means.
+        # And back out, which is what having two modes means.
         page.click(".video-mode")
-        assert page.evaluate(WATCHING)["watching"] is True
+        seen = page.evaluate(WATCHING)
+        assert seen["watching"] is False
+        assert not seen["transportInside"], "the strip went back to its own corner"
+        assert seen["dock"], "and the picture stands in one"
+    finally:
+        context.close()
+
+
+def test_a_reader_who_chose_to_read_alongside_is_left_reading(browser, tmp_path) -> None:
+    """The old key, honoured by being ignored. A `1` in `targum:video-read:` meant "this
+    reader chose to read alongside", which is what the page does by default now — so the
+    right thing to do with it is nothing at all, and the wrong thing was to read it as a
+    request for the opposite."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        page.evaluate(
+            "() => { const k = Object.keys(localStorage);"
+            " localStorage.setItem('targum:video-read:whatever', '1'); }"
+        )
+        page.reload()
+        page.wait_for_selector("#video:not([hidden])")
+        assert page.evaluate(WATCHING)["watching"] is False, "still reading, as they asked"
     finally:
         context.close()
 
@@ -5074,7 +5141,7 @@ def test_the_line_being_said_is_drawn_over_the_picture(browser, tmp_path) -> Non
     built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]])
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.wait_for_function("() => window.TargumPlayer.length() > 0")
         page.evaluate("() => window.TargumPlayer.seek(0.2)")
         seen = page.evaluate(WATCHING)
@@ -5098,7 +5165,7 @@ def test_the_picture_docks_in_a_corner_the_reader_picks(browser, tmp_path) -> No
     built = video_reader(tmp_path)
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         first = page.evaluate(WATCHING)["dock"]
         page.click(".video-corner")
@@ -5124,7 +5191,7 @@ def test_every_press_of_the_corner_moves_the_picture_on_a_phone(browser, tmp_pat
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         page.wait_for_timeout(400)
         top = "() => Math.round(document.getElementById('video').getBoundingClientRect().top)"
@@ -5175,7 +5242,7 @@ def test_a_docked_picture_keeps_the_panel_and_the_foot(browser, tmp_path) -> Non
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         page.wait_for_timeout(450)
         seen = []
@@ -5214,7 +5281,7 @@ def test_the_glyph_goes_while_the_film_plays_on_a_touch_screen(browser, tmp_path
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         assert not page.evaluate("() => matchMedia('(hover: hover)').matches"), (
             "the emulated device cannot hover, or this test proves nothing"
         )
@@ -5283,7 +5350,7 @@ def test_the_band_gives_the_picture_back_after_a_word(browser, tmp_path) -> None
     showing = "() => !document.getElementById('video').hidden"
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         page.wait_for_timeout(450)
         assert page.evaluate(showing), "the picture is docked"
@@ -5337,7 +5404,7 @@ def pull(page, selector: str, dx: float, dy: float) -> None:
 
 
 def reading_alongside(page) -> None:
-    page.wait_for_selector("#video.watching")
+    watch(page)
     page.click(".video-mode")
     page.wait_for_timeout(100)
 
@@ -5529,7 +5596,7 @@ def test_v_moves_between_watching_and_reading(browser, tmp_path) -> None:
     built = video_reader(tmp_path)
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.keyboard.press("v")
         assert page.evaluate(WATCHING)["watching"] is False
         page.keyboard.press("v")
@@ -5547,7 +5614,7 @@ def test_the_docked_picture_takes_its_room_out_of_the_layout(browser, tmp_path) 
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         page.wait_for_function("() => document.body.classList.contains('paged')")
         page.wait_for_timeout(250)
@@ -5595,7 +5662,7 @@ def test_a_docked_picture_reads_as_one_scroll_on_a_phone(browser, tmp_path) -> N
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         page.wait_for_timeout(450)
         docked = page.evaluate(DOCKED_STATE)
@@ -5661,7 +5728,7 @@ def test_the_transport_is_thumb_sized_on_a_touch_screen(browser, tmp_path) -> No
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         assert page.evaluate("() => matchMedia('(hover: none) and (pointer: coarse)').matches"), (
             "the emulated device is a touch screen, or this test proves nothing"
         )
@@ -5698,7 +5765,7 @@ def test_the_strip_stands_its_toggle_down_while_the_picture_is_out(browser, tmp_
     page = context.new_page()
     try:
         page.goto(address(built))
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.click(".video-mode")
         page.wait_for_timeout(450)
         seen = """() => {
@@ -5737,7 +5804,7 @@ def test_watching_fills_the_window_whatever_size_it_is(browser, tmp_path) -> Non
     for size in ({"width": 1280, "height": 800}, {"width": 390, "height": 844}):
         context, page = open_reader(browser, built, viewport=size)
         try:
-            page.wait_for_selector("#video.watching")
+            watch(page)
             page.wait_for_timeout(150)
             box = page.locator("#video").bounding_box()
             assert abs(box["width"] - size["width"]) < 2, (size, box)
@@ -5759,7 +5826,7 @@ def test_watching_on_a_phone_is_picture_line_and_one_transport(browser, tmp_path
     built = video_reader(tmp_path)
     context, page = open_reader(browser, built, viewport={"width": 390, "height": 844})
     try:
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.wait_for_timeout(150)
         got = page.evaluate(
             """() => {
@@ -5799,7 +5866,7 @@ def test_the_docked_picture_stands_clear_of_the_transport(browser, tmp_path) -> 
     built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=40)
     context, page = open_reader(browser, built)
     try:
-        page.wait_for_selector("#video.watching")
+        watch(page)
         page.wait_for_function("() => window.TargumPlayer.length() > 0")
         # A place to show, which is what makes the strip its taller self.
         page.evaluate("() => window.TargumPlayer.seek(0.2)")
@@ -5876,7 +5943,10 @@ def test_the_docked_picture_and_the_strip_never_cover_each_other(
         # Reading alongside, which is the mode with two things at the foot. Watching puts
         # the strip inside the picture on purpose — one transport, moved rather than
         # copied — and boxes that contain one another are not boxes that collide.
-        page.click(".video-mode")
+        #
+        # It is what the page opens in since 2026-09-17, so this waits rather than
+        # presses; pressing took it *into* the watch, which is the one mode where these
+        # two cannot collide and so the one where this proves nothing.
         page.wait_for_selector("#video:not(.watching)")
         page.wait_for_timeout(300)
         where = page.evaluate(BOXES)
@@ -6544,3 +6614,94 @@ def test_it_is_said_once_and_never_again(browser, built: Path) -> None:
     words[1].click()
     assert not page.evaluate(TAUGHT)["open"], "it said it twice"
     context.close()
+
+
+# --- a vertical film is vertical (design.md §12, 2026-09-17) --------------------------
+
+
+FILM_SHAPE = """
+() => {
+  const box = document.getElementById("video");
+  const el = box.querySelector(".video-el");
+  const seen = el.getBoundingClientRect();
+  return {
+    tall: box.classList.contains("tall"),
+    film: box.style.getPropertyValue("--film").trim(),
+    // What the frame actually came out as, which is the whole question: a 9:16 film in a
+    // 16:9 frame is a letterbox with two thirds of it black.
+    ratio: seen.height ? +(seen.width / seen.height).toFixed(2) : 0,
+    width: Math.round(seen.width),
+    height: Math.round(seen.height),
+    window: document.documentElement.clientWidth,
+  };
+}
+"""
+
+
+def test_a_landscape_film_keeps_the_frame_it_always_had(browser, tmp_path) -> None:
+    """The shape is read off the file now, and for an ordinary film it reads 16:9 —
+    which is what the stylesheet said before anything read anything."""
+    built = video_reader(tmp_path)
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_function(
+            "() => document.getElementById('video').style.cssText.includes('--film')"
+        )
+        seen = page.evaluate(FILM_SHAPE)
+        assert seen["film"] == "64 / 36", seen
+        assert not seen["tall"], seen
+        assert abs(seen["ratio"] - 16 / 9) < 0.05, seen
+    finally:
+        context.close()
+
+
+def test_a_vertical_film_gets_a_vertical_frame(browser, tmp_path) -> None:
+    """ "Vertical videos (i.e. YT shorts) should fill up a vertical player window, as
+    opposed to the central part of a horizontal window."
+
+    Three places wrote `aspect-ratio: 16 / 9` into the stylesheet, so anything shot
+    upright sat letterboxed with two thirds of the frame black.
+    """
+    built = video_reader(tmp_path, film="tall.webm")
+    context, page = open_reader(browser, built)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
+        seen = page.evaluate(FILM_SHAPE)
+        assert seen["film"] == "36 / 64", seen
+        assert seen["tall"], "the panel knows which way up it is"
+        assert seen["height"] > seen["width"], f"and the frame is taller than it is wide: {seen}"
+        assert abs(seen["ratio"] - 36 / 64) < 0.05, seen
+    finally:
+        context.close()
+
+
+def test_a_vertical_film_docks_as_a_narrow_panel(browser, tmp_path) -> None:
+    """At the landscape panel's width a 9:16 picture is six hundred pixels of video down
+    the corner of the page, which is not a dock — it is a takeover."""
+    wide = video_reader(tmp_path, film="tiny.webm")
+    context, page = open_reader(browser, wide)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_function(
+            "() => document.getElementById('video').style.cssText.includes('--film')"
+        )
+        landscape = page.evaluate(FILM_SHAPE)
+    finally:
+        context.close()
+
+    tall = video_reader(tmp_path / "tall", film="tall.webm")
+    context, page = open_reader(browser, tall)
+    try:
+        page.wait_for_selector("#video:not([hidden])")
+        page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
+        portrait = page.evaluate(FILM_SHAPE)
+    finally:
+        context.close()
+
+    assert portrait["width"] < landscape["width"], (
+        f"the upright panel is narrower: {portrait} against {landscape}"
+    )
+    # And the thing that was actually wrong: it is not taller than the whole window.
+    assert portrait["height"] < 600, portrait

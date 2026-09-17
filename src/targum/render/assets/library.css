@@ -1097,3 +1097,8 @@
 [dir="rtl"] .card-group.open .card-fold::before { content: "\25be"; }
 .card-group[aria-expanded="true"] .card-fold { color: var(--ink); }
 .card-group .card-title { font-weight: 600; }
+
+/* Lately arrived (targum-internal#315). In the scene label's place and its size, because
+   a numbered scene is never new; leaf, because §4 gives green to progress and what is new
+   on a shelf is the shelf's own progress. Not a badge: no fill, no count, no reward. */
+.card-new { color: var(--leaf); }

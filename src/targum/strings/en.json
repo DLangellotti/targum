@@ -1644,5 +1644,10 @@
   "library.subject.count.one": "{name}, {n} text",
   "library.subject.count.other": "{name}, {n} texts",
   "library.page.what-its-about": "What it's about",
-  "library.page.how-to-show-them": "How to show them"
+  "library.page.how-to-show-them": "How to show them",
+  "library.new": "New",
+  "library.sort.added": "Newest",
+  "library.sort.difficulty": "Easiest",
+  "library.sort.known": "Words you know",
+  "library.page.order-them-by": "Order them by"
 }

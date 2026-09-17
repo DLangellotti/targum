@@ -1744,6 +1744,11 @@ class Library:
                 "video": spoken.is_video(source),
                 "entry": entry.id,
                 "english": entry.english,
+                # When it joined the catalogue, so the shelf can say what is new
+                # (targum-internal#315). An upload has no such date and needs none: the
+                # reader's own row already carries `built`, which is when it arrived for
+                # them, and that is the more honest answer for a text only they have.
+                "added": entry.added,
                 "drawn": any(
                     (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
                 ),

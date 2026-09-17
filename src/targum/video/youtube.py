@@ -52,7 +52,8 @@ WATCH = "https://www.youtube.com/watch?v="
 #: landscape films beside it, and unreadable wherever one has words on screen. Capping
 #: both edges at the same number admits 854×480 and 480×854 and refuses 1280×720 and
 #: 1080×1920, which is the rule that was meant all along.
-FORMAT = f"bv*[width<={VIDEO_EDGE}][height<={VIDEO_EDGE}]+ba/b[width<={VIDEO_EDGE}][height<={VIDEO_EDGE}]/b"
+_FITS = f"[width<={VIDEO_EDGE}][height<={VIDEO_EDGE}]"
+FORMAT = f"bv*{_FITS}+ba/b{_FITS}/b"
 
 #: Where YouTube is fetched *from*, and on a datacenter box the only thing that works.
 #:
