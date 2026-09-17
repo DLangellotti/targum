@@ -173,10 +173,17 @@ function act(step) {
     const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
     if (found) found.fire("click", {});
   }
-  // A subject on the arrival, by its label.
+  // A subject on the arrival, by its label; and a rung of the ladder beside it.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
       (p) => p.textContent === step.subject
+    );
+    if (chip) chip.fire("click", {});
+  }
+  // A rung of the ladder, by the words it leads with.
+  if (step.rung) {
+    const chip = Array.from(at("arrival-levels").children).find((p) =>
+      p.textContent.startsWith(step.rung)
     );
     if (chip) chip.fire("click", {});
   }
@@ -259,7 +266,22 @@ setTimeout(() => {
         : Array.from(at("arrival-doors").children)
             .filter((p) => p.getAttribute("aria-pressed") === "true")
             .map((p) => p.textContent),
+      levels: at("arrival").hidden
+        ? []
+        : Array.from(at("arrival-levels").children).map((p) => p.textContent),
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
+      // What the page put in the browser, and where it posted. Both are here so a test
+      // can assert something was *not* kept — an assertion that is worthless unless the
+      // harness would have shown it had it been.
+      kept: (() => {
+        const out = {};
+        for (let i = 0; i < global.localStorage.length; i++) {
+          const key = global.localStorage.key(i);
+          out[key] = global.localStorage.getItem(key);
+        }
+        return out;
+      })(),
+      posted: asked.map((call) => call.path),
       counted: at("arrival").hidden ? "" : at("arrival-count").textContent,
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
       menu: menuOf("subscriptions"),

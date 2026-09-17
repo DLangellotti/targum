@@ -1606,5 +1606,14 @@
   "landing.demo.getting-there": "Getting there",
   "landing.demo.known": "Known",
   "landing.demo.ask": "Ask",
-  "foot.sign-in": "Sign in"
+  "foot.sign-in": "Sign in",
+  "learn.arrival.how-much-hebrew": "How much Hebrew do you have?",
+  "learn.level.aleph": "Just starting",
+  "learn.level.aleph-plus": "I know some words",
+  "learn.level.bet": "Simple conversations",
+  "learn.level.bet-plus": "I read slowly, with help",
+  "learn.level.gimel": "I read a newspaper with a dictionary",
+  "learn.level.dalet": "I read most things comfortably",
+  "learn.level.hey": "I read almost anything",
+  "learn.level.vav": "Hebrew is a language I live in"
 }

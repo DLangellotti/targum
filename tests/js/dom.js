@@ -94,6 +94,12 @@ function element(tag) {
     /** Not a dispatch: no bubbling, no default. It calls what was registered. */
     fire(type, event) {
       (this.listeners[type] || []).forEach((handler) => handler(event || {}));
+      // A browser calls the `onclick` property as well as the registered listeners, and
+      // pages here use both: the arrival's Done is assigned, its chips are registered.
+      // Without this half a press on an assigned handler did nothing and the test that
+      // pressed it passed anyway, which is how the arrival's Done went untested.
+      const assigned = this["on" + type];
+      if (typeof assigned === "function") assigned.call(this, event || {});
     },
     focus() {},
     /** Leaving a field is what commits what you typed into it, so this has to be the
