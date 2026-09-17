@@ -1226,3 +1226,75 @@ def test_the_main_guard_is_the_last_thing_in_the_module() -> None:
     assert isinstance(last, ast.If) and "__main__" in ast.unparse(last.test), (
         "something is defined after `if __name__ == '__main__'` in cli.py"
     )
+
+
+def test_rebuild_skips_a_text_it_cannot_read_and_keeps_going(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One unreadable text is one skipped text, not a dead deploy.
+
+    On 2026-09-17 the box stopped 47% of the way through a rebuild. The four Russian
+    texts on the shared shelf sort first there, none could be annotated — their lemmas
+    are bought from the model, a rebuild is cache only by design, and the cache holding
+    them is the laptop's — and the guard that refuses to write a reader with no tappable
+    word raised into a loop with no answer for it. The 105 texts behind those four were
+    never rewritten. The guard is right; the loop has to survive it.
+    """
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.errors import TargumError
+    from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="שלום",
+        kind=BlockKind.paragraph,
+    )
+    # "a-" sorts before "b-", so the unreadable one is reached first — the shape that
+    # made four Russian texts hide a hundred Hebrew ones.
+    for folder in (out / "p1" / "a-unreadable-ru", out / "p1" / "b-fine-he"):
+        folder.mkdir(parents=True)
+        document = Document(
+            source="m", title=folder.name, language="he", blocks=[], content_hash="h"
+        )
+        segmented = SegmentedDocument(
+            document_hash="h", language="he", segmenter="t/1", segments=[segment]
+        )
+        translation = Translation(
+            name="English",
+            document_hash="h",
+            source_language="he",
+            target_language="en",
+            provider="null",
+            segments={segment.id: "peace"},
+        )
+        document.write(folder / "document.json")
+        segmented.write(folder / "segments.json")
+        translation.write(folder / "translations" / "null.natural.en.json")
+        render(document, segmented, [translation], folder / "reader")
+
+    from targum import cli as cli_module
+
+    real = cli_module.rebuild_one
+
+    def refuse_the_first(folder: Path, **rest: object) -> object:
+        if folder.name.startswith("a-"):
+            raise TargumError(
+                "No word of this 'ru' text could be read.", "Build it without --words."
+            )
+        return real(folder, **rest)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(cli_module, "rebuild_one", refuse_the_first)
+
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    # The one behind it was still rewritten, and the skip says why.
+    assert "Rewrote 1 targum" in result.output, result.output
+    assert "skipped a-unreadable-ru" in result.output, result.output
+    assert "No word of this 'ru' text could be read." in result.output, result.output
