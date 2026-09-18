@@ -189,9 +189,9 @@ def test_a_video_from_youtube_links_home_at_the_line_and_an_upload_links_nowhere
     fake_audio.duration = 600.0
     fetched = builder(tmp_path, "https://youtu.be/abc123?si=share").run()  # type: ignore[arg-type]
     html = fetched.pages[-1].read_text(encoding="utf-8")
-    assert 'data-home href="https://www.youtube.com/watch?v=abc123"' in html, "canonical"
+    assert 'data-home="at" href="https://www.youtube.com/watch?v=abc123"' in html, "canonical"
     assert 'rel="noreferrer noopener"' in html and 'target="_blank"' in html
-    assert not re.search(r'data-home href="[^"]*[?&]t=', html), "decided at the click"
+    assert not re.search(r'data-home="[^"]*" href="[^"]*[?&]t=', html), "decided at the click"
     assert '"home": "https://www.youtube.com/watch?v=abc123"' in html
     assert '"offset": 0.0' in html, "the first part begins at the start"
     assert "data-video aria-pressed" in html, "and the sidecar is still the instrument"
@@ -202,7 +202,7 @@ def test_a_video_from_youtube_links_home_at_the_line_and_an_upload_links_nowhere
     uploaded = builder(tmp_path / "up", film(tmp_path / "up")).run()
     for page in uploaded.pages:
         text = page.read_text(encoding="utf-8")
-        assert "data-home href=" not in text
+        assert 'data-home="' not in text
         assert '"home": ' not in text
     kept = manifest_module.load(uploaded.out_dir)
     assert kept is not None and kept.home == ""

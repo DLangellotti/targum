@@ -557,6 +557,148 @@ def test_the_hosted_door_takes_one_video_and_never_a_channel(tmp_path: Path, mon
         assert "one video at a time" in job.error, address
 
 
+"""--- the Instagram door (targum-internal#255) ---"""
+
+REELED = {
+    "webpage_url": "https://www.instagram.com/reel/DSkLv4UE196/",
+    "title": "כמו בחו״ל: כתבת כאן חדשות הגיעה לקניון ",
+    "duration": 49.4,
+    "formats": [{"acodec": "mp4a.40.5"}],
+}
+
+
+def reeled(monkeypatch, answer: object) -> list[str]:
+    """`described`, for the Instagram door."""
+    from targum.video import instagram as instagram_module
+
+    asked: list[str] = []
+
+    def pretend(url: str) -> object:
+        asked.append(url)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(instagram_module, "describe", pretend)
+    monkeypatch.setattr(
+        instagram_module, "fetch", lambda *a, **k: pytest.fail("a price must not download")
+    )
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    return asked
+
+
+def test_a_pasted_reel_is_priced_from_its_metadata(tmp_path: Path, monkeypatch) -> None:
+    """The YouTube paste's door with Instagram's name on it: the reader's act, priced
+    before a byte moves, charged to their hours. A reel has no subtitles, so it is heard."""
+    address = "https://www.instagram.com/kan_news/reel/DSkLv4UE196/?igsh=abc"
+    asked = reeled(monkeypatch, REELED)
+    library = Library(tmp_path)
+    job = Job(id="a", source=address)
+    library.prepare(job)
+
+    assert job.error == ""
+    assert job.stage in ("ready", "blocked")
+    assert asked == [address], "metadata, once"
+    assert job.title == "כמו בחו״ל: כתבת כאן חדשות הגיעה לקניון", "the caption, trimmed"
+    assert job.audio and job.seconds == 49.4
+    assert job.options["subtitles"] is False
+    assert job.transcription > 0
+    assert "youtube" not in job.options
+
+
+def test_a_reel_whose_length_nobody_would_say_is_priced_long_not_refused(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Instagram never says, and a header can fail to. A reel is never a live stream, so
+    it is quoted on the guess the way a silent podcast feed is."""
+    from targum.video import instagram as instagram_module
+
+    reeled(monkeypatch, {**REELED, "duration": 0})
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.instagram.com/reel/DSkLv4UE196/")
+    library.prepare(job)
+    assert job.stage in ("ready", "blocked"), job.error
+    assert job.seconds == instagram_module.GUESS_S
+
+
+def test_a_refused_reel_says_how_to_bring_it_anyway(tmp_path: Path, monkeypatch) -> None:
+    from targum.errors import TargumError
+    from targum.video import instagram as instagram_module
+
+    reeled(
+        monkeypatch,
+        TargumError("Instagram wouldn't show us that reel.", instagram_module.OTHER_DOOR),
+    )
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.instagram.com/reel/DSkLv4UE196/")
+    library.prepare(job)
+    assert job.stage == "failed"
+    assert "Download it in Instagram" in job.error
+    assert ".txt" not in job.error
+
+
+def test_a_profile_is_one_video_at_a_time_without_the_binary(tmp_path: Path, monkeypatch) -> None:
+    """The harvest guard holds for Instagram too, and before anything installed is asked."""
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (False, "install yt-dlp."))
+    library = Library(tmp_path)
+    job = Job(id="a", source="https://www.instagram.com/explore/tags/tel-aviv/")
+    library.prepare(job)
+    assert job.stage == "failed"
+    assert "one video at a time" in job.error
+
+
+def test_a_host_we_name_and_cannot_fetch_says_so_by_name(tmp_path: Path, monkeypatch) -> None:
+    """TikTok, Vimeo, Reddit, Facebook: refused by name with the way that works, never
+    read as an article and answered with "save the page as .txt"."""
+    import targum.audio.episode as episode_module
+
+    monkeypatch.setattr(
+        episode_module, "find", lambda url: pytest.fail("a named host is never fetched as a page")
+    )
+    library = Library(tmp_path)
+    for address, name in (
+        ("https://www.tiktok.com/@someone/video/7123456789012345678", "TikTok"),
+        ("https://vimeo.com/76979871", "Vimeo"),
+        ("https://www.reddit.com/r/hebrew/comments/1c1ux0h/a_slug/", "Reddit"),
+        ("https://www.facebook.com/reel/123456789", "Facebook"),
+    ):
+        job = Job(id="a", source=address)
+        library.prepare(job)
+        assert job.stage == "failed", address
+        assert job.error.startswith(f"{name} doesn't let us fetch"), job.error
+        assert "drop the file here" in job.error
+
+
+def test_a_dropped_video_keeps_the_link_it_was_refused_at(tmp_path: Path) -> None:
+    """The reader downloaded the reel we could not fetch and dropped it in: the page still
+    links home to the reel. Only in the host table's own shape — a request cannot put an
+    address of its choosing on the page."""
+    library = Library(tmp_path)
+    upload = str(tmp_path / "uploads" / "reel.mp4")
+    for came, home in (
+        (
+            "https://www.instagram.com/kan_news/reel/DSkLv4UE196/?igsh=abc",
+            "https://www.instagram.com/reel/DSkLv4UE196",
+        ),
+        (
+            "https://www.tiktok.com/@a/video/7123456789012345678",
+            "https://www.tiktok.com/video/7123456789012345678",
+        ),
+        ("https://evil.example/reel/DSkLv4UE196", ""),
+        ("javascript:alert(1)", ""),
+        ("", ""),
+    ):
+        job = Job(id="a", source=upload, options={"came_from": came})
+        assert library._builder(job).home == home, came
+    # A pasted link is its own home, found by the pipeline; the field is not read for it.
+    job = Job(
+        id="a",
+        source="https://www.youtube.com/watch?v=abc123",
+        options={"came_from": "https://www.instagram.com/reel/DSkLv4UE196/"},
+    )
+    assert library._builder(job).home == ""
+
+
 """--- the part door ---"""
 
 TALK = "the winter came early. nobody remembered a colder one. the river froze."

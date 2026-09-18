@@ -275,6 +275,45 @@ def check_ytdlp_proxy(connect: bool = True) -> Check:
     return Check("YouTube egress", True, f"{named} answers")
 
 
+#: A public reel from Kan's news account, the one the Instagram door was measured on
+#: (2026-09-18). If it is ever deleted this check reads as a refusal; swap in another.
+INSTAGRAM_CONTROL = "https://www.instagram.com/reel/DSkLv4UE196/"
+
+
+def check_instagram(connect: bool = True) -> Check:
+    """Whether Instagram still shows this box a public reel.
+
+    Nothing about the box changes when this fails — Instagram does, or the extractor
+    falls behind it, and both happen without notice. So it asks the real question, one
+    `yt-dlp -J` on a known reel through the service's own egress, where the socket knock
+    `check_ytdlp_proxy` does would say "fine" to a door that refuses every reader.
+
+    On a hosted box only: a laptop's own address is not the one readers are fetched
+    from, and a serve that started by asking Instagram something would start slowly.
+    """
+    from .errors import TargumError
+    from .video import instagram as instagram_module
+    from .video import ytdlp_available
+
+    if not _hosted() or not ytdlp_available()[0]:
+        # No yt-dlp is `check_ytdlp`'s to say, once.
+        return Check("Instagram", True, "not asked from here", fatal=False)
+    if not connect:
+        return Check("Instagram", True, "not asked", fatal=False)
+    try:
+        info = instagram_module.describe(INSTAGRAM_CONTROL)
+    except TargumError as error:
+        return Check(
+            "Instagram",
+            False,
+            f"the control reel was refused — {error.message}",
+            "Pasted reels fail at the button until it answers. A newer yt-dlp is the "
+            "usual fix; a deleted control reel reads the same way.",
+            fatal=False,
+        )
+    return Check("Instagram", True, f"the control reel answers ({round(info['duration'])} s)")
+
+
 def check_pot(connect: bool = True) -> Check:
     """Whether the token minter is answering, which on a box is what makes yt-dlp work.
 
@@ -684,6 +723,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_ytdlp_proxy(connect=connect))
     checks.append(check_fetch_egress(connect=connect))
     checks.append(check_pot(connect=connect))
+    checks.append(check_instagram(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())
     checks.append(check_shelf(out))

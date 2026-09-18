@@ -806,7 +806,7 @@ def _from_manifest(
     """
     from ..audio import PAD
     from ..audio import manifest as manifest_module
-    from ..video import youtube
+    from ..video import hosts
 
     kept = manifest_module.load(folder)
     if kept is None:
@@ -843,8 +843,8 @@ def _from_manifest(
         str(reel) if reel is not None and reel.is_file() else "",
         # One shape whatever the reader pasted, or nothing: a podcast episode's address
         # is also a home, but not one the page may link to — the reader's outbound
-        # addresses are a closed list, and only YouTube's is on it.
-        youtube.watch_url(kept.home),
+        # addresses are a closed list, and only the video hosts' are on it.
+        hosts.home_url(kept.home),
         # The cut begins a pad before the part does — the same arithmetic the build
         # used to make it, and the one figure that turns a span into a place in the
         # whole video.
@@ -2227,6 +2227,8 @@ def render(
     nothing stale behind, and a reader someone has open does not have the page they are
     reading deleted from under them for the moment it takes to write the new one.
     """
+    from ..video import hosts as video_hosts
+
     if not translations:
         raise ValueError("a reader needs at least one translation")
 
@@ -2793,6 +2795,10 @@ def render(
             # The video's home, for the one control that leaves the page. Where the
             # source was a file there is none, and the control is not drawn.
             spoken_home=spoken.home,
+            # Which service, for the control's name; and whether its address takes a
+            # time, which only YouTube's does — an Instagram reel opens at its start.
+            spoken_home_named=video_hosts.named(spoken.home),
+            spoken_home_timed=spoken.home.startswith(video_hosts.YOUTUBE.home),
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
             speech_credited=spoken.credited,

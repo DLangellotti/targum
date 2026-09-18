@@ -2003,6 +2003,26 @@ class Library:
                     # the show notes as the text, which is the reason this branch has
                     # always existed and the one thing that must not change.
                     return self._prepare_youtube(job)
+                from .video import hosts as hosts_module
+
+                host = hosts_module.host_for(job.source)
+                if host is hosts_module.INSTAGRAM:
+                    # Its own door for the same reason: the generic ingester would read
+                    # the login wall and call it the text (targum-internal#255).
+                    return self._prepare_reel(job)
+                if host is not None:
+                    # A service we can name and cannot fetch from: TikTok, Vimeo, Reddit,
+                    # Facebook. Said by name with the way that works, rather than read
+                    # as an article and answered with "save the page as .txt".
+                    job.error = said_in(
+                        job.ui,
+                        "job.video-host-closed",
+                        "{service} doesn't let us fetch its videos. Download the video "
+                        "there and drop the file here.",
+                        service=host.name,
+                    )
+                    job.stage = "failed"
+                    return
                 if episode_module.sounds_like_audio(job.source):
                     # A recording on the other end of a link is not downloaded inside
                     # the request — that is a gigabyte on a click that only asked for a
@@ -2189,6 +2209,46 @@ class Library:
     SUBTITLES = ("he", "iw")
 
     def _prepare_youtube(self, job: Job) -> None:
+        """A YouTube address, priced through `_prepare_video`."""
+        from .video import youtube as youtube_module
+
+        self._prepare_video(
+            job,
+            vetted=youtube_module.is_youtube,
+            described=youtube_module.describe,
+            unavailable=said_in(
+                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
+            ),
+        )
+        if job.stage != "failed":
+            job.options["youtube"] = True
+
+    def _prepare_reel(self, job: Job) -> None:
+        """An Instagram reel, priced through `_prepare_video` (targum-internal#255)."""
+        from .video import instagram as instagram_module
+
+        self._prepare_video(
+            job,
+            vetted=instagram_module.is_reel,
+            described=instagram_module.describe,
+            unavailable=said_in(
+                job.ui, "job.instagram-unavailable", "We can't fetch from Instagram here."
+            ),
+            # Instagram never says how long a reel runs; `describe` reads the header, and
+            # where even that is silent the reel is priced long rather than refused as a
+            # live stream, which a reel never is.
+            unmeasured=instagram_module.GUESS_S,
+        )
+
+    def _prepare_video(
+        self,
+        job: Job,
+        *,
+        vetted: Callable[[str], bool],
+        described: Callable[[str], dict[str, Any]],
+        unavailable: str,
+        unmeasured: float = 0.0,
+    ) -> None:
         """Price a video from what yt-dlp can say about it, before a byte of it moves.
 
         The reader's act, not ours: they paste the address and press the button, the
@@ -2203,7 +2263,6 @@ class Library:
         """
         from .screen import from_ytdlp
         from .video import MAX_VIDEO_DURATION_S, ytdlp_available
-        from .video import youtube as youtube_module
 
         # What the address is, before what this box has. A playlist is a playlist on a
         # machine with no yt-dlp at all, and telling a reader to install something before
@@ -2211,7 +2270,7 @@ class Library:
         # ask. It is also the harvest guard, and a guard that depends on what is
         # installed is not one.
         try:
-            youtube_module.is_youtube(job.source)
+            vetted(job.source)
         except TargumError as refusal:
             job.error = f"{refusal.message} {refusal.hint or ''}".strip()
             job.stage = "failed"
@@ -2221,14 +2280,11 @@ class Library:
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it
             # names the path that still works on their own machine.
-            refused = said_in(
-                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
-            )
-            job.error = f"{refused} {hint}"
+            job.error = f"{unavailable} {hint}"
             job.stage = "failed"
             return
         try:
-            found = from_ytdlp(youtube_module.describe(job.source))
+            found = from_ytdlp(described(job.source))
         except TargumError as refusal:
             # An age gate, a private video, a region block — yt-dlp's own sentence is
             # better than anything written here, and a refusal travels on the job the
@@ -2236,6 +2292,10 @@ class Library:
             job.error = f"{refusal.message} {refusal.hint or ''}".strip()
             job.stage = "failed"
             return
+        if not found.duration and unmeasured:
+            from dataclasses import replace
+
+            found = replace(found, duration=unmeasured)
         if not found.duration:
             # A live stream has no duration, and neither has a premiere that has not
             # started. Both would price at nothing and then run until the disk filled.
@@ -2257,7 +2317,7 @@ class Library:
             job.stage = "failed"
             return
 
-        job.title = found.title or job.source
+        job.title = found.title.strip() or job.source
         # Charged against the hours, like every other recording: `claim` spends
         # `job.seconds` against the month's allowance when `job.audio` is set, so the
         # rate limit this needed is the one the pricing page already promised rather
@@ -2271,7 +2331,6 @@ class Library:
         # the whole import is the price of the English — which is the difference between
         # twenty cents and two dollars on a ten-minute lesson.
         written = [tag for tag in found.subtitles if tag.split("-")[0] in self.SUBTITLES]
-        job.options["youtube"] = True
         job.options["subtitles"] = bool(written)
         self._price_recording(job, transcribed=not written)
 
@@ -2970,7 +3029,7 @@ class Library:
         from .annotate.gloss import GLOSS_MODEL
 
         entry = catalogue_module.matching(job.source)
-        return Build(
+        build = Build(
             job.source,
             target_language=options.get("to", "en"),
             # What the door said, or else what the catalogue row says. The Library's own
@@ -3023,6 +3082,17 @@ class Library:
             # else — the transcriber is the box's own choice, never the request's.
             transcript=str(options.get("transcript")) if options.get("transcript") else None,
         )
+        # A video file the reader downloaded after its link was refused: the link they
+        # pasted first is its home, so the page still says whose film it is. Taken only
+        # in the one shape the host table writes, so a request cannot put an address of
+        # its choosing on the page — anything else reduces to "" and is dropped.
+        from urllib.parse import urlparse
+
+        from .video import hosts as hosts_module
+
+        if urlparse(job.source).scheme not in ("http", "https"):
+            build.home = hosts_module.home_url(str(options.get("came_from") or ""))
+        return build
 
 
 # The cookie the browser carries once somebody has signed in. Not `Secure`, because

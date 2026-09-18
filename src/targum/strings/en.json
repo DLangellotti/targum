@@ -1672,5 +1672,8 @@
   "lists.card.close": "Close",
   "lists.card.no-meaning": "No meaning yet. Write your own below.",
   "lists.card.kept-from": "Kept from {title}",
-  "lists.card.you-wrote": "You wrote "
+  "lists.card.you-wrote": "You wrote ",
+  "job.instagram-unavailable": "We can't fetch from Instagram here.",
+  "job.video-host-closed": "{service} doesn't let us fetch its videos. Download the video there and drop the file here.",
+  "reader.page.open-on-service": "Open on {service}"
 }

@@ -1723,5 +1723,8 @@
   "learn.level.gimel": "Читаю газету со словарём",
   "learn.level.dalet": "Читаю почти всё свободно",
   "learn.level.hey": "Читаю почти что угодно",
-  "learn.level.vav": "Иврит — язык, на котором я живу"
+  "learn.level.vav": "Иврит — язык, на котором я живу",
+  "job.instagram-unavailable": "Здесь мы не можем загружать с Instagram.",
+  "job.video-host-closed": "{service} не даёт нам загружать свои видео. Скачайте видео там и перетащите файл сюда.",
+  "reader.page.open-on-service": "Открыть в {service}"
 }

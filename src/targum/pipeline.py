@@ -1177,6 +1177,7 @@ class Build:
         from urllib.parse import urlparse
 
         from .video import is_video
+        from .video.instagram import is_reel
         from .video.youtube import is_youtube
 
         source = str(self.source)
@@ -1185,7 +1186,7 @@ class Build:
             # A direct link to a video file is a video, the same way a direct link
             # to an mp3 sounds like audio — left out, it fell through to the article
             # path and read raw mp4 bytes as a page.
-            return is_youtube(source) or is_video(parsed.path)
+            return is_youtube(source) or is_reel(source) or is_video(parsed.path)
         return is_video(source)
 
     @property
@@ -1222,6 +1223,7 @@ class Build:
         from .audio import DEFAULT_LANGUAGE, ffmpeg_available
         from .audio import parts as parts_module
         from .audio import probe as probe_module
+        from .video.instagram import is_reel
         from .video.youtube import is_youtube
 
         if not self.source_language:
@@ -1232,10 +1234,20 @@ class Build:
 
         address = ""
         watching = False
+        reel = False
         if urlparse(str(self.source)).scheme in ("http", "https"):
             address = str(self.source)
             watching = is_youtube(address)
-            if watching:
+            reel = not watching and is_reel(address)
+            if reel:
+                # The reel's own id for the folder, and the address as its home — the
+                # page reduces it to the one shape its allowlist pins.
+                from .video.hosts import video_id
+
+                self.home = address
+                stem = video_id(address) or "reel"
+                suffix = ".mp4"
+            elif watching:
                 self.home = address
                 # The video id, not the path's stem — every watch page's stem is "watch".
                 from urllib.parse import parse_qs
@@ -1271,6 +1283,11 @@ class Build:
 
                     self.notify("Fetching the video…")
                     target = youtube_module.fetch(address, workspace)
+                elif reel:
+                    from .video import instagram as instagram_module
+
+                    self.notify("Fetching the video…")
+                    target = instagram_module.fetch(address, workspace)
                 else:
                     self.notify("Fetching the recording…")
                     download(address, target)
@@ -1846,11 +1863,14 @@ class Build:
                                 entry.speakers[line.id] = paragraph.speaker
             entries.append(entry)
 
+        # A later part is built from the file already beside the reader, which has no
+        # address of its own; the home the first sitting found is kept, not forgotten.
+        before = manifest_module.load(self.resolved_out)
         manifest_module.write(
             self.resolved_out,
             manifest_module.AudioManifest(
                 source=str(self.source),
-                home=self.home,
+                home=self.home or (before.home if before is not None else ""),
                 sha256=found.sha256,
                 duration=found.duration,
                 language=drafted.language,

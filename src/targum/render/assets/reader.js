@@ -10268,7 +10268,9 @@ var targumReader = function () {
      is one nobody can copy. The spans are into this part's own cut, which begins
      `offset` seconds into the whole video; the two are added here. */
   var home = document.querySelector("[data-home]");
-  if (home) {
+  // Only an address that takes a time is given one. The "at" mark is YouTube's, and an
+  // Instagram reel with `&t=` on the end is an address Instagram does not answer.
+  if (home && home.getAttribute("data-home") === "at") {
     var homeBase = home.getAttribute("href");
     var homeOffset = Number(speech.offset) || 0;
     var homeAt = function () {
