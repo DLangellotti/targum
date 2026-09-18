@@ -43,7 +43,7 @@ from . import exemplars as exemplars_module
 from . import hebrew as hebrew_module
 from . import sources as sources_module
 from . import tools as tools_module
-from .record import Recorder, outside_share
+from .record import Recorder, changed_words, outside_share, rewritten
 
 if TYPE_CHECKING:
     from ..accounts import Person, Store
@@ -1062,7 +1062,14 @@ class Chats:
         returning = (
             hebrew_module.bring_back(store, person_id, language, seed=seed) if contract else None
         )
-        ledger = hebrew_module.ledger_block(level, known, common, returning)
+        # And what they keep getting wrong (targum-internal#290): at most three rules,
+        # as context for the model's own sentences and never as something it says.
+        rules = hebrew_module.recurring(
+            self.store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+            if self.store is not None
+            else []
+        )
+        ledger = hebrew_module.ledger_block(level, known, common, returning, rules)
         if contract and self.exemplars and code == "he":
             # A few sentences a Hebrew speaker wrote inside this reader's words, after
             # the breakpoint with the ledger: the idiom to write in, drawn afresh each
@@ -1151,6 +1158,47 @@ class Chats:
             self.library.remember(job)
             feed.close()
 
+    def _slip(self, asked: Asked, said: list[Any], language: str) -> None:
+        """Keep the line the reader got wrong, where they got one wrong.
+
+        "anki srs is kinda dumb in the sense it doesnt really know what you get wrong
+        beyond what you tell it" — Dmitry Z, 2026-09-16. A scheduler knows what you type
+        into it. This is the one place a mistake is visible without anybody typing
+        anything: the reader writes a line of Hebrew, the model rewrites it, and until
+        now that correction was shown once and thrown away.
+
+        Only where the recast actually changed their Hebrew. A correct line writes
+        nothing, so the table is a record of mistakes and not a log of turns — and the
+        comparison is made without vowel points, because the model points every word and
+        the reader almost never does, so a naive string compare would call every line a
+        mistake. The one thing this must never do is keep a correction that did not
+        happen.
+
+        Signed out, nothing is kept: a slip belongs to a person and there is nobody to
+        belong to. It is the reader's own material about themselves, so it never reaches
+        the `correction` table, never reaches the corpus, and goes with the account.
+        """
+        if self.store is None or asked.person is None:
+            return
+        recast = next((pair for pair in said if getattr(pair, "recast", False)), None)
+        if recast is None or not recast.hebrew.strip():
+            return
+        wrote = self.store.chat_said(asked.chat_id, asked.n)
+        if not wrote.strip():
+            return
+        if not rewritten(wrote, recast.hebrew):
+            return
+        self.store.slip(
+            asked.person.id,
+            wrote=wrote,
+            recast=recast.hebrew,
+            changed=changed_words(wrote, recast.hebrew),
+            language=language,
+            chat=asked.chat_id,
+            turn=asked.n,
+            why=getattr(recast, "why", "") or "",
+        )
+
     def _record(
         self,
         asked: Asked,
@@ -1181,6 +1229,7 @@ class Chats:
             self.store.chat_turn_update(
                 asked.chat_id, asked.n, words=json.dumps(payload, ensure_ascii=False)
             )
+            self._slip(asked, said, language)
             feed.put("words", payload)
         except Exception:  # noqa: BLE001 - the states are a courtesy; the turn stands
             traceback.print_exc()

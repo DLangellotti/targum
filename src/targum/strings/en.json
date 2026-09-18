@@ -1652,5 +1652,13 @@
   "library.page.order-them-by": "Order them by",
   "library.building": "Building",
   "library.building.behind.one": "Waiting behind {n} build",
-  "library.building.behind.other": "Waiting behind {n} builds"
+  "library.building.behind.other": "Waiting behind {n} builds",
+  "lists.work.known": "I know this",
+  "lists.work.still": "Still learning",
+  "yours.page.what-to-work-on": "What to work on",
+  "yours.page.lines-you-rewrote": "Lines you rewrote",
+  "yours.page.csv": "CSV",
+  "yours.page.anki": "Anki",
+  "lists.work.talk": "Use these in a conversation",
+  "lists.work.line": "Use these in a sentence each: "
 }

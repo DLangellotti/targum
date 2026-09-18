@@ -216,6 +216,8 @@ THUMBED = (
     # And the picture's grip and size key, on a wide touch screen (2026-09-13).
     ".video-grip",
     ".video-size",
+    # What to work on (2026-09-18, targum-internal#103): the two answers a word row has.
+    ".work-keys button",
     ".pair.voiced .say",
     # The chat's controls (2026-09-05): the button that sends, the door to a fresh
     # conversation, and the rows that open an old one.
@@ -620,3 +622,34 @@ def test_a_toggle_the_page_marks_pressed_is_styled_pressed() -> None:
         assert re.search(r"\." + re.escape(name) + r'\[aria-pressed="true"\]', sheet), (
             f".{name} is marked aria-pressed by learn.js and styled by nothing in learn.css"
         )
+
+
+def test_the_queue_waits_and_never_chases() -> None:
+    """targum-internal#103. The list that maintains itself is the paid surface, and the
+    constraint came in the same minute as the request: "if smth gonna ping me or bother
+    me like duolingo I'll fucking delete it" (Dmitry Z, 2026-09-16).
+
+    So it is pull and never push. `workOn` reads rows that already exist; nothing about
+    it is scheduled, owed or counted, and §6's rule that engagement counts real things
+    is what keeps it a view rather than a debt.
+    """
+    lists = (ASSETS / "lists.js").read_text(encoding="utf-8")
+    fold = lists[lists.index("function workOn(") : lists.index("/* --- the word table")]
+    # The code, not the prose about it: the comments in here name every one of these
+    # words in order to say the fold does not do them, and a check that read them would
+    # be a check that can only pass on undocumented code.
+    fold = re.sub(r"/\*.*?\*/", " ", fold, flags=re.S)
+    fold = re.sub(r"//.*", " ", fold)
+
+    # Nothing that implies a clock or an obligation.
+    for owed in ("due", "overdue", "interval", "schedule", "remind", "notify", "streak", "goal"):
+        assert owed not in fold.lower(), f"the fold says {owed!r}"
+    # And nothing that puts a number on what is waiting: "12 words due" is the sentence
+    # this card exists not to say, and a count is how it starts.
+    assert "length +" not in fold and "count" not in fold.lower()
+
+    # The heading is a question answered rather than an instruction, and carries no
+    # number beside it the way the table's title does.
+    yours = (TEMPLATES / "yours.html.j2").read_text(encoding="utf-8")
+    assert "What to work on" in yours
+    assert "work-title" not in yours, "no counted heading: that is the table's, and earned"

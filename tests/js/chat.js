@@ -509,6 +509,9 @@ function drawn() {
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
+      // A line handed over by another page is read once and deleted, so this is "" on
+      // any load that had one — and a test can tell "never read" from "read and kept".
+      handed: global.localStorage.getItem("targum:say"),
       placeholder: byId["say"].placeholder,
       pairs: pairsDrawn(),
       foot: foot(),

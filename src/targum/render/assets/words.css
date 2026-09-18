@@ -525,3 +525,104 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
 }
 /* Labels in normal case (2026-09-11). */
 table.rows th, .list-controls .section-sub { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+
+/* --- what to work on (targum-internal#103) --------------------------------------------
+   The fold at the top of Your Words: the words flagged and never come back to, oldest
+   first. A list of rows rather than a table — there are three things to say about a word
+   here and six in the table below, and a second grid of the same columns would read as
+   the same list twice.
+
+   Nothing about it counts, ranks or is due. The heading is a question answered and there
+   is no number beside it: "What to work on", never "12 words due". */
+.work-rows { list-style: none; margin: 0; padding: 0; }
+.work-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0.2rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.work-row:last-child { border-block-end: 0; }
+.work-said { display: flex; align-items: baseline; gap: 0.4rem; min-inline-size: 0; }
+/* The word in the reading face, at reading size: it is the thing on the page that is
+   being learned, and the rest of the row is about it. */
+.work-said .term { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.work-lemma { font-family: var(--reading-hebrew); font-size: 0.9375rem; color: var(--ink-soft); }
+.work-meaning { flex: 1 1 10rem; min-inline-size: 0; color: var(--ink-soft); font-size: 0.9375rem; }
+/* The reader's own words, marked the way they are marked in the table. */
+.work-meaning.mine { color: var(--ink); }
+.work-keys { margin-inline-start: auto; display: flex; gap: 0.3rem; flex: none; }
+.work-keys button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  color: var(--ink-soft);
+}
+/* Both write to the ledger now, so the difference is not doing something against doing
+   nothing — it is forward against back. §9 gives a working action the accent, and going
+   up the ramp is the working action: known carries the primary, and stepping a word
+   back down is the quieter of the two and looks it. */
+.work-keys .work-known { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.work-keys .work-known:hover { background: var(--teal); color: var(--teal-ink); }
+.work-keys .work-still:hover { color: var(--ink); }
+.work-keys button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .work-keys button { min-height: 44px; }
+}
+
+/* The door out of the fold, at its foot. Quiet and to one end: it is an offer, not the
+   thing the fold is for, and a full-width button under twenty rows would read as the
+   next step in a flow rather than as somewhere else the reader may go. */
+.work-foot { margin: 0.9rem 0 0; }
+.work-foot button {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  color: var(--ink-soft);
+}
+.work-foot button:hover { border-color: var(--teal); color: var(--teal); }
+.work-foot button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .work-foot button { min-height: 44px; }
+}
+
+/* Lines that came back changed (targum-internal#290), in the same fold as the words. */
+.work-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.rewrote-row { display: block; }
+/* Against one edge, whichever edge the text begins at: the group carries the slip's own
+   direction and the lines align to it. */
+.rewrote-said { display: flex; flex-direction: column; gap: 0.15rem; align-items: stretch; }
+.rewrote-said > * { text-align: start; }
+/* What they wrote, quieted: it is the thing being corrected, not the thing to read. */
+.rewrote-wrote {
+  font-family: var(--reading-hebrew);
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.rewrote-recast { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+/* The words the reader did not write. A `mark`, so it is a difference to a screen reader
+   and not only to an eye; leaf, because §4 gives green to what is right. Not a background
+   wash — it would sit behind pointed Hebrew and eat the points. */
+.rewrote-changed {
+  background: none;
+  color: var(--leaf);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* The model's own sentence about it, which is the only thing it says about a mistake. */
+.rewrote-why { font-size: 0.8125rem; color: var(--ink-soft); }

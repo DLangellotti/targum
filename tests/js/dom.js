@@ -101,6 +101,12 @@ function element(tag) {
       const assigned = this["on" + type];
       if (typeof assigned === "function") assigned.call(this, event || {});
     },
+    /** A real method on a real element, and the one way a page saves a file: an anchor
+     *  is made, clicked and thrown away. Without it `link.click()` threw and no test
+     *  could ever have reached an export. */
+    click() {
+      this.fire("click");
+    },
     focus() {},
     /** Leaving a field is what commits what you typed into it, so this has to be the
      *  event and not just a method that returns. */
@@ -209,6 +215,11 @@ function install(globals) {
      artefact opened from disk, where `localStorage` does not reliably keep what it is
      given (targum-internal#137). A harness that loads one asset on its own has neither,
      so it stands in for the page and provides them. */
+  /* The same object under both names, as a browser has it. Without this a script
+     reaching for `window.localStorage` wrote to `undefined` — which throws, which the
+     `try` every one of them is wrapped in then swallowed, so the write vanished and the
+     test that made it passed. Found on the fold's handoff, 2026-09-18. */
+  global.window.localStorage = global.localStorage;
   global.targumKeep = (name, value) => global.localStorage.setItem(name, value);
   global.targumForget = (name) => global.localStorage.removeItem(name);
   global.window.targumKeep = global.targumKeep;

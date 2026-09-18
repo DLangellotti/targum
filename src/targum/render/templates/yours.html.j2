@@ -52,6 +52,52 @@
   {%- endif %}
 
   {%- if which == 'words' %}
+  {#- What to work on (targum-internal#103). The words the reader flagged and never came
+      back to: still learning, oldest first, twenty at most.
+
+      Dmitry Z, 2026-09-16, on why a list like this is the thing worth paying for: "anki
+      requires bookkeeping and discipline that I lack", and "anki srs is kinda dumb in the
+      sense it doesnt really know what you get wrong beyond what you tell it". And, three
+      minutes later, the constraint: "if smth gonna ping me or bother me like duolingo
+      I'll fucking delete it".
+
+      So it is pull and never push. Nothing here is scheduled, nothing is due, nothing is
+      counted and nothing is sent. It is a view of rows that already exist, waiting when
+      the reader arrives and silent when they do not.
+
+      A reader with nothing to work on sees no fold at all — not an empty state and not an
+      invitation. `lists.js` hides the section, which is why it starts hidden here. -#}
+  <section class="panel work" id="work-on" hidden>
+    <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
+    <ul class="work-rows" id="work-rows"></ul>
+
+    {#- One door out of the fold, at its foot (targum-internal#103).
+
+        The rows have two answers each and no third: a row is where the reader says what
+        they know, and twenty of anything else on it makes the list a console. This is
+        the other thing a reader looking at these words might want — to meet them in a
+        sentence rather than in a list — and one control for the sitting is the size that
+        thought actually is.
+
+        It opens the conversation with a line written and unsent. The press is not a
+        send: the reader reads the line, edits it or does not, and presses Send with
+        their own hand, which is the same rule every other door in the product obeys.
+        Nothing here spends. -#}
+    <p class="work-foot" id="work-foot" hidden>
+      <button type="button" id="work-talk">{{ t("lists.work.talk", "Use these in a conversation") }}</button>
+    </p>
+
+    {#- And the lines that came back changed (targum-internal#290). The same fold, because
+        it is the same question — what is worth going over — and two panels asking it
+        twice would be two lists to keep track of.
+
+        Their line above the recast, with the words that changed marked. No control: a
+        sentence is not a word and there is nothing here to mark known. It is a record to
+        read, which is the whole of what a scheduler cannot give. -#}
+    <p class="work-heading" id="rewrote-heading" hidden>{{ t("yours.page.lines-you-rewrote", "Lines you rewrote") }}</p>
+    <ul class="work-rows rewrote" id="rewrote-rows"></ul>
+  </section>
+
   <section class="panel">
     <div class="list-controls">
       <h2><span id="words-title">{{ t("yours.page.your-words", "Your Words") }}</span></h2>
@@ -70,8 +116,11 @@
         <option value="9">{{ t("yours.page.known", "Known") }}</option>
         <option value="0">{{ t("yours.page.ignored", "Ignored") }}</option>
       </select>
-      {#- Hidden until sync says there is an account to export from. -#}
-      <button type="button" id="export-words" hidden>{{ t("yours.page.export", "Export") }}</button>
+      {#- Hidden until sync says there is an account to export from. Named by what
+          comes out rather than "Export": two buttons that both said Export would have
+          left the reader to find out which was which by pressing one. -#}
+      <button type="button" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+      <button type="button" id="export-anki" hidden>{{ t("yours.page.anki", "Anki") }}</button>
     </div>
     <div class="table-wrap">
       <table class="rows" id="word-table">
@@ -108,7 +157,7 @@
   <section class="panel">
     <div class="list-controls">
       <h2><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
-      <button type="button" id="export-phrases" hidden>{{ t("yours.page.export", "Export") }}</button>
+      <button type="button" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
     </div>
     <p class="note">{{ t("yours.page.phrases-stay-with-their-text", "Phrases stay with their text.") }}</p>
     <div id="phrase-list"></div>

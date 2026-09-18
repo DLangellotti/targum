@@ -72,6 +72,22 @@
     }
   }
 
+  /* The lines that came back changed (targum-internal#290), fetched once and handed to
+     the fold. Only on the words page: it is the fold's other half, and the phrases page
+     and the texts page have no fold to put it in.
+
+     Asked for after the lists are drawn rather than before, so a slow answer never holds
+     up the words — the fold appears with its words and gains its lines a moment later,
+     and a reader with neither still sees nothing at all. */
+  function drawRewrote() {
+    if (which !== "words" || !lists || !lists.rewrote) return;
+    ask("/slips")
+      .then(function (data) {
+        lists.rewrote((data && data.slips) || []);
+      })
+      .catch(function () {});
+  }
+
   /* --- the shelf ------------------------------------------------------------- */
 
   function drawTexts() {
@@ -153,6 +169,9 @@
   }
 
   var drawing = which === "texts" ? drawTexts() : drawKept();
+  // After the lists, and never in their way: the fold appears with its words and gains
+  // its rewritten lines a moment later.
+  drawing.then(drawRewrote).catch(function () {});
 
   drawing.catch(function () {
     // Signed out, or the server went away. The nav is still there to leave by.

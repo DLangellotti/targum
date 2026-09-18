@@ -1709,3 +1709,26 @@ def test_the_page_says_its_own_words_in_the_readers_language() -> None:
         strings={"language": "ru", "strings": {"chat.doing.still": "Мы ещё работаем…"}},
     )
     assert quiet["turns"][1]["doing"] == ["Мы ещё работаем…"]
+
+
+def test_a_line_handed_over_by_another_page_waits_in_the_box() -> None:
+    """The fold on Your Words sends a reader here with their stuck words named
+    (targum-internal#103). It arrives written and unsent: a turn spends, and what spends
+    is the reader's own press on Send."""
+    drawn = run(stored={"targum:say": "Use these in a sentence each: ספר, דרך"})
+    assert drawn["field"] == "Use these in a sentence each: ספר, דרך"
+    assert drawn["posted"] == [], "nothing was sent"
+
+
+def test_a_handed_line_is_read_once_and_deleted() -> None:
+    """So a back button, or coming to the conversation again tomorrow, does not refill
+    the box with a line the reader already dealt with."""
+    drawn = run(stored={"targum:say": "Use these in a sentence each: ספר"})
+    assert drawn["field"], "it was read"
+    assert drawn["handed"] is None, "and it is gone"
+
+
+def test_the_conversation_is_the_same_conversation_without_a_handed_line() -> None:
+    """Which is every load but the one after a press on the fold."""
+    drawn = run()
+    assert drawn["field"] == ""
