@@ -1070,23 +1070,27 @@ def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() 
     assert len(thin["arrival"]) == 19
 
 
-def test_the_ladder_is_the_ulpan_one_and_says_it_in_words() -> None:
-    """targum-internal#306, decided 2026-09-17: the rung is asked, narrowly.
+def test_the_arrival_asks_for_no_rung() -> None:
+    """targum-internal#306, decided against on 2026-09-18 after being decided narrowly
+    for it the day before.
 
-    Eight rungs, aleph to vav, the ladder `level.py` already climbs. The words come
-    first and the kitah second, because the letter is the whole label to somebody who
-    did an ulpan and noise to everybody else.
+    A rung that is asked and thrown away before the next redraw stops a reader on their
+    first visit for nothing. And every level `design.md` sanctions is measured (§12, "A
+    language with CEFR levels shows them"); a self-declared one is a different object
+    wearing the same name.
+
+    The harness reads the row rather than a constant, so this is empty because the row
+    is gone and not because nobody looked.
     """
     drawn = draw([], shared=seeded())
-    assert len(drawn["levels"]) == 8
-    assert drawn["levels"][0].startswith("Just starting")
-    assert drawn["levels"][0].endswith("\u05d0"), "the kitah beside the words, not instead"
-    assert drawn["levels"][-1].endswith("\u05d5")
+    assert drawn["levels"] == []
+    assert drawn["arrival"], "the subjects are still asked"
 
 
-def test_three_subjects_and_a_rung_before_the_answer_is_taken() -> None:
+def test_three_subjects_are_the_whole_question() -> None:
     """One subject is a label and two is a preference; three is the first number that
-    describes somebody. The rung is the other half of the question."""
+    describes somebody. There is no second half to the question any more, so three
+    subjects is the gate and nothing else is waited on."""
     two = draw([], shared=seeded(), do=[{"subject": "Sport"}, {"subject": "History"}])
     assert two["done"] is False, "two is not enough"
     assert two["counted"] == "Pick 1 more"
@@ -1096,28 +1100,28 @@ def test_three_subjects_and_a_rung_before_the_answer_is_taken() -> None:
         shared=seeded(),
         do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}],
     )
-    assert three["done"] is False, "the subjects are not the whole question"
+    assert three["done"] is True, "three subjects and Done is live"
     assert three["counted"] == ""
 
-    both = draw(
-        [],
-        shared=seeded(),
-        do=[
-            {"subject": "Sport"},
-            {"subject": "History"},
-            {"subject": "Archaeology"},
-            {"rung": "I read slowly, with help"},
-        ],
+
+def test_the_measured_rung_is_untouched_by_this() -> None:
+    """What went is being *asked*. `level.py` still climbs the ulpan ladder off words the
+    reader actually marked, and Your Progress still shows it — that is the level §12
+    sanctions, and it was never the thing #306 was about."""
+    from pathlib import Path as _P
+
+    root = _P(__file__).resolve().parent.parent
+    assert (root / "src" / "targum" / "level.py").is_file()
+    progress = (root / "src" / "targum" / "render" / "templates" / "progress.html.j2").read_text(
+        encoding="utf-8"
     )
-    assert both["done"] is True
+    assert "rung" in progress, "the measured rung still has its panel"
 
 
-def test_the_rung_is_kept_nowhere() -> None:
-    """The whole of #306's decision: asked, used once, thrown away.
-
-    The subjects are kept — they are a profile and they travel between devices. The rung
-    is not: no key in the browser, nothing posted to the account, no column behind it. A
-    number nobody keeps is a number nobody can be wrong about a month later.
+def test_nothing_about_a_level_is_stored_because_nothing_is_asked() -> None:
+    """The subjects are kept — they are a profile and they travel between devices. There
+    is no rung to keep. The assertions that the subjects *are* kept and posted are what
+    make the negative ones worth anything: the harness would have shown a level.
     """
     after = draw(
         [],
@@ -1126,19 +1130,17 @@ def test_the_rung_is_kept_nowhere() -> None:
             {"subject": "Sport"},
             {"subject": "Torah and Judaism"},
             {"subject": "Archaeology"},
-            {"rung": "I read almost anything"},
             {"press": "arrival-done"},
         ],
     )
     kept = after.get("kept") or {}
     posted = after.get("posted") or []
-    # The harness would have shown it: the subjects went both places on the same press.
     assert "targum:arrived" in kept, "the subjects are kept, so this test can see keeping"
     assert any("/account/interest" in str(where) for where in posted), (
         "the subjects are posted, so this test can see posting"
     )
-    assert not any("level" in key for key in kept), f"the rung was stored: {kept}"
-    assert not any("level" in str(where) for where in posted), f"the rung was posted: {posted}"
+    assert not any("level" in key for key in kept), f"a level was stored: {kept}"
+    assert not any("level" in str(where) for where in posted), f"a level was posted: {posted}"
 
 
 def test_a_subject_pressed_twice_is_put_back() -> None:

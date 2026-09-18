@@ -1271,75 +1271,23 @@
   //: How many subjects the reader is held to. Matches `accounts.Store.INTERESTS_WANTED`.
   var WANTED = 3;
 
-  /* The ulpan ladder `level.py` climbs, aleph to vav. Anybody who studied Hebrew in
-     Israel knows which kitah they were in; anybody who did not reads the plain words and
-     ignores the letter.
+  /* **No rung is asked** (targum-internal#306, decided against on 2026-09-18).
 
-     **Asked, used once, and thrown away** (targum-internal#306, decided 2026-09-17).
-     Nothing is stored: no column, no key in the browser, nothing posted. It exists to
-     answer the one question the measurement cannot, because the measurement has not
-     happened yet — which of this reader's subjects to open *first*. The claim grid a
-     minute later measures the same ladder off words they have actually marked, and that
-     is what the shelf sorts on from then on. A number nobody keeps is a number nobody
-     can be wrong about later. */
-  var LEVELS = [
-    { id: "aleph", letter: "א" },
-    { id: "aleph-plus", letter: "א+" },
-    { id: "bet", letter: "ב" },
-    { id: "bet-plus", letter: "ב+" },
-    { id: "gimel", letter: "ג" },
-    { id: "dalet", letter: "ד" },
-    { id: "hey", letter: "ה" },
-    { id: "vav", letter: "ו" },
-  ];
+     The arrival asked how much Hebrew a reader had, used the answer to pick which of
+     their subjects to open first, and kept it nowhere. That was the narrow decision of
+     2026-09-17, and what it left was the worst half of both: a reader is stopped on
+     their first visit for an answer that is thrown away before the page is drawn again.
 
-  function levelLabels() {
-    return {
-      aleph: t("learn.level.aleph", "Just starting"),
-      "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
-      bet: t("learn.level.bet", "Simple conversations"),
-      "bet-plus": t("learn.level.bet-plus", "I read slowly, with help"),
-      gimel: t("learn.level.gimel", "I read a newspaper with a dictionary"),
-      dalet: t("learn.level.dalet", "I read most things comfortably"),
-      hey: t("learn.level.hey", "I read almost anything"),
-      vav: t("learn.level.vav", "Hebrew is a language I live in"),
-    };
-  }
+     The argument for it was real and is on the card — the claim grid measures, but only
+     after the first text, so the one routing decision the measurement cannot inform is
+     the one the reader meets first. What decided it the other way is that every level
+     `design.md` sanctions is measured (§12, "A language with CEFR levels shows them"),
+     and a self-declared rung is a different object wearing the same name. The first text
+     is now chosen from the subjects alone, and the reader's own marked words decide
+     everything after it, which is the same answer the rest of the product gives.
 
-  /* The rung the reader just named, for as long as it takes to draw one sheet.
-     Deliberately a variable and not a stored value: `routeBy()` hands it out once and
-     forgets it, so a reload routes by the subjects alone. */
-  var routing = "";
-
-  //: Where on the ladder a rung sits, 0 at aleph and 1 at vav.
-  function ladderFraction(id) {
-    for (var i = 0; i < LEVELS.length; i++) {
-      if (LEVELS[i].id === id) return i / (LEVELS.length - 1);
-    }
-    return 0;
-  }
-
-  /* Which of the texts a subject can answer to open, given the rung. Sorted by the
-     difficulty each row already carries, and the rung says how far along to land: aleph
-     takes the easiest of them, vav the hardest, the rest in between. It is a coarse rule
-     on purpose — it decides one text, once, and the reader's own marked words decide
-     everything after it. */
-  function pickByRung(rows, rung) {
-    if (!rows.length) return null;
-    if (!rung) return rows[0];
-    var sorted = rows.slice().sort(function (a, b) {
-      return (a.difficulty || 0) - (b.difficulty || 0);
-    });
-    var at = Math.round(ladderFraction(rung) * (sorted.length - 1));
-    return sorted[at] || sorted[0];
-  }
-
-  //: The rung, handed over once. Every call after the first gets nothing.
-  function routeBy() {
-    var was = routing;
-    routing = "";
-    return was;
-  }
+     The measured ulpan rung is untouched: `level.py` still climbs it and Your Progress
+     still shows it. What is gone is being asked. */
 
   function interestLabels() {
     return {
@@ -1449,23 +1397,19 @@
   function drawArrival(asking, readers, shared, again) {
     var host = document.getElementById("arrival");
     var row = document.getElementById("arrival-doors");
-    var rungs = document.getElementById("arrival-levels");
     var done = document.getElementById("arrival-done");
     var count = document.getElementById("arrival-count");
-    if (!host || !row || !rungs || !done) return;
+    if (!host || !row || !done) return;
     if (!asking) {
       host.hidden = true;
       return;
     }
     var labels = interestLabels();
-    var said = levelLabels();
     var picked = [];
-    var standing = "";
     row.textContent = "";
-    rungs.textContent = "";
 
     function settle() {
-      var enough = picked.length >= WANTED && !!standing;
+      var enough = picked.length >= WANTED;
       done.disabled = !enough;
       if (!count) return;
       var short = WANTED - picked.length;
@@ -1494,36 +1438,8 @@
     });
 
 
-    LEVELS.forEach(function (step) {
-      var press = document.createElement("button");
-      press.type = "button";
-      press.className = "arrival-rung";
-      press.setAttribute("aria-pressed", "false");
-      // The letter beside the words, not instead of them: it is the whole label to a
-      // reader who did an ulpan and noise to everybody else, so it is the smaller half.
-      press.appendChild(document.createTextNode(said[step.id] || step.id));
-      var letter = document.createElement("span");
-      letter.className = "arrival-rung-letter";
-      letter.setAttribute("lang", "he");
-      letter.textContent = step.letter;
-      press.appendChild(letter);
-      press.addEventListener("click", function () {
-        standing = step.id;
-        Array.prototype.forEach.call(rungs.children, function (other) {
-          other.setAttribute("aria-pressed", "false");
-          other.classList.remove("is-picked");
-        });
-        press.setAttribute("aria-pressed", "true");
-        press.classList.add("is-picked");
-        settle();
-      });
-      rungs.appendChild(press);
-    });
-
     done.onclick = function () {
-      if (picked.length < WANTED || !standing) return;
-      // The subjects are kept; the rung is not. It lives as long as the next redraw.
-      routing = standing;
+      if (picked.length < WANTED) return;
       remember(picked);
       host.hidden = true;
       // Drawn again rather than navigated: the sheet swaps to what they asked for, on
@@ -1798,16 +1714,16 @@
             // the same name shadows it for the whole of `show`, which is how the video
             // door once came to call an object as a function and draw no sheet at all.
             var found = null;
-            var rung = routeBy();
             for (var w = 0; w < arrived.length && !found; w++) {
               var came = interestOf(arrived[w]);
               if (!came) continue;
-              found = pickByRung(
+              // The first text a subject can answer. It was sorted by a named rung
+              // until 2026-09-18; nobody is asked for one now, so the order the shelf
+              // already has is the order.
+              found =
                 handed.filter(function (reader) {
                   return wanted(reader, came);
-                }),
-                rung
-              );
+                })[0] || null;
             }
             if (found) {
               // The track is read off the text rather than off the subject: "judaism"
