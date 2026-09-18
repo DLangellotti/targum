@@ -748,3 +748,76 @@ def test_pressing_the_door_sends_nothing() -> None:
         do=[{"type": "talk"}],
     )
     assert not [url for url in drawn["asked"] if url.startswith("/chat/say")]
+
+
+# --- a row's card (2026-09-18) ---------------------------------------------------------
+
+
+def test_a_word_in_the_fold_opens_its_card() -> None:
+    """ "When I click on a word or phrase on any list, I want to be able to open up its
+    card, and interact with it." The word, its dictionary form, its meaning and the
+    level scale, as the reader's card has them."""
+    drawn = draw(
+        vocabulary(word("הלך", "walked", status=2, surface="הולך", at=100)),
+        do=[{"type": "open", "in": "work-rows", "term": "הולך"}],
+    )
+    card = drawn["card"]
+    assert card is not None and card["role"] == "dialog"
+    assert card["head"] == "הולך"
+    assert "הלך" in card["form"], "the dictionary form, where it differs"
+    assert card["meaning"].startswith("walked")
+    assert card["levels"]
+
+
+def test_a_level_said_on_the_card_is_written_and_the_card_goes() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=2, at=100)),
+        do=[{"type": "open", "in": "work-rows", "term": "ספר"}, {"type": "level", "value": 9}],
+    )
+    assert drawn["ledger"]["ספר"]["status"] == 9
+    assert drawn["card"] is None, "said, and put away, as in the reader"
+    assert drawn["workOn"]["rows"] == [], "and the fold is drawn again from the store"
+
+
+def test_a_row_of_the_word_table_opens_the_same_card() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=2, at=100)),
+        do=[{"type": "open", "in": "word-rows", "term": "ספר"}],
+    )
+    assert drawn["card"]["head"] == "ספר" and drawn["card"]["levels"]
+
+
+def test_a_kept_phrase_opens_its_card_with_the_text_it_came_from() -> None:
+    stored = with_phrase(
+        vocabulary(word("ספר", "book", status=9, at=100)), "לב טוב", meaning="a good heart"
+    )
+    for where in ("work-phrase-rows", "phrase-list"):
+        drawn = draw(stored, do=[{"type": "open", "in": where, "term": "לב טוב"}])
+        card = drawn["card"]
+        assert card["head"] == "לב טוב", where
+        assert card["meaning"].startswith("a good heart")
+        assert card["form"] == "Kept from אהבת ציון"
+        assert card["levels"]
+
+
+def test_a_corrected_line_opens_to_what_it_should_have_been() -> None:
+    """The recast first, since that is the thing to learn; what they wrote under it. No
+    scale: a sentence has no level."""
+    for where in ("work-phrase-rows", "rewrote-rows"):
+        drawn = draw(
+            vocabulary(word("ספר", "book", status=9, at=100)),
+            slips=[SLIP],
+            do=[{"type": "open", "in": where, "term": SLIP["recast"]}],
+        )
+        card = drawn["card"]
+        assert card["head"] == SLIP["recast"], where
+        assert SLIP["wrote"] in card["form"]
+        assert not card["levels"]
+
+
+def test_a_word_with_no_meaning_says_so_and_offers_the_field() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "", status=2, at=100)),
+        do=[{"type": "open", "in": "work-rows", "term": "ספר"}],
+    )
+    assert drawn["card"]["meaning"] == "No meaning yet. Write your own below."

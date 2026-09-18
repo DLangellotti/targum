@@ -634,3 +634,51 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
 }
 /* The model's own sentence about it, which is the only thing it says about a mistake. */
 .rewrote-why { font-size: 0.8125rem; color: var(--ink-soft); }
+/* Isolated with its own direction so its punctuation stays put, the reason is still
+   placed against the edge its sentence starts at. `start` read its own `dir="auto"` and
+   put an English reason at the far left of a right-to-left row, away from the Hebrew it
+   is about — wide in the fold, where the row carries its two answers (2026-09-18). */
+.rewrote-said[dir="rtl"] > .rewrote-why { text-align: right; }
+
+/* --- a row's card (2026-09-18) ------------------------------------------------------
+   Every list on these pages opens a word, a phrase or a corrected line as a card. It is
+   the reader's `.gloss-card` (reader.css), placed under the row on a desk and standing
+   at the foot as a sheet on a phone, with the desk's radius for a floating panel. */
+.opens { cursor: pointer; }
+.work-row.opens:hover, table.rows tr.opens:hover { background: var(--teal-wash); }
+.opens:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.list-card {
+  z-index: 40;
+  min-inline-size: min(18rem, calc(100vw - 2rem));
+  padding: 0.9rem 2.6rem 1rem 1.1rem;
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-floating);
+}
+.list-card.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  max-width: none;
+  width: auto;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding-block-end: max(1rem, env(safe-area-inset-bottom));
+}
+.list-card-close {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.list-card-close:hover { background: var(--teal-wash); color: var(--teal); }
+.list-card-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-card-close { inline-size: 44px; block-size: 44px; }
+}

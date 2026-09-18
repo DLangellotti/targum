@@ -59,7 +59,22 @@ const claimBody = document.getElementById("claim-body");
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "vocab.js"));
 global.window.TargumVocab.migrate = () => {};
-global.window.TargumVocab.editor = () => element("div");
+/* The editor is `vocab.js`'s and tested there. Here it is a scale and nothing else, so a
+   card that carries one can be pressed: a level is a button that hands its value on. */
+global.window.TargumVocab.editor = (options) => {
+  const box = element("div");
+  box.className = "vocab-editor";
+  const scale = element("div");
+  scale.className = "levels";
+  [1, 2, 3, 9, 0].forEach((value) => {
+    const button = element("button");
+    button.className = "level level-" + value;
+    button.addEventListener("click", () => options.onStatus && options.onStatus(value));
+    scale.appendChild(button);
+  });
+  box.appendChild(scale);
+  return box;
+};
 require(path.join(assets, "lists.js"));
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));
@@ -217,6 +232,24 @@ function phrases() {
       const row = at("work-phrase-rows").children.find((item) => phraseRow(item).term === step.term);
       if (row) row.querySelector(".work-keys").children[step.key || 0].fire("click");
     }
+    /* A press on a row that opens its card (2026-09-18): `{type: "open", in: "work-rows",
+       term: "…"}`, where `in` is the list the row stands in and `term` its first word. */
+    if (step.type === "open") {
+      const host = at(step.in);
+      const rows = step.in === "phrase-list"
+        ? host.children.flatMap((group) => group.children[1].children)
+        : host.children;
+      const row = rows.find((item) => {
+        const first = item.querySelector(".term") || item.querySelector(".rewrote-recast");
+        return first && first.textContent === step.term;
+      });
+      if (row) row.fire("click", { target: row });
+    }
+    // A level said on the open card: `{type: "level", value: 9}`.
+    if (step.type === "level") {
+      const button = at("list-card").querySelector(".level-" + step.value);
+      if (button) button.fire("click", { stopPropagation() {} });
+    }
     // The fold's door out: `{type: "talk"}`. It writes a line and leaves for /chat.
     if (step.type === "talk") at("work-talk").fire("click");
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -296,6 +329,20 @@ function phrases() {
         rows: (part("claim-rows").children || []).map((tr) => tr.children[1].textContent),
         said: part("claim-said").textContent,
       },
+      /* The card a row opened, and what it says: the word, the line under it, the
+         meaning, and whether the level scale is on it. */
+      card: (() => {
+        const card = byId["list-card"];
+        if (!card || card.hidden) return null;
+        const find = (name) => (card.querySelector(name) || {}).textContent || "";
+        return {
+          head: find(".lemma"),
+          form: find(".form"),
+          meaning: find(".meaning"),
+          levels: !!card.querySelector(".levels"),
+          role: card.attrs.role || "",
+        };
+      })(),
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       // The phrases kept from the one text the fixtures keep them from.
       picked: JSON.parse(global.localStorage.getItem("targum:picked:h1") || "{}"),

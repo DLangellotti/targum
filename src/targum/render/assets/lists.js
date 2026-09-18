@@ -94,8 +94,6 @@
   //: How many rows each list may draw here, if the page asked for a ceiling. Learn does;
   //: the pages that are only a list do not, and page through with More instead.
   var limits = {};
-  // Which row is open for editing, keyed by the thing it is about. One at a time.
-  var openKey = null;
 
   //: Called after a word's status changes, so the page above can redraw what depends on
   //: it — the known count on Learn is the same number this list edits.
@@ -398,6 +396,7 @@
     rows.forEach(function (word) {
       var item = el("li", "work-row");
       item.setAttribute("data-word", word.lemma || word.term);
+      opens(item, wordCard(word));
 
       var said = el("span", "work-said");
       var term = el("bdi", "term", word.term);
@@ -452,6 +451,7 @@
       var phrase = row.phrase;
       var item = el("li", "work-row");
       item.setAttribute("data-phrase", phraseKey(phrase));
+      opens(item, phraseCard(phrase));
       var said = el("span", "work-said");
       var term = el("bdi", "term", phrase.term);
       term.setAttribute("lang", code);
@@ -494,6 +494,7 @@
   function slipRow(slip) {
     var item = el("li", "work-row work-slip");
     item.setAttribute("data-slip", String(slip.id));
+    opens(item, slipCard(slip));
     item.appendChild(slipSaid(slip));
     item.appendChild(
       answers(
@@ -674,9 +675,258 @@
     host.textContent = "";
     mine.forEach(function (slip) {
       var item = el("li", "work-row rewrote-row");
+      opens(item, slipCard(slip));
       item.appendChild(slipSaid(slip));
       host.appendChild(item);
     });
+  }
+
+  /* --- a row's card (2026-09-18) ---------------------------------------------
+   *
+   * "When I click on a word or phrase on any list, I want to be able to open up its
+   * card, and interact with it." One card for every list on these pages — the fold on
+   * Learn and on Your Words, the word table, Your Phrases and the lines the
+   * conversation corrected — so a word opened from a list is the same thing as a word
+   * tapped in a text.
+   *
+   * The reader's card, as far as a list can honestly draw it. It wears the reader's
+   * classes (`reader.css` is on every one of these pages) and its one control, the
+   * level scale and the note from `TargumVocab.editor`, so the questions are asked the
+   * same way in both places. What it cannot draw is what only a text has: the grammar,
+   * the root, the sentence it sat in. A ledger row does not carry those, and a card that
+   * invented them would be a card that lies.
+   *
+   * It replaces the editor row that opened under a table row: two ways of opening a
+   * word, one of them on some lists and not on others, was the inconsistency this
+   * removes.
+   */
+  var card = null;
+  //: The row the card was opened from, so focus goes back to it on the way out.
+  var cardFrom = null;
+
+  function ensureCard() {
+    if (card) return card;
+    card = at("list-card");
+    if (!card) {
+      card = el("div");
+      card.id = "list-card";
+      document.body.appendChild(card);
+    }
+    card.className = "gloss-card list-card";
+    card.setAttribute("role", "dialog");
+    card.hidden = true;
+    // Escape and a press anywhere else put it away, as they do in the reader.
+    document.addEventListener("keydown", function (event) {
+      if (event && event.key === "Escape" && !card.hidden) closeCard();
+    });
+    document.addEventListener("click", function (event) {
+      if (card.hidden) return;
+      var target = event && event.target;
+      if (!target) return;
+      if (card.contains && card.contains(target)) return;
+      // The press that opened it reaches the document too, after the row has had it.
+      if (cardFrom && cardFrom.contains && cardFrom.contains(target)) return;
+      closeCard();
+    });
+    return card;
+  }
+
+  function closeCard() {
+    if (!card || card.hidden) return;
+    card.hidden = true;
+    card.textContent = "";
+    var back = cardFrom;
+    cardFrom = null;
+    if (back && back.focus && back.isConnected !== false) back.focus();
+  }
+
+  /* Beside the row on a desk; a sheet at the foot on a phone, where a panel beside a
+     row has nowhere to stand. 40rem is Learn's own line between the two. */
+  function place(row) {
+    var narrow = window.matchMedia && window.matchMedia("(max-width: 40rem)").matches;
+    card.classList.toggle("sheet", !!narrow);
+    if (narrow || !row.getBoundingClientRect) {
+      card.style.top = "";
+      card.style.left = "";
+      return;
+    }
+    var box = row.getBoundingClientRect();
+    var gutter = 16;
+    var width = card.offsetWidth || 0;
+    var left = Math.max(
+      gutter,
+      Math.min(box.left, (window.innerWidth || 0) - width - gutter)
+    );
+    card.style.top = box.bottom + (window.scrollY || 0) + 6 + "px";
+    card.style.left = left + (window.scrollX || 0) + "px";
+  }
+
+  function openCard(row, fill) {
+    ensureCard();
+    card.textContent = "";
+    cardFrom = row;
+    var shut = el("button", "list-card-close", "×");
+    shut.type = "button";
+    shut.setAttribute("aria-label", t("lists.card.close", "Close"));
+    shut.addEventListener("click", function (event) {
+      if (event && event.stopPropagation) event.stopPropagation();
+      closeCard();
+    });
+    card.appendChild(shut);
+    fill(card);
+    card.hidden = false;
+    place(row);
+    shut.focus();
+  }
+
+  /** A row that opens a card: by a press anywhere on it but its own controls, or by
+   *  Enter or Space when it is the stop the keyboard is on. */
+  function opens(row, fill) {
+    row.setAttribute("tabindex", "0");
+    row.setAttribute("aria-haspopup", "dialog");
+    row.classList.add("opens");
+    row.addEventListener("click", function (event) {
+      var target = event && event.target;
+      if (target && target.closest && target.closest("button, input, a")) return;
+      openCard(row, fill);
+    });
+    row.addEventListener("keydown", function (event) {
+      if (!event || (event.key !== "Enter" && event.key !== " ")) return;
+      if (event.target && event.target !== row) return;
+      if (event.preventDefault) event.preventDefault();
+      openCard(row, fill);
+    });
+  }
+
+  /* The lines of a card. Each says one thing and carries its own copy, as the reader's
+     do: "copy the word" means three different strings to three readers. */
+  function headline(text, language) {
+    var line = el("span", "copy-line");
+    var head = el("bdi", "lemma", text);
+    head.setAttribute("lang", language);
+    line.appendChild(head);
+    line.appendChild(window.TargumVocab.copyButton(text, {}));
+    return line;
+  }
+
+  function meaningLine(own, bought, into) {
+    return paintMeaning(inTarget(el("span"), into), own, bought);
+  }
+
+  /* Drawn into the node it is given, so a note typed on the card can repaint the line
+     above it without the line being swapped out. */
+  function paintMeaning(line, own, bought) {
+    var sense = own || bought || "";
+    line.textContent = "";
+    line.className = "meaning" + (own ? " mine" : "");
+    if (sense) {
+      line.appendChild(document.createTextNode(sense));
+      line.classList.add("copy-line");
+      line.appendChild(window.TargumVocab.copyButton(sense, {}));
+    } else {
+      line.textContent = t("lists.card.no-meaning", "No meaning yet. Write your own below.");
+    }
+    return line;
+  }
+
+  /* After a level is said the card has done its job and goes, as the reader's does, and
+     every list on the page is drawn again from the one store it was said into. */
+  function said() {
+    closeCard();
+    renderWorkOn();
+    renderWords();
+    renderPhrases();
+    if (onChanged) onChanged();
+  }
+
+  function wordCard(word) {
+    return function (host) {
+      host.appendChild(headline(word.term, code));
+      if (word.lemma && word.lemma !== word.term) {
+        var form = el("span", "form copy-line");
+        form.appendChild(document.createTextNode(t("reader.card.from", "from ")));
+        var lemma = el("bdi", "", word.lemma);
+        lemma.setAttribute("lang", code);
+        form.appendChild(lemma);
+        form.appendChild(window.TargumVocab.copyButton(word.lemma, {}));
+        host.appendChild(form);
+      }
+      var meaning = meaningLine(word.note, word.meaning, word.into);
+      host.appendChild(meaning);
+      host.appendChild(
+        window.TargumVocab.editor({
+          status: word.status,
+          note: word.note,
+          legend: true,
+          placeholder: t("vocab.own-meaning", "Your own meaning"),
+          onStatus: function (value) {
+            updateWord(word, { status: value === null ? word.status : value });
+            said();
+          },
+          onNote: function (text) {
+            if (text === word.note) return;
+            noteMeaning(code, word.into, word.lemma, text);
+            word.note = text;
+            // Patched rather than redrawn: the press that ended the typing — usually a
+            // level — has not landed yet, and a redraw would take it out from under it.
+            paintMeaning(meaning, text, word.meaning);
+            renderWords();
+          },
+        })
+      );
+    };
+  }
+
+  function phraseCard(phrase) {
+    return function (host) {
+      host.appendChild(headline(phrase.term, code));
+      var meaning = meaningLine(phrase.note, phrase.meaning, phrase.into);
+      host.appendChild(meaning);
+      host.appendChild(
+        window.TargumVocab.editor({
+          status: phrase.status,
+          note: phrase.note,
+          legend: true,
+          placeholder: t("vocab.own-meaning", "Your own meaning"),
+          onStatus: function (value) {
+            updatePhrase(phrase, { status: value === null ? phrase.status : value });
+            said();
+          },
+          onNote: function (text) {
+            if (text === phrase.note) return;
+            noteMeaning(code, phrase.into, phrase.id && "phrase:" + phrase.id, text);
+            phrase.note = text;
+            paintMeaning(meaning, text, phrase.meaning);
+            renderPhrases();
+          },
+        })
+      );
+      // Phrases stay with their text, and the card says which.
+      if (phrase.title) {
+        host.appendChild(el("span", "form", t("lists.card.kept-from", "Kept from {title}", { title: phrase.title })));
+      }
+    };
+  }
+
+  /* A corrected line: what it should have been, first and largest, since that is the
+     thing to learn; what the reader wrote under it, and the model's reason. No scale —
+     a sentence has no level — and the row's own answers stay on the row. */
+  function slipCard(slip) {
+    return function (host) {
+      var language = slip.language || code;
+      host.appendChild(headline(slip.recast || "", language));
+      var wrote = el("span", "form");
+      wrote.appendChild(document.createTextNode(t("lists.card.you-wrote", "You wrote ")));
+      var mine = el("bdi", "", slip.wrote || "");
+      mine.setAttribute("lang", language);
+      wrote.appendChild(mine);
+      host.appendChild(wrote);
+      if (slip.why) {
+        var reason = el("bdi", "form", slip.why);
+        reason.setAttribute("dir", "auto");
+        host.appendChild(reason);
+      }
+    };
   }
 
   /* --- the word table ------------------------------------------------------- */
@@ -756,54 +1006,10 @@
       tr.appendChild(el("td", "when", word.at > EARLIEST ? shortDate(word.at) : "—"));
 
       // The same two questions the reader asks, asked here too: a list you can only
-      // look at is not where anyone wants to correct a definition. Reachable by key
-      // as well as pointer: the row is a stop, Enter or Space is the tap.
-      tr.setAttribute("tabindex", "0");
-      tr.setAttribute("aria-expanded", openKey === word.lemma ? "true" : "false");
-      tr.addEventListener("click", function (event) {
-        if (event.target.closest("button, input")) return;
-        openKey = openKey === word.lemma ? null : word.lemma;
-        renderWords();
-      });
-      tr.addEventListener("keydown", function (event) {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        if (event.target !== tr) return;
-        event.preventDefault();
-        openKey = openKey === word.lemma ? null : word.lemma;
-        renderWords();
-      });
-      if (openKey === word.lemma) tr.classList.add("open");
+      // look at is not where anyone wants to correct a definition. The row opens the
+      // word's card, as every list on these pages does (2026-09-18).
+      opens(tr, wordCard(word));
       rowsBody.appendChild(tr);
-
-      if (openKey === word.lemma) {
-        var holder = el("tr", "editor-row");
-        var cell = document.createElement("td");
-        cell.colSpan = 6;
-        cell.appendChild(
-          window.TargumVocab.editor({
-            status: word.status,
-            note: word.note,
-            placeholder: t("vocab.own-meaning", "Your own meaning"),
-            onStatus: function (value) {
-              updateWord(word, { status: value === null ? word.status : value });
-              renderWords();
-              if (onChanged) onChanged();
-            },
-            onNote: function (text) {
-              if (text === word.note) return;
-              noteMeaning(code, word.into, word.lemma, text);
-              word.note = text;
-              // Patched rather than re-rendered. Committing on blur means the click
-              // that caused the blur — usually a level button — has not landed yet,
-              // and rebuilding the row here would take that button out from under it.
-              meaning.textContent = text || word.meaning;
-              meaning.className = "meaning" + (text ? " mine" : "");
-            },
-          })
-        );
-        holder.appendChild(cell);
-        rowsBody.appendChild(holder);
-      }
     });
 
     at("words-title").textContent =
@@ -867,7 +1073,6 @@
       var list = el("ol");
       byText[title].forEach(function (phrase) {
         var item = el("li");
-        var key = phrase.store + ":" + phrase.segmentId + ":" + phrase.index;
         var bdi = el("bdi", "term", phrase.term);
         bdi.setAttribute("lang", code);
         item.appendChild(bdi);
@@ -882,43 +1087,7 @@
           if (phrase.note && phrase.meaning) line.title = "targum: " + phrase.meaning;
           item.appendChild(line);
         }
-        item.setAttribute("tabindex", "0");
-        item.setAttribute("aria-expanded", openKey === key ? "true" : "false");
-        item.addEventListener("click", function (event) {
-          if (event.target.closest("button, input")) return;
-          openKey = openKey === key ? null : key;
-          renderPhrases();
-        });
-        item.addEventListener("keydown", function (event) {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          if (event.target !== item) return;
-          event.preventDefault();
-          openKey = openKey === key ? null : key;
-          renderPhrases();
-        });
-        if (openKey === key) {
-          item.classList.add("open");
-          item.appendChild(
-            window.TargumVocab.editor({
-              status: phrase.status,
-              note: phrase.note,
-              placeholder: t("vocab.own-meaning", "Your own meaning"),
-              onStatus: function (value) {
-                updatePhrase(phrase, { status: value === null ? phrase.status : value });
-                renderPhrases();
-              },
-              onNote: function (text) {
-                if (text === phrase.note) return;
-                noteMeaning(code, phrase.into, phrase.id && "phrase:" + phrase.id, text);
-                phrase.note = text;
-                if (line) {
-                  line.textContent = text || phrase.meaning;
-                  line.className = "reading" + (text ? " mine" : "");
-                }
-              },
-            })
-          );
-        }
+        opens(item, phraseCard(phrase));
         list.appendChild(item);
       });
       group.appendChild(list);
@@ -1171,13 +1340,16 @@
     entry = store || { words: [], phrases: [] };
     limits = ceilings || {};
     shown = PAGE;
-    openKey = null;
     /* A sitting ends when the page does, or when the reader changes language. It does
        not end because a word was marked: marking one calls back to the page, which
        redraws the whole list through here, and clearing the skips there took a word the
        reader had just passed over and put it back in front of them mid-sitting. Found on
        the running page. `passed` is module state, so a reload empties it by existing. */
-    if (code !== was) passed = {};
+    if (code !== was) {
+      passed = {};
+      // A card is about a word in one language; another language's lists close it.
+      closeCard();
+    }
     offerMeaningLanguages(which, meaningIn(), function (into) {
       lang.into(into);
       if (redrawing) redrawing(into);

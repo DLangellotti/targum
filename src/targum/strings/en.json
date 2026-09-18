@@ -1668,5 +1668,9 @@
   "lists.work.phrases": "Phrases",
   "lists.work.words-or-phrases": "Words or phrases",
   "learn.page.all-your-phrases": "All your phrases",
-  "yours.page.lines-corrected-in-conversation": "Corrected in conversation"
+  "yours.page.lines-corrected-in-conversation": "Corrected in conversation",
+  "lists.card.close": "Close",
+  "lists.card.no-meaning": "No meaning yet. Write your own below.",
+  "lists.card.kept-from": "Kept from {title}",
+  "lists.card.you-wrote": "You wrote "
 }
