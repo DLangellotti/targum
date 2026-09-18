@@ -235,23 +235,166 @@
       .slice(0, limits.workOn || WORK_ON);
   }
 
+  /* Phrases, the fold's second tab (2026-09-18). Two kinds of row answer the same
+   * question, so they are one list: a phrase the reader kept from a text and has not
+   * marked known, and a line they wrote in the conversation that came back changed.
+   * Oldest first across both, for the reason the words are: the thing worth coming back
+   * to is what has been sitting there longest.
+   *
+   * A kept phrase is on the same ladder as a word and moves on it the same way. A line
+   * that came back changed has no ladder — it is a sentence the reader got wrong once —
+   * so "I know this" takes it off the list on the account and "Still learning" only
+   * moves it out of the sitting. The slip itself is never touched: it is the record,
+   * and the record is not the queue.
+   */
+  function phraseKey(phrase) {
+    return "phrase:" + phrase.store + ":" + phrase.segmentId + ":" + phrase.index;
+  }
+
+  function phrasesToWorkOn() {
+    var rows = [];
+    (entry.phrases || []).forEach(function (phrase) {
+      if (passed[phraseKey(phrase)]) return;
+      if (!(phrase.status >= 1 && phrase.status <= 3)) return;
+      rows.push({ kind: "phrase", at: phrase.at || 0, phrase: phrase });
+    });
+    rewrote.forEach(function (slip) {
+      if (passed["slip:" + slip.id]) return;
+      // The queue from the server is every language's; the fold is one language's.
+      if ((slip.language || code) !== code) return;
+      rows.push({ kind: "slip", at: slip.at || 0, slip: slip });
+    });
+    return rows
+      .sort(function (a, b) {
+        return a.at - b.at;
+      })
+      .slice(0, limits.workOn || WORK_ON);
+  }
+
+  /* Which tab is open. In memory: a sitting's choice, and the next visit opens on
+     whichever half has something in it, words first. */
+  var workTab = null;
+
   function renderWorkOn() {
     var panel = at("work-on");
-    var host = at("work-rows");
-    if (!panel || !host) return;
-    var rows = workOn();
+    var wordHost = at("work-rows");
+    if (!panel || !wordHost) return;
+    var phraseHost = at("work-phrase-rows");
+    var words = workOn();
+    var phrases = phraseHost ? phrasesToWorkOn() : [];
     // Nothing to work on is nothing on the page. Not an empty state and not an
-    // invitation: a reader who has flagged no words is not being told they are behind.
-    // Either half is enough to draw it: a reader with no flagged words may still have
-    // lines that came back changed.
-    panel.hidden = rows.length === 0 && rewrote.length === 0;
-    host.textContent = "";
-    // The door at the foot is about the words, so a reader whose fold holds only lines
-    // that came back changed is not offered it: there would be nothing to carry.
-    var foot = at("work-foot");
-    if (foot) foot.hidden = rows.length === 0;
-    if (!rows.length) return;
+    // invitation: a reader who has flagged nothing is not being told they are behind.
+    panel.hidden = words.length === 0 && phrases.length === 0;
 
+    // The open tab stays open while it has rows, and a tab that has just been worked
+    // through hands over to the other rather than showing an empty list.
+    if (workTab !== "phrases" || !phrases.length) workTab = words.length ? "words" : "phrases";
+    if (workTab === "words" && !words.length) workTab = "phrases";
+
+    /* The tabs only where both halves have something. A tab with nothing under it is an
+       empty state with a label on it, and the fold does not have those: a reader with
+       only words sees the words, as before. */
+    var tabs = at("work-tabs");
+    if (tabs) tabs.hidden = !(words.length && phrases.length);
+    WORK_TABS.forEach(function (which) {
+      var tab = at("work-tab-" + which);
+      if (!tab) return;
+      var on = which === workTab;
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.tabIndex = on ? 0 : -1;
+    });
+    wordHost.hidden = workTab !== "words";
+    if (phraseHost) phraseHost.hidden = workTab !== "phrases";
+
+    // The door and the way to the rest are about whichever half is open.
+    var foot = at("work-foot");
+    if (foot) foot.hidden = panel.hidden;
+    var talk = at("work-talk");
+    if (talk) {
+      talk.textContent =
+        workTab === "phrases"
+          ? t("lists.work.talk-phrases", "Generate sentences with these phrases")
+          : t("lists.work.talk-words", "Generate sentences with these words");
+    }
+    var all = at("work-all");
+    if (all) {
+      var path = workTab === "phrases" ? "/phrases" : "/words";
+      var key = window.TARGUM_KEY || "";
+      all.href = path + (key ? "?k=" + encodeURIComponent(key) : "");
+      all.textContent =
+        workTab === "phrases"
+          ? t("learn.page.all-your-phrases", "All your phrases")
+          : t("learn.page.all-your-words", "All your words");
+    }
+
+    drawWordRows(wordHost, words);
+    if (phraseHost) drawPhraseRows(phraseHost, phrases);
+  }
+
+  var WORK_TABS = ["words", "phrases"];
+
+  /** Switch the fold to one half. Arrow keys move between the tabs, as tabs do. */
+  function mountWorkTabs() {
+    WORK_TABS.forEach(function (which, n) {
+      var tab = at("work-tab-" + which);
+      if (!tab) return;
+      tab.onclick = function () {
+        workTab = which;
+        renderWorkOn();
+      };
+      tab.onkeydown = function (event) {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        workTab = WORK_TABS[(n + 1) % WORK_TABS.length];
+        renderWorkOn();
+        at("work-tab-" + workTab).focus();
+      };
+    });
+  }
+
+  /* The two questions, and nothing else.
+   *
+   * "I know this" takes it off the list through the ordinary path — the same
+   * `updateWord` the table's editor calls — so the known count rises once, from one
+   * store, and no second ledger exists to disagree with the first.
+   *
+   * "Still learning" steps it back down the ladder it is already on — nearly there
+   * to getting there, getting there to just met — and moves it out of this sitting.
+   * The step down is the honest opposite of the button beside it: both say what the
+   * reader knows about this word, and both say it in the one place the product keeps
+   * that. A press that changed nothing would have been a control with no job
+   * (design.md §13), and this card frames the fold as a queue worked through.
+   *
+   * At "just met" there is nowhere lower, so the press only moves the word out of
+   * the sitting and writes nothing. Saying "still learning" about a word marked met
+   * once is agreement, and agreement is not news.
+   *
+   * It does not restamp `at`: that field is when a word was kept, it is what the
+   * table's Kept column shows, and it is written once and preserved for life
+   * (`vocab.js:161`) — so re-stamping it to reorder a queue would have quietly aged
+   * every word in the product to today. The order of the fold is therefore
+   * unchanged by a press, and a word stepped down today is where it was tomorrow.
+   *
+   * The sitting half is still in memory and nowhere else: a stored skip is an
+   * interval wearing a different coat, and the whole of this card is that nothing is
+   * scheduled. Come back tomorrow and the word is here again, one level lower, which
+   * is true: it is still a word being learned.
+   */
+  function answers(onKnown, onStill) {
+    var keys = el("span", "work-keys");
+    var knew = el("button", "work-known", t("lists.work.known", "I know this"));
+    knew.type = "button";
+    knew.addEventListener("click", onKnown);
+    var still = el("button", "work-still", t("lists.work.still", "Still learning"));
+    still.type = "button";
+    still.addEventListener("click", onStill);
+    keys.appendChild(knew);
+    keys.appendChild(still);
+    return keys;
+  }
+
+  function drawWordRows(host, rows) {
+    host.textContent = "";
     rows.forEach(function (word) {
       var item = el("li", "work-row");
       item.setAttribute("data-word", word.lemma || word.term);
@@ -276,59 +419,121 @@
         item.appendChild(inTarget(el("span", "work-meaning" + (word.note ? " mine" : ""), meaning), word.into));
       }
 
-      /* The two questions, and nothing else.
-       *
-       * "I know this" takes it off the list through the ordinary path — the same
-       * `updateWord` the table's editor calls — so the known count rises once, from one
-       * store, and no second ledger exists to disagree with the first.
-       *
-       * "Still learning" steps it back down the ladder it is already on — nearly there
-       * to getting there, getting there to just met — and moves it out of this sitting.
-       * The step down is the honest opposite of the button beside it: both say what the
-       * reader knows about this word, and both say it in the one place the product keeps
-       * that. A press that changed nothing would have been a control with no job
-       * (design.md §13), and this card frames the fold as a queue worked through.
-       *
-       * At "just met" there is nowhere lower, so the press only moves the word out of
-       * the sitting and writes nothing. Saying "still learning" about a word marked met
-       * once is agreement, and agreement is not news.
-       *
-       * It does not restamp `at`: that field is when a word was kept, it is what the
-       * table's Kept column shows, and it is written once and preserved for life
-       * (`vocab.js:161`) — so re-stamping it to reorder a queue would have quietly aged
-       * every word in the product to today. The order of the fold is therefore
-       * unchanged by a press, and a word stepped down today is where it was tomorrow.
-       *
-       * The sitting half is still in memory and nowhere else: a stored skip is an
-       * interval wearing a different coat, and the whole of this card is that nothing is
-       * scheduled. Come back tomorrow and the word is here again, one level lower, which
-       * is true: it is still a word being learned.
-       */
-      var keys = el("span", "work-keys");
-      var knew = el("button", "work-known", t("lists.work.known", "I know this"));
-      knew.type = "button";
-      knew.addEventListener("click", function () {
-        updateWord(word, { status: KNOWN });
-        renderWorkOn();
-        renderWords();
-        if (onChanged) onChanged();
-      });
-      var still = el("button", "work-still", t("lists.work.still", "Still learning"));
-      still.type = "button";
-      still.addEventListener("click", function () {
-        passed[word.lemma || word.term] = true;
-        if (word.status > 1) {
-          updateWord(word, { status: word.status - 1 });
-          renderWords();
-          if (onChanged) onChanged();
-        }
-        renderWorkOn();
-      });
-      keys.appendChild(knew);
-      keys.appendChild(still);
-      item.appendChild(keys);
+      item.appendChild(
+        answers(
+          function () {
+            updateWord(word, { status: KNOWN });
+            renderWorkOn();
+            renderWords();
+            if (onChanged) onChanged();
+          },
+          function () {
+            passed[word.lemma || word.term] = true;
+            if (word.status > 1) {
+              updateWord(word, { status: word.status - 1 });
+              renderWords();
+              if (onChanged) onChanged();
+            }
+            renderWorkOn();
+          }
+        )
+      );
       host.appendChild(item);
     });
+  }
+
+  function drawPhraseRows(host, rows) {
+    host.textContent = "";
+    rows.forEach(function (row) {
+      if (row.kind === "slip") {
+        host.appendChild(slipRow(row.slip));
+        return;
+      }
+      var phrase = row.phrase;
+      var item = el("li", "work-row");
+      item.setAttribute("data-phrase", phraseKey(phrase));
+      var said = el("span", "work-said");
+      var term = el("bdi", "term", phrase.term);
+      term.setAttribute("lang", code);
+      said.appendChild(term);
+      item.appendChild(said);
+      var meaning = phrase.note || phrase.meaning;
+      if (meaning) {
+        item.appendChild(
+          inTarget(el("span", "work-meaning" + (phrase.note ? " mine" : ""), meaning), phrase.into)
+        );
+      }
+      // The same ladder as a word, written the way the reader and the list below write
+      // a phrase's level: into the text's own store, so the text shows it too.
+      item.appendChild(
+        answers(
+          function () {
+            updatePhrase(phrase, { status: KNOWN });
+            renderWorkOn();
+            renderPhrases();
+            if (onChanged) onChanged();
+          },
+          function () {
+            passed[phraseKey(phrase)] = true;
+            if (phrase.status > 1) {
+              updatePhrase(phrase, { status: phrase.status - 1 });
+              renderPhrases();
+              if (onChanged) onChanged();
+            }
+            renderWorkOn();
+          }
+        )
+      );
+      host.appendChild(item);
+    });
+  }
+
+  /* A line that came back changed, as a row to work on. "I know this" is said to the
+     account, since that is where the slip lives; it leaves the list at once and comes
+     back only if the account could not be told. */
+  function slipRow(slip) {
+    var item = el("li", "work-row work-slip");
+    item.setAttribute("data-slip", String(slip.id));
+    item.appendChild(slipSaid(slip));
+    item.appendChild(
+      answers(
+        function () {
+          var was = rewrote.slice();
+          rewrote = rewrote.filter(function (other) {
+            return other.id !== slip.id;
+          });
+          renderWorkOn();
+          knowSlip(slip.id).then(function (ok) {
+            if (ok) return;
+            rewrote = was;
+            renderWorkOn();
+          });
+        },
+        function () {
+          passed["slip:" + slip.id] = true;
+          renderWorkOn();
+        }
+      )
+    );
+    return item;
+  }
+
+  function knowSlip(id) {
+    var key = window.TARGUM_KEY || "";
+    var head = { "Content-Type": "application/json" };
+    if (key) head["X-Targum-Key"] = key;
+    if (typeof fetch !== "function") return Promise.resolve(false);
+    return fetch("/slips/" + encodeURIComponent(String(id)) + (key ? "?k=" + encodeURIComponent(key) : ""), {
+        method: "POST",
+        headers: head,
+        body: JSON.stringify({ known: true }),
+      })
+      .then(function (response) {
+        return response.ok;
+      })
+      .catch(function () {
+        return false;
+      });
   }
 
   /* --- taking them into a conversation ---------------------------------------
@@ -349,6 +554,8 @@
    * what they keep getting wrong. What the line adds is *this sitting's* six, and a
    * sentence saying what the reader came for. Everything else was already there, which
    * is why the AI half of this feature is four lines of JavaScript.
+   *
+   * It carries whichever tab is open: the words, or the phrases.
    */
 
   /* The handoff is a stored line, not an address. A word belongs to the reader, and a
@@ -361,19 +568,32 @@
   //: before pressing Send, and twenty Hebrew words is not a sentence. The fold may hold
   //: twenty; this takes the ones nearest the top, which are the oldest marks.
   var TAKEN = 6;
+  //: And how many phrases: fewer, because a phrase is several words and a corrected
+  //: line is a whole sentence.
+  var TAKEN_PHRASES = 3;
 
   function talkAbout() {
-    var words = workOn()
-      .slice(0, TAKEN)
-      .map(function (word) {
-        return word.term;
-      });
-    if (!words.length) return;
+    var line;
+    if (workTab === "phrases") {
+      var phrases = phrasesToWorkOn()
+        .slice(0, TAKEN_PHRASES)
+        .map(function (row) {
+          return row.kind === "slip" ? row.slip.recast : row.phrase.term;
+        })
+        .filter(Boolean);
+      if (!phrases.length) return;
+      line = t("lists.work.phrase-line", "Use these phrases in new sentences: ") + phrases.join("; ");
+    } else {
+      var words = workOn()
+        .slice(0, TAKEN)
+        .map(function (word) {
+          return word.term;
+        });
+      if (!words.length) return;
+      line = t("lists.work.line", "Use these in a sentence each: ") + words.join(", ");
+    }
     try {
-      localStorage.setItem(
-        SAY,
-        t("lists.work.line", "Use these in a sentence each: ") + words.join(", ")
-      );
+      localStorage.setItem(SAY, line);
     } catch (whatever) {
       // A browser refusing storage is a browser that gets a plain conversation. The
       // words come back through the ledger anyway; only the line is lost.
@@ -382,72 +602,79 @@
     window.location.href = "/chat" + (key ? "?k=" + encodeURIComponent(key) : "");
   }
 
-  /* Lines that came back changed (targum-internal#290), in the same fold as the words.
+  /* Lines that came back changed (targum-internal#290).
    *
-   * Their line above the recast, with the words that changed marked — which is the whole
-   * of it. There is no control on a row: a sentence is not a word and there is nothing
-   * here to mark known, and the record is the point rather than a thing to work through.
+   * Their line above the recast, with the words that changed marked. In the fold they
+   * are rows of the Phrases tab; on the phrases list they are the record, every one of
+   * them, newest first, with no control on a row.
    *
    * "anki srs is kinda dumb in the sense it doesnt really know what you get wrong beyond
    * what you tell it." This is what it did not know.
    */
   var rewrote = [];
+  var corrected = [];
 
-  function renderRewrote() {
+  function slipSaid(slip) {
+    var said = el("span", "rewrote-said");
+    /* The whole group takes the text's own direction, so the three lines stack against
+       the same edge. Without it the reason — English, left to right — sat at the far
+       left of a wide row while the Hebrew it is about sat at the right, and a sentence
+       about a sentence has to be next to it. The English still reads the way English
+       reads; only where it begins moves. */
+    said.setAttribute("dir", DIRECTION[slip.language || code] || "ltr");
+
+    var mine = el("bdi", "rewrote-wrote", slip.wrote || "");
+    mine.setAttribute("lang", slip.language || code);
+    said.appendChild(mine);
+
+    // The recast, with the words the reader did not write marked. Marked rather than
+    // coloured alone: a colour is not a difference to somebody who cannot see it.
+    var back = el("bdi", "rewrote-recast");
+    back.setAttribute("lang", slip.language || code);
+    var changed = {};
+    (slip.changed || []).forEach(function (word) {
+      changed[word] = true;
+    });
+    String(slip.recast || "")
+      .split(" ")
+      .forEach(function (word, index) {
+        if (index) back.appendChild(document.createTextNode(" "));
+        if (changed[word]) {
+          var mark = el("mark", "rewrote-changed", word);
+          back.appendChild(mark);
+          return;
+        }
+        back.appendChild(document.createTextNode(word));
+      });
+    said.appendChild(back);
+
+    /* The model's own one sentence, where it gave one. Never more than the one.
+       A `bdi` with its own direction: the reason is English with Hebrew words in it,
+       and inside a right-to-left block the punctuation at its edges migrates — "Past
+       tense: הלכתי, not הלך." came out with the colon on the wrong side of the
+       sentence. Isolated, it reads the way it was written, and only where it begins
+       follows the block. */
+    if (slip.why) {
+      var reason = el("bdi", "rewrote-why", slip.why);
+      reason.setAttribute("dir", "auto");
+      said.appendChild(reason);
+    }
+    return said;
+  }
+
+  /* The record on the phrases list: every line in this language, newest first. */
+  function renderRecord() {
     var heading = at("rewrote-heading");
     var host = at("rewrote-rows");
     if (!host || !heading) return;
-    heading.hidden = rewrote.length === 0;
+    var mine = corrected.filter(function (slip) {
+      return (slip.language || code) === code;
+    });
+    heading.hidden = mine.length === 0;
     host.textContent = "";
-    if (!rewrote.length) return;
-
-    rewrote.forEach(function (slip) {
+    mine.forEach(function (slip) {
       var item = el("li", "work-row rewrote-row");
-      var said = el("span", "rewrote-said");
-      /* The whole group takes the text's own direction, so the three lines stack against
-         the same edge. Without it the reason — English, left to right — sat at the far
-         left of a wide row while the Hebrew it is about sat at the right, and a sentence
-         about a sentence has to be next to it. The English still reads the way English
-         reads; only where it begins moves. */
-      said.setAttribute("dir", DIRECTION[slip.language || code] || "ltr");
-
-      var mine = el("bdi", "rewrote-wrote", slip.wrote || "");
-      mine.setAttribute("lang", slip.language || code);
-      said.appendChild(mine);
-
-      // The recast, with the words the reader did not write marked. Marked rather than
-      // coloured alone: a colour is not a difference to somebody who cannot see it.
-      var back = el("bdi", "rewrote-recast");
-      back.setAttribute("lang", slip.language || code);
-      var changed = {};
-      (slip.changed || []).forEach(function (word) {
-        changed[word] = true;
-      });
-      String(slip.recast || "")
-        .split(" ")
-        .forEach(function (word, index) {
-          if (index) back.appendChild(document.createTextNode(" "));
-          if (changed[word]) {
-            var mark = el("mark", "rewrote-changed", word);
-            back.appendChild(mark);
-            return;
-          }
-          back.appendChild(document.createTextNode(word));
-        });
-      said.appendChild(back);
-
-      /* The model's own one sentence, where it gave one. Never more than the one.
-         A `bdi` with its own direction: the reason is English with Hebrew words in it,
-         and inside a right-to-left block the punctuation at its edges migrates — "Past
-         tense: הלכתי, not הלך." came out with the colon on the wrong side of the
-         sentence. Isolated, it reads the way it was written, and only where it begins
-         follows the block. */
-      if (slip.why) {
-        var reason = el("bdi", "rewrote-why", slip.why);
-        reason.setAttribute("dir", "auto");
-        said.appendChild(reason);
-      }
-      item.appendChild(said);
+      item.appendChild(slipSaid(slip));
       host.appendChild(item);
     });
   }
@@ -907,6 +1134,7 @@
     }
     if (at("export-words")) at("export-words").onclick = exportWords;
     if (at("work-talk")) at("work-talk").onclick = talkAbout;
+    mountWorkTabs();
     if (at("export-anki")) at("export-anki").onclick = exportAnki;
     if (at("export-phrases")) at("export-phrases").onclick = exportPhrases;
     offerExports(false);
@@ -955,7 +1183,7 @@
       if (redrawing) redrawing(into);
     });
     renderWorkOn();
-    renderRewrote();
+    renderRecord();
     renderWords();
     renderPhrases();
   }
@@ -974,12 +1202,17 @@
 
   window.TargumLists = {
     /* The lines that came back changed, handed in by the page that fetched them
-       (targum-internal#290). Here rather than fetched in this file, because this file is
-       drawn on two pages and only one of them asks. */
+       (targum-internal#290): the queue, oldest first, without the lines already known.
+       Here rather than fetched in this file, because each page asks on its own terms
+       and one of them asks for more than this. */
     rewrote: function (rows) {
       rewrote = rows || [];
-      renderRewrote();
       renderWorkOn();
+    },
+    /* Every line, known ones too, for the record on the phrases list. */
+    record: function (rows) {
+      corrected = rows || [];
+      renderRecord();
     },
     mount: mount,
     draw: draw,

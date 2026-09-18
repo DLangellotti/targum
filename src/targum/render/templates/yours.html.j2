@@ -69,7 +69,15 @@
       invitation. `lists.js` hides the section, which is why it starts hidden here. -#}
   <section class="panel work" id="work-on" hidden>
     <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
-    <ul class="work-rows" id="work-rows"></ul>
+    {#- Two halves, one question (2026-09-18): the words, and the phrases — the ones kept
+        from a text and the lines the conversation corrected, oldest first across both.
+        The tabs are drawn only when both have rows. -#}
+    <div class="tabs work-tabs" id="work-tabs" role="tablist" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}" hidden>
+      <button type="button" class="tab" role="tab" id="work-tab-words" data-work="words" aria-controls="work-rows" aria-selected="true">{{ t("lists.work.words", "Words") }}</button>
+      <button type="button" class="tab" role="tab" id="work-tab-phrases" data-work="phrases" aria-controls="work-phrase-rows" aria-selected="false" tabindex="-1">{{ t("lists.work.phrases", "Phrases") }}</button>
+    </div>
+    <ul class="work-rows" id="work-rows" role="tabpanel" aria-labelledby="work-tab-words"></ul>
+    <ul class="work-rows" id="work-phrase-rows" role="tabpanel" aria-labelledby="work-tab-phrases" hidden></ul>
 
     {#- One door out of the fold, at its foot (targum-internal#103).
 
@@ -84,18 +92,8 @@
         their own hand, which is the same rule every other door in the product obeys.
         Nothing here spends. -#}
     <p class="work-foot" id="work-foot" hidden>
-      <button type="button" id="work-talk">{{ t("lists.work.talk", "Use these in a conversation") }}</button>
+      <button type="button" id="work-talk">{{ t("lists.work.talk-words", "Generate sentences with these words") }}</button>
     </p>
-
-    {#- And the lines that came back changed (targum-internal#290). The same fold, because
-        it is the same question — what is worth going over — and two panels asking it
-        twice would be two lists to keep track of.
-
-        Their line above the recast, with the words that changed marked. No control: a
-        sentence is not a word and there is nothing here to mark known. It is a record to
-        read, which is the whole of what a scheduler cannot give. -#}
-    <p class="work-heading" id="rewrote-heading" hidden>{{ t("yours.page.lines-you-rewrote", "Lines you rewrote") }}</p>
-    <ul class="work-rows rewrote" id="rewrote-rows"></ul>
   </section>
 
   <section class="panel">
@@ -162,6 +160,12 @@
     <p class="note">{{ t("yours.page.phrases-stay-with-their-text", "Phrases stay with their text.") }}</p>
     <div id="phrase-list"></div>
     <p class="empty" id="phrases-empty" hidden>{{ t("yours.page.nothing-yet-drag-across-words-while-you", "Nothing yet. Drag across words while you read to save a phrase.") }}</p>
+
+    {#- The lines the conversation corrected (targum-internal#290), every one, newest
+        first: the record, so no control on a row. The ones still to go over are in What
+        to work on. Drawn by `lists.js`, hidden until there is one. -#}
+    <h3 class="work-heading" id="rewrote-heading" hidden>{{ t("yours.page.lines-corrected-in-conversation", "Corrected in conversation") }}</h3>
+    <ul class="work-rows rewrote" id="rewrote-rows"></ul>
   </section>
   {%- endif %}
 

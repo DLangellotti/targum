@@ -252,6 +252,10 @@ MIGRATIONS: tuple[str, ...] = (
     # two that have a subject keep it; `video` was a format rather than a subject and
     # nothing it meant survives translation, so it goes back to unanswered and the
     # reader is asked again. Idempotent: after the first run no row holds the old words.
+    # When the reader said they know a line they once got wrong (2026-09-18), or 0. It
+    # takes the line out of What to work on and nothing else: the slip is still the
+    # record, still exported and still read by the conversation's recurring rules.
+    "ALTER TABLE slip ADD COLUMN known INTEGER NOT NULL DEFAULT 0",
     "UPDATE person SET interest = 'everyday' WHERE interest = 'spoken'",
     "UPDATE person SET interest = 'judaism' WHERE interest = 'portion'",
     "UPDATE person SET interest = '' WHERE interest = 'video'",
@@ -674,7 +678,9 @@ CREATE TABLE IF NOT EXISTS slip (
   changed  TEXT    NOT NULL DEFAULT '[]',
   -- The model's own one-sentence reason, where it gave one: the `~ ` line.
   why      TEXT    NOT NULL DEFAULT '',
-  gone     INTEGER NOT NULL DEFAULT 0
+  gone     INTEGER NOT NULL DEFAULT 0,
+  -- When the reader said "I know this" about it in What to work on, or 0.
+  known    INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS slip_person ON slip (person, at);
 
@@ -2492,25 +2498,34 @@ class Store:
             return int(cursor.lastrowid or 0)
 
     def slips(
-        self, person_id: int | None, language: str = "", limit: int = 50, oldest: bool = False
+        self,
+        person_id: int | None,
+        language: str = "",
+        limit: int = 50,
+        oldest: bool = False,
+        open_only: bool = False,
     ) -> list[dict[str, Any]]:
         """One person's slips. Newest first, or oldest for the queue.
 
         Oldest first is what the queue wants, for the reason the word queue wants it
         (targum-internal#103): the thing worth coming back to is what has been sitting
         there longest, and it is the only order the record can honestly support.
+        `open_only` leaves out the lines the reader has said they know, which is what
+        the queue is and nothing else is: the record keeps them.
         """
         if person_id is None:
             return []
         order = "ASC" if oldest else "DESC"
         where = "person = ? AND gone = 0"
+        if open_only:
+            where += " AND known = 0"
         args: list[Any] = [person_id]
         if language:
             where += " AND language = ?"
             args.append(language)
         args.append(limit)
         rows = self.db.execute(
-            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why FROM slip"
+            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why, known FROM slip"
             f" WHERE {where} ORDER BY at {order}, id {order} LIMIT ?",
             args,
         ).fetchall()
@@ -2523,6 +2538,19 @@ class Store:
                 got["changed"] = []
             out.append(got)
         return out
+
+    def know_slip(self, person_id: int, slip_id: int, known: bool = True) -> bool:
+        """Say a reader knows a line they once got wrong, or take it back.
+
+        Only their own: the id is matched with the person, so another reader's slip is
+        not found rather than changed. Returns whether a row was.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE slip SET known = ? WHERE id = ? AND person = ? AND gone = 0",
+                (now() if known else 0, slip_id, person_id),
+            )
+            return cursor.rowcount > 0
 
     def want(self, query: str, source: str, standing: str = "") -> None:
         """Count one ask the shelf could not answer. Keyed on the words and the link,

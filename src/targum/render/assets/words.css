@@ -603,6 +603,14 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
   color: var(--ink-soft);
 }
 .rewrote-row { display: block; }
+/* In the fold a corrected line is a row to work on, with the two answers at its end like
+   any other: the sentence takes the room and wraps before the keys do. */
+.work-slip { align-items: center; }
+.work-slip .rewrote-said { flex: 1 1 16rem; min-inline-size: 0; }
+/* The Phrases and Words tabs sit between the heading and the rows (2026-09-18). The
+   pills are the Library's own (`library.css`), so a tab looks like a tab everywhere. */
+.work-tabs { margin-block: 0.2rem 0.6rem; }
+.work-tabs[hidden] { display: none; }
 /* Against one edge, whichever edge the text begins at: the group carries the slip's own
    direction and the lines align to it. */
 .rewrote-said { display: flex; flex-direction: column; gap: 0.15rem; align-items: stretch; }

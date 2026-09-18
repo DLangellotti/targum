@@ -91,8 +91,14 @@ document.body.appendChild = (child) => {
 };
 
 const asked = [];
-global.fetch = (url) => {
+// What the page said to the server, as opposed to what it asked: `{url, body}`.
+const told = [];
+global.fetch = (url, options) => {
   const clean = String(url).replace(/[?&]k=[^&]*/, "");
+  if (options && options.method === "POST") {
+    told.push({ url: clean, body: JSON.parse(options.body || "null") });
+    return Promise.resolve({ ok: !payload.refuse, json: () => Promise.resolve({ ok: true }) });
+  }
   asked.push(clean);
   const offset = Number((/offset=(\d+)/.exec(clean) || [0, 0])[1]);
   let answer = (payload.pages || {})[String(offset)] || { words: [], offset, next: null };
@@ -103,7 +109,7 @@ global.fetch = (url) => {
   }
   // Lines that came back changed (targum-internal#290).
   if (clean.indexOf("/slips") === 0) answer = { slips: payload.slips || [] };
-  return Promise.resolve({ json: () => Promise.resolve(answer) });
+  return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
 };
 
 require(path.join(assets, "claim.js"));
@@ -157,6 +163,19 @@ function shelf() {
   });
 }
 
+/** A row of the fold's Phrases tab: a kept phrase, or a corrected line by its recast. */
+function phraseRow(item) {
+  const slip = String(item.className).includes("work-slip");
+  return {
+    kind: slip ? "slip" : "phrase",
+    term: slip
+      ? (item.querySelector(".rewrote-recast") || {}).textContent || ""
+      : (item.querySelector(".term") || {}).textContent || "",
+    meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
+    keys: (item.querySelector(".work-keys") || { children: [] }).children.map((key) => key.textContent),
+  };
+}
+
 /** Phrases, grouped the way the page grouped them: {text: [phrase, ...]}. */
 function phrases() {
   const out = {};
@@ -190,6 +209,14 @@ function phrases() {
        not have to stand up an account to get one — so the press is on the button
        whatever its `hidden` says, which is what a signed-in reader is pressing. */
     if (step.type === "export") at("export-" + step.which).fire("click");
+    // A tab in the fold: `{type: "tab", which: "phrases"}`.
+    if (step.type === "tab") at("work-tab-" + step.which).fire("click");
+    /* A press on a row of the Phrases tab: `{type: "phrase", term: "…", key: 0}`, where
+       the term is a kept phrase's text or a corrected line's recast. */
+    if (step.type === "phrase") {
+      const row = at("work-phrase-rows").children.find((item) => phraseRow(item).term === step.term);
+      if (row) row.querySelector(".work-keys").children[step.key || 0].fire("click");
+    }
     // The fold's door out: `{type: "talk"}`. It writes a line and leaves for /chat.
     if (step.type === "talk") at("work-talk").fire("click");
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -197,6 +224,7 @@ function phrases() {
   process.stdout.write(
     JSON.stringify({
       asked,
+      told,
       shown: !at("page").hidden,
       nothing: !at("nothing").hidden,
       words: words(),
@@ -215,6 +243,14 @@ function phrases() {
          as much of the answer as the rows are. */
       workOn: {
         hidden: at("work-on").hidden,
+        // The two tabs: whether they are drawn, and which one is open.
+        tabs: at("work-tabs").hidden
+          ? null
+          : ["words", "phrases"].find((which) => at("work-tab-" + which).attrs["aria-selected"] === "true"),
+        wordsHidden: at("work-rows").hidden,
+        phrasesHidden: at("work-phrase-rows").hidden,
+        phrases: at("work-phrase-rows").children.map(phraseRow),
+        button: at("work-talk").textContent,
         rows: at("work-rows").children.map((item) => ({
           term: (item.querySelector(".term") || {}).textContent || "",
           meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
@@ -261,6 +297,8 @@ function phrases() {
         said: part("claim-said").textContent,
       },
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
+      // The phrases kept from the one text the fixtures keep them from.
+      picked: JSON.parse(global.localStorage.getItem("targum:picked:h1") || "{}"),
       head: at("shelf-head").hidden,
       shelf: shelf(),
     }),
