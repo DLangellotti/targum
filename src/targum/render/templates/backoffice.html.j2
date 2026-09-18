@@ -44,6 +44,7 @@
   }
   .bo .decide button { cursor: pointer; }
   .bo .trace pre { font-size: 0.75rem; white-space: pre-wrap; margin: 0.4rem 0 0; color: var(--ink-soft); }
+  .bo a.topup { font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -52,6 +53,36 @@
   <h1>back office</h1>
   <p class="taken">{{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
     {{ survey.active() }} active in the last {{ days }} days &middot; taken {{ survey.taken }}</p>
+  {#- The paid APIs, what each console last said was left, and the way to its billing
+      page (`services.py`). The balance is typed in below, because most of these say it
+      only to an admin key; the date beside it is how old the figure is, so it is never
+      shown without one. -#}
+  <h2 id="services">Services</h2>
+  <table class="services">
+    <thead>
+      <tr><th>Service</th><th>Used for</th><th>Key</th><th>Balance</th><th>Read</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for one in services %}
+      <tr>
+        <td>{{ one.name }}</td>
+        <td class="quiet">{{ one.used_for }}</td>
+        <td class="quiet">{{ 'set' if one.configured else 'not set' }}</td>
+        <td>
+          <form method="post" action="/back-office/balance" class="decide">
+            <input type="hidden" name="service" value="{{ one.id }}">
+            <input type="text" name="said" value="{{ one.said }}" maxlength="{{ said_max }}"
+                   size="12" aria-label="{{ one.name }} balance" placeholder="not read yet">
+            <button type="submit">Save</button>
+          </form>
+        </td>
+        <td class="quiet">{{ one.as_of or '—' }}</td>
+        <td><a class="topup" href="{{ one.console }}" target="_blank" rel="noopener noreferrer">Top up</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
   {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
       of this page names nobody either. `on` is the number that matters — an address
       that answered its confirmation — and `pending` is how many have not yet. -#}

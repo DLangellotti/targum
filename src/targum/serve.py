@@ -4331,6 +4331,7 @@ class Handler(BaseHTTPRequestHandler):
             wanted=self.store.wanted(),
             said=said,
             incidents=incidents_module.recent(self.library.incidents),
+            balances=self.store.balances(),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -4363,6 +4364,25 @@ class Handler(BaseHTTPRequestHandler):
         else:
             said = f"Let {let_in} in."
         self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
+
+    def _balance(self, form: dict[str, str]) -> None:
+        """Record what a service's console said was left, from the back office's form.
+
+        The same door as `_promote`: an admin session, and 404 for anyone else. What is
+        typed is kept as typed, because a console writes dollars, credits or gigabytes
+        and a number with the unit taken off it is a number nobody can read back.
+        """
+        from .services import BY_ID, SAID_MAX
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        service = form.get("service", "")
+        said = " ".join(form.get("said", "").split())[:SAID_MAX]
+        if service not in BY_ID or not said:
+            return self._send(400, b"bad request", "text/plain")
+        self.store.balance_read(service, said)
+        self._go(f"{BACK_OFFICE_ROUTE}#services")
 
     def _promote(self, form: dict[str, str]) -> None:
         """Accept or decline a proposal, from the back office's own form.
@@ -4745,6 +4765,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._promote(self._form())
         if route == BACK_OFFICE_ROUTE + "/open-the-door":
             return self._open_the_door(self._form())
+        if route == BACK_OFFICE_ROUTE + "/balance":
+            return self._balance(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the

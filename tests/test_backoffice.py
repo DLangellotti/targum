@@ -240,3 +240,50 @@ def test_the_page_lists_what_went_wrong(store: sqlite3.Connection) -> None:
     assert "<details" in page and "the box fell over" in page and ">j1<" in page
     quiet = back_office_page(found, 30)
     assert "Nothing has gone wrong lately." in quiet and "<details" not in quiet
+
+
+def test_the_page_lists_each_service_with_its_balance_and_console(
+    store: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-09-18: every paid API, what its console last said was left and when, and a
+    button to its billing page. Whether a key is set is shown; the key never is."""
+    from targum.services import SERVICES
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-never-on-the-page")
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    found = survey(store, today=date(2026, 9, 4))
+    page = back_office_page(
+        found,
+        30,
+        balances={"anthropic": {"said": "$41.20", "at": stamp(date(2026, 9, 18))}},
+    )
+    assert "Services" in page
+    for service in SERVICES:
+        assert service.name in page
+        assert f'href="{service.console}"' in page
+        assert f'name="service" value="{service.id}"' in page
+    assert 'value="$41.20"' in page and "September 18" in page
+    assert "sk-ant-never-on-the-page" not in page
+    assert 'rel="noopener noreferrer"' in page
+
+
+def test_the_newest_reading_is_the_balance(tmp_path: Path) -> None:
+    """Every reading is kept; the newest one is what the page shows."""
+    kept = Store(tmp_path / "targum.db")
+    assert kept.balances() == {}
+    kept.balance_read("openai", "$10.00")
+    kept.balance_read("anthropic", "$41.20")
+    kept.db.execute("UPDATE balance SET at = at - 1000 WHERE said = '$10.00'")
+    kept.balance_read("openai", "$4.50")
+    found = kept.balances()
+    assert found["openai"]["said"] == "$4.50"
+    assert found["anthropic"]["said"] == "$41.20"
+
+
+def test_only_an_admin_records_a_balance() -> None:
+    """The form's door is the page's door: an admin session, and 404 for anyone else."""
+    served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
+    text = served.read_text(encoding="utf-8")
+    handler = text[text.index("def _balance") : text.index("def _promote")]
+    assert "not person.admin" in handler
+    assert 'self._send(404, b"not found"' in handler

@@ -17,7 +17,7 @@ import shutil
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
@@ -1407,6 +1407,7 @@ def back_office_page(
     wanted: list[dict[str, Any]] | None = None,
     said: str = "",
     incidents: list[Any] | None = None,
+    balances: dict[str, dict[str, Any]] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -1416,7 +1417,22 @@ def back_office_page(
     in the renderer should need the store.
     """
     from ..catalogue import Kind, Register
+    from ..services import SAID_MAX, SERVICES
 
+    read = balances or {}
+    services = [
+        {
+            "id": service.id,
+            "name": service.name,
+            "used_for": service.used_for,
+            "configured": service.configured(),
+            "console": service.console,
+            "said": read.get(service.id, {}).get("said", ""),
+            # Month first, as every other date in the product is written.
+            "as_of": _as_of(read[service.id]["at"]) if service.id in read else "",
+        }
+        for service in SERVICES
+    ]
     return (
         _environment()
         .get_template("backoffice.html.j2")
@@ -1430,8 +1446,16 @@ def back_office_page(
             incidents=incidents or [],
             registers=[r.value for r in Register if r is not Register.none],
             kinds=[k.value for k in Kind],
+            services=services,
+            said_max=SAID_MAX,
         )
     )
+
+
+def _as_of(stamp_ms: int) -> str:
+    """The day a balance was read, month first: "September 18"."""
+    day = datetime.fromtimestamp(stamp_ms / 1000, tz=UTC)
+    return f"{day.strftime('%B')} {day.day}"
 
 
 def legal_page(which: str, address: str = "") -> str:
