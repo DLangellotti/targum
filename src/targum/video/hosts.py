@@ -116,6 +116,11 @@ REDDIT = Host(
     shelves=("/r/", "/user/", "/u/"),
 )
 
+#: Where an Instagram post that is pictures lives. `/reel/<code>` opens a film and
+#: nothing else, so a post keeps the `/p/` it was pasted with. A second prefix for one
+#: host, pinned in `tests/test_render` beside the rest.
+INSTAGRAM_POST = "https://www.instagram.com/p/"
+
 #: Every host targum will read a video from. YouTube first, because it is the one that
 #: has been proven to work end to end.
 KNOWN: tuple[Host, ...] = (YOUTUBE, VIMEO, TIKTOK, INSTAGRAM, FACEBOOK, REDDIT)
@@ -127,7 +132,7 @@ OPEN: tuple[Host, ...] = (YOUTUBE, INSTAGRAM)
 #: The prefixes a reader page may link home to. `tests/test_render` pins these. Every named
 #: host's, not only the open ones: a TikTok the reader downloaded and dropped in still has
 #: a home, and the link is how the page says whose film it is.
-HOMES: tuple[str, ...] = tuple(host.home for host in KNOWN)
+HOMES: tuple[str, ...] = (*(host.home for host in KNOWN), INSTAGRAM_POST)
 
 
 def host_for(url: str) -> Host | None:
@@ -253,6 +258,8 @@ def home_url(url: str) -> str:
         found = video_id(url)
     except TargumError:
         return ""
+    if found and host is INSTAGRAM and "p" in urlparse(url).path.split("/"):
+        return f"{INSTAGRAM_POST}{found}"
     return f"{host.home}{found}" if found else ""
 
 

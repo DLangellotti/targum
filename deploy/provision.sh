@@ -76,11 +76,15 @@ has_plugin() {
     'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("yt_dlp_plugins") else 1)' \
     2>/dev/null
 }
+# The plugin is pinned to the version of the minter installed below: the two speak
+# one protocol, and the daily upgrade at the end of this script moves yt-dlp alone.
+BGUTIL_VERSION="${BGUTIL_VERSION:-1.3.2}"
 if ! has_plugin; then
   # --force because the tool is usually already installed without the plugin, and `uv
   # tool install` is otherwise a no-op that would leave it that way.
   sudo -u targum -H env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --quiet --force yt-dlp --with bgutil-ytdlp-pot-provider
+    /usr/local/bin/uv tool install --quiet --force yt-dlp \
+    --with "bgutil-ytdlp-pot-provider==$BGUTIL_VERSION"
   ln -sfn /srv/targum/.local/bin/yt-dlp /usr/local/bin/yt-dlp
   has_plugin || { echo "   the yt-dlp plugin did not install" >&2; exit 1; }
 fi
@@ -93,8 +97,7 @@ fi
 #
 # Pinned. The provider tracks YouTube's changes, so a floating clone is a box whose
 # YouTube door breaks on somebody else's merge; bumping this is a decision with a
-# deploy behind it.
-BGUTIL_VERSION="${BGUTIL_VERSION:-1.3.2}"
+# deploy behind it. BGUTIL_VERSION is set above, beside the plugin it also pins.
 id -u bgutil >/dev/null 2>&1 || useradd --system --shell /usr/sbin/nologin --home-dir /srv/bgutil bgutil
 install -d -o bgutil -g bgutil -m 0755 /srv/bgutil
 if ! command -v node >/dev/null || [ "$(node --version | cut -c2- | cut -d. -f1)" -lt 20 ]; then
@@ -186,6 +189,20 @@ TARGUM_BACKUP_TO=
 0 4 * * * root systemd-run --quiet --wait --collect --unit=targum-backup --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum backup --keep 14 --store /var/lib/targum/targum.db --out /var/lib/targum/backups
 CRON
 chmod 0644 /etc/cron.d/targum-backup
+
+# yt-dlp, kept current. Instagram and YouTube change their pages without notice and
+# yt-dlp follows within days; a box that only ever installed it once is a box whose video
+# doors break on a date nobody chose and stay broken until somebody deploys
+# (targum-internal#255). So once a day, at a quiet hour, it is moved to the newest
+# release and nothing else is: `--upgrade` with the plugin pinned upgrades yt-dlp alone,
+# and a day with no new release is a no-op. As targum, for the reason the install above
+# gives; through systemd-run for the backup's reason — `journalctl -u targum-ytdlp`.
+# Not inside targum.service, whose ProtectHome would refuse the write to /srv/targum.
+cat > /etc/cron.d/targum-ytdlp <<CRON
+MAILTO=root
+30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION
+CRON
+chmod 0644 /etc/cron.d/targum-ytdlp
 
 cat <<EOF
 

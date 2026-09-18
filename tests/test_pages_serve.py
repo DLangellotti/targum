@@ -271,3 +271,104 @@ def test_a_refused_reservation_blocks_the_card_before_the_reading(
     status, job = prepare(port, token, {"upload": done["upload"]})
     assert status == 200 and job["stage"] == "blocked" and job["blocked"], job
     assert reading == [], "refused before a picture was read"
+
+
+# --- an Instagram post (targum-internal#255) --------------------------------------------
+
+POST = "https://www.instagram.com/p/DdCARhLDF-P/"
+
+
+@pytest.fixture
+def post(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """A carousel as its embed page would tell it, with two real pictures behind it and
+    nothing fetched: the page and the downloads are both stood in for."""
+    from targum.video import instagram
+
+    pictures = two_pictures(tmp_path)
+    found = instagram.Post(
+        "DdCARhLDF-P",
+        "aviv.bahar",
+        "⁨הופעות הקיץ⁩\n\nשורה שנייה של הכיתוב.",
+        pictures=("https://a.fna.fbcdn.net/one.jpg", "https://a.fna.fbcdn.net/two.jpg"),
+    )
+    fetched: list[str] = []
+
+    def into(post, folder: Path) -> list[Path]:
+        folder.mkdir(parents=True, exist_ok=True)
+        written = []
+        for n, body in enumerate(pictures, start=1):
+            fetched.append(post.pictures[n - 1])
+            (folder / f"{n:02d}.jpg").write_bytes(body)
+            written.append(folder / f"{n:02d}.jpg")
+        return written
+
+    monkeypatch.setattr(instagram, "backup", lambda url: found)
+    monkeypatch.setattr(instagram, "pictures_into", into)
+    return found, fetched
+
+
+def test_a_pasted_post_is_its_caption_and_reads_nothing(served, reading, post) -> None:
+    """The caption is the text, free; the pictures are offered and not read."""
+    port, token, out, library = served
+    _, fetched = post
+    status, job = prepare(port, token, {"source": POST})
+    assert status == 200, job
+    assert not job["error"] and job["stage"] in {"ready", "blocked"}, job
+    assert job["title"] == "הופעות הקיץ"
+    assert job["pictures_offered"] == 2
+    assert reading == [] and fetched == [], "nothing read, nothing downloaded"
+    held = library.jobs[job["id"]]
+    assert held.reading == 0.0
+    text = Path(held.source).read_text(encoding="utf-8")
+    assert "author: @aviv.bahar" in text and "שורה שנייה של הכיתוב." in text
+
+
+def test_a_post_s_pictures_are_read_when_the_reader_presses(served, reading, post) -> None:
+    """The press is the consent: the pictures are downloaded, read on the rails a
+    picture brought by hand is, and their words follow the caption in one text."""
+    port, token, out, library = served
+    _, fetched = post
+    status, job = prepare(port, token, {"source": POST, "pictures": True})
+    assert status == 200, job
+    assert not job["error"], job
+    assert len(fetched) == 2 and len(reading) == 2
+    assert job["pages"] == 2 and job["pictures_offered"] == 0
+    held = library.jobs[job["id"]]
+    assert held.reading > 0 and held.spent == held.reading, "reserved, then settled"
+    text = Path(held.source).read_text(encoding="utf-8")
+    assert text.index("שורה שנייה של הכיתוב.") < text.index("שׁוּרָה"), "caption first"
+
+
+def test_a_post_with_no_caption_says_its_words_are_in_the_pictures(
+    served, reading, post, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.video import instagram
+
+    found, _ = post
+    bare = instagram.Post(found.code, found.author, "", pictures=found.pictures)
+    monkeypatch.setattr(instagram, "backup", lambda url: bare)
+    port, token, out, library = served
+    status, job = prepare(port, token, {"source": POST})
+    assert job["stage"] == "failed" and "in its pictures" in job["error"], job
+    assert job["pictures_offered"] == 2, "the refusal carries its way forward"
+    assert reading == []
+
+
+def test_a_post_that_is_a_film_goes_to_the_reel_s_door(
+    served, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.video import instagram
+
+    film = instagram.Post("DdCARhLDF-P", "kan_news", "x", video="https://a.fbcdn.net/f.mp4")
+    monkeypatch.setattr(instagram, "backup", lambda url: film)
+    asked: list[str] = []
+    monkeypatch.setattr(
+        instagram,
+        "describe",
+        lambda url: asked.append(url) or {"title": "A film", "duration": 30.0, "formats": []},
+    )
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    port, token, out, library = served
+    status, job = prepare(port, token, {"source": POST})
+    assert asked == [POST] and job["title"] == "A film", job
+    assert library.jobs[job["id"]].audio

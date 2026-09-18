@@ -803,6 +803,11 @@ class Job:
             # see the link to the article"). A link for a page on the web; a fetcher
             # id or a filename otherwise, which the page shows no link for.
             "source": self.source,
+            # An Instagram post whose pictures were not read: how many there are, so the
+            # card can offer to read them. Offered, never run: the press is the consent.
+            "pictures_offered": (
+                0 if self.options.get("pictures") else int(self.options.get("post_pictures") or 0)
+            ),
         }
 
 
@@ -1993,6 +1998,10 @@ class Library:
         try:
             from urllib.parse import urlparse
 
+            from .video import instagram as instagram_module
+
+            if instagram_module.is_post(job.source) and self._prepare_post(job):
+                return
             if urlparse(job.source).scheme in ("http", "https"):
                 from .audio import episode as episode_module
                 from .video import youtube as youtube_module
@@ -2239,6 +2248,61 @@ class Library:
             # live stream, which a reel never is.
             unmeasured=instagram_module.GUESS_S,
         )
+
+    def _prepare_post(self, job: Job) -> bool:
+        """An Instagram post, read off its embed page (targum-internal#255).
+
+        A post that is a film goes to the reel's door. One that is pictures becomes a
+        text: its caption, with the author as its byline and the post as its home, and —
+        only when the reader pressed for it — the words in its pictures after it, read on
+        the same terms as pictures brought by the `+` (`_read_pages`: reserved, claimed,
+        settled, thirty at most). The caption alone costs nothing to read.
+
+        Returns True when the job is settled here — a film, a refusal — and False when
+        `job.source` is now the caption's text, for the text path below to price.
+        """
+        import secrets
+
+        from . import vision
+        from .annotate.gloss import GLOSS_MODEL
+        from .video import instagram as instagram_module
+
+        post = instagram_module.backup(job.source)
+        if post is None or post.video:
+            # A film, or a page that would not say: yt-dlp's door, with its own backup.
+            self._prepare_reel(job)
+            return True
+        address = job.source
+        job.options["came_from"] = address
+        job.options["post_pictures"] = len(post.pictures)
+        wanted = bool(job.options.get("pictures")) and bool(post.pictures)
+        if not post.caption.strip() and not wanted:
+            job.error = said_in(
+                job.ui,
+                "job.post-only-pictures",
+                "That post's words are all in its pictures. Read the pictures to bring it in.",
+            )
+            job.stage = "failed"
+            return True
+        folder = Path(job.home or self.out) / "uploads" / secrets.token_hex(8)
+        text = instagram_module.caption_text(post)
+        if wanted:
+            paths = instagram_module.pictures_into(post, folder / "pictures")
+            job.source = str(folder / "pictures")
+            refused = self._read_pages(job)
+            if refused:
+                job.blocked = refused
+                job.stage = "blocked"
+                return True
+            # Read a moment ago and cached by their bytes, so this costs nothing: it is
+            # the same words `_read_pages` paid for, put after the caption.
+            reads = vision.read_pages(paths, usage=Usage(), model=GLOSS_MODEL)
+            text = "\n\n".join([text.rstrip(), *(read.text for read in reads)]) + "\n"
+        target = folder / f"{post.code}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        job.source = str(target)
+        return False
 
     def _prepare_video(
         self,

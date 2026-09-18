@@ -931,6 +931,22 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         reel = instagram_module.is_reel(url)
     except TargumError as error:
         return {"kind": "video", "error": error.message}
+    post = instagram_module.backup(url) if instagram_module.is_post(url) else None
+    if post is not None and not post.video:
+        # A post of pictures: its caption is the text, free to read, and its pictures
+        # are the reader's to ask for on the card — never read on the model's say.
+        return {
+            "kind": "post",
+            "title": post.title,
+            "author": f"@{post.author}" if post.author else "",
+            "caption_words": len(post.caption.split()),
+            "pictures": len(post.pictures),
+            "advice": [
+                "An Instagram post: the caption becomes the text. Its pictures are read "
+                "only if the reader presses for them on the card."
+            ],
+            "quote_with": url,
+        }
     if reel:
         from .. import screen as screen_module
 
