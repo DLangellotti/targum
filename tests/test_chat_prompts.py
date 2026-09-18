@@ -194,3 +194,41 @@ def test_the_level_target_is_a_number_the_tools_carry() -> None:
     assert "known_share of 0.8 or more" in said and "0.65 or more" in said
     assert "applies the reader's own ceiling" in said
     assert "never as a percentage or a level" in said
+
+
+def test_the_cold_start_names_at_most_three_recurring_rules() -> None:
+    """targum-internal#290. A model handed a list of everything a reader has ever got
+    wrong writes a grammar lesson, which is the thing this must never become. Three is
+    enough to drift toward a weak spot and too few to teach from."""
+    from targum.chat.hebrew import RULES_BACK, recurring
+
+    slips = [{"why": f"Rule {n}."} for n in range(8) for _ in range(2)]
+    assert len(recurring(slips)) == RULES_BACK == 3
+
+
+def test_a_mistake_made_once_is_not_a_rule() -> None:
+    """Everybody gets a line wrong once, and a conversation that bent itself toward
+    every single mistake would be a conversation about mistakes."""
+    from targum.chat.hebrew import recurring
+
+    assert recurring([{"why": "Past tense."}]) == []
+    assert recurring([{"why": "Past tense."}, {"why": "Past tense."}]) == ["Past tense."]
+    # Commonest first, so the three it picks are the three that recur most.
+    many = [{"why": "Twice."}] * 2 + [{"why": "Five times."}] * 5 + [{"why": "Three times."}] * 3
+    assert recurring(many) == ["Five times.", "Three times.", "Twice."]
+
+
+def test_the_rules_steer_the_sentences_and_are_never_said() -> None:
+    """ "if smth gonna ping me or bother me like duolingo I'll fucking delete it". The half
+    a scheduler cannot have is the record; the way to waste it is to announce it."""
+    from targum import level
+    from targum.chat.hebrew import ledger_block
+
+    block = ledger_block(level.EMPTY, ["ספר"], [], None, ["Past tense: הָלַכְתִּי, not הָלַךְ."])
+    assert "corrected more than once" in block
+    assert "Never mention this list" in block
+    assert "never set an exercise" in block
+
+    # And nothing at all where there is nothing recurring.
+    quiet = ledger_block(level.EMPTY, ["ספר"], [])
+    assert "corrected more than once" not in quiet

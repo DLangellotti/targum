@@ -29,7 +29,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..level import NOT_VOCABULARY, Level, describe
 
@@ -546,11 +546,46 @@ def bring_back(
     )
 
 
+#: How many recurring mistakes the conversation may be told about at once
+#: (targum-internal#290). Three, and the number is the whole of the restraint: a model
+#: handed a list of everything a reader has ever got wrong writes a grammar lesson, which
+#: is the thing this must never become. Three is enough to drift toward a weak spot and
+#: too few to teach from.
+RULES_BACK = 3
+
+#: How many slips are read to find them. A recurring mistake is one that recurs, and the
+#: last few dozen lines are where "recurring" can be seen.
+SLIPS_READ = 60
+
+
+def recurring(slips: list[dict[str, Any]], most: int = RULES_BACK) -> list[str]:
+    """The reasons that came up more than once, commonest first, at most `most`.
+
+    The model writes a one-sentence reason on a corrected line — the `~ ` line — and it
+    is the only part of a slip that generalises: the changed token is this sentence's,
+    and the reason is the rule. A reason seen once is a slip; a reason seen three times
+    is something the reader keeps doing.
+
+    Once is not enough on purpose. Everybody gets a line wrong once, and a conversation
+    that bent itself toward every single mistake would be a conversation about mistakes.
+    """
+    seen: dict[str, int] = {}
+    for slip in slips:
+        why = str(slip.get("why") or "").strip()
+        if not why:
+            continue
+        seen[why] = seen.get(why, 0) + 1
+    over = [(count, why) for why, count in seen.items() if count > 1]
+    over.sort(key=lambda pair: (-pair[0], pair[1]))
+    return [why for _, why in over[:most]]
+
+
 def ledger_block(
     level: Level,
     known: list[str],
     common: list[str],
     returning: Returning | None = None,
+    rules: list[str] | None = None,
 ) -> str:
     """The per-reader block: the ledger, then the word lists, then what comes back."""
     from ..translate.prompts import language_name
@@ -610,6 +645,25 @@ def ledger_block(
         parts.append("\n".join(lines))
     if back.phrases:
         parts.append(f"Phrases they kept lately ({len(back.phrases)}): " + " | ".join(back.phrases))
+    if rules:
+        # What they keep getting wrong (targum-internal#290), as context and never as a
+        # lesson. "anki srs is kinda dumb in the sense it doesnt really know what you get
+        # wrong beyond what you tell it" — this is the half a scheduler cannot have, and
+        # the way to waste it is to announce it. So: steer the sentences, say nothing.
+        parts.append(
+            "\n".join(
+                [
+                    "What this reader has had corrected more than once "
+                    f"({len(rules[:RULES_BACK])}):",
+                    *(f"- {rule}" for rule in rules[:RULES_BACK]),
+                    "Let your own sentences use these forms correctly and often, so they "
+                    "meet the right one in passing. Never mention this list, never say "
+                    "they keep getting something wrong, never set an exercise on it and "
+                    "never correct a line that is already right. The one-line reason on a "
+                    "corrected line is still the whole of what you say about a mistake.",
+                ]
+            )
+        )
     return "\n\n".join(parts)
 
 

@@ -162,7 +162,10 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
     }
     drawn = draw(vocabulary(word("ספר", "book", status=2)), pages=pages)
     assert not drawn["claim"]["hidden"] and drawn["claim"]["rows"] == ["של", "את", "הוא"]
-    assert drawn["asked"] == ["/words/common?offset=0&limit=50"]
+    # And the lines that came back changed, once, after the lists are drawn
+    # (targum-internal#290). Asserted as the whole list rather than as a membership, so a
+    # page that starts asking for something new has to say so here.
+    assert drawn["asked"] == ["/words/common?offset=0&limit=50", "/slips"]
     marked = draw(
         vocabulary(word("ספר", "book", status=2)),
         pages=pages,
@@ -366,3 +369,55 @@ def test_a_word_passed_over_stays_passed_over_for_the_rest_of_the_sitting() -> N
     assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך"], (
         "the skipped word does not come back because another was marked"
     )
+
+
+def test_the_lines_you_rewrote_stand_in_the_same_fold() -> None:
+    """The same question — what is worth going over — so the same fold. Two panels asking
+    it twice would be two lists to keep track of, which is the bookkeeping this replaces.
+    """
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=2, at=100)),
+        slips=[
+            {
+                "wrote": "אני הלך אתמול",
+                "recast": "אֲנִי הָלַכְתִּי אֶתְמוֹל",
+                "changed": ["הָלַכְתִּי"],
+                "why": "Past tense: הָלַכְתִּי, not הָלַךְ.",
+                "language": "he",
+            }
+        ],
+    )
+    assert not drawn["workOn"]["hidden"], "one fold, both halves"
+    assert not drawn["rewrote"]["hidden"]
+    row = drawn["rewrote"]["rows"][0]
+    assert row["wrote"] == "אני הלך אתמול"
+    assert row["changed"] == ["הָלַכְתִּי"], "the word they did not write is marked"
+    assert row["why"].startswith("Past tense")
+
+
+def test_a_rewritten_line_carries_no_control() -> None:
+    """A sentence is not a word and there is nothing here to mark known. The record is
+    the point, which is the half a scheduler cannot have."""
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=2, at=100)),
+        slips=[{"wrote": "a", "recast": "b", "changed": ["b"], "why": ""}],
+    )
+    assert drawn["rewrote"]["rows"][0]["why"] == "", "no reason given, none invented"
+    assert drawn["workOn"]["rows"][0]["keys"] == ["I know this", "Still learning"], (
+        "and the word rows keep theirs"
+    )
+
+
+def test_a_reader_with_rewritten_lines_and_no_flagged_words_still_sees_the_fold() -> None:
+    """Either half is enough to draw it."""
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=9, at=100)),
+        slips=[{"wrote": "a", "recast": "b", "changed": ["b"], "why": ""}],
+    )
+    assert drawn["workOn"]["rows"] == []
+    assert not drawn["workOn"]["hidden"], "drawn for the lines alone"
+
+
+def test_no_rewritten_lines_is_no_heading() -> None:
+    drawn = draw(vocabulary(word("ספר", "book", status=2, at=100)))
+    assert drawn["rewrote"]["hidden"] and drawn["rewrote"]["rows"] == []

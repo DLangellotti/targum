@@ -641,6 +641,43 @@ CREATE TABLE IF NOT EXISTS correction (
   reason   TEXT    NOT NULL DEFAULT ''
 );
 
+-- What a reader got wrong, kept (2026-09-18, targum-internal#290).
+--
+-- Dmitry Z, 2026-09-16, on why a scheduler does not work for him: "anki srs is kinda dumb
+-- in the sense it doesnt really know what you get wrong beyond what you tell it". A
+-- scheduler only knows what you type into it. targum sits in the one place where a
+-- mistake is visible without anybody typing anything — the reader writes a line of Hebrew
+-- in the chat and the model rewrites it — and until now that correction was shown once and
+-- thrown away, which is the same bookkeeping problem moved inside the product.
+--
+-- One row per line the reader wrote that came back changed. A line that was already right
+-- writes nothing, so this is a record of mistakes and not a log of turns.
+--
+-- **Not `correction`.** That table is #164: human judgements about *Hebrew*, where `who`
+-- is a role and never a person, so that what it holds can be reasoned about as evidence
+-- about the language. A learner's own mistakes are a fact about the learner. They stay
+-- here, they are exported by `everything`, they go with the account in `forget`, they
+-- never enter the corpus and they are not one of the four exportable layers —
+-- `private-imports-never-train` holds without amendment.
+CREATE TABLE IF NOT EXISTS slip (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL DEFAULT 'he',
+  at       INTEGER NOT NULL,
+  chat     TEXT    NOT NULL DEFAULT '',
+  turn     INTEGER NOT NULL DEFAULT 0,
+  -- What they wrote and what came back. Both whole: a diff without its sentences is a
+  -- list of words nobody can read later.
+  wrote    TEXT    NOT NULL,
+  recast   TEXT    NOT NULL,
+  -- The tokens that changed, as JSON. The same diff #242 needs for its label.
+  changed  TEXT    NOT NULL DEFAULT '[]',
+  -- The model's own one-sentence reason, where it gave one: the `~ ` line.
+  why      TEXT    NOT NULL DEFAULT '',
+  gone     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS slip_person ON slip (person, at);
+
 -- Who is waiting for a way in (2026-09-16, targum-internal#69). The front door takes an
 -- address and nothing else, and this is where it goes.
 --
@@ -1834,6 +1871,10 @@ class Store:
                     "chosen",
                     "session",
                     "link",
+                    # What they got wrong is theirs too (targum-internal#290), and it is
+                    # the most personal row in the database: a record of a learner's own
+                    # mistakes, in their own sentences.
+                    "slip",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -1995,6 +2036,11 @@ class Store:
                 (person.id,),
             ).fetchall()
             out[name] = [dict(row) for row in rows]
+
+        # What they got wrong, in their own sentences (targum-internal#290). The most
+        # personal rows in the database, so the first thing that had to be true of them
+        # is that somebody can take them away.
+        out["slips"] = self.slips(person.id, limit=100_000)
 
         # What they said to targum and what it said back. Theirs in the plainest sense.
         out["chats"] = [
@@ -2218,6 +2264,17 @@ class Store:
         ).fetchone()
         return dict(row) if row else None
 
+    def chat_said(self, chat_id: str, n: int) -> str:
+        """What was said on one turn, as it was said. Empty where there is no such turn.
+
+        `chat_turns` reads a whole conversation to answer this, which is the right shape
+        for drawing one and the wrong one for asking about a single line as it lands.
+        """
+        row = self.db.execute(
+            "SELECT said FROM chat_turn WHERE chat = ? AND n = ?", (chat_id, n)
+        ).fetchone()
+        return str(row["said"]) if row else ""
+
     def chat_turns(self, chat_id: str) -> list[dict[str, Any]]:
         """Every API message in a conversation, in order, content decoded."""
         rows = self.db.execute(
@@ -2395,6 +2452,77 @@ class Store:
                 "SELECT * FROM correction ORDER BY at DESC, id DESC LIMIT ?", (limit,)
             ).fetchall()
         return [dict(row) for row in rows]
+
+    # --- slips: what the reader got wrong (targum-internal#290) --------------------
+
+    def slip(
+        self,
+        person_id: int,
+        *,
+        wrote: str,
+        recast: str,
+        changed: list[str],
+        language: str = "he",
+        chat: str = "",
+        turn: int = 0,
+        why: str = "",
+    ) -> int:
+        """Write down one line that came back changed. Returns the row's id.
+
+        Only called where the diff is non-empty, so a correct line writes nothing: the
+        table is a record of mistakes and not a log of turns. Keyed to a person, unlike
+        `correct` above, because this is a fact about a learner and not about Hebrew.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "INSERT INTO slip (person, language, at, chat, turn, wrote, recast,"
+                " changed, why) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    person_id,
+                    language,
+                    now(),
+                    chat,
+                    turn,
+                    wrote,
+                    recast,
+                    json.dumps(changed, ensure_ascii=False),
+                    why,
+                ),
+            )
+            return int(cursor.lastrowid or 0)
+
+    def slips(
+        self, person_id: int | None, language: str = "", limit: int = 50, oldest: bool = False
+    ) -> list[dict[str, Any]]:
+        """One person's slips. Newest first, or oldest for the queue.
+
+        Oldest first is what the queue wants, for the reason the word queue wants it
+        (targum-internal#103): the thing worth coming back to is what has been sitting
+        there longest, and it is the only order the record can honestly support.
+        """
+        if person_id is None:
+            return []
+        order = "ASC" if oldest else "DESC"
+        where = "person = ? AND gone = 0"
+        args: list[Any] = [person_id]
+        if language:
+            where += " AND language = ?"
+            args.append(language)
+        args.append(limit)
+        rows = self.db.execute(
+            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why FROM slip"
+            f" WHERE {where} ORDER BY at {order}, id {order} LIMIT ?",
+            args,
+        ).fetchall()
+        out = []
+        for row in rows:
+            got = dict(row)
+            try:
+                got["changed"] = json.loads(got["changed"] or "[]")
+            except json.JSONDecodeError:
+                got["changed"] = []
+            out.append(got)
+        return out
 
     def want(self, query: str, source: str, standing: str = "") -> None:
         """Count one ask the shelf could not answer. Keyed on the words and the link,

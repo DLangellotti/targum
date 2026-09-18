@@ -1655,5 +1655,6 @@
   "library.building.behind.other": "Waiting behind {n} builds",
   "lists.work.known": "I know this",
   "lists.work.still": "Still learning",
-  "yours.page.what-to-work-on": "What to work on"
+  "yours.page.what-to-work-on": "What to work on",
+  "yours.page.lines-you-rewrote": "Lines you rewrote"
 }

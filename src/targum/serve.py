@@ -179,6 +179,10 @@ TRASH_DAYS = 7
 # deleted, and a marker inside it cannot drift away from what it describes.
 TRASHED = "trashed"
 
+#: How many rewritten lines the queue offers at once (targum-internal#290). The same
+#: twenty the word queue offers, for the same reason: a sitting rather than a syllabus.
+SLIPS_SHOWN = 20
+
 # What a page is allowed to do. Readers are self-contained by construction — no script,
 # stylesheet, font or image from anywhere, and the tests hold that — so the policy can
 # be the strict one rather than a shrug: nothing loads from outside, the page cannot be
@@ -4507,7 +4511,15 @@ class Handler(BaseHTTPRequestHandler):
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
             if route.startswith(
-                ("/readers", "/job/", "/jobs", "/glossary/", "/account/export", "/chat/")
+                (
+                    "/readers",
+                    "/job/",
+                    "/jobs",
+                    "/glossary/",
+                    "/account/export",
+                    "/chat/",
+                    "/slips",
+                )
             ):
                 return self._json(
                     {
@@ -4612,6 +4624,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
+        if route == "/slips":
+            # Lines this reader wrote that came back changed (targum-internal#290).
+            # Theirs and nobody else's: signed out there is nobody to have any, and the
+            # store answers with an empty list rather than with somebody else's.
+            person = self._person()
+            oldest = self.store.slips(
+                person.id if person else None,
+                limit=SLIPS_SHOWN,
+                oldest=True,
+            )
+            return self._json({"slips": oldest})
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()

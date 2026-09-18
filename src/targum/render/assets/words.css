@@ -573,3 +573,35 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
 @media (hover: none) and (pointer: coarse) {
   .work-keys button { min-height: 44px; }
 }
+
+/* Lines that came back changed (targum-internal#290), in the same fold as the words. */
+.work-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.rewrote-row { display: block; }
+/* Against one edge, whichever edge the text begins at: the group carries the slip's own
+   direction and the lines align to it. */
+.rewrote-said { display: flex; flex-direction: column; gap: 0.15rem; align-items: stretch; }
+.rewrote-said > * { text-align: start; }
+/* What they wrote, quieted: it is the thing being corrected, not the thing to read. */
+.rewrote-wrote {
+  font-family: var(--reading-hebrew);
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.rewrote-recast { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+/* The words the reader did not write. A `mark`, so it is a difference to a screen reader
+   and not only to an eye; leaf, because §4 gives green to what is right. Not a background
+   wash — it would sit behind pointed Hebrew and eat the points. */
+.rewrote-changed {
+  background: none;
+  color: var(--leaf);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* The model's own sentence about it, which is the only thing it says about a mistake. */
+.rewrote-why { font-size: 0.8125rem; color: var(--ink-soft); }

@@ -64,6 +64,8 @@ global.fetch = (url) => {
   if (clean.indexOf("/readers") === 0) {
     answer = { readers: payload.readers || [], shared: [], trash: [], covers: true };
   }
+  // Lines that came back changed (targum-internal#290).
+  if (clean.indexOf("/slips") === 0) answer = { slips: payload.slips || [] };
   return Promise.resolve({ json: () => Promise.resolve(answer) });
 };
 
@@ -175,6 +177,18 @@ function phrases() {
           keys: (item.querySelector(".work-keys") || { children: [] }).children.map(
             (key) => key.textContent,
           ),
+        })),
+      },
+      rewrote: {
+        hidden: at("rewrote-heading").hidden,
+        rows: at("rewrote-rows").children.map((item) => ({
+          wrote: (item.querySelector(".rewrote-wrote") || {}).textContent || "",
+          recast: (item.querySelector(".rewrote-recast") || {}).textContent || "",
+          // The words marked as changed, which is the whole of what a `mark` is for.
+          changed: (item.querySelector(".rewrote-recast") || { children: [] }).children
+            .filter((bit) => String(bit.className).includes("rewrote-changed"))
+            .map((bit) => bit.textContent),
+          why: (item.querySelector(".rewrote-why") || {}).textContent || "",
         })),
       },
       wordsTitle: at("words-title").textContent,

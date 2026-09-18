@@ -70,6 +70,16 @@
   <section class="panel work" id="work-on" hidden>
     <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
     <ul class="work-rows" id="work-rows"></ul>
+
+    {#- And the lines that came back changed (targum-internal#290). The same fold, because
+        it is the same question — what is worth going over — and two panels asking it
+        twice would be two lists to keep track of.
+
+        Their line above the recast, with the words that changed marked. No control: a
+        sentence is not a word and there is nothing here to mark known. It is a record to
+        read, which is the whole of what a scheduler cannot give. -#}
+    <p class="work-heading" id="rewrote-heading" hidden>{{ t("yours.page.lines-you-rewrote", "Lines you rewrote") }}</p>
+    <ul class="work-rows rewrote" id="rewrote-rows"></ul>
   </section>
 
   <section class="panel">

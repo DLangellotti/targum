@@ -238,7 +238,9 @@
     var rows = workOn();
     // Nothing to work on is nothing on the page. Not an empty state and not an
     // invitation: a reader who has flagged no words is not being told they are behind.
-    panel.hidden = rows.length === 0;
+    // Either half is enough to draw it: a reader with no flagged words may still have
+    // lines that came back changed.
+    panel.hidden = rows.length === 0 && rewrote.length === 0;
     host.textContent = "";
     if (!rows.length) return;
 
@@ -299,6 +301,76 @@
       keys.appendChild(knew);
       keys.appendChild(still);
       item.appendChild(keys);
+      host.appendChild(item);
+    });
+  }
+
+  /* Lines that came back changed (targum-internal#290), in the same fold as the words.
+   *
+   * Their line above the recast, with the words that changed marked — which is the whole
+   * of it. There is no control on a row: a sentence is not a word and there is nothing
+   * here to mark known, and the record is the point rather than a thing to work through.
+   *
+   * "anki srs is kinda dumb in the sense it doesnt really know what you get wrong beyond
+   * what you tell it." This is what it did not know.
+   */
+  var rewrote = [];
+
+  function renderRewrote() {
+    var heading = at("rewrote-heading");
+    var host = at("rewrote-rows");
+    if (!host || !heading) return;
+    heading.hidden = rewrote.length === 0;
+    host.textContent = "";
+    if (!rewrote.length) return;
+
+    rewrote.forEach(function (slip) {
+      var item = el("li", "work-row rewrote-row");
+      var said = el("span", "rewrote-said");
+      /* The whole group takes the text's own direction, so the three lines stack against
+         the same edge. Without it the reason — English, left to right — sat at the far
+         left of a wide row while the Hebrew it is about sat at the right, and a sentence
+         about a sentence has to be next to it. The English still reads the way English
+         reads; only where it begins moves. */
+      said.setAttribute("dir", DIRECTION[slip.language || code] || "ltr");
+
+      var mine = el("bdi", "rewrote-wrote", slip.wrote || "");
+      mine.setAttribute("lang", slip.language || code);
+      said.appendChild(mine);
+
+      // The recast, with the words the reader did not write marked. Marked rather than
+      // coloured alone: a colour is not a difference to somebody who cannot see it.
+      var back = el("bdi", "rewrote-recast");
+      back.setAttribute("lang", slip.language || code);
+      var changed = {};
+      (slip.changed || []).forEach(function (word) {
+        changed[word] = true;
+      });
+      String(slip.recast || "")
+        .split(" ")
+        .forEach(function (word, index) {
+          if (index) back.appendChild(document.createTextNode(" "));
+          if (changed[word]) {
+            var mark = el("mark", "rewrote-changed", word);
+            back.appendChild(mark);
+            return;
+          }
+          back.appendChild(document.createTextNode(word));
+        });
+      said.appendChild(back);
+
+      /* The model's own one sentence, where it gave one. Never more than the one.
+         A `bdi` with its own direction: the reason is English with Hebrew words in it,
+         and inside a right-to-left block the punctuation at its edges migrates — "Past
+         tense: הלכתי, not הלך." came out with the colon on the wrong side of the
+         sentence. Isolated, it reads the way it was written, and only where it begins
+         follows the block. */
+      if (slip.why) {
+        var reason = el("bdi", "rewrote-why", slip.why);
+        reason.setAttribute("dir", "auto");
+        said.appendChild(reason);
+      }
+      item.appendChild(said);
       host.appendChild(item);
     });
   }
@@ -733,6 +805,7 @@
       if (redrawing) redrawing(into);
     });
     renderWorkOn();
+    renderRewrote();
     renderWords();
     renderPhrases();
   }
@@ -750,6 +823,14 @@
   var redrawing = null;
 
   window.TargumLists = {
+    /* The lines that came back changed, handed in by the page that fetched them
+       (targum-internal#290). Here rather than fetched in this file, because this file is
+       drawn on two pages and only one of them asks. */
+    rewrote: function (rows) {
+      rewrote = rows || [];
+      renderRewrote();
+      renderWorkOn();
+    },
     mount: mount,
     draw: draw,
     // The ledger changed under this list — a page of common words marked known
