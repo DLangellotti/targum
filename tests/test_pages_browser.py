@@ -1158,8 +1158,17 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     assert got["scrollWidth"] <= got["inner"] + 1, f"sideways scroll at {width}px: {got}"
     assert got["frameLeft"] >= 0 and got["frameRight"] <= got["talkRight"] + 1, got
     assert got["frameHeight"] >= 300, f"the conversation has room at {width}px: {got}"
-    if width > 640:
+    # The sheet takes the row until there is room beside it for the rail (2026-09-18).
+    # A media query resolves `rem` against the root's initial 16px rather than this
+    # page's clamped one, so the 72rem in `learn.css` is 1152px here and nothing else.
+    if 640 < width < 1152:
         assert got["sheetWidth"] == got["frontWidth"], f"the sheet takes the row at {width}px"
+    if width >= 1152:
+        assert got["sheetWidth"] < got["frontWidth"], f"the rail shares the row at {width}px"
+        assert got["sheetWidth"] > got["frontWidth"] * 0.6, (
+            f"and takes most of it: the rail must not have its room out of the sheet "
+            f"at {width}px, which is what 64rem did — 658px of reader at 1024"
+        )
     # Phase 4: on a phone the four places are a bar at the foot of the window.
     assert got["navFixed"] == (width <= 640), f"{width}px: {got}"
     if width <= 640:
@@ -1210,7 +1219,11 @@ def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
     actual reader", and several cards, "giving more choice". Under 40rem the page draws a
     card for every text it can offer — the one carried on with, the suggestion, what was
     read lately — each a press to its reader, with no sheet, no row of doors and no
-    reader loaded behind them. At a desk the sheet frames the reader as before."""
+    reader loaded behind them.
+
+    At a desk the sheet still frames the reader, and since 2026-09-18 the same cards
+    stand beside it as a rail: the pill they replaced offered the same texts and hid
+    most of them."""
     html = learn_page(TOKEN)
     readers = [
         {
@@ -1306,8 +1319,14 @@ def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
         assert got["all"], "and the way to the whole list"
         assert not framed, "no reader loaded behind the cards"
     else:
-        assert not got["cards"], "a desk draws the sheet"
-        assert got["sheet"] and framed, "with the reader framed in it"
+        # A desk draws the sheet *and* the cards since 2026-09-18 (David: the front door
+        # "is not delightful"). The cards were phone-only, so a desk had one object and
+        # a three-way pill to reach anything else; beside the sheet they are the rail
+        # that replaced the pill. The sheet is unchanged and still frames the reader —
+        # what the desk gained is somewhere to go, not a different thing to look at.
+        assert got["sheet"] and framed, "the sheet still frames the reader"
+        assert got["cards"], "and the rail offers everything else"
+        assert not got["doors"], "the row of doors is the rail's job now"
 
 
 def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path: Path) -> None:

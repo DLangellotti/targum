@@ -419,11 +419,82 @@ body.learn .nothing .hint {
    card. Headings in the chrome's face; the reading faces only inside the sheet and
    where a text's own title stands. The conversation is the pill at the foot of every
    page, not a card here. */
+/* The front page is one column on a phone and two at a desk (2026-09-18, David: the
+   front door "is not delightful", and it should be "easy to navigate").
+ *
+ * What was wrong was not the sheet. It was that the sheet was the whole page: one object
+ * at the top, then a screen of bare desk, then the footer, and the only way to anything
+ * else a three-way pill and a menu inside it. The cards that answer this already existed
+ * — they were built on 2026-09-14 when the phone page was quietened — and the stylesheet
+ * drew them under 40rem and nowhere else. So a desk gets them too, as a rail beside the
+ * sheet: what you are reading on the left, everything else you could be reading on the
+ * right, all of it visible at once instead of behind a toggle.
+ *
+ * The rail takes the doors' place at a desk, which is why the row of pills gives way to
+ * it: two controls offering the same texts, one of them hiding most of them, is the
+ * navigation problem rather than a second answer to it. */
 .front {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  /* One column, and the fold last. On a phone the sheet is not drawn at all and the
+     cards are the page (§13, 2026-09-14), so a word list above them would put five rows
+     of homework between the greeting and the only thing there is to press — which is
+     the "way too busy" this page was quietened to fix. Reading first, the record after
+     it, at every width; at a desk the two columns say the same thing side by side. */
+  grid-template-areas:
+    "head"
+    "arrival"
+    "carry"
+    "rail"
+    "work";
   gap: 1.5rem;
   margin-block-end: 3rem;
+}
+.front > .learn-head { grid-area: head; }
+.front > .arrival { grid-area: arrival; }
+.front > .carry-on { grid-area: carry; }
+.front > .front-work { grid-area: work; }
+.front > .learn-cards { grid-area: rail; }
+
+/* 72rem, and the number was measured rather than picked. A media query resolves `rem`
+   against the root's initial 16px, not against this page's clamped one, so 64rem is
+   1024px exactly — and at 1024 the rail left the sheet 658px, which is too narrow for a
+   framed reader holding two columns of text. The rail must not take its room out of the
+   one thing the page is for. At 72rem the sheet keeps about 840px, which is the width it
+   had before any of this. Below it the page is the single column it already was. */
+@media (min-width: 72rem) {
+  .front {
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    grid-template-areas:
+      "head    head"
+      "arrival arrival"
+      "carry   rail"
+      "work    rail";
+    align-items: start;
+  }
+  /* The rail stands at the top of its column and keeps its own scroll. Its height stops
+     a band short of the window's foot, which is where the conversation's pill is fixed
+     on every page: the pill does not move for this page — a control that wanders by
+     page is worse than one asked to share — so the rail is the one that gives way, and
+     a rail longer than the window scrolls inside itself rather than running under it. */
+  .front > .learn-cards {
+    align-self: start;
+    position: sticky;
+    inset-block-start: 5rem;
+    max-block-size: calc(100vh - 10rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  /* The row of doors is the rail's job now. */
+  body.learn .learn-head .ways { display: none; }
+
+  /* The conversation's pill stays in the corner it uses on every page.
+     Moving it to the left was tried on 2026-09-18 and was worse: the left column is the
+     sheet, so the pill came to rest on the text of the article — and a control over a
+     reader's own words is the thing [[layout-over-reader-controls]] exists to forbid,
+     while a control over the lower edge of a card is what every floating button on the
+     web does. So the rail gives way instead: it keeps a band clear inside its own foot,
+     and once the page is scrolled its height stops short of the window's. */
 }
 .label {
   margin: 0 0 0.5rem;
@@ -450,9 +521,16 @@ body.learn .nothing .hint {
   overflow: hidden;
 }
 .page-sheet[hidden] { display: none; }
+
 .page-sheet .card-track { color: var(--ink-soft); }
 .page-sheet .card-cover { display: none; }
-.page-window { block-size: clamp(28rem, 72vh, 56rem); background: var(--paper); }
+/* The sheet's height, and the reason it changed on 2026-09-18. At 72vh the sheet plus
+   its own head stood taller than a laptop window, so the page opened on a text cut off
+   at the bottom of the screen with nothing under it — and what was below the fold was
+   the rest of the cut, not the rest of the page. 62vh leaves the whole sheet, its title
+   and the row under it inside a 900px window, which is the shape somebody actually
+   arrives at. */
+.page-window { block-size: clamp(22rem, 62vh, 44rem); background: var(--paper); }
 .page-window[hidden] { display: none; }
 .page-frame {
   display: block;
@@ -645,6 +723,26 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
 }
 .hello .today:empty, .hello .known-line:empty { display: none; }
 .hello .known-line { margin: 0; font-size: 0.9375rem; line-height: inherit; font-weight: 600; letter-spacing: 0; color: var(--ink); }
+/* At a desk the count stops being the tail of the date line and becomes a thing on the
+   desk (2026-09-18). It is the one fact on this page that is only true of this reader,
+   and it was the smallest text on it. Leaf, because §4 keeps green for progress and this
+   is the only progress on the front door; tint behind it, because §13's tint is what a
+   quiet object sits on; tabular figures, because a number that shifts its own width as
+   it grows is a number you stop trusting. Still a sentence and still not a score: the
+   floor under it in `drawKnown` is what keeps "You know 0 words" off the page. */
+@media (min-width: 72rem) {
+  .hello .known-line:not(:empty) {
+    display: inline-block;
+    margin-inline-start: 0.4rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    background: var(--teal-wash);
+    color: var(--leaf);
+    font-variant-numeric: tabular-nums;
+  }
+  /* The middle dot belonged to a line the count has left. */
+  .hello .today:not(:empty):has(+ .known-line:not(:empty))::after { content: ""; }
+}
 /* The dot stays with the date, so a count that wraps on a phone starts its own line clean. */
 .hello .today:not(:empty):has(+ .known-line:not(:empty))::after { content: " ·"; }
 /* The doors as one control (2026-09-11: "put the buttons together at the top, in a
@@ -956,83 +1054,156 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
    one for every text the page can offer; above it the cards are not drawn at all. Each
    card is §13's: raised on the desk, 16px corners, 20px in, the cover beside what is said
    about the text, the title in its own face, and the whole card the press. */
+/* The fold on the front door (targum-internal#103, here 2026-09-18). `.panel` already
+   makes it a card on the desk and `words.css` already draws its rows, so all this page
+   owes it is the way to the rest. */
+.front-work { margin: 0; }
+.front-work .see-all { display: inline-block; margin-block-start: 0.9rem; }
+
+/* The cards themselves are the same object at a hand and at a desk: raised on the desk,
+   16px corners, the cover beside what is said about the text, the title in its own face,
+   and the whole card the press. Only their arrangement differs — a column that is the
+   page on a phone, a rail beside the sheet at a desk — so only the arrangement is in a
+   media query. They lived inside the phone's one until 2026-09-18, which is the whole
+   reason a desk had nothing to browse. */
 .learn-cards { display: none; }
+
 @media (max-width: 40rem) {
   body.learn .carry-on { display: none; }
   body.learn .learn-head .ways { display: none; }
   .learn-cards { display: block; padding-inline: 1rem; }
-  .learn-card-list {
-    display: grid;
-    gap: 0.75rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+}
+
+@media (min-width: 72rem) {
+  .learn-cards { display: block; }
+}
+
+.learn-card-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.learn-card-list[hidden] { display: none; }
+.learn-cards .see-all { display: inline-block; margin-block-start: 0.75rem; }
+.learn-cards .see-all[hidden] { display: none; }
+.learn-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.learn-card:active { background: color-mix(in srgb, var(--teal) 6%, var(--card)); }
+.learn-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.learn-card .card-cover .thumb { inline-size: 3.25rem; block-size: 4.5rem; }
+.learn-card-what { display: grid; gap: 0.15rem; min-inline-size: 0; flex: 1 1 auto; }
+/* §13's label: what this text is to the reader — Continue reading, Suggested for you,
+   Recently read, the series' name. */
+.learn-card-state {
+  color: var(--ink-soft);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Its own face and never scaled (§5); two lines at most, cut at the end of the second
+   rather than at the start of the first. */
+.learn-card-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  line-height: 1.35;
+}
+/* Right to left inside, and at the start of the chrome's line like every other word
+   on the card, as the sheet's title is at a desk. */
+.learn-card-title:lang(he), .learn-card-title:lang(yi), .learn-card-title:lang(arc) {
+  font-family: var(--reading-hebrew);
+  direction: rtl;
+  text-align: left;
+}
+.learn-card-english {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.learn-card-meta { font-size: 0.875rem; color: var(--ink-soft); }
+.learn-card-known {
+  font-size: 0.875rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--leaf);
+}
+/* How far through: the sheet's line, along the card's foot. */
+.learn-card .page-progress { inset-block-end: 0; }
+
+/* --- the rail (2026-09-18) --------------------------------------------------------
+   Beside the sheet, so the cards are narrower than the phone's and say less: the cover
+   smaller, the meta line dropped, the title to two lines. What a rail has to answer is
+   "what else is there", and a card that answers it in a glance is worth more than one
+   that answers it completely. */
+@media (min-width: 72rem) {
+  .learn-cards { padding-inline: 0; padding-block-end: 4rem; }
+  .learn-card-list { gap: 0.6rem; }
+  .learn-card { padding: 0.9rem; gap: 0.7rem; }
+  .learn-card .card-cover .thumb { inline-size: 2.25rem; block-size: 3.125rem; }
+  .learn-card-title { font-size: 1.0625rem; }
+  .learn-card-meta { display: none; }
+  /* Where you are. The rail carries the text in the sheet as well as the others, and
+     saying which one is showing is the difference between a list of places and a map.
+     Tint is §13's ordinary press made to stay on, which is exactly what this is. */
+  .learn-card[aria-current="true"] {
+    background: var(--teal-wash);
+    box-shadow: var(--shadow-rest);
   }
-  .learn-card-list[hidden] { display: none; }
-  .learn-cards .see-all { display: inline-block; margin-block-start: 0.75rem; }
-  .learn-cards .see-all[hidden] { display: none; }
-  .learn-card {
-    position: relative;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.9rem;
-    padding: 1.25rem;
-    overflow: hidden;
-    border-radius: var(--radius-card);
-    background: var(--card);
-    box-shadow: var(--shadow-raised);
-    color: var(--ink);
-    text-decoration: none;
-    -webkit-tap-highlight-color: transparent;
+  .learn-card[aria-current="true"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 0.9rem;
+    inset-inline-start: 0;
+    inline-size: 2px;
+    border-radius: 999px;
+    background: var(--teal);
   }
-  .learn-card:active { background: color-mix(in srgb, var(--teal) 6%, var(--card)); }
-  .learn-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  .learn-card .card-cover .thumb { inline-size: 3.25rem; block-size: 4.5rem; }
-  .learn-card-what { display: grid; gap: 0.15rem; min-inline-size: 0; flex: 1 1 auto; }
-  /* §13's label: what this text is to the reader — Continue reading, Suggested for you,
-     Recently read, the series' name. */
-  .learn-card-state {
-    color: var(--ink-soft);
-    font-size: 0.6875rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+}
+
+/* How a card answers a hand or a pointer. A press should feel like picking the card up:
+   it rises on hover and settles under the finger, and the shadow does the work rather
+   than a colour, because §9 spends the accent on the one thing worth pressing and every
+   card here is worth pressing equally. Motion is always optional (§11). */
+.learn-card {
+  transition:
+    box-shadow 160ms ease,
+    transform 160ms ease,
+    background-color 160ms ease;
+}
+@media (hover: hover) {
+  .learn-card:hover {
+    box-shadow: var(--shadow-floating);
+    transform: translateY(-2px);
   }
-  /* Its own face and never scaled (§5); two lines at most, cut at the end of the second
-     rather than at the start of the first. */
-  .learn-card-title {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    overflow: hidden;
-    font-family: var(--reading);
-    font-size: 1.25rem;
-    line-height: 1.35;
-  }
-  /* Right to left inside, and at the start of the chrome's line like every other word
-     on the card, as the sheet's title is at a desk. */
-  .learn-card-title:lang(he), .learn-card-title:lang(yi), .learn-card-title:lang(arc) {
-    font-family: var(--reading-hebrew);
-    direction: rtl;
-    text-align: left;
-  }
-  .learn-card-english {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 0.9375rem;
-    color: var(--ink);
-  }
-  .learn-card-meta { font-size: 0.875rem; color: var(--ink-soft); }
-  .learn-card-known {
-    font-size: 0.875rem;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: var(--leaf);
-  }
-  /* How far through: the sheet's line, along the card's foot. */
-  .learn-card .page-progress { inset-block-end: 0; }
+}
+.learn-card:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-rest);
+}
+@media (prefers-reduced-motion: reduce) {
+  .learn-card { transition: none; }
+  .learn-card:hover, .learn-card:active { transform: none; }
 }
 
 /* --- the arrival (targum-internal#294) -------------------------------------- */

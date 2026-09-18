@@ -88,6 +88,12 @@ function element(tag) {
     getAttribute(name) {
       return name in this.attrs ? this.attrs[name] : null;
     },
+    /* The other half of `setAttribute`, missing until 2026-09-18. An absent attribute is
+       how the DOM says "not this one" — `aria-current` on the rail is the case that found
+       it — so a stub that can only ever add one cannot express the ordinary state. */
+    removeAttribute(name) {
+      delete this.attrs[name];
+    },
     addEventListener(type, handler) {
       (this.listeners[type] = this.listeners[type] || []).push(handler);
     },

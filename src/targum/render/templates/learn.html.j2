@@ -119,6 +119,25 @@
     {#- On a phone, cards instead of the sheet (David, 2026-09-14): one for every text the
         page can offer, each a press to its reader. Drawn by `learn.js`, shown by the
         stylesheet under 40rem. -#}
+    {#- What to work on (targum-internal#103), under the sheet rather than over it.
+
+        Reading is what the front door is for, so the record comes after it: the words
+        you flagged and never came back to are worth meeting, and they are not worth
+        being asked about before you have read a line. Five here and the rest on Your
+        Words — the same cap-and-see-all every other list on this page has had since
+        it was written.
+
+        Still pull and never push: no count beside the heading, nothing due, and a
+        reader with nothing to work on sees no panel at all. -#}
+    <section class="panel work front-work" id="work-on" hidden>
+      <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
+      <ul class="work-rows" id="work-rows"></ul>
+      <p class="work-foot" id="work-foot" hidden>
+        <button type="button" id="work-talk">{{ t("lists.work.talk", "Use these in a conversation") }}</button>
+      </p>
+      <a class="see-all" id="work-all" href="/words">{{ t("learn.page.all-your-words", "All your words") }}</a>
+    </section>
+
     <section class="learn-cards" aria-label="{{ t("learn.page.your-texts", "Your texts") }}">
       <ul class="learn-card-list" id="learn-cards" hidden></ul>
       <a class="see-all" id="learn-cards-all" href="/texts" hidden>{{ t("learn.page.all-your-targums", "All your targums") }}</a>
@@ -182,6 +201,12 @@ window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
 <script>{{ asset('shelf.js') }}</script>
 <script>{{ asset('scenes.js') }}</script>
 <script>{{ asset('claim.js') }}</script>
+{#- The fold's own code, the same that draws it on Your Words. A second copy of it here
+    would be a second answer to "what is worth going over", and two of those eventually
+    disagree. `lists.js` draws only what it finds: this page holds the fold's markup and
+    none of the table's, so none of the table is drawn. -#}
+<script>{{ asset('vocab.js') }}</script>
+<script>{{ asset('lists.js') }}</script>
 <script>{{ asset('learn.js') }}</script>
 </body>
 </html>

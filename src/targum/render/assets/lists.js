@@ -64,6 +64,10 @@
   //: a sitting, not a syllabus: enough that arriving is worth it, few enough that the
   //: list is a thing somebody finishes rather than a backlog that grows while they look
   //: at it. It is a cap and never a target — nothing counts what is behind it.
+  //: How many words the fold offers at once where the whole list is on the same page.
+  //: A cap and never a target: nothing counts what is behind it, because "12 words due"
+  //: is the sentence this card exists not to say. `limits.workOn` takes it lower where
+  //: the fold is a guest — Learn shows five and says where the rest are (2026-09-18).
   var WORK_ON = 20;
 
   function read(name, fallback) {
@@ -228,7 +232,7 @@
         // marked before anything started stamping.
         return (a.at || 0) - (b.at || 0);
       })
-      .slice(0, WORK_ON);
+      .slice(0, limits.workOn || WORK_ON);
   }
 
   function renderWorkOn() {
