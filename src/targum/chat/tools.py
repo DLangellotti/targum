@@ -924,6 +924,51 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             **_licence_row(media.licence),
         }
 
+    from ..video import hosts as hosts_module
+    from ..video import instagram as instagram_module
+
+    try:
+        reel = instagram_module.is_reel(url)
+    except TargumError as error:
+        return {"kind": "video", "error": error.message}
+    if reel:
+        from .. import screen as screen_module
+
+        try:
+            info = instagram_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
+        media = screen_module.from_ytdlp(info)
+        said = [
+            "An Instagram reel: it has no subtitles, so the recording would be transcribed "
+            "and the minutes count against the audio allowance."
+        ]
+        if not media.duration:
+            said.append(
+                "Instagram did not say how long it runs, so it is priced at "
+                f"{round(instagram_module.GUESS_S / 60)} minutes."
+            )
+        return {
+            "kind": "video",
+            "title": media.title.strip(),
+            "seconds": round(media.duration or instagram_module.GUESS_S),
+            "hours": round((media.duration or instagram_module.GUESS_S) / 3600, 2),
+            "audio_language": "",
+            "hebrew_subtitles": False,
+            "advice": said,
+            "quote_with": instagram_module.home_url(url) or url,
+            **_licence_row(media.licence),
+        }
+    named = hosts_module.host_for(url)
+    if named is not None:
+        # Named, and not fetched from: said as the way in that works, so the model can
+        # pass it on instead of reading the login wall as an article.
+        return {
+            "kind": "video",
+            "error": f"{named.name} doesn't let us fetch its videos. Download the video "
+            "there and drop the file into Add.",
+        }
+
     host = (parsed.hostname or "").lower()
     try:
         found = episode_module.find(url)

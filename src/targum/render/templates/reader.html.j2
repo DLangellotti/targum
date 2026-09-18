@@ -207,9 +207,12 @@
         nothing, and hands nothing over either. The drawing is a screen with the arrow
         leaving it. -#}
     {% if spoken_home %}
+    {#- Only YouTube's address takes a time; any other home opens at the video's start, so
+        its control does not promise the line. -#}
+    {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
     <div class="group" data-what="Where it lives">
-      <a class="home" data-home href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
-         title="{{ t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") }}" aria-label="{{ t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") }}">
+      <a class="home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
+         title="{{ home_says }}" aria-label="{{ home_says }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M8.5 3.5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8.5"/>
           <path d="M7.5 8.5 13.5 2.5M9.5 2.5h4v4"/>

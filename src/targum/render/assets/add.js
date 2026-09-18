@@ -53,6 +53,10 @@
   var chosen = null;
   //: The translation the reader brought, if they brought one.
   var theirs = null;
+  //: The last link that could not be fetched. A reel Instagram refused, downloaded and
+  //: dropped in next, is still that reel: the link goes up with the file, and the server
+  //: keeps it only if it is a video host's own address (targum-internal#255).
+  var cameFrom = "";
 
   function ask(path, body) {
     return fetch(keyed(path), {
@@ -530,6 +534,10 @@
 
   if (given) {
     given.addEventListener("input", settle);
+    // Typing is starting over; a file dropped after that is not the refused link's.
+    given.addEventListener("input", function () {
+      cameFrom = "";
+    });
     // A screenshot on the clipboard is a file like any other.
     given.addEventListener("paste", function (event) {
       var files = event.clipboardData && event.clipboardData.files;
@@ -1024,6 +1032,7 @@
           Object.keys(sent).forEach(function (name) {
             payload[name] = sent[name];
           });
+          if (cameFrom) payload.came_from = cameFrom;
           say(waiting());
           return withTranscript(payload).then(function (body) {
             return ask("/prepare", body);
@@ -1077,7 +1086,10 @@
       .then(function (job) {
         go.disabled = false;
         if (!job.id && !job.error && !job.blocked && !job.catalogue) return;
-        if (job.error) return say(line(job.error), true);
+        if (job.error) {
+          if (payload.source) cameFrom = payload.source;
+          return say(line(job.error), true);
+        }
         if (job.catalogue) return instead(job.catalogue);
         if (job.blocked) return refuse(job);
         offer(job);

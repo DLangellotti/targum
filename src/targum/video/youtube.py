@@ -124,14 +124,17 @@ def pot_provider() -> str:
     return os.environ.get(POT_PROVIDER_ENV, "").strip()
 
 
-def _extra_args() -> list[str]:
+def _extra_args(*, minter: bool = True) -> list[str]:
     """Everything this box has to add to a yt-dlp command line, and nothing where it
     has to add nothing — an unset knob must not become a flag, because a flag naming a
-    proxy that is not listening is a fetch that fails on a machine where it worked."""
+    proxy that is not listening is a fetch that fails on a machine where it worked.
+
+    The egress is every door's; the minter is YouTube's alone, and another host's
+    extractor is not handed an argument addressed to a plugin it never loads."""
     args = []
     if where := proxy():
         args += ["--proxy", where]
-    if provider := pot_provider():
+    if minter and (provider := pot_provider()):
         args += ["--extractor-args", f"youtubepot-bgutilhttp:base_url={provider}"]
     return args
 
@@ -189,52 +192,65 @@ def fetch(url: str, into: Path) -> Path:
     """
     if not is_youtube(url):
         raise TargumError("We couldn't find a YouTube video at that address.")
-    usable, hint = ytdlp_available()
-    if not usable:
-        raise TargumError("yt-dlp is not installed.", hint)
+    return fetch_through(url, into, refused="YouTube wouldn't give us that video.")
+
+
+def fetch_through(
+    url: str,
+    into: Path,
+    *,
+    refused: str,
+    minter: bool = True,
+    again: tuple[str, ...] = (),
+    door: str = OTHER_DOOR,
+    carry: bool = True,
+    asking: tuple[str, ...] = (),
+) -> Path:
+    """The fetch every named door shares, once that door has vetted the address.
+
+    Nothing here asks what the address is — that is the caller's allowlist, and it has
+    already answered. What is shared is everything after: the format, the caps, the
+    egress, the container, and what a reader is told when the binary stops.
+    """
     into.mkdir(parents=True, exist_ok=True)
     target = into / "source.mp4"
-    try:
-        subprocess.run(
-            [
-                "yt-dlp",
-                "-f",
-                FORMAT,
-                "--max-filesize",
-                str(MAX_VIDEO_BYTES),
-                "--no-playlist",
-                "--merge-output-format",
-                "mp4",
-                # And when nothing was merged — a single-file webm was best — remux
-                # it into the one container the pipeline looks for.
-                "--remux-video",
-                "mp4",
-                # The video's own title and channel, written into the container's tags.
-                # `ingest/audio.py` reads exactly those two and nothing else: without
-                # them a fetched video is titled after its file, which is its id, and
-                # arrives with no byline at all. A curated import under CC BY has to
-                # name who made it, and this is where the name is available.
-                "--embed-metadata",
-                "-o",
-                str(into / "source.%(ext)s"),
-                *_extra_args(),
-                url,
-            ],
-            capture_output=True,
-            check=True,
-            # Two hours: a 4 GB cap at ordinary speeds is minutes, and a stream of
-            # unknown size — a live, a stall — must not record the operator's disk
-            # until somebody notices.
-            timeout=7200,
-        )
-    except OSError as error:
-        raise TargumError("yt-dlp is not installed.", hint) from error
-    except subprocess.TimeoutExpired as error:
-        raise TargumError(
-            "yt-dlp ran for two hours without finishing, so it was stopped."
-        ) from error
-    except subprocess.CalledProcessError as error:
-        raise _refusal(error, "YouTube wouldn't give us that video.") from error
+    run_ytdlp(
+        [
+            "yt-dlp",
+            "-f",
+            FORMAT,
+            "--max-filesize",
+            str(MAX_VIDEO_BYTES),
+            "--no-playlist",
+            "--merge-output-format",
+            "mp4",
+            # And when nothing was merged — a single-file webm was best — remux
+            # it into the one container the pipeline looks for.
+            "--remux-video",
+            "mp4",
+            # The video's own title and channel, written into the container's tags.
+            # `ingest/audio.py` reads exactly those two and nothing else: without
+            # them a fetched video is titled after its file, which is its id, and
+            # arrives with no byline at all. A curated import under CC BY has to
+            # name who made it, and this is where the name is available.
+            "--embed-metadata",
+            "-o",
+            str(into / "source.%(ext)s"),
+            # Whatever the door adds of its own, ahead of the address.
+            *asking,
+            url,
+        ],
+        # Two hours: a 4 GB cap at ordinary speeds is minutes, and a stream of
+        # unknown size — a live, a stall — must not record the operator's disk
+        # until somebody notices.
+        timeout=7200,
+        late="yt-dlp ran for two hours without finishing, so it was stopped.",
+        refused=refused,
+        minter=minter,
+        again=again,
+        door=door,
+        carry=carry,
+    )
     if not target.is_file():
         raise TargumError("yt-dlp fetched nothing it could merge to mp4.")
     if target.stat().st_size > MAX_VIDEO_BYTES:
@@ -287,36 +303,73 @@ def _logged(error: subprocess.CalledProcessError) -> str:
     return reason
 
 
-def _refusal(error: subprocess.CalledProcessError, fallback: str) -> TargumError:
+def _refusal(
+    error: subprocess.CalledProcessError,
+    fallback: str,
+    door: str = OTHER_DOOR,
+    *,
+    carry: bool = True,
+) -> TargumError:
     """What the reader is told when yt-dlp stopped.
 
     The hint rides only targum's own sentence. "Private video." is already the whole
     answer and naming a second door after it answers a question nobody asked; a reader
     who has just been told something vague is the one who needs to know what else works.
     What the reader is not told goes to the journal (`_logged`).
+
+    `carry=False` is for a host whose own sentences are addressed to somebody logged in
+    — Instagram's are "check if this post is accessible in your browser without being
+    logged-in" — where targum's sentence and the other door are the better answer.
     """
     _logged(error)
-    sentence = _said(error)
-    return TargumError(sentence) if sentence else TargumError(fallback, OTHER_DOOR)
+    sentence = _said(error) if carry else ""
+    return TargumError(sentence) if sentence else TargumError(fallback, door)
 
 
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
     if not is_youtube(argv[-1]):
         raise TargumError("We couldn't find a YouTube video at that address.")
+    return run_ytdlp(argv, timeout=timeout, refused="YouTube wouldn't tell us about that video.")
+
+
+def run_ytdlp(
+    argv: list[str],
+    *,
+    timeout: int,
+    refused: str,
+    minter: bool = True,
+    again: tuple[str, ...] = (),
+    door: str = OTHER_DOOR,
+    carry: bool = True,
+    late: str = "yt-dlp did not answer in time, so it was stopped.",
+) -> subprocess.CompletedProcess[bytes]:
+    """The binary, run once the caller's allowlist has passed the address at the end.
+
+    `again` names what yt-dlp says when one exit was refused and the next may not be:
+    the proxy hands out a fresh address per connection, so a second process is a second
+    exit. One more try and no more — a refusal that repeats is the platform's answer.
+    """
     usable, hint = ytdlp_available()
     if not usable:
         raise TargumError("yt-dlp is not installed.", hint)
-    # Ahead of the address, which `is_youtube` above read off the end and which yt-dlp
-    # wants last of all.
-    argv = [*argv[:-1], *_extra_args(), argv[-1]]
-    try:
-        return subprocess.run(argv, capture_output=True, check=True, timeout=timeout)
-    except OSError as error:
-        raise TargumError("yt-dlp is not installed.", hint) from error
-    except subprocess.TimeoutExpired as error:
-        raise TargumError("yt-dlp did not answer in time, so it was stopped.") from error
-    except subprocess.CalledProcessError as error:
-        raise _refusal(error, "YouTube wouldn't tell us about that video.") from error
+    # Ahead of the address, which the caller read off the end and which yt-dlp wants
+    # last of all.
+    argv = [*argv[:-1], *_extra_args(minter=minter), argv[-1]]
+    tries = 2 if again else 1
+    for attempt in range(1, tries + 1):
+        try:
+            return subprocess.run(argv, capture_output=True, check=True, timeout=timeout)
+        except OSError as error:
+            raise TargumError("yt-dlp is not installed.", hint) from error
+        except subprocess.TimeoutExpired as error:
+            raise TargumError(late) from error
+        except subprocess.CalledProcessError as error:
+            said = (error.stderr or b"").decode("utf-8", "replace")
+            if attempt < tries and any(tell in said for tell in again):
+                log.info("yt-dlp was refused once on %s; asking again", argv[-1])
+                continue
+            raise _refusal(error, refused, door, carry=carry) from error
+    raise AssertionError("unreachable")  # pragma: no cover - the loop returns or raises
 
 
 def info_language(media: Path) -> str:

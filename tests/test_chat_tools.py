@@ -440,6 +440,31 @@ def test_a_video_is_described_from_metadata_and_never_refused_on_licence(
     assert "never here" in got["licence_note"]
 
 
+def test_a_reel_is_described_and_quoted_by_its_one_address(world, monkeypatch) -> None:
+    """targum-internal#255: the chat can quote a reel the way it quotes a YouTube video,
+    and a host it cannot fetch from is named with the way in that works."""
+    from targum.video import instagram
+
+    monkeypatch.setattr(
+        instagram,
+        "describe",
+        lambda url: {"title": "המיתוג החדש ", "duration": 57.6, "webpage_url": url},
+    )
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.describe_source(
+        ctx, {"url": "https://www.instagram.com/kan_news/reel/DQGn1BljOyO/?igsh=x"}
+    )
+    assert got["kind"] == "video" and got["title"] == "המיתוג החדש"
+    assert got["seconds"] == 58 and got["hebrew_subtitles"] is False
+    assert got["quote_with"] == "https://www.instagram.com/reel/DQGn1BljOyO"
+
+    shut = tools.describe_source(
+        ctx, {"url": "https://www.tiktok.com/@someone/video/7123456789012345678"}
+    )
+    assert shut["kind"] == "video" and shut["error"].startswith("TikTok doesn't let us fetch")
+
+
 def test_a_video_without_hebrew_subtitles_is_advised_not_refused(world, monkeypatch) -> None:
     from targum.video import youtube
 

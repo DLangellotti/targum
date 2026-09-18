@@ -65,10 +65,7 @@ def test_a_vimeo_unlisted_link_keeps_the_video_not_the_key() -> None:
 
 
 def test_reddit_takes_the_post_id_from_a_permalink() -> None:
-    assert (
-        hosts.video_id("https://www.reddit.com/r/aww/comments/1c1ux0h/a_slug_here/")
-        == "1c1ux0h"
-    )
+    assert hosts.video_id("https://www.reddit.com/r/aww/comments/1c1ux0h/a_slug_here/") == "1c1ux0h"
     assert hosts.video_id("https://v.redd.it/abcd1234efgh") == "abcd1234efgh"
 
 

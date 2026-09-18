@@ -199,7 +199,19 @@ SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 #: CC BY-SA asks to be named and linked where the facts are used, the decision DICTA's
 #: link made (targum-internal#259). Only on a Russian page that quoted the tables.
 OPENRUSSIAN = "https://en.openrussian.org"
-OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, SVG_NAMESPACE, OPENRUSSIAN)
+#: The other video hosts' homes, one shape each (`video/hosts.py`). Instagram's is a reel
+#: targum fetched; the rest are where a video the reader downloaded and dropped in came
+#: from (targum-internal#255). Written out rather than imported, so that a host added to
+#: the table is a line added here too.
+INSTAGRAM = "https://www.instagram.com/reel/"
+VIDEO_HOMES = (
+    INSTAGRAM,
+    "https://vimeo.com/",
+    "https://www.tiktok.com/video/",
+    "https://www.facebook.com/watch/?v=",
+    "https://www.reddit.com/comments/",
+)
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, *VIDEO_HOMES, SVG_NAMESPACE, OPENRUSSIAN)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -341,10 +353,10 @@ def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
     document, segmented, translation = imported(tmp_path, "https://youtu.be/abc123")
     page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
     html = page.read_text(encoding="utf-8")
-    assert f'data-home href="{YOUTUBE}abc123"' in html, "one shape, whatever was pasted"
+    assert f'data-home="at" href="{YOUTUBE}abc123"' in html, "one shape, whatever was pasted"
     assert 'target="_blank" rel="noreferrer noopener"' in html
     # The time is the reader's line, decided at the click: the markup carries none.
-    assert not re.search(r'data-home href="[^"]*[?&]t=', html)
+    assert not re.search(r'data-home="[^"]*" href="[^"]*[?&]t=', html)
     # And the part's place in the whole video, so the script can add the two.
     assert '"offset": 99.65' in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
@@ -355,9 +367,30 @@ def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
     document, segmented, translation = imported(plain, "")
     page = render(document, segmented, [translation], plain / "reader", folder=plain)[0]
     html = page.read_text(encoding="utf-8")
-    assert "data-home href=" not in html, "an uploaded file has no home to go to"
+    assert 'data-home="' not in html, "an uploaded file has no home to go to"
     assert '"home": ' not in html and '"offset": ' not in html
     assert YOUTUBE not in html
+
+
+def test_a_reel_links_home_at_its_start(tmp_path: Path) -> None:
+    """Instagram's address takes no time, so the control is not marked for one and does
+    not promise the line — it names the service and opens the reel."""
+    document, segmented, translation = imported(
+        tmp_path, "https://www.instagram.com/kan_news/reel/DSkLv4UE196/?igsh=abc"
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'data-home="" href="{INSTAGRAM}DSkLv4UE196"' in html, "one shape, no share token"
+    assert 'aria-label="Open on Instagram"' in html
+    assert "at this line" not in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_every_video_home_the_table_writes_is_pinned_here() -> None:
+    from targum.video import hosts
+
+    assert set(hosts.HOMES) == {YOUTUBE, *VIDEO_HOMES}
 
 
 def test_multiple_sections_get_an_index_and_pages(tmp_path: Path) -> None:

@@ -14,13 +14,20 @@ home to. That last one is why a host cannot simply be added to a set: `tests/tes
 pins outbound links *by prefix*, so every host must reduce every spelling of a video to
 one prefix — the way `youtube.WATCH` does — or the allowlist means nothing.
 
-**⚠️ Not verified against any of these services.** The URL handling here is exact and
-tested. Whether yt-dlp can actually fetch from them — from the box, through the
-residential proxy, past whatever each platform does to scrapers — is unknown, and #255
-asks for exactly that test before this is trusted. Vimeo and Reddit are documented and
-stable enough to be a fair bet; TikTok, Instagram and Facebook fight scrapers actively
-and change without notice. Expect some of these to be wrong in ways only a live attempt
-reveals.
+**Named is not open.** `KNOWN` is every host whose addresses targum can read; `OPEN` is
+the ones a platform has actually answered for, from the box, through the egress. Tested
+2026-09-17 and 2026-09-18 (targum-internal#255):
+
+* **YouTube** — open since #126, through the residential proxy.
+* **Instagram** — open. A public reel answered `yt-dlp -J` five times of five from the box
+  through the proxy, logged out, no cookies; the "empty media response" of the day before
+  did not come back. `video/instagram.py` is its door.
+* **Vimeo, Reddit** — want a logged-in account, which a proxy cannot give.
+* **TikTok** — 403 through the proxy.
+* **Facebook** — untested with a real address.
+
+A host moves from one list to the other only with a measurement like those, and the rest
+are named so the refusal can say what to do instead of pretending not to recognise them.
 """
 
 from __future__ import annotations
@@ -113,7 +120,13 @@ REDDIT = Host(
 #: has been proven to work end to end.
 KNOWN: tuple[Host, ...] = (YOUTUBE, VIMEO, TIKTOK, INSTAGRAM, FACEBOOK, REDDIT)
 
-#: The prefixes a reader page may link home to. `tests/test_render` pins these.
+#: The hosts targum fetches from. Each has its own door module, and each was measured from
+#: the box before it was put here — see the module's docstring.
+OPEN: tuple[Host, ...] = (YOUTUBE, INSTAGRAM)
+
+#: The prefixes a reader page may link home to. `tests/test_render` pins these. Every named
+#: host's, not only the open ones: a TikTok the reader downloaded and dropped in still has
+#: a home, and the link is how the page says whose film it is.
 HOMES: tuple[str, ...] = tuple(host.home for host in KNOWN)
 
 
@@ -241,6 +254,11 @@ def home_url(url: str) -> str:
     except TargumError:
         return ""
     return f"{host.home}{found}" if found else ""
+
+
+def is_open(url: str) -> bool:
+    """Whether targum fetches from the host this address belongs to."""
+    return host_for(url) in OPEN
 
 
 def named(url: str) -> str:
