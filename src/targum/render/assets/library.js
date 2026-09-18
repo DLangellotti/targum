@@ -1511,7 +1511,10 @@
     // among them rather than whether it is the value — a match report is journalism and
     // sport at once, and belongs under both chips.
     if (state.subject && !holdsSubject(row, state.subject)) return false;
-    if (!fits(row, fitWanted(state))) return false;
+    /* The band is for choosing from the catalogue, never for your own (2026-09-18). An
+       upload is a text you already chose; the tab is where "everything of yours is here"
+       (design.md §12), and a band saved on All texts was hiding 39 of 43 of David's. */
+    if (state.where !== "mine" && !fits(row, fitWanted(state))) return false;
     if (state.where === "mine" && row.entry) return false;
     if (state.where !== "mine" && !row.entry) return false;
     if (state.find) {
@@ -1725,6 +1728,8 @@
     host.appendChild(
       el("span", "count", tn("library.tally.all", count, "{n} text", "{n} texts", { n: count }))
     );
+    // Your uploads are never narrowed (see `matches`), so there is no band to offer.
+    if (view.where === "mine") return;
     host.appendChild(document.createTextNode(" · "));
     var lead = el("label", "fit");
     lead.appendChild(

@@ -1305,9 +1305,19 @@ def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
           };
         }"""
     )
+    loaded_behind = list(framed)
+    went = ""
+    if width <= 640:
+        # A press opens the reader. The desk's rail swaps the sheet instead, and until
+        # 2026-09-18 a phone did too: its sheet is hidden by the stylesheet rather than
+        # by `hidden`, so every card on a phone swapped an invisible sheet and went nowhere.
+        page.locator(".learn-card").first.click()
+        page.wait_for_url("**/reader/doctor-he/**", timeout=5000)
+        went = page.url
     context.close()
     assert not got["sideways"], got
     if width <= 640:
+        assert "/reader/doctor-he/reader/index.html" in went, "a card on a phone opens its reader"
         assert got["cards"] == [
             ["Continue reading", "תור לרופא", "/reader/doctor-he/reader/index.html"],
             # `/open/<id>` since targum-internal#313: a card offering a text links at
@@ -1317,7 +1327,7 @@ def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
         ], got
         assert not got["sheet"] and not got["doors"], "no sheet and no row of doors on a phone"
         assert got["all"], "and the way to the whole list"
-        assert not framed, "no reader loaded behind the cards"
+        assert not loaded_behind, "no reader loaded behind the cards"
     else:
         # A desk draws the sheet *and* the cards since 2026-09-18 (David: the front door
         # "is not delightful"). The cards were phone-only, so a desk had one object and

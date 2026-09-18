@@ -821,7 +821,11 @@
     if (one && one.reader) {
       link.addEventListener("click", function (event) {
         var sheet = document.getElementById("carry-sheet");
-        if (!sheet || sheet.hidden) return;
+        /* On a phone the stylesheet hides the sheet's column, not the sheet, so
+           `hidden` is false there. Checking only `hidden` swapped a sheet nobody could
+           see and every card on a phone went nowhere (2026-09-18). No boxes means it
+           is not on screen, so the link opens the reader. */
+        if (!sheet || sheet.hidden || !sheet.getClientRects().length) return;
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
         if (event.preventDefault) event.preventDefault();
         drawCarry(one.reader, one.door);
