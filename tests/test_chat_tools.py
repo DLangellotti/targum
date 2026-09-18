@@ -465,6 +465,27 @@ def test_a_reel_is_described_and_quoted_by_its_one_address(world, monkeypatch) -
     assert shut["kind"] == "video" and shut["error"].startswith("TikTok doesn't let us fetch")
 
 
+def test_a_post_of_pictures_is_described_and_its_pictures_left_to_the_reader(
+    world, monkeypatch
+) -> None:
+    from targum.video import instagram
+
+    monkeypatch.setattr(
+        instagram,
+        "backup",
+        lambda url: instagram.Post(
+            "DdCARhLDF-P", "aviv.bahar", "הופעות הקיץ\nעוד מילים", pictures=("a", "b")
+        ),
+    )
+    monkeypatch.setattr(instagram, "describe", lambda url: pytest.fail("a post is not a film"))
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.describe_source(ctx, {"url": "https://www.instagram.com/p/DdCARhLDF-P/"})
+    assert got["kind"] == "post" and got["title"] == "הופעות הקיץ"
+    assert got["author"] == "@aviv.bahar" and got["pictures"] == 2
+    assert "only if the reader presses" in got["advice"][0]
+
+
 def test_a_video_without_hebrew_subtitles_is_advised_not_refused(world, monkeypatch) -> None:
     from targum.video import youtube
 

@@ -20,13 +20,26 @@ is the one request this module causes that yt-dlp does not make, so it is fenced
 accessible in your browser without being logged-in" is not a sentence a reader can act on.
 So the reader is told targum's sentence and the way that does work: download the reel in
 Instagram and bring the file.
+
+**And there is a second way in, which is Instagram's own.** The embed page — what a blog
+shows when it embeds a post, `/p/<code>/embed/captioned/` — is served logged out, and it
+carries the post itself: a reel's film and length, a carousel's every picture, and the
+caption and author of all of them (measured from the box, direct and through the proxy,
+2026-09-18). It is fetched through `ingest/url.py`'s guarded door like any page, and it
+is two things here. For a reel, the backup: when yt-dlp is refused or has fallen behind
+Instagram, the film is taken from there instead, so one broken extractor is not one
+broken door. For a photo post, the only way: yt-dlp answers "There is no video in this
+post", and a post's words are its caption.
 """
 
 from __future__ import annotations
 
+import html
 import json
 import logging
+import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -67,6 +80,45 @@ TITLED = (
 OTHER_DOOR = "Download it in Instagram (Share, then Download) and drop the file here."
 
 
+#: Instagram's embed page for one post, served logged out. The one address this module
+#: asks for itself rather than handing to yt-dlp.
+EMBED = "https://www.instagram.com/p/{code}/embed/captioned/"
+
+#: The most a picture of a post may be. A post's image is a few hundred kilobytes; this is
+#: a ceiling against a CDN answer that is not one, never a size anybody expects.
+MAX_PICTURE_BYTES = 20 * 1024 * 1024
+
+#: Directional isolates and marks Instagram wraps captions in, and the tabs beside them.
+_MARKS = "\u2066\u2067\u2068\u2069\u200e\u200f\t "
+
+
+@dataclass(frozen=True)
+class Post:
+    """One Instagram post, as its embed page tells it."""
+
+    code: str
+    #: The account's handle, which is what the page shows as its author.
+    author: str
+    caption: str
+    #: The film's address on Meta's CDN, where the post is a reel.
+    video: str = ""
+    duration: float = 0.0
+    #: Every picture's address on Meta's CDN, in the post's own order, where it is not.
+    pictures: tuple[str, ...] = ()
+
+    @property
+    def title(self) -> str:
+        """The caption's first line, which is what a post calls itself."""
+        return title_of(self.caption)
+
+
+def title_of(caption: str) -> str:
+    for line in caption.splitlines():
+        if line := line.strip(_MARKS):
+            return line[:120].strip()
+    return ""
+
+
 def is_reel(url: str) -> bool:
     """Whether this address names one Instagram video.
 
@@ -74,6 +126,18 @@ def is_reel(url: str) -> bool:
     channel does: one video at a time.
     """
     return hosts.host_for(url) is hosts.INSTAGRAM and bool(hosts.video_id(url))
+
+
+def is_post(url: str) -> bool:
+    """Whether this address is a `/p/` post — a film or pictures, which only the post
+    itself can say. A reel's address is always a film and is not asked this."""
+    if hosts.host_for(url) is not hosts.INSTAGRAM:
+        return False
+    steps = [step for step in urlparse(url).path.split("/") if step]
+    try:
+        return "p" in steps and bool(hosts.video_id(url))
+    except TargumError:
+        return False
 
 
 def home_url(url: str) -> str:
@@ -94,15 +158,22 @@ def describe(url: str) -> dict[str, Any]:
     refusing it as a live stream, which a reel never is.
     """
     _vetted(url)
-    done = run_ytdlp(
-        ["yt-dlp", "-J", "--no-playlist", "--skip-download", *TITLED, url],
-        timeout=120,
-        refused="Instagram wouldn't show us that reel.",
-        minter=False,
-        again=AGAIN,
-        door=OTHER_DOOR,
-        carry=False,
-    )
+    try:
+        done = run_ytdlp(
+            ["yt-dlp", "-J", "--no-playlist", "--skip-download", *TITLED, url],
+            timeout=120,
+            refused="Instagram wouldn't show us that reel.",
+            minter=False,
+            again=AGAIN,
+            door=OTHER_DOOR,
+            carry=False,
+        )
+    except TargumError as refusal:
+        # yt-dlp refused, or is not here at all. The embed page is the second way in.
+        post = backup(url)
+        if post is None or not post.video:
+            raise refusal from None
+        return described_from(post)
     try:
         answer: dict[str, Any] = json.loads(done.stdout.decode("utf-8", "replace"))
     except json.JSONDecodeError as error:
@@ -112,19 +183,209 @@ def describe(url: str) -> dict[str, Any]:
     return answer
 
 
+def described_from(post: Post) -> dict[str, Any]:
+    """What `describe` would have said, from the embed page instead: the four things
+    `screen.from_ytdlp` reads, in yt-dlp's own keys."""
+    return {
+        "id": post.code,
+        "title": post.title or f"Video by {post.author}",
+        "duration": post.duration,
+        "uploader": post.author,
+        "webpage_url": hosts.home_url(f"https://www.instagram.com/reel/{post.code}/"),
+        "formats": [{"url": post.video}],
+    }
+
+
 def fetch(url: str, into: Path) -> Path:
-    """The reel, fetched by yt-dlp into the workspace as `source.mp4`."""
+    """The reel, fetched by yt-dlp into the workspace as `source.mp4` — or, where yt-dlp
+    was refused, taken from the embed page's film instead."""
     _vetted(url)
-    return fetch_through(
-        url,
-        into,
-        refused="Instagram wouldn't give us that reel.",
-        minter=False,
-        again=AGAIN,
-        door=OTHER_DOOR,
-        carry=False,
-        asking=TITLED,
+    try:
+        return fetch_through(
+            url,
+            into,
+            refused="Instagram wouldn't give us that reel.",
+            minter=False,
+            again=AGAIN,
+            door=OTHER_DOOR,
+            carry=False,
+            asking=TITLED,
+        )
+    except TargumError as refusal:
+        post = backup(url)
+        if post is None or not post.video:
+            raise refusal from None
+        return _fetched_from(post, into)
+
+
+def backup(url: str) -> Post | None:
+    """The post as its embed page tells it, or None — quietly, because a backup that
+    fails is the first refusal standing, and that is the sentence the reader is owed."""
+    try:
+        return embedded(url)
+    except Exception as error:  # noqa: BLE001 - the first refusal is the answer
+        log.warning("the Instagram embed page did not answer either: %s", error)
+        return None
+
+
+def _fetched_from(post: Post, into: Path) -> Path:
+    """The embed page's film, downloaded through the guarded door and tagged the way
+    `--embed-metadata` would have tagged it: the ingester reads the title and the byline
+    off the container and nothing else."""
+    from ..ingest.url import download
+    from . import MAX_VIDEO_BYTES
+
+    log.warning("yt-dlp was refused %s; taking the film from the embed page", post.code)
+    into.mkdir(parents=True, exist_ok=True)
+    raw = into / "embedded.mp4"
+    download(post.video, raw, max_bytes=MAX_VIDEO_BYTES)
+    target = into / "source.mp4"
+    try:
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-y",
+                "-i",
+                str(raw),
+                "-c",
+                "copy",
+                "-metadata",
+                f"title={post.title}",
+                "-metadata",
+                f"artist={post.author}",
+                str(target),
+            ],
+            capture_output=True,
+            check=True,
+            timeout=600,
+        )
+    except (OSError, subprocess.SubprocessError):
+        # Untagged is still the film. Titled after its file, but not lost.
+        raw.replace(target)
+    raw.unlink(missing_ok=True)
+    return target
+
+
+def embedded(url: str) -> Post:
+    """The post this address names, read off Instagram's embed page."""
+    from ..ingest.url import fetch as fetch_page
+
+    code = hosts.video_id(url) if hosts.host_for(url) is hosts.INSTAGRAM else ""
+    if not code:
+        raise TargumError("We couldn't find an Instagram post at that address.")
+    return read_embed(fetch_page(EMBED.format(code=code)).text, code)
+
+
+#: The post's own data, a JSON document inside a JSON string inside the page's script.
+_CONTEXT = re.compile(r'"contextJSON":("(?:[^"\\]|\\.)*")')
+
+
+def read_embed(page: str, code: str) -> Post:
+    """An embed page, read. Instagram writes it two ways: a reel or a carousel carries its
+    post as data, and a single picture carries it only as markup. Both are read, and
+    every address in the answer is one on Meta's CDN or it is left out."""
+    found = _CONTEXT.search(page)
+    media: dict[str, Any] = {}
+    if found:
+        try:
+            context = json.loads(json.loads(found.group(1)))
+            media = ((context or {}).get("gql_data") or {}).get("shortcode_media") or {}
+        except (ValueError, AttributeError):
+            media = {}
+    if media:
+        return _from_data(media, code)
+    return _from_markup(page, code)
+
+
+def _from_data(media: dict[str, Any], code: str) -> Post:
+    edges = (media.get("edge_media_to_caption") or {}).get("edges") or []
+    caption = str(((edges[0] if edges else {}).get("node") or {}).get("text") or "")
+    author = str((media.get("owner") or {}).get("username") or "")
+    if media.get("is_video") and on_the_cdn(str(media.get("video_url") or "")):
+        return Post(
+            code,
+            author,
+            caption,
+            video=str(media["video_url"]),
+            duration=float(media.get("video_duration") or 0.0),
+        )
+    slides = [
+        edge.get("node") or {}
+        for edge in (media.get("edge_sidecar_to_children") or {}).get("edges") or []
+    ] or [media]
+    pictures = tuple(
+        str(slide.get("display_url") or "")
+        for slide in slides
+        if not slide.get("is_video") and on_the_cdn(str(slide.get("display_url") or ""))
     )
+    return Post(code, author, caption, pictures=pictures)
+
+
+_CAPTION = re.compile(
+    r'<div class="Caption">\s*<a class="CaptionUsername"[^>]*>([^<]*)</a>(.*?)'
+    r'(?:<div class="CaptionComments"|</div>)',
+    re.S,
+)
+_IMAGE = re.compile(r'<img class="EmbeddedMediaImage"[^>]*>', re.S)
+_SRCSET = re.compile(r'srcset="([^"]*)"')
+_SRC = re.compile(r'\ssrc="([^"]*)"')
+
+
+def _from_markup(page: str, code: str) -> Post:
+    author, caption = "", ""
+    if found := _CAPTION.search(page):
+        author = html.unescape(found.group(1)).strip()
+        text = re.sub(r"<br\s*/?>", "\n", found.group(2))
+        caption = html.unescape(re.sub(r"<[^>]+>", "", text)).strip()
+    pictures: list[str] = []
+    for tag in _IMAGE.findall(page):
+        best = ""
+        if srcset := _SRCSET.search(tag):
+            # The widest rendition the page offers: "url 150w, url 1080w".
+            offered = []
+            for entry in html.unescape(srcset.group(1)).split(","):
+                address, _, width = entry.strip().rpartition(" ")
+                if address and width.rstrip("w").isdigit():
+                    offered.append((int(width.rstrip("w")), address))
+            best = max(offered)[1] if offered else ""
+        if not best and (src := _SRC.search(tag)):
+            best = html.unescape(src.group(1))
+        if on_the_cdn(best) and best not in pictures:
+            pictures.append(best)
+    return Post(code, author, caption, pictures=tuple(pictures))
+
+
+def pictures_into(post: Post, folder: Path) -> list[Path]:
+    """A post's pictures, downloaded in order as `01.jpg`, `02.jpg`… — the order the
+    picture reader reads a folder in — through the guarded door, capped at `MAX_PAGES`."""
+    from ..ingest.url import download
+    from ..vision import MAX_PAGES
+
+    if len(post.pictures) > MAX_PAGES:
+        raise TargumError(f"That post has more than {MAX_PAGES} pictures.")
+    folder.mkdir(parents=True, exist_ok=True)
+    written = []
+    for n, address in enumerate(post.pictures, start=1):
+        target = folder / f"{n:02d}.jpg"
+        download(address, target, max_bytes=MAX_PICTURE_BYTES)
+        written.append(target)
+    return written
+
+
+def caption_text(post: Post) -> str:
+    """The caption as a text targum reads: front matter naming the title and the author,
+    then the caption with the marks Instagram wraps it in taken off each line."""
+    lines = [line.strip(_MARKS) for line in post.caption.splitlines()]
+    body = "\n".join(lines).strip()
+    title = (post.title or f"Post by {post.author}").replace("\n", " ")
+    # Plain, not quoted: `parse_frontmatter` takes everything after the first colon and
+    # trims quotes off the ends, so quoting would only put backslashes into a title.
+    head = ["---", f"title: {title}"]
+    if post.author:
+        head.append(f"author: @{post.author}")
+    return "\n".join([*head, "---", "", body, ""])
 
 
 def on_the_cdn(address: str) -> bool:

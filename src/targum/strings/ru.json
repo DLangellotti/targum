@@ -1726,5 +1726,10 @@
   "learn.level.vav": "Иврит — язык, на котором я живу",
   "job.instagram-unavailable": "Здесь мы не можем загружать с Instagram.",
   "job.video-host-closed": "{service} не даёт нам загружать свои видео. Скачайте видео там и перетащите файл сюда.",
-  "reader.page.open-on-service": "Открыть в {service}"
+  "reader.page.open-on-service": "Открыть в {service}",
+  "add.read-pictures.one": "Прочитать и картинку",
+  "add.read-pictures.few": "Прочитать и {n} картинки",
+  "add.read-pictures.many": "Прочитать и {n} картинок",
+  "add.read-pictures.other": "Прочитать и {n} картинки",
+  "job.post-only-pictures": "В этом посте все слова — на картинках. Прочитайте картинки, чтобы его добавить."
 }

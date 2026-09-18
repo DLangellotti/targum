@@ -1088,7 +1088,7 @@
         if (!job.id && !job.error && !job.blocked && !job.catalogue) return;
         if (job.error) {
           if (payload.source) cameFrom = payload.source;
-          return say(line(job.error), true);
+          return refusedWith(job);
         }
         if (job.catalogue) return instead(job.catalogue);
         if (job.blocked) return refuse(job);
@@ -1293,8 +1293,51 @@
       });
     };
     row.appendChild(confirm);
+    if (job.pictures_offered > 0) row.appendChild(readPictures(job.pictures_offered));
     box.appendChild(row);
     say(box);
+  }
+
+  /* An Instagram post read from its caption, with pictures it did not read. Offered and
+     never run unasked: this press is the consent, and it sends the link again with the
+     pictures asked for, to be read and quoted like pictures brought in by hand
+     (targum-internal#255). */
+  function readPictures(count) {
+    var more = document.createElement("button");
+    more.type = "button";
+    more.className = "ghost";
+    more.textContent = tn("add.read-pictures", count, "Also read the picture", "Also read the {n} pictures");
+    more.onclick = function () {
+      more.disabled = true;
+      var payload = options();
+      payload.source = readGiven().text;
+      payload.pictures = true;
+      say(waiting());
+      ask("/prepare", payload)
+        .then(function (job) {
+          if (job.error) return say(line(job.error), true);
+          if (job.blocked) return refuse(job);
+          offer(job);
+        })
+        .catch(function () {
+          more.disabled = false;
+          say(line(t("add.could-not-send", "We couldn't send that. Try again.")), true);
+        });
+    };
+    return more;
+  }
+
+  // A refusal that has a way forward on the card: a post whose words are all in its
+  // pictures says so, with the one button that reads them.
+  function refusedWith(job) {
+    if (!(job.pictures_offered > 0)) return say(line(job.error), true);
+    var box = document.createDocumentFragment();
+    box.appendChild(line(job.error));
+    var row = document.createElement("div");
+    row.className = "row";
+    row.appendChild(readPictures(job.pictures_offered));
+    box.appendChild(row);
+    say(box, true);
   }
 
   function plain(message) {

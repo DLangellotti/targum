@@ -131,7 +131,10 @@ wrong. There is; it is just not in the environment of a fresh shell.
   so the page posts `/build` itself and opens the reader when it is done — still the
   person's own hand, never the model's, and still through `Library.claim`. A line
   that says more than "open this" is said to the model with a note of what was sent;
-  the model is told, and still cannot open or spend.
+  the model is told, and still cannot open or spend. An Instagram post's pictures are
+  the same spend on the same rails (2026-09-18): its caption is read for free, and its
+  pictures only when the person presses "Also read the pictures" on the card
+  (`Library._prepare_post`).
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

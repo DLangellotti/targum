@@ -38,6 +38,18 @@ ANSWER = {
 }
 
 
+@pytest.fixture(autouse=True)
+def no_embed_page(monkeypatch):
+    """The backup is a fetch, and no test here may make one: every refusal would otherwise
+    fall through to the network and be swallowed as "the backup failed too". A test that
+    wants the embed page says what it holds."""
+
+    def offline(url):
+        raise TargumError("No embed page in a test.")
+
+    monkeypatch.setattr(instagram, "embedded", offline)
+
+
 @pytest.fixture
 def binary(monkeypatch):
     """yt-dlp answering with `ANSWER` and ffprobe with a length, every call written down."""
@@ -62,10 +74,14 @@ def test_a_reel_is_recognised_however_it_was_shared() -> None:
         "https://www.instagram.com/reel/DSkLv4UE196/",
         "https://instagram.com/reels/DSkLv4UE196",
         REEL,
-        "https://www.instagram.com/p/DSkLv4UE196/",
     ):
         assert instagram.is_reel(url), url
         assert instagram.home_url(url) == "https://www.instagram.com/reel/DSkLv4UE196", url
+    # A post keeps the `/p/` it was pasted with: `/reel/` opens a film and nothing else.
+    post = "https://www.instagram.com/p/DSkLv4UE196/"
+    assert instagram.is_reel(post) and instagram.is_post(post)
+    assert instagram.home_url(post) == "https://www.instagram.com/p/DSkLv4UE196"
+    assert not instagram.is_post(REEL)
 
 
 def test_anything_else_is_not_a_reel() -> None:
@@ -221,3 +237,167 @@ def test_any_other_refusal_is_not_retried(monkeypatch, tmp_path: Path) -> None:
     with pytest.raises(TargumError):
         instagram.fetch(REEL, tmp_path)
     assert len(calls) == 1
+
+
+"""--- the embed page: the reel's backup, and the only way in for a post ---"""
+
+
+def page_with(media: dict | None) -> str:
+    """An embed page as Instagram writes one: the post as JSON inside a JSON string."""
+    context = json.dumps({"context": {}, "gql_data": {"shortcode_media": media}} if media else None)
+    return f'<html><script>requireLazy([],{{"contextJSON":{json.dumps(context)}}})</script></html>'
+
+
+CAPTION = {"edges": [{"node": {"text": "\u2068\t\u2068\tשלום עולם\n\nשורה שנייה\u2069"}}]}
+FILM = {
+    "__typename": "GraphVideo",
+    "shortcode": "DSkLv4UE196",
+    "is_video": True,
+    "video_url": "https://a.fna.fbcdn.net/o1/v/film.mp4?x=1",
+    "video_duration": 49.28,
+    "owner": {"username": "kan_news"},
+    "edge_media_to_caption": CAPTION,
+}
+CAROUSEL = {
+    "__typename": "GraphSidecar",
+    "is_video": False,
+    "owner": {"username": "aviv.bahar"},
+    "edge_media_to_caption": CAPTION,
+    "edge_sidecar_to_children": {
+        "edges": [
+            {"node": {"is_video": False, "display_url": "https://a.fna.fbcdn.net/one.jpg"}},
+            {"node": {"is_video": True, "display_url": "https://a.fna.fbcdn.net/film.jpg"}},
+            {"node": {"is_video": False, "display_url": "https://evil.example/two.jpg"}},
+            {"node": {"is_video": False, "display_url": "https://b.cdninstagram.com/three.jpg"}},
+        ]
+    },
+}
+#: A single picture: no data, only markup — the shape measured on 2026-09-18.
+MARKUP = (
+    '<div class="Caption"><a class="CaptionUsername" href="x">aviv.bahar</a><br /><br />'
+    'פוסט יום הולדת<br />שורה &amp; עוד<div class="CaptionComments">8 comments</div></div>'
+    '<img class="EmbeddedMediaImage" alt="x" src="https://a.fna.fbcdn.net/small.jpg" '
+    'srcset="https://a.fna.fbcdn.net/small.jpg 150w,https://a.fna.fbcdn.net/big.jpg 1080w" />'
+    '"contextJSON":null'
+)
+
+
+def test_a_reel_is_read_off_its_embed_page() -> None:
+    post = instagram.read_embed(page_with(FILM), "DSkLv4UE196")
+    assert post.video == FILM["video_url"] and post.duration == 49.28
+    assert post.author == "kan_news"
+    assert post.title == "שלום עולם", "the marks Instagram wraps a caption in are not a title"
+
+
+def test_a_carousel_keeps_its_pictures_in_order_and_only_meta_s() -> None:
+    post = instagram.read_embed(page_with(CAROUSEL), "DdCARhLDF-P")
+    assert not post.video
+    assert post.pictures == (
+        "https://a.fna.fbcdn.net/one.jpg",
+        "https://b.cdninstagram.com/three.jpg",
+    )
+
+
+def test_a_single_picture_is_read_off_the_markup() -> None:
+    post = instagram.read_embed(MARKUP, "Csx-rFztGlE")
+    assert post.author == "aviv.bahar"
+    assert post.caption == "פוסט יום הולדת\nשורה & עוד"
+    assert post.pictures == ("https://a.fna.fbcdn.net/big.jpg",), "the widest rendition"
+
+
+def test_a_film_off_the_cdn_is_not_a_film() -> None:
+    post = instagram.read_embed(page_with({**FILM, "video_url": "https://evil.example/f.mp4"}), "x")
+    assert not post.video
+
+
+def test_the_caption_becomes_a_text_with_its_author() -> None:
+    from targum.ingest.base import parse_frontmatter
+
+    post = instagram.read_embed(page_with(CAROUSEL), "DdCARhLDF-P")
+    fields, body = parse_frontmatter(instagram.caption_text(post))
+    assert fields == {"title": "שלום עולם", "author": "@aviv.bahar"}
+    assert body.strip() == "שלום עולם\n\nשורה שנייה"
+
+
+def test_when_yt_dlp_is_refused_the_reel_is_described_from_its_embed_page(monkeypatch) -> None:
+    def refuse(args, **kwargs):
+        raise subprocess.CalledProcessError(1, args, stderr=EMPTY)
+
+    monkeypatch.setattr(youtube.subprocess, "run", refuse)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setattr(
+        instagram, "embedded", lambda url: instagram.read_embed(page_with(FILM), "DSkLv4UE196")
+    )
+    info = instagram.describe(REEL)
+    assert info["duration"] == 49.28 and info["title"] == "שלום עולם"
+    assert info["webpage_url"] == "https://www.instagram.com/reel/DSkLv4UE196"
+
+
+def test_when_the_backup_fails_too_the_first_refusal_stands(monkeypatch) -> None:
+    def refuse(args, **kwargs):
+        raise subprocess.CalledProcessError(1, args, stderr=EMPTY)
+
+    def down(url):
+        raise TargumError("The page did not answer.")
+
+    monkeypatch.setattr(youtube.subprocess, "run", refuse)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setattr(instagram, "embedded", down)
+    with pytest.raises(TargumError) as raised:
+        instagram.describe(REEL)
+    assert raised.value.hint == instagram.OTHER_DOOR
+
+
+def test_when_yt_dlp_cannot_fetch_the_film_comes_from_the_embed_page(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """Downloaded through the guarded door and tagged, so the reader is titled from the
+    caption and bylined to the account exactly as yt-dlp's copy would have been."""
+    import targum.ingest.url as url_module
+
+    ran: list[list[str]] = []
+
+    def run(args, **kwargs):
+        ran.append(list(args))
+        if args[0] == "yt-dlp":
+            raise subprocess.CalledProcessError(1, args, stderr=b"ERROR: [Instagram] x: gone\n")
+        Path(args[-1]).write_bytes(b"tagged film")
+        return subprocess.CompletedProcess(args, 0, b"", b"")
+
+    pulled: list[str] = []
+
+    def download(url, into, max_bytes=0):
+        pulled.append(url)
+        into.write_bytes(b"film")
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setattr(url_module, "download", download)
+    monkeypatch.setattr(
+        instagram, "embedded", lambda url: instagram.read_embed(page_with(FILM), "DSkLv4UE196")
+    )
+    got = instagram.fetch(REEL, tmp_path)
+    assert got == tmp_path / "source.mp4" and got.read_bytes() == b"tagged film"
+    assert pulled == [FILM["video_url"]]
+    tagging = ran[-1]
+    assert tagging[0] == "ffmpeg"
+    assert "title=שלום עולם" in tagging and "artist=kan_news" in tagging
+    assert not (tmp_path / "embedded.mp4").exists()
+
+
+def test_a_post_s_pictures_are_numbered_in_order_and_capped(monkeypatch, tmp_path: Path) -> None:
+    import targum.ingest.url as url_module
+    from targum.vision import MAX_PAGES
+
+    monkeypatch.setattr(
+        url_module, "download", lambda url, into, max_bytes=0: into.write_bytes(url.encode())
+    )
+    post = instagram.read_embed(page_with(CAROUSEL), "DdCARhLDF-P")
+    written = instagram.pictures_into(post, tmp_path / "pictures")
+    assert [path.name for path in written] == ["01.jpg", "02.jpg"]
+    assert written[1].read_bytes() == b"https://b.cdninstagram.com/three.jpg"
+    many = instagram.Post(
+        "x", "a", "", pictures=tuple(f"https://a.fbcdn.net/{n}.jpg" for n in range(MAX_PAGES + 1))
+    )
+    with pytest.raises(TargumError):
+        instagram.pictures_into(many, tmp_path / "many")
