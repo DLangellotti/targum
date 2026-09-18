@@ -426,13 +426,23 @@ def check_parasha(out: Path) -> Check:
             recut,
             fatal=False,
         )
+    if shelf.unjudged:
+        return Check(
+            "parasha",
+            True,
+            f"{shelf.unjudged} of {shelf.total} readings name the annotator they were cut "
+            "with, and the books they were cut from are not on this machine — so whether a "
+            "re-cut would change them cannot be judged here",
+            "The books live where the shelf is built, not where it is served. Run this "
+            "on the machine that cuts the corpus to get an answer.",
+            fatal=False,
+        )
     if shelf.unknown:
         return Check(
             "parasha",
             False,
             f"{shelf.unknown} of {shelf.total} readings were cut before the corpus recorded "
-            "its annotator, or from a book not on this shelf; whether they are behind cannot "
-            "be read off the disk",
+            "its annotator; whether they are behind cannot be read off the disk",
             recut + " A re-cut also writes the name down.",
             fatal=False,
         )
@@ -476,13 +486,22 @@ def check_daily(out: Path) -> Check:
             recut,
             fatal=False,
         )
+    if shelf.unjudged:
+        return Check(
+            "daily",
+            True,
+            f"{shelf.unjudged} of {shelf.total} days name the annotator they were cut with, "
+            "and the books they were cut from are not on this machine — so whether a re-cut "
+            "would change them cannot be judged here",
+            "The window is cut on a laptop from that laptop's shelf. Ask there.",
+            fatal=False,
+        )
     if shelf.unknown:
         return Check(
             "daily",
             False,
             f"{shelf.unknown} of {shelf.total} days were cut before the window recorded its "
-            "annotator, or from a book not on this shelf; whether they are behind cannot be "
-            "read off the disk",
+            "annotator; whether they are behind cannot be read off the disk",
             recut + " The next nightly build writes the name down.",
             fatal=False,
         )
