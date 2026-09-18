@@ -231,6 +231,15 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum models fetch openrussian
 
+      # LaBSE, for a catalogue row whose published translation is matched to the source
+      # sentence by sentence. The box never had it, so every such row failed at the press
+      # with "Alignment needs the embedding model, which is not installed". No extra is
+      # needed since 2026-09-18 (transformers reads it, mapped from the file rather than
+      # loaded), and its 1.9 GB come down here rather than in the middle of a build.
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum models fetch embeddings
+
       systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums

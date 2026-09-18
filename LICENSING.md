@@ -40,7 +40,7 @@ building on targum is entitled to know about.
 | trafilatura | Apache-2.0 | |
 | anthropic | MIT | client only; the API behind it is a paid service |
 | nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
-| tokenizers, huggingface_hub | Apache-2.0 | load the menaked's own character tokenizer and fetch its weights |
+| tokenizers, huggingface_hub | Apache-2.0 | load the menaked's and LaBSE's tokenizers and fetch their weights |
 | **stanza** | Apache-2.0 (code) | installed, and loads no model: nothing is audited — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
@@ -48,14 +48,14 @@ building on targum is entitled to know about.
 
 | Extra | Package | Licence | Notes |
 | --- | --- | --- | --- |
-| `align` | sentence-transformers | Apache-2.0 | |
+| `align` | — | | empty since 2026-09-18: LaBSE is read with transformers |
 | `speech-align` | torchaudio, transformers | BSD-2, Apache-2.0 | the acoustic model is Apache-2.0 too |
 | `covers` | pillow | MIT-CMU | |
 | `difficulty` | wordfreq | Apache-2.0 | the code; its data files are CC BY-SA 4.0 — see below |
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
 | `browser` | playwright | Apache-2.0 | test-only |
 
-`torch` arrives transitively with stanza and sentence-transformers; its metadata reports
+`torch` arrives transitively with stanza; its metadata reports
 Apache-2.0 for the package and bundles third-party components under their own terms.
 
 ## Nothing NonCommercial is left
