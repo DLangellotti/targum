@@ -1178,6 +1178,7 @@ class Build:
 
         from .video import is_video
         from .video.instagram import is_reel
+        from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
 
         source = str(self.source)
@@ -1186,7 +1187,9 @@ class Build:
             # A direct link to a video file is a video, the same way a direct link
             # to an mp3 sounds like audio — left out, it fell through to the article
             # path and read raw mp4 bytes as a page.
-            return is_youtube(source) or is_reel(source) or is_video(parsed.path)
+            return (
+                is_youtube(source) or is_reel(source) or is_tiktok(source) or is_video(parsed.path)
+            )
         return is_video(source)
 
     @property
@@ -1224,6 +1227,7 @@ class Build:
         from .audio import parts as parts_module
         from .audio import probe as probe_module
         from .video.instagram import is_reel
+        from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
 
         if not self.source_language:
@@ -1239,7 +1243,14 @@ class Build:
             address = str(self.source)
             watching = is_youtube(address)
             reel = not watching and is_reel(address)
-            if reel:
+            tok = not watching and not reel and is_tiktok(address)
+            if tok:
+                from .video.hosts import video_id as tok_id
+
+                self.home = address
+                stem = tok_id(address) or "tiktok"
+                suffix = ".mp4"
+            elif reel:
                 # The reel's own id for the folder, and the address as its home — the
                 # page reduces it to the one shape its allowlist pins.
                 from .video.hosts import video_id
@@ -1288,6 +1299,11 @@ class Build:
 
                     self.notify("Fetching the video…")
                     target = instagram_module.fetch(address, workspace)
+                elif tok:
+                    from .video import tiktok as tiktok_module
+
+                    self.notify("Fetching the video…")
+                    target = tiktok_module.fetch(address, workspace)
                 else:
                     self.notify("Fetching the recording…")
                     download(address, target)

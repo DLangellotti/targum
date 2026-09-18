@@ -45,7 +45,7 @@ def test_every_spelling_of_a_video_becomes_one_address() -> None:
                 "https://www.tiktok.com/@someone/video/7123456789012345678",
                 "https://m.tiktok.com/@someone/video/7123456789012345678",
             ),
-            "https://www.tiktok.com/video/7123456789012345678",
+            "https://www.tiktok.com/@/video/7123456789012345678",
         ),
         (
             (

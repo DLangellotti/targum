@@ -22,8 +22,10 @@ the ones a platform has actually answered for, from the box, through the egress.
 * **Instagram** — open. A public reel answered `yt-dlp -J` five times of five from the box
   through the proxy, logged out, no cookies; the "empty media response" of the day before
   did not come back. `video/instagram.py` is its door.
+* **TikTok** — open, direct and not through the proxy, which it refuses with a 403.
+  Four public videos and five runs in a row answered from the box on 2026-09-18.
+  `video/tiktok.py` is its door.
 * **Vimeo, Reddit** — want a logged-in account, which a proxy cannot give.
-* **TikTok** — 403 through the proxy.
 * **Facebook** — untested with a real address.
 
 A host moves from one list to the other only with a measurement like those, and the rest
@@ -82,10 +84,15 @@ VIMEO = Host(
 
 TIKTOK = Host(
     name="TikTok",
-    hosts=frozenset({"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com"}),
+    hosts=frozenset(
+        {"tiktok.com", "www.tiktok.com", "m.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"}
+    ),
     # `/@someone/video/<id>` is the shape that survives sharing; the short `vm.` links
     # redirect to it, and a redirect is yt-dlp's to follow rather than ours to guess.
-    home="https://www.tiktok.com/video/",
+    # The account may be left empty — `/@/video/<id>` opens the video — and must be,
+    # because one prefix is the whole allowlist. `/video/<id>` without the `@` is a 404
+    # (checked 2026-09-18).
+    home="https://www.tiktok.com/@/video/",
     paths=("/video/",),
     shelves=("/tag/", "/music/", "/discover"),
 )
@@ -127,7 +134,7 @@ KNOWN: tuple[Host, ...] = (YOUTUBE, VIMEO, TIKTOK, INSTAGRAM, FACEBOOK, REDDIT)
 
 #: The hosts targum fetches from. Each has its own door module, and each was measured from
 #: the box before it was put here — see the module's docstring.
-OPEN: tuple[Host, ...] = (YOUTUBE, INSTAGRAM)
+OPEN: tuple[Host, ...] = (YOUTUBE, INSTAGRAM, TIKTOK)
 
 #: The prefixes a reader page may link home to. `tests/test_render` pins these. Every named
 #: host's, not only the open ones: a TikTok the reader downloaded and dropped in still has

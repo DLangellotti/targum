@@ -209,7 +209,7 @@ VIDEO_HOMES = (
     # A post that is a film keeps the `/p/` it was pasted with (2026-09-18).
     "https://www.instagram.com/p/",
     "https://vimeo.com/",
-    "https://www.tiktok.com/video/",
+    "https://www.tiktok.com/@/video/",
     "https://www.facebook.com/watch/?v=",
     "https://www.reddit.com/comments/",
 )

@@ -83,6 +83,31 @@ FORMAT = f"bv*{_FITS}+ba/b{_FITS}/b"
 #: works: `socks5://127.0.0.1:1080`, `http://user:pass@host:port`.
 YTDLP_PROXY_ENV = "TARGUM_YTDLP_PROXY"
 
+#: A second egress, tried only after every route through the first has failed. Unset,
+#: nothing is tried. Meant for a second pool or a second provider, so that one exhausted
+#: account or one flagged range is not every YouTube paste refused (2026-09-18).
+YTDLP_PROXY_BACKUP_ENV = "TARGUM_YTDLP_PROXY_BACKUP"
+
+#: What yt-dlp says when this attempt was refused and the next may not be: a flagged exit,
+#: a page cut short, a client YouTube stopped serving today. Anything else — "Private
+#: video", "Video unavailable" — is a fact about the video, and a second route would only
+#: be told it again, so nothing is retried on it.
+TRANSIENT = (
+    "Sign in to confirm",
+    "page needs to be reloaded",
+    "HTTP Error 403",
+    "HTTP Error 429",
+    "HTTP Error 5",
+    "IncompleteRead",
+    "timed out",
+    "Connection reset",
+    "Unable to download",
+    "Unable to extract",
+    "Requested format is not available",
+    "No video formats found",
+    "empty media response",
+)
+
 #: The proof-of-origin token minter, kept because it is installed, correct, and free.
 #:
 #: It does not answer the block above and was never going to: a PO token answers "PO
@@ -122,6 +147,38 @@ def proxy() -> str:
 def pot_provider() -> str:
     """The token minter's address, or "" where there is none."""
     return os.environ.get(POT_PROVIDER_ENV, "").strip()
+
+
+def backup_proxy() -> str:
+    """The second egress, or "" where there is none."""
+    return os.environ.get(YTDLP_PROXY_BACKUP_ENV, "").strip()
+
+
+def _routes() -> list[list[str]]:
+    """The ways YouTube is asked, in order, each tried only when the one before it was
+    refused in a way the next might not be (`TRANSIENT`). Measured from the box on
+    2026-09-18, through the proxy: the default client answers; the TV embedded player's
+    client (`tv_embedded`, what an embedded video asks with) answered with every format;
+    `android_vr` answered with one; `tv`, `web_safari`, `mweb` and `web_embedded` did not,
+    and every Invidious and Piped instance was blocked, refused or down. The embed page
+    itself carries no stream at all — unlike Instagram's — so the embed route is yt-dlp's
+    embedded client rather than a page of ours.
+
+    The same route twice first, because the proxy hands out a fresh exit per connection
+    and a flagged exit is the commonest refusal of all.
+    """
+    base = _extra_args()
+    routes = [
+        base,
+        base,
+        [*base, "--extractor-args", "youtube:player_client=tv_embedded"],
+        [*base, "--extractor-args", "youtube:player_client=android_vr"],
+    ]
+    if second := backup_proxy():
+        # The same minter, a different egress: the first route's own `--proxy` is dropped.
+        rest = base[2:] if base[:1] == ["--proxy"] else base
+        routes.append(["--proxy", second, *rest])
+    return routes
 
 
 def _extra_args(*, minter: bool = True) -> list[str]:
@@ -192,7 +249,9 @@ def fetch(url: str, into: Path) -> Path:
     """
     if not is_youtube(url):
         raise TargumError("We couldn't find a YouTube video at that address.")
-    return fetch_through(url, into, refused="YouTube wouldn't give us that video.")
+    return fetch_through(
+        url, into, refused="YouTube wouldn't give us that video.", routes=_routes()
+    )
 
 
 def fetch_through(
@@ -205,6 +264,7 @@ def fetch_through(
     door: str = OTHER_DOOR,
     carry: bool = True,
     asking: tuple[str, ...] = (),
+    routes: list[list[str]] | None = None,
 ) -> Path:
     """The fetch every named door shares, once that door has vetted the address.
 
@@ -250,6 +310,7 @@ def fetch_through(
         again=again,
         door=door,
         carry=carry,
+        routes=routes,
     )
     if not target.is_file():
         raise TargumError("yt-dlp fetched nothing it could merge to mp4.")
@@ -329,7 +390,12 @@ def _refusal(
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
     if not is_youtube(argv[-1]):
         raise TargumError("We couldn't find a YouTube video at that address.")
-    return run_ytdlp(argv, timeout=timeout, refused="YouTube wouldn't tell us about that video.")
+    return run_ytdlp(
+        argv,
+        timeout=timeout,
+        refused="YouTube wouldn't tell us about that video.",
+        routes=_routes(),
+    )
 
 
 def run_ytdlp(
@@ -342,31 +408,37 @@ def run_ytdlp(
     door: str = OTHER_DOOR,
     carry: bool = True,
     late: str = "yt-dlp did not answer in time, so it was stopped.",
+    routes: list[list[str]] | None = None,
 ) -> subprocess.CompletedProcess[bytes]:
     """The binary, run once the caller's allowlist has passed the address at the end.
 
-    `again` names what yt-dlp says when one exit was refused and the next may not be:
-    the proxy hands out a fresh address per connection, so a second process is a second
-    exit. One more try and no more — a refusal that repeats is the platform's answer.
+    `routes` are the arguments each attempt adds — an egress, a client — tried in order,
+    and the next only when yt-dlp's refusal is one a different route might not get
+    (`TRANSIENT`, or the door's own `again`). Unnamed, it is this box's egress once, or
+    twice where the door named something worth a second exit: the proxy hands out a
+    fresh address per connection, so a second process is a second exit.
     """
     usable, hint = ytdlp_available()
     if not usable:
         raise TargumError("yt-dlp is not installed.", hint)
-    # Ahead of the address, which the caller read off the end and which yt-dlp wants
-    # last of all.
-    argv = [*argv[:-1], *_extra_args(minter=minter), argv[-1]]
-    tries = 2 if again else 1
-    for attempt in range(1, tries + 1):
+    if routes is None:
+        routes = [_extra_args(minter=minter)] * (2 if again else 1)
+    tells = (*TRANSIENT, *again)
+    for attempt, route in enumerate(routes, start=1):
+        # Ahead of the address, which the caller read off the end and which yt-dlp wants
+        # last of all.
+        asked = [*argv[:-1], *route, argv[-1]]
         try:
-            return subprocess.run(argv, capture_output=True, check=True, timeout=timeout)
+            return subprocess.run(asked, capture_output=True, check=True, timeout=timeout)
         except OSError as error:
             raise TargumError("yt-dlp is not installed.", hint) from error
         except subprocess.TimeoutExpired as error:
             raise TargumError(late) from error
         except subprocess.CalledProcessError as error:
             said = (error.stderr or b"").decode("utf-8", "replace")
-            if attempt < tries and any(tell in said for tell in again):
-                log.info("yt-dlp was refused once on %s; asking again", argv[-1])
+            if attempt < len(routes) and any(tell in said for tell in tells):
+                _logged(error)
+                log.info("yt-dlp was refused on %s; trying route %d", argv[-1], attempt + 1)
                 continue
             raise _refusal(error, refused, door, carry=carry) from error
     raise AssertionError("unreachable")  # pragma: no cover - the loop returns or raises
