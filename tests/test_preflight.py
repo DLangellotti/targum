@@ -617,6 +617,42 @@ def test_a_corpus_level_with_the_shelf_says_so(
     assert check.ok and "all 1 readings" in check.detail
 
 
+def test_a_corpus_that_names_its_annotator_is_not_called_nameless(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A box has no `library`: the books a portion is cut from live where the shelf is
+    built, not where it is served. The check compared against them anyway and reported
+    all 143 readings as "cut before the corpus recorded its annotator" — which was false
+    twice over. They recorded it perfectly well, and what was missing was the book to
+    compare against, which is a different thing with a different remedy.
+
+    Found on the live box on 2026-09-18, where it had been saying so on every deploy.
+    """
+    out = tmp_path / "targum-out"
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    # A corpus that names its annotator, and no library at all beside it.
+    a_corpus(out / "parasha", {"nitzavim": ("Deuteronomy", "oshb/2+register/2")})
+    check = check_parasha(out)
+    assert "recorded" not in check.detail, f"still calls a named corpus nameless: {check.detail}"
+    assert "cannot be judged here" in check.detail
+    assert check.ok, "not knowing is not the corpus's fault, so it is not a warning about it"
+
+
+def test_a_corpus_with_no_annotator_recorded_still_says_so(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half, kept: a reading with no name on it cannot be judged either, and
+    the remedy is a re-cut that writes the name down. Splitting the two must not quietly
+    drop this one — unknown is still not current."""
+    out = tmp_path / "targum-out"
+    built(out, "library", "דברים-he", "oshb/2+register/2")
+    monkeypatch.delenv("TARGUM_PARASHA_DIR", raising=False)
+    a_corpus(out / "parasha", {"nitzavim": ("Deuteronomy", "")})
+    check = check_parasha(out)
+    assert not check.ok
+    assert "before the corpus recorded" in check.detail
+
+
 def test_a_box_without_a_parasha_corpus_is_not_scolded(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
