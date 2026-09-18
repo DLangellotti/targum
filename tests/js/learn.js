@@ -202,13 +202,6 @@ function act(step) {
     );
     if (chip) chip.fire("click", {});
   }
-  // A rung of the ladder, by the words it leads with.
-  if (step.rung) {
-    const chip = Array.from(at("arrival-levels").children).find((p) =>
-      p.textContent.startsWith(step.rung)
-    );
-    if (chip) chip.fire("click", {});
-  }
   // A text offered by the conversation in the drawer, handed over by `talk.js`.
   if (step.offer) global.window.TargumLearn.open(step.offer);
   if (step.changed) global.window.TargumLearn.changed();
@@ -311,9 +304,11 @@ setTimeout(() => {
         : Array.from(at("arrival-doors").children)
             .filter((p) => p.getAttribute("aria-pressed") === "true")
             .map((p) => p.textContent),
-      levels: at("arrival").hidden
-        ? []
-        : Array.from(at("arrival-levels").children).map((p) => p.textContent),
+      /* The arrival asked for a rung until 2026-09-18 and does not any more (#306).
+         Still reported, and as the element rather than as a constant: a test that says
+         nothing is asked is worthless if the harness could not have shown it being
+         asked. It is `[]` because the row is gone, not because nobody looked. */
+      levels: Array.from(at("arrival-levels").children).map((p) => p.textContent),
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
       // What the page put in the browser, and where it posted. Both are here so a test
       // can assert something was *not* kept — an assertion that is worthless unless the
