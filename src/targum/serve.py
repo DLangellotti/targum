@@ -1759,11 +1759,29 @@ class Library:
                     (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
                 ),
             }
-        kind = "prose"
+        manifest = folder / manifest_module.MANIFEST
+        # Kept its pictures, by the manifest's own word — the sidecar folder is a
+        # copy the build remakes, and the manifest is the claim.
+        video = spoken.is_video(source) or bool(
+            self.remembered.get(
+                folder, "video", [manifest], lambda: manifest_module.keeps_video(folder)
+            )
+        )
+        # Nothing said is better than something wrong. This was "prose" until 2026-09-18,
+        # which the library labels "Bible narrative", so every upload with no address to
+        # go on — a file, a picture, a recording — was filed as one of the Bible's story
+        # books.
+        kind = ""
         for prefix, named in self.OWN_KINDS:
             if source.startswith(prefix):
                 kind = named
                 break
+        if video:
+            # Somebody talking to a camera, and the text is what they said: the kind the
+            # catalogue made for its own videos. Before the address, because a YouTube
+            # link is https and is not journalism. Only video: narration writes a
+            # manifest too, so a recording alone does not make an article a talk.
+            kind = "talk"
         if source.endswith(".chat"):
             # A conversation read back: shaped like a scene, filed like one.
             kind = "dialogue"
@@ -1778,7 +1796,6 @@ class Library:
                 else 0
             ),
         )
-        manifest = folder / manifest_module.MANIFEST
         return {
             "kind": kind,
             "register": "biblical" if is_biblical(source) else "modern",
@@ -1790,14 +1807,7 @@ class Library:
             # The claim is made by whatever is actually there — for an import, the
             # manifest sitting beside the reader.
             "spoken": spoken.is_spoken(source) or manifest.is_file(),
-            # Kept its pictures, by the manifest's own word — the sidecar folder is a
-            # copy the build remakes, and the manifest is the claim.
-            "video": spoken.is_video(source)
-            or bool(
-                self.remembered.get(
-                    folder, "video", [manifest], lambda: manifest_module.keeps_video(folder)
-                )
-            ),
+            "video": video,
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.

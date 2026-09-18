@@ -1955,6 +1955,75 @@ def test_a_shelf_row_says_what_the_text_is(tmp_path: Path) -> None:
     assert row["minutes"] == 2, "260 words at 130 a minute"
 
 
+@pytest.mark.parametrize(
+    ("source", "pictures", "kind"),
+    [
+        ("/uploads/japan.mp4", True, "talk"),
+        ("https://www.youtube.com/watch?v=x", True, "talk"),
+        ("/uploads/page.jpg", False, ""),
+        ("https://www.ynet.co.il/news/article/x", False, "article"),
+    ],
+)
+def test_an_upload_is_never_filed_as_bible_narrative(
+    tmp_path: Path, source: str, pictures: bool, kind: str
+) -> None:
+    """Every upload with no address to go on was `prose`, which the library calls "Bible
+    narrative": a travel video read as one of the Bible's story books (2026-09-18). A
+    video is a talk, as the catalogue files its own, and a text nothing can be said about
+    is filed under nothing."""
+    from targum.audio import manifest as manifest_module
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "upload-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source=source,
+        title="העלאה",
+        language="he",
+        blocks=[Block(id="b0", kind=BlockKind.paragraph, text="מלה")],
+    )
+    document.content_hash = document.recompute_hash()
+    segment = Segment(id="s1", block_id="b0", block_index=0, index=0, text="מלה")
+    segmented = SegmentedDocument(
+        document_hash=document.content_hash, language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash=document.content_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "word"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+    if pictures:
+        manifest_module.write(
+            folder,
+            manifest_module.AudioManifest(
+                source=source,
+                sha256="0",
+                duration=60.0,
+                language="he",
+                parts=[
+                    manifest_module.ManifestPart(
+                        number=1, start=0.0, end=60.0, audio="a.m4a", video="v.mp4"
+                    )
+                ],
+            ),
+        )
+
+    row = Library(out).readers(out / "local")[0]
+
+    assert row["kind"] == kind
+    assert row["video"] is pictures
+
+
 def test_a_catalogue_text_is_described_by_the_catalogue(tmp_path: Path) -> None:
     """Its difficulty is measured off the whole text by a script that runs for minutes.
     Nothing worked out at page-draw time could be better than that."""
