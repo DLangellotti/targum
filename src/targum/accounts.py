@@ -118,10 +118,14 @@ SESSION_DAYS = 90
 #    targum-internal#306 is open and undecided, and until it is answered nothing about
 #    how good a reader says they are is stored.
 #
+# 22: the balance table — what each paid service's console said was left, typed into the
+#    back office with the day it was read (2026-09-18). A new table, so `CREATE TABLE IF
+#    NOT EXISTS` is the whole of it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 22
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -711,6 +715,19 @@ CREATE TABLE IF NOT EXISTS waiting (
   language TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
+
+-- What each paid service's console said was left, and when somebody read it there
+-- (`services.py`). Typed in from the back office, never fetched: most of the consoles
+-- say it only to an admin key. Every reading is kept and the newest is the balance, so
+-- a mistyped figure is corrected by typing the right one, not by editing the old.
+--
+-- Schema 22 adds this, so `CREATE TABLE IF NOT EXISTS` is the whole of it.
+CREATE TABLE IF NOT EXISTS balance (
+  service TEXT    NOT NULL,
+  said    TEXT    NOT NULL,
+  at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS balance_service ON balance (service, at);
 """
 
 
@@ -2583,6 +2600,23 @@ class Store:
             (limit,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    # -- what the services have left ---------------------------------------------
+
+    def balance_read(self, service: str, said: str) -> None:
+        """Record what a service's console said was left, as of now."""
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO balance (service, said, at) VALUES (?, ?, ?)",
+                (service, said, now()),
+            )
+
+    def balances(self) -> dict[str, dict[str, Any]]:
+        """The newest reading for each service, by service."""
+        rows = self.db.execute(
+            "SELECT service, said, MAX(at) AS at FROM balance GROUP BY service"
+        ).fetchall()
+        return {str(row["service"]): {"said": row["said"], "at": row["at"]} for row in rows}
 
     # -- housekeeping -----------------------------------------------------------
 
