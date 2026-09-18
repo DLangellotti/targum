@@ -360,6 +360,21 @@ def test_the_catalogue_and_your_own_texts_are_two_lists(tmp_path: Path) -> None:
     assert {row["title"] for row in mine} == {"my-article-he"}
 
 
+def test_your_uploads_are_never_narrowed_to_a_band(tmp_path: Path) -> None:
+    """Your uploads are everything of yours (design.md §12). A band saved on All texts
+    hid a video David had just opened from Learn, because it was 65% known (2026-09-18)."""
+    uploads = [
+        shelf("", "easy-he", known=0.95),
+        shelf("", "stretch-he", known=0.65),
+        shelf("", "hard-he", known=0.2),
+    ]
+    drawn = draw(tmp_path, readers=uploads, view={"where": "mine", "fit": "now"})
+    assert {row["title"] for row in drawn["rows"]} == {"easy-he", "stretch-he", "hard-he"}
+    assert drawn["fitOn"] == "", "no band offered on a tab it cannot narrow"
+    library = draw(tmp_path, readers=uploads, view={"fit": "now"})
+    assert library["fitOn"] == "you can read now", "All texts keeps its band"
+
+
 def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) -> None:
     """A link goes straight to the reader; a button is pressed, and pressing it spends."""
     drawn = draw(tmp_path, readers=[shelf("psalms", "תהילים-he")], unfolded=True)

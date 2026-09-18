@@ -127,6 +127,11 @@ function element(tag) {
     getBoundingClientRect() {
       return Object.assign({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0 }, this.rect);
     },
+    /* One box unless `hidden`: with no stylesheet there is nothing else to hide an
+       element, so the stub is always the desk. A phone is a browser test's job. */
+    getClientRects() {
+      return this.hidden ? [] : [this.getBoundingClientRect()];
+    },
     /* Classes, and one attribute form: `[data-row="..."]`, which is how the library
        page finds the row a reader was sent to. Without it the selector fell through to
        the class match, never hit, and the stub quietly answered null. */
