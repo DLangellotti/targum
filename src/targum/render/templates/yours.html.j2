@@ -71,6 +71,22 @@
     <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
     <ul class="work-rows" id="work-rows"></ul>
 
+    {#- One door out of the fold, at its foot (targum-internal#103).
+
+        The rows have two answers each and no third: a row is where the reader says what
+        they know, and twenty of anything else on it makes the list a console. This is
+        the other thing a reader looking at these words might want — to meet them in a
+        sentence rather than in a list — and one control for the sitting is the size that
+        thought actually is.
+
+        It opens the conversation with a line written and unsent. The press is not a
+        send: the reader reads the line, edits it or does not, and presses Send with
+        their own hand, which is the same rule every other door in the product obeys.
+        Nothing here spends. -#}
+    <p class="work-foot" id="work-foot" hidden>
+      <button type="button" id="work-talk">{{ t("lists.work.talk", "Use these in a conversation") }}</button>
+    </p>
+
     {#- And the lines that came back changed (targum-internal#290). The same fold, because
         it is the same question — what is worth going over — and two panels asking it
         twice would be two lists to keep track of.
@@ -100,8 +116,11 @@
         <option value="9">{{ t("yours.page.known", "Known") }}</option>
         <option value="0">{{ t("yours.page.ignored", "Ignored") }}</option>
       </select>
-      {#- Hidden until sync says there is an account to export from. -#}
-      <button type="button" id="export-words" hidden>{{ t("yours.page.export", "Export") }}</button>
+      {#- Hidden until sync says there is an account to export from. Named by what
+          comes out rather than "Export": two buttons that both said Export would have
+          left the reader to find out which was which by pressing one. -#}
+      <button type="button" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+      <button type="button" id="export-anki" hidden>{{ t("yours.page.anki", "Anki") }}</button>
     </div>
     <div class="table-wrap">
       <table class="rows" id="word-table">
@@ -138,7 +157,7 @@
   <section class="panel">
     <div class="list-controls">
       <h2><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
-      <button type="button" id="export-phrases" hidden>{{ t("yours.page.export", "Export") }}</button>
+      <button type="button" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
     </div>
     <p class="note">{{ t("yours.page.phrases-stay-with-their-text", "Phrases stay with their text.") }}</p>
     <div id="phrase-list"></div>

@@ -242,6 +242,10 @@
     // lines that came back changed.
     panel.hidden = rows.length === 0 && rewrote.length === 0;
     host.textContent = "";
+    // The door at the foot is about the words, so a reader whose fold holds only lines
+    // that came back changed is not offered it: there would be nothing to carry.
+    var foot = at("work-foot");
+    if (foot) foot.hidden = rows.length === 0;
     if (!rows.length) return;
 
     rows.forEach(function (word) {
@@ -274,14 +278,27 @@
        * `updateWord` the table's editor calls — so the known count rises once, from one
        * store, and no second ledger exists to disagree with the first.
        *
-       * "Still learning" moves it out of *this sitting* and nothing more. It does not
-       * restamp `at`: that field is when a word was kept, it is what the table's Kept
-       * column shows, and it is written once and preserved for life (`vocab.js:161`) —
-       * so re-stamping it to reorder a queue would have quietly aged every word in the
-       * product to today. And it is not stored anywhere, because a stored skip is an
+       * "Still learning" steps it back down the ladder it is already on — nearly there
+       * to getting there, getting there to just met — and moves it out of this sitting.
+       * The step down is the honest opposite of the button beside it: both say what the
+       * reader knows about this word, and both say it in the one place the product keeps
+       * that. A press that changed nothing would have been a control with no job
+       * (design.md §13), and this card frames the fold as a queue worked through.
+       *
+       * At "just met" there is nowhere lower, so the press only moves the word out of
+       * the sitting and writes nothing. Saying "still learning" about a word marked met
+       * once is agreement, and agreement is not news.
+       *
+       * It does not restamp `at`: that field is when a word was kept, it is what the
+       * table's Kept column shows, and it is written once and preserved for life
+       * (`vocab.js:161`) — so re-stamping it to reorder a queue would have quietly aged
+       * every word in the product to today. The order of the fold is therefore
+       * unchanged by a press, and a word stepped down today is where it was tomorrow.
+       *
+       * The sitting half is still in memory and nowhere else: a stored skip is an
        * interval wearing a different coat, and the whole of this card is that nothing is
-       * scheduled. Come back tomorrow and the word is here again, which is true: it is
-       * still a word being learned.
+       * scheduled. Come back tomorrow and the word is here again, one level lower, which
+       * is true: it is still a word being learned.
        */
       var keys = el("span", "work-keys");
       var knew = el("button", "work-known", t("lists.work.known", "I know this"));
@@ -296,6 +313,11 @@
       still.type = "button";
       still.addEventListener("click", function () {
         passed[word.lemma || word.term] = true;
+        if (word.status > 1) {
+          updateWord(word, { status: word.status - 1 });
+          renderWords();
+          if (onChanged) onChanged();
+        }
         renderWorkOn();
       });
       keys.appendChild(knew);
@@ -303,6 +325,57 @@
       item.appendChild(keys);
       host.appendChild(item);
     });
+  }
+
+  /* --- taking them into a conversation ---------------------------------------
+   *
+   * The fold's one door out (targum-internal#103). A list of words is a list of words;
+   * the thing a reader stuck on six of them actually wants is to meet them in a
+   * sentence, and the conversation is already the place this product does that.
+   *
+   * It writes the line and opens the chat with it in the box, unsent. That is the whole
+   * of the mechanism, and the reason it is the whole of it: **nothing here spends.** A
+   * control that started a turn would be a model's decision to bill somebody, which is
+   * the one thing the rails exist to prevent. The reader reads the line, edits it or
+   * does not, and presses Send with their own hand — the same press every other door in
+   * the product waits for.
+   *
+   * The conversation needs no telling which words these are. `bring_back` already
+   * carries the reader's whole ledger into every turn, and `recurring` already carries
+   * what they keep getting wrong. What the line adds is *this sitting's* six, and a
+   * sentence saying what the reader came for. Everything else was already there, which
+   * is why the AI half of this feature is four lines of JavaScript.
+   */
+
+  /* The handoff is a stored line, not an address. A word belongs to the reader, and a
+     reader's own vocabulary in a query string is their vocabulary in a server log, in
+     their history, and in whatever sits between them and the site. Read once by the
+     chat and deleted there, so a back button does not refill the box. */
+  var SAY = "targum:say";
+
+  //: How many words the line names. Six, because the line is a sentence a person reads
+  //: before pressing Send, and twenty Hebrew words is not a sentence. The fold may hold
+  //: twenty; this takes the ones nearest the top, which are the oldest marks.
+  var TAKEN = 6;
+
+  function talkAbout() {
+    var words = workOn()
+      .slice(0, TAKEN)
+      .map(function (word) {
+        return word.term;
+      });
+    if (!words.length) return;
+    try {
+      localStorage.setItem(
+        SAY,
+        t("lists.work.line", "Use these in a sentence each: ") + words.join(", ")
+      );
+    } catch (whatever) {
+      // A browser refusing storage is a browser that gets a plain conversation. The
+      // words come back through the ledger anyway; only the line is lost.
+    }
+    var key = window.TARGUM_KEY || "";
+    window.location.href = "/chat" + (key ? "?k=" + encodeURIComponent(key) : "");
   }
 
   /* Lines that came back changed (targum-internal#290), in the same fold as the words.
@@ -640,6 +713,20 @@
     return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
+  function saveFile(name, text, mime) {
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var link = el("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
   function download(name, header, rows) {
     // A byte order mark, so a spreadsheet opens Hebrew and Russian as UTF-8. Spelled
     // as an escape rather than typed: the character itself is invisible in the source,
@@ -652,17 +739,74 @@
           return row.map(csvCell).join(",");
         })
         .join("\n");
-    var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var link = el("a");
-    link.href = url;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 1000);
+    saveFile(name, csv, "text/csv;charset=utf-8");
+  }
+
+  /* --- anki --------------------------------------------------------------------
+   *
+   * A deck of the words on screen, in the tab-separated shape Anki imports natively
+   * (targum-internal#103). Not an .apkg: that is a zipped SQLite database, it would be
+   * the only binary this page has ever written, and it buys nothing a reader can see —
+   * Anki reads this file with the deck already named and the notetype already chosen.
+   *
+   * Why offer it at all, when the card it sits on exists because "anki requires
+   * bookkeeping and discipline that I lack". Because the objection is to *running* an
+   * SRS, not to owning the rows. A reader who keeps their vocabulary here should be able
+   * to walk out with it in the format the rest of the world uses, and a list you cannot
+   * leave with is a list you are being held by. The fold above is the argument for
+   * staying; this is the door, and the door being open is part of the argument.
+   *
+   * The header lines are Anki 2.1.55 and later. An older Anki shows them as a first card
+   * to delete, which is a worse first run than it could be and better than a file it
+   * refuses.
+   */
+
+  /* Tabs and newlines are the format, so a cell carrying either would silently become
+     two cells or two notes. They are collapsed to spaces rather than escaped: a reader's
+     own note is prose, and prose that lost a line break is still readable where a note
+     split across two cards is not. A leading quote is the one thing Anki reads as
+     structure, so a cell that starts with one is quoted properly.
+
+     No `csvCell` guard here, deliberately: Anki runs no formulas, and an apostrophe
+     glued to the front of a Hebrew word would sit on the face of the card for good. */
+  function ankiCell(value) {
+    var text = value === undefined || value === null ? "" : String(value);
+    text = text.replace(/[\t\r\n]+/g, " ");
+    return text.charAt(0) === '"' ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+
+  function exportAnki() {
+    var deck = "targum " + named(languages, code);
+    /* Three fields, and the third declared as tags so Anki's own Basic notetype takes
+       the file without the reader configuring anything. `html:false` because every one
+       of these strings is the reader's, and a meaning they wrote containing < should
+       read as < on the card. */
+    var lines = [
+      "#separator:tab",
+      "#html:false",
+      "#notetype:Basic",
+      "#deck:" + deck,
+      "#tags column:3",
+    ];
+    visibleWords().forEach(function (word) {
+      /* The back is the meaning, then what the reader wrote themselves, then the
+         dictionary form when it is not already the face of the card. Their own note
+         comes before the dictionary form because it is the part they will recognise. */
+      var back = [word.meaning, word.note, word.lemma !== word.term ? word.lemma : ""]
+        .filter(function (part) {
+          return !!part;
+        })
+        .join(" \u00b7 ");
+      /* Hierarchical, so the whole import is one collapsible branch in Anki's sidebar
+         and a reader who exports twice can tell the halves apart. The level is the
+         number, not its name: the names are translated and a tag that changes with the
+         interface language would split one deck across five tags. */
+      var tags = ["targum", "targum::" + code, "targum::level-" + word.status];
+      lines.push([word.term, back, tags.join(" ")].map(ankiCell).join("\t"));
+    });
+    // No byte order mark: Anki reads UTF-8, and a BOM would land inside the first
+    // field of the first note rather than being eaten as encoding.
+    saveFile(deck + " words.txt", lines.join("\n") + "\n", "text/plain;charset=utf-8");
   }
 
   var languages = {};
@@ -717,9 +861,9 @@
     );
   }
 
-  /** Show the two export buttons, or do not. Called again whenever sync resolves. */
+  /** Show the export buttons, or do not. Called again whenever sync resolves. */
   function offerExports(signedIn) {
-    ["export-words", "export-phrases"].forEach(function (id) {
+    ["export-words", "export-anki", "export-phrases"].forEach(function (id) {
       var button = at(id);
       if (button) button.hidden = !signedIn;
     });
@@ -758,6 +902,8 @@
       };
     }
     if (at("export-words")) at("export-words").onclick = exportWords;
+    if (at("work-talk")) at("work-talk").onclick = talkAbout;
+    if (at("export-anki")) at("export-anki").onclick = exportAnki;
     if (at("export-phrases")) at("export-phrases").onclick = exportPhrases;
     offerExports(false);
   }

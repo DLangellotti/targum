@@ -563,15 +563,36 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
   background: none;
   color: var(--ink-soft);
 }
-/* Known is the one that changes something, so it is the one that carries the primary;
-   §9 gives a working action the accent and keeps ink for a call to action. Still
-   learning changes nothing that is kept, and looks like it. */
+/* Both write to the ledger now, so the difference is not doing something against doing
+   nothing — it is forward against back. §9 gives a working action the accent, and going
+   up the ramp is the working action: known carries the primary, and stepping a word
+   back down is the quieter of the two and looks it. */
 .work-keys .work-known { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
 .work-keys .work-known:hover { background: var(--teal); color: var(--teal-ink); }
 .work-keys .work-still:hover { color: var(--ink); }
 .work-keys button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 @media (hover: none) and (pointer: coarse) {
   .work-keys button { min-height: 44px; }
+}
+
+/* The door out of the fold, at its foot. Quiet and to one end: it is an offer, not the
+   thing the fold is for, and a full-width button under twenty rows would read as the
+   next step in a flow rather than as somewhere else the reader may go. */
+.work-foot { margin: 0.9rem 0 0; }
+.work-foot button {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  color: var(--ink-soft);
+}
+.work-foot button:hover { border-color: var(--teal); color: var(--teal); }
+.work-foot button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .work-foot button { min-height: 44px; }
 }
 
 /* Lines that came back changed (targum-internal#290), in the same fold as the words. */

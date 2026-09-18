@@ -1623,6 +1623,36 @@
   // `TARGUM_KEY` — which is why nothing looked wrong (targum-internal#232).
   if (window.TargumSync) window.TargumSync.start();
 
+  /* A line handed over by another page — today only the fold on Your Words
+     (targum-internal#103), which sends a reader here with their stuck words named.
+
+     **In the box, and not sent.** The page that wrote it did not press Send and cannot:
+     a turn spends, and what spends is the reader's own press. So this fills the field,
+     grows it to fit and puts the cursor at the end, and then waits like any other line
+     somebody typed. They may edit it, they may send it, they may clear it.
+
+     Read once and deleted, so a back button or a second visit does not refill the box
+     with a line the reader already dealt with. */
+  try {
+    var handed = localStorage.getItem("targum:say");
+    if (handed) {
+      localStorage.removeItem("targum:say");
+      /* Never over something already in the box. The template renders the field
+         empty, so this looks like it can never fire — but Firefox restores what was
+         typed into a textarea when the reader comes back with the back button, and
+         that restored line is theirs. Not covered by a test: the harness has no way
+         to put a value in the field before the script reads it. */
+      if (!field.value) {
+        field.value = handed;
+        grow();
+        field.focus();
+        if (field.setSelectionRange) field.setSelectionRange(handed.length, handed.length);
+      }
+    }
+  } catch (whatever) {
+    // No storage, no handoff. The conversation is the same conversation.
+  }
+
   //: The first load, which a line said from the parent page waits for.
   var booted = load();
 
