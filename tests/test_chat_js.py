@@ -1720,6 +1720,26 @@ def test_a_line_handed_over_by_another_page_waits_in_the_box() -> None:
     assert drawn["posted"] == [], "nothing was sent"
 
 
+def test_a_handed_line_starts_a_new_conversation() -> None:
+    """The reader came to use those words, not to add them to what they were last
+    talking about: the newest conversation is not opened, and Send makes a new one."""
+    chats = [{"id": "old", "title": "Read me today's news."}]
+    answers = {
+        "/chat/list": {"chats": chats, "usable": True},
+        "/chat/old": {
+            "chat": {"id": "old"},
+            "turns": [{"n": 1, "role": "user", "said": "news", "stage": "done"}],
+        },
+    }
+    handed = run(
+        answers=answers, stored={"targum:say": "Use these phrases in new sentences: לב טוב"}
+    )
+    assert handed["turns"] == [], "the last conversation is not opened"
+    assert handed["field"].endswith("לב טוב")
+    plain = run(answers=answers)
+    assert [t["text"] for t in plain["turns"]] == ["news"], "without one, the newest as before"
+
+
 def test_a_handed_line_is_read_once_and_deleted() -> None:
     """So a back button, or coming to the conversation again tomorrow, does not refill
     the box with a line the reader already dealt with."""

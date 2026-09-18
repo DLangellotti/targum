@@ -821,3 +821,16 @@ def test_a_word_with_no_meaning_says_so_and_offers_the_field() -> None:
         do=[{"type": "open", "in": "work-rows", "term": "ספר"}],
     )
     assert drawn["card"]["meaning"] == "No meaning yet. Write your own below."
+
+
+def test_the_same_phrase_kept_twice_is_named_once_in_the_line() -> None:
+    stored = vocabulary(word("ספר", "book", status=9, at=100))
+    stored["targum:docs"] = json.dumps({"h1": {"language": "he", "title": "אהבת ציון"}})
+    stored["targum:picked:h1"] = json.dumps(
+        {
+            "s1": [{"id": "p1", "text": "ולקחו אותו לחקירה", "status": 1, "at": 1}],
+            "s2": [{"id": "p2", "text": "ולקחו אותו לחקירה", "status": 1, "at": 2}],
+        }
+    )
+    drawn = draw(stored, do=[{"type": "talk"}])
+    assert drawn["talk"]["said"].count("ולקחו אותו לחקירה") == 1
