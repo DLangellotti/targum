@@ -244,3 +244,125 @@ def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
     assert row["title"] == "כתבה על משהו"
     assert row["cover"] is not None, "the row keeps its shape"
     assert row["cover"]["letter"] == "כ", "and rests on the text's own letter"
+
+
+# --- what to work on (targum-internal#103) --------------------------------------------
+#
+# Dmitry Z, 2026-09-16, on the one thing in the conversation he called genuinely useful:
+# "anki requires bookkeeping and discipline that I lack". And the constraint, three
+# minutes later: "if smth gonna ping me or bother me like duolingo I'll fucking delete
+# it". So it is pull and never push, and most of what these assert is what is *absent*.
+
+
+def test_the_fold_offers_the_words_flagged_longest_ago() -> None:
+    """The plainest order that is true of the data. `at` is when a word was kept and
+    there is nothing else — no record that a word was met again, no count of times seen,
+    no interval — so the queue is the ones that have been sitting there longest. Any
+    cleverer order would be a claim the ledger cannot support."""
+    drawn = draw(
+        vocabulary(
+            word("ספר", "book", status=2, at=300),
+            word("דרך", "road", status=1, at=100),
+            word("עיר", "city", status=3, at=200),
+        )
+    )
+    assert not drawn["workOn"]["hidden"]
+    assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך", "עיר", "ספר"]
+
+
+def test_the_fold_holds_only_words_being_learned() -> None:
+    """Known words need no more work and an ignored one is not a word being learned."""
+    drawn = draw(
+        vocabulary(
+            word("ספר", "book", status=9, at=100),
+            word("עיר", "city", status=0, at=200),
+            word("דרך", "road", status=2, at=300),
+        )
+    )
+    assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך"]
+
+
+def test_a_reader_with_nothing_to_work_on_sees_no_fold() -> None:
+    """Not an empty state and not an invitation: absence. A reader who has flagged no
+    words is not being told they are behind."""
+    drawn = draw(vocabulary(word("ספר", "book", status=9, at=100)))
+    assert drawn["workOn"]["hidden"]
+    assert drawn["workOn"]["rows"] == []
+
+    empty = draw({})
+    assert empty["workOn"]["hidden"]
+
+
+def test_knowing_a_word_takes_it_off_the_fold_through_the_ordinary_path() -> None:
+    """One store and one counter. The same `updateWord` the table's editor calls, so the
+    known count rises once and no second ledger exists to disagree with the first."""
+    drawn = draw(
+        vocabulary(
+            word("ספר", "book", status=2, at=100),
+            word("דרך", "road", status=1, at=200),
+        ),
+        do=[{"type": "work", "word": "ספר", "key": 0}],
+    )
+    assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך"]
+    assert drawn["ledger"]["ספר"]["status"] == 9, "and it is known in the one ledger"
+    # Carried up from a level below, which is what `learned` records.
+    assert drawn["ledger"]["ספר"]["learned"] == 1
+
+
+def test_still_learning_moves_a_word_out_of_this_sitting_and_stores_nothing() -> None:
+    """It does not restamp `at`: that field is when a word was kept, it is what the
+    table's Kept column shows, and it is written once and preserved for life — so
+    re-stamping it to reorder a queue would quietly age every word in the product to
+    today. And nothing is stored, because a stored skip is an interval wearing a
+    different coat."""
+    drawn = draw(
+        vocabulary(
+            word("ספר", "book", status=2, at=100),
+            word("דרך", "road", status=1, at=200),
+        ),
+        do=[{"type": "work", "word": "ספר", "key": 1}],
+    )
+    assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך"]
+    assert drawn["ledger"]["ספר"]["status"] == 2, "still being learned"
+    assert drawn["ledger"]["ספר"]["at"] == 100, "and kept when it was kept"
+
+
+def test_the_fold_offers_a_sitting_rather_than_a_backlog() -> None:
+    """Twenty is a cap and never a target. Nothing counts what is behind it: a number
+    beside the heading would be the "12 words due" this card exists not to say."""
+    many = {}
+    for n in range(30):
+        many.update(word(f"מילה{n}", f"word {n}", status=1, at=n))
+    drawn = draw(vocabulary(*[{k: v} for k, v in many.items()]))
+    assert len(drawn["workOn"]["rows"]) == 20
+    assert "20" not in drawn["wordsTitle"] or "30" in drawn["wordsTitle"]
+
+
+def test_a_row_says_the_word_its_meaning_and_two_answers() -> None:
+    """Three things about a word and the two questions, and nothing else: no level
+    ladder, no note field, no delete."""
+    drawn = draw(vocabulary(word("ספר", "book", status=2, at=100)))
+    row = drawn["workOn"]["rows"][0]
+    assert row["term"] == "ספר"
+    assert row["meaning"] == "book"
+    assert row["keys"] == ["I know this", "Still learning"]
+
+
+def test_a_word_passed_over_stays_passed_over_for_the_rest_of_the_sitting() -> None:
+    """Marking a word known calls back to the page, which redraws the whole list — and
+    clearing the skips there took a word the reader had just passed over and put it back
+    in front of them, mid-sitting. Found on the running page, not here."""
+    drawn = draw(
+        vocabulary(
+            word("מלך", "king", status=1, at=100),
+            word("ספר", "book", status=2, at=200),
+            word("דרך", "road", status=3, at=300),
+        ),
+        do=[
+            {"type": "work", "word": "מלך", "key": 1},
+            {"type": "work", "word": "ספר", "key": 0},
+        ],
+    )
+    assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך"], (
+        "the skipped word does not come back because another was marked"
+    )

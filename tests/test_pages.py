@@ -1058,3 +1058,30 @@ def test_a_youtube_address_is_no_longer_turned_away_at_the_paste() -> None:
     add = PAGES["add"]
     assert "YouTube links are not fetched here" not in add
     assert "run targum on your own computer" not in add
+
+
+def test_your_words_carries_the_fold_and_promises_nothing_by_it() -> None:
+    """What to work on (targum-internal#103): the words flagged and never come back to,
+    above the table they are also in.
+
+    It starts hidden, because a reader with nothing to work on sees no fold at all —
+    not an empty state and not an invitation — and `lists.js` is what decides.
+    """
+    words = PAGES["words"]
+    assert 'id="work-on"' in words and 'id="work-rows"' in words
+    assert 'id="work-on" hidden' in words, "hidden until there is something in it"
+    assert "What to work on" in words, "a question answered, not an instruction"
+
+    # And nothing that schedules, counts or chases. "if smth gonna ping me or bother me
+    # like duolingo I'll fucking delete it" — Dmitry Z, 2026-09-16, in the same minute he
+    # asked for the list itself.
+    fold = words[words.index('id="work-on"') : words.index('id="word-table"')]
+    for chasing in ("due", "streak", "goal", "reminder", "review", "overdue"):
+        assert chasing not in fold.lower(), f"the fold must not say {chasing!r}"
+
+
+def test_the_fold_is_only_on_the_words_page() -> None:
+    """It is a view of the word ledger, so it belongs where the ledger is. Learn stopped
+    carrying the lists on 2026-09-11 and does not get them back one section at a time."""
+    for name in ("learn", "progress", "phrases", "texts"):
+        assert 'id="work-on"' not in PAGES[name], name

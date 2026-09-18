@@ -52,6 +52,26 @@
   {%- endif %}
 
   {%- if which == 'words' %}
+  {#- What to work on (targum-internal#103). The words the reader flagged and never came
+      back to: still learning, oldest first, twenty at most.
+
+      Dmitry Z, 2026-09-16, on why a list like this is the thing worth paying for: "anki
+      requires bookkeeping and discipline that I lack", and "anki srs is kinda dumb in the
+      sense it doesnt really know what you get wrong beyond what you tell it". And, three
+      minutes later, the constraint: "if smth gonna ping me or bother me like duolingo
+      I'll fucking delete it".
+
+      So it is pull and never push. Nothing here is scheduled, nothing is due, nothing is
+      counted and nothing is sent. It is a view of rows that already exist, waiting when
+      the reader arrives and silent when they do not.
+
+      A reader with nothing to work on sees no fold at all — not an empty state and not an
+      invitation. `lists.js` hides the section, which is why it starts hidden here. -#}
+  <section class="panel work" id="work-on" hidden>
+    <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
+    <ul class="work-rows" id="work-rows"></ul>
+  </section>
+
   <section class="panel">
     <div class="list-controls">
       <h2><span id="words-title">{{ t("yours.page.your-words", "Your Words") }}</span></h2>

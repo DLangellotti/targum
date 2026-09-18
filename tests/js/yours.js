@@ -136,6 +136,16 @@ function phrases() {
       part("claim-all").onchange();
     }
     if (step.type === "yes" && !part("claim-yes").disabled) part("claim-yes").onclick();
+    /* A press in the fold: `{type: "work", word: "…", key: 0}` — 0 is "I know this" and
+       1 is "Still learning". By the word rather than by position, so a test says which
+       word it answered and not which row happened to be there. */
+    if (step.type === "work") {
+      const row = at("work-rows").children.find(
+        (item) => item.getAttribute("data-word") === step.word,
+      );
+      // `fire`, not `onclick`: the fold registers its handlers with addEventListener.
+      if (row) row.querySelector(".work-keys").children[step.key || 0].fire("click");
+    }
     for (let i = 0; i < 12; i++) await new Promise((resolve) => setImmediate(resolve));
   }
   process.stdout.write(
@@ -153,6 +163,19 @@ function phrases() {
             (item) => (item.querySelector(".copy") || { attrs: {} }).attrs["aria-label"],
           ),
         ),
+      },
+      /* What to work on (targum-internal#103): the fold above the table, and whether it
+         is drawn at all. A reader with nothing to work on sees no fold, so `hidden` is
+         as much of the answer as the rows are. */
+      workOn: {
+        hidden: at("work-on").hidden,
+        rows: at("work-rows").children.map((item) => ({
+          term: (item.querySelector(".term") || {}).textContent || "",
+          meaning: (item.querySelector(".work-meaning") || {}).textContent || "",
+          keys: (item.querySelector(".work-keys") || { children: [] }).children.map(
+            (key) => key.textContent,
+          ),
+        })),
       },
       wordsTitle: at("words-title").textContent,
       wordsEmpty: at("words-empty").hidden ? "" : at("words-empty").textContent,

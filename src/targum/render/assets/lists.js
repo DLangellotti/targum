@@ -60,6 +60,12 @@
   //: is a real thing, and four thousand rows is a page nobody can scroll.
   var PAGE = 200;
 
+  //: How many words the fold at the top offers at once (targum-internal#103). Twenty is
+  //: a sitting, not a syllabus: enough that arriving is worth it, few enough that the
+  //: list is a thing somebody finishes rather than a backlog that grows while they look
+  //: at it. It is a cap and never a target — nothing counts what is behind it.
+  var WORK_ON = 20;
+
   function read(name, fallback) {
     try {
       return JSON.parse(localStorage.getItem(name) || fallback);
@@ -177,6 +183,123 @@
     save(phrase.store, store);
     Object.keys(changes).forEach(function (key) {
       phrase[key] = changes[key];
+    });
+  }
+
+  /* --- what to work on ------------------------------------------------------- */
+
+  /* The fold at the top of Your Words: the words this reader flagged and never came back
+   * to (targum-internal#103).
+   *
+   * Dmitry Z, 2026-09-16, on the one thing in an hour he called genuinely useful: "anki
+   * requires bookkeeping and discipline that I lack", and "anki srs is kinda dumb in the
+   * sense it doesnt really know what you get wrong beyond what you tell it". A per-session
+   * answer is a commodity a chat window already gives him for free; what a chat window
+   * structurally cannot do is remember him between sessions. The list that maintains
+   * itself is the thing worth paying for.
+   *
+   * And the constraint, three minutes later in the same conversation: "if smth gonna ping
+   * me or bother me like duolingo I'll fucking delete it". So it is pull and never push.
+   * Nothing here is scheduled, nothing is due, nothing is counted, nothing is sent. It is
+   * a view of rows that already exist, waiting when he arrives and silent when he does
+   * not.
+   *
+   * The order is the plainest rule that is true of the data. `at` is when a word was
+   * marked and there is nothing else: no record that a word was met again, no count of
+   * times seen, no interval. So: still learning, oldest mark first — the ones that have
+   * been sitting there longest. Any cleverer order would be a claim the ledger cannot
+   * support.
+   */
+  /* Words the reader has said "still learning" to during this visit. In memory and
+     nowhere else: it is not a snooze and not an interval, it is the difference between
+     one sitting and the next. Cleared by `draw`, so coming back to the page brings them
+     back — which is correct, because they are still words being learned. */
+  var passed = {};
+
+  function workOn() {
+    return entry.words
+      .filter(function (word) {
+        if (passed[word.lemma || word.term]) return false;
+        return word.status >= 1 && word.status <= 3;
+      })
+      .slice()
+      .sort(function (a, b) {
+        // Oldest mark first. A word with no stamp sorts as oldest, which is right: it was
+        // marked before anything started stamping.
+        return (a.at || 0) - (b.at || 0);
+      })
+      .slice(0, WORK_ON);
+  }
+
+  function renderWorkOn() {
+    var panel = at("work-on");
+    var host = at("work-rows");
+    if (!panel || !host) return;
+    var rows = workOn();
+    // Nothing to work on is nothing on the page. Not an empty state and not an
+    // invitation: a reader who has flagged no words is not being told they are behind.
+    panel.hidden = rows.length === 0;
+    host.textContent = "";
+    if (!rows.length) return;
+
+    rows.forEach(function (word) {
+      var item = el("li", "work-row");
+      item.setAttribute("data-word", word.lemma || word.term);
+
+      var said = el("span", "work-said");
+      var term = el("bdi", "term", word.term);
+      term.setAttribute("lang", code);
+      said.appendChild(term);
+      // The dictionary form only where it differs, the way the table does it: repeating
+      // a word under itself says the reader got something wrong.
+      if (word.lemma && word.lemma !== word.term) {
+        var form = el("bdi", "work-lemma", word.lemma);
+        form.setAttribute("lang", code);
+        said.appendChild(form);
+      }
+      item.appendChild(said);
+
+      // What they kept, in the language they kept it in. Their own note wins over the
+      // bought meaning, which is the rule everywhere else a meaning is shown.
+      var meaning = word.note || word.meaning;
+      if (meaning) {
+        item.appendChild(inTarget(el("span", "work-meaning" + (word.note ? " mine" : ""), meaning), word.into));
+      }
+
+      /* The two questions, and nothing else.
+       *
+       * "I know this" takes it off the list through the ordinary path — the same
+       * `updateWord` the table's editor calls — so the known count rises once, from one
+       * store, and no second ledger exists to disagree with the first.
+       *
+       * "Still learning" moves it out of *this sitting* and nothing more. It does not
+       * restamp `at`: that field is when a word was kept, it is what the table's Kept
+       * column shows, and it is written once and preserved for life (`vocab.js:161`) —
+       * so re-stamping it to reorder a queue would have quietly aged every word in the
+       * product to today. And it is not stored anywhere, because a stored skip is an
+       * interval wearing a different coat, and the whole of this card is that nothing is
+       * scheduled. Come back tomorrow and the word is here again, which is true: it is
+       * still a word being learned.
+       */
+      var keys = el("span", "work-keys");
+      var knew = el("button", "work-known", t("lists.work.known", "I know this"));
+      knew.type = "button";
+      knew.addEventListener("click", function () {
+        updateWord(word, { status: KNOWN });
+        renderWorkOn();
+        renderWords();
+        if (onChanged) onChanged();
+      });
+      var still = el("button", "work-still", t("lists.work.still", "Still learning"));
+      still.type = "button";
+      still.addEventListener("click", function () {
+        passed[word.lemma || word.term] = true;
+        renderWorkOn();
+      });
+      keys.appendChild(knew);
+      keys.appendChild(still);
+      item.appendChild(keys);
+      host.appendChild(item);
     });
   }
 
@@ -593,15 +716,23 @@
   }
 
   function draw(which, store, ceilings) {
+    var was = code;
     code = which;
     entry = store || { words: [], phrases: [] };
     limits = ceilings || {};
     shown = PAGE;
     openKey = null;
+    /* A sitting ends when the page does, or when the reader changes language. It does
+       not end because a word was marked: marking one calls back to the page, which
+       redraws the whole list through here, and clearing the skips there took a word the
+       reader had just passed over and put it back in front of them mid-sitting. Found on
+       the running page. `passed` is module state, so a reload empties it by existing. */
+    if (code !== was) passed = {};
     offerMeaningLanguages(which, meaningIn(), function (into) {
       lang.into(into);
       if (redrawing) redrawing(into);
     });
+    renderWorkOn();
     renderWords();
     renderPhrases();
   }

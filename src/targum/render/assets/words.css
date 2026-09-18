@@ -525,3 +525,51 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
 }
 /* Labels in normal case (2026-09-11). */
 table.rows th, .list-controls .section-sub { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+
+/* --- what to work on (targum-internal#103) --------------------------------------------
+   The fold at the top of Your Words: the words flagged and never come back to, oldest
+   first. A list of rows rather than a table — there are three things to say about a word
+   here and six in the table below, and a second grid of the same columns would read as
+   the same list twice.
+
+   Nothing about it counts, ranks or is due. The heading is a question answered and there
+   is no number beside it: "What to work on", never "12 words due". */
+.work-rows { list-style: none; margin: 0; padding: 0; }
+.work-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0.2rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.work-row:last-child { border-block-end: 0; }
+.work-said { display: flex; align-items: baseline; gap: 0.4rem; min-inline-size: 0; }
+/* The word in the reading face, at reading size: it is the thing on the page that is
+   being learned, and the rest of the row is about it. */
+.work-said .term { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.work-lemma { font-family: var(--reading-hebrew); font-size: 0.9375rem; color: var(--ink-soft); }
+.work-meaning { flex: 1 1 10rem; min-inline-size: 0; color: var(--ink-soft); font-size: 0.9375rem; }
+/* The reader's own words, marked the way they are marked in the table. */
+.work-meaning.mine { color: var(--ink); }
+.work-keys { margin-inline-start: auto; display: flex; gap: 0.3rem; flex: none; }
+.work-keys button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  color: var(--ink-soft);
+}
+/* Known is the one that changes something, so it is the one that carries the primary;
+   §9 gives a working action the accent and keeps ink for a call to action. Still
+   learning changes nothing that is kept, and looks like it. */
+.work-keys .work-known { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.work-keys .work-known:hover { background: var(--teal); color: var(--teal-ink); }
+.work-keys .work-still:hover { color: var(--ink); }
+.work-keys button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .work-keys button { min-height: 44px; }
+}
