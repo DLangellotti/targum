@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from targum import ingest
-from targum.align import Aligner, SentenceTransformerEncoder, as_indices, load_gold, score
+from targum.align import Aligner, MappedEncoder, as_indices, load_gold, score
 from targum.align.embedding import is_downloaded as embeddings_downloaded
 from targum.segment import HebrewSegmenter, is_downloaded, segment_document, stanza_code
 
@@ -30,7 +30,7 @@ FLOORS = {
 
 @pytest.fixture(scope="module")
 def aligner() -> Aligner:
-    return Aligner(encoder=SentenceTransformerEncoder())
+    return Aligner(encoder=MappedEncoder())
 
 
 @pytest.fixture(scope="module")

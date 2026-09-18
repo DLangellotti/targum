@@ -3041,9 +3041,9 @@ def models_fetch(
         if embedding.is_downloaded():
             console.print("[dim]The embedding model is already downloaded.[/dim]")
             return
-        console.print(f"[dim]Fetching {embedding.DEFAULT_MODEL}, about 1.8 GB…[/dim]")
+        console.print(f"[dim]Fetching {embedding.DEFAULT_MODEL}, about 1.9 GB…[/dim]")
         try:
-            embedding.SentenceTransformerEncoder().encoder()
+            embedding.fetch()
         except TargumError as error:
             fail(error)
         console.print(f"[green]Downloaded[/green] {embedding.DEFAULT_MODEL}")

@@ -44,7 +44,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-align = ["sentence-transformers>=3.0"]
+# Empty since 2026-09-18, and kept so that an install naming it still resolves: the
+# aligner reads LaBSE with torch and transformers, which every install already has, and
+# sentence-transformers' own loader held 2.2 GB where this one holds a third of that
+# (align/embedding.py).
+align = []
 # Forced alignment of a supplied transcript against its recording. Torch rides in with
 # it; on the box Stanza already brought torch, so the marginal weight is the model.
 #
@@ -134,7 +138,6 @@ module = [
   "stanza.*",
   "silero_stress.*",
   "trafilatura.*",
-  "sentence_transformers.*",
   "wordfreq.*",
   "nakdimon.*",
   "phonikud.*",
