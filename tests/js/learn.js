@@ -165,6 +165,9 @@ function phrases() {
 }
 
 /** Do something to the page, the way a person would. */
+/** What a press on a rail card did: whether the address was left to carry it. */
+const cardPresses = [];
+
 function act(step) {
   if (step.press) byId[step.press].fire("click", {});
   // A door in the row above the sheet (2026-09-11), by its id — in the row or in the
@@ -172,6 +175,25 @@ function act(step) {
   if (step.door) {
     const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
     if (found) found.fire("click", {});
+  }
+  /* A press on a card in the rail (2026-09-18), by the text's entry. `modified` stands
+     for a cmd- or middle-click, which must fall through to the address rather than swap
+     the sheet — the harness reports whether the press was defaulted. */
+  if (step.card) {
+    const found = (at("learn-cards").children || [])
+      .map((item) => (item.children || [])[0])
+      .find((link) => link && link.attrs && link.attrs["data-entry"] === step.card);
+    if (found) {
+      let defaulted = true;
+      found.fire("click", {
+        metaKey: !!step.modified,
+        button: 0,
+        preventDefault() {
+          defaulted = false;
+        },
+      });
+      cardPresses.push({ card: step.card, followed: defaulted });
+    }
   }
   // A subject on the arrival, by its label; and a rung of the ladder beside it.
   if (step.subject) {
@@ -254,6 +276,29 @@ setTimeout(() => {
          Reported here so a test can assert it is false rather than puzzle over an
          empty carry. */
       broke: !at("learn-failed").hidden,
+      cardPresses,
+      /* The rail (2026-09-18): a card for every text the page can offer. The stylesheet
+         draws these as a column on a phone and as a rail beside the sheet at a desk, so
+         what they are is the same at both and only where they stand differs — which is
+         why this reports them once, with no width in sight. `current` is the card
+         standing for whatever the sheet is showing. */
+      cards: (at("learn-cards").children || []).map((item) => {
+        const link = (item.children || [])[0] || { attrs: {}, children: [] };
+        const what = (link.children || []).find((c) => String(c.className).includes("learn-card-what")) || {
+          children: [],
+        };
+        const part = (name) =>
+          ((what.children || []).find((c) => String(c.className).includes(name)) || {}).textContent || "";
+        return {
+          state: part("learn-card-state"),
+          title: part("learn-card-title"),
+          english: part("learn-card-english"),
+          door: link.attrs ? link.attrs["data-door"] || "" : "",
+          entry: link.attrs ? link.attrs["data-entry"] || "" : "",
+          current: link.attrs ? link.attrs["aria-current"] === "true" : false,
+          href: link.href || "",
+        };
+      }),
       // The one question a new reader is asked (targum-internal#294): the doors it
       // offers, or nothing at all where it is not asking.
       arrival: at("arrival").hidden

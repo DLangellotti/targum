@@ -1080,8 +1080,20 @@ def test_your_words_carries_the_fold_and_promises_nothing_by_it() -> None:
         assert chasing not in fold.lower(), f"the fold must not say {chasing!r}"
 
 
-def test_the_fold_is_only_on_the_words_page() -> None:
-    """It is a view of the word ledger, so it belongs where the ledger is. Learn stopped
-    carrying the lists on 2026-09-11 and does not get them back one section at a time."""
-    for name in ("learn", "progress", "phrases", "texts"):
+def test_the_fold_stands_on_the_words_page_and_on_the_front_door() -> None:
+    """Both, and nowhere else (David, 2026-09-18).
+
+    This test used to say "only on the words page", because Learn stopped carrying the
+    lists on 2026-09-11 and should not get them back one section at a time. What changed
+    is not that argument but what the fold turned out to be: the lists are an inventory,
+    which is what did not belong on a landing page, and the fold is five rows of the one
+    thing a reader came back to do. It is capped here and says where the rest are, which
+    is the arrangement every list on Learn had before the move.
+
+    Progress, Phrases and Your targums still do not carry it: the fold answers "what is
+    worth going over", and a page that answers something else should not ask it too.
+    """
+    assert 'id="work-on"' in PAGES["learn"], "the front door carries it"
+    assert 'id="work-all"' in PAGES["learn"], "and says where the rest of it is"
+    for name in ("progress", "phrases", "texts"):
         assert 'id="work-on"' not in PAGES[name], name

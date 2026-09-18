@@ -1191,3 +1191,73 @@ def test_a_retired_answer_is_dropped_and_the_question_asked_again(tmp_path: Path
     )
     assert asked["arrival"], "asked again rather than acted on"
     assert asked["carry"]["title"] == "סצנה", "its register's own door, not nothing"
+
+
+def rail_shelf() -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """A shelf that produces more than one door: four texts opened lately, newest first.
+    The recent doors are drawn from `targum:opened` rather than from the rows, which is
+    why the stamps are the half that matters here."""
+    shelf = [
+        reader(f"r{n}", f"ספר {n}", entry=f"r{n}", built=100 - n, opened=50 - n) for n in range(4)
+    ]
+    stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(4)})}
+    return shelf, stamps
+
+
+def test_the_rail_offers_a_card_for_every_text_the_page_can_show() -> None:
+    """The cards were built on 2026-09-14 for phones and the stylesheet drew them nowhere
+    else, so a desk had one object and a three-way pill. They are the same cards at both
+    widths now (2026-09-18); only where they stand differs."""
+    shelf, stamps = rail_shelf()
+    drawn = draw(shelf, stamps)
+    assert drawn["broke"] is False
+    entries = [card["entry"] for card in drawn["cards"]]
+    assert len(entries) > 1, "a rail of one card is the pill it replaced"
+    assert len(entries) == len(set(entries)), "one text is one card"
+
+
+def test_the_rail_says_which_text_the_sheet_is_showing() -> None:
+    """A list of places you cannot locate yourself in is not a map. Marked by the reader
+    rather than by the door: the rail draws one card per text and drops the duplicates,
+    so the card for what you are reading often carries no door id at all."""
+    shelf, stamps = rail_shelf()
+    drawn = draw(shelf, stamps)
+    current = [card for card in drawn["cards"] if card["current"]]
+    assert len(current) == 1, "exactly one, and never none"
+    assert current[0]["entry"] == drawn["carry"]["entry"]
+
+
+def test_pressing_a_rail_card_swaps_the_sheet_rather_than_leaving_the_page() -> None:
+    """At a desk the rail took the row of doors' place, so a press has to do what a door
+    did. The address stays on the card underneath — it is what a phone uses, where there
+    is no sheet to swap."""
+    shelf, stamps = rail_shelf()
+    first = draw(shelf, stamps)
+    other = next(c["entry"] for c in first["cards"] if not c["current"])
+    drawn = draw(shelf, stamps, do=[{"card": other}])
+    assert drawn["cardPresses"] == [{"card": other, "followed": False}], "the press was taken"
+    assert drawn["went"] == "", "and nobody was sent anywhere"
+    assert drawn["carry"]["entry"] == other, "the sheet swapped"
+
+
+def test_the_mark_moves_with_the_sheet() -> None:
+    """The swap redraws no cards, so a mark that only moved on a redraw would sit on the
+    card you came from for the rest of the visit."""
+    shelf, stamps = rail_shelf()
+    first = draw(shelf, stamps)
+    other = next(c["entry"] for c in first["cards"] if not c["current"])
+    drawn = draw(shelf, stamps, do=[{"card": other}])
+    assert [c["entry"] for c in drawn["cards"] if c["current"]] == [other]
+
+
+def test_a_modified_press_is_left_to_the_address() -> None:
+    """Cmd-click, middle click and "open in new tab" are how people open a second thing
+    without losing the first. Swallowing them to swap a sheet is the convenient order
+    rather than the right one."""
+    shelf, stamps = rail_shelf()
+    first = draw(shelf, stamps)
+    was = first["carry"]["entry"]
+    other = next(c["entry"] for c in first["cards"] if not c["current"])
+    drawn = draw(shelf, stamps, do=[{"card": other, "modified": True}])
+    assert drawn["cardPresses"] == [{"card": other, "followed": True}], "the browser has it"
+    assert drawn["carry"]["entry"] == was, "and the sheet did not move"

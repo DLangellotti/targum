@@ -326,6 +326,27 @@
   // first: what the phone's cards lead with, since the sheet is not drawn there.
   var sheets = [];
 
+  /* The rail says which of its cards is the one in the sheet (2026-09-18).
+   *
+   * By the reader rather than by the door: the rail draws one card per text and drops
+   * the duplicates, so the card standing for what you are reading is often the one built
+   * from `sheets`, which has no door id on it at all. The reader is the thing both halves
+   * actually agree about.
+   *
+   * Called from `drawCarry` and nowhere else, because that is the one function that runs
+   * every time the sheet changes — including the swaps a rail press makes, which redraw
+   * no cards and would otherwise leave the mark behind on the card you came from. */
+  function markRail(reader) {
+    var list = document.getElementById("learn-cards");
+    if (!list || !reader) return;
+    var here = reader.entry || reader.id || "";
+    Array.prototype.forEach.call(list.querySelectorAll(".learn-card"), function (one) {
+      var mine = one.getAttribute("data-entry");
+      if (here && mine === here) one.setAttribute("aria-current", "true");
+      else one.removeAttribute("aria-current");
+    });
+  }
+
   function drawCarry(reader, door) {
     var sheet = document.getElementById("carry-sheet");
     var panel = document.getElementById("carry");
@@ -338,6 +359,7 @@
     door = door || { state: "carry" };
     sheet.hidden = false;
     showing = reader;
+    markRail(reader);
     var heading = document.getElementById("carry-heading");
     if (heading) heading.textContent = door.heading || STATES[door.state] || CONTINUE;
     markDoor(door.id || "");
@@ -736,8 +758,11 @@
       );
     }
     if (series.length) row.appendChild(menu({ id: "subscriptions", label: SUBSCRIPTIONS, items: series }));
-    markDoor(current);
     drawCards();
+    markDoor(current);
+    // The cards are only now in the page, so the mark the sheet set before they existed
+    // has nothing to sit on. Put it back.
+    if (showing) markRail(showing);
   }
 
   /* --- on a phone, cards (2026-09-14) -------------------------------------------------
@@ -784,6 +809,31 @@
     var link = el("a", "learn-card");
     link.href = hrefOf(reader, door);
     link.setAttribute("data-entry", reader.entry || reader.id || "");
+    /* Which door this card is, so the rail can say which one the sheet is showing
+       (2026-09-18). A card drawn from `sheets` rather than from a door has none. */
+    if (one && one.id) link.setAttribute("data-door", one.id);
+    /* At a desk the rail took the row of doors' place, so a press has to do what a
+       door did: swap the sheet. It stays an `<a href>` to the reader underneath — that
+       is what it is on a phone, where there is no sheet to swap, and it is what a
+       middle click, a long press and "open in new tab" should still get. So the swap
+       is the click handler and the address is the fallback, which is the order that
+       degrades the right way rather than the convenient way. */
+    if (one && one.reader) {
+      link.addEventListener("click", function (event) {
+        var sheet = document.getElementById("carry-sheet");
+        if (!sheet || sheet.hidden) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
+        if (event.preventDefault) event.preventDefault();
+        drawCarry(one.reader, one.door);
+        if (one.id) markDoor(one.id);
+      });
+    }
+    /* At a desk the rail took the row of doors' place, so a press has to do what a
+       door did: swap the sheet. It stays an `<a href>` to the reader underneath —
+       that is what it is on a phone, where there is no sheet to swap, and it is what
+       a middle click, a long press and "open in new tab" should still get. So the
+       swap is the click handler and the address is the fallback, which is the order
+       that degrades the right way rather than the convenient way. */
     var pictured = reader.entry || reader.id || reader.name;
     var cover = el("span", "card-cover");
     cover.setAttribute("aria-hidden", "true");
@@ -1623,6 +1673,37 @@
     return door;
   }
 
+  /* --- what to work on (targum-internal#103, on Learn 2026-09-18) ---------------
+   *
+   * The same fold that stands on Your Words, drawn by the same `lists.js` rather than by
+   * a second copy of it here: two answers to "what is worth going over" eventually
+   * disagree, and the one on Your Words is the one with the tests.
+   *
+   * `lists.js` draws only what it finds. This page carries the fold's markup and none of
+   * the table's, its search field's or its phrases' — so `mount` wires nothing else and
+   * `draw` renders nothing else. That is the same arrangement `claim.js` already has
+   * here, and the reason neither needed a page of its own.
+   *
+   * Five, and the way to the rest. The cap is why this can sit on the front door at all:
+   * twenty rows of things to go over, above the shelf, is a chore list.
+   */
+  var WORK_ON_HERE = 5;
+  var workList = null;
+
+  function drawWorkOn(code, store) {
+    var panel = document.getElementById("work-on");
+    var lists = window.TargumLists;
+    if (!panel || !lists || !lists.mount) return;
+    if (!workList) {
+      lists.mount({ languages: window.TARGUM_LANGUAGES || {} });
+      workList = lists;
+    }
+    lists.draw(code, store || { words: [], phrases: [] }, { workOn: WORK_ON_HERE });
+    // The way to the rest, keyed like every other address this page writes.
+    var all = document.getElementById("work-all");
+    if (all) all.href = keyed("/words");
+  }
+
   /* --- what you know --------------------------------------------------------- */
 
   //: How many known words the count line waits for before it counts (2026-09-11).
@@ -1795,6 +1876,7 @@
         // Meanings in the language this reader last read this one into, for the count.
         var store = charts.collect(charts.meaningLanguage(code))[code];
         drawKnown(code, store);
+        drawWorkOn(code, store);
       }
 
       var waiting = document.getElementById("learn-waiting");
