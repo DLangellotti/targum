@@ -975,6 +975,34 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "quote_with": instagram_module.home_url(url) or url,
             **_licence_row(media.licence),
         }
+    from ..video import tiktok as tiktok_module
+
+    try:
+        tok = tiktok_module.is_tiktok(url)
+    except TargumError as error:
+        return {"kind": "video", "error": error.message}
+    if tok:
+        from .. import screen as screen_module
+
+        try:
+            info = tiktok_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
+        media = screen_module.from_ytdlp(info)
+        return {
+            "kind": "video",
+            "title": media.title.strip(),
+            "seconds": round(media.duration),
+            "hours": round(media.duration / 3600, 2),
+            "audio_language": "",
+            "hebrew_subtitles": False,
+            "advice": [
+                "A TikTok: the recording would be transcribed, and the minutes count "
+                "against the audio allowance."
+            ],
+            "quote_with": tiktok_module.home_url(str(info.get("webpage_url") or url)) or url,
+            **_licence_row(media.licence),
+        }
     named = hosts_module.host_for(url)
     if named is not None:
         # Named, and not fetched from: said as the way in that works, so the model can

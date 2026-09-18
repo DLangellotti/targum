@@ -314,6 +314,42 @@ def check_instagram(connect: bool = True) -> Check:
     return Check("Instagram", True, f"the control reel answers ({round(info['duration'])} s)")
 
 
+#: A public TikTok from a Hebrew-teaching account, measured from the box on 2026-09-18.
+#: If it is ever deleted this check reads as a refusal; swap in another.
+TIKTOK_CONTROL = "https://www.tiktok.com/@yiramne/video/7485073076758007056"
+
+
+def check_tiktok(connect: bool = True) -> Check:
+    """Whether TikTok still shows this box a public video, directly.
+
+    `check_instagram`'s reasons, and one more: this door does not go through the proxy,
+    so the proxy's own check says nothing about it. TikTok serves the box's address and
+    refuses the residential pool; the day that turns round, this is where it shows.
+    """
+    from .errors import TargumError
+    from .video import tiktok as tiktok_module
+    from .video import ytdlp_available
+
+    if not _hosted() or not ytdlp_available()[0]:
+        return Check("TikTok", True, "not asked from here", fatal=False)
+    if not connect:
+        return Check("TikTok", True, "not asked", fatal=False)
+    try:
+        info = tiktok_module.describe(TIKTOK_CONTROL)
+    except TargumError as error:
+        return Check(
+            "TikTok",
+            False,
+            f"the control video was refused — {error.message}",
+            "Pasted TikToks fail at the button until it answers. A newer yt-dlp is the "
+            "usual fix; a deleted control video reads the same way.",
+            fatal=False,
+        )
+    return Check(
+        "TikTok", True, f"the control video answers ({round(info.get('duration') or 0)} s)"
+    )
+
+
 def check_pot(connect: bool = True) -> Check:
     """Whether the token minter is answering, which on a box is what makes yt-dlp work.
 
@@ -724,6 +760,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_fetch_egress(connect=connect))
     checks.append(check_pot(connect=connect))
     checks.append(check_instagram(connect=connect))
+    checks.append(check_tiktok(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())
     checks.append(check_shelf(out))

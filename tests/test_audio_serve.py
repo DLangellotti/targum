@@ -648,7 +648,7 @@ def test_a_profile_is_one_video_at_a_time_without_the_binary(tmp_path: Path, mon
 
 
 def test_a_host_we_name_and_cannot_fetch_says_so_by_name(tmp_path: Path, monkeypatch) -> None:
-    """TikTok, Vimeo, Reddit, Facebook: refused by name with the way that works, never
+    """Vimeo, Reddit, Facebook: refused by name with the way that works, never
     read as an article and answered with "save the page as .txt"."""
     import targum.audio.episode as episode_module
 
@@ -657,7 +657,6 @@ def test_a_host_we_name_and_cannot_fetch_says_so_by_name(tmp_path: Path, monkeyp
     )
     library = Library(tmp_path)
     for address, name in (
-        ("https://www.tiktok.com/@someone/video/7123456789012345678", "TikTok"),
         ("https://vimeo.com/76979871", "Vimeo"),
         ("https://www.reddit.com/r/hebrew/comments/1c1ux0h/a_slug/", "Reddit"),
         ("https://www.facebook.com/reel/123456789", "Facebook"),
@@ -682,7 +681,7 @@ def test_a_dropped_video_keeps_the_link_it_was_refused_at(tmp_path: Path) -> Non
         ),
         (
             "https://www.tiktok.com/@a/video/7123456789012345678",
-            "https://www.tiktok.com/video/7123456789012345678",
+            "https://www.tiktok.com/@/video/7123456789012345678",
         ),
         ("https://evil.example/reel/DSkLv4UE196", ""),
         ("javascript:alert(1)", ""),
@@ -697,6 +696,38 @@ def test_a_dropped_video_keeps_the_link_it_was_refused_at(tmp_path: Path) -> Non
         options={"came_from": "https://www.instagram.com/reel/DSkLv4UE196/"},
     )
     assert library._builder(job).home == ""
+
+
+def test_a_shared_tiktok_link_is_priced_and_carried_as_its_one_address(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A short link names no video until followed; the quote follows it, and the job
+    then carries the canonical address the build fetches and the reader links home to."""
+    from targum.video import tiktok as tiktok_module
+
+    asked: list[str] = []
+
+    def pretend(url: str) -> dict:
+        asked.append(url)
+        return {
+            "title": "חידה: שלג",
+            "duration": 11.0,
+            "webpage_url": "https://www.tiktok.com/@yiramne/video/7485073076758007056",
+            "subtitles": {"heb-IL": [{}], "he": [{}]},
+            "formats": [{"acodec": "aac"}],
+        }
+
+    monkeypatch.setattr(tiktok_module, "describe", pretend)
+    monkeypatch.setattr(tiktok_module, "fetch", lambda *a, **k: pytest.fail("no download"))
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    job = Job(id="a", source="https://vm.tiktok.com/ZMabc123/")
+    Library(tmp_path).prepare(job)
+    assert job.error == "" and job.stage in ("ready", "blocked"), job.error
+    assert asked == ["https://vm.tiktok.com/ZMabc123/"]
+    assert job.source == "https://www.tiktok.com/@/video/7485073076758007056"
+    assert job.seconds == 11.0 and job.title == "חידה: שלג"
+    # A track TikTok lists is not one the build fetches, so the hearing is still priced.
+    assert job.options["subtitles"] is False and job.transcription > 0
 
 
 """--- the part door ---"""

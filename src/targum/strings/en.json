@@ -1678,5 +1678,7 @@
   "reader.page.open-on-service": "Open on {service}",
   "add.read-pictures.one": "Also read the picture",
   "add.read-pictures.other": "Also read the {n} pictures",
-  "job.post-only-pictures": "That post's words are all in its pictures. Read the pictures to bring it in."
+  "job.post-only-pictures": "That post's words are all in its pictures. Read the pictures to bring it in.",
+  "landing.page.instagram-posts": "Instagram posts",
+  "job.tiktok-unavailable": "We can't fetch from TikTok here."
 }

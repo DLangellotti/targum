@@ -1731,5 +1731,7 @@
   "add.read-pictures.few": "Прочитать и {n} картинки",
   "add.read-pictures.many": "Прочитать и {n} картинок",
   "add.read-pictures.other": "Прочитать и {n} картинки",
-  "job.post-only-pictures": "В этом посте все слова — на картинках. Прочитайте картинки, чтобы его добавить."
+  "job.post-only-pictures": "В этом посте все слова — на картинках. Прочитайте картинки, чтобы его добавить.",
+  "landing.page.instagram-posts": "Посты из Instagram",
+  "job.tiktok-unavailable": "Здесь мы не можем загружать с TikTok."
 }

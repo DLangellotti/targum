@@ -459,10 +459,8 @@ def test_a_reel_is_described_and_quoted_by_its_one_address(world, monkeypatch) -
     assert got["seconds"] == 58 and got["hebrew_subtitles"] is False
     assert got["quote_with"] == "https://www.instagram.com/reel/DQGn1BljOyO"
 
-    shut = tools.describe_source(
-        ctx, {"url": "https://www.tiktok.com/@someone/video/7123456789012345678"}
-    )
-    assert shut["kind"] == "video" and shut["error"].startswith("TikTok doesn't let us fetch")
+    shut = tools.describe_source(ctx, {"url": "https://vimeo.com/76979871"})
+    assert shut["kind"] == "video" and shut["error"].startswith("Vimeo doesn't let us fetch")
 
 
 def test_a_post_of_pictures_is_described_and_its_pictures_left_to_the_reader(

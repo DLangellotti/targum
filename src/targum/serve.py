@@ -2019,6 +2019,8 @@ class Library:
                     # Its own door for the same reason: the generic ingester would read
                     # the login wall and call it the text (targum-internal#255).
                     return self._prepare_reel(job)
+                if host is hosts_module.TIKTOK:
+                    return self._prepare_tiktok(job)
                 if host is not None:
                     # A service we can name and cannot fetch from: TikTok, Vimeo, Reddit,
                     # Facebook. Said by name with the way that works, rather than read
@@ -2228,6 +2230,7 @@ class Library:
             unavailable=said_in(
                 job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
             ),
+            subtitled=True,
         )
         if job.stage != "failed":
             job.options["youtube"] = True
@@ -2247,6 +2250,31 @@ class Library:
             # where even that is silent the reel is priced long rather than refused as a
             # live stream, which a reel never is.
             unmeasured=instagram_module.GUESS_S,
+        )
+
+    def _prepare_tiktok(self, job: Job) -> None:
+        """A TikTok video, priced through `_prepare_video` (targum-internal#255).
+
+        A shared link names no video until it is followed. yt-dlp follows it at the quote,
+        and the job then carries the one canonical address it found, so the build fetches
+        the same video and the reader links home to it.
+        """
+        from .video import tiktok as tiktok_module
+
+        def described(url: str) -> dict[str, Any]:
+            info = tiktok_module.describe(url)
+            found = tiktok_module.home_url(str(info.get("webpage_url") or ""))
+            if found:
+                job.source = found
+            return info
+
+        self._prepare_video(
+            job,
+            vetted=tiktok_module.is_tiktok,
+            described=described,
+            unavailable=said_in(
+                job.ui, "job.tiktok-unavailable", "We can't fetch from TikTok here."
+            ),
         )
 
     def _prepare_post(self, job: Job) -> bool:
@@ -2312,6 +2340,7 @@ class Library:
         described: Callable[[str], dict[str, Any]],
         unavailable: str,
         unmeasured: float = 0.0,
+        subtitled: bool = False,
     ) -> None:
         """Price a video from what yt-dlp can say about it, before a byte of it moves.
 
@@ -2394,7 +2423,14 @@ class Library:
         # `from_ytdlp` counts only the first. Where there is one the hearing is free and
         # the whole import is the price of the English — which is the difference between
         # twenty cents and two dollars on a ten-minute lesson.
-        written = [tag for tag in found.subtitles if tag.split("-")[0] in self.SUBTITLES]
+        # YouTube's alone: the build fetches a written track only from YouTube
+        # (`Build._fetch_youtube_transcript`), so a track another host lists would price
+        # a hearing the build then buys anyway.
+        written = (
+            [tag for tag in found.subtitles if tag.split("-")[0] in self.SUBTITLES]
+            if subtitled
+            else []
+        )
         job.options["subtitles"] = bool(written)
         self._price_recording(job, transcribed=not written)
 
