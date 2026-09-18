@@ -579,9 +579,13 @@
       var phrases = phrasesToWorkOn()
         .slice(0, TAKEN_PHRASES)
         .map(function (row) {
-          return row.kind === "slip" ? row.slip.recast : row.phrase.term;
+          return String((row.kind === "slip" ? row.slip.recast : row.phrase.term) || "").trim();
         })
-        .filter(Boolean);
+        // The same words kept twice — from two places in one text, or two texts — are
+        // one phrase to practise, not two in a row.
+        .filter(function (phrase, index, all) {
+          return phrase && all.indexOf(phrase) === index;
+        });
       if (!phrases.length) return;
       line = t("lists.work.phrase-line", "Use these phrases in new sentences: ") + phrases.join("; ");
     } else {

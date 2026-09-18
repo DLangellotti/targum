@@ -1115,6 +1115,13 @@
         wantedJob = "";
       }
       if (current) return;
+      // A line handed over from another page starts a conversation of its own
+      // (2026-09-18): the reader came to use those words, not to add them to whatever
+      // they were last talking about. So nothing is opened, and Send makes a new one.
+      if (handedOver) {
+        if (empty) empty.hidden = false;
+        return;
+      }
       var job = wantedJob;
       // Consumed once: `load` runs again when a first line makes a conversation.
       if (job) writeHash(wanted ? "#" + encodeURIComponent(wanted) : "");
@@ -1623,8 +1630,9 @@
   // `TARGUM_KEY` — which is why nothing looked wrong (targum-internal#232).
   if (window.TargumSync) window.TargumSync.start();
 
-  /* A line handed over by another page — today only the fold on Your Words
-     (targum-internal#103), which sends a reader here with their stuck words named.
+  /* A line handed over by another page — today only What to work on
+     (targum-internal#103), which sends a reader here with their stuck words named, and
+     into a new conversation rather than the last one (2026-09-18).
 
      **In the box, and not sent.** The page that wrote it did not press Send and cannot:
      a turn spends, and what spends is the reader's own press. So this fills the field,
@@ -1633,10 +1641,14 @@
 
      Read once and deleted, so a back button or a second visit does not refill the box
      with a line the reader already dealt with. */
+  //: Whether this load was handed a line, which makes it a new conversation.
+  var handedOver = false;
   try {
     var handed = localStorage.getItem("targum:say");
     if (handed) {
       localStorage.removeItem("targum:say");
+      handedOver = true;
+      remember("");
       /* Never over something already in the box. The template renders the field
          empty, so this looks like it can never fire — but Firefox restores what was
          typed into a textarea when the reader comes back with the back button, and
