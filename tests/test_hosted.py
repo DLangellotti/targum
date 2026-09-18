@@ -1008,3 +1008,26 @@ def test_a_finished_text_is_kept_on_the_account_and_in_the_export() -> None:
         assert [row["done"] for row in rows] == [9]
         taken = json.dumps(store.everything(person))
         assert '"done": 9' in taken
+
+
+# -- what to work on: a corrected line said known (2026-09-18) -------------------------
+
+
+def test_a_corrected_line_said_known_leaves_the_queue_and_not_the_record(
+    hosted: tuple[int, str],
+) -> None:
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+    mine = store.slip(person.id, wrote="אני הלך", recast="אני הולך", changed=["הולך"])
+
+    assert _signed_post(port, f"/slips/{mine}", {"known": True}, session) == (200, {"ok": True})
+    status, body = ask(port, "/slips", "targum.page", session)
+    assert status == 200 and mine not in [row["id"] for row in json.loads(body)["slips"]]
+    status, body = ask(port, "/slips?all=1", "targum.page", session)
+    assert mine in [row["id"] for row in json.loads(body)["slips"]], "the record keeps it"
+
+    assert _signed_post(port, "/slips/999999", {"known": True}, session)[0] == 404
+    assert _signed_post(port, "/slips/nonsense", {"known": True}, session)[0] == 404
+    assert _signed_post(port, f"/slips/{mine}", {"known": True}, "")[0] == 401

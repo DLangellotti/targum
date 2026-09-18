@@ -182,6 +182,8 @@ TRASHED = "trashed"
 #: How many rewritten lines the queue offers at once (targum-internal#290). The same
 #: twenty the word queue offers, for the same reason: a sitting rather than a syllabus.
 SLIPS_SHOWN = 20
+#: How many of them the phrases page lists as the record, newest first.
+SLIPS_LISTED = 500
 
 # What a page is allowed to do. Readers are self-contained by construction — no script,
 # stylesheet, font or image from anywhere, and the tests hold that — so the policy can
@@ -4649,10 +4651,16 @@ class Handler(BaseHTTPRequestHandler):
             # Theirs and nobody else's: signed out there is nobody to have any, and the
             # store answers with an empty list rather than with somebody else's.
             person = self._person()
+            # `?all=1` is the record on the phrases page, newest first and with the lines
+            # already known; without it, the queue What to work on draws.
+            if parse_qs(urlparse(self.path).query).get("all") == ["1"]:
+                every = self.store.slips(person.id if person else None, limit=SLIPS_LISTED)
+                return self._json({"slips": every})
             oldest = self.store.slips(
                 person.id if person else None,
                 limit=SLIPS_SHOWN,
                 oldest=True,
+                open_only=True,
             )
             return self._json({"slips": oldest})
         if route == "/readers":
@@ -4871,6 +4879,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._interest(payload)
         if route == "/account/address":
             return self._address(payload)
+        if route.startswith("/slips/"):
+            return self._know_slip(route[len("/slips/") :], payload)
         if route == "/account/languages":
             return self._languages(payload)
         if route == "/account/language":
@@ -5783,6 +5793,23 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         self._json({"signedIn": True, "interest": list(kept)})
+
+    def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
+        """ "I know this" on a line that came back changed (2026-09-18).
+
+        `{"known": true}` takes it out of What to work on; false puts it back. The slip
+        itself stays: it is the record, and the record is not the queue.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            slip_id = int(rest)
+        except ValueError:
+            return self._json({"error": "not found"}, 404)
+        if not self.store.know_slip(person.id, slip_id, bool(payload.get("known", True))):
+            return self._json({"error": "not found"}, 404)
+        self._json({"ok": True})
 
     def _address(self, payload: dict[str, Any]) -> None:
         """How the conversation addresses them in Hebrew (2026-09-14)."""

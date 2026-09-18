@@ -1113,7 +1113,10 @@ def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
         "in the reader, every copy announces through #spoken"
     )
     lists = (ASSETS / "lists.js").read_text(encoding="utf-8")
-    assert lists.count("window.TargumVocab.copyButton(") == 2, "a word row and a phrase row"
+    assert lists.count("window.TargumVocab.copyButton(") == 5, (
+        "a word row and a phrase row, and on a row's card the word, its dictionary form"
+        " and its meaning"
+    )
     vocab = (ASSETS / "vocab.js").read_text(encoding="utf-8")
     assert 'setAttribute("role", "status")' in vocab and 'aria-live", "polite"' in vocab, (
         "and elsewhere through a region of its own"

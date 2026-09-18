@@ -73,19 +73,29 @@
   }
 
   /* The lines that came back changed (targum-internal#290), fetched once and handed to
-     the fold. Only on the words page: it is the fold's other half, and the phrases page
-     and the texts page have no fold to put it in.
+     the lists. Twice on the words page and once on the phrases page: the queue, which is
+     the fold's Phrases tab and exists only where the fold does, and the record, which
+     stands under Your Phrases wherever that list is.
 
      Asked for after the lists are drawn rather than before, so a slow answer never holds
      up the words — the fold appears with its words and gains its lines a moment later,
      and a reader with neither still sees nothing at all. */
   function drawRewrote() {
-    if (which !== "words" || !lists || !lists.rewrote) return;
-    ask("/slips")
-      .then(function (data) {
-        lists.rewrote((data && data.slips) || []);
-      })
-      .catch(function () {});
+    if (!lists || !lists.rewrote) return;
+    if (which === "words") {
+      ask("/slips")
+        .then(function (data) {
+          lists.rewrote((data && data.slips) || []);
+        })
+        .catch(function () {});
+    }
+    if (which === "words" || which === "phrases") {
+      ask("/slips?all=1")
+        .then(function (data) {
+          lists.record((data && data.slips) || []);
+        })
+        .catch(function () {});
+    }
   }
 
   /* --- the shelf ------------------------------------------------------------- */

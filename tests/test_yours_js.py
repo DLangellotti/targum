@@ -165,7 +165,7 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
     # And the lines that came back changed, once, after the lists are drawn
     # (targum-internal#290). Asserted as the whole list rather than as a membership, so a
     # page that starts asking for something new has to say so here.
-    assert drawn["asked"] == ["/words/common?offset=0&limit=50", "/slips"]
+    assert drawn["asked"] == ["/words/common?offset=0&limit=50", "/slips", "/slips?all=1"]
     marked = draw(
         vocabulary(word("ספר", "book", status=2)),
         pages=pages,
@@ -412,23 +412,146 @@ def test_a_word_passed_over_stays_passed_over_for_the_rest_of_the_sitting() -> N
     )
 
 
-def test_the_lines_you_rewrote_stand_in_the_same_fold() -> None:
-    """The same question — what is worth going over — so the same fold. Two panels asking
-    it twice would be two lists to keep track of, which is the bookkeeping this replaces.
-    """
-    drawn = draw(
-        vocabulary(word("ספר", "book", status=2, at=100)),
-        slips=[
-            {
-                "wrote": "אני הלך אתמול",
-                "recast": "אֲנִי הָלַכְתִּי אֶתְמוֹל",
-                "changed": ["הָלַכְתִּי"],
-                "why": "Past tense: הָלַכְתִּי, not הָלַךְ.",
-                "language": "he",
-            }
-        ],
+SLIP = {
+    "id": 7,
+    "wrote": "אני הלך אתמול",
+    "recast": "אֲנִי הָלַכְתִּי אֶתְמוֹל",
+    "changed": ["הָלַכְתִּי"],
+    "why": "Past tense: הָלַכְתִּי, not הָלַךְ.",
+    "language": "he",
+    "at": 50,
+}
+
+
+def with_phrase(
+    stored: dict[str, str], text: str, status: int = 1, at: int = 0, meaning: str = ""
+) -> dict[str, str]:
+    """`stored` with one phrase kept from a text, at a level on the ladder. The phrase's
+    meaning is merged into the words' own meanings store rather than written over it."""
+    meanings = json.loads(stored.get("targum:meanings:he:en", "{}"))
+    meanings["phrase:p1"] = {"meaning": meaning, "note": "", "at": 0, "seen": 1}
+    return {
+        **stored,
+        "targum:docs": json.dumps({"h1": {"language": "he", "title": "אהבת ציון"}}),
+        "targum:picked:h1": json.dumps(
+            {"s1": [{"id": "p1", "text": text, "status": status, "at": at}]}
+        ),
+        "targum:meanings:he:en": json.dumps(meanings, ensure_ascii=False),
+    }
+
+
+def test_the_fold_has_a_words_tab_and_a_phrases_tab() -> None:
+    """The same question — what is worth going over — asked of words and of phrases, so
+    one fold with two tabs (2026-09-18). It opens on the words."""
+    stored = with_phrase(
+        vocabulary(word("ספר", "book", status=2, at=100)), "לב טוב", meaning="a good heart"
     )
-    assert not drawn["workOn"]["hidden"], "one fold, both halves"
+    drawn = draw(stored, slips=[SLIP])
+    assert drawn["workOn"]["tabs"] == "words"
+    assert not drawn["workOn"]["wordsHidden"] and drawn["workOn"]["phrasesHidden"]
+    assert drawn["workOn"]["button"] == "Generate sentences with these words"
+
+
+def test_the_phrases_tab_holds_kept_phrases_and_corrected_lines_oldest_first() -> None:
+    """A phrase kept from a text and a line the conversation corrected, in one list: the
+    slip at 50 was there before the phrase at 60."""
+    stored = with_phrase(
+        vocabulary(word("ספר", "book", status=2, at=100)), "לב טוב", at=60, meaning="a good heart"
+    )
+    drawn = draw(stored, slips=[SLIP], do=[{"type": "tab", "which": "phrases"}])
+    fold = drawn["workOn"]
+    assert fold["tabs"] == "phrases"
+    assert fold["wordsHidden"] and not fold["phrasesHidden"]
+    assert [(row["kind"], row["term"]) for row in fold["phrases"]] == [
+        ("slip", SLIP["recast"]),
+        ("phrase", "לב טוב"),
+    ]
+    assert all(row["keys"] == ["I know this", "Still learning"] for row in fold["phrases"])
+    assert fold["phrases"][1]["meaning"] == "a good heart"
+    assert fold["button"] == "Generate sentences with these phrases"
+
+
+def test_a_known_or_unmarked_phrase_is_not_there_to_work_on() -> None:
+    stored = with_phrase(vocabulary(word("ספר", "book", status=2, at=100)), "לב טוב", status=9)
+    drawn = draw(stored)
+    assert drawn["workOn"]["tabs"] is None, "no tab with nothing under it"
+    assert drawn["workOn"]["phrases"] == []
+
+
+def test_with_only_one_half_there_are_no_tabs() -> None:
+    """A tab with nothing under it is an empty state with a label on it. A reader with
+    only phrases sees the phrases, and the door speaks about them."""
+    drawn = draw(vocabulary(word("ספר", "book", status=9, at=100)), slips=[SLIP])
+    fold = drawn["workOn"]
+    assert not fold["hidden"] and fold["tabs"] is None
+    assert fold["wordsHidden"] and not fold["phrasesHidden"]
+    assert [row["term"] for row in fold["phrases"]] == [SLIP["recast"]]
+    assert drawn["talk"]["foot"] is False, "the door is offered for the phrases"
+    assert fold["button"] == "Generate sentences with these phrases"
+
+
+def test_knowing_a_kept_phrase_writes_it_where_the_reader_keeps_it() -> None:
+    stored = with_phrase(vocabulary(word("ספר", "book", status=2, at=100)), "לב טוב", status=2)
+    drawn = draw(
+        stored,
+        do=[{"type": "tab", "which": "phrases"}, {"type": "phrase", "term": "לב טוב", "key": 0}],
+    )
+    assert drawn["picked"]["s1"][0]["status"] == 9, "in the text's own store"
+    assert drawn["workOn"]["phrases"] == []
+    assert drawn["workOn"]["tabs"] is None
+    assert not drawn["workOn"]["wordsHidden"], "a worked-through tab hands over to the other"
+
+
+def test_still_learning_steps_a_phrase_down_and_out_of_the_sitting() -> None:
+    stored = with_phrase(vocabulary(word("ספר", "book", status=2, at=100)), "לב טוב", status=3)
+    drawn = draw(
+        stored,
+        filter="all",
+        do=[{"type": "tab", "which": "phrases"}, {"type": "phrase", "term": "לב טוב", "key": 1}],
+    )
+    assert drawn["picked"]["s1"][0]["status"] == 2, "one step down"
+    assert drawn["workOn"]["phrases"] == []
+    assert drawn["phrases"] == {"אהבת ציון": ["לב טוב"]}, "still kept"
+
+
+def test_knowing_a_corrected_line_is_said_to_the_account() -> None:
+    """The slip lives on the account, so that is where "I know this" goes. The line
+    leaves the list; the record keeps it."""
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=9, at=100)),
+        slips=[SLIP],
+        do=[{"type": "phrase", "term": SLIP["recast"], "key": 0}],
+    )
+    assert drawn["told"] == [{"url": "/slips/7", "body": {"known": True}}]
+    assert drawn["workOn"]["hidden"], "nothing left to work on"
+    assert drawn["rewrote"]["rows"][0]["wrote"] == SLIP["wrote"], "the record keeps it"
+
+
+def test_a_corrected_line_the_account_refused_comes_back() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=9, at=100)),
+        slips=[SLIP],
+        refuse=True,
+        do=[{"type": "phrase", "term": SLIP["recast"], "key": 0}],
+    )
+    assert [row["term"] for row in drawn["workOn"]["phrases"]] == [SLIP["recast"]]
+
+
+def test_still_learning_on_a_corrected_line_writes_nothing() -> None:
+    """A slip has no ladder, so the press only moves it out of the sitting."""
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=9, at=100)),
+        slips=[SLIP],
+        do=[{"type": "phrase", "term": SLIP["recast"], "key": 1}],
+    )
+    assert drawn["told"] == []
+    assert drawn["workOn"]["phrases"] == []
+
+
+def test_the_record_of_corrected_lines_stands_under_your_phrases() -> None:
+    """Every line, with the words they did not write marked and the model's reason, and
+    no control on a row: the record, not the queue."""
+    drawn = draw(vocabulary(word("ספר", "book", status=2, at=100)), slips=[SLIP])
     assert not drawn["rewrote"]["hidden"]
     row = drawn["rewrote"]["rows"][0]
     assert row["wrote"] == "אני הלך אתמול"
@@ -436,30 +559,7 @@ def test_the_lines_you_rewrote_stand_in_the_same_fold() -> None:
     assert row["why"].startswith("Past tense")
 
 
-def test_a_rewritten_line_carries_no_control() -> None:
-    """A sentence is not a word and there is nothing here to mark known. The record is
-    the point, which is the half a scheduler cannot have."""
-    drawn = draw(
-        vocabulary(word("ספר", "book", status=2, at=100)),
-        slips=[{"wrote": "a", "recast": "b", "changed": ["b"], "why": ""}],
-    )
-    assert drawn["rewrote"]["rows"][0]["why"] == "", "no reason given, none invented"
-    assert drawn["workOn"]["rows"][0]["keys"] == ["I know this", "Still learning"], (
-        "and the word rows keep theirs"
-    )
-
-
-def test_a_reader_with_rewritten_lines_and_no_flagged_words_still_sees_the_fold() -> None:
-    """Either half is enough to draw it."""
-    drawn = draw(
-        vocabulary(word("ספר", "book", status=9, at=100)),
-        slips=[{"wrote": "a", "recast": "b", "changed": ["b"], "why": ""}],
-    )
-    assert drawn["workOn"]["rows"] == []
-    assert not drawn["workOn"]["hidden"], "drawn for the lines alone"
-
-
-def test_no_rewritten_lines_is_no_heading() -> None:
+def test_no_corrected_lines_is_no_heading() -> None:
     drawn = draw(vocabulary(word("ספר", "book", status=2, at=100)))
     assert drawn["rewrote"]["hidden"] and drawn["rewrote"]["rows"] == []
 
@@ -627,15 +727,17 @@ def test_the_door_names_a_sitting_s_worth_of_words_and_not_the_whole_fold() -> N
     assert "מילה0" in said and "מילה14" not in said, "oldest first, as the fold is ordered"
 
 
-def test_a_fold_holding_only_rewritten_lines_offers_no_door() -> None:
-    """The door is about the words. A reader whose fold holds only lines that came back
-    changed would be offered a conversation about nothing."""
-    drawn = draw(
-        vocabulary(word("ספר", "book", status=9, at=100)),
-        slips=[{"wrote": "אני הלך", "recast": "אני הולך", "changed": ["הולך"], "why": "tense"}],
-    )
-    assert drawn["workOn"]["hidden"] is False, "the fold is drawn for the lines"
-    assert drawn["talk"]["foot"] is True, "and the door is not"
+def test_the_door_on_the_phrases_tab_carries_the_phrases() -> None:
+    """The open tab is what the line is about: a kept phrase by its text and a corrected
+    line by what it should have been, never by the mistake."""
+    stored = with_phrase(vocabulary(word("ספר", "book", status=2, at=100)), "לב טוב", at=60)
+    drawn = draw(stored, slips=[SLIP], do=[{"type": "tab", "which": "phrases"}, {"type": "talk"}])
+    said = drawn["talk"]["said"]
+    assert said.startswith("Use these phrases in new sentences: ")
+    assert SLIP["recast"] in said and "לב טוב" in said
+    assert SLIP["wrote"] not in said and "ספר" not in said
+    assert drawn["talk"]["went"].startswith("/chat")
+    assert not [told for told in drawn["told"] if told["url"].startswith("/chat")], "nothing sent"
 
 
 def test_pressing_the_door_sends_nothing() -> None:
@@ -646,3 +748,76 @@ def test_pressing_the_door_sends_nothing() -> None:
         do=[{"type": "talk"}],
     )
     assert not [url for url in drawn["asked"] if url.startswith("/chat/say")]
+
+
+# --- a row's card (2026-09-18) ---------------------------------------------------------
+
+
+def test_a_word_in_the_fold_opens_its_card() -> None:
+    """ "When I click on a word or phrase on any list, I want to be able to open up its
+    card, and interact with it." The word, its dictionary form, its meaning and the
+    level scale, as the reader's card has them."""
+    drawn = draw(
+        vocabulary(word("הלך", "walked", status=2, surface="הולך", at=100)),
+        do=[{"type": "open", "in": "work-rows", "term": "הולך"}],
+    )
+    card = drawn["card"]
+    assert card is not None and card["role"] == "dialog"
+    assert card["head"] == "הולך"
+    assert "הלך" in card["form"], "the dictionary form, where it differs"
+    assert card["meaning"].startswith("walked")
+    assert card["levels"]
+
+
+def test_a_level_said_on_the_card_is_written_and_the_card_goes() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=2, at=100)),
+        do=[{"type": "open", "in": "work-rows", "term": "ספר"}, {"type": "level", "value": 9}],
+    )
+    assert drawn["ledger"]["ספר"]["status"] == 9
+    assert drawn["card"] is None, "said, and put away, as in the reader"
+    assert drawn["workOn"]["rows"] == [], "and the fold is drawn again from the store"
+
+
+def test_a_row_of_the_word_table_opens_the_same_card() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "book", status=2, at=100)),
+        do=[{"type": "open", "in": "word-rows", "term": "ספר"}],
+    )
+    assert drawn["card"]["head"] == "ספר" and drawn["card"]["levels"]
+
+
+def test_a_kept_phrase_opens_its_card_with_the_text_it_came_from() -> None:
+    stored = with_phrase(
+        vocabulary(word("ספר", "book", status=9, at=100)), "לב טוב", meaning="a good heart"
+    )
+    for where in ("work-phrase-rows", "phrase-list"):
+        drawn = draw(stored, do=[{"type": "open", "in": where, "term": "לב טוב"}])
+        card = drawn["card"]
+        assert card["head"] == "לב טוב", where
+        assert card["meaning"].startswith("a good heart")
+        assert card["form"] == "Kept from אהבת ציון"
+        assert card["levels"]
+
+
+def test_a_corrected_line_opens_to_what_it_should_have_been() -> None:
+    """The recast first, since that is the thing to learn; what they wrote under it. No
+    scale: a sentence has no level."""
+    for where in ("work-phrase-rows", "rewrote-rows"):
+        drawn = draw(
+            vocabulary(word("ספר", "book", status=9, at=100)),
+            slips=[SLIP],
+            do=[{"type": "open", "in": where, "term": SLIP["recast"]}],
+        )
+        card = drawn["card"]
+        assert card["head"] == SLIP["recast"], where
+        assert SLIP["wrote"] in card["form"]
+        assert not card["levels"]
+
+
+def test_a_word_with_no_meaning_says_so_and_offers_the_field() -> None:
+    drawn = draw(
+        vocabulary(word("ספר", "", status=2, at=100)),
+        do=[{"type": "open", "in": "work-rows", "term": "ספר"}],
+    )
+    assert drawn["card"]["meaning"] == "No meaning yet. Write your own below."

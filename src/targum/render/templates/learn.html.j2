@@ -129,9 +129,17 @@
         reader with nothing to work on sees no panel at all. -#}
     <section class="panel work front-work" id="work-on" hidden>
       <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
-      <ul class="work-rows" id="work-rows"></ul>
+      {#- Two halves, one question (2026-09-18): the words, and the phrases — the ones
+          kept from a text and the lines the conversation corrected. The tabs are drawn
+          only when both have rows; the door and the way to the rest follow the open one. -#}
+      <div class="tabs work-tabs" id="work-tabs" role="tablist" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}" hidden>
+        <button type="button" class="tab" role="tab" id="work-tab-words" data-work="words" aria-controls="work-rows" aria-selected="true">{{ t("lists.work.words", "Words") }}</button>
+        <button type="button" class="tab" role="tab" id="work-tab-phrases" data-work="phrases" aria-controls="work-phrase-rows" aria-selected="false" tabindex="-1">{{ t("lists.work.phrases", "Phrases") }}</button>
+      </div>
+      <ul class="work-rows" id="work-rows" role="tabpanel" aria-labelledby="work-tab-words"></ul>
+      <ul class="work-rows" id="work-phrase-rows" role="tabpanel" aria-labelledby="work-tab-phrases" hidden></ul>
       <p class="work-foot" id="work-foot" hidden>
-        <button type="button" id="work-talk">{{ t("lists.work.talk", "Use these in a conversation") }}</button>
+        <button type="button" id="work-talk">{{ t("lists.work.talk-words", "Generate sentences with these words") }}</button>
       </p>
       <a class="see-all" id="work-all" href="/words">{{ t("learn.page.all-your-words", "All your words") }}</a>
     </section>

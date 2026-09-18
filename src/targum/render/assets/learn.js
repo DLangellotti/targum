@@ -1615,9 +1615,27 @@
       workList = lists;
     }
     lists.draw(code, store || { words: [], phrases: [] }, { workOn: WORK_ON_HERE });
-    // The way to the rest, keyed like every other address this page writes.
-    var all = document.getElementById("work-all");
-    if (all) all.href = keyed("/words");
+    // The way to the rest is drawn by `lists.js`, since it follows the open tab.
+    askSlips();
+  }
+
+  /* The lines the conversation corrected, for the fold's Phrases tab. Asked once a page
+     and after the fold is drawn, so a slow answer never holds up the words; signed out
+     there are none, and the refusal is swallowed like an empty list. */
+  var slipsAsked = false;
+
+  function askSlips() {
+    var lists = window.TargumLists;
+    if (slipsAsked || !lists || !lists.rewrote || !window.fetch) return;
+    slipsAsked = true;
+    fetch(keyed("/slips"), { headers: keyHeaders() })
+      .then(function (response) {
+        return response.ok ? response.json() : { slips: [] };
+      })
+      .then(function (data) {
+        lists.rewrote((data && data.slips) || []);
+      })
+      .catch(function () {});
   }
 
   /* --- what you know --------------------------------------------------------- */

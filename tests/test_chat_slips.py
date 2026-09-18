@@ -141,3 +141,32 @@ def test_a_slip_never_reaches_the_record_of_judgements_about_hebrew(tmp_path: Pa
     person = who.id
     store.slip(person, wrote="אני הלך", recast="אֲנִי הָלַכְתִּי", changed=["הָלַכְתִּי"])
     assert store.corrections() == []
+
+
+# --- what the reader says they know (2026-09-18) --------------------------------------
+
+
+def test_a_known_line_leaves_the_queue_and_stays_in_the_record(tmp_path: Path) -> None:
+    """ "I know this" on a corrected line in What to work on. The queue is the lines still
+    to go over; the record, the export and the conversation's recurring rules are every
+    line, because knowing one now does not unmake the mistake."""
+    store, who = reader(tmp_path)
+    first = store.slip(who.id, wrote="first", recast="first!", changed=["first"])
+    store.slip(who.id, wrote="second", recast="second!", changed=["second"])
+    assert store.know_slip(who.id, first)
+    queue = store.slips(who.id, oldest=True, open_only=True)
+    assert [row["wrote"] for row in queue] == ["second"]
+    every = store.slips(who.id)
+    assert [row["wrote"] for row in every] == ["second", "first"]
+    assert every[1]["known"] > 0 and every[0]["known"] == 0
+    assert store.know_slip(who.id, first, known=False), "and it can be taken back"
+    assert len(store.slips(who.id, oldest=True, open_only=True)) == 2
+
+
+def test_nobody_can_say_they_know_somebody_elses_line(tmp_path: Path) -> None:
+    store, who = reader(tmp_path)
+    other = store.finish_sign_in(store.start_sign_in("other@example.com"))
+    assert other is not None
+    theirs = store.slip(other[0].id, wrote="theirs", recast="theirs!", changed=["theirs"])
+    assert not store.know_slip(who.id, theirs), "not found rather than changed"
+    assert store.slips(other[0].id, open_only=True)[0]["wrote"] == "theirs"
