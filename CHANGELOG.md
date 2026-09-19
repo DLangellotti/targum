@@ -13,6 +13,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   will be waiting. And the text the arrival opens is one that can be heard, where the
   reader's subject has one. Nothing opens on its own, nothing moves the page, and nothing
   is counted (design.md §12, targum-internal#335).
+- A record of what happens in a text, and Time and words on Your Progress. Behind
+  `TARGUM_EVENTS`, off unless the deployment sets it: a word looked up, a stretch of a
+  recording played, a page turned, a section finished, where a sitting stopped and which
+  of the reader's controls was pressed are appended to the account (`POST /events`) and
+  never merged or sent back. Your Progress reads time listened, time watched and words
+  read off it (`GET /account/totals`), with filters for what the reader was doing and
+  when; the panel is absent where there is no record. A word is read when its page was
+  turned past or its section marked done. The account page says what is recorded and has
+  a switch that stops it and an erase that asks twice. A control pressed carries its
+  name, the window's width and the day, and the server drops anything more
+  (design.md §12, targum-internal#127, #339, #341).
 - The arrival asks one question a screen, and leads into a text. A new reader is asked
   what they are interested in, then how much Hebrew they have, each on its own screen with
   a Skip, and the last answer opens the text it chose instead of returning to Learn. On a
@@ -146,6 +157,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- A deleted account's finished-section rows were not deleted with it: the purge named its
+  tables by hand and `section` was never added to the list. A test now asks the database
+  which tables name a person, instead of a list that can go stale.
 - The reader's keys button says "Keys". It was a `?`, which a stranger read as help and
   which opened a table of keyboard shortcuts. The `?` key still opens the card. The
   button keeps the mark behind ⋯ on a narrow window, where the row is already named, and

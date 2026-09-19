@@ -183,6 +183,54 @@
     });
   }
 
+  /* What is recorded of a sitting, and the reader's two controls over it
+     (targum-internal#127). Absent where the box keeps no such record. Erasing asks twice,
+     the way leaving does: it cannot be put back. */
+  function drawRecord(who) {
+    var panel = at("record");
+    var events = who && who.events;
+    if (!panel || !events || !events.kept) return;
+    panel.hidden = false;
+    var toggle = at("record-switch");
+    var erase = at("record-erase");
+    var said = at("record-said");
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+    function paint(on) {
+      toggle.setAttribute("aria-pressed", on ? "true" : "false");
+      toggle.textContent = on
+        ? t("you.record.stop", "Stop recording")
+        : t("you.record.start", "Start recording again");
+    }
+    paint(!!events.on);
+    toggle.onclick = function () {
+      var next = toggle.getAttribute("aria-pressed") !== "true";
+      ask("/account/events", { collect: next }).then(function (answer) {
+        var on = !!(answer && answer.events && answer.events.on);
+        paint(on);
+        tell(
+          on
+            ? t("you.record.started", "We're recording again from now.")
+            : t("you.record.stopped", "Stopped. What's already recorded is still here until you erase it.")
+        );
+      });
+    };
+    erase.onclick = function () {
+      if (erase.getAttribute("data-sure") !== "yes") {
+        erase.setAttribute("data-sure", "yes");
+        erase.textContent = t("you.record.sure", "Erase it for good");
+        return;
+      }
+      ask("/account/events", { forget: true }).then(function () {
+        erase.removeAttribute("data-sure");
+        erase.textContent = t("you.page.record-erase", "Erase what's recorded");
+        tell(t("you.record.erased", "Erased. Your words and your texts are untouched."));
+      });
+    };
+  }
+
   function drawLanguages(who) {
     drawTicks(
       "you-learning",
@@ -294,6 +342,7 @@
       if (!who.signedIn) return;
       drawWho(who);
       drawLanguages(who);
+      drawRecord(who);
       at("you-name").addEventListener("input", saveName);
       var address = at("you-address");
       if (address) address.addEventListener("change", saveAddress);

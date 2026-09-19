@@ -127,10 +127,14 @@ SESSION_DAYS = 90
 #    level is deliberately not stored; this is the decision it was waiting for. A seed,
 #    read only while nothing about the reader has been measured — see `level.seed`.
 #
+# 24: the event table, and person.events — what a reader did in a text, appended and never
+#    merged (targum-internal#127, decided 2026-09-19). See `EVENTS` below for why it is a
+#    table of its own and not a seventh kind of `/sync`.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 23
+SCHEMA_VERSION = 24
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -185,6 +189,55 @@ CREATE TABLE IF NOT EXISTS reads (
 # something about an address before anybody has signed in, and a preference cannot
 # exist before its owner does. One row per language per kind; the next language is a
 # row. Absent means the default — see `learning` and `reads` on the store.
+# What a reader did in a text (targum-internal#127): a word looked up, a stretch of a
+# recording played, a page turned, a section finished, where a sitting stopped, a control
+# pressed. "It is worthless retroactively", which is the whole argument for keeping it.
+#
+# **Appended, never merged, and never sent back.** Everything else a reader keeps goes
+# through `/sync`, which is last-write-wins on a key — the reason `day.count` is a constant
+# 1, because a real tally written from two browsers is destroyed by the merge. A log has no
+# key to fight over: each row is a thing that happened once. And it is not pulled down
+# again, because a log that synced to every browser would fill `localStorage` without
+# limit; what a page needs is the totals, and `Store.totals` derives those.
+#
+# What is decided (David, 2026-09-19), so nobody has to work it out from the columns: on
+# from a reader's first session, with a switch and an erase on the account page; kept for
+# as long as the account is; an aggregate across readers only per segment, bearing no
+# person, and only over texts whose licence lets them leave — never over an upload. A
+# control pressed carries no document and no segment: a name, a width and a day.
+#
+# And what is *not* decided here: the privacy notice names a legal basis for every
+# category of data it lists, and this is a new category. So the whole of it stands behind
+# `TARGUM_EVENTS`, off unless the deployment says otherwise — see `serve.py`.
+EVENTS = """
+CREATE TABLE IF NOT EXISTS event (
+  id        INTEGER PRIMARY KEY,
+  person    INTEGER NOT NULL,
+  kind      TEXT    NOT NULL,
+  day       TEXT    NOT NULL,
+  at        INTEGER NOT NULL DEFAULT 0,
+  language  TEXT    NOT NULL DEFAULT '',
+  medium    TEXT    NOT NULL DEFAULT '',
+  document  TEXT    NOT NULL DEFAULT '',
+  segment   TEXT    NOT NULL DEFAULT '',
+  amount    REAL    NOT NULL DEFAULT 0,
+  control   TEXT    NOT NULL DEFAULT '',
+  width     TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
+CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
+"""
+
+#: What can happen, and what `amount` is for each: seconds for a stretch played, words for
+#: a page or a section, a fraction of the text for where a sitting stopped, nothing else.
+EVENT_KINDS = ("lookup", "play", "replay", "page", "section", "stop", "control")
+#: What a text is, to whoever is at it (targum-internal#337).
+EVENT_MEDIA = ("read", "listen", "watch")
+EVENT_WIDTHS = ("phone", "narrow", "desk")
+#: The most one request may hand over. A sitting is a few hundred events; a page that
+#: sends more than this is broken or is not a page.
+EVENT_BATCH = 500
+
 CHOSEN = """
 CREATE TABLE IF NOT EXISTS chosen (
   person   INTEGER NOT NULL,
@@ -271,6 +324,10 @@ MIGRATIONS: tuple[str, ...] = (
     # The rung a reader named on arrival. Empty for everybody who was never asked, who
     # skipped the question, or who arrived while it was not being asked.
     "ALTER TABLE person ADD COLUMN declared TEXT NOT NULL DEFAULT ''",
+    # Whether this reader has stopped the record of what they do in a text: '' for kept,
+    # 'off' for stopped (targum-internal#127). On from the first session, by decision; the
+    # switch is theirs, on the account page.
+    "ALTER TABLE person ADD COLUMN events TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -894,6 +951,7 @@ class Store:
         self.db.executescript(INVITED)
         self.db.executescript(ADMIN)
         self.db.executescript(CHOSEN)
+        self.db.executescript(EVENTS)
         self._migrate()
         self._adopt_reads()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -1184,6 +1242,132 @@ class Store:
         with self.write() as db:
             db.execute("UPDATE person SET declared = ? WHERE id = ?", (said, person.id))
         return said
+
+    # -- what a reader did in a text (targum-internal#127) -------------------------
+
+    def collects(self, person_id: int | None) -> bool:
+        """Whether this reader's record is being kept: true until they stop it."""
+        if person_id is None:
+            return False
+        row = self.db.execute(
+            "SELECT events FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return row is not None and str(row["events"] or "") != "off"
+
+    def set_collects(self, person: Person, on: bool) -> bool:
+        with self.write() as db:
+            db.execute(
+                "UPDATE person SET events = ? WHERE id = ?", ("" if on else "off", person.id)
+            )
+        return on
+
+    def add_events(self, person: Person, events: Iterable[dict[str, Any]]) -> int:
+        """Append what happened; answer how many rows were kept.
+
+        Strict about shape and forgiving about content: an event of a kind this targum
+        does not know, or with no day, is dropped rather than refusing the batch — a page
+        cached from a newer build should lose the event it invented, not the sitting. A
+        reader who has stopped the record keeps nothing, whatever their page sends.
+        """
+        if not self.collects(person.id):
+            return 0
+        rows: list[tuple[Any, ...]] = []
+        for raw in list(events)[:EVENT_BATCH]:
+            if not isinstance(raw, dict):
+                continue
+            kind = str(raw.get("kind") or "")
+            day = str(raw.get("day") or "")[:10]
+            if kind not in EVENT_KINDS or len(day) != 10:
+                continue
+            try:
+                amount = max(0.0, float(raw.get("amount") or 0))
+                at = max(0, int(raw.get("at") or 0))
+            except (TypeError, ValueError):
+                continue
+            medium = str(raw.get("medium") or "")
+            width = str(raw.get("width") or "")
+            control = kind == "control"
+            rows.append(
+                (
+                    person.id,
+                    kind,
+                    day,
+                    # A control pressed says which day and nothing finer.
+                    0 if control else at,
+                    "" if control else str(raw.get("language") or "")[:12],
+                    "" if control or medium not in EVENT_MEDIA else medium,
+                    # Nor which text, nor where in it: decided, and enforced here rather
+                    # than trusted to the page.
+                    "" if control else str(raw.get("document") or "")[:80],
+                    "" if control else str(raw.get("segment") or "")[:40],
+                    0.0 if control else min(amount, 86400.0),
+                    str(raw.get("control") or "")[:60] if control else "",
+                    width if control and width in EVENT_WIDTHS else "",
+                )
+            )
+        if not rows:
+            return 0
+        with self.write() as db:
+            db.executemany(
+                "INSERT INTO event (person, kind, day, at, language, medium, document, "
+                "segment, amount, control, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+        return len(rows)
+
+    def totals(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Seconds listened, seconds watched and words read, by day, language and medium.
+
+        Derived, never stored: the figures on Your Progress are a reading of the log, so
+        they are the sum across every device by construction. Listening and watching are
+        one kind of event told apart by whether the picture was up.
+        """
+        if person_id is None:
+            return []
+        found = self.db.execute(
+            "SELECT day, language, medium, "
+            "SUM(CASE WHEN kind = 'play' AND medium != 'watch' THEN amount ELSE 0 END) AS heard, "
+            "SUM(CASE WHEN kind = 'play' AND medium = 'watch' THEN amount ELSE 0 END) AS watched, "
+            "SUM(CASE WHEN kind IN ('page', 'section') THEN amount ELSE 0 END) AS words "
+            "FROM event WHERE person = ? AND kind IN ('play', 'page', 'section') "
+            "GROUP BY day, language, medium ORDER BY day",
+            (int(person_id),),
+        ).fetchall()
+        return [
+            {
+                "day": str(row["day"]),
+                "language": str(row["language"]),
+                "medium": str(row["medium"]),
+                "listened": round(float(row["heard"] or 0)),
+                "watched": round(float(row["watched"] or 0)),
+                "words": round(float(row["words"] or 0)),
+            }
+            for row in found
+        ]
+
+    def forget_events(self, person: Person) -> int:
+        """Erase the record, at the reader's own press. The switch is left as it was."""
+        with self.write() as db:
+            gone = db.execute("DELETE FROM event WHERE person = ?", (person.id,)).rowcount
+        return int(gone or 0)
+
+    def pressed(self) -> list[dict[str, Any]]:
+        """How often each control of the reader is pressed, by width — for the audit of
+        what should be within reach (targum-internal#341). Across everybody, and of nobody:
+        the rows it reads carry no document and no segment, and it returns no person."""
+        found = self.db.execute(
+            "SELECT control, width, COUNT(*) AS presses, COUNT(DISTINCT person) AS readers "
+            "FROM event WHERE kind = 'control' GROUP BY control, width ORDER BY presses DESC"
+        ).fetchall()
+        return [
+            {
+                "control": str(row["control"]),
+                "width": str(row["width"]),
+                "presses": int(row["presses"]),
+                "readers": int(row["readers"]),
+            }
+            for row in found
+        ]
 
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.
@@ -1944,6 +2128,12 @@ class Store:
                     "phrase",
                     "doc",
                     "day",
+                    # Which chapters they finished. Missing from this list until
+                    # 2026-09-20, so those rows outlived the account they belonged to;
+                    # found while adding the one below.
+                    "section",
+                    # And what they did in each text (targum-internal#127).
+                    "event",
                     "chosen",
                     "session",
                     "link",

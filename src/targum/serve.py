@@ -500,6 +500,23 @@ def shelves_are_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
 
 
+def keeps_events() -> bool:
+    """Whether the record of what a reader does in a text is kept (targum-internal#127).
+
+    Off unless the deployment says so, and for a different reason from the other switches
+    here. What is kept, for how long, what it is used for and what a reader can do about it
+    were all decided on 2026-09-19. What was not is the sentence that says so: the privacy
+    notice names a legal basis for every category of data it lists, and this is a new
+    category with two purposes — a reader's own figures, and an aggregate signal about the
+    texts. Turning this on and publishing that paragraph are one decision, and it is not
+    one to take by merging a pull request. The draft is on the card.
+
+    While it is off, `/events` keeps nothing and says so, `/account/totals` answers
+    nothing, and Your Progress draws none of the three figures that read from it.
+    """
+    return os.environ.get("TARGUM_EVENTS", "").strip().lower() in {"1", "true", "yes"}
+
+
 def front_door_is_open() -> bool:
     """Whether a stranger at `/` gets the front door or the holding page.
 
@@ -4880,6 +4897,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/account/totals":
+            return self._totals()
         if route == "/suggest":
             return self._suggest()
         if route == "/account/follows":
@@ -5064,6 +5083,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._interest(payload)
         if route == "/account/level":
             return self._declared(payload)
+        if route == "/events":
+            return self._events(payload)
+        if route == "/account/events":
+            return self._events_choice(payload)
         if route == "/account/address":
             return self._address(payload)
         if route.startswith("/slips/"):
@@ -5945,9 +5968,57 @@ class Handler(BaseHTTPRequestHandler):
             # signed in draws the same row as the one they followed from.
             "follows": (["weekly"] if self.store.following(person.email) else [])
             + self.store.series_followed(person.email),
+            # Whether what they do in a text is being recorded: whether this box keeps such
+            # a record at all, and whether this reader has left it on (#127). A page sends
+            # nothing unless both are true.
+            "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
         }
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _events(self, payload: dict[str, Any]) -> None:
+        """What a reader did in a text, appended (targum-internal#127). Signed in only, and
+        only where the deployment keeps such a record; otherwise it keeps nothing and says
+        so, which is an answer a page can stop sending on."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if not keeps_events():
+            return self._json({"signedIn": True, "kept": 0, "keeping": False})
+        sent = payload.get("events")
+        kept = self.store.add_events(person, sent if isinstance(sent, list) else [])
+        self._json({"signedIn": True, "kept": kept, "keeping": self.store.collects(person.id)})
+
+    def _events_choice(self, payload: dict[str, Any]) -> None:
+        """The reader's own two controls over it: stop or start the record, and erase it."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        erased = self.store.forget_events(person) if payload.get("forget") else 0
+        if "collect" in payload:
+            self.store.set_collects(person, bool(payload.get("collect")))
+        self._json(
+            {
+                "signedIn": True,
+                "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+                "erased": erased,
+            }
+        )
+
+    def _totals(self) -> None:
+        """Time listened, time watched and words read, by day, language and medium."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        showing = keeps_events() and self.store.collects(person.id)
+        self._json(
+            {
+                "signedIn": True,
+                "kept": keeps_events(),
+                "on": self.store.collects(person.id),
+                "totals": self.store.totals(person.id) if showing else [],
+            }
+        )
 
     def _rename(self, payload: dict[str, Any]) -> None:
         """What to call them. Empty clears it, and the avatar goes back to the address."""

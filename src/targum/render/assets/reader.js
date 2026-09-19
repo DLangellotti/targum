@@ -595,6 +595,58 @@ var targumReader = function () {
   var sectionId = String(data.section || 1);
   var sectionCount = Number(data.sections || 1);
 
+  /* What happens here is said to `events.js`, which decides whether anybody is told
+     (targum-internal#127): it is inert off a disk, in the framed preview, signed out,
+     where the box keeps no such record, and where the reader has stopped it. */
+  var happenings = window.TargumEvents || null;
+  if (happenings) happenings.about({ document: documentId, language: language, address: keyed });
+  function happened(event) {
+    if (happenings) happenings.note(event);
+  }
+
+  /* Words read (targum-internal#339): "a word is read when its page was turned past or its
+     section was marked done" — never a guess from how far somebody scrolled. A page counts
+     once in a visit, however often it is turned back to; marking the section done counts
+     what is left of it. The count is of the text's own words, off the same plain text the
+     word list is cut from. */
+  /* Counted by the line and not by the page: a window resized or a type size changed cuts
+     the pages again, and a page number would then name different words. A line counts
+     once in a visit, however the pages fall and however often one is turned back to. */
+  var linesCounted = {};
+  function wordsIn(from, to) {
+    var total = 0;
+    for (var n = from; n <= to && n < pairs.length; n++) {
+      var id = pairs[n].getAttribute("data-id");
+      if (!id || linesCounted[id] || pairs[n].classList.contains("head")) continue;
+      linesCounted[id] = true;
+      var text = "";
+      try {
+        text = segmentText(id) || "";
+      } catch (e) {
+        text = "";
+      }
+      var parts = text.split(/\s+/);
+      for (var w = 0; w < parts.length; w++) if (parts[w]) total += 1;
+    }
+    return total;
+  }
+  function pageTurnedPast(n) {
+    if (!pages[n]) return;
+    var words = wordsIn(pages[n][0], pages[n][1]);
+    if (words) {
+      happened({
+        kind: "page",
+        amount: words,
+        segment: pairs[pages[n][0]].getAttribute("data-id") || "",
+      });
+    }
+  }
+  function sectionRead() {
+    var words = wordsIn(0, pairs.length - 1);
+    if (words) happened({ kind: "section", amount: words, segment: sectionId });
+  }
+
+
   // Words are kept per language and shared by every text in it. Meeting a word again
   // in the next article, already marked, is the whole point of having kept it — which
   // is why this is no longer filed under the document it was first met in.
@@ -979,7 +1031,60 @@ var targumReader = function () {
     return sectionCount === 1 ? Number(record.done || 0) : 0;
   }
 
+  /* Which control was pressed (targum-internal#341): "audit all controls on the reader and
+     ensure the most often accessed are the most accessible" is a measurement, and nothing
+     measured it. A name, and nothing about the text — `events.js` adds the window's width
+     and the day and the server would drop anything more. The name is the control's own
+     hook in the markup, so a new control is counted the day it is drawn. */
+  var PRESSABLE =
+    ".bar button, .bar select, .bar a, #player button, #player [role=slider], .video button, " +
+    ".turn button, #list-tab, #list button, #done-mark, #rest-mark, #rest-undo, " +
+    "#practice-next, #next-up-else, .say";
+  function nameOf(control) {
+    var attributes = control.attributes || [];
+    for (var n = 0; n < attributes.length; n++) {
+      var name = attributes[n].name;
+      if (name.indexOf("data-") !== 0 || name === "data-id" || name === "data-what") continue;
+      var value = attributes[n].value;
+      // A mode or a type size is a choice among a few, and which one is the point.
+      return value && value.length < 20 ? name.slice(5) + ":" + value : name.slice(5);
+    }
+    if (control.id) return control.id;
+    return String(control.className || "").split(" ")[0] || control.tagName.toLowerCase();
+  }
+  document.addEventListener(
+    "click",
+    function (event) {
+      var control = event.target.closest ? event.target.closest(PRESSABLE) : null;
+      if (control) happened({ kind: "control", control: nameOf(control) });
+    },
+    true
+  );
+
+  /* Where a sitting stopped: how far through the section, and the line at the top of the
+     window. The one event nobody presses for, said as the page goes. */
+  window.addEventListener("pagehide", function () {
+    var through = 0;
+    if (pages.length > 1) through = current / (pages.length - 1);
+    else {
+      var tall = document.documentElement.scrollHeight - window.innerHeight;
+      through = tall > 0 ? Math.min(1, Math.max(0, window.scrollY / tall)) : 0;
+    }
+    var at = "";
+    for (var n = 0; n < pairs.length; n++) {
+      if (pairs[n].hidden) continue;
+      var box = pairs[n].getBoundingClientRect();
+      if (box.bottom > 0 && box.height) {
+        at = pairs[n].getAttribute("data-id") || "";
+        break;
+      }
+    }
+    happened({ kind: "stop", amount: Math.round(through * 100) / 100, segment: at });
+    if (happenings) happenings.flush(true);
+  });
+
   function setFinished(on) {
+    if (on) sectionRead();
     // What moved while this section was read, worked out before the finish is written
     // so the finish itself is not among the movements (targum-internal#175).
     footMoved(on);
@@ -4231,6 +4336,8 @@ var targumReader = function () {
     // to know what the word was, and that is the whole of the signal the foot reports.
     //
     noteLookUp(index);
+    var askedIn = word.closest ? word.closest("[data-id]") : null;
+    happened({ kind: "lookup", segment: askedIn ? askedIn.getAttribute("data-id") || "" : "" });
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
@@ -6646,6 +6753,7 @@ var targumReader = function () {
     if (!paged() || !pages.length) return false;
     var n = current + delta;
     if (n < 0 || n >= pages.length) return false;
+    if (delta > 0) pageTurnedPast(current);
     showPage(n);
     turned(delta);
     return true;
@@ -9054,6 +9162,38 @@ var targumReader = function () {
     }
   }
 
+  /* Time listened and time watched (targum-internal#339), off the element's own events so a
+     line pressed and a whole scene run are counted alike. Wall-clock seconds, because that
+     is what a person spent; told apart by whether the picture was up, because a film played
+     with its picture put away was listened to. Under a second is a mis-press. */
+  var begun = 0;
+  function pictureUp() {
+    var panel = document.getElementById("video");
+    return !!(panel && !panel.hidden);
+  }
+  function stretchOver() {
+    if (!begun) return;
+    var seconds = Math.round((Date.now() - begun) / 1000);
+    begun = 0;
+    if (seconds < 1 || !window.TargumEvents) return;
+    var saying = document.querySelector(".pair.voiced.now");
+    window.TargumEvents.note({
+      kind: "play",
+      amount: seconds,
+      medium: pictureUp() ? "watch" : "listen",
+      segment: saying ? saying.getAttribute("data-id") || "" : "",
+    });
+  }
+  audio.addEventListener("playing", function () {
+    if (!begun) begun = Date.now();
+  });
+  audio.addEventListener("pause", stretchOver);
+  audio.addEventListener("ended", stretchOver);
+  window.addEventListener("pagehide", stretchOver);
+  //: Lines asked for in this visit: a second press on one is a replay, which is the
+  //: clearest thing a listener can say about a line.
+  var askedFor = {};
+
   function pressed(on) {
     scenes.forEach(function (button) {
       button.setAttribute("aria-pressed", on ? "true" : "false");
@@ -9604,6 +9744,11 @@ var targumReader = function () {
     var again = playing === button;
     halt();
     if (again) return;
+    var line = button.getAttribute("data-id") || "";
+    if (askedFor[line] && window.TargumEvents) {
+      window.TargumEvents.note({ kind: "replay", medium: pictureUp() ? "watch" : "listen", segment: line });
+    }
+    askedFor[line] = true;
     playing = button;
     playingEnd = span[1];
     button.classList.add("saying");

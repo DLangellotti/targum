@@ -539,6 +539,46 @@ leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration
 What is not here yet, and is the rest of the list David settled the same day: bringing your
 own, talking to targum, and "targum remembers what you're having trouble with", which
 waits for the events of targum-internal#127. targum-internal#335.
+### Time and words on Your Progress, read from the account — 2026-09-20
+
+"I believe we should track hours and minutes a user has listened and watched, and words
+read," David wrote; "this data should be displayed and filterable on Progress."
+
+Nothing measured any of the three. The audio store kept one resume position a text, and
+nothing counted a word as read. So there is a record now of what happens in a text
+(targum-internal#127: a word looked up, a stretch played, a page turned, a section
+finished, where a sitting stopped, a control pressed), and Your Progress has a panel,
+**Time and words**, that is a reading of it.
+
+Two things about it depart from how this page was built, and both are on purpose:
+
+- **It is not drawn from this browser's store.** Everything else on Your Progress is —
+  "the server only hands over the page". These three figures are the account's reading of
+  its own log, because the log is appended and never merged: `/sync` is last-write-wins,
+  which is why a day's count is a constant 1, and a tally of seconds written from two
+  browsers would be destroyed by the merge that keeps the word list whole. Read from the
+  account, a phone and a laptop add up by construction. The cost is that the panel is
+  absent signed out — **absent, not nought**: where there is no record the panel is not
+  drawn, and where the reader has stopped theirs one quiet line says so.
+- **It has filters, on a page that had none but the language.** What the reader was doing
+  (reading, listening, watching) and when (all time, thirty days, seven). They narrow
+  these figures and nothing else: a day is not in a language and the longest run is not
+  in a medium, and the ledger above is untouched.
+
+What it keeps to: real counts of real things (§6) in the ledger's own treatment — hours
+and minutes, words, the reading face with tabular numbers — no unit invented, no hue,
+because these are counts of what was done and not achievements, so leaf is not theirs. A
+figure that is nought is not drawn. **A word is read when its page was turned past or its
+section was marked done**, and the panel says so under the figures: never a guess from how
+far somebody scrolled. Counted by the line, once in a visit, so a window resized cannot
+count a page twice. Time is wall-clock, and a film played with its picture put away was
+listened to.
+
+The record itself stands behind `TARGUM_EVENTS`, off unless the deployment says so: the
+privacy notice names a legal basis for every category of data, this is a new one, and
+the sentence that says so is David's to publish. On the account page the reader has what
+was decided — a plain account of what is recorded, a switch that stops it, and an erase
+that asks twice. targum-internal#127, #339, #341.
 
 
 ### The weekly goes out unread, and claims nothing — 2026-09-17
