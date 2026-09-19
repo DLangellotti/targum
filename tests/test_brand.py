@@ -30,42 +30,41 @@ STYLESHEETS = sorted(ASSETS.glob("*.css"))
 SCRIPTS = sorted(ASSETS.glob("*.js"))
 PAGES = sorted(TEMPLATES.glob("*.j2"))
 
-# §4. Every colour the interface is allowed to be.
+# §4. Every colour the interface is allowed to be. There is one look (design.md §12,
+# 2026-09-19), so "on ink" below means §9's inverted block, a film's letterbox or the
+# public pages' band — a dark *surface on a light page* — and never a dark page.
 PALETTE = {
-    "#fbf9f5": "page, light",
-    "#171614": "page, dark",
-    "#f3efe7": "page raised, light",
-    "#201e1b": "page raised, dark",
-    "#e2dcd1": "rule, light",
-    "#322e29": "rule, dark",
-    "#1c1a17": "ink, light",
-    "#e6e1d8": "ink, dark",
-    "#6b645c": "muted, light",
-    "#9a9288": "muted, dark",
-    "#7a5c38": "accent working, light",
-    "#c8a778": "accent working, dark / the wash",
+    "#fbf9f5": "page",
+    "#171614": "the ink surface",
+    "#f3efe7": "page raised",
+    "#201e1b": "raised, on ink",
+    "#e2dcd1": "rule",
+    "#322e29": "rule, on ink",
+    "#1c1a17": "ink",
+    "#e6e1d8": "text on ink",
+    "#6b645c": "muted",
+    "#9a9288": "muted, on ink",
+    "#7a5c38": "accent working",
+    "#c8a778": "accent working, on ink / the wash",
     "#b8935e": "focus ring",
     "#a5824f": "the mark's translation column on paper",
-    # The knowledge ramp used to be four gold steps written out per theme, and it is why
+    # The knowledge ramp used to be four gold steps written out per surface, and it is why
     # every chart on the progress page read brown. It climbs to leaf now — tints of
-    # --leaf mixed against --paper, so one definition serves both surfaces and "known"
-    # is the most present step on each (words.css). §4 gives "known" to leaf by name, so
+    # --leaf mixed against --paper, so "known"
+    # is the most present step (words.css). §4 gives "known" to leaf by name, so
     # the scale and the functional colour finally agree. The five gold steps that are
     # left over are not listed here any more: unlisted means a stray, which is what a
     # reintroduced brown ramp would be.
-    "#c3bdb1": "chart off, light",
-    "#e7e1d6": "chart grid, light",
-    "#cfc7ba": "chart axis, light",
-    "#4a453e": "chart off, dark",
-    "#2a2622": "chart grid, dark",
-    "#3a3530": "chart axis, dark",
+    "#c3bdb1": "chart off",
+    "#e7e1d6": "chart grid",
+    "#cfc7ba": "chart axis",
     # Functional colour (§4): UI features only, never the identity.
-    "#5a7340": "leaf, light",
-    "#a8c37e": "leaf, dark",
-    "#b4553f": "clay, light",
-    "#e0937d": "clay, dark",
-    "#6b5a8e": "iris, light",
-    "#b3a3d6": "iris, dark",
+    "#5a7340": "leaf",
+    "#a8c37e": "leaf, on ink",
+    "#b4553f": "clay",
+    "#e0937d": "clay, on ink",
+    "#6b5a8e": "iris",
+    "#b3a3d6": "iris, on ink",
     # The bright set (§4): peak moments, one hue at a time.
     "#e2a33c": "sun",
     "#7ba646": "leaf-bright",
@@ -73,18 +72,16 @@ PALETTE = {
     "#c2517a": "rose",
     # Deep paper (§9): structural only, never a text background.
     "#ece7de": "desk",
-    # The desk's own values (§13, 2026-09-11): the one cool hue that marks a control, in
-    # both themes and as the text on it; the well's rule; the bar on dark; the muted on
-    # the bar. The ground, the card and the bar on light are values already here.
-    "#1f6f6b": "teal, light",
-    "#6fb8b3": "teal, dark",
-    "#0f1a19": "text on teal, dark",
-    "#cfc7b9": "well, light",
-    "#3a3631": "well, dark",
-    "#0c0b0a": "bar, dark",
-    "#8a827a": "bar muted, dark",
+    # The desk's own values (§13, 2026-09-11): the one cool hue that marks a control, on
+    # paper and on ink, and the text on it; the well's rule; the ink bar. The ground, the
+    # card and the glass bar are values already here.
+    "#1f6f6b": "teal",
+    "#6fb8b3": "teal, on ink",
+    "#0f1a19": "text on teal, on ink",
+    "#cfc7b9": "well",
+    "#0c0b0a": "the ink bar",
     # The other two deep paper tones are already above: #e7e1d6 doubles as the chart
-    # grid and #e6e1d8 as ink on the dark surface. Same values, different jobs.
+    # grid and #e6e1d8 as the text on an ink surface. Same values, different jobs.
     # The max-contrast pair (§9).
     "#fffdf9": "page, switched on",
     "#121110": "ink, switched on",
@@ -184,8 +181,8 @@ def test_absolute_type_sizes_are_on_the_scale(sheet: Path) -> None:
         assert size in SIZES, f"{sheet.name}: font-size {size!r} is off the scale"
 
 
-def test_the_focus_ring_does_not_change_with_the_theme() -> None:
-    """§4 gives one focus colour. It is a supporting value, not a themed one."""
+def test_the_focus_ring_is_one_colour() -> None:
+    """§4 gives one focus colour, and it is defined once."""
     text = (ASSETS / "reader.css").read_text(encoding="utf-8")
     rings = set(re.findall(r"--focus:\s*([^;]+);", text))
     assert rings == {"#b8935e"}, f"focus ring should be #b8935e everywhere, found {rings}"

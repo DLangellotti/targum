@@ -8,9 +8,8 @@
  *
  * §9's wake-up move, spent once. The max-contrast pair rather than plain ink-on-paper,
  * because this is an engagement screen and the moment should feel switched on: 18.6:1
- * either way round. Both values are stated here rather than inherited, so the block
- * stays inverted when the rest of the page turns over — a dark theme flips --paper and
- * --ink, and a block that followed them would stop being an inversion of anything.
+ * either way round. Both values are stated here rather than inherited: the block is
+ * an inversion of the page, and says so in its own values.
  */
 
 .progress .ledger {

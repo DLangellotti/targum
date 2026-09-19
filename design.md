@@ -68,13 +68,15 @@ construction — it carries Hebrew, Arabic, Cyrillic and Latin equally.
 
 ## 4 · Colour
 
-Warm paper, warm ink, one accent hue. The accent does not move between themes — **it
-splits**: a deep cut works on paper, a pale cut works on ink. The pale cut appears on light
+Warm paper, warm ink, one accent hue. There is one look, and it is light (§12, 2026-09-19).
+The second column below is the **ink surface** — §9's inverted block, a film's letterbox, the
+public pages' band: a dark surface *on* a light page, never a dark page. The accent
+**splits** across the two: a deep cut works on paper, a pale cut works on ink. The pale cut appears on light
 surfaces only as a 12–22% wash (kept words, highlights, row tints). What keeps this off the
 ArtScroll shelf is not the hue but the finish: **always flat, never a ramp, never a large
 field, never text below the ratios shown.**
 
-| role | light surface | dark surface | use |
+| role | on paper | on ink | use |
 |---|---|---|---|
 | page | `#fbf9f5` | `#171614` | surface |
 | page · raised | `#f3efe7` | `#201e1b` | cards, hovers |
@@ -94,9 +96,9 @@ The page stays calm; the moments get colour. Three brighter hues are allowed in 
 — feedback, progress, badges, charts — **never in the identity**. One functional hue per
 moment; flat always; text only at these working cuts; washes at 12–22%.
 
-- **leaf** `#5a7340` (5.0:1) · dark `#a8c37e` (9.3:1) — progress, success, "known"
-- **clay** `#b4553f` (4.6:1) · dark `#e0937d` (7.4:1) — cost, errors, destructive
-- **iris** `#6b5a8e` (5.7:1) · dark `#b3a3d6` (7.9:1) — phrases, discovery, "new"
+- **leaf** `#5a7340` (5.0:1) · on ink `#a8c37e` (9.3:1) — progress, success, "known"
+- **clay** `#b4553f` (4.6:1) · on ink `#e0937d` (7.4:1) — cost, errors, destructive
+- **iris** `#6b5a8e` (5.7:1) · on ink `#b3a3d6` (7.9:1) — phrases, discovery, "new"
 
 Green and purple are the two positions nobody in the category owns; blue and orange stay
 out. The mark, lockup and wordmark remain ink + gold only.
@@ -239,7 +241,7 @@ engagement mechanism:** near-white pages, full-ink text, hue concentrated where 
 acts.
 
 - **Text is ink.** Anything the reader came for — body text, headings, numbers they earned —
-  is full ink (15.7:1 light, 13.9:1 dark). Muted `#6b645c` is for genuinely secondary lines
+  is full ink (15.7:1 on paper, 13.9:1 on an ink block). Muted `#6b645c` is for genuinely secondary lines
   only (translations at rest, captions, metadata), never for primary content, and never
   below 13px on raised paper. Brown `#7a5c38` is a link-and-button colour, never a text
   colour for paragraphs.
@@ -251,7 +253,7 @@ acts.
 - **Ink inversion is the wake-up move.** One block per screen may invert to the dark surface
   (`#171614` with `#e6e1d8` text and pale-cut hues) — stats, a milestone, a hero moment. It
   is the highest contrast available; spent on one block it is striking, spent on three it is
-  a dark theme.
+  a dark theme — and there is no dark theme (§12, 2026-09-19).
 - **Hue budget:** roughly 80% paper + ink, 15% structural neutrals, 5% hue — and the 5% goes
   where the reader acts or achieved something, never into decoration.
 - **Interactive means visibly different.** Every tappable element carries ink or a hue:
@@ -318,6 +320,62 @@ In *this* repository: tokens are the `:root` block of
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+
+### There is one look, and it is light — 2026-09-19
+
+"Remove dark mode everywhere," David wrote, and it is gone: the second palette that
+`reader.css` carried twice (once for a browser that prefers dark, once for a reader who
+chose it), the chart neutrals `words.css` carried the same way, the switch in the bar, in
+the account's sheet and on eight pages of their own, the script in every `<head>` that
+stamped the choice before first paint, and the one `localStorage` key that survived a
+sign-out.
+
+Half of this was decided three days earlier and never written here. **The front door is
+light, always (David, 2026-09-16)** — as `landing.css` recorded it, "one page and one
+look. A stranger meeting it for three seconds should not meet a second design because
+their phone is in night mode."
+That covered the landing page and the pages in front of the door — about, legal, the
+holding page — and lived only in their stylesheets and in `test_landing.py`. The argument
+did not stop at the door. A second theme is a second design to draw, measure and keep:
+every contrast ratio in §4 twice, every shadow tier in §13 twice, a ramp in `words.css`
+that had once been written out three times over, and a class of bug — a band that turned
+pale on a dark page, a letterbox that became the brightest thing on it — that existed
+only because a token could flip. One person draws this, and one look drawn well was
+worth more than two kept level.
+
+What is **not** dark mode, and stays exactly as it was:
+
+- **§9's ink inversion** — one block per screen on the ink surface — and the
+  max-contrast pair. These are dark surfaces on a light page, and they are why §4 still
+  has an "on ink" column: the pale cuts of the accent, the teal and the three functional
+  hues are what text and marks are on such a block. The bright set is still ink-panel
+  only.
+- **A film's letterbox**, the keys over a film being watched, and **the public pages'
+  band**. Their colours were literals so that they would not flip; they are literals
+  still, because a block that inverts the page should say its own values.
+- **The favicon's own `prefers-color-scheme` switch** (§11) and the `-dark` marks and
+  lockups. The favicon follows the *tab strip*, which is the browser's and may well be
+  dark; the marks are for ink surfaces.
+
+What it cost: a reader who liked it loses it, and a page that is light at night is
+brighter than some would choose. Nothing is offered in its place — not a dimmer, not a
+sepia. If the reader's page is too bright at night, that is a thing to hear from readers
+and answer in the page's own tone, once, for everyone.
+
+**Built readers carry the old theme until they are rendered again.** A reader is one
+file with its stylesheet and scripts inlined, so every reader built before this day still
+has the dark palette, still reads `targum:theme`, and still draws the switch. The shelf
+is rendered again as part of shipping this — rendering, not annotating: no annotator is
+renamed and `SCHEMA_VERSION` does not move. Until then a phone in night mode gets a dark
+reader off a light desk.
+
+`theme.js` had a second job, where a write goes on a page served over HTTP
+(`targumKeep`, `targumForget`); that half is `keep.js`. `sync.js` keeps its keep-list,
+empty: the next display preference belongs in it. `test_render.py` pins the absence —
+no `prefers-color-scheme` in any stylesheet, no `data-theme` on any page — the way
+`test_landing.py` already did for the front door. Five palette entries that only a dark
+page used left `test_brand.py`. targum-internal#333.
 
 
 ### The weekly goes out unread, and claims nothing — 2026-09-17
@@ -1423,10 +1481,9 @@ the layout and the picture takes the top.
 
 Three things about it are worth writing down. It is §9's one inverted block, spent here.
 Its colours are **constants, not tokens** — `#171614`, `#e6e1d8`, `#fffdf9`, `#c8a778`,
-every one of them out of §4's table — because the max-contrast pair flips with the theme,
-and flipping turns the band into a pale panel sitting on a dark page; held still, the band
-is the dark surface in both themes, and in dark mode it merges with the ground so the
-photograph is left floating. And the photograph is a stand-in: `assets/scroll/README.md`
+every one of them out of §4's table — so the band says its own values. (They were constants for a second reason
+until 2026-09-19: the max-contrast pair flipped with the theme, and there is no theme
+now.) And the photograph is a stand-in: `assets/scroll/README.md`
 says whose it is, that it is CC0, and that a commissioned one is what should ship.
 
 ### A reader that carries moving pictures — 2026-08-31
@@ -1473,7 +1530,7 @@ says news. Two things now do, and both bend rules written for targum's own paint
   `--lift` shadow although it is not a floating overlay. §8's "shadows exist only on
   floating overlays" governs surfaces the interface rests things on; the stack is an
   illustration of an object that casts one. It is `aria-hidden`, square-cornered (a
-  newspaper has no radius), printed as it was printed in both themes, and never
+  newspaper has no radius), printed as it was printed, and never
   carries controls. The photographs are not free files — a front page is a copyrighted
   work — and shipping them was David's decision, made knowingly on 2026-08-31;
   `assets/press/README.md` records which files and what to do if an outlet objects.
@@ -1501,7 +1558,7 @@ because this paragraph exists.
 §4 described four gold steps for the chart ramp (`#c8a778 → #ab8555 → #8b6840 → #6b4f2e`).
 The code stopped painting them: gold on warm paper made every chart on the page read brown,
 and §4 gives "known" to leaf by name. The ramp is now tints of `--leaf` mixed against
-`--paper`, so one definition serves the light surface and the dark one and "known" is the
+`--paper`, so "known" is the
 most present step on each.
 
 **The structure §4 asks for is unchanged** — one hue, monotone, four steps, the end nearest
@@ -1603,10 +1660,10 @@ the door — sign-in, the holding page and its 404, What's built — stand on th
 since 2026-09-14 (targum-internal#276): the ground, the chrome's face, the door and the
 count as cards, the address in a well, and the call to action still ink (§9).
 
-**Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
-things sit on it as cards, `#fffdf9` (dark `#201e1b`), raised by their shadow and not by
+**Surfaces.** The ground of every chrome page is the desk, `#ece7de`;
+things sit on it as cards, `#fffdf9`, raised by their shadow and not by
 a line: three tiers — rest `0 1px 2px` at 6%, raised with `0 8px 24px -12px` at 18%
-under it, floating with `0 24px 48px -20px` at 28% (dark 40 / 60 / 80%). A hairline, ink
+under it, floating with `0 24px 48px -20px` at 28%. A hairline, ink
 at 8%, stands only where two same-tone surfaces meet. Two more surfaces: **tint**, the
 primary at 9%, which is the ordinary press; and **glass**, the card at 78% under a 12px
 blur, which is the bar. The one pure-paper surface, `#fbf9f5`, is the reader's page
@@ -1620,7 +1677,7 @@ primary, the bell and the account as round buttons; the reader keeps its own bar
 phone (under 40rem) the four places — Learn, Library, Your Progress, Add — are a bar at
 the foot of the window on glass, a glyph over each word, and at a desk only Add keeps its
 glyph, a `+` before the word; the top bar keeps the mark, the language (its flag alone), the
-bell and the account, with find and the light switch as rows in the account's sheet; the pill
+bell and the account, with find as a row in the account's sheet; the pill
 that opens the conversation is a round button above the bar, and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn on
@@ -1636,12 +1693,12 @@ view" (§9) is a reader rule; on the desk every card is raised and the sheet is 
 brightest object.
 
 **Colour.** The warm family stays. The primary is teal, `#1f6f6b` on light (5.6:1 on
-paper, 5.8:1 as paper text on it) and `#6fb8b3` on dark (7.4:1): links, Send, the
+paper, 5.8:1 as paper text on it) and `#6fb8b3` on ink (7.4:1): links, Send, the
 active tab, the selected row, a field's focus, and the "on" state. Calls to action stay
 ink-filled with paper text (§9). The brown accent keeps the reader; on the desk it is not
 used. The functional hues — leaf, clay, iris, sun — mean what §4 says and nothing else,
 so a teal thing is always a control and a green thing is always progress. The wash is
-teal at 9% (dark 12%).
+teal at 9%.
 
 **Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
 subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.

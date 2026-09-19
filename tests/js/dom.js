@@ -221,7 +221,7 @@ function install(globals) {
     },
     key: (index) => Object.keys(stored)[index] ?? null,
   };
-  /* Where a write goes. On a page these are defined by `theme.js`, which is in the
+  /* Where a write goes. On a page these are defined by `keep.js`, which is in the
      <head> of all eighteen templates, and replaced by `durable.js` in a reader — the one
      artefact opened from disk, where `localStorage` does not reliably keep what it is
      given (targum-internal#137). A harness that loads one asset on its own has neither,

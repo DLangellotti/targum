@@ -15,7 +15,7 @@
     it, Yiddish and Aramaic included. -#}
 {% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
 <script>{{ asset('durable.js') }}</script>
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
 </head>
 <body class="reader mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">
 <header class="bar">
@@ -316,9 +316,6 @@
     </div>
     <div class="group" data-what="Keys">
       <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}">?</button>
-    </div>
-    <div class="group" data-what="Theme">
-      <button type="button" data-theme-toggle aria-label="{{ t("reader.page.switch-theme", "Switch theme") }}"></button>
     </div>
     </div>
     <button type="button" class="more" data-more aria-expanded="false" aria-controls="more" aria-label="{{ t("reader.page.more", "More") }}">⋯</button>

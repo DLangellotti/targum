@@ -9,7 +9,7 @@
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
 </head>
 <body class="public">
 <main class="sheet weekly">
@@ -27,7 +27,6 @@
     </a>
     <div class="corner">
       <a class="enter" href="/account/signin">{{ t("weekly.page.sign-in", "Sign in") }}</a>
-      <button type="button" data-theme-toggle aria-label="{{ t("weekly.page.switch-theme", "Switch theme") }}"></button>
     </div>
   </div>
 

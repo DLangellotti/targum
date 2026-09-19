@@ -49,8 +49,7 @@
   /* One bar per band, and each its own colour. A scale rather than six unrelated hues:
      it runs leaf → iris → clay, which is the order §4 already gives them — what you can
      read, what is new to you, what it costs you. Mixed from the three working cuts, so
-     nothing here is a colour the palette does not have and every step flips with the
-     theme. Green to purple to red, deliberately: green to red alone mixes to brown in
+     nothing here is a colour the palette does not have. Green to purple to red, deliberately: green to red alone mixes to brown in
      the middle, which is the thing this page was getting too much of. */
   var COMMONNESS = [
     "var(--leaf)",

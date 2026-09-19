@@ -1149,6 +1149,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   short: half of שחרית marked, the other half of the mark on the time beside it. Every
   offset that ships to a page now goes through `js_span`.
 
+### Removed
+- Dark mode, on every page. targum has one look, and it is light: the second palette, the
+  switch in the bar, in the account's sheet and on the public pages, and the script that
+  stamped the choice are gone, and a browser that prefers dark gets the same page as any
+  other. The front door had been light-only since 2026-09-16; this is the rest. An
+  inverted ink block, a film's letterbox and the favicon's own switch for a dark tab
+  strip are not dark mode and stay. Readers built before this still carry the old theme
+  until the shelf is rendered again (design.md §12, targum-internal#333).
+
 ## [0.2.0.0] - 2026-09-01
 
 ### Added

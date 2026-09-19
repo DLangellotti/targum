@@ -372,7 +372,7 @@
   // enough to be read, short enough that a second copy is offered without a wait.
   var COPIED_FOR = 1500;
 
-  // §7: a stroke at text weight, drawn as a string the way theme.js draws its icons.
+  // §7: a stroke at text weight, drawn as a string.
   // Two squares, the one behind offset — the shape every clipboard has taught.
   var COPY_ICON =
     '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
