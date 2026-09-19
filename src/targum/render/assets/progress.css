@@ -246,3 +246,15 @@
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+
+/* --- time and words (targum-internal#339) ------------------------------------------
+   The ledger's own treatment on paper: the figure in the reading face with tabular
+   numbers, its word under it in the chrome's, no fill and no hue — these are counts of
+   what was done, not achievements, so leaf is not theirs. */
+.spent-filters { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-block-end: 1rem; }
+.spent-figures { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; }
+.spent-figure { display: grid; gap: 0.1rem; }
+.spent-amount { font-family: var(--reading); font-size: 1.75rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
+.spent .note { margin-block-start: 1rem; }
+

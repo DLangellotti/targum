@@ -683,6 +683,129 @@ def test_the_rung_said_on_arrival_is_kept_and_handed_back(
     assert status == 400 and answer["error"] == "No such choice."
 
 
+def test_forgetting_somebody_takes_every_row_that_names_them(tmp_path: Path) -> None:
+    """Asked of the schema rather than of a list: every table with a `person` column is
+    empty of them once the grace period is over.
+
+    The purge named its tables by hand, and `section` — which chapters they finished — was
+    added to the schema and not to that list, so those rows outlived the account they
+    belonged to. Found on 2026-09-20 while adding `event` beside it. A list kept by hand
+    goes stale the way `sync.js`'s drop-list did; this asks the database what it has.
+    """
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("leaver@example.com"))
+    assert signed is not None
+    person = signed[0]
+    store.push(
+        person,
+        {
+            "words": [{"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1}],
+            "sections": [{"hash": "ruth", "section": "2", "at": 5, "seen": 5}],
+            "days": [{"day": "2026-09-20", "count": 1, "seen": 1}],
+        },
+    )
+    store.add_events(person, [{"kind": "page", "day": "2026-09-20", "amount": 10}])
+
+    store.forget(person)
+    assert store.purge(days=-1) == [person.id]
+    tables = [
+        str(row["name"])
+        for row in store.db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    ]
+    for table in tables:
+        columns = [str(c["name"]) for c in store.db.execute(f"PRAGMA table_info({table})")]
+        if "person" not in columns:
+            continue
+        left = store.db.execute(
+            f"SELECT COUNT(*) AS n FROM {table} WHERE person = ?", (person.id,)
+        ).fetchone()["n"]
+        assert left == 0, f"{table} still names somebody who asked to be forgotten"
+
+
+SITTING = [
+    {"kind": "lookup", "day": "2026-09-20", "at": 5, "language": "he", "medium": "read",
+     "document": "ruth", "segment": "b0003"},
+    {"kind": "play", "day": "2026-09-20", "at": 6, "language": "he", "medium": "listen",
+     "document": "ruth", "segment": "b0003", "amount": 95},
+    {"kind": "play", "day": "2026-09-20", "at": 7, "language": "he", "medium": "watch",
+     "document": "film", "amount": 40},
+    {"kind": "page", "day": "2026-09-20", "at": 8, "language": "he", "medium": "read",
+     "document": "ruth", "amount": 180},
+    {"kind": "control", "day": "2026-09-20", "at": 9, "control": "data-paged", "width": "phone",
+     "document": "ruth", "segment": "b0003", "language": "he"},
+    {"kind": "invented-by-a-newer-page", "day": "2026-09-20"},
+]  # fmt: skip
+
+
+def test_nothing_about_a_sitting_is_kept_unless_the_deployment_says_so(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#127. The record of what a reader does in a text stands behind
+    `TARGUM_EVENTS`, off by default: the privacy notice names a legal basis for every
+    category of data and this is a new one, so switching it on is not a merge."""
+    monkeypatch.delenv("TARGUM_EVENTS", raising=False)
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie)
+    assert status == 200 and answer["kept"] == 0 and answer["keeping"] is False
+    status, totals, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert totals["kept"] is False and totals["totals"] == []
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["events"] == {"kept": False, "on": True}
+
+
+def test_a_sitting_is_appended_and_the_figures_are_read_off_it(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Appended, never merged, never sent back: the totals are a reading of the log, so two
+    devices add up by construction, which a last-write-wins tally never could."""
+    monkeypatch.setenv("TARGUM_EVENTS", "1")
+    port, token, _ = served
+    status, answer, _ = call(port, "POST", f"/events?k={token}", {"events": SITTING})
+    assert status == 401, "nobody signed out has a record to add to"
+
+    cookie = sign_in(port, postbox)
+    for _ in range(2):  # the same sitting from a second device
+        status, answer, _ = call(
+            port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie
+        )
+        assert status == 200 and answer["kept"] == 5, "the kind nobody knows is dropped alone"
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    by_medium = {row["medium"]: row for row in got["totals"]}
+    assert by_medium["listen"]["listened"] == 190 and by_medium["listen"]["watched"] == 0
+    assert by_medium["watch"]["watched"] == 80
+    assert by_medium["read"]["words"] == 360
+
+
+def test_a_reader_can_stop_the_record_and_erase_it(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On from the first session, by decision — and theirs to stop and to erase, from the
+    account page. Stopped means the page's events are not kept whatever it sends."""
+    monkeypatch.setenv("TARGUM_EVENTS", "1")
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    call(port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie)
+
+    status, answer, _ = call(
+        port, "POST", f"/account/events?k={token}", {"collect": False}, cookie=cookie
+    )
+    assert answer["events"] == {"kept": True, "on": False} and answer["erased"] == 0
+    status, answer, _ = call(port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie)
+    assert answer["kept"] == 0 and answer["keeping"] is False
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert got["totals"] == [], "stopped, the figures go absent rather than standing still"
+
+    status, answer, _ = call(
+        port, "POST", f"/account/events?k={token}", {"forget": True, "collect": True}, cookie=cookie
+    )
+    assert answer["erased"] == 5 and answer["events"]["on"] is True
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert got["totals"] == []
+
+
 def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
     """`targum languages` marked an address as reading Russian, from a terminal. The
     profile replaces it, and a person who was marked keeps Russian — with English

@@ -33,6 +33,24 @@
       absent for a visit with no account and where there is no cap (targum-internal#237). -#}
   <p class="note hours-line" id="hours-line" hidden></p>
 
+  {#- Time listened, time watched and words read (targum-internal#339), read off the
+      account's record of what happened in each text (#127) — so, unlike everything else
+      on this page, not from this browser's own store, and absent where there is no such
+      record: signed out, a box that keeps none, a reader who has stopped theirs. The
+      filters narrow these figures and nothing else: a day is not in a language, and the
+      longest run is not in a medium (§12). Real counts in the ledger's own treatment —
+      hours and minutes, words — and no invented unit. Drawn by `progress.js`. -#}
+  <section class="panel spent" id="spent" hidden>
+    <h2>{{ t("progress.spent.title", "Time and words") }}</h2>
+    <div class="spent-filters">
+      <div class="chips" id="spent-medium" role="group" aria-label="{{ t("progress.spent.which", "Which") }}"></div>
+      <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
+    </div>
+    <div class="spent-figures" id="spent-figures"></div>
+    <p class="note" id="spent-note">{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}</p>
+  </section>
+  <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
+
   {#- The day strip is seven rows tall and the milestones are two, so the milestones
       share their column with the ladder rather than leaving a hole beside it. -#}
   <div class="panels paired">

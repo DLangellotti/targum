@@ -69,6 +69,20 @@
     <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the whole of it.") }}</p>
   </section>
 
+  {#- What is recorded of a sitting (targum-internal#127): on from the first session, by
+      decision, and the reader's own to stop and to erase — so it is said here, plainly, with
+      both controls beside it. Drawn only where this box keeps such a record at all
+      (`TARGUM_EVENTS`); where it does not, there is nothing to say and nothing to switch. -#}
+  <section class="panel" id="record" hidden>
+    <h2>{{ t("you.page.what-we-record", "What we record as you go") }}</h2>
+    <p>{{ t("you.page.record-says", "When you look a word up, play a recording, turn a page or finish a section, we keep a note of it on your account. It is how Your Progress can say how long you've listened and how much you've read, and it shows us which lines are hard. We keep it for as long as you keep your account.") }}</p>
+    <p class="ending-row">
+      <button type="button" class="go-quiet" id="record-switch" aria-pressed="true"></button>
+      <button type="button" class="go-quiet danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
+    </p>
+    <p class="said" id="record-said" hidden></p>
+  </section>
+
   {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
   {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
       weekly portion, a learning cycle — each with where it is this week, one press to

@@ -2115,6 +2115,85 @@ def test_the_second_moment_is_the_voice_and_it_is_said_once(worded_scene) -> Non
     assert scene.evaluate("() => localStorage.getItem('targum:taught-the-voice')") == "1"
 
 
+def _sitting(browser, tmp_path, monkeypatch, me: dict) -> list[dict]:
+    """Open a voiced scene with markable words, look a word up, play a moment, leave —
+    and answer with everything the page handed to `/events`."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", words=True)
+    context = opened(browser)
+    page = context.new_page()
+    sent: list[dict] = []
+
+    def answer(route, request):
+        if "/account/me" in request.url:
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(me))
+        if "/events" in request.url:
+            sent.extend(json.loads(request.post_data or "{}").get("events", []))
+            return route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"signedIn": True, "kept": 1, "keeping": True}),
+            )
+        return route.continue_()
+
+    page.route("**/account/me*", answer)
+    page.route("**/events*", answer)
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    page.wait_for_timeout(400)  # the account's answer, which decides everything
+    page.locator(".w").first.click()
+    page.keyboard.press("Escape")
+    page.click(".player-play")
+    # Until a line is being spoken, and then long enough to be a stretch and not a mis-press.
+    page.wait_for_function("() => document.querySelector('.pair.voiced.now')")
+    page.wait_for_timeout(1600)
+    page.click(".player-play")
+    # The element says `pause` a task later, and that is what ends the stretch.
+    page.wait_for_timeout(250)
+    page.evaluate("() => window.TargumEvents.flush()")
+    page.wait_for_timeout(300)
+    context.close()
+    return sent
+
+
+def test_a_sitting_reaches_the_account_and_says_nothing_it_should_not(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """targum-internal#127, in a browser because the whole of it is wiring between three
+    closures and a server. A word looked up, a stretch played, and the controls pressed —
+    and a control says its name, the window's width and the day, and nothing of the text."""
+    me = {"signedIn": True, "email": "r@x.test", "events": {"kept": True, "on": True}}
+    sent = _sitting(browser, tmp_path, monkeypatch, me)
+    kinds = [event["kind"] for event in sent]
+    assert "lookup" in kinds and "play" in kinds and "control" in kinds, kinds
+
+    looked = next(event for event in sent if event["kind"] == "lookup")
+    assert looked["segment"] and looked["document"] and looked["language"] == "he"
+    played = next(event for event in sent if event["kind"] == "play")
+    assert played["medium"] == "listen" and 1 <= played["amount"] <= 5, played
+
+    for press in (event for event in sent if event["kind"] == "control"):
+        assert set(press) == {"kind", "day", "control", "width"}, press
+        assert press["width"] in {"phone", "narrow", "desk"}
+
+
+@pytest.mark.parametrize(
+    "me",
+    [
+        {"signedIn": False},
+        {"signedIn": True, "events": {"kept": False, "on": True}},
+        {"signedIn": True, "events": {"kept": True, "on": False}},
+    ],
+    ids=["signed-out", "the-box-keeps-none", "the-reader-stopped-it"],
+)
+def test_nothing_leaves_the_page_unless_it_is_kept_and_wanted(
+    browser, tmp_path, monkeypatch, me: dict
+) -> None:
+    """Most of `events.js` is about when it does nothing, and each of those is a promise:
+    signed out, a box that keeps no such record, and a reader who has stopped theirs."""
+    assert _sitting(browser, tmp_path, monkeypatch, me) == []
+
+
 def test_the_line_being_spoken_is_never_behind_the_player(scene) -> None:
     """The scrolling reader reserves nothing, so the page moves the spoken line instead."""
     scene.click(".player-play")

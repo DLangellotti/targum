@@ -696,6 +696,90 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
     assert went and "/reader/hard" in went[-1], f"hey opens the hardest sport text: {went}"
 
 
+def _progress_with(browser, totals: dict):
+    from datetime import date, timedelta
+
+    from targum.render.builder import progress_page
+
+    html = progress_page(TOKEN)
+    today = date.today()
+
+    def row(day: date, language: str, medium: str, **amounts: int) -> dict[str, object]:
+        base = {"listened": 0, "watched": 0, "words": 0}
+        return {"day": str(day), "language": language, "medium": medium, **base, **amounts}
+
+    rows = [
+        row(today, "he", "listen", listened=5700),
+        row(today, "he", "watch", watched=1500),
+        row(today - timedelta(days=60), "he", "read", words=12400),
+        row(today, "ru", "read", words=999),
+    ]
+    said = {"signedIn": True, "kept": True, "on": True, "totals": rows, **totals}
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body = said if "/account/totals" in request.url else {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({a: {surface: 'a', status: 9,"
+        " band: 'easy', at: 1}})); localStorage.setItem('targum:language', 'he')"
+    )
+    page.route("http://progress.test/**", answer)
+    page.goto(f"http://progress.test/progress?k={TOKEN}")
+    page.wait_for_timeout(600)
+    return context, page
+
+
+SPENT = """() => ({
+  shown: !document.getElementById('spent').hidden,
+  off: !document.getElementById('spent-off').hidden,
+  figures: [...document.querySelectorAll('.spent-figure')].map(
+    (f) => [...f.children].map((c) => c.textContent).join(' ')
+  ),
+  sideways: document.documentElement.scrollWidth > window.innerWidth,
+})"""
+
+
+def test_progress_says_time_listened_watched_and_words_read_and_narrows_them(browser) -> None:
+    """targum-internal#339: "track hours/minutes listened/watched + words read… displayed
+    and filterable on Progress." Read off the account's own record, in the page's language
+    (the Russian row is not counted here), in hours and minutes and words — no invented
+    unit — and a figure that is nought is not drawn."""
+    context, page = _progress_with(browser, {})
+    everything = page.evaluate(SPENT)
+    page.locator("#spent-medium .chip", has_text="Watching").click()
+    watching = page.evaluate(SPENT)
+    page.locator("#spent-medium .chip", has_text="Everything").click()
+    page.locator("#spent-period .chip", has_text="Last 7 days").click()
+    lately = page.evaluate(SPENT)
+    context.close()
+
+    assert everything["shown"] and not everything["sideways"]
+    assert everything["figures"] == ["1 h 35 min listened", "25 min watched", "12,400 words read"]
+    assert watching["figures"] == ["25 min watched"]
+    assert lately["figures"] == ["1 h 35 min listened", "25 min watched"], (
+        "the book was two months ago"
+    )
+
+
+def test_progress_draws_no_such_figures_where_there_is_no_record(browser) -> None:
+    """Absent, not nought. Where the box keeps no record the panel is not drawn; where the
+    reader has stopped theirs, one quiet line says why and where to start it again."""
+    context, page = _progress_with(browser, {"kept": False, "totals": []})
+    none = page.evaluate(SPENT)
+    context.close()
+    assert not none["shown"] and not none["off"]
+
+    context, page = _progress_with(browser, {"on": False, "totals": []})
+    stopped = page.evaluate(SPENT)
+    context.close()
+    assert not stopped["shown"] and stopped["off"]
+
+
 def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
     browser, tmp_path: Path
 ) -> None:
