@@ -1796,6 +1796,7 @@ body[data-case="Loc"] .w.case-Loc {
 /* The pager and the offer at the foot belong to the end of the chapter, not to every
    page of it. */
 body.paged:not(.last-page) .pager,
+body.paged:not(.last-page) .credits,
 body.paged:not(.last-page) .rest { display: none; }
 
 /* Turning the page. Two round buttons in the two bottom corners — back at the start
@@ -2790,6 +2791,23 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
    neither copy can become a second, disagreeing idea of the same action — the rule the
    picture's own button already follows by sharing an attribute rather than a class.
    Exactly one copy of each is shown at any width. */
+/* Who and what made the page, at the foot of the text (targum-internal#342): the
+   chrome's face, small and in the resting colour, a hairline over it. Quiet, and there. */
+.credits {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 2rem auto 0;
+  padding: 0.9rem 1.25rem 0;
+  border-block-start: 1px solid var(--rule);
+  font-family: var(--chrome, system-ui, sans-serif);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.credits .credit { margin: 0 0 0.4rem; }
+.credits a { color: inherit; }
+body.paged .credits { margin-block-end: 6rem; }
+.more-credit { display: block; margin-block-start: 0.35rem; font-size: 0.8125rem; color: var(--ink-soft); }
+
 .more-player { display: none; }
 .more-player .more-get,
 .more-player .more-close {
