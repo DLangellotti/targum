@@ -3077,10 +3077,55 @@ def test_space_plays_a_book_too_rather_than_turning_its_page(read_aloud) -> None
 def test_the_reader_of_a_recording_is_credited_on_the_page(read_aloud) -> None:
     """CC BY-SA asks for the reader to be named, and a credit in a file nobody opens is
     not a naming. It rides with the audio, which is the part that can be saved."""
-    credit = read_aloud.locator(".keys-credit")
+    credit = read_aloud.locator("#credits .credit", has_text="Rabbi Somebody")
     assert credit.count() == 1
-    assert "Rabbi Somebody" in credit.inner_text()
     assert credit.locator("a").get_attribute("href").startswith("https://creativecommons.org/")
+    # At the foot of the text, not in the keys card (targum-internal#342): the card is a
+    # thing a phone never shows, and the credit belongs to the text.
+    assert read_aloud.locator("#keys .credit, #keys .keys-credit").count() == 0
+
+
+def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """targum-internal#342. Every attribution a reader owes stood at the foot of the
+    keyboard-shortcuts card, and under 60rem that card waits for a key to be pressed — so on
+    a phone a CC BY-SA recording could be played and *saved* from a page that never said
+    whose it was. It is at the foot of the text now, where the pager is, and beside Save
+    the audio in the menu; and the keys button is still not drawn, which is right."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    first = page.evaluate(
+        """() => ({
+          keys: [...document.querySelectorAll('.bar [data-keys]')]
+            .some((k) => k.getClientRects().length),
+          foot: document.getElementById('credits').getClientRects().length > 0,
+        })"""
+    )
+    # To the last page, the way a reader gets there.
+    pages = int(page.inner_text("#page-of").split()[-1])
+    for _ in range(pages - 1):
+        page.click(".turn .forward")
+    page.wait_for_function("() => document.body.classList.contains('last-page')")
+    last = page.evaluate(
+        """() => {
+          const credits = document.getElementById('credits');
+          return { shown: credits.getClientRects().length > 0, says: credits.innerText };
+        }"""
+    )
+    page.click(".bar .more")
+    menu = page.inner_text(".more-player")
+    context.close()
+
+    assert not first["keys"], "no keyboard, no keys button: that part was right"
+    assert not first["foot"], "and the foot of the text is on the last page, with the pager"
+    assert last["shown"] and "Rabbi Somebody" in last["says"], last
+    assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
 def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:

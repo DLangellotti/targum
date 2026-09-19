@@ -1725,5 +1725,6 @@
   "progress.spent.watched": "watched",
   "progress.spent.words.one": "word read",
   "progress.spent.words.other": "words read",
-  "progress.spent.nothing": "Nothing here yet."
+  "progress.spent.nothing": "Nothing here yet.",
+  "reader.page.credits": "Credits"
 }

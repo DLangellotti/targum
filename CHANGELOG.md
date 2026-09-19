@@ -160,6 +160,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - A deleted account's finished-section rows were not deleted with it: the purge named its
   tables by hand and `section` was never added to the list. A test now asks the database
   which tables name a person, instead of a list that can go stale.
+- A reader's credits can be reached on a phone. Who read a recording and under what
+  licence, and what worked out the dictionary forms and the vowel points, stood at the foot
+  of the keyboard-shortcuts card, which a window under 60rem does not show until a key is
+  pressed. So on a phone a CC BY-SA recording could be played and saved from a page that
+  never said whose it was. They are at the foot of the text now, at every width, on the
+  last page beside the pager, and the recording's credit is also beside "Save the audio"
+  in the phone's menu. The keys card holds the keys (targum-internal#342).
 - The reader's keys button says "Keys". It was a `?`, which a stranger read as help and
   which opened a table of keyboard shortcuts. The `?` key still opens the card. The
   button keeps the mark behind ⋯ on a narrow window, where the row is already named, and

@@ -131,6 +131,8 @@
     <div class="group more-player">
       <span class="label">{{ t("reader.page.the-recording", "The recording") }}</span>
       <a class="more-get" download>{{ t("reader.page.save-the-audio", "Save the audio") }}</a>
+      {#- Whose recording it is, beside the control that carries it off (#342). -#}
+      {% if speech_credit %}<span class="more-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {{ speech_licence }}{% endif %}</span>{% endif %}
       <button type="button" class="more-close">{{ t("reader.page.close-the-player", "Close the player") }}</button>
     </div>
     {% endif %}
@@ -723,6 +725,51 @@
   {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
 </nav>
 {% endif %}
+{#- Who and what made this page, at the foot of the text (targum-internal#342, 2026-09-20).
+    These stood at the foot of the keyboard-shortcuts card, which a phone never shows — it
+    waits for a key to be pressed — so on the device most readers use, a recording under
+    CC BY-SA could be played and saved from a page that never said whose it was. "Naming
+    them in a file nobody opens is not naming them"; nor is naming them in a card nobody
+    can open. They belong to the text, so they travel with it, at every width, on the
+    last page where the pager is. -#}
+{% if speech_credit or words_credit or pointing_credit or lexicon_credit or biblical %}
+<aside class="credits" id="credits" aria-label="{{ t("reader.page.credits", "Credits") }}">
+  {#- Who read it. A recording the library serves is somebody else's work under a licence
+      that asks for them to be named, and naming them in a file nobody opens is not
+      naming them. The text's own credit is on the library page; this one travels with
+      the audio, because the audio is what can be saved and carried off. -#}
+  {% if speech_credit %}
+  <p class="credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
+  {% endif %}
+  {#- Said once, here, rather than left for a reader to work out from a wrong card.
+      The lemmatiser is trained on modern unpointed Hebrew, so on the Tanakh it is
+      guessing at forms the training data barely contains: waw-consecutive, pausal
+      forms, archaic suffixes. On a modern text this does not need saying, so it is
+      not said. targum-internal #87, which asked for the about page — that page is a
+      construction notice now, and the sentence belongs where the words are anyway. -#}
+  {#- What read the words, named because its licence asks to be. CC BY 4.0 wants the
+      work named and the licence linked wherever the work is used, and a credit in a
+      file nobody opens is the same non-naming the reading credit above refuses. -#}
+  {% if words_credit %}
+  <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- And what pointed the words, on the same terms and keyed the same way: to the
+      vocalizer that ran, and only where it pointed something the edition had not. -#}
+  {% if pointing_credit %}
+  <p class="credit">{{ t("reader.page.vowel-points-by", "Vowel points by") }} <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
+      partner or a word whose stress moves (targum-internal#259). -#}
+  {% if lexicon_credit %}
+  <p class="credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
+  {% endif %}
+  {% if biblical %}
+  <p class="credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
+    on modern. The analyser learned from modern unpointed text, so it sometimes misreads
+    waw-consecutive, pausal and archaic forms on a card.") }}</p>
+  {% endif %}
+</aside>
+{% endif %}
 
 {% if words %}
 <aside class="list" id="list" aria-label="{{ t("reader.page.what-you-have-kept-from-this-text", "What you have kept from this text") }}">
@@ -796,40 +843,6 @@
     <dt>l</dt><dd>{{ t("reader.page.interlinear-the-translation-under-each-line", "interlinear — the translation under each line") }}</dd>
     <dt>o</dt><dd>{{ t("reader.page.source-only-2", "source only") }}</dd>
   </dl>
-  {#- Who read it. A recording the library serves is somebody else's work under a licence
-      that asks for them to be named, and naming them in a file nobody opens is not
-      naming them. The text's own credit is on the library page; this one travels with
-      the audio, because the audio is what can be saved and carried off. -#}
-  {% if speech_credit %}
-  <p class="keys-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
-  {% endif %}
-  {#- Said once, here, rather than left for a reader to work out from a wrong card.
-      The lemmatiser is trained on modern unpointed Hebrew, so on the Tanakh it is
-      guessing at forms the training data barely contains: waw-consecutive, pausal
-      forms, archaic suffixes. On a modern text this does not need saying, so it is
-      not said. targum-internal #87, which asked for the about page — that page is a
-      construction notice now, and the sentence belongs where the words are anyway. -#}
-  {#- What read the words, named because its licence asks to be. CC BY 4.0 wants the
-      work named and the licence linked wherever the work is used, and a credit in a
-      file nobody opens is the same non-naming the reading credit above refuses. -#}
-  {% if words_credit %}
-  <p class="keys-credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
-  {% endif %}
-  {#- And what pointed the words, on the same terms and keyed the same way: to the
-      vocalizer that ran, and only where it pointed something the edition had not. -#}
-  {% if pointing_credit %}
-  <p class="keys-credit">{{ t("reader.page.vowel-points-by", "Vowel points by") }} <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
-  {% endif %}
-  {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
-      partner or a word whose stress moves (targum-internal#259). -#}
-  {% if lexicon_credit %}
-  <p class="keys-credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
-  {% endif %}
-  {% if biblical %}
-  <p class="keys-credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
-    on modern. The analyser learned from modern unpointed text, so it sometimes misreads
-    waw-consecutive, pausal and archaic forms on a card.") }}</p>
-  {% endif %}
 </div>
 {#- Talk to targum, in the reader (2026-09-11): "when I am reading something I want to
     literally be able to chat with it". The same pill and drawer every chrome page has,

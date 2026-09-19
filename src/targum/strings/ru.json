@@ -1780,5 +1780,6 @@
   "progress.spent.words.few": "слова прочитано",
   "progress.spent.words.many": "слов прочитано",
   "progress.spent.words.other": "слова прочитано",
-  "progress.spent.nothing": "Здесь пока ничего нет."
+  "progress.spent.nothing": "Здесь пока ничего нет.",
+  "reader.page.credits": "Источники"
 }
