@@ -397,6 +397,60 @@ view") and its verb on it. The rest sit under it as they were.
 
 `test_learn_js.py` pins the two steps, the skip, the rung kept and handed back, and the
 measured rung outvoting it. targum-internal#334, #306.
+### The Beit Midrash comes back, as a way of walking the one list — 2026-09-19
+
+"It is time to build the 'Beit Midrash' section," David wrote: another tab after Your
+uploads, only for Hebrew, inspired by Sefaria's navigation, so that "someone who only
+studies Biblical Hebrew should be able to find what they are looking for right away."
+
+There was one before, and it was taken out. The catalogue was two shelves with a switch
+between them and two sets of addresses, and "a reader had to know which room a text was in
+before they could find it, which is backwards for the one page whose whole job is finding
+something." What survived was the tagging (`catalogue.Tag`, `beit_midrash()`), kept so
+that the texts a reader came for could one day be shown alone. `test_pages.py` forbade
+the name on the library page, and `test_hosted.py` still refuses the old addresses.
+
+So the name returns and the shape does not. **The Beit Midrash is not a second room; it
+is the one list asked a different question** — not "what is it about" but "where does it
+stand". Every text in it is also a row under All texts, at the same address, drawn by
+the same code; `test_library_js.py` pins that, and the old test now asserts the invariant
+it was protecting rather than the absence of two words.
+
+It lives inside the rules that were already here:
+
+- **"The list stays one list"** (The library folds, 2026-09-01). A door narrows the list
+  the way a subject does, and the search still looks behind every door at once.
+- **"A collection is not a second layer and must not become one."** Behind a door the
+  collections are the ones the list already folds into, drawn by the same rows and
+  cards — and standing **open**, because Sefaria's shape is every book under its
+  heading, and a student looking for Ruth should not have to guess which of three shut
+  rows it is in. The tab, Tanakh, Ruth: two presses.
+- **"A row of chips is drawn from the rows that exist"** (2026-09-17). Seven doors —
+  Tanakh, the Torah by portion, the Aramaic translations, Mishnah, Halakhah, Thought and
+  ethics, Liturgy —
+  and not Sefaria's dozen: there is no Talmud and no Midrash on this shelf, and a door
+  with nothing behind it is a dead end. Each door carries its count.
+- **Hebrew's alone** (§13: what only Hebrew has hides under another language), and drawn
+  only where the catalogue says which door anything stands behind (`Collection.door`).
+
+Two things it does that the rest of the library does not, each on purpose:
+
+- **The level band does not apply.** All texts opens on what a reader can read now. A
+  tree that hid the Writings from a beginner because they are hard would be a tree with
+  branches missing; the reader came to see where things stand, and each row still says
+  how much of it they know. The same reasoning took the band off Your uploads.
+- **It crosses a language line, at one door.** The Targums are Aramaic rows and have a
+  door here (David, 2026-09-19: Sefaria files Targum under Tanakh, and a Torah student
+  looks for Onkelos beside the Torah). They open as Aramaic readers, their words still go
+  to the Aramaic list (targum-internal#202), and the door says what they are — "Aramaic
+translations" under תרגום — because the Latin word is the product's name and §2 keeps it
+lowercase and for the product alone. Nowhere
+  else does the Hebrew shelf show another language's rows.
+
+The tree has an address — `#bm`, `#bm/tanakh` — the first view of this page that does,
+so a link can land somebody on a door. targum-internal#68, the account preference that
+shows *only* these texts, is a different thing and still unbuilt; it was renamed the same
+day and will read this tab's predicate. targum-internal#340.
 ### There is one look, and it is light — 2026-09-19
 
 "Remove dark mode everywhere," David wrote, and it is gone: the second palette that

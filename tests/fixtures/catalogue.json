@@ -428,6 +428,42 @@
       "register": "modern",
       "difficulty": 0,
       "model": ""
+    },
+    {
+      "id": "onkelos-genesis",
+      "title": "תרגום אונקלוס · בראשית",
+      "author": "Targum Onkelos",
+      "language": "arc",
+      "source": "test:onkelos-genesis",
+      "blurb": "A short blurb for the tests.",
+      "english": "Onkelos on Genesis",
+      "words": 900,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [],
+      "kind": "prose",
+      "register": "",
+      "difficulty": 22,
+      "model": ""
+    },
+    {
+      "id": "onkelos-exodus",
+      "title": "תרגום אונקלוס · שמות",
+      "author": "Targum Onkelos",
+      "language": "arc",
+      "source": "test:onkelos-exodus",
+      "blurb": "A short blurb for the tests.",
+      "english": "Onkelos on Exodus",
+      "words": 900,
+      "tags": [
+        "tanakh"
+      ],
+      "translations": [],
+      "kind": "prose",
+      "register": "",
+      "difficulty": 22,
+      "model": ""
     }
   ],
   "samples": {
@@ -456,7 +492,8 @@
         "kohelet",
         "job",
         "psalms"
-      ]
+      ],
+      "door": "tanakh"
     },
     {
       "id": "by-herzl",
@@ -494,6 +531,18 @@
         "scene-03-which-way",
         "scene-18-two-coffees"
       ]
+    },
+    {
+      "id": "targum-onkelos",
+      "title": "תרגום אונקלוס",
+      "english": "Targum Onkelos",
+      "ordered": true,
+      "blurb": "The Aramaic, book by book.",
+      "members": [
+        "onkelos-genesis",
+        "onkelos-exodus"
+      ],
+      "door": "targum"
     }
   ]
 }

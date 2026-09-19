@@ -1685,5 +1685,15 @@
   "library.build.start-watching": "Start watching",
   "reader.first.listen": "Now press play. The page follows the voice, line by line.",
   "reader.first.watch": "Now press play. The page follows the film, line by line.",
-  "learn.work.once": "These are the words you marked. We keep them here, and they'll be waiting whenever you come back."
+  "learn.work.once": "These are the words you marked. We keep them here, and they'll be waiting whenever you come back.",
+  "library.where.midrash": "Beit Midrash",
+  "library.door.tanakh": "Tanakh",
+  "library.door.portions": "The Torah, by portion",
+  "library.door.targum": "Aramaic translations",
+  "library.door.mishnah": "Mishnah",
+  "library.door.halakhah": "Halakhah",
+  "library.door.thought": "Thought and ethics",
+  "library.door.liturgy": "Liturgy",
+  "library.note.doors": "Pick a shelf. Every text here is also under All texts.",
+  "library.page.where-you-are": "Where you are"
 }

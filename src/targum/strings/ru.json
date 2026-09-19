@@ -1738,5 +1738,15 @@
   "library.build.start-watching": "Начать смотреть",
   "reader.first.listen": "Теперь нажмите «воспроизвести». Страница идёт за голосом, строка за строкой.",
   "reader.first.watch": "Теперь нажмите «воспроизвести». Страница идёт за фильмом, строка за строкой.",
-  "learn.work.once": "Это слова, которые вы отметили. Мы храним их здесь, и они будут ждать вас, когда бы вы ни вернулись."
+  "learn.work.once": "Это слова, которые вы отметили. Мы храним их здесь, и они будут ждать вас, когда бы вы ни вернулись.",
+  "library.where.midrash": "Бейт-мидраш",
+  "library.door.tanakh": "Танах",
+  "library.door.portions": "Тора по недельным главам",
+  "library.door.targum": "Арамейские переводы",
+  "library.door.mishnah": "Мишна",
+  "library.door.halakhah": "Галаха",
+  "library.door.thought": "Мысль и этика",
+  "library.door.liturgy": "Молитва",
+  "library.note.doors": "Выберите полку. Каждый текст здесь есть и во «Всех текстах».",
+  "library.page.where-you-are": "Где вы находитесь"
 }

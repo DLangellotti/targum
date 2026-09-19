@@ -263,6 +263,51 @@
     ["mine", t("library.where.mine", "Your uploads")],
   ];
 
+  /* --- the Beit Midrash (targum-internal#340, 2026-09-19) ---------------------------
+   *
+   * A third tab, Hebrew's alone: the texts `catalogue.beit_midrash()` keeps, walked as a
+   * tree the way Sefaria's contents is — doors, then the books behind each under their
+   * own headings. "Someone who only studies Biblical Hebrew should be able to find what
+   * they are looking for right away": the tab, Tanakh, Ruth.
+   *
+   * **It is not a second room.** There was a Beit Midrash shelf once, with its own
+   * addresses, and it was taken out because a reader had to know which room a text was
+   * in before they could find it (`catalogue.Tag`). Every row here is also a row under
+   * All texts, at the same address, drawn by the same code: this is the one list
+   * (design.md §12, "The library folds") asked a different question — not "what is it
+   * about" but "where does it stand". A subject only ever narrows (§12, 2026-09-17), and
+   * so does a door.
+   *
+   * Which door a collection stands behind is a fact in the catalogue file
+   * (`Collection.door`), and a file that says nothing draws no tab. The names are here
+   * because they are the page's own words, like the subjects'.
+   *
+   * It crosses one line the rest of the library does not: the Aramaic translations of the
+   * Tanakh — Onkelos, Jonathan — are Aramaic rows,
+   * and they have a door here, named for what they are rather than by the word the
+   * brand keeps for itself (David, 2026-09-19 — Sefaria files them under Tanakh,
+   * and a Torah student looks for Onkelos beside the Torah). They open as Aramaic
+   * readers and their words still go to the Aramaic list (targum-internal#202); their
+   * cards say Aramaic. Nowhere else does the Hebrew shelf show another language's rows.
+   */
+  var DOORS = [
+    ["tanakh", "תנ״ך", t("library.door.tanakh", "Tanakh")],
+    ["portions", "פרשות השבוע", t("library.door.portions", "The Torah, by portion")],
+    ["targum", "תרגום", t("library.door.targum", "Aramaic translations")],
+    ["mishnah", "משנה", t("library.door.mishnah", "Mishnah")],
+    ["halakhah", "הלכה", t("library.door.halakhah", "Halakhah")],
+    ["thought", "מחשבה ומוסר", t("library.door.thought", "Thought and ethics")],
+    ["liturgy", "תפילה", t("library.door.liturgy", "Liturgy")],
+  ];
+  var MIDRASH = ["midrash", t("library.where.midrash", "Beit Midrash")];
+  //: The language the tree carries besides Hebrew.
+  var BESIDE_HEBREW = "arc";
+
+  function doorNamed(id) {
+    for (var n = 0; n < DOORS.length; n++) if (DOORS[n][0] === id) return DOORS[n];
+    return null;
+  }
+
   // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
   // two fifths, so a bar drawn from zero would be four identical bars.
   var FLOOR = 12;
@@ -607,6 +652,15 @@
     });
   });
 
+  /* Which door of the Beit Midrash a text stands behind: its collection's, or its own
+     where it is in none. "" for everything that is not in the tree. */
+  function doorOf(row) {
+    if (!row.entry) return "";
+    var group = GROUP_OF[row.id];
+    var said = group ? group.door : row.entry.door;
+    return said && doorNamed(said) ? said : "";
+  }
+
   /* The middle value, which is the honest single number for a set of texts: a mean is
      dragged by the one hard thing in it, and Berdichevsky's thirty-nine range from 13 to
      20. Zero where nothing in the collection has been measured — the row then says "—"
@@ -713,6 +767,10 @@
     // A search opens everything it found. A reader who types "teshuvah" and is shown
     // one closed row saying "Mishneh Torah" has been told the search failed.
     if (view.find) return true;
+    // Behind a door of the Beit Midrash every shelf stands open: the Tanakh is its books
+    // under Torah, Prophets and Writings, and a student looking for Ruth should not have
+    // to guess which of three shut rows it is in.
+    if (view.where === "midrash" && view.door) return true;
     return !!unfolded[group.id];
   }
 
@@ -1423,6 +1481,8 @@
     "subject",
     "fit",
     "shape",
+    // Since 2026-09-19: which door of the Beit Midrash is open, "" for the doors themselves.
+    "door",
   ];
   var views = stored("targum:library");
   if (
@@ -1449,6 +1509,7 @@
     if (!one.register) one.register = "";
     if (!one.where) one.where = "library";
     if (!one.subject) one.subject = "";
+    if (!one.door) one.door = "";
     // `fit` is deliberately left unset here. What it defaults to depends on whether this
     // reader has marked any words, which is not known until `/readers` answers — see
     // `fitWanted`. Once they choose, the choice is stored and outranks both defaults.
@@ -1502,6 +1563,96 @@
     return "";
   }
 
+  /* The doors, as cards on the grid the texts use: the Hebrew name in the reading face,
+     the page's own word under it, and how many texts stand behind it — "each chip
+     carries its count" (design.md §12), so a door says what is there before it is
+     opened. Only doors with something behind them, in the catalogue's order. */
+  function doors(host, showing, redraw) {
+    var behind = {};
+    showing.forEach(function (row) {
+      var door = doorOf(row);
+      if (door) behind[door] = (behind[door] || 0) + 1;
+    });
+    DOORS.forEach(function (door) {
+      if (!behind[door[0]]) return;
+      var press = el("button", "door-card");
+      press.type = "button";
+      press.setAttribute("data-door", door[0]);
+      var name = el("bdi", "door-name", door[1]);
+      name.setAttribute("lang", "he");
+      press.appendChild(name);
+      press.appendChild(el("span", "door-english", door[2]));
+      press.appendChild(
+        el("span", "door-holds", tn("library.tally.all", behind[door[0]], "{n} text", "{n} texts"))
+      );
+      press.addEventListener("click", function () {
+        view.door = door[0];
+        redraw();
+      });
+      // The host is the cards' list, so a door is an item of it like any card.
+      var item = el("li", "door-item");
+      item.appendChild(press);
+      host.appendChild(item);
+    });
+  }
+
+  /* Where you are, in words, above the list: "Beit Midrash › Tanakh". The first is the
+     way back to the doors. Drawn only inside one — at the doors the tab already says
+     where you are, and a trail of one step is a label. */
+  function crumbs(host, tree, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    var door = tree && view.door ? doorNamed(view.door) : null;
+    host.hidden = !door;
+    if (!door) return;
+    var back = el("button", "crumb", MIDRASH[1]);
+    back.type = "button";
+    back.addEventListener("click", function () {
+      view.door = "";
+      view.find = "";
+      var find = document.getElementById("find");
+      if (find) find.value = "";
+      redraw();
+    });
+    host.appendChild(back);
+    host.appendChild(el("span", "crumb-step", "›"));
+    var here = el("span", "crumb crumb-here");
+    var name = el("bdi", null, door[1]);
+    name.setAttribute("lang", "he");
+    here.appendChild(name);
+    here.appendChild(document.createTextNode(" · " + door[2]));
+    here.setAttribute("aria-current", "page");
+    host.appendChild(here);
+  }
+
+  /* The tree has an address — `#bm`, `#bm/tanakh` — the first view of this page that
+     does, so a link can land somebody on the Writings' door. Written with
+     `replaceState`: walking the tree is not a history of pages. A row's own hash
+     (`#ruth`, `#build:ruth`) is left alone; `pointAt` reads those. */
+  var TREE_HASH = "bm";
+
+  function address(tree) {
+    if (!window.history || !history.replaceState) return;
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    var mine = now === TREE_HASH || now.indexOf(TREE_HASH + "/") === 0;
+    if (!tree) {
+      if (mine) history.replaceState(null, "", location.pathname + location.search);
+      return;
+    }
+    if (now && !mine) return;
+    var want = "#" + TREE_HASH + (view.door ? "/" + view.door : "");
+    if (location.hash !== want) history.replaceState(null, "", location.pathname + location.search + want);
+  }
+
+  //: The door a tree address names, "" for the doors themselves, null for any other hash.
+  function addressed() {
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    if (now === TREE_HASH) return "";
+    if (now.indexOf(TREE_HASH + "/") !== 0) return null;
+    var door = now.slice(TREE_HASH.length + 1);
+    return doorNamed(door) ? door : "";
+  }
+
   var view = viewFor(lang.HOME);
 
   /* Whether one row survives the filters. `using` lets a caller ask the question against
@@ -1516,7 +1667,11 @@
 
   function matches(row, code, using) {
     var state = using || view;
-    if (!inLanguage(row, code)) return false;
+    var tree = state.where === "midrash";
+    // The one place the Hebrew shelf shows rows of another language: the Aramaic door.
+    if (!inLanguage(row, code) && !(tree && code === lang.HOME && inLanguage(row, BESIDE_HEBREW))) {
+      return false;
+    }
     /* A build in progress is on the shelf whatever the filters say (design.md §12,
        2026-09-17). Nothing about it is measured yet — no kind, no register, no hard-word
        share — so every narrowing control would hide it, and the one row the reader is
@@ -1537,9 +1692,18 @@
     /* The band is for choosing from the catalogue, never for your own (2026-09-18). An
        upload is a text you already chose; the tab is where "everything of yours is here"
        (design.md §12), and a band saved on All texts was hiding 39 of 43 of David's. */
-    if (state.where !== "mine" && !fits(row, fitWanted(state))) return false;
+    /* Nor for the Beit Midrash: a tree that hid the Writings from a beginner because
+       they are hard would be a tree with branches missing, and the reader came to see
+       where things stand. Each row still says how much of it they know. */
+    if (state.where !== "mine" && !tree && !fits(row, fitWanted(state))) return false;
     if (state.where === "mine" && row.entry) return false;
     if (state.where !== "mine" && !row.entry) return false;
+    if (tree) {
+      var behind = doorOf(row);
+      if (!behind) return false;
+      // A search looks behind every door; otherwise one door at a time.
+      if (state.door && !state.find && behind !== state.door) return false;
+    }
     if (state.find) {
       // The blurb and the name the text is filed under are in this on purpose. A reader
       // typing "herzl" into a library of Hebrew titles otherwise finds nothing: the
@@ -2213,12 +2377,57 @@
       choices(document.getElementById("audio"), SPOKEN, "spoken", redraw);
       choices(document.getElementById("length"), LENGTHS, "length", redraw);
       choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
-      tabs(document.getElementById("where"), WHERE, "where", redraw);
+      /* The Beit Midrash is Hebrew's, and is drawn only where the catalogue says which
+         door anything stands behind: a tab over an empty tree is a dead end. Under another
+         language, or a file with no doors, a view left on it goes back to All texts. */
+      var treed =
+        chosen === lang.HOME &&
+        everything.some(function (row) {
+          return !!doorOf(row);
+        });
+      if (view.where === "midrash" && !treed) view.where = "library";
+      tabs(document.getElementById("where"), treed ? WHERE.concat([MIDRASH]) : WHERE, "where", redraw);
       heading(redraw);
+      var tree = view.where === "midrash";
+      if (!tree) view.door = "";
+      /* A first visit opens All texts on the Scenes, which is the page's doing and not the
+         reader's. Carried into the tree it left every door with nothing behind it —
+         there are no dialogues in the Tanakh — and the tab drew an empty page (found by
+         opening it, 2026-09-19). A kind the *reader* chose still narrows the tree. */
+      if (tree && leading) {
+        view.kind = "";
+        leading = false;
+      }
+      // At the doors themselves there is no list yet, so nothing that narrows one: the
+      // subjects (every row here is Tanakh or Judaica), the band, the sorts.
+      var atDoors = tree && !view.door && !view.find;
+      ["subject-label", "subject-chips", "said"].forEach(function (id) {
+        var part = document.getElementById(id);
+        if (part) part.hidden = tree;
+      });
+      ["sorts", "shape"].forEach(function (id) {
+        var part = document.getElementById(id);
+        if (part) part.hidden = atDoors;
+      });
+      crumbs(document.getElementById("crumbs"), tree, redraw);
+      address(tree);
 
       var surviving = everything.filter(function (row) {
         return matches(row, chosen);
       });
+      if (atDoors) {
+        host.textContent = "";
+        cards.textContent = "";
+        host.hidden = true;
+        cards.hidden = false;
+        var rowsHead = document.getElementById("rows-head");
+        if (rowsHead) rowsHead.hidden = true;
+        doors(cards, surviving, redraw);
+        placeNote(t("library.note.doors", "Pick a shelf. Every text here is also under All texts."));
+        empty.hidden = true;
+        tally.textContent = tn("library.tally.all", surviving.length, "{n} text", "{n} texts");
+        return;
+      }
       var top = folded(surviving);
       /* A list that is one collection is that collection. Picking the Scenes chip and
          being shown a single row saying "Scenes · 100 texts" is the filter answering a
@@ -2262,6 +2471,9 @@
       // Counted within the list being looked at, not across both: "2 of 116" under Your
       // Uploads would be counting somebody's two texts against everybody's catalogue.
       var here = everything.filter(function (row) {
+        // Behind a door, counted against that door: "5 of 499" under the Torah would be
+        // counting five books against the whole library.
+        if (tree) return doorOf(row) && (!view.door || view.find || doorOf(row) === view.door);
         return inLanguage(row, chosen) && (view.where === "mine" ? !row.entry : row.entry);
       });
       empty.hidden = showing.length > 0;
@@ -2325,7 +2537,7 @@
     var lifted = false;
     function pointAt() {
       var wanted = decodeURIComponent((location.hash || "").slice(1));
-      if (!wanted) return;
+      if (!wanted || addressed() !== null) return;
       /* `#build:<id>` is what `/open/<id>` sends when this reader has not built the text
          yet (targum-internal#313). It means the same as a bare id — find that row and
          show it — and adds one thing: the row's own offer is put up, so the reader lands
@@ -2517,6 +2729,12 @@
       view = viewFor(code);
       find.value = view.find || "";
       inHebrew = code === lang.HOME;
+      // An address into the tree opens the tree, where the shelf showing is Hebrew's.
+      var into = addressed();
+      if (into !== null && inHebrew) {
+        view.where = "midrash";
+        view.door = into;
+      }
       lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       if (betaNote) {
@@ -2532,6 +2750,15 @@
       }
       redraw();
     }
+
+    // A link followed, or the address edited, while the page is open.
+    window.addEventListener("hashchange", function () {
+      var into = addressed();
+      if (into === null || chosen !== lang.HOME) return;
+      view.where = "midrash";
+      view.door = into;
+      redraw();
+    });
 
     show(chosen);
 

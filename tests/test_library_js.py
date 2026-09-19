@@ -1411,3 +1411,99 @@ def test_a_text_inside_a_shut_shelf_that_a_filter_also_hides_is_still_reached(
         hash=f"#build:{wanted.id}",
     )
     assert sent["pointed"] == [wanted.title], sent["pointed"]
+
+
+# -- the Beit Midrash (targum-internal#340) ---------------------------------------------
+#
+# "It is time to build the 'Beit Midrash' section → another tab after Uploads… inspired by
+# Sefaria navigation… someone who only studies Biblical Hebrew should be able to find what
+# they are looking for right away." There was a Beit Midrash shelf once, and it was taken
+# out because a reader had to know which room a text was in. So most of what these assert
+# is that this one is not a room: it is the one list, asked where things stand.
+
+TREE = {"he": {"where": "midrash", "shape": "cards"}}
+
+
+def test_the_beit_midrash_is_a_third_tab_and_hebrew_s_alone(tmp_path: Path) -> None:
+    drawn = draw(tmp_path)
+    assert drawn["tabs"] == ["All texts", "Your uploads", "Beit Midrash"]
+
+    # No catalogue says which door anything stands behind: no tab over an empty tree.
+    from targum.catalogue import CATALOGUE, collections
+
+    bare = [{**group.state(), "door": ""} for group in collections()]
+    plain = [{**entry.state(), "door": ""} for entry in CATALOGUE]
+    assert draw(tmp_path, collections=bare, catalogue=plain)["tabs"] == [
+        "All texts",
+        "Your uploads",
+    ]
+
+
+def test_the_tab_opens_on_its_doors_with_what_stands_behind_each(tmp_path: Path) -> None:
+    """Sefaria's shape: the top of the tree first, each door saying what it holds — a
+    count, the way every chip on this page carries one (design.md §12). Only doors with
+    something behind them: the fixture has no Mishnah, so there is no Mishnah door."""
+    drawn = draw(tmp_path, views=TREE)
+    assert [door["id"] for door in drawn["doors"]] == ["tanakh", "targum"]
+    assert drawn["doors"][0]["says"] == ["תנ״ך", "Tanakh", "6 texts"]
+    assert drawn["doors"][1]["says"][1:] == ["Aramaic translations", "2 texts"]
+    assert drawn["rows"] == [], "at the doors there is no list yet"
+    assert drawn["crumbs"] == "", "and no trail of one step"
+    assert drawn["hash"] == "#bm"
+
+
+def test_a_biblical_student_is_two_presses_from_ruth(tmp_path: Path) -> None:
+    """The tab, then Tanakh — and the books are there, open under their shelf, because a
+    student looking for Ruth should not have to guess which shut row it is in."""
+    drawn = draw(
+        tmp_path, do=[{"tab": "Beit Midrash"}, {"door": "tanakh"}], view={"shape": "cards"}
+    )
+    titles = [row["title"] for row in drawn["rows"]]
+    assert "רות" in titles, titles
+    assert drawn["crumbs"].startswith("Beit Midrash") and "Tanakh" in drawn["crumbs"]
+    assert drawn["hash"] == "#bm/tanakh"
+    assert drawn["tally"] == "6 texts", "counted against the door, not against the library"
+
+
+def test_the_level_band_does_not_cut_branches_off_the_tree(tmp_path: Path) -> None:
+    """All texts opens on what a reader can read now. A tree that hid the Writings from a
+    beginner would be a tree with branches missing: the reader came to see where things
+    stand, and each row still says how much of it they know."""
+    narrowed = {"he": {"where": "midrash", "door": "tanakh", "shape": "cards", "fit": "now"}}
+    known = {"ruth": {"known": 0.95}, "job": {"known": 0.05}}
+    drawn = draw(tmp_path, views=narrowed, catalogueKnown=known)
+    titles = [row["title"] for row in drawn["rows"]]
+    assert len(titles) == 6, titles
+
+
+def test_the_targums_have_a_door_and_stay_aramaic(tmp_path: Path) -> None:
+    """The one place the Hebrew shelf shows another language's rows (David, 2026-09-19):
+    Sefaria files Targum under Tanakh, and a Torah student looks for Onkelos there. They
+    are Aramaic rows still — under All texts they are on the Aramaic shelf and not here."""
+    behind = draw(tmp_path, views={"he": {"where": "midrash", "door": "targum", "shape": "cards"}})
+    assert [row["title"] for row in behind["rows"]] == [
+        "תרגום אונקלוס · בראשית",
+        "תרגום אונקלוס · שמות",
+    ]
+    everywhere = draw(tmp_path, unfolded=True)
+    assert not any("אונקלוס" in row["title"] for row in everywhere["rows"])
+
+
+def test_it_is_the_one_list_and_not_a_second_room(tmp_path: Path) -> None:
+    """The invariant the old shelf broke. Every Hebrew text behind a door is also a row
+    under All texts, with the same id — one catalogue, one address per text."""
+    everywhere = draw(tmp_path, unfolded=True, view={"fit": ""})
+    all_ids = {row["id"] for row in everywhere["rows"]}
+    behind = draw(tmp_path, views={"he": {"where": "midrash", "door": "tanakh", "shape": "list"}})
+    ids = {row["id"] for row in behind["rows"] if row["id"]}
+    assert ids and ids <= all_ids, ids - all_ids
+
+
+def test_the_way_back_is_the_trail_and_an_address_lands_inside(tmp_path: Path) -> None:
+    back = draw(tmp_path, views=TREE, do=[{"door": "tanakh"}, {"crumb": True}])
+    assert [door["id"] for door in back["doors"]] == ["tanakh", "targum"] and back["hash"] == "#bm"
+
+    landed = draw(tmp_path, hash="#bm/tanakh", view={"shape": "cards"})
+    assert "רות" in [row["title"] for row in landed["rows"]]
+    # A row's own address is still a row's: `#ruth` is not read as a door.
+    assert draw(tmp_path, hash="#ruth")["doors"] == []

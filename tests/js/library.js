@@ -55,6 +55,14 @@ const byId = install({
   },
 });
 
+/* The tree writes its address with `replaceState` (targum-internal#340). The stub keeps
+   the hash the way a browser would, so a test can read where the page says it is. */
+global.history = global.window.history = {
+  replaceState: (state, title, url) => {
+    const at = String(url).indexOf("#");
+    global.location.hash = at < 0 ? "" : String(url).slice(at);
+  },
+};
 // Learn links here with the id in the hash, and `pointAt` is what answers it.
 if (payload.hash) global.location.hash = payload.hash;
 
@@ -94,8 +102,33 @@ setTimeout(() => {
      table one press away. Whichever is on is the one filled, so the rows reported are
      read off the host that has them. A card has no columns, so `cells` comes back empty
      there and a test wanting them asks for the table — see `draw()` in the Python. */
-  const browsing = byId["catalogue"].children.length === 0 && byId["cards"].children.length > 0;
-  const rows = browsing ? byId["cards"].children : byId["catalogue"].children;
+  /* Presses, in order, before anything is read (targum-internal#340): `{tab: "Beit
+     Midrash"}`, `{door: "tanakh"}`, `{crumb: true}` for the way back to the doors. */
+  const doorItems = () =>
+    byId["cards"].children.filter((c) => String(c.className).indexOf("door-item") >= 0);
+  (payload.do || []).forEach((step) => {
+    if (step.tab) {
+      const tab = byId["where"].children.find((c) => c.textContent === step.tab);
+      if (tab) tab.fire("click", {});
+    }
+    if (step.door) {
+      const item = doorItems().find((c) => c.children[0].getAttribute("data-door") === step.door);
+      if (item) item.children[0].fire("click", {});
+    }
+    if (step.crumb) {
+      const back = byId["crumbs"].children.find((c) => c.tagName === "button");
+      if (back) back.fire("click", {});
+    }
+  });
+  const doors = doorItems().map((item) => ({
+    id: item.children[0].getAttribute("data-door"),
+    says: item.children[0].children.map((c) => c.textContent),
+  }));
+  const textCards = byId["cards"].children.filter(
+    (c) => String(c.className).indexOf("door-item") < 0
+  );
+  const browsing = byId["catalogue"].children.length === 0 && textCards.length > 0;
+  const rows = browsing ? textCards : byId["catalogue"].children;
   const readCard = (item) => {
     const open = item.children[0];
     const what = open.children[1] || { children: [] };
@@ -104,6 +137,7 @@ setTimeout(() => {
     const wearing = (c, name) => String(c.className || "").split(" ").indexOf(name) >= 0;
     const find = (name) => what.children.find((c) => wearing(c, name)) || {};
     return {
+      id: item.getAttribute("data-row") || "",
       title: (what.children.find((c) => c.className === "card-title") || {}).textContent || "",
       fit: "",
       media: (open.children[0].children.find((c) => c.className === "card-media") || {}).attrs
@@ -139,6 +173,7 @@ setTimeout(() => {
     }
     const open = row.children[0];
     return {
+      id: row.getAttribute("data-row") || "",
       // The title cell holds a scene label and a chip beside the Hebrew; the bdi is it.
       title: (open.children[1].children[0].children.find((c) => c.tagName === "bdi") || open.children[1].children[0]).textContent,
       fit: (open.children[1].children.find((c) => c.className === "row-fit") || {}).textContent || "",
@@ -229,6 +264,11 @@ setTimeout(() => {
         return head ? { text: head.textContent.trim(), disabled: head.getAttribute("aria-disabled") === "true" } : null;
       })(),
       find: byId["find"].value || "",
+      // The Beit Midrash: the tabs on offer, the doors drawn, the trail, and the address.
+      tabs: byId["where"].children.map((c) => c.textContent),
+      doors,
+      crumbs: byId["crumbs"].hidden ? "" : byId["crumbs"].textContent,
+      hash: global.location.hash || "",
       views: JSON.parse(global.localStorage.getItem("targum:library") || "{}"),
       kindOn: (byId["kind-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
       // The hard-words gauge is a column, so it exists on a row and not on a card.

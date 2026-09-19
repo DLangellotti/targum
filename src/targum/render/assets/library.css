@@ -1124,3 +1124,59 @@
 /* Teal, not leaf: this is a control's colour because it is the product working, and §4
    keeps green for what the reader has achieved. Nothing here is theirs yet. */
 .card-going .card-known-track > span { background: var(--teal); }
+
+/* --- the Beit Midrash (targum-internal#340) ------------------------------------------ */
+
+/* What the tree puts away while it is up. Each of these is drawn `display: flex`, which
+   beats the `hidden` attribute, so hiding them in the script alone hid nothing: the doors
+   stood under a row of subject chips, three sorts and a Cards/List switch with no list to
+   act on (found by opening it, 2026-09-19). */
+.chips.subjects[hidden], #sorts[hidden], #shape[hidden], .crumbs[hidden] { display: none; }
+
+/* A door is a card among the cards (§13: raised by its shadow, not by a line), and a
+   press rather than a link: it opens where it stands. The Hebrew name leads in the
+   reading face, as every text's title does; the page's word and the count sit under it
+   in the chrome's. No accent and no fill — seven doors are seven equal places. */
+.door-card {
+  flex: 1;
+  display: grid;
+  gap: 0.2rem;
+  align-content: start;
+  min-block-size: 6.5rem;
+  padding: 1.1rem 1.25rem;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+/* Seven doors are meant to be seen at once. On the texts' own grid a phone showed three
+   and a half of them; two to a row shows them all. */
+.cards:has(> .door-item) { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+.door-card:hover { background: color-mix(in srgb, var(--teal) 6%, var(--card)); }
+.door-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.door-name { font-family: var(--reading-hebrew); font-size: 1.5rem; line-height: 1.3; }
+.door-english { font-family: var(--chrome); font-size: 0.9375rem; }
+.door-holds { font-family: var(--chrome); font-size: 0.8125rem; color: var(--ink-soft); }
+
+/* The trail, in the chrome's face and the resting colour; the way back is the one press. */
+.crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; margin: 0 0 0.75rem; font-family: var(--chrome); font-size: 0.9375rem; }
+.crumbs[hidden] { display: none; }
+.crumbs .crumb { color: var(--ink); }
+.crumbs button.crumb {
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--teal);
+  cursor: pointer;
+}
+.crumbs button.crumb:hover { text-decoration: underline; }
+.crumbs button.crumb:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.crumbs .crumb-step { color: var(--ink-soft); }
+@media (hover: none) and (pointer: coarse) {
+  .crumbs button.crumb { min-block-size: 44px; }
+}
