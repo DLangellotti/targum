@@ -541,6 +541,9 @@
   ];
   function partOfDay() {
     var hour = new Date().getHours();
+    // The small hours belong to the evening before: half past midnight is not "Boker tov"
+    // to somebody still up studying (found by QA, 2026-09-20).
+    if (hour < 5) return 2;
     return hour < 12 ? 0 : hour < 18 ? 1 : 2;
   }
   function greeting(name, code) {
