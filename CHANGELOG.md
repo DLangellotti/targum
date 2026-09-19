@@ -119,6 +119,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- The reader's keys button says "Keys". It was a `?`, which a stranger read as help and
+  which opened a table of keyboard shortcuts. The `?` key still opens the card. The
+  button keeps the mark behind ⋯ on a narrow window, where the row is already named, and
+  under 75rem, where the bar has no room for a word
+  (design.md §7 and §12, targum-internal#338).
 - Transcribe on part two, three or four of an upload does something. The part door
   answered "ready" whenever the part's transcript was on disk, and the page reloaded onto
   the same "not transcribed yet". That happened whenever the hearing had landed and the

@@ -439,6 +439,16 @@ a.bar-brand:hover { color: var(--accent); }
   body:not(.has-keyboard) .bar-more .group[data-what="Keys"] { display: none; }
 }
 
+/* The keys button says "Keys" in the bar (targum-internal#338). It keeps its mark behind
+   ⋯, where the row beside it is already named, and between 60 and 75rem, where the bar
+   has already put away its English title and the known count so as not to wrap: measured
+   at 1100px, the word cost it a second row. */
+.bar [data-keys] .keys-mark { display: none; }
+@media (max-width: 75rem) {
+  .bar [data-keys] .keys-word { display: none; }
+  .bar [data-keys] .keys-mark { display: inline; }
+}
+
 /* No blue flash. Chrome on Android paints its own highlight over anything tapped, in
    a blue this palette does not have (§4) — on a word it flashed over the one thing the
    reader was looking at, forty times a page. The reader's own pressed states say what

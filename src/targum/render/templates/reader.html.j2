@@ -314,8 +314,13 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg>
       </button>
     </div>
+    {#- The keys say their word (2026-09-19, targum-internal#338). It was a typed `?`, and
+        a `?` in the corner of a page means help: a stranger pressed it expecting to be
+        told how the page works and got a table of keys. Same complaint, same answer as
+        the picture's keys on 2026-09-14 (design.md §12). Behind ⋯ the row is already
+        named "Keys", so there the button keeps the mark and does not say the word twice. -#}
     <div class="group" data-what="Keys">
-      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}">?</button>
+      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}"><span class="keys-word">{{ t("reader.page.keys", "Keys") }}</span><span class="keys-mark" aria-hidden="true">?</span></button>
     </div>
     </div>
     <button type="button" class="more" data-more aria-expanded="false" aria-controls="more" aria-label="{{ t("reader.page.more", "More") }}">⋯</button>

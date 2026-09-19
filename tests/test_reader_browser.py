@@ -3325,6 +3325,53 @@ def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
     assert label and label.startswith("Copy "), "the row beside the text carries one"
 
 
+@pytest.mark.parametrize(("width", "says"), [(1100, "?"), (1280, "Keys"), (1600, "Keys")])
+def test_the_keys_say_keys_where_the_bar_has_room(
+    browser, built: Path, width: int, says: str
+) -> None:
+    """targum-internal#338. The bar's `?` read as help to the first stranger, and opened a
+    table of keyboard shortcuts. It says "Keys" now.
+
+    A word is wider than a mark, in a bar that already puts away its English title between
+    60 and 75rem so as not to wrap — and measured at 1100px the word cost it a second row.
+    So it is the word from 75rem and the mark below it, and what is pinned is that the
+    word never makes the bar taller than the mark did.
+    """
+    context = opened(browser, viewport={"width": width, "height": 800})
+    open_page = context.new_page()
+    open_page.goto(address(built))
+    open_page.wait_for_timeout(300)
+    got = open_page.evaluate(
+        """() => {
+          const press = document.querySelector('.bar [data-keys]');
+          const bar = () => document.querySelector('.bar').getBoundingClientRect().height;
+          const word = press.querySelector('.keys-word');
+          const mark = press.querySelector('.keys-mark');
+          const tall = bar();
+          word.style.display = 'none';
+          mark.style.display = 'inline';
+          const withMark = bar();
+          word.style.display = '';
+          mark.style.display = '';
+          return {
+            says: press.innerText.trim(),
+            named: press.getAttribute('aria-label'),
+            tall, withMark,
+            sideways: document.documentElement.scrollWidth > window.innerWidth,
+          };
+        }"""
+    )
+    open_page.locator(".bar [data-keys]").click()
+    opens = open_page.evaluate("() => !document.getElementById('keys').hidden")
+    context.close()
+
+    assert got["says"] == says, got
+    assert got["named"] == "Keyboard shortcuts", "and a screen reader is told the whole of it"
+    assert got["tall"] == got["withMark"], f"the word cost the bar a row at {width}px: {got}"
+    assert not got["sideways"]
+    assert opens, "and it still opens the card"
+
+
 @pytest.mark.parametrize("direction", ["rtl", "ltr"])
 def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     browser, built: Path, tmp_path: Path, direction: str
