@@ -73,7 +73,7 @@
               what the rest of the app can show: these are the pairs an upload has been
               taken end to end in. -#}
           <label class="field short">
-            <span>{{ t("add.page.i-am-reading", "I am reading") }}</span>
+            <span>{{ t("add.page.i-am-reading", "I'm learning") }}</span>
             <select id="from">
               {% for one in reading %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
             </select>

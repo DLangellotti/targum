@@ -1431,3 +1431,42 @@ def test_the_fold_says_what_it_is_the_first_time_and_never_again() -> None:
     assert not again["workOnce"], "and not on the next"
     nothing = draw([], {})
     assert not nothing["workOnce"], "nor to a reader with nothing in it, who has no fold at all"
+
+
+def test_the_arrival_opens_a_book_at_its_first_chapter_not_its_contents() -> None:
+    """Regression: ISSUE-001 — the arrival's last answer opened a book's contents page.
+    Found by /qa on 2026-09-20. A book's own address is its list of chapters, so a new
+    reader who had just answered two questions landed one more press from a line of
+    Hebrew. It opens the first chapter that is ready; a text with no chapters opens as
+    itself."""
+    chapters = [
+        {"number": 1, "title": "א", "file": "sec-0001.html", "ready": False},
+        {"number": 2, "title": "ב", "file": "sec-0002.html", "ready": True},
+    ]
+    book = reader("ruth", "רות", "ruth", register="biblical", tags=["tanakh"], chapters=chapters)
+    went = draw(
+        [],
+        shared=[book],
+        do=[
+            {"subject": "Torah and Judaism"},
+            {"subject": "History"},
+            {"subject": "Art"},
+            {"press": "arrival-done"},
+            {"rung": "Just starting"},
+        ],
+    )["went"]
+    assert "/reader/ruth/reader/sec-0002.html" in went, went
+
+    single = reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])
+    went = draw(
+        [],
+        shared=[single],
+        do=[
+            {"subject": "Sport"},
+            {"subject": "History"},
+            {"subject": "Art"},
+            {"press": "arrival-done"},
+            {"press": "arrival-skip"},
+        ],
+    )["went"]
+    assert "/reader/holon/reader/index.html" in went, went
