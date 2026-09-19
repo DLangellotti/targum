@@ -1103,3 +1103,23 @@ def test_the_fold_stands_on_the_words_page_and_on_the_front_door() -> None:
     assert 'id="work-all"' in PAGES["learn"], "and says where the rest of it is"
     for name in ("progress", "phrases", "texts"):
         assert 'id="work-on"' not in PAGES[name], name
+
+
+def test_the_key_is_set_before_any_script_that_reads_it() -> None:
+    """targum-internal#343, found by the pre-deploy QA of 2026-09-20. `building.js` in the
+    `<head>`, and the pill, the followed series and the palette in the nav, each read
+    `window.TARGUM_KEY` once, as they load. The page set it at the foot of the body — so on
+    a local serve they held an empty key for the life of the page, and `/jobs`, `/series`,
+    `/account/follows` and `/chat/list` were refused on every desk page. Four console
+    errors a page is also how a real one hides.
+
+    Asked of the built pages rather than of the templates: the nav's scripts arrive by an
+    include, which is how a template-only check would have missed three of the four.
+    """
+    for name, built in PAGES.items():
+        if 'window.TARGUM_KEY = "' not in built:
+            continue
+        key_at = built.index('window.TARGUM_KEY = "')
+        reads = [m.start() for m in re.finditer(r"window\.TARGUM_KEY \|\|", built)]
+        assert reads, f"{name} sets a key nothing reads"
+        assert key_at < min(reads), f"{name}: a script reads the key before the page sets it"

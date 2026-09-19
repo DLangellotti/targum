@@ -167,6 +167,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   never said whose it was. They are at the foot of the text now, at every width, on the
   last page beside the pager, and the recording's credit is also beside "Save the audio"
   in the phone's menu. The keys card holds the keys (targum-internal#342).
+- On a local serve the bell, the followed series, the conversation's list and the palette
+  were refused on every desk page. Each reads the page's key once, as it loads, and the
+  page set the key at the foot of the body. The key is set in the `<head>` now, before
+  the nav. The hosted box has no key and was never affected (targum-internal#343).
 - The reader's keys button says "Keys". It was a `?`, which a stranger read as help and
   which opened a table of keyboard shortcuts. The `?` key still opens the card. The
   button keeps the mark behind ⋯ on a narrow window, where the row is already named, and
