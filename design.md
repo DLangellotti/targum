@@ -453,6 +453,40 @@ no `prefers-color-scheme` in any stylesheet, no `data-theme` on any page — the
 page used left `test_brand.py`. targum-internal#333.
 
 
+### Three moments in ten minutes, and none of them is a tour — 2026-09-19
+
+David, in the handwritten notes of that day: onboarding should "aim for a 'magic moment'
+within 1 minute, another within 3, another within 10", and "the user should have a clear
+understanding of all USPs within 10 minutes."
+
+There was one first-run device in the whole product: a line under the reader's bar, "Tap a
+word to say how well you know it", and a sentence on the first word's card. Nothing told a
+new reader the page could be heard, and the first stranger never found out. And there was
+one recorded failure: a tour that opened a word's card on load, which failed eleven
+browser tests on "element is not stable" — "a card that seizes the band before anybody has
+touched anything is not a tour, it is a page rearranging itself."
+
+So the rule for all three: **a line said once, in place, in answer to something the reader
+just did.** No overlay, no step counter, nothing that moves the page unasked, nothing that
+leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration in type
+(§1).
+
+1. **The word, within a minute.** As it was. The arrival opens a text directly
+   (2026-09-19, above), and where the reader's subject has a text that can be heard, that
+   is the one it opens — because the second moment is impossible on a silent page.
+2. **The voice, within three.** When the first word is marked, the same line, in the same
+   place, at the same height, says "Now press play. The page follows the voice, line by
+   line." The press puts it away, and it is said once in a browser.
+3. **Being remembered, within ten.** The first time What to work on has anything in it, it
+   says what it is: "These are the words you marked. We keep them here, and they'll be
+   waiting whenever you come back." One visit, and never again. It counts nothing — the
+   fold's rule that nothing puts a number on what is waiting is untouched.
+
+What is not here yet, and is the rest of the list David settled the same day: bringing your
+own, talking to targum, and "targum remembers what you're having trouble with", which
+waits for the events of targum-internal#127. targum-internal#335.
+
+
 ### The weekly goes out unread, and claims nothing — 2026-09-17
 
 `weekly publish` was the gate the whole design rested on: nothing written by a model went

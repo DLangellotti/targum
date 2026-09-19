@@ -120,6 +120,12 @@ global.window.TargumClock = Object.assign({}, global.window.TargumClock, {
   now: () => Date.parse(payload.now || "2026-09-14T12:00:00Z"),
 });
 require(path.join(assets, "follow.js"));
+// Shipped `hidden` by the template; a stub element is born shown, which would read as
+// the line being said to everybody.
+global.document.getElementById("work-once").hidden = true;
+// The fold is drawn by `lists.js` on the real page; without it Learn draws no fold at all
+// and nothing about it could be asserted (targum-internal#335).
+require(path.join(assets, "lists.js"));
 require(path.join(assets, "learn.js"));
 
 /** A tile, if one was drawn there: its class, and the letter it rests on. */
@@ -335,6 +341,8 @@ setTimeout(() => {
         }
         return out;
       })(),
+      // The line that says what the fold is, the first time it has anything in it (#335).
+      workOnce: at("work-once").hidden === false,
       posted: asked.map((call) => call.path),
       sent: asked.filter((call) => call.body).map((call) => ({ path: call.path, body: call.body })),
       counted: at("arrival").hidden ? "" : at("arrival-count").textContent,

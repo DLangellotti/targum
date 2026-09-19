@@ -1398,3 +1398,36 @@ def test_a_text_with_a_reading_attached_is_still_read() -> None:
     opened = {"targum:opened": json.dumps({"ruth": 9})}
     voiced = draw([reader("ruth", "רות", spoken=True, opened=9)], opened)
     assert voiced["carry"]["heading"] == "Continue reading"
+
+
+# -- three moments in ten minutes (targum-internal#335) ---------------------------------
+
+
+def test_a_first_text_is_one_that_can_be_heard_where_the_subject_has_one() -> None:
+    """The second thing a new reader should find out is that the page has a voice — the
+    first stranger never did — and nobody finds that out on a silent text."""
+    shelf = [
+        reader("quiet", "שקט", "quiet", kind="article", register="modern", tags=["sport"]),
+        reader(
+            "loud", "קול", "loud", kind="article", register="modern", tags=["sport"], spoken=True
+        ),
+    ]
+    came = draw([], {"targum:arrived": "sport,history,art"}, shared=shelf)
+    assert came["carry"]["title"] == "קול"
+    # Where nothing in the subject is voiced, the subject still wins: it is what they asked for.
+    silent = draw([], {"targum:arrived": "sport,history,art"}, shared=shelf[:1])
+    assert silent["carry"]["title"] == "שקט"
+
+
+def test_the_fold_says_what_it_is_the_first_time_and_never_again() -> None:
+    """The third moment: the words a new reader marked ten minutes ago are waiting, and a
+    line says whose they are. Once — the second time they know."""
+    marked = vocabulary(word("ספר", "book", status=2, at=300))
+    first = draw([], marked)
+    assert first["workOnce"], "said on the visit the fold first has anything in it"
+    told = (first.get("kept") or {}).get("targum:taught-the-record")
+    assert told
+    again = draw([], {**marked, "targum:taught-the-record": told})
+    assert not again["workOnce"], "and not on the next"
+    nothing = draw([], {})
+    assert not nothing["workOnce"], "nor to a reader with nothing in it, who has no fold at all"

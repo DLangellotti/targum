@@ -2077,6 +2077,44 @@ def test_putting_the_player_away_gives_the_page_its_room_back(paged_scene) -> No
     assert len(after["shown"]) > before
 
 
+@pytest.fixture
+def worded_scene(browser, tmp_path, monkeypatch):
+    """A dialogue with its words marked up: a recording *and* something to tap."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", words=True)
+    context = opened(browser)
+    open_page = context.new_page()
+    open_page.goto(address(built))
+    open_page.wait_for_selector("#player")
+    yield open_page
+    context.close()
+
+
+def test_the_second_moment_is_the_voice_and_it_is_said_once(worded_scene) -> None:
+    """targum-internal#335: "a magic moment within 1 minute, another within 3". The first is
+    the word. The first stranger never found out the page could be heard, so on a text
+    with a recording the first-run line — having just done its first job — says the next
+    thing, in the same place, so nothing on the page moves. The press itself puts it away.
+    """
+    scene = worded_scene
+    line = scene.locator("#first")
+    assert "Tap a word" in line.inner_text()
+    tall = scene.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    scene.locator(".w").first.click()
+    scene.keyboard.press("1")
+    scene.wait_for_function(
+        "() => document.getElementById('first').textContent.indexOf('press play') >= 0"
+    )
+    same = scene.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    assert same == tall, "the line changed what it says and not how much room it takes"
+    scene.keyboard.press("Escape")
+    scene.click(".player-play")
+    scene.wait_for_function(
+        "() => document.getElementById('first').textContent.indexOf('every key') >= 0"
+    )
+    assert scene.evaluate("() => localStorage.getItem('targum:taught-the-voice')") == "1"
+
+
 def test_the_line_being_spoken_is_never_behind_the_player(scene) -> None:
     """The scrolling reader reserves nothing, so the page moves the spoken line instead."""
     scene.click(".player-play")
