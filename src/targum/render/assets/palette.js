@@ -124,7 +124,7 @@
     return {
       place: t("palette.kind.place", "Page"),
       catalogue: t("nav.library", "Library"),
-      text: t("palette.kind.text", "Your shelf"),
+      text: t("palette.kind.text", "Yours"),
       chat: t("palette.kind.chat", "Conversation"),
       talk: "",
     };

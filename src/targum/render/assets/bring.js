@@ -465,7 +465,7 @@
       var go = document.createElement("button");
       go.type = "button";
       go.className = "quote-go";
-      go.textContent = t("bring.read-this", "Read this");
+      go.textContent = t("bring.read-this", "Open this");
       go.onclick = function () {
         go.disabled = true;
         start(job).then(function (state) {

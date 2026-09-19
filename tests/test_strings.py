@@ -227,3 +227,40 @@ def test_a_suggestions_reason_is_said_in_the_readers_language(
     looked = {"reason": {"key": "suggest.looked-up", "share": 12, "register": "modern"}}
     assert because_in(looked, "en") == "A learner looks up 12% of its words. Modern Hebrew."
     assert because_in({"because": "old"}, "ru") == "old"
+
+
+def test_a_translation_is_not_left_behind_when_its_english_changes() -> None:
+    """targum-internal#337. `text()` says a key in English only where a language has not
+    filled it; a key it *has* filled is said in that language whatever the English has
+    since become. So an English sentence that changed while its Russian stayed was served
+    stale, and nothing said so — found while changing sixty strings that assumed a reader
+    was there to read.
+
+    `strings/from/<code>.json` records, for every translated key, a fingerprint of the
+    English it was made from. When the English moves, this fails until somebody has
+    looked at the translation and stamped it again.
+    """
+    import hashlib
+
+    here = Path(strings.__file__).resolve().parent
+    english = json.loads((here / "en.json").read_text(encoding="utf-8"))
+    for code in strings.languages():
+        if code == strings.SOURCE:
+            continue
+        said = json.loads((here / f"{code}.json").read_text(encoding="utf-8"))
+        stamps_file = here / "from" / f"{code}.json"
+        assert stamps_file.is_file(), f"{code}: run scripts/stamp_strings.py"
+        stamps = json.loads(stamps_file.read_text(encoding="utf-8"))
+        stale = []
+        for key in said:
+            source = key if key in english else key.rsplit(".", 1)[0] + ".other"
+            if source not in english:
+                continue
+            now = hashlib.sha256(english[source].encode("utf-8")).hexdigest()[:10]
+            if stamps.get(key) != now:
+                stale.append(key)
+        assert not stale, (
+            f"{code}: the English of {len(stale)} translated keys has changed since they were "
+            f"translated ({', '.join(stale[:5])}…). Bring the translation up to date, then run "
+            "`uv run python scripts/stamp_strings.py`."
+        )

@@ -206,7 +206,45 @@
     modern: t("learn.track.modern", "Modern Hebrew"),
     biblical: t("learn.track.biblical", "Biblical Hebrew"),
   };
+  /* The verb follows the medium (targum-internal#337, 2026-09-19; design.md §6). "Copy of
+     buttons and various features in the app assumes the reader is there to read — but
+     many will be there to listen and watch." A row says what it is — `video` where it
+     kept its pictures, `heard` where it began as a recording — so a control names what
+     the person will do with *this* thing.
+
+     Not `spoken`: that is true of most of the shelf. The Tanakh has a reading attached and
+     every scene is voiced, and both are texts somebody reads with a voice beside them; a
+     first cut keyed on it told a reader halfway through a scene to "Continue listening"
+     (caught by the tests, 2026-09-19). */
+  function mediumOf(reader) {
+    if (reader && reader.video) return "watch";
+    return reader && reader.heard ? "listen" : "read";
+  }
+
   var CONTINUE = t("learn.state.carry", "Continue reading");
+  var CARRY = {
+    read: CONTINUE,
+    listen: t("learn.state.carry-listening", "Continue listening"),
+    watch: t("learn.state.carry-watching", "Continue watching"),
+  };
+  var BEGIN = {
+    read: t("learn.card.read", "Read"),
+    listen: t("learn.card.listen", "Listen"),
+    watch: t("learn.card.watch", "Watch"),
+  };
+  var HERE = {
+    read: t("learn.page.read-here-or-go-full-screen", "Read here, or go full screen."),
+    listen: t("learn.page.listen-here-or-go-full-screen", "Listen here, or go full screen."),
+    watch: t("learn.page.watch-here-or-go-full-screen", "Watch here, or go full screen."),
+  };
+
+  //: What a door says of itself, over the text it leads to.
+  function stateOf(door, reader) {
+    if (door.heading) return door.heading;
+    if (door.state === "carry" || !STATES[door.state]) return CARRY[mediumOf(reader)];
+    return STATES[door.state];
+  }
+
   var STATES = {
     start: t("learn.state.start", "Start here"),
     carry: CONTINUE,
@@ -361,7 +399,9 @@
     showing = reader;
     markRail(reader);
     var heading = document.getElementById("carry-heading");
-    if (heading) heading.textContent = door.heading || STATES[door.state] || CONTINUE;
+    if (heading) heading.textContent = stateOf(door, reader);
+    var hint = document.getElementById("carry-hint");
+    if (hint) hint.textContent = HERE[mediumOf(reader)];
     markDoor(door.id || "");
     trackLabel("carry-track", door.register);
     panel.classList.toggle("primary", !!door.primary);
@@ -402,7 +442,7 @@
       var share_ = door.state === "carry" && !door.src ? progress(reader) : 0;
       line.hidden = !share_;
       line.style.setProperty("--done", String(share_));
-      line.setAttribute("aria-label", t("learn.read-share", "{share}% read", { share: Math.round(share_ * 100) }));
+      line.setAttribute("aria-label", t("learn.read-share", "{share}% through", { share: Math.round(share_ * 100) }));
     }
     drawFrame(reader, door);
   }
@@ -722,7 +762,7 @@
   // either menu.
   var doors = [];
   var showing = null;
-  var RECENTLY_READ = t("learn.recent", "Recently read");
+  var RECENTLY_READ = t("learn.recent", "Recently opened");
   var SUBSCRIPTIONS = t("learn.subscriptions", "Subscriptions");
   function kind(one) {
     return one.id.indexOf("series:") === 0 ? "series" : one.id.indexOf("recent:") === 0 ? "recent" : "pill";
@@ -858,7 +898,7 @@
     var what = el("span", "learn-card-what");
     var kindOf = one && one.id ? kind(one) : "";
     what.appendChild(
-      el("span", "learn-card-state", door.heading || LABELS[kindOf] || STATES[door.state] || CONTINUE)
+      el("span", "learn-card-state", door.heading || LABELS[kindOf] || stateOf(door, reader))
     );
     var title = el("bdi", "learn-card-title", reader.title);
     title.setAttribute("lang", reader.language || "he");
@@ -878,7 +918,7 @@
         el(
           "span",
           "learn-card-go",
-          door.state === "start" ? t("learn.card.start", "Start") : t("learn.card.continue", "Continue")
+          door.state === "carry" ? t("learn.card.continue", "Continue") : BEGIN[mediumOf(reader)]
         )
       );
     }
@@ -888,7 +928,7 @@
     if (done) {
       var line = el("span", "page-progress");
       line.setAttribute("role", "img");
-      line.setAttribute("aria-label", t("learn.read-share", "{share}% read", { share: Math.round(done * 100) }));
+      line.setAttribute("aria-label", t("learn.read-share", "{share}% through", { share: Math.round(done * 100) }));
       line.style.setProperty("--done", String(done));
       link.appendChild(line);
     }
@@ -1224,7 +1264,7 @@
         if (!pick && entry.difficulty > level) pick = entry;
       });
       why = pick
-        ? t("learn.why.step-up", "A step up from what you've read")
+        ? t("learn.why.step-up", "A step up from where you are")
         : t("learn.why.about-here", "About where you're reading");
       if (!pick) pick = open[open.length - 1];
     }
@@ -1812,7 +1852,7 @@
       ? tn("learn.known-words", known, "You know {n} {language} words.", "You know {n} {language} words.", {
           language: named(code),
         })
-      : t("learn.known-start", "Read, tap the words you don't know and talk to targum about any line.");
+      : t("learn.known-start", "Open something, tap the words you don't know and talk to targum about any line.");
     // The two facts the offer needs, both of them already here: whether they have opened
     // anything, and how few words they have. A reader who already reads Hebrew looks
     // exactly like a beginner at this line, and this is where they get to say otherwise.
@@ -1921,7 +1961,7 @@
           );
           door.primary = true;
           door.id = "main";
-          doors = [{ id: "main", label: STATES[door.state] || CONTINUE, reader: door.reader, door: door }].concat(
+          doors = [{ id: "main", label: stateOf(door, door.reader), reader: door.reader, door: door }].concat(
             recentDoors(mine)
           );
           // Modern first; past the whole modern catalogue, whatever is left in any

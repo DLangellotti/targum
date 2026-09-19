@@ -84,7 +84,7 @@ def test_the_ledger_counts_what_the_reader_actually_did() -> None:
     assert "texts opened" not in drawn["counts"], "a fact about browsing"
     # Days do not follow the language switcher, because a day is not in a language and
     # you can read both in one.
-    assert drawn["counts"]["days reading"] == 2
+    assert drawn["counts"]["days on targum"] == 2
 
 
 def test_one_of_a_thing_is_not_said_in_the_plural() -> None:
@@ -100,7 +100,7 @@ def test_one_of_a_thing_is_not_said_in_the_plural() -> None:
     )
 
     assert drawn["counts"]["word marked known"] == 1
-    assert drawn["counts"]["day reading"] == 1
+    assert drawn["counts"]["day on targum"] == 1
 
 
 def test_a_milestone_is_reached_or_it_is_not() -> None:
@@ -181,8 +181,8 @@ def test_the_day_strip_is_twelve_weeks_ending_today() -> None:
 
     assert drawn["days"]["cells"] == 84, "twelve weeks of squares"
     assert drawn["days"]["read"] == 4, "and the one 200 days ago is off the end of it"
-    assert drawn["counts"]["days reading"] == 5, "though the count still knows about it"
-    assert "4 days reading in the last twelve weeks" == drawn["days"]["label"]
+    assert drawn["counts"]["days on targum"] == 5, "though the count still knows about it"
+    assert "4 days on targum in the last twelve weeks" == drawn["days"]["label"]
 
 
 def test_a_day_nobody_read_on_says_nothing_at_all() -> None:
@@ -366,7 +366,7 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     plain = page(marked(known=4, learning=2))
     assert tile(drawn, "words marked known") == 4
     assert tile(drawn, "words on your list") == 6
-    assert tile(drawn, "words learned by reading") == 0
+    assert tile(drawn, "words learned on targum") == 0
     assert drawn["marks"] == plain["marks"]
     assert drawn["bar"] == plain["bar"] == "Your Hebrew words: 2 getting there, 4 known"
 
@@ -410,7 +410,7 @@ def test_words_learned_counts_only_what_was_carried_up_to_known() -> None:
         words[key]["learned"] = 1
     drawn = page(words)
     assert tile(drawn, "words marked known") == 4
-    assert tile(drawn, "words learned by reading") == 2
+    assert tile(drawn, "words learned on targum") == 2
 
 
 def test_a_word_still_being_learned_is_not_yet_learned() -> None:
@@ -419,14 +419,14 @@ def test_a_word_still_being_learned_is_not_yet_learned() -> None:
     words = marked(learning=3)
     for key in words:
         words[key]["learned"] = 1
-    assert tile(page(words), "words learned by reading") == 0
+    assert tile(page(words), "words learned on targum") == 0
 
 
 def test_nothing_was_learned_before_the_flag_existed() -> None:
     """Nothing in a finished record says which of the two a word was, so words marked
     before this was written count as neither and the figure starts from nought. Said
     plainly rather than guessed at from dates."""
-    assert tile(page(marked(known=6)), "words learned by reading") == 0
+    assert tile(page(marked(known=6)), "words learned on targum") == 0
 
 
 def test_one_word_saved_or_learned_is_not_said_in_the_plural() -> None:
@@ -436,7 +436,7 @@ def test_one_word_saved_or_learned_is_not_said_in_the_plural() -> None:
     words[next(iter(words))]["learned"] = 1
     drawn = page(words)
     assert tile(drawn, "word marked known") == 1
-    assert tile(drawn, "word learned by reading") == 1
+    assert tile(drawn, "word learned on targum") == 1
 
 
 def test_every_figure_is_said_once_on_the_page() -> None:
@@ -448,10 +448,10 @@ def test_every_figure_is_said_once_on_the_page() -> None:
     assert labels == [
         "words on your list",
         "words marked known",
-        "words learned by reading",
+        "words learned on targum",
         "phrases saved",
         "targums finished",
-        "day reading",
+        "day on targum",
         # The longest run of days, and never the current one (targum-internal#175).
         "day in your longest run",
     ], "in the order somebody would say them"
@@ -646,7 +646,7 @@ def test_the_longest_run_of_days_is_counted_and_the_current_one_never() -> None:
         }
     )
     assert drawn["counts"]["days in your longest run"] == 3
-    assert drawn["counts"]["days reading"] == 5, "the days themselves are still all counted"
+    assert drawn["counts"]["days on targum"] == 5, "the days themselves are still all counted"
     assert not [label for label in drawn["counts"] if "current" in label or "in a row" in label]
 
     one = draw({"targum:vocab:he": vocab(known=1), "targum:days": {"2026-08-01": 1}})

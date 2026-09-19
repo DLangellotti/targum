@@ -8672,7 +8672,7 @@ var targumReader = function () {
       }
     }
     var say = window.TargumStrings || { t: function (key, english) { return english; } };
-    if (lead) lead.textContent = say.t("reader.next.lead", "Read next") + (pick.scene ? " · " + pick.scene : "");
+    if (lead) lead.textContent = say.t("reader.next.lead", "Up next") + (pick.scene ? " · " + pick.scene : "");
     if (why) {
       why.textContent =
         pick.because +
