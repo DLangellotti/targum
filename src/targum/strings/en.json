@@ -1682,5 +1682,8 @@
   "learn.page.listen-here-or-go-full-screen": "Listen here, or go full screen.",
   "learn.page.watch-here-or-go-full-screen": "Watch here, or go full screen.",
   "library.build.start-listening": "Start listening",
-  "library.build.start-watching": "Start watching"
+  "library.build.start-watching": "Start watching",
+  "reader.first.listen": "Now press play. The page follows the voice, line by line.",
+  "reader.first.watch": "Now press play. The page follows the film, line by line.",
+  "learn.work.once": "These are the words you marked. We keep them here, and they'll be waiting whenever you come back."
 }

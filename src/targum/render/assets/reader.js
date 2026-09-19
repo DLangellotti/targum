@@ -2046,9 +2046,17 @@ var targumReader = function () {
   } catch (e) {}
   if (firstTime) first.hidden = false;
 
-  function firstWordMarked() {
-    if (!firstTime) return;
-    firstTime = false;
+  /* The second moment (targum-internal#335): "aim for a magic moment within 1 minute,
+     another within 3". The first is the word. The second is the voice — the first
+     stranger never found out the page could be heard — so on a text that has one, the
+     line that has just done its first job says the next thing: press play. It is the same
+     line in the same place, so nothing on the page moves; it is said once in a browser;
+     and the press itself puts it away. Not a tour: an earlier one opened a card on load
+     and eleven tests failed on a page rearranging itself under the reader. */
+  var VOICE = "targum:taught-the-voice";
+  var pointingAtPlay = false;
+
+  function keysLine() {
     // The arrow that actually goes forward on this page — §7, typed characters per
     // reading direction. The card's legend already knew this; the bar did not.
     var forward =
@@ -2056,10 +2064,41 @@ var targumReader = function () {
     first.textContent = t("reader.first.keys", "k known · 1 2 3 · {forward} next word · ? every key", {
       forward: forward,
     });
+  }
+
+  function firstWordMarked() {
+    if (!firstTime) return;
+    firstTime = false;
+    var strip = document.getElementById("player");
+    var heard = false;
+    try {
+      heard = !!localStorage.getItem(VOICE);
+    } catch (e) {}
+    // `has-voice` is the player's own word that there is a recording to play. Asking only
+    // whether a strip exists was asking the markup, and a page with none still answers.
+    var voiced = document.body.classList.contains("has-voice");
+    if (voiced && strip && !strip.hidden && !heard) {
+      pointingAtPlay = true;
+      first.textContent = document.getElementById("video")
+        ? t("reader.first.watch", "Now press play. The page follows the film, line by line.")
+        : t("reader.first.listen", "Now press play. The page follows the voice, line by line.");
+    } else {
+      keysLine();
+    }
     try {
       targumKeep(FIRST, String(Date.now()));
     } catch (e) {}
   }
+
+  // Said by the player's closure when a recording starts; see `pressed()`.
+  document.addEventListener("targum:playing", function () {
+    try {
+      targumKeep(VOICE, "1");
+    } catch (e) {}
+    if (!pointingAtPlay) return;
+    pointingAtPlay = false;
+    keysLine();
+  });
 
   function interlinear() {
     return prefs.mode === "inter";
@@ -8907,6 +8946,8 @@ var targumReader = function () {
     return;
   }
   if (!speech || !speech.audio) return;
+  // Said for the first-run line, which is another closure's: there is something to play.
+  document.body.classList.add("has-voice");
 
   /* One media element, not two clocks. Where the import kept its pictures the page
      carries a <video> pointed at the sidecar beside this file, and that element is the
@@ -9018,6 +9059,10 @@ var targumReader = function () {
       button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     if (player) player.classList.toggle("playing", !!on);
+    // The first-run line is another closure's; it hears that a recording has started.
+    if (on && typeof CustomEvent === "function") {
+      document.dispatchEvent(new CustomEvent("targum:playing"));
+    }
   }
 
   function clocked(seconds) {

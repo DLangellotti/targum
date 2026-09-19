@@ -139,6 +139,10 @@
         reader with nothing to work on sees no panel at all. -#}
     <section class="panel work front-work" id="work-on" hidden>
       <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
+      {#- The third moment (targum-internal#335): the first time this fold has anything in
+          it, it says what it is, once. A new reader marked a few words in a text ten
+          minutes ago, and this is where they find out the page kept them. -#}
+      <p class="note work-once" id="work-once" hidden>{{ t("learn.work.once", "These are the words you marked. We keep them here, and they'll be waiting whenever you come back.") }}</p>
       {#- Two halves, one question (2026-09-18): the words, and the phrases — the ones
           kept from a text and the lines the conversation corrected. The tabs are drawn
           only when both have rows; the door and the way to the rest follow the open one. -#}

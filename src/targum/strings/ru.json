@@ -1735,5 +1735,8 @@
   "learn.page.listen-here-or-go-full-screen": "Слушайте здесь или во весь экран.",
   "learn.page.watch-here-or-go-full-screen": "Смотрите здесь или во весь экран.",
   "library.build.start-listening": "Начать слушать",
-  "library.build.start-watching": "Начать смотреть"
+  "library.build.start-watching": "Начать смотреть",
+  "reader.first.listen": "Теперь нажмите «воспроизвести». Страница идёт за голосом, строка за строкой.",
+  "reader.first.watch": "Теперь нажмите «воспроизвести». Страница идёт за фильмом, строка за строкой.",
+  "learn.work.once": "Это слова, которые вы отметили. Мы храним их здесь, и они будут ждать вас, когда бы вы ни вернулись."
 }

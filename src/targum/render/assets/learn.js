@@ -1496,6 +1496,17 @@
      not a route — so this looks for the first that does rather than assuming the first
      named does. A reader who named a rung and no subject gets the modern shelf at that
      rung, which is what keeps somebody at gimel who skipped the first screen off Scene 1. */
+  /* A first text that can be heard, where the subject has one (targum-internal#335). The
+     second thing a new reader should find out is that the page has a voice, and they
+     cannot find that out on a silent text. Where nothing in the subject is voiced, the
+     subject still wins: it is what they asked for. */
+  function voiced(rows) {
+    var heard = rows.filter(function (reader) {
+      return reader.spoken || reader.video;
+    });
+    return heard.length ? heard : rows;
+  }
+
   function firstText(handed, code) {
     var store = charts.collect(charts.meaningLanguage(code))[code];
     var rung = charts.seed(store && store.words, code);
@@ -1505,7 +1516,7 @@
       var rows = handed.filter(function (reader) {
         return wanted(reader, came);
       });
-      if (rows.length) return pickByRung(rows, rung);
+      if (rows.length) return pickByRung(voiced(rows), rung);
     }
     if (rung && !arrived.length) {
       return pickByRung(
@@ -1801,6 +1812,8 @@
    */
   var WORK_ON_HERE = 5;
   var workList = null;
+  //: This load of the page, so a line said once can stay up for the visit it is said on.
+  var VISIT = String(Date.now());
 
   function drawWorkOn(code, store) {
     var panel = document.getElementById("work-on");
@@ -1813,7 +1826,31 @@
     lists.draw(code, store || { words: [], phrases: [] }, { workOn: WORK_ON_HERE });
     // The way to the rest is drawn by `lists.js`, since it follows the open tab.
     askSlips();
+    sayWhatTheFoldIs(panel);
   }
+
+  /* The third moment (targum-internal#335): "it remembers you". The first time the fold
+     has anything in it, a line says what it is. Said on one visit and never again — the
+     second time a reader sees their words waiting, they know whose they are. It counts
+     nothing and asks for nothing (`test_the_queue_waits_and_never_chases`). */
+  var TOLD_FOLD = "targum:taught-the-record";
+
+  function sayWhatTheFoldIs(panel) {
+    var line = document.getElementById("work-once");
+    if (!line || panel.hidden) return;
+    var told = "";
+    try {
+      told = localStorage.getItem(TOLD_FOLD) || "";
+    } catch (e) {
+      return;
+    }
+    // Shown for the whole of the visit it is first shown on, so a redraw does not take it
+    // away mid-sentence; the stamp is this page's own, and any other means "already told".
+    if (told && told !== VISIT) return;
+    line.hidden = false;
+    if (!told) keep(TOLD_FOLD, VISIT);
+  }
+
 
   /* The lines the conversation corrected, for the fold's Phrases tab. Asked once a page
      and after the fold is drawn, so a slow answer never holds up the words; signed out

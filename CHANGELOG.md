@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Two more first-run moments, each a line said once and in place. When a new reader marks
+  their first word on a text that has a recording, the line under the bar says "Now press
+  play. The page follows the voice, line by line", and the press puts it away. The first
+  time What to work on has anything in it, it says whose words they are and that they
+  will be waiting. And the text the arrival opens is one that can be heard, where the
+  reader's subject has one. Nothing opens on its own, nothing moves the page, and nothing
+  is counted (design.md §12, targum-internal#335).
 - The arrival asks one question a screen, and leads into a text. A new reader is asked
   what they are interested in, then how much Hebrew they have, each on its own screen with
   a Skip, and the last answer opens the text it chose instead of returning to Learn. On a
