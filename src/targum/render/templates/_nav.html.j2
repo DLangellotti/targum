@@ -90,7 +90,6 @@
             (design.md §13), so find and the light switch are here (2026-09-14). -#}
         <p class="account-phone">
           <button type="button" class="account-find" data-palette-open>{{ t("nav.find-anything", "Find anything") }}</button>
-          <span class="account-theme">{{ t("nav.light-or-dark", "Light or dark") }} <button type="button" data-theme-toggle aria-label="{{ t("nav.switch-theme", "Switch theme") }}"></button></span>
         </p>
         <div class="signed-out">
           <p>{{ t("nav.your-words-follow-you-no-password-we", "Your words follow you. No password. We'll email you a link.") }}</p>
@@ -111,7 +110,6 @@
         <p class="said" id="account-said" hidden></p>
       </div>
     </div>
-    <button type="button" data-theme-toggle aria-label="{{ t("nav.switch-theme", "Switch theme") }}"></button>
   </div>
   {% if title %}<h1>{{ title }}</h1>{% endif %}
   {%- if here in ('learn', 'library', 'progress') %}

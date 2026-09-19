@@ -107,89 +107,9 @@
   --lift: 0 2px 10px rgb(0 0 0 / 0.10);
 
   /* What separates a floating overlay from the page. On paper the shadows do it and
-     this is just the ordinary hairline; on ink a black shadow draws nothing, so the
-     dark blocks lighten this edge instead — the shadow's job done by a line. */
+     this is just the ordinary hairline. It is its own token because an ink surface
+     would want a lighter line here, where a black shadow draws nothing. */
   --overlay-rule: var(--rule);
-}
-
-/* Three states, not two. With nothing stamped on <html> the system decides, which is
-   what happens until someone presses the toggle; after that the stamp wins in both
-   directions — the :not() guard is what lets a light choice beat an OS set to dark.
-   color-scheme goes with them so form controls and scrollbars follow. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --ink: #e6e1d8;
-    --ink-soft: #9a9288;
-    --paper: #171614;
-    --paper-raised: #201e1b;
-    --rule: #322e29;
-    --accent: #c8a778;
-    --focus: #b8935e;
-    --mark-accent: #c8a778;
-    --leaf: #a8c37e;
-    --clay: #e0937d;
-    --iris: #b3a3d6;
-    /* On ink the page is already the panel the bright set was measured against. */
-    --desk: #201e1b;
-    --rail: #322e29;
-    --divider: #322e29;
-    --page-max: #121110;
-    --ink-max: #fffdf9;
-    --ground: #121110;
-    --card: #201e1b;
-    --hairline: rgb(255 253 249 / 0.10);
-    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
-    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
-    --well: #3a3631;
-    --teal: #6fb8b3;
-    --teal-ink: #0f1a19;
-    --teal-wash: rgb(111 184 179 / 0.12);
-    --bar: #0c0b0a;
-    --bar-ink: #e6e1d8;
-    --bar-muted: #8a827a;
-    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --page-shadow: 2px 3px 0 rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.45);
-    --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-    --ink: #e6e1d8;
-    --ink-soft: #9a9288;
-    --paper: #171614;
-    --paper-raised: #201e1b;
-    --rule: #322e29;
-    --accent: #c8a778;
-    --focus: #b8935e;
-    --mark-accent: #c8a778;
-    --leaf: #a8c37e;
-    --clay: #e0937d;
-    --iris: #b3a3d6;
-    /* On ink the page is already the panel the bright set was measured against. */
-    --desk: #201e1b;
-    --rail: #322e29;
-    --divider: #322e29;
-    --page-max: #121110;
-    --ink-max: #fffdf9;
-    --ground: #121110;
-    --card: #201e1b;
-    --hairline: rgb(255 253 249 / 0.10);
-    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
-    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
-    --well: #3a3631;
-    --teal: #6fb8b3;
-    --teal-ink: #0f1a19;
-    --teal-wash: rgb(111 184 179 / 0.12);
-    --bar: #0c0b0a;
-    --bar-ink: #e6e1d8;
-    --bar-muted: #8a827a;
-    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --page-shadow: 2px 3px 0 rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.45);
-    --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
 }
 
 * { box-sizing: border-box; }
@@ -201,12 +121,10 @@
 :where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Selection is quiet ink with paper text (§4), never accent and never the browser's
-   blue — which is what a phrase-drag painted before this rule existed. The tokens
-   carry both themes. */
+   blue — which is what a phrase-drag painted before this rule existed. */
 ::selection { background: var(--ink-soft); color: var(--paper); }
 
-/* Every surface that floats (§8) takes the overlay edge, so the dark theme's lighter
-   line reaches all of them from one place. */
+/* Every surface that floats (§8) takes the overlay edge, from one place. */
 .keys-card, .gloss-card, .pick-card, .player, .list, .list-tab { border-color: var(--overlay-rule); }
 
 /* Hebrew is set from its own stack. Every element that holds source text carries a
@@ -548,21 +466,6 @@ button:active, select:active, .list-tab:active { color: var(--ink); border-color
 .player-play:active { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
 button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
 
-[data-theme-toggle] {
-  display: grid;
-  place-items: center;
-  padding: 0.28rem 0.45rem;
-}
-[data-theme-toggle] svg {
-  width: 15px;
-  height: 15px;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 
 /* --- reading surface ---------------------------------------------------- */
 
@@ -1686,7 +1589,7 @@ body[data-case="Loc"] .w.case-Loc {
      of glass, the same 22px of ink. The inline growth stops at the midline of the gap
      to the neighbour, so a near-miss lands on the button it looks like it landed on. */
   :is(
-    .bar .group button, .modes button, .renderings .rendering, [data-theme-toggle],
+    .bar .group button, .modes button, .renderings .rendering,
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
@@ -1696,7 +1599,7 @@ body[data-case="Loc"] .w.case-Loc {
     position: relative;
   }
   :is(
-    .bar .group button, .modes button, .renderings .rendering, [data-theme-toggle],
+    .bar .group button, .modes button, .renderings .rendering,
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
@@ -2970,9 +2873,8 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
   aspect-ratio: var(--film, 16 / 9);
   object-fit: contain;
   border-radius: 4px;
-  /* A letterbox is dark in both themes — `--ink` flips to cream on the dark page,
-     which made the empty box the brightest thing on it. The dark page's own paper,
-     as a literal: the one place a theme-invariant dark field is the right answer. */
+  /* A letterbox is dark: §4's ink surface, as a literal, because there is no token
+     for a dark field on a page that has one look (2026-09-19). */
   background: #171614;
 }
 
@@ -3297,9 +3199,8 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
   flex-direction: row;
   margin: 0.75rem;
 }
-/* Over a film, not over a page: the paper as a literal rather than as the token, which
-   flips to near-black on the dark theme and would put dark keys on a dark frame. The
-   same reason the letterbox above is written out. */
+/* Over a film, not over a page: the paper as a literal, beside the letterbox's
+   literal above, so the pair that draws the frame is written in one place. */
 .video.watching .video-close,
 .video.watching .video-mode { color: color-mix(in srgb, #fbf9f5 80%, transparent); }
 .video.watching .video-close:hover,

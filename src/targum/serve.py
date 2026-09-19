@@ -584,7 +584,7 @@ STALE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>targum</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: light; }
   body {
     margin: 0; min-height: 100vh; display: grid; place-items: center;
     padding: 2rem; background: #faf8f4; color: #2b2724;
@@ -603,12 +603,6 @@ STALE = """<!doctype html>
   button { background: #7a5c3a; border-color: #7a5c3a; color: #fff; cursor: pointer; }
   .said, .aside { color: #6b625a; font-size: 0.9375rem; }
   .said[hidden] { display: none; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #17150f; color: #ece7de; }
-    code { background: #2b2724; }
-    input { background: #221f1a; border-color: #3b352c; }
-    .said, .aside { color: #a79c8e; }
-  }
 </style>
 </head>
 <body>
@@ -7567,7 +7561,6 @@ DESK_KEYS = (
     "vocab.",
     "claim.",
     "palette.",
-    "theme.",
     "chat.",
     "speak.",
 )

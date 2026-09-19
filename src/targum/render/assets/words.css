@@ -12,9 +12,7 @@ body.words {
      One hue, monotone, four steps, the end nearest the surface clear of it — all as
      before. The hue is what changed: gold on warm paper made every chart on the page
      read brown, and §4 gives "known" to leaf by name, so leaf is what the scale climbs
-     towards. Mixed against --paper rather than named per theme: both --leaf and --paper
-     flip, so one definition now serves the light surface and the dark one, and "known"
-     is the most present step on each. */
+     towards. Mixed against --paper, so "known" is the most present step on it. */
   --step-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
   --step-2: color-mix(in srgb, var(--leaf) 55%, var(--paper));
   --step-3: color-mix(in srgb, var(--leaf) 78%, var(--paper));
@@ -22,20 +20,6 @@ body.words {
   --off: #c3bdb1;
   --grid: #e7e1d6;
   --axis: #cfc7ba;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .words {
-    --off: #4a453e;
-    --grid: #2a2622;
-    --axis: #3a3530;
-  }
-}
-
-:root[data-theme="dark"] .words {
-    --off: #4a453e;
-    --grid: #2a2622;
-    --axis: #3a3530;
 }
 
 /* --- page furniture ------------------------------------------------------- */

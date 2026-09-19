@@ -128,8 +128,8 @@
   --lift: 0 2px 10px rgb(0 0 0 / 0.10);
 
   /* What separates a floating overlay from the page. On paper the shadows do it and
-     this is just the ordinary hairline; on ink a black shadow draws nothing, so the
-     dark blocks lighten this edge instead — the shadow's job done by a line. */
+     this is just the ordinary hairline. It is its own token because an ink surface
+     would want a lighter line here, where a black shadow draws nothing. */
   --overlay-rule: var(--rule);
 }
 
@@ -142,8 +142,8 @@
   --bar-teal: #6fb8b3;
   /* The front door is light, always (David, 2026-09-16): one page and one
      look. A stranger meeting it for three seconds should not meet a second
-     design because their phone is in night mode; the product behind the
-     door keeps both themes. */
+     design because their phone is in night mode. Since 2026-09-19 the
+     product behind the door has one look too (design.md §12). */
   color-scheme: light;
 }
 

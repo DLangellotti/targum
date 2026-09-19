@@ -11,7 +11,7 @@
 {% include '_public_head.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
 </head>
 <body class="public">
 <main class="sheet">
@@ -26,9 +26,6 @@
       </svg>
       <span>targum</span>
     </a>
-    <div class="corner">
-      <button type="button" data-theme-toggle aria-label="{{ t("weekly.page.switch-theme", "Switch theme") }}"></button>
-    </div>
   </div>
 
   <h1>{{ heading }}</h1>

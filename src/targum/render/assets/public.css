@@ -569,8 +569,7 @@ body.public {
 /* From this week's reporting in: the cited outlets' own wordmarks, their own colours —
    §12's departure, recorded there. The colours live in the SVGs, not here, so the
    palette below stays what the interface itself paints. Each mark sits on a chip of
-   fixed paper: invisible on the light page, and in the dark theme the small square of
-   paper a black wordmark needs to stay legible. */
+   fixed paper, which a black wordmark needs wherever it is put. */
 .public .press {
   display: flex;
   flex-wrap: wrap;
@@ -599,7 +598,7 @@ body.public {
 
 /* The week's papers (§12): photographs of real Israeli front pages in a small stack
    beside the pitch. Imagery, not surface: square corners (a newspaper has no radius),
-   printed as it was printed in both themes (a depicted newspaper does not turn dark),
+   printed as it was printed,
    §9's gloss as the light on it, and the lift it would cast. Decoration only — it is
    aria-hidden and carries no controls — and it exists only where the window is wide
    enough that it crowds nothing. */
@@ -672,12 +671,8 @@ body.public {
    the document still reads in order, and `100vw` with a negative margin puts it back
    across the window. */
 .public .band {
-  /* The band is the dark surface in both themes, and these are constants rather than
-     tokens on purpose. In light it is §9's one inverted block. In dark it is the page's
-     own ground, so the panel disappears and the picture is left floating — which is
-     better than the alternative and is the reason not to reach for `--ink-max` here:
-     that pair flips with the theme, and flipping turns this into a pale panel sitting on
-     a dark page. Every value below is in §4's table; only the flipping is given up. */
+  /* The band is §9's one inverted block: the ink surface, written as constants. Every
+     value below is in §4's table. */
   --band-ground: #171614;
   --band-ink: #e6e1d8;
   --band-bright: #fffdf9;
@@ -707,7 +702,7 @@ body.public {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  /* The accent's pale cut: on ink it is the one that carries, in either theme (§4). */
+  /* The accent's pale cut: on ink it is the one that carries (§4). */
   color: var(--band-accent);
 }
 .public .band .pitch {
@@ -1326,8 +1321,7 @@ html:has(main.weekly) {
 /* The door, inverted. §9's one wake-up move on a page: the dark surface with the pale
    text and the accent's working cut for ink — the values the palette gives an ink
    surface. It reaches the window's edges like the reader, so it reads as a band of the
-   page and not a card on it. In the dark theme the two tokens swap and the block is the
-   one light thing, which is the same move. */
+   page and not a card on it. */
 .public .keep {
   --keep-ground: var(--ink-max, #121110);
   --keep-ink: var(--page-max, #fffdf9);

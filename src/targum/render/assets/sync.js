@@ -680,11 +680,11 @@
    * of things to delete goes stale every time a key is added; a list of things to keep
    * fails safe instead.
    *
-   * The theme is the only survivor. It is a display preference rather than anything
-   * about the reader, and resetting somebody's dark mode when they sign out is a small
-   * hostility with nothing to show for it.
+   * Nothing survives today. The theme was the one survivor until there was one look
+   * (2026-09-19, design.md §12); the list stays, empty, because the next display
+   * preference belongs in it and a drop-list is still the wrong shape.
    */
-  var KEEP = ["targum:theme"];
+  var KEEP = [];
 
   function clearLocal() {
     var doomed = [];
@@ -758,7 +758,7 @@
     who: null,
 
     /* Which room they read in. On the account rather than in this browser, and for a
-       blunt reason: `clearLocal()` below deletes every `targum:*` key but the theme on
+       blunt reason: `clearLocal()` below deletes every `targum:*` key on
        sign-out, on purpose, so a local preference would be forgotten every time somebody
        signed out on their own machine. */
 

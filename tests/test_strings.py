@@ -137,7 +137,6 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         "claim.js",
         "yours.js",
         "palette.js",
-        "theme.js",
         "chat.js",
         "speak.js",
         "signin.js",

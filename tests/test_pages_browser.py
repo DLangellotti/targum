@@ -463,8 +463,8 @@ def test_a_library_card_holds_together_at_phone_width(browser, tmp_path: Path) -
 @pytest.mark.parametrize("width", [320, 390, 430, 540])
 def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, width: int) -> None:
     """On a phone the header is one line — the name at one corner and the bell and the
-    account at the other, find and the light switch in the account's sheet since
-    2026-09-14 (design.md §13) — and the four places are a bar at the
+    account at the other, find in the account's sheet since 2026-09-14 (design.md §13;
+    the light switch that sat beside it left on 2026-09-19) — and the four places are a bar at the
     foot of the window (phase 4, 2026-09-11), flush with its edges. They used to sit
     under the name, and before that indented under it with Upload cut off at the edge:
     a cascade bug is invisible in the file and obvious on a phone, which is why this is
@@ -485,9 +485,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
             navFlush: nav.left <= 1 && nav.right >= document.documentElement.clientWidth - 1,
             navBelow: Math.abs(nav.bottom - window.innerHeight) <= 1
               && getComputedStyle(document.querySelector('.site-nav')).position === 'fixed',
-            barToggle: shown('.site-head-row > [data-theme-toggle]'),
             barFind: shown('.site-head-row > .palette-open'),
-            sheetToggle: !!document.querySelector('.account-panel [data-theme-toggle]'),
+            anySwitch: !!document.querySelector('[data-theme-toggle]'),
             accountBeside: account.top < brand.bottom && account.bottom > brand.top,
             accountAtEdge: account.right >= document.documentElement.clientWidth - 24,
             noUpload: document.querySelector('.upload') === null,
@@ -503,8 +502,8 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
     assert measured["navBelow"], "and stay there"
     assert measured["accountBeside"], "the corner is the account's"
     assert measured["accountAtEdge"], "at the far edge"
-    assert measured["barToggle"] == "none" and measured["barFind"] == "none", measured
-    assert measured["sheetToggle"], "the light switch is in the account's sheet"
+    assert measured["barFind"] == "none", measured
+    assert not measured["anySwitch"], "there is one look, and no switch for another"
     assert measured["noUpload"], "Upload left the corner on 2026-09-06: it is the + on the box"
     assert measured["cut"] == [], "all four places are read whole, Add among them (2026-09-13)"
     assert measured["width"] <= width, "and the page does not scroll sideways"
@@ -513,7 +512,7 @@ def test_the_header_holds_its_corners_at_phone_width(browser, tmp_path: Path, wi
 @pytest.mark.parametrize("width", [320, 360, 384, 412])
 def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     """Signed in, with two languages, the bar holds the name, the language, find, the
-    bell, the account and the light switch. It was 385px wide whatever the screen, so a
+    bell and the account. It was 385px wide whatever the screen, so a
     phone narrower than that scrolled sideways; the account was squashed into an oval;
     and the language's chevron stood outside its pill, its `::after` taken by the reach
     `reader.css` gives the button on a touch screen (2026-09-14)."""

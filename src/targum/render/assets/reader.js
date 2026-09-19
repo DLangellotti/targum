@@ -1,7 +1,7 @@
 /* Started once the durable store has put back what this browser kept — see
    durable.js. On `file://` the copy `localStorage` holds can be one version behind,
-   and everything below reads it: the place, the vocabulary, the preferences, the
-   theme. The whole file waits rather than the first block of it, because the player
+   and everything below reads it: the place, the vocabulary, the preferences.
+   The whole file waits rather than the first block of it, because the player
    and the rest are their own closures and read the same store.
 
    One local read, and it gives up after half a second — a store that will not answer
@@ -7624,7 +7624,7 @@ var targumReader = function () {
     }
     hideCard();
     showKeys(false);
-    // And the menu, unless this is a press inside it: its own buttons — the theme, the
+    // And the menu, unless this is a press inside it: its own buttons — the type size, the
     // player's — fall through to here.
     if (!(more && more.contains(event.target))) showMore(false);
   });

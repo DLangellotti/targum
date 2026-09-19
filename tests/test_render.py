@@ -1015,18 +1015,21 @@ def test_the_progress_page_stands_on_its_own() -> None:
     assert "--step-4: var(--leaf);" in css, "the top of the ramp is leaf itself"
 
 
-def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
-    """Light or dark is a choice about targum, not about one page of it.
+def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
+    """targum is light, on every page, whatever the browser prefers (design.md §12,
+    2026-09-19).
 
-    The stamp has to be on the document before anything paints, or the page shows one
-    theme and swaps to the other; and every page has to carry both the switch and the
-    script, or the choice stops at the page you made it on.
+    It had a dark theme, a switch for it on every page and a script in every <head> to
+    stamp the choice before first paint. "Remove dark mode everywhere," David wrote, and
+    the front door had already gone that way on 2026-09-16. What is pinned here is the
+    absence: no second palette, no switch, no stamp, and no page that reads the old key.
     """
     from targum.render.builder import ASSETS, add_page, learn_page, library_page, progress_page
 
-    theme = (ASSETS / "theme.js").read_text(encoding="utf-8")
-    assert '"targum:theme"' in theme  # one key, one origin, every page
-    assert "matchMedia" in theme  # until you choose, the system decides
+    assert not (ASSETS / "theme.js").exists(), "what was left of it is keep.js"
+    keep = (ASSETS / "keep.js").read_text(encoding="utf-8")
+    assert "window.targumKeep" in keep and "window.targumForget" in keep
+    assert "matchMedia" not in keep and "targum:theme" not in keep
 
     segments = [paragraph(0)]
     segmented = make_segmented(segments)
@@ -1049,20 +1052,26 @@ def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
         ),
     }
     for name, html in pages.items():
-        assert "data-theme-toggle" in html, name
-        # Inlined by the asset helper, and it has to sit above the body: a stamp
-        # applied at the end of the document is applied after the first paint.
-        assert '"targum:theme"' in html, name
-        # ("<body" would match a CSS comment in the inlined stylesheet, so the head's
-        # own end is what this measures against.)
-        assert html.index('"targum:theme"') < html.index("</head>"), name
+        assert "data-theme" not in html, name
+        assert "targum:theme" not in html, name
+        assert "prefers-color-scheme" not in html.replace(_favicon(html), ""), name
+        # Every page still keeps things, so every page still carries where a write goes.
+        assert "window.targumKeep" in html, name
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
-    # A light choice has to beat an OS set to dark, which is what the guard is for.
-    assert ':root:not([data-theme="light"])' in css
-    assert ':root[data-theme="dark"]' in css
-    # And the controls follow, or a dark page keeps white dropdowns and scrollbars.
-    assert "color-scheme: light" in css and "color-scheme: dark" in css
+    for sheet in sorted(ASSETS.glob("*.css")):
+        css = sheet.read_text(encoding="utf-8")
+        assert "prefers-color-scheme" not in css, sheet.name
+        assert "data-theme" not in css, sheet.name
+        assert "color-scheme: dark" not in css, sheet.name
+    assert "color-scheme: light" in (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+
+def _favicon(html: str) -> str:
+    """The inlined favicon, which follows the *tab strip's* scheme and not the page's
+    (§11, `_icons.html.j2`): a dark monogram on a dark tab bar is invisible. It is the
+    one `prefers-color-scheme` a page still carries, and it is not the page's."""
+    found = re.search(r'<link rel="icon" href="data:image/svg[^>]*>', html)
+    return found.group(0) if found else ""
 
 
 def test_the_reader_draws_words_and_phrases_in_one_pass() -> None:
@@ -2217,10 +2226,10 @@ def test_signing_out_keeps_a_list_of_what_to_keep_not_what_to_drop() -> None:
 
     assert 'indexOf("targum:") === 0' in clearing, "it should sweep every targum key"
     assert "KEEP" in clearing, "and keep only what is named"
-    # Only a display preference survives. Anything about the reader must not.
+    # Nothing survives. The theme was the one display preference that did, until there
+    # was one look (2026-09-19); anything about the reader never could.
     keep = source[source.index("var KEEP = ") : source.index("\n", source.index("var KEEP = "))]
-    assert keep.count('"') == 2, f"exactly one key should survive, found: {keep}"
-    assert "targum:theme" in keep
+    assert keep.count('"') == 0, f"nothing should survive a sign-out, found: {keep}"
 
 
 def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
