@@ -197,7 +197,8 @@ No icon font, no emoji, no icon library. Icons are tiny inline SVG strokes at te
 **16px viewBox, no fill, stroke `currentColor` at 1.4, round caps** — line diagrams of what
 they do (the three reading-mode glyphs are literally the three layouts). Typed characters
 elsewhere: ← → per reading direction, × to close and after a number as a multiplier
-(1.25×), A− A+ ? as themselves. The box's three actions are glyphs — a microphone, an
+(1.25×), A− A+ as themselves. (`?` was one of them until 2026-09-19: the reader's
+keys say "Keys" now — §12, "The picture's keys say what they do".) The box's three actions are glyphs — a microphone, an
 arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the control's label
 (2026-09-10); the `+` beside them stays typed.
 
@@ -830,6 +831,16 @@ the thing to take hold of, **Full screen**, the corner and ×; the size handle i
 is drawn on a raised ground instead of a faint hatch. Full screen, the two keys are pills
 over a dark backing: **Transcript**, which shrinks the picture to its corner beside the
 text, and **Close**. On a phone nothing moves or resizes, and the sheet is unchanged.
+
+**And the reader's own keys, 2026-09-19.** The bar's `?` was §7's typed character "as
+itself", and the first stranger read it as what a `?` in a corner means everywhere else:
+help. She pressed it to be told how the page works and got a table of keyboard shortcuts.
+So it says **Keys**, the word the card it opens already has at its head. The `?` key
+still opens it, the card still lists `?`, and the button keeps the mark in two places:
+behind ⋯ on a narrow window, where the row is already named Keys, and between 60 and
+75rem, where the bar has no room for a word (measured: at 1100px it cost a second row). What a
+stranger was actually looking for is not a help page; it is the first ten minutes
+(targum-internal#335). targum-internal#338.
 
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
