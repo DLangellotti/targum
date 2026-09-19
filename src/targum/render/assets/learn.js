@@ -1992,6 +1992,17 @@
               var via = first ? { state: "start" } : modern.reader ? modern : biblical;
               var target = first || via.reader;
               if (!target) return false;
+              /* Into the text, not onto its contents page. A book's own address is its
+                 list of chapters, and a new reader who has just answered two questions
+                 was landed on a page with a title, a button and four links — one more
+                 press from a line of Hebrew (found by QA, 2026-09-20). The first chapter
+                 that is ready is where "Start reading" on that page goes anyway. */
+              var opening = (target.chapters || []).filter(function (chapter) {
+                return chapter && chapter.ready && chapter.file;
+              })[0];
+              if (opening && !via.path && !via.href && !via.src) {
+                via = { state: via.state, path: target.name + "/reader/" + opening.file };
+              }
               window.location.href = hrefOf(target, via);
               return true;
             }
