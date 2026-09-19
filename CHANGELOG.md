@@ -693,6 +693,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   its foot (2026-09-11).
 
 ### Changed
+- The verb follows the medium. Buttons and labels assumed a reader was there to read, and
+  many come to listen and to watch. A door on Learn now says Continue reading, Continue
+  listening or Continue watching by what it leads to, its lead button says Read, Listen or
+  Watch, the hint over the sheet says the same, and a Library row's build button says
+  Start reading, listening or watching. "Listening" is for a text that began as a
+  recording — a talk, an imported podcast — and not for a text with a reading attached,
+  which is most of the shelf. Where no row is known yet the word is neutral: Add asks
+  "What would you like to learn from?" and its button says "Open it". The ledger counts
+  "days on targum" and "words learned on targum". "{share}% read" is "{share}% through",
+  "Recently read" is "Recently opened", "Read next" is "Up next", and three sentences that
+  said "the shelf" say what they mean. English and Russian moved together, and a new test
+  fails when an English sentence changes and its translation does not: `strings/from/`
+  records which English each translation was made from, and
+  `scripts/stamp_strings.py` stamps it again (design.md §6, targum-internal#337).
 - For a new reader, the conversation's first exchange goes on (2026-09-11): once words
   are marked, targum's next turn is a text at that level, asked for without a model
   turn, so a text is two presses away without leaving the page. The count line on Learn

@@ -1125,7 +1125,7 @@
           ? t("lists.no-stage", "Nothing at that stage yet.")
           // Nothing at all, which is every new account: say what fills the list and
           // where, rather than naming a stage the reader has not met.
-          : t("lists.no-words", "Nothing yet. Tap a word while you read and tell us how well you know it.");
+          : t("lists.no-words", "Nothing yet. Tap a word as you go and tell us how well you know it.");
     // Capped, there is no paging: the rest of the list is a page away, not a press away.
     moreButton.hidden = cap ? true : rows.length <= shown;
     moreButton.textContent = t("lists.show-more", "Show {n} more", { n: Math.min(PAGE, rows.length - shown) });

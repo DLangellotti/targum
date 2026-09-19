@@ -185,7 +185,7 @@
      never justified. At most two clauses; the first is the one that changes what the
      list is. "—" is explained only while one is on screen. */
   var NOTES = {
-    base: t("library.note.base", "Tap a text to read it."),
+    base: t("library.note.base", "Tap one to open it."),
     kind: {
       dialogue: t("library.note.dialogue", "Scenes — numbered conversations with audio. Start at 1."),
       prose: t("library.note.prose", "Bible narrative — the Bible's story books."),
@@ -1992,7 +1992,7 @@
         // the build, while the conversation and the Add page both say how long a thing
         // takes and wait for the reader's own press before anything is spent. The same
         // here: how long, and a press of its own beside the row.
-        return confirmBuild(open, state, job).then(function (yes) {
+        return confirmBuild(open, state, job, entry).then(function (yes) {
           if (!yes) {
             tell(state, "");
             open.disabled = false;
@@ -2032,11 +2032,17 @@
       : t("library.wait.minutes", "Ready in about {n} minutes.", { n: mins });
   }
 
-  function confirmBuild(open, state, job) {
+  function confirmBuild(open, state, job, entry) {
     return new Promise(function (resolve) {
       var item = open.parentNode;
       tell(state, waitFor(job));
-      var go = el("button", "row-go", t("library.build.start-reading", "Start reading"));
+      // The verb follows the medium (targum-internal#337): the row knows what it carries.
+      var starting = entry && entry.video
+        ? t("library.build.start-watching", "Start watching")
+        : entry && entry.kind === "talk"
+          ? t("library.build.start-listening", "Start listening")
+          : t("library.build.start-reading", "Start reading");
+      var go = el("button", "row-go", starting);
       go.type = "button";
       var not = el("button", "row-not", t("library.build.not-now", "Not now"));
       not.type = "button";

@@ -686,13 +686,13 @@
     connection. -#}
 {% if following %}
 <aside class="next-up here" id="next-up" dir="ltr" hidden>
-  <span class="next-up-lead">{{ t("reader.page.read-next", "Read next") }}</span>
+  <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}</span>
   <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
   <span class="next-up-why">{{ t("reader.next.minutes", "{n} min", n=minutes[following.number]) }}</span>
 </aside>
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
-  <span class="next-up-lead">{{ t("reader.page.read-next", "Read next") }}{% if suggested.scene %} · {{ suggested.scene }}{% endif %}</span>
+  <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}{% if suggested.scene %} · {{ suggested.scene }}{% endif %}</span>
   {#- `/open/<id>`, the one door onto a catalogue text (targum-internal#313). It sends a
       reader straight to their copy where they have one and to its row with the offer up
       where they have not — never into a build, which is a press and not a redirect. It

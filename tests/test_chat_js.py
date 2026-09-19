@@ -173,7 +173,7 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     assert card["title"] == "מאמר על הים" and card["english"] == "An article about the sea"
     assert card["meta"] == "40 sentences · Ready in a couple of minutes."
     assert "$" not in json.dumps(card), "never money"
-    assert card["button"] == "Read this"
+    assert card["button"] == "Open this"
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
     assert page["posted"][1]["body"] == {"id": "j1"}
     assert card["note"].startswith("We're getting it ready.")
@@ -420,7 +420,7 @@ def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_sou
     )
     assert len(page["cards"]) == 1, "the card the answer quoted is drawn again"
     card = page["cards"][0]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["title"] == QUOTE["title"] and card["button"] == "Open this"
     assert card["source"] == {
         "href": quoted["source"],
         "text": "globes.co.il",
@@ -616,7 +616,7 @@ def test_save_as_targum_is_the_reader_s_press_and_draws_the_quote() -> None:
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/chat/save"]
     assert page["posted"][1]["body"] == {"chat": "abc"}
     (card,) = page["cards"]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this", (
+    assert card["title"] == QUOTE["title"] and card["button"] == "Open this", (
         "the same card the model's own save hands the page; the button is the spend"
     )
     assert page["foot"]["save"] is False, "one press; the card stands where it was"

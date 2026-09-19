@@ -184,7 +184,7 @@ def test_the_front_page_is_the_reader_s_own_highlight() -> None:
     learn = PAGES["learn"]
     assert learn.index('class="front"') < learn.index('id="carry-sheet"')
     assert 'id="shelf-panel"' not in learn and 'id="trash-panel"' not in learn, (
-        "nothing under the sheet since 2026-09-11: the shelf is the Recently read menu"
+        "nothing under the sheet since 2026-09-11: the shelf is the Recently opened menu"
     )
     assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
     assert 'id="carry-expand"' not in learn and 'id="talk-hide"' not in learn
@@ -818,7 +818,7 @@ def test_a_list_page_carries_its_own_list_and_no_other(which: str, has: str, lac
 
 
 def test_a_list_page_marks_learn_in_the_nav() -> None:
-    """Your targums is where Learn's Recently read goes on, so the nav goes on saying
+    """Your targums is where Learn's Recently opened goes on, so the nav goes on saying
     Learn. Your words and phrases are reached from the account and mark no place: a nav
     that lit Learn on them said the reader was somewhere they were not (2026-09-14)."""
     current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES["texts"])

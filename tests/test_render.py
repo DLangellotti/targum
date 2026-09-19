@@ -5354,7 +5354,7 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
         ("learn_page", "learn.page.continue-reading", "Continue reading"),
         ("library_page", "nav.library", "Library"),
         ("you_page", "nav.your-account", "Your account"),
-        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to read?"),
+        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to learn from?"),
     ],
 )
 def test_every_desk_page_is_said_in_the_language_asked(

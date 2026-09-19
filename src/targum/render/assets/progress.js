@@ -394,14 +394,14 @@
     // is the part of that count that started lower on the ladder and was read up to known.
     count(
       sums.learned,
-      tn("progress.count.learned", sums.learned, "word learned by reading", "words learned by reading"),
+      tn("progress.count.learned", sums.learned, "word learned on targum", "words learned on targum"),
       "sun"
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
     // thing, and the one on this page that is a whole text rather than a word.
     count(sums.finished, tn("progress.count.finished", sums.finished, "targum finished", "targums finished"), "leaf");
-    count(days.length, tn("progress.count.days", days.length, "day reading", "days reading"));
+    count(days.length, tn("progress.count.days", days.length, "day on targum", "days on targum"));
     // The longest run of days there has ever been, and never the current one. Decided
     // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
     // is a count that can be destroyed, and that is what makes people quit in the week
@@ -479,7 +479,7 @@
     if (next === null) {
       line.textContent = t("progress.milestone.past", "You're past every milestone we keep.");
     } else if (known === 0) {
-      line.textContent = t("progress.milestone.start", "Mark a word while you read and it starts here.");
+      line.textContent = t("progress.milestone.start", "Mark a word as you go and it starts here.");
     } else {
       boldIn(
         line,
@@ -647,10 +647,10 @@
         ? tn(
             "progress.days.reading",
             counted,
-            "{n} day reading in the last twelve weeks",
-            "{n} days reading in the last twelve weeks"
+            "{n} day on targum in the last twelve weeks",
+            "{n} days on targum in the last twelve weeks"
           )
-        : t("progress.days.none", "No reading days in the last twelve weeks yet")
+        : t("progress.days.none", "No days on targum in the last twelve weeks yet")
     );
     host.appendChild(strip);
 

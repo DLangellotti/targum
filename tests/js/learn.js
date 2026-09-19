@@ -340,7 +340,7 @@ setTimeout(() => {
       counted: at("arrival").hidden ? "" : at("arrival-count").textContent,
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
       menu: menuOf("subscriptions"),
-      // Recently read (2026-09-11): the same shape, with the way to the whole list.
+      // Recently opened (2026-09-11): the same shape, with the way to the whole list.
       recent: menuOf("recent"),
       hands: Object.keys(global.window.TargumLearn || {}),
       carry: {

@@ -1075,7 +1075,7 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
             "reader.next.step-up-other", "A step up, in a different Hebrew."
         ),
         "The easiest text on the shelf.": said(
-            "reader.next.easiest", "The easiest text on the shelf."
+            "reader.next.easiest", "The easiest text in the library."
         ),
         "About as hard as this one.": said("reader.next.as-hard", "About as hard as this one."),
         "Easier than this one.": said("reader.next.easier", "Easier than this one."),

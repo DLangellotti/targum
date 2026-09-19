@@ -1331,7 +1331,7 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     # has no sheet (2026-09-14); its cards are the press.
     if width <= 640:
         return
-    assert foot["open"] == "Open the reader", foot
+    assert foot["open"] == "Open it", foot
     assert foot["hint"] == "Read here, or go full screen.", foot
     for part in ("openBox", "hintBox"):
         box = foot[part]
@@ -1456,7 +1456,7 @@ def test_a_phone_gets_cards_and_a_desk_gets_the_framed_reader(
             # `/open/<id>` since targum-internal#313: a card offering a text links at
             # the text, not at where it is filed. The id is the catalogue row's.
             ["Suggested for you", "מחאה בתל אביב", "/open/ynet-1"],
-            ["Recently read", "בבנק", "/reader/bank-he/reader/index.html"],
+            ["Recently opened", "בבנק", "/reader/bank-he/reader/index.html"],
         ], got
         assert not got["sheet"] and not got["doors"], "no sheet and no row of doors on a phone"
         assert got["all"], "and the way to the whole list"
@@ -1859,7 +1859,7 @@ def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
     found = page.evaluate(
         "() => [...document.querySelectorAll('.palette-row')].map((r) => r.textContent)"
     )
-    assert any("Your shelf" in row for row in found), found
+    assert any("Yours" in row for row in found), found
     page.keyboard.press("Enter")
     page.wait_for_url("**/reader/mendele-he/**", timeout=5000)
     context.close()

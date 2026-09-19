@@ -1413,8 +1413,8 @@ class Library:
                 ui,
                 "job.out-of.talk-hours",
                 "You've used your {hours} hours of audio and conversation for this month. "
-                "They come back on {date}. You can keep reading, and the library is always "
-                "free.",
+                "They come back on {date}. Everything you have stays open, and the library is "
+                "always free.",
                 hours=f"{allowed / 3600:g}",
                 date=self._month_ends(ui),
             )
@@ -1431,7 +1431,8 @@ class Library:
         return said_in(
             ui,
             "job.out-of.everyone",
-            "We've hit our limit for today. Try again in {hours} hours, or read from the library.",
+            "We've hit our limit for today. Try again in {hours} hours, or open something from "
+            "the library.",
             hours=BUDGET_HOURS,
         )
 
@@ -1457,7 +1458,8 @@ class Library:
             return said_in(
                 ui,
                 "job.too-long",
-                "That's too long to take in one go. Try a chapter, or something from the library.",
+                "That's too long to take in one go. Try a shorter piece, or something from the "
+                "library.",
             )
         if estimate > self.remaining():
             return said_in(
@@ -1747,6 +1749,12 @@ class Library:
                 "minutes": entry.minutes,
                 "spoken": spoken.is_spoken(source),
                 "video": spoken.is_video(source),
+                # Whether it *began* as something said (targum-internal#337). `spoken` is
+                # true of most of the shelf — the Tanakh has a reading attached, every
+                # scene is voiced — and those are texts somebody reads with a voice beside
+                # them. A talk is the other thing: the recording is the work and the text
+                # is what was said. It is what decides "Continue listening".
+                "heard": entry.kind is catalogue_module.Kind.talk,
                 "entry": entry.id,
                 "english": entry.english,
                 # When it joined the catalogue, so the shelf can say what is new
@@ -1807,6 +1815,9 @@ class Library:
             # manifest sitting beside the reader.
             "spoken": spoken.is_spoken(source) or manifest.is_file(),
             "video": video,
+            # An import with a manifest beside it came in as a recording: a podcast, a
+            # voice note, a film. The text is its transcript, and the reader came to hear it.
+            "heard": manifest.is_file(),
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.

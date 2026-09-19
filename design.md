@@ -172,6 +172,13 @@ Two registers, and which one applies depends on who is reading.
   product cannot keep. The strongest line is usually the specific one: "an English
   translation beside every line" beats "the best way to read Hebrew."
 - Second person for the reader's actions ("Tap a word…").
+- **A control names what the person will do with this thing: read, listen or watch.**
+  "The reader" is the product's word for the page and for whoever is at it, and it stays
+  (§1, §13). But many come to listen and to watch (David, 2026-09-19), and a button that
+  says "Start reading" over a video is talking to somebody else. A row knows what it
+  carries, so its verb follows it — Continue watching, Start listening — and where no
+  row is known yet the word is the neutral one: Open. The ledger counts "days on targum"
+  and "words learned on targum", not days reading. targum-internal#337.
 - An error says in words what went wrong; colour alone never carries it — see §4.
 - **The name is always lowercase: targum**, even at sentence start.
 - No emoji, no exclamation marks, **no invented currency** — engagement counts real things

@@ -461,7 +461,7 @@
       });
       given.setAttribute(
         "aria-label",
-        t("add.given.label", "A link, some {language}, or what you want to read", { language: name })
+        t("add.given.label", "A link, some {language}, or what you're looking for", { language: name })
       );
     }
     var note = document.getElementById("how-note");
@@ -1285,7 +1285,7 @@
     var confirm = document.createElement("button");
     confirm.type = "button";
     confirm.className = "filled";
-    confirm.textContent = t("add.start-reading", "Start reading");
+    confirm.textContent = t("add.start-reading", "Open it");
     confirm.onclick = function () {
       ask("/build", { id: job.id }).then(function (state) {
         if (state.blocked) return refuse(state);
