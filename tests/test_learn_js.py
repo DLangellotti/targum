@@ -1070,44 +1070,157 @@ def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() 
     assert len(thin["arrival"]) == 19
 
 
-def test_the_arrival_asks_for_no_rung() -> None:
-    """targum-internal#306, decided against on 2026-09-18 after being decided narrowly
-    for it the day before.
+THREE = [{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}]
 
-    A rung that is asked and thrown away before the next redraw stops a reader on their
-    first visit for nothing. And every level `design.md` sanctions is measured (§12, "A
-    language with CEFR levels shows them"); a self-declared one is a different object
-    wearing the same name.
 
-    The harness reads the row rather than a constant, so this is empty because the row
-    is gone and not because nobody looked.
+def test_the_arrival_is_one_question_a_screen() -> None:
+    """targum-internal#334: "one question page", "always clear what next step is".
+
+    The subjects are the first screen and the only thing on it; the ladder is not drawn
+    beside them. Each screen says where it is, in words.
     """
-    drawn = draw([], shared=seeded())
-    assert drawn["levels"] == []
-    assert drawn["arrival"], "the subjects are still asked"
+    first = draw([], shared=seeded())
+    assert first["subjectsUp"] and first["levels"] == []
+    assert first["step"] == "1 of 2"
+    assert first["arriving"], "the page knows the arrival is up, so a phone can make it the screen"
+
+    second = draw([], shared=seeded(), do=[*THREE, {"press": "arrival-done"}])
+    assert not second["subjectsUp"], "the subjects have gone"
+    assert second["step"] == "2 of 2"
+    assert len(second["levels"]) == 8
+    assert second["levels"][0].startswith("Just starting")
+    # What a person can follow, not what they can read: many come to listen and watch.
+    assert any(row.startswith("I follow the news") for row in second["levels"])
+    assert not any("read" in row.lower() for row in second["levels"])
+    # Pressing a row is the answer, so the second screen has no Next to press.
+    assert not second["nextShown"]
 
 
-def test_three_subjects_are_the_whole_question() -> None:
+def test_three_subjects_wake_next() -> None:
     """One subject is a label and two is a preference; three is the first number that
-    describes somebody. There is no second half to the question any more, so three
-    subjects is the gate and nothing else is waited on."""
+    describes somebody."""
     two = draw([], shared=seeded(), do=[{"subject": "Sport"}, {"subject": "History"}])
     assert two["done"] is False, "two is not enough"
     assert two["counted"] == "Pick 1 more"
 
-    three = draw(
-        [],
-        shared=seeded(),
-        do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}],
-    )
-    assert three["done"] is True, "three subjects and Done is live"
+    three = draw([], shared=seeded(), do=THREE)
+    assert three["done"] is True, "three subjects and Next is live"
     assert three["counted"] == ""
 
 
+def test_either_question_may_be_skipped() -> None:
+    """A question a reader may not decline is a gate, and the arrival is not one. Skip is
+    live from the first moment — the only filled button on a new reader's first screen
+    used to be a disabled one, with no way past it but to answer."""
+    past = draw([], shared=seeded(), do=[{"press": "arrival-skip"}])
+    assert past["step"] == "2 of 2", "skipping the subjects goes on to the ladder"
+    assert "targum:arrived" not in (past.get("kept") or {}), "and keeps nothing it was not told"
+
+    out = draw([], shared=seeded(), do=[{"press": "arrival-skip"}, {"press": "arrival-skip"}])
+    assert out["arrival"] == [] and not out["arriving"]
+    assert not any("/account/level" in str(where) for where in out["posted"])
+    assert "/reader/" in out["went"], "and still opens a text: the track's own start"
+
+
+def test_the_last_answer_opens_the_text_it_chose() -> None:
+    """Not Learn with a card to find. The next step after the last question is the
+    reader, open (design.md §12, 2026-09-19)."""
+    after = draw(
+        [],
+        shared=seeded(),
+        do=[
+            {"subject": "Sport"},
+            {"subject": "History"},
+            {"subject": "Archaeology"},
+            {"press": "arrival-done"},
+            {"rung": "Simple conversations"},
+        ],
+    )
+    assert not after["broke"]
+    assert "/reader/holon" in after["went"], after["went"]
+
+
+def test_the_rung_is_kept_on_the_account_and_in_the_browser() -> None:
+    """The fifth state of #306. It was asked and thrown away (2026-09-17) and then not
+    asked (2026-09-18); since 2026-09-19 it is asked and **kept**, as a seed."""
+    after = draw(
+        [],
+        shared=seeded(),
+        do=[*THREE, {"press": "arrival-done"}, {"rung": "I follow the news"}],
+    )
+    assert (after.get("kept") or {}).get("targum:declared") == "gimel"
+    sent = [call for call in after["sent"] if "/account/level" in call["path"]]
+    assert sent and sent[0]["body"] == {"level": "gimel"}
+    assert any("/account/interest" in str(where) for where in after["posted"])
+
+
+def hard_and_easy() -> list[dict[str, Any]]:
+    return [
+        reader(
+            "easy", "קל", "easy", kind="article", register="modern", tags=["sport"], difficulty=5
+        ),
+        reader(
+            "mid", "בינוני", "mid", kind="article", register="modern", tags=["sport"], difficulty=20
+        ),
+        reader(
+            "hard", "קשה", "hard", kind="article", register="modern", tags=["sport"], difficulty=45
+        ),
+    ]
+
+
+def test_the_rung_picks_how_hard_the_first_text_is() -> None:
+    """Aleph takes the easiest a subject can answer and vav the hardest. The reader at
+    gimel who is handed Scene 1 has been patronised before pressing anything (#306)."""
+    stamps = {"targum:arrived": "sport,history,art"}
+    low = draw([], {**stamps, "targum:declared": "aleph"}, shared=hard_and_easy())
+    assert low["carry"]["title"] == "קל"
+    high = draw([], {**stamps, "targum:declared": "vav"}, shared=hard_and_easy())
+    assert high["carry"]["title"] == "קשה"
+    unsaid = draw([], stamps, shared=hard_and_easy())
+    assert unsaid["carry"]["title"] == "קל", "no rung, and the shelf's own order is the order"
+
+
+def test_a_measured_rung_outvotes_the_one_they_said() -> None:
+    """The rule that keeps a declared level small: the first measurement retires it.
+    A reader whose own marked words reach aleph is routed by nothing they said."""
+    known = {
+        f"w{n}": {"surface": f"w{n}", "status": 9, "band": "easy", "at": 1} for n in range(400)
+    }
+    stamps = {
+        "targum:arrived": "sport,history,art",
+        "targum:declared": "vav",
+        "targum:vocab:he": json.dumps(known),
+    }
+    measured = draw([], stamps, shared=hard_and_easy())
+    assert measured["carry"]["title"] == "קל", "vav was said, and is not consulted"
+
+
+def test_the_account_hands_the_rung_back_to_a_second_browser() -> None:
+    """Asked on a phone, not asked again on a laptop — and the laptop's Library and first
+    text are seeded by the same answer."""
+    me = {"signedIn": True, "interest": ["sport", "history", "art"], "declared": "dalet"}
+    adopted = draw([], shared=seeded(), me=me)
+    assert (adopted.get("kept") or {}).get("targum:declared") == "dalet"
+
+
+def test_nothing_prints_the_rung_back() -> None:
+    """It is never shown. Your Progress shows the measured rung and only that, and no
+    sentence anywhere says "you said gimel" (design.md §12)."""
+    from pathlib import Path as _P
+
+    root = _P(__file__).resolve().parent.parent / "src" / "targum" / "render"
+    for page in ("progress.js", "lists.js", "account.js", "chat.js"):
+        source = (root / "assets" / page).read_text(encoding="utf-8")
+        assert "targum:declared" not in source and "DECLARED" not in source, page
+    for page in ("progress.html.j2", "you.html.j2"):
+        assert "declared" not in (root / "templates" / page).read_text(encoding="utf-8"), page
+
+
 def test_the_measured_rung_is_untouched_by_this() -> None:
-    """What went is being *asked*. `level.py` still climbs the ulpan ladder off words the
-    reader actually marked, and Your Progress still shows it — that is the level §12
-    sanctions, and it was never the thing #306 was about."""
+    """`level.py` still climbs the ulpan ladder off words the reader actually marked, and
+    Your Progress still shows it — that is the level §12 sanctions. Pinned when the asked
+    rung was taken out (2026-09-18) so a clean-up could not take this with it, and kept
+    now that the asked one is back, for the same reason."""
     from pathlib import Path as _P
 
     root = _P(__file__).resolve().parent.parent
@@ -1116,31 +1229,6 @@ def test_the_measured_rung_is_untouched_by_this() -> None:
         encoding="utf-8"
     )
     assert "rung" in progress, "the measured rung still has its panel"
-
-
-def test_nothing_about_a_level_is_stored_because_nothing_is_asked() -> None:
-    """The subjects are kept — they are a profile and they travel between devices. There
-    is no rung to keep. The assertions that the subjects *are* kept and posted are what
-    make the negative ones worth anything: the harness would have shown a level.
-    """
-    after = draw(
-        [],
-        shared=seeded(),
-        do=[
-            {"subject": "Sport"},
-            {"subject": "Torah and Judaism"},
-            {"subject": "Archaeology"},
-            {"press": "arrival-done"},
-        ],
-    )
-    kept = after.get("kept") or {}
-    posted = after.get("posted") or []
-    assert "targum:arrived" in kept, "the subjects are kept, so this test can see keeping"
-    assert any("/account/interest" in str(where) for where in posted), (
-        "the subjects are posted, so this test can see posting"
-    )
-    assert not any("level" in key for key in kept), f"a level was stored: {kept}"
-    assert not any("level" in str(where) for where in posted), f"a level was posted: {posted}"
 
 
 def test_a_subject_pressed_twice_is_put_back() -> None:

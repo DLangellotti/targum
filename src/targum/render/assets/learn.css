@@ -1206,14 +1206,43 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   .learn-card:hover, .learn-card:active { transform: none; }
 }
 
+/* The lead (design.md §12, 2026-09-19). Only where there is no sheet to be it. The verb
+   is drawn on every lead card and shown here alone, so the desk's rail is unchanged. */
+.learn-card-go { display: none; }
+@media (max-width: 40rem) {
+  .learn-card-item.is-lead { margin-block-end: 0.5rem; }
+  .learn-card-item.is-lead .learn-card-go {
+    display: inline-flex;
+    align-items: center;
+    align-self: start;
+    min-block-size: 2.75rem;
+    margin-block-start: 0.6rem;
+    padding: 0.5rem 1.3rem;
+    border-radius: 999px;
+    background: var(--teal);
+    color: var(--teal-ink);
+    font-family: var(--chrome);
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+}
+
 /* --- the arrival (targum-internal#294) -------------------------------------- */
 
-/* The one question a new reader is asked, above the sheet. It sits on the desk ground
-   rather than in a card: the sheet under it is the brightest thing on the page and this
-   must not compete with it — somebody who ignores the question entirely still has a text
-   open and loses nothing. */
+/* What a new reader is asked, a question a screen (design.md §12, 2026-09-19). At a desk
+   it sits on the desk ground rather than in a card, above the sheet: the sheet under it
+   is the brightest thing on the page and this must not compete with it, and somebody who
+   ignores it still has a text open. On a phone there is no sheet, so that was never true
+   there — see the phone block at the foot of this section, where it is the screen. */
 .arrival { margin: 0 0 1.25rem; }
-.arrival[hidden] { display: none; }
+.arrival[hidden], .arrival-screen[hidden] { display: none; }
+/* Where they are, in words, in the resting colour: "1 of 2". */
+.arrival-step {
+  margin: 0 0 0.35rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
 .arrival-asks {
   margin: 0 0 0.6rem;
   font-family: var(--chrome);
@@ -1251,10 +1280,11 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
 
    This was a grouped selector, `.arrival-door` beside `.arrival-rung`, and a clean-up
    that dropped every rule naming `.arrival-rung` took the door half with it: a picked
-   subject stopped looking picked on the live site and nothing failed. The rung is gone
-   for good now (#306, 2026-09-18) and this rule is the door's alone — which is the same
-   hazard one more time, so `test_brand` reads the pressable controls out of `learn.js`
-   and insists the stylesheet answers for each. */
+   subject stopped looking picked on the live site and nothing failed. The rung is back
+   (#306, 2026-09-19) and is deliberately *not* grouped in here again: a rung is never
+   left pressed — pressing one is the answer and the screen goes — so it has no pressed
+   state to share. `test_brand` reads the pressable controls out of `learn.js` and
+   insists the stylesheet answers for each. */
 .arrival-door[aria-pressed="true"] {
   background: var(--ink-soft);
   color: var(--paper);
@@ -1268,22 +1298,84 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   color: var(--ink-soft);
 }
 
+/* The ladder, on its own screen. Full-width rows rather than pills: each one is a
+   sentence a person reads, not a word they scan, and eight pills wrapping is a hedge. */
+.arrival-levels {
+  display: grid;
+  gap: 0.4rem;
+  max-inline-size: 30rem;
+}
+.arrival-rung {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  text-align: start;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  cursor: pointer;
+}
+.arrival-rung:hover { background: var(--teal-wash); }
+.arrival-rung:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+/* The kitah beside the words: the whole label to somebody who did an ulpan, and noise
+   to everybody else, so it is the smaller half and never the only half. */
+.arrival-rung-letter {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
 .arrival-foot {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   margin: 0.9rem 0 0;
 }
+/* Next is the one filled press on the page while the arrival is up, and on the desk a
+   filled press is the primary's (§13) — it was the reader's brown until 2026-09-19,
+   which §13 says the desk does not use. */
 .arrival-done {
   font: inherit;
   font-family: var(--chrome);
   font-size: 0.875rem;
-  padding: 0.5rem 1.1rem;
-  border: 1px solid var(--accent);
+  font-weight: 600;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 1.3rem;
+  border: 1px solid var(--teal);
   border-radius: 999px;
-  background: var(--accent);
-  color: var(--paper);
+  background: var(--teal);
+  color: var(--teal-ink);
   cursor: pointer;
+}
+.arrival-done[hidden] { display: none; }
+/* Skip is a ghost (§13): declining is not an action of equal weight to answering, and it
+   must still be unmissable that a reader may. */
+.arrival-skip {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.arrival-skip:hover { color: var(--ink); background: var(--teal-wash); }
+.arrival-skip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .arrival-done:focus-visible {
   outline: 2px solid var(--focus);
@@ -1302,10 +1394,42 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-/* On a phone the doors stack to full width: four pills wrapping into three ragged rows
-   is worse than four rows that line up. */
-@media (max-width: 30rem) {
-  .arrival-doors { display: grid; grid-template-columns: 1fr; }
+/* On a phone the arrival is the screen (design.md §12, 2026-09-19). There is no sheet
+   under it to fall back on, so nothing else is drawn while it is up: the greeting, the
+   question, and Next and Skip at the foot of the window — the one place a fixed control
+   is right, because there is no page under it yet. The pill that opens the conversation
+   keeps its corner (§13: it is on every page, and a first draft that put it away failed
+   two tests that were right): the foot stops short of it, and stands under it.
+
+   The subjects wrap as pills. They were one full-width row each under 30rem — nineteen
+   rows, more than two screens, with the only filled button on the page below all of
+   them and disabled (2026-09-17, when there were four doors and "four rows that line
+   up" was the better answer). Nineteen is a different number. */
+@media (max-width: 40rem) {
+  body.arriving .learn-cards,
+  body.arriving .front-work,
+  body.arriving ~ .claim,
+  body.arriving .claim { display: none; }
+  /* And the line under the greeting, which tells a reader how to read a text they have
+     not got yet. It is back, and true, the moment there is one. */
+  body.arriving .today-line { display: none; }
+  body.arriving .arrival { margin: 0; padding: 0 1rem 5.5rem; }
+  body.arriving .arrival-asks { font-size: 1.25rem; font-weight: 600; }
+  body.arriving .arrival-door { min-block-size: 2.75rem; }
+  body.arriving .arrival-levels { max-inline-size: none; }
+  body.arriving .arrival-foot {
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: calc(4rem + env(safe-area-inset-bottom));
+    z-index: 20;
+    margin: 0;
+    /* The pill is 3.25rem wide, 1rem from the edge, and stacked over this (z 30). */
+    padding-block: 0.6rem;
+    padding-inline: 1rem 5rem;
+    min-block-size: 4.25rem;
+    background: var(--ground);
+    border-block-start: 1px solid var(--hairline);
+  }
 }
 /* --- words you may already know, on the way in (targum-internal#297) --------- */
 

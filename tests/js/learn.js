@@ -195,7 +195,14 @@ function act(step) {
       cardPresses.push({ card: step.card, followed: defaulted });
     }
   }
-  // A subject on the arrival, by its label; and a rung of the ladder beside it.
+  // A rung of the ladder on the arrival's second screen, by its words.
+  if (step.rung) {
+    const row = Array.from(at("arrival-levels").children).find(
+      (p) => p.textContent.indexOf(step.rung) === 0
+    );
+    if (row) row.fire("click", {});
+  }
+  // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
       (p) => p.textContent === step.subject
@@ -304,12 +311,19 @@ setTimeout(() => {
         : Array.from(at("arrival-doors").children)
             .filter((p) => p.getAttribute("aria-pressed") === "true")
             .map((p) => p.textContent),
-      /* The arrival asked for a rung until 2026-09-18 and does not any more (#306).
-         Still reported, and as the element rather than as a constant: a test that says
-         nothing is asked is worthless if the harness could not have shown it being
-         asked. It is `[]` because the row is gone, not because nobody looked. */
-      levels: Array.from(at("arrival-levels").children).map((p) => p.textContent),
+      /* The ladder on the second screen (#306: asked, not asked, and asked again since
+         2026-09-19). Read off the element, and only while its screen is the one showing:
+         what a test needs to know is what the reader is looking at. */
+      levels:
+        at("arrival").hidden || at("arrival-level").hidden
+          ? []
+          : Array.from(at("arrival-levels").children).map((p) => p.textContent),
+      // Which screen is up and what it says of itself: "1 of 2".
+      step: at("arrival").hidden ? "" : at("arrival-step").textContent,
+      subjectsUp: !at("arrival").hidden && !at("arrival-subjects").hidden,
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
+      nextShown: !at("arrival").hidden && !at("arrival-done").hidden,
+      arriving: global.document.body.classList.contains("arriving"),
       // What the page put in the browser, and where it posted. Both are here so a test
       // can assert something was *not* kept — an assertion that is worthless unless the
       // harness would have shown it had it been.
@@ -322,6 +336,7 @@ setTimeout(() => {
         return out;
       })(),
       posted: asked.map((call) => call.path),
+      sent: asked.filter((call) => call.body).map((call) => ({ path: call.path, body: call.body })),
       counted: at("arrival").hidden ? "" : at("arrival-count").textContent,
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
       menu: menuOf("subscriptions"),

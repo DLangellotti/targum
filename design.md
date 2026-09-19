@@ -322,6 +322,73 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The arrival is two questions, a screen each, and the second one is kept — 2026-09-19
+
+The arrival is the one thing a new reader is asked, and until today nothing about it was
+written here. It was built under targum-internal#294 and argued over under #306, and the
+whole of that lived in commit messages and comments in `learn.js`. It goes here now
+because it ends in a departure from a rule this document states twice.
+
+**What is asked.** *What are you interested in?* — nineteen subjects in the words a person
+uses about themselves, three at least, every one offered whether or not the shelf can
+answer it yet, because three answers are a profile and a profile may name what has not
+been filed (#294, 2026-09-17). Then *How much Hebrew do you have?* — the eight rungs of
+the ulpan ladder `level.py` climbs, said as what a person can **follow** rather than what
+they can read ("I follow slow Hebrew, with help"), because many come to listen and to
+watch (#337), with the kitah letter as the smaller half of each row.
+
+**A level was asked, then not, then asked again, and this is the fifth state.** §6 says
+engagement counts real things and never a level, §12's "A language with CEFR levels shows
+them" says every level shown is *measured*, and `learn.js` has said since it was written
+that nobody is asked how good they are. Against that: the measurement happens after the
+first text, so the one routing decision it cannot inform is the one a reader meets first,
+and a reader at gimel who is handed Scene 1 has been patronised before they have pressed
+anything. #306 was closed against (2026-09-17, morning), decided narrowly for — asked,
+used once to pick the first text, kept nowhere (2026-09-17) — and decided against again
+the next day, because a rung asked and thrown away "stops a reader on their first visit
+for an answer thrown away before the page is drawn again: the worst half of both".
+David reopened it on 2026-09-19 — "I think we should ask level" — and chose the variant
+the card had named and nobody had built:
+
+- **The answer is kept**, on the account beside the subjects, so a phone's answer is not
+  asked again on a laptop.
+- **It is a seed.** While nothing about the reader has been measured, it decides the
+  three things that otherwise have nothing to go on: which text opens first, the band
+  the Library opens on, and how hard the conversation writes.
+- **It is outvoted by the first measurement.** The moment the reader's own marked words
+  reach a rung — by reading, or by the claim grid a minute after the first text — the
+  measured rung is what everything reads, and the declared one is not consulted.
+- **It is never shown back.** Your Progress shows the measured rung and only that, still
+  "A guide, not a placement"; the conversation still never says a level to the reader;
+  nothing anywhere says "you said gimel".
+
+So it is a declared level, and the rule it departs from is real. What keeps the departure
+small is that the number has a short life and no display: a reader who overclaims gets a
+hard first text and is corrected by their own taps within minutes, and nobody downstream
+inherits the error, which was the objection.
+
+**One question a screen** (David, 2026-09-19: "one question page", "always clear what
+next step is"). The subjects are a screen with a **Next** that wakes at three; the rungs
+are a screen where pressing a row is the answer; each says where it is in words ("1 of
+2") and each has a **Skip**, because a question a reader may not decline is a gate, and
+the arrival is not one. **The last answer opens the text it chose** — the reader, not
+Learn with a card to find. On a phone each step is the screen: the subjects wrap as
+pills instead of standing as nineteen rows, and Next and Skip are fixed at its foot,
+which is the one place a fixed control is right because there is no page under it yet.
+
+This fixes something that was false on a phone. The arrival "sits on the desk ground
+rather than in a card… somebody who ignores the question entirely still has a text open
+and loses nothing" — true at a desk, where the sheet frames a reader under it, and untrue
+under 40rem, where there has been no sheet since 2026-09-14. There, the only filled
+button on a new reader's first screen was a disabled one.
+
+**Learn on a phone has one lead.** The cards were "each worth pressing equally" and so
+none said *start here*. The first card — Start here, or Continue — is the lead: across
+the column, with the one filled button on the page (§13, "filled in the primary, one per
+view") and its verb on it. The rest sit under it as they were.
+
+`test_learn_js.py` pins the two steps, the skip, the rung kept and handed back, and the
+measured rung outvoting it. targum-internal#334, #306.
 ### There is one look, and it is light — 2026-09-19
 
 "Remove dark mode everywhere," David wrote, and it is gone: the second palette that
@@ -1357,8 +1424,9 @@ the sheet holds first, a subscription's new instalment, the suggestion, the text
 lately and the ones followed, each once, each the press to its reader, with All your
 targums under them. The row of doors goes with the sheet, because the cards are the
 doors. A text the conversation offers opens its reader directly, as on every other page.
-At a desk nothing changes: the sheet frames the reader across the row, and the doors choose
-what it holds.
+At a desk the sheet frames the reader across the row. (The doors chose what it held until
+2026-09-18, when the desk got the cards too, as a rail beside the sheet, and the row of
+doors left it — targum#294. The card whose text the sheet shows is marked in the rail.)
 
 ### The menu behind ⋯ covers the page too — 2026-09-14
 

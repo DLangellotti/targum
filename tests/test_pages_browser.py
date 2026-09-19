@@ -562,6 +562,140 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     assert got["round"], f"the account is a circle: {got}"
 
 
+def _arrival_page(browser, width: int, height: int = 667):
+    """Learn for a brand-new account on a shelf of three, at a phone's size."""
+    html = learn_page(TOKEN)
+    shelf = [
+        {
+            "name": name, "document": name, "entry": name, "title": title, "language": "he",
+            "register": "modern", "kind": "article", "tags": ["sport"], "difficulty": hard,
+            "sections": 1, "chapters": [], "readyChapters": 0, "built": 1, "opened": 0,
+            "drawn": True,
+        }
+        for name, title, hard in (("easy", "קל", 5), ("mid", "בינוני", 20), ("hard", "קשה", 45))
+    ]  # fmt: skip
+    went: list[str] = []
+
+    def answer(route, request):
+        u = request.url
+        if "/reader/" in u:
+            went.append(u)
+            return route.fulfill(status=200, content_type="text/html", body="<p>reader</p>")
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        if "/account/me" in u:
+            body = {"signedIn": True, "email": "new@x.test", "initials": "N", "language": "he"}
+        elif "/readers" in u:
+            body = {"readers": [], "shared": shelf, "trash": [], "covers": False}
+        else:
+            body = {}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(
+        viewport={"width": width, "height": height}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    page.route("http://learn.test/**", answer)
+    page.goto(f"http://learn.test/?k={TOKEN}")
+    page.wait_for_selector("#arrival:not([hidden]) .arrival-door")
+    page.wait_for_timeout(150)
+    return context, page, went
+
+
+ARRIVAL_MEASURE = """() => {
+  const seen = (el) => {
+    if (!el || el.hidden) return false;
+    const box = el.getBoundingClientRect();
+    return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+  };
+  // In the page itself: the pill at the corner is the chrome's, and is on every page.
+  const filled = [...document.querySelectorAll('main button, main a')].filter((el) => {
+    if (!seen(el)) return false;
+    const paint = getComputedStyle(el).backgroundColor;
+    return paint === 'rgb(31, 111, 107)';  // the primary, filled (§13)
+  });
+  const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
+  const doors = [...document.querySelectorAll('.arrival-door')]
+    .map((d) => d.getBoundingClientRect());
+  return {
+    filled: filled.map((el) => el.id || el.className),
+    footInView: foot.top >= 0 && foot.bottom <= window.innerHeight,
+    footFixed: getComputedStyle(document.querySelector('.arrival-foot')).position,
+    rows: new Set(doors.map((d) => Math.round(d.top))).size,
+    short: doors.every((d) => d.height >= 43.5),
+    cards: seen(document.querySelector('.learn-cards')),
+    pill: seen(document.querySelector('.talk-cta')),
+    pillClear: (() => {
+      const pill = document.querySelector('.talk-cta').getBoundingClientRect();
+      return [...document.querySelectorAll('.arrival-foot > *')].every((el) => {
+        const box = el.getBoundingClientRect();
+        return box.width === 0 || box.right <= pill.left || box.left >= pill.right;
+      });
+    })(),
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    skip: seen(document.getElementById('arrival-skip')),
+    nextOff: document.getElementById('arrival-done').disabled,
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [320, 375, 412])
+def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
+    """targum-internal#334. A new reader's first screen on a phone was nineteen full-width
+    rows with the only filled button on the page below all of them, disabled, and no way
+    past but to answer. It is the screen now: the question, the subjects wrapped as
+    pills, and Next and Skip at the foot of the window where a thumb is.
+
+    Measured in a browser because none of this is visible in the file — it is a cascade,
+    a fixed foot and a wrap, and the last notes' bugs were all found by opening the page.
+    """
+    context, page, _ = _arrival_page(browser, width)
+    got = page.evaluate(ARRIVAL_MEASURE)
+    context.close()
+    assert got["footFixed"] == "fixed" and got["footInView"], got
+    assert got["skip"] and got["nextOff"], "Skip is live from the start; Next waits for three"
+    assert got["filled"] == [], f"nothing filled competes while Next is asleep: {got['filled']}"
+    assert got["rows"] < 19, f"the subjects wrap, they do not stack: {got['rows']} rows"
+    assert got["short"], "and every one of them is a thumb's height"
+    assert not got["cards"], "no other text is drawn while it is up"
+    # §13: the pill is on every page. The foot stops short of it rather than putting it away.
+    assert got["pill"] and got["pillClear"], got
+    assert not got["sideways"]
+
+
+def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
+    """Three subjects, Next, a rung — and the reader is open, at the rung they named.
+    Not Learn again with a card to find (design.md §12, 2026-09-19)."""
+    context, page, went = _arrival_page(browser, 375)
+    for label in ("Sport", "History", "Art"):
+        page.locator(".arrival-door", has_text=label).first.tap()
+    # A press fades in over `--in`; measured mid-fade, Next is still transparent.
+    page.wait_for_timeout(400)
+    woke = page.evaluate(ARRIVAL_MEASURE)
+    assert woke["filled"] == ["arrival-done"], (
+        f"three picked, and Next is the one filled press: {woke}"
+    )
+    page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-level:not([hidden]) .arrival-rung")
+    second = page.evaluate(
+        """() => ({
+          step: document.getElementById('arrival-step').textContent,
+          rungs: document.querySelectorAll('.arrival-rung').length,
+          asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top
+                 >= document.querySelector('.site-head').getBoundingClientRect().bottom - 1,
+          fits: document.querySelector('.arrival-levels').getBoundingClientRect().bottom
+                <= document.querySelector('.arrival-foot').getBoundingClientRect().top + 1
+                || document.documentElement.scrollHeight > window.innerHeight,
+        })"""
+    )
+    assert second["step"] == "2 of 2" and second["rungs"] == 8 and second["fits"], second
+    assert second["asked"], "the second question starts at its top, not where the first was left"
+    page.locator(".arrival-rung", has_text="I follow almost anything").tap()
+    page.wait_for_timeout(300)
+    context.close()
+    assert went and "/reader/hard" in went[-1], f"hey opens the hardest sport text: {went}"
+
+
 def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
     browser, tmp_path: Path
 ) -> None:

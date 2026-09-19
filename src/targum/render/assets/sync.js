@@ -770,6 +770,14 @@
           if (!api.who) return false;
           write(READS, me.reads || []);
           write(LEARNING, me.learning || []);
+          // The rung they named on arrival, a plain string, for the Library's first band
+          // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
+          // Adopted and never cleared from here, as Learn does with the subjects.
+          if (me.declared) {
+            try {
+              targumKeep("targum:declared", String(me.declared));
+            } catch (e) {}
+          }
           // The language chosen on another device, for the next page this one opens. Not
           // the page already drawn: redrawing under somebody's hand is worse than one
           // page in the language they last saw here.
