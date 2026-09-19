@@ -17,6 +17,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   rung, and from then on it is not read. It is never shown back. Learn on a phone leads
   with one card that carries the page's one filled button (design.md §12,
   targum-internal#334, #306).
+- What to work on turns over. The fold showed the same rows on every visit, because it
+  is ordered oldest first and a word's stamp is written once. The order stays. Each visit
+  now opens where the last one ended, a press at the foot ("Show others") turns to the
+  next screenful, and off the end it comes round to the oldest again, in both tabs and on
+  both pages. The place is kept by the row and not by a position, so marking a word does
+  not move the rest, and it is kept in the browser only. The press is drawn only where
+  there is another screenful, and says nothing about how much is behind it
+  (targum-internal#336).
 - A Russian page can show every word in one case. A "cases" choice in the bar lists the
   six cases with how many words of each the page has ("genitive · 12"). Choosing one gives
   those words the highlight wash and a dotted underline, `c` steps to the next case, and

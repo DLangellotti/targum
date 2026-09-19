@@ -224,6 +224,8 @@ function phrases() {
        not have to stand up an account to get one — so the press is on the button
        whatever its `hidden` says, which is what a signed-in reader is pressing. */
     if (step.type === "export") at("export-" + step.which).fire("click");
+    // The press that turns the fold over (targum-internal#336): `{type: "more"}`.
+    if (step.type === "more") at("work-more").fire("click");
     // A tab in the fold: `{type: "tab", which: "phrases"}`.
     if (step.type === "tab") at("work-tab-" + step.which).fire("click");
     /* A press on a row of the Phrases tab: `{type: "phrase", term: "…", key: 0}`, where
@@ -284,6 +286,9 @@ function phrases() {
         phrasesHidden: at("work-phrase-rows").hidden,
         phrases: at("work-phrase-rows").children.map(phraseRow),
         button: at("work-talk").textContent,
+        // Whether the fold offers to turn over, and where it will open next time.
+        more: !at("work-more").hidden,
+        left: global.localStorage.getItem("targum:work-at:he"),
         rows: at("work-rows").children.map((item) => ({
           term: (item.querySelector(".term") || {}).textContent || "",
           meaning: (item.querySelector(".work-meaning") || {}).textContent || "",

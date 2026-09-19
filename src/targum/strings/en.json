@@ -1672,5 +1672,6 @@
   "learn.arrival.step": "{n} of {of}",
   "learn.arrival.level-hint": "We start you there. What you mark as you go takes over from it.",
   "learn.card.start": "Start",
-  "learn.card.continue": "Continue"
+  "learn.card.continue": "Continue",
+  "lists.work.more": "Show others"
 }

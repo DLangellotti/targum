@@ -562,7 +562,8 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
 /* The door out of the fold, at its foot. Quiet and to one end: it is an offer, not the
    thing the fold is for, and a full-width button under twenty rows would read as the
    next step in a flow rather than as somewhere else the reader may go. */
-.work-foot { margin: 0.9rem 0 0; }
+.work-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; margin: 0.9rem 0 0; }
+.work-foot[hidden] { display: none; }
 .work-foot button {
   border: 1px solid var(--rule);
   border-radius: 999px;
@@ -574,6 +575,12 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
   color: var(--ink-soft);
 }
 .work-foot button:hover { border-color: var(--teal); color: var(--teal); }
+/* Turn the fold over (targum-internal#336): a ghost beside the door, the circling arrow
+   and its word (§7: a glyph says what it does, and carries its word). It says nothing
+   about how much is behind it — "12 more" is how a queue starts chasing. */
+.work-foot .work-more { display: inline-flex; align-items: center; gap: 0.4rem; border-color: transparent; }
+.work-foot .work-more[hidden] { display: none; }
+.work-foot .work-more svg { flex: none; }
 .work-foot button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 @media (hover: none) and (pointer: coarse) {
   .work-foot button { min-height: 44px; }

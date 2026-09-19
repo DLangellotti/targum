@@ -218,7 +218,90 @@
      back — which is correct, because they are still words being learned. */
   var passed = {};
 
-  function workOn() {
+  /* The fold turns over (targum-internal#336, 2026-09-19).
+   *
+   * "Show different words each time I come to the page." Oldest first and a cap of five
+   * meant the same five on every visit until one of them was marked known: `at` is
+   * written once, so nothing about the order ever moved. The order is still the only
+   * honest one, and it stays. What moves is *where in it the fold opens*: each visit
+   * starts where the last one ended, the press at the foot turns to the next
+   * screenful, and off the end it comes round to the oldest again.
+   *
+   * A place in the list, not a shuffle and not a ranking — it makes no claim about which
+   * words matter more, which is the claim the ledger cannot support. The place is kept
+   * by the row it points at (its key and its stamp), not by a position, so a word that
+   * leaves the list — marked known, or passed over for the sitting — does not slide
+   * everything after it. Kept in this browser only: it is where a reader was standing,
+   * and the account has no use for it.
+   */
+  var TURNED = "targum:work-at:";
+  //: This sitting's first row in each half, by key and stamp. Settled on the first draw
+  //: and moved only by the press: marking a word must not turn the page under the hand.
+  var standing = {};
+  //: Whether each half has more than a screenful, which is when the press is drawn.
+  var turns = {};
+
+  function whereLeft() {
+    try {
+      return JSON.parse(localStorage.getItem(TURNED + code) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function leaveAt(which, mark) {
+    var all = whereLeft();
+    all[which] = mark;
+    try {
+      var text = JSON.stringify(all);
+      if (window.targumKeep) window.targumKeep(TURNED + code, text);
+      else localStorage.setItem(TURNED + code, text);
+    } catch (e) {
+      /* nowhere to keep it: the next visit opens at the oldest, as it always did */
+    }
+  }
+
+  //: Where a mark points in the rows as they are now: the row itself where it is still
+  //: there, else the first row stamped no earlier, else the top.
+  function placeOf(rows, mark, keyOf) {
+    if (!mark) return 0;
+    for (var i = 0; i < rows.length; i++) if (keyOf(rows[i]) === mark.key) return i;
+    for (var j = 0; j < rows.length; j++) if ((rows[j].at || 0) >= (mark.at || 0)) return j;
+    return 0;
+  }
+
+  function markOf(row, keyOf) {
+    return { key: keyOf(row), at: row.at || 0 };
+  }
+
+  function turned(rows, which, keyOf) {
+    var size = limits.workOn || WORK_ON;
+    turns[which] = rows.length > size;
+    if (!turns[which]) return rows;
+    var first = !standing[which];
+    if (first) standing[which] = whereLeft()[which] || markOf(rows[0], keyOf);
+    var from = placeOf(rows, standing[which], keyOf);
+    var shown = [];
+    for (var n = 0; n < size; n++) shown.push(rows[(from + n) % rows.length]);
+    // The next visit starts on the row after this screenful.
+    if (first) leaveAt(which, markOf(rows[(from + size) % rows.length], keyOf));
+    return shown;
+  }
+
+  /** The press at the foot: on to the next screenful of the open half. */
+  function turnOver(which, rows, keyOf) {
+    var size = limits.workOn || WORK_ON;
+    if (rows.length <= size) return;
+    var from = placeOf(rows, standing[which], keyOf);
+    standing[which] = markOf(rows[(from + size) % rows.length], keyOf);
+    leaveAt(which, markOf(rows[(from + size + size) % rows.length], keyOf));
+  }
+
+  function wordKey(word) {
+    return "word:" + (word.lemma || word.term);
+  }
+
+  function wordsStillLearning() {
     return entry.words
       .filter(function (word) {
         if (passed[word.lemma || word.term]) return false;
@@ -229,8 +312,11 @@
         // Oldest mark first. A word with no stamp sorts as oldest, which is right: it was
         // marked before anything started stamping.
         return (a.at || 0) - (b.at || 0);
-      })
-      .slice(0, limits.workOn || WORK_ON);
+      });
+  }
+
+  function workOn() {
+    return turned(wordsStillLearning(), "words", wordKey);
   }
 
   /* Phrases, the fold's second tab (2026-09-18). Two kinds of row answer the same
@@ -262,11 +348,13 @@
       if ((slip.language || code) !== code) return;
       rows.push({ kind: "slip", at: slip.at || 0, slip: slip });
     });
-    return rows
-      .sort(function (a, b) {
-        return a.at - b.at;
-      })
-      .slice(0, limits.workOn || WORK_ON);
+    return rows.sort(function (a, b) {
+      return a.at - b.at;
+    });
+  }
+
+  function rowKey(row) {
+    return row.kind === "slip" ? "slip:" + row.slip.id : phraseKey(row.phrase);
   }
 
   /* Which tab is open. In memory: a sitting's choice, and the next visit opens on
@@ -279,7 +367,7 @@
     if (!panel || !wordHost) return;
     var phraseHost = at("work-phrase-rows");
     var words = workOn();
-    var phrases = phraseHost ? phrasesToWorkOn() : [];
+    var phrases = phraseHost ? turned(phrasesToWorkOn(), "phrases", rowKey) : [];
     // Nothing to work on is nothing on the page. Not an empty state and not an
     // invitation: a reader who has flagged nothing is not being told they are behind.
     panel.hidden = words.length === 0 && phrases.length === 0;
@@ -313,6 +401,16 @@
         workTab === "phrases"
           ? t("lists.work.talk-phrases", "Generate sentences with these phrases")
           : t("lists.work.talk-words", "Generate sentences with these words");
+    }
+    // The press that turns the fold over, only where there is another screenful to turn to.
+    var more = at("work-more");
+    if (more) {
+      more.hidden = !turns[workTab];
+      more.onclick = function () {
+        if (workTab === "phrases") turnOver("phrases", phrasesToWorkOn(), rowKey);
+        else turnOver("words", wordsStillLearning(), wordKey);
+        renderWorkOn();
+      };
     }
     var all = at("work-all");
     if (all) {
@@ -1351,6 +1449,9 @@
        the running page. `passed` is module state, so a reload empties it by existing. */
     if (code !== was) {
       passed = {};
+      // And where the fold stands is one language's: another opens where it was left.
+      standing = {};
+      turns = {};
       // A card is about a word in one language; another language's lists close it.
       closeCard();
     }
