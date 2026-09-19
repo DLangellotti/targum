@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The arrival asks one question a screen, and leads into a text. A new reader is asked
+  what they are interested in, then how much Hebrew they have, each on its own screen with
+  a Skip, and the last answer opens the text it chose instead of returning to Learn. On a
+  phone the arrival is the screen: the nineteen subjects wrap as pills where they stood as
+  nineteen rows, and Next and Skip stay at the foot of the window. The level is said as
+  what a person can follow ("I follow the news, with a dictionary"), and it is kept on the
+  account as a seed: it chooses how hard the first text is, which band the Library opens
+  on and how hard the conversation writes, until the reader's own marked words reach a
+  rung, and from then on it is not read. It is never shown back. Learn on a phone leads
+  with one card that carries the page's one filled button (design.md §12,
+  targum-internal#334, #306).
 - A Russian page can show every word in one case. A "cases" choice in the bar lists the
   six cases with how many words of each the page has ("genitive · 12"). Choosing one gives
   those words the highlight wash and a dotted underline, `c` steps to the next case, and

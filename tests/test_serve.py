@@ -659,6 +659,30 @@ def test_a_profile_nobody_can_read_with_is_refused_whole(
     assert answer["learning"] == ["he"] and answer["reads"] == ["en"]
 
 
+def test_the_rung_said_on_arrival_is_kept_and_handed_back(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#306 (2026-09-19): asked on the arrival, kept on the account, and
+    handed back by `/account/me` so a second browser does not ask again. A rung the ladder
+    does not have is refused, and nobody signed out can say one."""
+    port, token, _ = served
+    status, answer, _ = call(port, "POST", f"/account/level?k={token}", {"level": "gimel"})
+    assert status == 401 and answer == {"signedIn": False}
+
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port, "POST", f"/account/level?k={token}", {"level": "gimel"}, cookie=cookie
+    )
+    assert status == 200 and answer["declared"] == "gimel"
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert status == 200 and me["declared"] == "gimel"
+
+    status, answer, _ = call(
+        port, "POST", f"/account/level?k={token}", {"level": "native"}, cookie=cookie
+    )
+    assert status == 400 and answer["error"] == "No such choice."
+
+
 def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
     """`targum languages` marked an address as reading Russian, from a terminal. The
     profile replaces it, and a person who was marked keeps Russian — with English

@@ -226,3 +226,50 @@ def test_the_chat_is_told_how_to_address_the_reader_in_hebrew(tmp_path: Path) ->
     assert "as a man" in level.describe(level.snapshot(store, person.id, "he"))
     with pytest.raises(ValueError):
         store.set_address(person, "x")
+
+
+def test_the_rung_a_reader_said_is_a_seed_and_a_measured_one_outvotes_it(tmp_path: Path) -> None:
+    """targum-internal#306, its fifth state (design.md §12, 2026-09-19).
+
+    Asked on arrival and kept on the account. It stands in while nothing about the reader
+    has been measured, and the first rung their own marked words reach retires it.
+    """
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed is not None
+    person = signed[0]
+
+    assert store.declared(person.id) == ""
+    assert level.seed(level.snapshot(store, person.id, "he")) is None, (
+        "nothing said, nothing seeded"
+    )
+
+    assert store.set_declared(person, "Bet-Plus ") == "bet-plus"
+    got = level.snapshot(store, person.id, "he")
+    seeded = level.seed(got)
+    assert seeded is not None and seeded.name == "bet plus"
+    assert got.here is None, "saying it measures nothing: the ledger's own rung is untouched"
+    # Asked over the ulpan ladder, so it says nothing about another language.
+    assert level.seed(level.snapshot(store, person.id, "fr")) is None
+
+    with pytest.raises(ValueError):
+        store.set_declared(person, "fluent")
+    assert store.profile(person)["declared"] == "bet-plus", "handed back to a second browser"
+
+    measured = level.Level(
+        "he", 400, 0, 400.0, level.ULPAN[0], level.ULPAN[1], 3, 1, 1, 2, 1, declared="vav"
+    )
+    assert level.seed(measured) is None, "vav was said, and their words say aleph"
+
+    assert store.set_declared(person, "") == "", "and it can be taken back"
+
+
+def test_the_chat_grades_to_the_seed_and_never_quotes_it() -> None:
+    told = level.describe(
+        level.Level("he", 0, 0, 0.0, None, level.ULPAN[0], 0, 0, 0, 0, 0, declared="gimel")
+    )
+    assert "'gimel' rung" in told and "no measured rung yet" in told
+    assert "never quote it back" in told
+    # The state a page is handed carries no trace of it: nothing can print it.
+    shown = level.Level("he", 0, 0, 0.0, None, level.ULPAN[0], 0, 0, 0, 0, 0, declared="gimel")
+    assert "gimel" not in json.dumps(shown.state())

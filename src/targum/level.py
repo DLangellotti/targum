@@ -211,6 +211,9 @@ class Level:
     common: int = 0
     #: How the reader wants to be addressed in Hebrew: 'm', 'f', or '' for not said.
     address: str = ""
+    #: The rung they named on arrival, by its arrival id ("bet-plus"), or "". A seed: see
+    #: `seed`. Deliberately absent from `state()` — no page is handed it to print.
+    declared: str = ""
 
     def state(self) -> dict[str, Any]:
         return {
@@ -235,6 +238,27 @@ class Level:
 
 
 EMPTY = Level("he", 0, 0, 0.0, None, ULPAN[0], 0, 0, 0, 0, 0)
+
+
+def seed(level: Level) -> Rung | None:
+    """The rung a reader *said*, while nothing about them has been measured.
+
+    targum-internal#306, decided on 2026-09-19 after being decided the other way twice
+    (design.md §12, "The arrival is two questions…"). Every other level here is counted
+    off words the reader marked. This one is declared, and what keeps that small is this
+    function's one rule: **a measured rung outvotes it.** Once `here` exists — by reading,
+    or by the claim grid a minute after the first text — this answers None and the
+    declared rung is not consulted. Hebrew only: the arrival asks over the ulpan ladder.
+    """
+    if level.here is not None or not level.declared:
+        return None
+    if (level.language or "he").split("-")[0].lower() != "he":
+        return None
+    name = level.declared.replace("-", " ")
+    for rung in ULPAN:
+        if rung.name == name:
+            return rung
+    return None
 
 
 def snapshot(
@@ -274,6 +298,7 @@ def snapshot(
         ladder=ladder.title if ladder else "",
         common=among,
         address=store.address(person_id) if hasattr(store, "address") else "",
+        declared=store.declared(person_id) if hasattr(store, "declared") else "",
     )
 
 
@@ -334,6 +359,16 @@ def _ladder_sentence(level: Level, ladder: Ladder | None) -> str:
             else "Weighted by how common each word is, their known words have not yet "
             "reached the first rung of the ulpan ladder"
         )
+        said_rung = seed(level)
+        if said_rung is not None:
+            # Nothing is measured yet, so what they said on arrival stands in. It is
+            # for grading what is written for them and for nothing else.
+            return (
+                f"{said}, so there is no measured rung yet. When they arrived they said "
+                f"they were at about the '{said_rung.name}' rung (about {said_rung.cefr} on "
+                "the CEFR): grade anything you write for them in Hebrew to that until their "
+                "own marked words say otherwise, and never quote it back to them. "
+            )
         if level.next:
             said += f"; the next rung, '{level.next.name}', wants about {level.next.at:,} words"
         return f"{said}. Use the rung to grade anything you write for them in Hebrew. "

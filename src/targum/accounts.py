@@ -122,10 +122,15 @@ SESSION_DAYS = 90
 #    back office with the day it was read (2026-09-18). A new table, so `CREATE TABLE IF
 #    NOT EXISTS` is the whole of it.
 #
+# 23: person.declared — the ulpan rung a reader said they were at, on arrival
+#    (targum-internal#306, reopened and decided for on 2026-09-19). Version 21 says a
+#    level is deliberately not stored; this is the decision it was waiting for. A seed,
+#    read only while nothing about the reader has been measured — see `level.seed`.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 22
+SCHEMA_VERSION = 23
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -263,6 +268,9 @@ MIGRATIONS: tuple[str, ...] = (
     "UPDATE person SET interest = 'everyday' WHERE interest = 'spoken'",
     "UPDATE person SET interest = 'judaism' WHERE interest = 'portion'",
     "UPDATE person SET interest = '' WHERE interest = 'video'",
+    # The rung a reader named on arrival. Empty for everybody who was never asked, who
+    # skipped the question, or who arrived while it was not being asked.
+    "ALTER TABLE person ADD COLUMN declared TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -1021,7 +1029,8 @@ class Store:
         they", which two pages need.
         """
         row = self.db.execute(
-            "SELECT email, name, picture, made, address, interest FROM person WHERE id = ?",
+            "SELECT email, name, picture, made, address, interest, declared "
+            "FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
         if row is None:
@@ -1036,6 +1045,9 @@ class Store:
             # A list since 2026-09-17, and sent as one: a page that has to split a
             # string on a comma is a page that will one day forget to.
             "interest": list(self.interests_of(str(row["interest"] or ""))),
+            # Handed back so a second browser does not ask again. It is the reader's own
+            # answer going back to the reader's own page; no page prints it.
+            "declared": self.declared_of(str(row["declared"] or "")),
         }
 
     #: What a reader can say they are interested in, asked when they arrive
@@ -1131,6 +1143,47 @@ class Store:
         with self.write() as db:
             db.execute("UPDATE person SET interest = ? WHERE id = ?", (",".join(kept), person.id))
         return kept
+
+    #: The rungs a reader can say they are on, aleph to vav: `level.ULPAN`'s, by the ids
+    #: the arrival uses (targum-internal#306, 2026-09-19).
+    DECLARED = (
+        "aleph",
+        "aleph-plus",
+        "bet",
+        "bet-plus",
+        "gimel",
+        "dalet",
+        "hey",
+        "vav",
+    )
+
+    def declared(self, person_id: int | None) -> str:
+        """The rung they named on arrival, or "" where they named none."""
+        if person_id is None:
+            return ""
+        row = self.db.execute(
+            "SELECT declared FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return self.declared_of(str(row["declared"] or "")) if row is not None else ""
+
+    @classmethod
+    def declared_of(cls, stored: str) -> str:
+        """The stored column read back, dropping a rung this targum does not know."""
+        said = str(stored or "").strip().lower()
+        return said if said in cls.DECLARED else ""
+
+    def set_declared(self, person: Person, rung: str) -> str:
+        """Keep the rung they named; "" takes it back, and anything else is refused.
+
+        Settable again, like the subjects: it is a seed and not a record, and a reader
+        who said bet and meant gimel loses nothing by saying so.
+        """
+        said = str(rung or "").strip().lower()
+        if said and said not in self.DECLARED:
+            raise ValueError("No such choice.")
+        with self.write() as db:
+            db.execute("UPDATE person SET declared = ? WHERE id = ?", (said, person.id))
+        return said
 
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.

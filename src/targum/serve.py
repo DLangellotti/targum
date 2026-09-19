@@ -5051,6 +5051,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._rename(payload)
         if route == "/account/interest":
             return self._interest(payload)
+        if route == "/account/level":
+            return self._declared(payload)
         if route == "/account/address":
             return self._address(payload)
         if route.startswith("/slips/"):
@@ -5967,6 +5969,20 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         self._json({"signedIn": True, "interest": list(kept)})
+
+    def _declared(self, payload: dict[str, Any]) -> None:
+        """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
+
+        Kept as a seed: `level.seed` reads it only while nothing about the reader has
+        been measured, and no page prints it back."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            kept = self.store.set_declared(person, str(payload.get("level") or ""))
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "declared": kept})
 
     def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
         """ "I know this" on a line that came back changed (2026-09-18).

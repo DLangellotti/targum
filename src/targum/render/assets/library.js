@@ -354,8 +354,29 @@
     // it is not a claim at all — so it sits in the middle rather than being hidden.
     if (!measured(row)) return "stretch";
     var band = level(row);
+    /* And where the reader said on arrival how much Hebrew they have, that moves what
+       "now" means until their own marked words can (targum-internal#306, 2026-09-19;
+       `charts.seed`). The ladder in thirds: a beginner reads the easy shelf now, as
+       before; from bet plus the middle shelf is within reach as well; from dalet all of
+       it is. Coarse on purpose — it is a seed, and `anyKnown` retires it. */
+    var reach = seedReach();
+    if (reach === 2) return "now";
     if (band === "easy") return "now";
-    return band === "mid" ? "stretch" : "hard";
+    if (band === "mid") return reach === 1 ? "now" : "stretch";
+    return reach === 1 ? "stretch" : "hard";
+  }
+
+  //: 0, 1 or 2: how far up the shelf the rung a reader named reaches. 0 where they named
+  //: none, or where something about them has been measured since.
+  var seeded = "";
+
+  function seedReach() {
+    var ladder = window.TargumCharts;
+    // Asked over the ulpan ladder, so it says nothing about another language's shelf.
+    if (!seeded || !ladder || !inHebrew) return 0;
+    var at = ladder.seedFraction(seeded);
+    if (at >= 5 / 7) return 2;
+    return at >= 3 / 7 ? 1 : 0;
   }
 
   /* How lately a text has to have arrived to be worth marking. A fortnight, which is
@@ -1463,7 +1484,9 @@
   }
 
   function defaultFit(everything, code) {
-    if (!anyKnown) return "";
+    // A stranger gets the whole shelf: a band would be a claim about somebody the page
+    // knows nothing of. A reader who said where they are is not a stranger.
+    if (!anyKnown && !seedReach()) return "";
     var bands = ["now", "stretch", ""];
     for (var i = 0; i < bands.length; i++) {
       var pretend = {};
@@ -2118,6 +2141,13 @@
         return typeof reader.known === "number" && reader.known > 0;
       });
     }
+    // The rung they named on arrival, while it is all the page has to go on. `charts.seed`
+    // answers "" once their marked words reach a rung of their own.
+    seeded = "";
+    if (!anyKnown && window.TargumCharts) {
+      var ledger = window.TargumCharts.collect(window.TargumCharts.meaningLanguage(lang.HOME))[lang.HOME];
+      seeded = window.TargumCharts.seed(ledger && ledger.words, lang.HOME);
+    }
     canDraw = !!data.covers;
     var opened = stored("targum:opened");
     readers.concat(shared).forEach(function (reader) {
@@ -2469,7 +2499,8 @@
       var ownHebrew = readers.some(function (reader) {
         return inLanguage(reader, chosen);
       });
-      if (!known && !ownHebrew) {
+      // Somebody who said they follow the news is not led to Scene 1 (#306, 2026-09-19).
+      if (!known && !ownHebrew && !seedReach()) {
         view.kind = "dialogue";
         leading = true;
       }
