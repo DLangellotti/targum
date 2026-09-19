@@ -157,6 +157,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- The reader's keys card lists two sets of keys it left out: with the recording's track in
+  focus, the arrows go back and on five seconds and Home and End go to its ends; with the
+  picture's Move or its size handle in focus, the arrows move or resize it, further with
+  Shift. Both only ever worked and were never said (targum-internal#341).
 - A deleted account's finished-section rows were not deleted with it: the purge named its
   tables by hand and `section` was never added to the list. A test now asks the database
   which tables name a person, instead of a list that can go stale.

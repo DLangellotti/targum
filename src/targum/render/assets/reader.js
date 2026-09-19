@@ -7675,7 +7675,7 @@ var targumReader = function () {
         // a mode that alters what reading does deserves more than that.
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you read.")
+            ? t("reader.mode.marking", "Marking words as you go.")
             : t("reader.mode.not-marking", "Not marking.")
         );
         return;
@@ -8279,7 +8279,7 @@ var targumReader = function () {
         save();
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you read.")
+            ? t("reader.mode.marking", "Marking words as you go.")
             : t("reader.mode.not-marking", "Not marking.")
         );
         return;
