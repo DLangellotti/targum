@@ -479,9 +479,15 @@ def test_the_library_is_one_list() -> None:
     page whose whole job is finding something."""
     library = PAGES["library"]
     assert 'id="shelves"' not in library, "no room switcher"
-    assert "Beit Midrash" not in library
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert "SHELVES" not in source and "drawShelves" not in source
+    # The name came back on 2026-09-19 (design.md §12, targum-internal#340) and the rooms
+    # did not: the Beit Midrash is a tab over the same list, which is the thing this test
+    # was always protecting. It draws with the list's own rows and cards, it has no
+    # address of its own for a text, and `test_library_js.py` holds it to every row being
+    # a row under All texts too.
+    assert "/beit-midrash/" not in library and "/beit-midrash/" not in source
+    assert source.count("function card(row)") == 1 and source.count("function draw(row") == 1
 
 
 def test_a_row_says_what_the_text_is() -> None:

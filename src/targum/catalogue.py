@@ -257,6 +257,34 @@ class Rendering:
         return named if named.isalpha() and named.islower() and len(named) <= 3 else "en"
 
 
+#: The doors of the Beit Midrash, in the order they stand (targum-internal#340,
+#: 2026-09-19). The library's third tab walks the texts `beit_midrash()` keeps as a tree,
+#: the way Sefaria's contents does, and these are its top level. A collection — or a text
+#: that is in none — says which door it stands behind in its `door` field; the catalogue
+#: file is where that is written, and a file that says nothing draws no tab.
+#:
+#: Seven and not Sefaria's dozen, because this is what the shelf has: there is no Talmud
+#: and no Midrash on it (the only free Hebrew Bavli is CC BY-SA and Aramaic), and a door
+#: with nothing behind it is a dead end (design.md §12, "a row of chips is drawn from the
+#: rows that exist"). A door is added here the day its first text is filed.
+DOORS: tuple[str, ...] = (
+    "tanakh",
+    "portions",
+    "targum",
+    "mishnah",
+    "halakhah",
+    "thought",
+    "liturgy",
+)
+
+
+def _door(raw: object) -> str:
+    """A door read back from the file, dropping one this targum does not know — forgiving
+    on the way out, as `interests_of` is, so a newer file does not break an older page."""
+    said = str(raw or "").strip().lower()
+    return said if said in DOORS else ""
+
+
 @dataclass(frozen=True)
 class Collection:
     """Several texts a reader meets as one thing.
@@ -290,6 +318,9 @@ class Collection:
     #: where the order is only the order somebody typed them in and the reader's sort is
     #: the better one.
     ordered: bool = False
+    #: Which door of the Beit Midrash it stands behind: one of `DOORS`, or "" for a
+    #: collection that is not in it (an author's shelf, the scenes).
+    door: str = ""
 
     def state(self) -> dict[str, object]:
         return {
@@ -299,6 +330,7 @@ class Collection:
             "blurb": self.blurb,
             "members": list(self.members),
             "ordered": self.ordered,
+            "door": self.door,
         }
 
 
@@ -388,6 +420,10 @@ class Entry:
     #: know" must never read as "just arrived".
     added: str = ""
 
+    #: Which door of the Beit Midrash a text stands behind when it is in no collection:
+    #: one of `DOORS`, or "". A member of a collection stands behind its collection's.
+    door: str = ""
+
     @property
     def sample(self) -> list[Line]:
         """The opening, both languages, for the public page.
@@ -449,6 +485,9 @@ class Entry:
             "tags": sorted(tag.value for tag in self.tags),
             # When it arrived, so the shelf can say what is new (targum-internal#315).
             "added": self.added,
+            # The door of the Beit Midrash a text in no collection stands behind
+            # (targum-internal#340). A member of a collection stands behind its door.
+            "door": self.door,
             # Not the model: the page has no use for it and it is not the browser's to
             # ask for. The server reads it back from here when a build starts.
             "translations": [
@@ -670,6 +709,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
         # A row written before the field existed has no date, and the shelf reads that as
         # "not known" rather than as "new" — see `Entry.added`.
         added=str(raw.get("added", "")),
+        door=_door(raw.get("door")),
     )
 
 
@@ -681,6 +721,7 @@ def _collection(raw: dict[str, Any]) -> Collection:
         blurb=str(raw.get("blurb", "")),
         members=tuple(str(member) for member in raw.get("members", [])),
         ordered=bool(raw.get("ordered", False)),
+        door=_door(raw.get("door")),
     )
 
 

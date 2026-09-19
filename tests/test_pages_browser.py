@@ -1595,6 +1595,78 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
     assert landed["heading"] == "From the conversation"
 
 
+@pytest.mark.parametrize("width", [390, 1280])
+def test_the_beit_midrash_opens_on_its_doors_and_two_presses_reach_ruth(
+    browser, width: int
+) -> None:
+    """targum-internal#340, in a browser because both of its bugs were only visible in one.
+
+    The first build hid the subject chips, the sorts and the Cards/List switch with the
+    `hidden` attribute, and each of them is `display: flex`, which beats it — so the doors
+    stood under three rows of controls with no list to act on. And a first visit opens
+    All texts on the Scenes, which carried into the tree left every door empty.
+    """
+    html = library_page(TOKEN)
+
+    def answer(route, request):
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        body: dict[str, object] = {}
+        if "/readers" in request.url:
+            body = {"readers": [], "shared": [], "trash": [], "covers": False, "catalogue": {}}
+        elif "/jobs" in request.url:
+            body = {"jobs": []}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.route("http://library.test/**", answer)
+    page.goto(f"http://library.test/library?k={TOKEN}#bm")
+    page.wait_for_selector(".door-card")
+    page.wait_for_timeout(300)
+    at_doors = page.evaluate(
+        """() => {
+          const shown = (id) => {
+            const el = document.getElementById(id);
+            return !!el && getComputedStyle(el).display !== 'none';
+          };
+          const tops = [...document.querySelectorAll('.door-card')]
+            .map((d) => Math.round(d.getBoundingClientRect().top));
+          return {
+            doors: [...document.querySelectorAll('.door-card')].map((d) => d.dataset.door),
+            controls: ['subject-chips', 'subject-label', 'said', 'sorts', 'shape', 'crumbs']
+              .filter(shown),
+            texts: document.querySelectorAll('#cards .card-item').length,
+            sameRow: tops.length > 1 && tops[0] === tops[1],
+            on: document.querySelector('#where [aria-selected="true"]').textContent,
+            sideways: document.documentElement.scrollWidth > window.innerWidth,
+          };
+        }"""
+    )
+    page.locator('.door-card[data-door="tanakh"]').click()
+    page.wait_for_selector("#cards .card-item")
+    inside = page.evaluate(
+        """() => ({
+          hash: location.hash,
+          crumbs: document.getElementById('crumbs').innerText,
+          titles: [...document.querySelectorAll('#cards .card-title')].map((t) => t.textContent),
+          sorts: getComputedStyle(document.getElementById('sorts')).display !== 'none',
+        })"""
+    )
+    page.locator("#crumbs button").click()
+    page.wait_for_selector(".door-card")
+    back = page.evaluate("() => location.hash")
+    context.close()
+
+    assert at_doors["on"] == "Beit Midrash" and at_doors["doors"] == ["tanakh", "targum"]
+    assert at_doors["controls"] == [], f"nothing that narrows a list there is not: {at_doors}"
+    assert at_doors["texts"] == 0 and at_doors["sameRow"] and not at_doors["sideways"], at_doors
+    assert inside["hash"] == "#bm/tanakh" and "Tanakh" in inside["crumbs"], inside
+    assert "רות" in inside["titles"], "the tab, then Tanakh, and Ruth is on the page"
+    assert inside["sorts"], "and inside a door the list has its sorts back"
+    assert back == "#bm"
+
+
 @pytest.mark.parametrize("width", [390, 1440])
 def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width: int) -> None:
     """2026-09-11: "'talk to targum' can be in the sticky CTA on every page that opens

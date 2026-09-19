@@ -32,6 +32,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   not move the rest, and it is kept in the browser only. The press is drawn only where
   there is another screenful, and says nothing about how much is behind it
   (targum-internal#336).
+- The Beit Midrash: a third tab on the Library, for Hebrew, that walks the Tanakh and the
+  Judaica as a tree the way Sefaria's contents does. It opens on its doors — Tanakh, the
+  Torah by portion, the Aramaic translations, Mishnah, Halakhah, Thought and ethics, Liturgy — each saying
+  how many texts stand behind it, and behind a door every shelf stands open under its own
+  heading, so the tab, Tanakh and Ruth is two presses. It is not the second room the old
+  Beit Midrash shelf was: every text in it is also under All texts at the same address,
+  drawn by the same rows and cards. The level band does not apply there, the search looks
+  behind every door at once, and the tree has an address (`#bm/tanakh`). The Targums have
+  a door and stay Aramaic: they open as Aramaic readers and their words go to the Aramaic
+  list. Which door a collection stands behind is a field in the catalogue file
+  (`Collection.door`), and a file that says nothing draws no tab (design.md §12,
+  targum-internal#340).
 - A Russian page can show every word in one case. A "cases" choice in the bar lists the
   six cases with how many words of each the page has ("genitive · 12"). Choosing one gives
   those words the highlight wash and a dotted underline, `c` steps to the next case, and
