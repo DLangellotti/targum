@@ -219,7 +219,7 @@
   "reader.list.stats.one": "{share}% known here · {n} word to mark",
   "reader.list.stats.other": "{share}% known here · {n} words to mark",
   "reader.mode.interlinear": "Interlinear.",
-  "reader.mode.marking": "Marking words as you read.",
+  "reader.mode.marking": "Marking words as you go.",
   "reader.mode.not-marking": "Not marking.",
   "reader.mode.pages": "Pages.",
   "reader.mode.parallel": "Parallel.",
@@ -268,7 +268,7 @@
   "reader.page.larger-type": "Larger type",
   "reader.page.level": "Level",
   "reader.page.line-spacing": "Line spacing",
-  "reader.page.mark-words-as-you-read": "mark words as you read",
+  "reader.page.mark-words-as-you-read": "mark words as you go",
   "reader.page.minimise-and-show-the-transcript-v": "Minimise and show the transcript (v)",
   "reader.page.more": "More",
   "reader.page.move": "Move",
@@ -1726,5 +1726,7 @@
   "progress.spent.words.one": "word read",
   "progress.spent.words.other": "words read",
   "progress.spent.nothing": "Nothing here yet.",
-  "reader.page.credits": "Credits"
+  "reader.page.credits": "Credits",
+  "reader.page.keys-on-the-track": "with the recording's track in focus, back and on five seconds; Home and End for its two ends",
+  "reader.page.keys-on-the-picture": "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps"
 }

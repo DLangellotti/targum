@@ -203,7 +203,7 @@
   "reader.list.stats.few": "{share}% известно здесь · отметить {n} слова",
   "reader.list.stats.many": "{share}% известно здесь · отметить {n} слов",
   "reader.mode.interlinear": "Подстрочник.",
-  "reader.mode.marking": "Отмечаем слова по ходу чтения.",
+  "reader.mode.marking": "Отмечаем слова по ходу дела.",
   "reader.mode.not-marking": "Не отмечаем.",
   "reader.mode.pages": "Страницы.",
   "reader.mode.parallel": "Параллельно.",
@@ -252,7 +252,7 @@
   "reader.page.larger-type": "Крупнее шрифт",
   "reader.page.level": "Уровень",
   "reader.page.line-spacing": "Интервал",
-  "reader.page.mark-words-as-you-read": "отмечать слова по ходу чтения",
+  "reader.page.mark-words-as-you-read": "отмечать слова по ходу дела",
   "reader.page.minimise-and-show-the-transcript-v": "Свернуть и показать расшифровку (v)",
   "reader.page.more": "Ещё",
   "reader.page.move": "Сдвинуть",
@@ -1781,5 +1781,7 @@
   "progress.spent.words.many": "слов прочитано",
   "progress.spent.words.other": "слова прочитано",
   "progress.spent.nothing": "Здесь пока ничего нет.",
-  "reader.page.credits": "Источники"
+  "reader.page.credits": "Источники",
+  "reader.page.keys-on-the-track": "когда в фокусе дорожка записи — на пять секунд назад и вперёд; Home и End — к началу и концу",
+  "reader.page.keys-on-the-picture": "когда в фокусе «Переместить» или уголок размера — двигать картинку или менять размер; с Shift — крупнее шаг"
 }

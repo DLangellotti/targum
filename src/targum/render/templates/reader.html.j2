@@ -827,12 +827,17 @@
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>
     <dt>{{ t("reader.page.hard", "hard") }}</dt><dd>{{ t("reader.page.the-level-on-a-word-s-card", "the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you") }}</dd>
     <dt>s</dt><dd>{{ t("reader.page.your-saved-words", "your saved words") }}</dd>
-    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you read") }}</dd>
+    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you go") }}</dd>
     <dt>b</dt><dd>{{ t("reader.page.pages-or-one-long-scroll", "pages, or one long scroll") }}</dd>
     <dt>f</dt><dd>{{ t("reader.page.full-screen-and-out-of-it", "full screen, and out of it") }}</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
     <dt>&lt; &gt;</dt><dd>{{ t("reader.page.slower-faster", "slower, faster") }}</dd>{% endif %}
-    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>{% endif %}
+    {#- Real keys the card never listed (targum-internal#341, 2026-09-20): the recording's
+        track is a slider and answers like one, and the picture's grip and its size handle
+        move by the arrows. They work only with the thing itself in focus, and say so. -#}
+    {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back and on five seconds; Home and End for its two ends") }}</dd>{% endif %}
+    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>
+    <dt>Tab ↑ ↓ ← →</dt><dd>{{ t("reader.page.keys-on-the-picture", "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps") }}</dd>{% endif %}
     <dt>PageDown</dt><dd>{{ t("reader.page.next-page-pageup-back-on-the-last", "next page; PageUp back. On the last page, the next chapter") }}</dd>
     {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
