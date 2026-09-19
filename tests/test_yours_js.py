@@ -273,6 +273,57 @@ def test_the_fold_offers_the_words_flagged_longest_ago() -> None:
     assert [row["term"] for row in drawn["workOn"]["rows"]] == ["דרך", "עיר", "ספר"]
 
 
+def thirty() -> dict[str, str]:
+    """Thirty words being learned, stamped in order: w01 is the oldest. The fold on Your
+    Words holds twenty."""
+    return vocabulary(*[word(f"w{n:02d}", f"m{n}", status=2, at=n * 10) for n in range(1, 31)])
+
+
+def terms(drawn: dict[str, Any]) -> list[str]:
+    return [row["term"] for row in drawn["workOn"]["rows"]]
+
+
+def test_the_fold_turns_over_between_visits() -> None:
+    """targum-internal#336: "show different words each time I come to the page".
+
+    Oldest first and a cap meant the same rows on every visit until one was marked known,
+    because `at` is written once. The order stays — it is the only honest one — and what
+    moves is where in it the fold opens: each visit starts where the last ended.
+    """
+    first = draw(thirty())
+    assert terms(first) == [f"w{n:02d}" for n in range(1, 21)], "a first visit opens at the oldest"
+    assert first["workOn"]["more"], "and there is another screenful to turn to"
+
+    second = draw({**thirty(), "targum:work-at:he": first["workOn"]["left"]})
+    assert terms(second)[0] == "w21", "the next visit starts where the last one ended"
+    # Thirty words and a screen of twenty: it comes round to the oldest, in order.
+    assert terms(second) == [f"w{n:02d}" for n in [*range(21, 31), *range(1, 11)]]
+
+
+def test_the_press_turns_to_the_next_screenful() -> None:
+    turned = draw(thirty(), do=[{"type": "more"}])
+    assert terms(turned)[0] == "w21"
+    twice = draw(thirty(), do=[{"type": "more"}, {"type": "more"}])
+    assert terms(twice)[0] == "w11", "and round again"
+
+
+def test_marking_a_word_does_not_turn_the_page_under_the_hand() -> None:
+    """The place is a row, not a position. A word that leaves the list takes its own row
+    and nothing else moves: the fold still opens on the row it stood on."""
+    after = draw(thirty(), do=[{"type": "work", "word": "w05", "key": 0}])
+    shown = terms(after)
+    assert shown[0] == "w01" and "w05" not in shown
+    assert shown[-1] == "w21", "the screenful is made up from the far end, not shuffled"
+
+
+def test_a_fold_that_fits_has_nothing_to_turn_to() -> None:
+    """No press with no job (design.md §13), and nothing that says how much is behind it:
+    the press says what it does and "12 more" is how a queue starts chasing."""
+    small = draw(vocabulary(word("ספר", "book", status=2, at=300)))
+    assert not small["workOn"]["more"]
+    assert small["workOn"]["left"] is None, "and it keeps no place it does not need"
+
+
 def test_the_fold_holds_only_words_being_learned() -> None:
     """Known words need no more work and an ignored one is not a word being learned."""
     drawn = draw(
