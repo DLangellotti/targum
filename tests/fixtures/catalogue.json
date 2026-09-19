@@ -441,7 +441,15 @@
       "tags": [
         "tanakh"
       ],
-      "translations": [],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:onkelos-genesis-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
       "kind": "prose",
       "register": "",
       "difficulty": 22,
@@ -459,7 +467,15 @@
       "tags": [
         "tanakh"
       ],
-      "translations": [],
+      "translations": [
+        {
+          "name": "A test rendering",
+          "source": "test:onkelos-exodus-en",
+          "note": "For the tests.",
+          "publisher": "Test Press",
+          "licence": "CC-BY"
+        }
+      ],
       "kind": "prose",
       "register": "",
       "difficulty": 22,
