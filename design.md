@@ -330,6 +330,59 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The arrival asks which language first — 2026-09-20
+
+"How in on-boarding does the russian user switch to russian?" David asked, and the honest
+answer was that they did not. An account's `reads` decides two things — the language of
+the line under each Hebrew one, and the language the desk speaks (§13) — and a new account
+was English in both. The ways out were the profile page, a question the conversation asks
+once and only of a browser that already says Russian, and the operator marking an invited
+address beforehand. The front door had a switcher, and what was pressed there was dropped
+at the next link: the sign-in page went back to the browser's language, and the phone of
+an olah who reads Russian is as often set to Hebrew or English.
+
+So the arrival is **three questions, a screen each**, and the first is *What is your
+native language?* — David's wording, the same day, over "Which language do you read?": it
+is the question a person answers without thinking, where the other asks them to work out
+what targum means by reading. What it sets is unchanged — `reads`, so the line under the
+Hebrew and the desk. A reader whose native language is neither row has Skip, and English,
+which is what they had before. This amends "The arrival is two questions" below in its count and in nothing
+else: one question a screen, where it is said in words, a Skip on each, a Back on all but
+the first, and the last answer opens the text.
+
+- **First, because it is the one that cannot wait.** A reader who cannot read "What are
+  you interested in?" cannot be asked it.
+- **Asked in every language it offers at once.** The question a line a language, each row
+  in its own name — English, Русский — and each marked as what it is. It is the one screen
+  that may not assume the page's language, so its words are in `learn.js` and not in the
+  catalogue. No flags: §10 stands, and the language menu's exception is the menu's.
+- **Pressing a row is the answer**, as on the ladder. The account is told the way the
+  profile page tells it, and the page is loaded again where the answer changed the
+  language it should be in, because the server draws a desk page in one language. It
+  comes back on "2 of 3", with the language one Back away.
+- **Asked of everybody who has never said, and of nobody who has.** Not only of a browser
+  that says Russian: that is the wrong signal for exactly the reader this is for. An
+  account with `reading` rows has said — its own, or the operator's mark; so has a page
+  that arrived in another language, a browser that holds a choice, and a reader the
+  conversation asked. `first.js` and the arrival keep the same two keys, so neither asks
+  after the other. `/account/me` says `readsSaid`, because `reads` answers English for an
+  account that has said nothing and the two have to be told apart.
+- **A press on the front door is a press.** The switcher's choice rides the sign-in link,
+  the sign-in page and its email are in it, `signin.js` keeps it as what the browser reads
+  into, and Learn hands it to the new account — once, at the arrival, which is the one
+  moment it is certainly a new reader's. Only what was pressed is carried; a language the
+  browser merely suggested is used and not kept.
+- **The first text is one with their language under it, where there is one.** The shelf is
+  English throughout and Russian in places (beta), so the arrival looks across all three
+  subjects for a text whose `targets` has the reader's language before it makes its
+  ordinary pick. Where none has it, the ordinary pick, in the language it exists in: a
+  Russian desk over English lines, which is the true state of the shelf and the argument
+  for translating more of it. Nothing is translated on the way in — no spend on a press
+  that did not ask for one.
+
+`test_learn_arrival_language.py` holds the rules; `test_pages_browser.py`'s arrival answers
+the language first, and its walk into a text is six presses where it was five.
+
 ### A reel at the size a reel is — 2026-09-20
 
 A design review of the arrival, the vertical film and Learn, at 320 to 1920 wide. Most of
