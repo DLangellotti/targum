@@ -5464,3 +5464,58 @@ def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
     assert russian[0]["because"] == "Следующий по порядку." and russian[0]["scene"] == "Сцена 2"
     assert russian[1]["because"] == "Легче этого."
     assert offers_in(offers, "en") == offers
+
+
+def test_a_verb_ships_the_other_verbs_built_on_its_root(tmp_path: Path) -> None:
+    """targum-internal#301. The front door says "every verb comes with its root and
+    binyan, beside the other verbs built from it"; the root and binyan shipped and the
+    family did not. Worked out at build from the same CC0 table the conjugations come
+    from, so the page carries it and fetches nothing."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(
+                    start=0,
+                    end=4,
+                    surface="נפגש",
+                    lemma="נִפְגַּשׁ",
+                    band=3,
+                    pos="VERB",
+                    binyan="נפעל",
+                    root="פגש",
+                ),
+                Token(start=5, end=9, surface="בבית", lemma="בית", band=1, pos="NOUN"),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    extensions = data["extensions"]
+
+    # One index per lemma, parallel to the rest: the noun has none.
+    assert extensions["siblings"] == [1, 0]
+    family = dict(tuple(row) for row in extensions["families"][1])
+    assert family["פָּגַשׁ"] == "פעל" and family["הִפְגִּישׁ"] == "הפעיל"
+    assert "נִפְגַּשׁ" not in family, "a verb is not its own sibling"
+    # The empty row at 0 is kept, because `siblings` indexes into this and 0 means none.
+    assert extensions["families"][0] == []

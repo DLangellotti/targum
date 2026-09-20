@@ -1493,6 +1493,35 @@ def legal_page(which: str, address: str = "") -> str:
     )
 
 
+def _family_at(
+    token: object,
+    families: list[list[list[str]]],
+    family_at: dict[str, int],
+) -> int:
+    """Where this verb's family sits in the page's own list, or 0 for none.
+
+    Keyed on the lemma and its binyan together, which is what the family is worked out
+    from: two verbs spelled alike in different binyanim have different families, and
+    `כתב` is both.
+    """
+    from ..annotate.paradigms import family_of
+
+    lemma = str(getattr(token, "lemma", "") or "")
+    binyan = str(getattr(token, "binyan", "") or "")
+    if not lemma or not binyan or getattr(token, "pos", "") != "VERB":
+        return 0
+    key = f"{lemma}\u0000{binyan}"
+    if key in family_at:
+        return family_at[key]
+    kin = family_of(lemma, binyan)
+    if not kin:
+        family_at[key] = 0
+        return 0
+    families.append([[written, name] for written, name in kin])
+    family_at[key] = len(families) - 1
+    return family_at[key]
+
+
 def _paradigm_at(
     token: object,
     tables: list[list[list[object]]],
@@ -2523,6 +2552,11 @@ def render(
         # word that is not a Hebrew verb, and for the verbs whose root could not be had
         # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
+        # Named `kin` and not `siblings`: on this page a sibling is another level of the
+        # same weekly issue, and the word is taken.
+        kin: list[int] = []
+        families: list[list[list[str]]] = [[]]
+        family_at: dict[str, int] = {"": 0}
         binyanim: list[str] = []
         # The conjugations of each verb on this page (targum-internal#300). A paradigm is
         # thirty-odd forms, so it cannot ride as one string per lemma the way a root
@@ -2570,6 +2604,11 @@ def render(
                         heads.append(token.head)
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
+                        # The other verbs built on this one's root, each with its binyan
+                        # (targum-internal#301). Worked out from the same CC0 table the
+                        # conjugations come from, so nothing is fetched and nothing is
+                        # bought; empty for every word that is not a verb with a root.
+                        kin.append(_family_at(token, families, family_at))
                         registers.append(token.word_register or "")
                         paradigms.append(_paradigm_at(token, tables, table_at, feature_at))
                     # Offsets arrive measured against the segment as ingested, which may
@@ -2643,6 +2682,11 @@ def render(
             for name, table in (
                 ("roots", roots),
                 ("binyanim", binyanim),
+                ("siblings", kin),
+                # The families themselves, and the empty row at 0 that `siblings` means
+                # "none" by — the same shape `conjugations` uses, and for the same
+                # reason: one verb's family is drawn for every occurrence of it.
+                ("families", families),
                 ("paradigms", paradigms),
                 # The tables themselves, and the feature names they point into. Both
                 # left out entirely where no word on the page is a verb with a paradigm,

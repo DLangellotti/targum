@@ -239,6 +239,11 @@ var targumReader = function () {
   var paradigmAt = extensions.paradigms || [];
   var conjugationTables = extensions.conjugations || [];
   var conjugationFeatures = extensions.features || [];
+  // The other verbs built on this one's root (targum-internal#301): an index per lemma
+  // into the families, and the families themselves. Both absent where no verb on the
+  // page has a root the table could work out.
+  var familyAt = extensions.siblings || [];
+  var families = extensions.families || [];
 
   // The letters of a pointed word, for comparing one spelling with another. Hebrew
   // points are combining marks; U+05BD..U+05C7 are the ones that are not caught by the
@@ -4228,6 +4233,60 @@ var targumReader = function () {
      handed thirty-three forms they did not ask for. */
   var CONJ_TENSES = ["past", "present", "future", "imperative", "infinitive"];
 
+  /* The other verbs built on this word's root, each with its binyan and whatever this
+     page already knows it means (targum-internal#301).
+
+     The front door says "every verb comes with its root and binyan, beside the other
+     verbs built from it", and the root and binyan shipped while the family did not.
+     It is worked out from the same CC0 table the conjugations come from, so it is
+     owned outright: nothing is fetched and nothing is bought to draw it.
+
+     Only where the root was had honestly — the card already hides a root it could not
+     work out, and a guessed family is worse than none. */
+  function siblingLine(index) {
+    var kin = families[familyAt[index] || 0];
+    if (!kin || !kin.length) return null;
+
+    var box = document.createElement("p");
+    box.className = "card-kin";
+    var head = document.createElement("span");
+    head.className = "card-kin-head";
+    head.textContent = t("reader.card.same-root", "From the same root");
+    box.appendChild(head);
+
+    kin.forEach(function (one) {
+      var row = document.createElement("span");
+      row.className = "card-kin-verb";
+      var written = document.createElement("bdi");
+      written.setAttribute("lang", language);
+      written.className = "card-kin-word";
+      written.textContent = one[0];
+      row.appendChild(written);
+      var pattern = document.createElement("bdi");
+      pattern.setAttribute("lang", language);
+      pattern.className = "card-kin-binyan";
+      pattern.textContent = POINTED_BINYANIM[one[1]] || one[1];
+      row.appendChild(pattern);
+      // What it means, where this reader already has it: their own ledger first, then
+      // whatever the page was built with. Nothing is asked of the network here — a
+      // family is up to five words, and five lookups to draw one card is a bill the
+      // reader did not ask for. A word with no meaning to hand is still worth showing:
+      // that the verb exists, and which binyan it is, is most of what this line is for.
+      // Asked of the pointed lemma the table carries and of its bare spelling: a reader
+      // who kept this verb from another text kept it under whatever that text's
+      // annotator called it, which is rarely pointed the same way.
+      var meaning = meaningOf(one[0]) || meaningOf(bareOf(one[0])) || "";
+      if (meaning) {
+        var said = document.createElement("span");
+        said.className = "card-kin-meaning";
+        said.textContent = meaning;
+        row.appendChild(said);
+      }
+      box.appendChild(row);
+    });
+    return box;
+  }
+
   function conjugations(index, surface) {
     var rows = conjugationTables[paradigmAt[index] || 0];
     if (!rows || !rows.length) return null;
@@ -4571,6 +4630,8 @@ var targumReader = function () {
       // wants more than a table.
       var drawn = conjugations(index, word.textContent);
       if (drawn) card.appendChild(drawn);
+      var kin = siblingLine(index);
+      if (kin) card.appendChild(kin);
     }
 
     // The part of speech's own line. A name and a number say which they are — that is

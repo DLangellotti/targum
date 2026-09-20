@@ -4060,6 +4060,15 @@ html:fullscreen { background: var(--paper); }
 
 /* Folded shut. A learner who wants the table opens it; somebody reading a sentence is
    not handed thirty-three forms they did not ask for. */
+/* The other verbs built on this one's root (targum-internal#301). A reading and not a
+   control: nothing here is pressed, so nothing is ink and nothing claims the 44px reach
+   §8 asks of a control. One verb a line, its binyan after it, its meaning after that. */
+.card-kin { display: grid; gap: 0.15rem; margin: 0.6rem 0 0; }
+.card-kin-head { font-size: 0.6875rem; color: var(--ink-soft); }
+.card-kin-verb { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: baseline; }
+.card-kin-word { font-family: var(--reading-hebrew); font-size: 0.9375rem; color: var(--ink); }
+.card-kin-binyan { font-size: 0.6875rem; color: var(--ink-soft); }
+.card-kin-meaning { font-size: 0.8125rem; color: var(--ink-soft); }
 .card-conj { margin-block-start: 0.6rem; }
 .card-conj > summary {
   cursor: pointer;

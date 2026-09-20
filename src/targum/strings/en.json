@@ -701,6 +701,7 @@
   "add.instead.other": "{title} is already in the library, with {n} translations a person published. It'll read better than ours.",
   "add.job.voice-later": "Audio can be added in the reader.",
   "serve.give-a-link": "Give a link.",
+  "reader.card.same-root": "From the same root",
   "add.page.record": "Record",
   "add.recorded": "Recorded just now · {length}",
   "add.already": "{title} is already in the library.",
