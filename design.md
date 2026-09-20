@@ -364,6 +364,26 @@ at a desk as it already was on a phone — it was the size of the hint under it 
 the text "somebody who ignores it still has" under the fold at 1440x900. Not now, on the
 words-you-know panel, stands at the panel's head rather than under its fifty rows.
 
+Three more the same day, each asked for by David after the review named it.
+
+- **The build measures a film, so the page need not wait for it.** The shape came from
+  the film's own metadata (2026-09-17), which is right and late: until it landed a reel
+  stood in the stylesheet's 16/9 and then jumped upright. `tools.frame` reads the cut's
+  size, `ManifestPart.frame` keeps it, and the page carries it as `tall` in the panel's
+  class and `data-film` beside it. An attribute and not a `style`, because a served
+  page's policy allows no inline style. A manifest from before today has no measure, so
+  the render asks the cut on the disk, and a reader rendered again is put right without
+  being imported again. The film still has the last word when it arrives.
+- **The second question has a Back.** "One question a screen" stands, and so do Skip
+  and the five presses. But the arrival went one way only, and a reader who pressed
+  Next a subject early could not see what they had chosen. Back is a ghost beside Skip
+  on the second screen and nowhere else; the subjects are as they were left, and Next
+  keeps them again if they change.
+- **Mark known, and None.** The two presses under the words-you-know list said "Mark
+  checked as known" and "None of these", which §6 already called long ("a button or a
+  link is one or two words"). On a phone they would not share a row beside the pill, so
+  the strip stood two rows tall over a list with three rows showing at 320x568.
+
 ### The arrival is two questions, a screen each, and the second one is kept — 2026-09-19
 
 The arrival is the one thing a new reader is asked, and until today nothing about it was
