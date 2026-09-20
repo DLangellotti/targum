@@ -161,3 +161,6 @@
 {"at": "2026-09-15", "corpus": "ntrex-128", "metric": "judge_ok_share", "n": 200, "note": "known=300 pairs=200 seed=1 exemplars=off unjudged=0 judge=claude-sonnet-5", "score": 0.09, "stage": "recast", "system": "chat", "version": "claude-opus-5"}
 {"at": "2026-09-15", "corpus": "ntrex-128", "metric": "lemma_overlap", "n": 200, "note": "known=300 pairs=200 seed=1 exemplars=off unjudged=0 judge=claude-sonnet-5", "score": 0.3475, "stage": "recast", "system": "chat", "version": "claude-opus-5"}
 {"at": "2026-09-15", "corpus": "ntrex-128", "metric": "unpaired", "n": 200, "note": "known=300 pairs=200 seed=1 exemplars=off unjudged=0 judge=claude-sonnet-5", "score": 1.0, "stage": "recast", "system": "chat", "version": "claude-opus-5"}
+{"at": "2026-09-21", "corpus": "heq", "metric": "span_found_share", "n": 200, "note": "split=test questions=200 seed=1 effort=low", "score": 0.695, "stage": "ask", "system": "chat", "version": "claude-opus-5"}
+{"at": "2026-09-21", "corpus": "heq", "metric": "token_f1", "n": 200, "note": "split=test questions=200 seed=1 effort=low", "score": 0.1982, "stage": "ask", "system": "chat", "version": "claude-opus-5"}
+{"at": "2026-09-21", "corpus": "heq", "metric": "unanswered", "n": 200, "note": "split=test questions=200 seed=1 effort=low", "score": 0.0, "stage": "ask", "system": "chat", "version": "claude-opus-5"}
