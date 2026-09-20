@@ -1299,9 +1299,13 @@ spend, claimed at the estimate and settled to the clip; the section is read alou
 at a time so every line has its clock; and the page is written again with the audio in
 it, the way an imported recording's is, so it still fetches nothing. Ink for the door,
 because it asks the reader to act (§9); the cost in minutes, never money (§6). The door
-is drawn only while the voice has a price, and it does not yet: an unpriced voice is not
-for sale, which is the decision of 2026-09-10 and the reason the door is not on any page
-today.
+is drawn only while the voice has a price — an unpriced voice is not for sale, which is
+the decision of 2026-09-10, and `speech.priced()` is that condition in code.
+
+*It has had a price since 2026-09-13 (`speech.PRICES`), so the door is on the page: a
+Hebrew section with no recording of its own offers it, with the minutes beside it. This
+paragraph said the door "is not on any page today" until 2026-09-20, three weeks after
+it was.*
 
 ### The things most readers ask are buttons — 2026-09-10
 
