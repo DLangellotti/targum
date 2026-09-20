@@ -1311,6 +1311,19 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   gap: 0.4rem;
   max-inline-size: 30rem;
 }
+/* At a desk the ladder is two columns of four, read down and then across — the order
+   the keyboard walks it in. Eight rows in one column is 24rem of question, and the
+   arrival's whole argument at this width is that "somebody who ignores it still has a
+   text open": at 1440x900 the text was under the fold. */
+@media (min-width: 48rem) {
+  .arrival-levels {
+    grid-template-rows: repeat(4, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    column-gap: 0.6rem;
+    max-inline-size: 46rem;
+  }
+}
 .arrival-rung {
   font: inherit;
   font-family: var(--chrome);
