@@ -52,12 +52,12 @@ def _reader(path: Path) -> Any:
             try:
                 reader.decrypt("")
             except Exception as locked:
-                raise TargumError(PROTECTED) from locked
+                raise TargumError(PROTECTED, key="pdf.protected") from locked
         return reader
     except TargumError:
         raise
     except Exception as broken:
-        raise TargumError("We couldn't open that PDF.") from broken
+        raise TargumError("We couldn't open that PDF.", key="pdf.unopenable") from broken
 
 
 def page_count(path: Path) -> int:
@@ -79,7 +79,10 @@ def page_lines(path: Path) -> list[list[str]]:
     reader = _reader(path)
     if len(reader.pages) > MAX_PAGES:
         raise TargumError(
-            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a time."
+            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a time.",
+            key="pdf.too-many-pages",
+            pages=len(reader.pages),
+            most=MAX_PAGES,
         )
     pages: list[list[str]] = []
     for page in reader.pages:
@@ -151,7 +154,7 @@ class PdfIngester:
         path = Path(source)
         pages = page_lines(path)
         if looks_scanned(pages):
-            raise UnsupportedSource(SCAN)
+            raise UnsupportedSource(SCAN, key="pdf.is-a-scan")
         document = document_from_pages(
             str(path),
             pages,
@@ -160,7 +163,7 @@ class PdfIngester:
             title=_title(path, pages),
         )
         if not document.blocks:
-            raise UnsupportedSource(SCAN)
+            raise UnsupportedSource(SCAN, key="pdf.is-a-scan")
         return document
 
 

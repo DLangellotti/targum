@@ -4,6 +4,7 @@ name never reaches a reader (targum-internal#184)."""
 from __future__ import annotations
 
 import json
+import re
 import string
 from pathlib import Path
 
@@ -369,3 +370,42 @@ def test_a_translation_whose_blanks_do_not_match_falls_back(
         assert refused_in("ru", refusal) == "We couldn't find x.com."
     finally:
         strings.catalogue.cache_clear()
+
+
+def test_every_refusal_that_names_a_key_has_one_in_the_catalogue() -> None:
+    """A `TargumError` with a key nothing answers is a refusal that silently stays
+    English — which is the bug this whole mechanism exists to fix, reintroduced
+    (targum-internal#348).
+
+    Asked of the tree rather than of a list, so the 104 refusals still to be converted
+    are covered the day each one is.
+    """
+    english = strings.catalogue("en")
+    here = Path(strings.__file__).resolve().parent.parent
+    missing = []
+    for path in sorted(here.rglob("*.py")):
+        for key in re.findall(r'key="([a-z0-9.\-]+)"', path.read_text(encoding="utf-8")):
+            if key not in english:
+                missing.append(f"{path.relative_to(here)}: {key}")
+    assert not missing, "keys with nothing to say them:\n  " + "\n  ".join(missing)
+
+
+def test_a_refusals_hint_is_said_where_it_has_one() -> None:
+    """The hint rides at `<key>.hint` by convention. A key whose English carries a hint
+    and whose catalogue does not would say the sentence and drop the way out of it."""
+    english = strings.catalogue("en")
+    here = Path(strings.__file__).resolve().parent.parent
+    for path in sorted(here.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"TargumError\(\s*\n?\s*(.{0,400}?)\)\s*(?:from|\n)", text, re.S):
+            body = match.group(1)
+            key = re.search(r'key="([a-z0-9.\-]+)"', body)
+            if not key:
+                continue
+            # Two strings before the key means a message and a hint.
+            strings_in = re.findall(r'"[^"]*"|f"[^"]*"', body.split("key=")[0])
+            if len(strings_in) >= 2:
+                assert f"{key.group(1)}.hint" in english, (
+                    f"{path.name}: {key.group(1)} has a hint and the catalogue has no "
+                    f"{key.group(1)}.hint"
+                )
