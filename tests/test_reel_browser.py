@@ -130,3 +130,48 @@ def test_watching_keeps_a_real_film_in_the_window(browser, tmp_path, film) -> No
             assert seen["left"] >= -1 and seen["top"] >= -1, (film, size, name, got)
             assert seen["right"] <= got["window"]["right"] + 1, (film, size, name, got)
             assert seen["bottom"] <= got["window"]["bottom"] + 1, (film, size, name, got)
+
+
+BESIDE = """
+() => {
+  const rect = (s) => {
+    const r = document.querySelector(s).getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  };
+  const keys = document.querySelector('#video .video-keys');
+  return {
+    picture: rect('#video .video-el'),
+    tap: rect('#video .video-tap'),
+    transport: rect('#video .player'),
+    line: rect('#video .video-titles'),
+    keys: rect('#video .video-keys'),
+    keysGround: getComputedStyle(keys).backgroundColor,
+  };
+}
+"""
+
+
+@pytest.mark.parametrize("size", [(667, 375), (844, 390), (1024, 768), (1440, 900)])
+def test_an_upright_film_in_a_wide_window(browser, tmp_path, size) -> None:  # noqa: F811
+    """A reel held to a landscape window's height is a column with a letterbox each side
+    wider than itself, and the line and the transport were both laid across that column:
+    on a phone turned sideways they covered two thirds of the picture. They stand beside
+    it, and the tap that plays is the picture's own size."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.95]], film="reel.webm")
+    context, page = open_reader(browser, built, viewport={"width": size[0], "height": size[1]})
+    try:
+        page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
+        watch(page)
+        page.evaluate("() => { document.querySelector('#video video').currentTime = 0.5; }")
+        page.wait_for_selector("#video .video-titles.saying")
+        got = page.evaluate(BESIDE)
+    finally:
+        context.close()
+    picture = got["picture"]
+    for name in ("transport", "line", "keys"):
+        seen = got[name]
+        beside = seen["right"] <= picture["left"] + 1 or seen["left"] >= picture["right"] - 1
+        assert beside, f"the {name} is on the picture: {got}"
+    for edge in ("top", "bottom", "left", "right"):
+        assert abs(got["tap"][edge] - picture[edge]) < 2, f"the tap is the picture: {got}"
+    assert got["keysGround"] == "rgba(0, 0, 0, 0)", f"no box behind the keys: {got}"
