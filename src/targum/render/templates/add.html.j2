@@ -54,6 +54,11 @@
       {#- Only for a description, and only where the talk drawer is there to say it in:
           looking for a text by describing it is a turn of conversation, metered like one,
           and the reader's own press sends it. -#}
+      {#- Something the reader recorded themselves (targum-internal#254). Hidden until
+          the script says this browser can record, so the page never offers what it
+          cannot do — the same rule the composer's Speak follows. -#}
+      <button type="button" id="record" class="bring-choose" hidden
+              aria-pressed="false" aria-label="{{ t("add.page.record", "Record") }}" title="{{ t("add.page.record", "Record") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg><span id="record-word">{{ t("add.page.record", "Record") }}</span></button>
       <button type="button" id="ask-targum" class="bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
       {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
           the button went on offering, and a press only repeated the notice. -#}
@@ -186,6 +191,10 @@ window.TARGUM_INTO = {{ into|tojson }};
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
+{#- The recorder the composer's Speak uses, so a voice note can be made here rather than
+    only brought (targum-internal#254). Before `add.js`, which asks it whether this
+    browser can record before drawing the button. -#}
+<script>{{ asset('speak.js') }}</script>
 <script>{{ asset('add.js') }}</script>
 </body>
 </html>
