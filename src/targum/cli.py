@@ -1858,6 +1858,13 @@ def build(
             help="For video: keep the pictures beside the reader, or import the sound alone.",
         ),
     ] = True,
+    pictures: Annotated[
+        bool,
+        typer.Option(
+            "--pictures",
+            help="For an Instagram post: read the words in its pictures too. Costs money.",
+        ),
+    ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask before spending.")] = False,
 ) -> None:
     """Build a targum — one text with its translation beside it."""
@@ -1897,6 +1904,7 @@ def build(
             transcriber_name=transcriber or "",
             transcript=transcript,
             video=video,
+            pictures=pictures,
             notify=lambda message: console.print(f"[dim]{message}[/dim]"),
         )
 

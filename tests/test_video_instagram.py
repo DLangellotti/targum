@@ -401,3 +401,108 @@ def test_a_post_s_pictures_are_numbered_in_order_and_capped(monkeypatch, tmp_pat
     )
     with pytest.raises(TargumError):
         instagram.pictures_into(many, tmp_path / "many")
+
+
+# -- a post on the command line (targum-internal#330) ---------------------------------
+
+POST = "https://www.instagram.com/p/DdCARhLDF-P/"
+
+
+def build_of(address: str, tmp_path: Path, fake_segmenter: object, **kwargs: object):
+    from targum.pipeline import Build
+
+    return Build(
+        address,
+        target_language="en",
+        provider_name="null",
+        out_root=tmp_path,
+        segmenter=fake_segmenter,  # type: ignore[arg-type]
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+def test_a_post_of_pictures_builds_from_its_caption_and_reads_no_picture(
+    monkeypatch, tmp_path: Path, fake_segmenter: object
+) -> None:
+    from targum import vision
+    from targum.ingest import url as url_module
+
+    def never(*args, **kwargs):
+        raise AssertionError("no picture is fetched or read unless --pictures asked")
+
+    monkeypatch.setattr(
+        instagram, "embedded", lambda url: instagram.read_embed(page_with(CAROUSEL), "DdCARhLDF-P")
+    )
+    monkeypatch.setattr(url_module, "download", never)
+    monkeypatch.setattr(vision, "read_pages", never)
+
+    builder = build_of(POST, tmp_path, fake_segmenter)
+    document = builder.ingest()
+
+    assert not builder.is_video_source, "a post of pictures never reaches the reel's door"
+    assert document.title == "שלום עולם" and document.author == "@aviv.bahar"
+    assert "שורה שנייה" in "\n".join(block.text for block in document.blocks)
+    assert builder.home == POST
+
+
+def test_with_the_flag_the_pictures_words_follow_the_caption(
+    monkeypatch, tmp_path: Path, fake_segmenter: object
+) -> None:
+    from types import SimpleNamespace
+
+    from targum import vision
+    from targum.ingest import url as url_module
+
+    fetched: list[str] = []
+
+    def download(address, into, max_bytes=0):
+        fetched.append(address)
+        into.write_bytes(b"jpeg")
+
+    def read_pages(paths, *, usage, **kwargs):
+        return [SimpleNamespace(text=f"מילים בתמונה {n}") for n, _ in enumerate(paths, start=1)]
+
+    monkeypatch.setattr(
+        instagram, "embedded", lambda url: instagram.read_embed(page_with(CAROUSEL), "DdCARhLDF-P")
+    )
+    monkeypatch.setattr(url_module, "download", download)
+    monkeypatch.setattr(vision, "read_pages", read_pages)
+
+    document = build_of(POST, tmp_path, fake_segmenter, pictures=True).ingest()
+
+    text = "\n".join(block.text for block in document.blocks)
+    assert fetched == ["https://a.fna.fbcdn.net/one.jpg", "https://b.cdninstagram.com/three.jpg"]
+    assert text.index("שורה שנייה") < text.index("מילים בתמונה 1") < text.index("מילים בתמונה 2")
+
+
+def test_a_post_that_is_a_film_still_goes_through_the_reel_s_door(
+    monkeypatch, tmp_path: Path, fake_segmenter: object
+) -> None:
+    monkeypatch.setattr(
+        instagram, "embedded", lambda url: instagram.read_embed(page_with(FILM), "DSkLv4UE196")
+    )
+    builder = build_of("https://www.instagram.com/p/DSkLv4UE196/", tmp_path, fake_segmenter)
+    builder._adopt_post()
+    assert builder.source == "https://www.instagram.com/p/DSkLv4UE196/"
+    assert builder.is_video_source
+
+
+def test_a_page_that_will_not_say_keeps_the_reel_s_door_and_its_refusal(
+    tmp_path: Path, fake_segmenter: object
+) -> None:
+    # `no_embed_page` is in force: the backup fails, and the address is left as it was.
+    builder = build_of(POST, tmp_path, fake_segmenter)
+    builder._adopt_post()
+    assert builder.source == POST and builder.is_video_source
+
+
+def test_a_post_with_no_caption_says_where_its_words_are(
+    monkeypatch, tmp_path: Path, fake_segmenter: object
+) -> None:
+    silent = {**CAROUSEL, "edge_media_to_caption": {"edges": []}}
+    monkeypatch.setattr(
+        instagram, "embedded", lambda url: instagram.read_embed(page_with(silent), "DdCARhLDF-P")
+    )
+    with pytest.raises(TargumError) as refusal:
+        build_of(POST, tmp_path, fake_segmenter).ingest()
+    assert "pictures" in refusal.value.message and "--pictures" in (refusal.value.hint or "")

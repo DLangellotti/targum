@@ -193,6 +193,9 @@ class Build:
         # Whether a video source keeps its pictures. Off, the import is the audio one
         # exactly — for whoever wants the talk, not the talking head.
         video: bool = True,
+        # Whether an Instagram post of pictures has its pictures read too. Off, the post
+        # is its caption, which costs nothing to read — the hosted card's default.
+        pictures: bool = False,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -242,6 +245,7 @@ class Build:
         #: line says so rather than letting Italian arrive segmented as Hebrew.
         self.language_assumed = False
         self.video = video
+        self.pictures = pictures
         self._episode: Any = None
         self._transcriber: Any = transcriber
         #: The refiner this build ran, once it has run one: what it bought — the
@@ -297,6 +301,9 @@ class Build:
     def ingest(self) -> Document:
         from urllib.parse import urlparse
 
+        # Before anything asks whether this is a film: a `/p/` address is one only if the
+        # post says so, and a post of pictures leaves here as a text.
+        self._adopt_post()
         if not self.is_recording_source and urlparse(str(self.source)).scheme in ("http", "https"):
             # An episode page or a feed resolves to its audio before anything is read
             # as an article. One extra fetch for a page that turns out to be prose —
@@ -1207,6 +1214,47 @@ class Build:
 
             self._transcriber = build_transcriber(self.transcriber_name or default_name())
         return self._transcriber
+
+    def _adopt_post(self) -> None:
+        """An Instagram `/p/` post of pictures, as the text the hosted door writes
+        (`Library._prepare_post`, targum-internal#330).
+
+        `is_reel` is true of every `/p/` address, and only the post can say which it is.
+        A film, or a page that would not say, keeps the reel's door and its own refusal.
+        Pictures become the caption, bylined with the account, and the words in the
+        pictures follow it only where `pictures` asked for them: that reading is the one
+        part of this that spends.
+        """
+        from .video import instagram as instagram_module
+
+        address = str(self.source)
+        if not instagram_module.is_post(address):
+            return
+        post = instagram_module.backup(address)
+        if post is None or post.video:
+            return
+        wanted = self.pictures and bool(post.pictures)
+        if not post.caption.strip() and not wanted:
+            raise TargumError(
+                "That post's words are all in its pictures.",
+                "Pass --pictures to read them." if post.pictures else None,
+            )
+        root = self._out_root or (Path.cwd() / "targum-out")
+        folder = (self._out.parent if self._out else root) / "posts" / post.code
+        text = instagram_module.caption_text(post)
+        if wanted:
+            from . import vision
+            from .usage import Usage
+
+            self.notify("Reading the pictures…")
+            paths = instagram_module.pictures_into(post, folder / "pictures")
+            reads = vision.read_pages(paths, usage=Usage())
+            text = "\n\n".join([text.rstrip(), *(read.text for read in reads)]) + "\n"
+        target = folder / f"{post.code}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        self.home = address
+        self.source = str(target)
 
     def _audio_workspace(self) -> Path:
         return self.resolved_out / "audio"
