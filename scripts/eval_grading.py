@@ -185,6 +185,10 @@ def main() -> None:
 
     kept = [pair.hebrew for reply in replies for pair in hebrew.pairs(reply)]
     unpaired = sum(1 for reply in replies for pair in hebrew.pairs(reply) if not pair.english)
+    # A "~ " line that belongs to no recast (targum-internal#242). The page never shows
+    # one — `pairs()` drops it — so without this nothing anywhere could see the contract
+    # being broken, and the rule was enforced by reading replies by hand.
+    strays = sum(hebrew.stray_why(reply) for reply in replies)
     share, counted = outside_share(kept, allowed)
     # How long a reply runs, the recast left out (targum-internal#236): the contract
     # caps it in sentences, and the floor reads the median in words.
@@ -192,6 +196,7 @@ def main() -> None:
     median_words = float(statistics.median(words)) if words else 0.0
     print(f"{args.turns} turns, {len(kept)} Hebrew lines, {counted} content lemmas")
     print(f"outside the list: {share:.1%}   lines without their English: {unpaired}")
+    print(f'"~ " lines belonging to no recast: {strays}')
     print(f"Hebrew words a reply: median {median_words:g}, max {max(words) if words else 0}")
     print(f"spent ${usage.cost():.2f} over {usage.calls} calls")
 
@@ -217,6 +222,12 @@ def main() -> None:
         ),
         evals.Row(
             today, "grading", "chat", CHAT_MODEL, "hebrew_words_median", median_words, len(words)
+        ),
+        # A count and not a rate, the way `unpaired_lines` is: the contract allows one
+        # "~ " line under a recast and none anywhere else, so the number worth floor-ing
+        # is how many broke that, not what share of the reply they were.
+        evals.Row(
+            today, "grading", "chat", CHAT_MODEL, "stray_why_lines", float(strays), len(replies)
         ),
     ]
     evals.append(rows, args.ledger)
