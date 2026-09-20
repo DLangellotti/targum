@@ -330,6 +330,40 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A reel at the size a reel is — 2026-09-20
+
+A design review of the arrival, the vertical film and Learn, at 320 to 1920 wide. Most of
+what it changed is a repair and needs no entry. Three things are decisions, and would be
+"corrected" back by somebody reading the older entries.
+
+- **The fixture films were too small to fail.** `tiny.webm` is 64x36 and `tall.webm`
+  36x64. Watching is a grid, a grid track left `auto` is sized by what is in it, and a
+  reel comes down 480x854: the picture made its own row 2562px tall on a 900px window,
+  with the line and the transport under the fold, and a landscape film did the same in
+  any window shorter than it. Every test of the mode passed. `reel.webm` and `film.webm`
+  are the sizes the importer keeps, and `test_reel_browser.py` lays them out at six
+  windows. A layout test wants a fixture the size of the thing.
+- **An upright film in a wide window has its line beside it, not over it.** "Laid over
+  the picture in landscape" (2026-09-03) is right for a film that fills the window. An
+  upright one is a column in the middle with a letterbox each side wider than itself,
+  and the line and the transport were both laid across that column: two thirds of the
+  picture on a phone turned sideways, and at any size the place a reel burns its own
+  captions in. So: the film at the start, the line next to it as text on the letterbox,
+  the transport under the line, and the tap that plays the size of the picture. Portrait
+  is as it was — picture, line, transport, down the window.
+- **A docked reel on a phone is an occupant of the band**, full width like any other,
+  the picture in the middle of it and its keys down the edge. It was an 11rem box in the
+  corner with the page showing beside it, and in a Hebrew text the corner it took is
+  where every line begins. At a desk the upright dock is 13.5rem, as wide as its keys
+  need, and the grip drops its word there and nowhere else (2026-09-14, "The picture's
+  keys say what they do", stands for the other three).
+
+And on the arrival, inside what 2026-09-19 settled: the question is set as a card title
+at a desk as it already was on a phone — it was the size of the hint under it — and at
+48rem the ladder is two columns of four, read down then across, because eight rows put
+the text "somebody who ignores it still has" under the fold at 1440x900. Not now, on the
+words-you-know panel, stands at the panel's head rather than under its fifty rows.
+
 ### The arrival is two questions, a screen each, and the second one is kept — 2026-09-19
 
 The arrival is the one thing a new reader is asked, and until today nothing about it was
