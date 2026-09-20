@@ -5074,6 +5074,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._weekly_follow(payload)
         if route == "/account/follows":
             return self._follows(payload)
+        if route == "/describe":
+            return self._describe(payload)
         if route == "/prepare":
             return self._prepare(payload)
         if route == "/build":
@@ -6499,6 +6501,50 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "counts": self.store.counts(person)}
         answer.update(self.store.pull(person, since))
         self._json(answer)
+
+    def _describe(self, payload: dict[str, Any]) -> None:
+        """What is at the end of a link, before anything is priced (targum-internal#250).
+
+        The same reading the model has had since #126 — `chat.tools._describe`, metadata
+        only: a video's length and whether anybody wrote its subtitles, an episode's
+        length and its own transcript, an article's minutes and how much of it this
+        reader already knows. Until now only the model could ask, so a reader pasting a
+        link into Add was shown a price and a title and nothing about what they were
+        buying.
+
+        Nothing is spent and no model runs. The door itself is what refuses — a private
+        address, a page over the cap, a source the ingester does not read — and it is
+        the same door `/prepare` goes through a moment later, so a link that is described
+        here is a link that can be priced.
+        """
+        from .chat import tools as tools_module
+
+        url = str(payload.get("url") or payload.get("source") or "").strip()
+        if not url:
+            return self._json({"error": self._say("serve.give-a-link", "Give a link.")}, 400)
+        person = self._person()
+        found = tools_module.describe_source(
+            tools_module.Ctx(
+                person=person,
+                home=self._home(),
+                library=self.library,
+                store=self.store,
+                chat_id="",
+                level=level_module.snapshot(
+                    self.store,
+                    person.id if person else None,
+                    self._asked_language(payload.get("language")),
+                ),
+                reads=self._reads(),
+                learning=self._learning(),
+                admin=bool(person and self.store.is_admin(person.email)),
+            ),
+            {"url": url},
+        )
+        # A refusal is the answer, not a failure of the request: the page says what was
+        # wrong with the link and the reader tries another. 200 either way, the way the
+        # model's own tool result is.
+        return self._json(found)
 
     def _prepare(self, payload: dict[str, Any]) -> None:
         """Price a build, and say what it will take before anything is spent."""

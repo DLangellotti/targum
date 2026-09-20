@@ -566,6 +566,7 @@
     hoursWarning: hoursWarning,
     HOURS_WARN: HOURS_WARN,
     plain: plain,
+    knownLine: knownLine,
     quoteCard: quoteCard,
   };
 })();

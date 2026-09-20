@@ -1074,12 +1074,28 @@
         return;
       }
       payload.source = read.text;
-      // A YouTube address goes to /prepare like any other link. It was turned away
-      // here while the box would not fetch one; now it does, and a page that still
-      // refused would be refusing something that works.
-      prepared = withTranslation(payload).then(function (body) {
-        return ask("/prepare", body);
-      });
+      // What is there, before what it costs (targum-internal#250). Metadata only, and
+      // it never decides anything: a describe that fails or is refused is passed over
+      // in silence and the price follows exactly as it did. The reader is told what the
+      // link is while `/prepare` is still fetching it.
+      var source = read.text;
+      prepared = ask("/describe", { url: source, language: adding() })
+        .then(function (said) {
+          found = said && !said.error ? said : null;
+          var block = foundBlock(found);
+          if (block) say(block);
+        })
+        .catch(function () {
+          found = null;
+        })
+        .then(function () {
+          // A YouTube address goes to /prepare like any other link. It was turned away
+          // here while the box would not fetch one; now it does, and a page that still
+          // refused would be refusing something that works.
+          return withTranslation(payload).then(function (body) {
+            return ask("/prepare", body);
+          });
+        });
     }
 
     prepared
@@ -1132,6 +1148,75 @@
         : (job.pages > 1 ? tn("add.job.pages", job.pages, "{n} page", "{n} pages") + " · " : "") +
           tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences");
     return document.createTextNode(named(job.language) + " · " + what);
+  }
+
+  //: What `/describe` said about the link now in the box, or null. Kept so the price,
+  //: when it arrives, is drawn under it rather than over it (targum-internal#250).
+  var found = null;
+
+  /* What targum found at the end of a link, in plain words and before any price.
+     `describe_source` has read this for the model since #126 — a video's length and
+     whether anybody wrote its subtitles, an episode's own transcript, an article's
+     minutes and how much of it this reader already knows — and the Add box showed a
+     price and a title and nothing about what was being bought.
+
+     Nothing here is a control: it is what the reader is about to pay for, said before
+     they press. The advice lines are the server's own sentences, which is why they are
+     set as text and never as markup. */
+  function foundBlock(said) {
+    if (!said || said.error) return null;
+    var body = [];
+
+    var facts = [];
+    var medium = {
+      video: t("add.found.video", "a video"),
+      recording: t("add.found.recording", "a recording"),
+      post: t("add.found.post", "a post"),
+      article: t("add.found.article", "an article"),
+    }[String(said.kind || "")];
+    if (medium) facts.push(medium);
+    if (said.seconds) facts.push(clock(said.seconds));
+    if (said.minutes) facts.push(tn("add.found.minutes", said.minutes, "{n} minute to read", "{n} minutes to read"));
+    if (said.words) facts.push(tn("add.found.words", said.words, "{n} word", "{n} words"));
+    if (said.licence) facts.push(String(said.licence));
+    if (facts.length) {
+      var line = document.createElement("p");
+      line.className = "found-facts";
+      line.textContent = facts.join(" · ");
+      body.push(line);
+    }
+
+    // How much of it this reader already has, in words and never a percentage or a
+    // level — the same sentence the quote card says (targum-internal#244).
+    var known = bringing && bringing.knownLine ? bringing.knownLine(said.known_share) : "";
+    if (known) {
+      var mine = document.createElement("p");
+      mine.className = "found-known";
+      mine.textContent = known;
+      body.push(mine);
+    }
+
+    (said.advice || []).forEach(function (one) {
+      var note = document.createElement("p");
+      note.className = "found-note";
+      note.textContent = String(one);
+      body.push(note);
+    });
+
+    // A heading over nothing says the page is broken. An answer that carried no facts,
+    // no share and no advice — a route that fell over, a medium nothing is known about
+    // — is passed over in silence, and the price follows as it always did.
+    if (!body.length) return null;
+    var box = document.createElement("div");
+    box.className = "found";
+    var head = document.createElement("p");
+    head.className = "found-head";
+    head.textContent = t("add.found", "What targum found");
+    box.appendChild(head);
+    body.forEach(function (one) {
+      box.appendChild(one);
+    });
+    return box;
   }
 
   function price(job) {
@@ -1246,6 +1331,10 @@
   // The cost is shown before anything is spent, the same gate the command line uses.
   function offer(job) {
     var box = document.createDocumentFragment();
+    // What was found stays above what it costs: the reader read it while the price was
+    // being worked out, and it should not vanish the moment the price lands.
+    var was = foundBlock(found);
+    if (was) box.appendChild(was);
     var head = document.createElement("p");
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
