@@ -242,6 +242,7 @@ function cards() {
         meta: by("quote-meta") ? by("quote-meta").textContent : "",
         note: by("quote-note") ? by("quote-note").textContent : "",
         known: by("quote-known") ? by("quote-known").textContent : "",
+        voice: by("quote-voice") ? by("quote-voice").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
         source: by("quote-source")

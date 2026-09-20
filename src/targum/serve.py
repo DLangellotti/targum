@@ -819,7 +819,23 @@ class Job:
             "pictures_offered": (
                 0 if self.options.get("pictures") else int(self.options.get("post_pictures") or 0)
             ),
+            # Whether this text could be given a voice once it is built
+            # (targum-internal#246). A line on the card and never a button: the press is
+            # in the reader, where the section is, and the card is quoting a build.
+            "voice_later": self.voice_later,
         }
+
+    @property
+    def voice_later(self) -> bool:
+        """Whether the reader this job builds would offer to read it aloud.
+
+        The same three conditions `render` draws the door on: a language the voice
+        speaks, no recording of its own, and a price for the voice. A recording is
+        already sound and an unpriced voice is not for sale.
+        """
+        from .speech import priced, speaks
+
+        return bool(not self.audio and speaks(self.language) and priced())
 
 
 def sent_as(job: Job) -> str:
