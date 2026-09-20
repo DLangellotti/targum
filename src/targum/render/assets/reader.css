@@ -3243,6 +3243,12 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
   align-self: start;
   flex-direction: row;
   margin: 0.75rem;
+  /* The band's docked keys carry a pale ground to stand on a film (below 60rem). These
+     are pills with a ground of their own, and the box stayed on behind them on a phone
+     held sideways — the portrait block had already taken it off (R-07). */
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 /* Over a film, not over a page: the paper as a literal, beside the letterbox's
    literal above, so the pair that draws the frame is written in one place. */
@@ -3420,6 +3426,65 @@ body.watching { overflow: hidden; }
    and this margin is the room the transport takes when the line is over it. */
 @media (max-width: 46rem) and (orientation: landscape) {
   .video.watching .video-titles { margin-block-end: 5rem; }
+}
+
+/* An upright film in a window that is not. Held to the window's height the picture is a
+   column in the middle of it with a letterbox either side wider than itself — and the
+   line and the transport were both laid across that one column: on a phone turned
+   sideways they covered two thirds of the picture, and at any size they sat where a
+   reel burns its own captions in. The empty room is beside the picture, so that is
+   where they go: the film at the start, the line it is saying next to it as text, the
+   transport under the line. Nothing stands on the picture but its own keys. */
+@media (orientation: landscape) {
+  /* `:not([hidden])` for its weight: below 60rem the rule that lifts watching out of
+     the band is written last, carries it too, and sets the padding to nought. */
+  .video.watching.tall:not([hidden]) {
+    grid-template: minmax(0, 1fr) auto / auto minmax(0, 36rem);
+    justify-content: center;
+    column-gap: 2rem;
+    padding-inline: 1rem;
+  }
+  /* A strip at the foot of a phone is square because it meets the window's edges. Here
+     it stands free on the letterbox, so it is a panel (§8). */
+  .video.watching.tall .player { border-radius: 8px; }
+  .video.watching.tall .video-el {
+    grid-area: 1 / 1 / -1 / 2;
+    justify-self: center;
+    inline-size: auto;
+    max-inline-size: 45vw;
+  }
+  .video.watching.tall .video-titles {
+    grid-area: 1 / 2;
+    align-self: center;
+    justify-self: stretch;
+    inline-size: auto;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+  .video.watching.tall .player {
+    grid-area: 2 / 2;
+    inline-size: 100%;
+  }
+  /* In the grid, at the far end from the picture — below 60rem the band places the keys
+     by hand at the start, which here is half on the film and half off it. */
+  .video.watching.tall .video-keys {
+    position: relative;
+    inset: auto;
+    grid-area: 1 / 1 / -1 / -1;
+  }
+  /* The tap that plays is the picture's, here as in portrait: spread over the window it
+     put its disc in the middle of the line being read. */
+  .video.watching.tall .video-tap {
+    position: relative;
+    inset: auto;
+    grid-area: 1 / 1 / -1 / 2;
+    justify-self: center;
+    block-size: 100%;
+    inline-size: auto;
+    max-inline-size: 45vw;
+    aspect-ratio: var(--film, 9 / 16);
+  }
 }
 
 /* The word list slides in from the same edge, so the player steps aside for it rather
