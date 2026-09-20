@@ -345,8 +345,10 @@ So the arrival is **three questions, a screen each**, and the first is *What is 
 native language?* — David's wording, the same day, over "Which language do you read?": it
 is the question a person answers without thinking, where the other asks them to work out
 what targum means by reading. What it sets is unchanged — `reads`, so the line under the
-Hebrew and the desk. A reader whose native language is neither row has Skip, and English,
-which is what they had before. This amends "The arrival is two questions" below in its count and in nothing
+Hebrew and the desk. A reader whose native language is neither has a third row, **Other ·
+Другой**, in both languages because it is nobody's own name: it sets English, the only
+other language there is to read into, and it is an answer, so they are not asked again —
+Skip says "not now", and this reader means "neither". This amends "The arrival is two questions" below in its count and in nothing
 else: one question a screen, where it is said in words, a Skip on each, a Back on all but
 the first, and the last answer opens the text.
 
