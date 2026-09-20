@@ -456,6 +456,100 @@ def check_shelf(out: Path) -> Check:
     )
 
 
+def reader_stylesheet() -> str:
+    """The stylesheet a reader page inlines today, exactly as `render` bakes it in."""
+    from .render.builder import _asset
+
+    return str(_asset("reader.css"))
+
+
+def shelf_of(reader: Path, out: Path) -> str:
+    """Which shelf a reader page belongs to, as a deploy would name it: the path from the
+    out directory down to the text's own folder. `parasha/read/lech-lecha/reader/index.html`
+    is `parasha/read`, and `library/רות-he/reader/index.html` is `library`."""
+    try:
+        parts = reader.relative_to(out).parts
+    except ValueError:
+        return ""
+    # …/<shelf…>/<text>/reader/<page>.html — drop the page, `reader`, and the text.
+    return "/".join(parts[:-3])
+
+
+def carries(page: Path, css: str) -> bool:
+    """Whether this page has today's stylesheet in it.
+
+    Read from the `<style>` the head opens rather than whole: a reader page is a hundred
+    kilobytes and a box has thousands of them, and everything before that tag is a title
+    and an icon. Asked of the bytes, not of a timestamp — a wheel may or may not stamp
+    one, and a page that was copied or rsynced carries whatever mtime the copy gave it.
+    """
+    wanted = css.encode("utf-8")
+    try:
+        with page.open("rb") as handle:
+            head = handle.read(16384)
+            at = head.find(b"<style>")
+            if at == -1:
+                return False
+            at += len(b"<style>")
+            handle.seek(at)
+            return handle.read(len(wanted)) == wanted
+    except OSError:
+        return False
+
+
+def check_stale_readers(out: Path, current: str | None = None) -> Check:
+    """How many reader pages on this box do not carry the stylesheet they would be
+    rendered with today.
+
+    `targum rebuild` rewrites what has artifacts beside it. The parasha corpus and the
+    daily window keep none, and the four shared Russian texts are skipped by design
+    (their lemmas are only in the laptop's cache, targum#282). So after any change to
+    reader CSS or JS those stay exactly as they were cut, and `deploy.sh` said "done"
+    over them three times: targum-internal#227, then `languages/3` on 2026-09-18, then
+    929 of 2,208 reader files left on the old theme on 2026-09-20 (#344, #345).
+
+    `check_shelf` and `check_parasha` ask whether a page is behind the *annotator*, which
+    a re-annotation moves. This asks the question they both miss, because a theme change
+    moves no annotation and is invisible to either: whether the page has today's look in
+    it. A reader carries its stylesheet in its own bytes — nothing on the page fetches —
+    so the page itself is the evidence, and no timestamp has to be trusted.
+
+    A warning, not a failure: an older page is still a page, and what fixes it is a
+    re-cut on a machine that has the books, which is not this one.
+    """
+    if not out.is_dir():
+        return Check("stale readers", True, f"nothing built at {out} yet", fatal=False)
+    css = reader_stylesheet() if current is None else current
+    counts: dict[str, int] = {}
+    total = 0
+    for page in out.glob("**/reader/*.html"):
+        total += 1
+        if carries(page, css):
+            continue
+        shelf = shelf_of(page, out)
+        counts[shelf] = counts.get(shelf, 0) + 1
+    if not total:
+        return Check("stale readers", True, f"no reader pages under {out}", fatal=False)
+    if not counts:
+        return Check(
+            "stale readers",
+            True,
+            f"all {total} reader pages carry the stylesheet they would be built with today",
+            fatal=False,
+        )
+    stale = sum(counts.values())
+    named = " · ".join(f"{shelf or out.name} {n}" for shelf, n in sorted(counts.items()))
+    return Check(
+        "stale readers",
+        False,
+        f"{stale} of {total} reader pages are on an older theme: {named}",
+        "A rebuild reaches only what keeps artifacts beside it. The parasha corpus and "
+        "the daily window keep none: re-cut them (targum parasha build, from the main "
+        "checkout) and ship. deploy/README.md says why the working directory matters.",
+        fatal=False,
+    )
+
+
 def parasha_root(out: Path) -> Path:
     """Where the parasha corpus is, asked the way the server asks (`parasha.calendar.root`)
     and falling back beside the shelf rather than to the working directory, because a
@@ -764,6 +858,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_transcriber())
     checks.append(check_scripture())
     checks.append(check_shelf(out))
+    checks.append(check_stale_readers(out))
     checks.append(check_parasha(out))
     checks.append(check_daily(out))
     checks.append(check_backups_leave())

@@ -6,7 +6,9 @@ Every check here exists because of a way a deployment can look fine and not be.
 from __future__ import annotations
 
 import json
+import os
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -24,6 +26,7 @@ from targum.preflight import (
     check_pot,
     check_scripture,
     check_shelf,
+    check_stale_readers,
     check_ytdlp,
     check_ytdlp_proxy,
     fatal,
@@ -711,3 +714,86 @@ def test_a_window_level_with_the_shelf_says_so_and_a_box_without_one_is_not_scol
     a_window(out / "parasha" / "daily", {"mishna-yomi/2026-09-08": ("ברכות-he", "oshb/2")})
     check = check_daily(out)
     assert check.ok and "all 1 days" in check.detail
+
+
+# -- reader pages a rebuild never reached (targum-internal#345) ------------------------
+
+THEME = "body{color:#201e1b}"
+OLD = "body{color:#000}"
+
+
+def cut(out: Path, where: str, pages: int = 1, *, css: str) -> None:
+    """One text's reader pages, with a stylesheet baked in the way `render` bakes it."""
+    folder = out / where / "reader"
+    folder.mkdir(parents=True, exist_ok=True)
+    for n in range(pages):
+        page = folder / ("index.html" if n == 0 else f"sec-{n:04d}.html")
+        page.write_text(
+            f"<!doctype html><head><title>a text</title><style>{css}</style></head>"
+            "<body>שלום</body>",
+            encoding="utf-8",
+        )
+
+
+def test_readers_on_an_older_theme_are_counted_by_shelf(tmp_path: Path) -> None:
+    """The line #345 asks for: what a rebuild did not reach, by the shelf it is on, so
+    the gap is visible in the deploy rather than three weeks later."""
+    out = tmp_path / "out"
+    cut(out, "library/ruth-he", 3, css=THEME)
+    cut(out, "parasha/read/lech-lecha", 2, css=OLD)
+    cut(out, "parasha/read/devarim", 1, css=OLD)
+    cut(out, "parasha/daily/mishna-yomi", 1, css=OLD)
+    cut(out, "shared/news-he", 1, css=OLD)
+
+    check = check_stale_readers(out, current=THEME)
+
+    assert not check.ok and not check.fatal, "an older page is still a page"
+    assert "5 of 8 reader pages are on an older theme" in check.detail
+    assert "parasha/daily 1 · parasha/read 3 · shared 1" in check.detail
+    assert "re-cut" in check.fix.lower()
+
+
+def test_a_shelf_a_rebuild_reached_says_so(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    cut(out, "library/ruth-he", 2, css=THEME)
+    assert check_stale_readers(out, current=THEME).ok
+
+
+def test_a_page_is_judged_by_its_bytes_and_not_its_clock(tmp_path: Path) -> None:
+    """The point of reading the page rather than its mtime: a corpus rsynced onto the
+    box carries the copy's timestamp and the cut's stylesheet, and only one of those
+    two says what the reader will see."""
+    out = tmp_path / "out"
+    cut(out, "parasha/read/devarim", 1, css=OLD)
+    os.utime(out / "parasha/read/devarim/reader/index.html", (time.time(), time.time()))
+    assert not check_stale_readers(out, current=THEME).ok, "new file, old theme"
+
+    cut(out, "library/ruth-he", 1, css=THEME)
+    os.utime(out / "library/ruth-he/reader/index.html", (1_000.0, 1_000.0))
+    fresh = check_stale_readers(out, current=THEME)
+    assert "1 of 2" in fresh.detail, "old file, current theme, and not counted"
+
+
+def test_a_page_with_no_stylesheet_at_all_is_counted(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    folder = out / "library/ruth-he/reader"
+    folder.mkdir(parents=True)
+    (folder / "index.html").write_text("<!doctype html><body>nothing</body>", encoding="utf-8")
+    assert not check_stale_readers(out, current=THEME).ok
+
+
+def test_nothing_built_is_not_a_warning(tmp_path: Path) -> None:
+    assert check_stale_readers(tmp_path / "nowhere", current=THEME).ok
+    empty = tmp_path / "out"
+    empty.mkdir()
+    assert check_stale_readers(empty, current=THEME).ok
+
+
+def test_the_reader_s_own_stylesheet_is_the_reference(tmp_path: Path) -> None:
+    """The default is what `render` inlines, so a page this code has just written is
+    never counted and the check needs nothing passed to it."""
+    from targum.preflight import reader_stylesheet
+
+    out = tmp_path / "out"
+    cut(out, "library/ruth-he", 1, css=reader_stylesheet())
+    assert check_stale_readers(out).ok
