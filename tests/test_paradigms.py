@@ -17,7 +17,7 @@ from pathlib import Path
 
 import pytest
 
-from targum.annotate.paradigms import TABLE, Form, Paradigm, Table, bare, table
+from targum.annotate.paradigms import TABLE, Form, Paradigm, Table, bare, binyan_of, table
 
 
 @pytest.fixture(scope="module")
@@ -112,3 +112,91 @@ def test_object_suffix_forms_are_not_in_the_shipped_table(shipped: Table) -> Non
     assert not any(
         any(name.startswith("possessive") for name in form.features) for form in found.forms
     )
+
+
+# -- the binyan picks between two verbs spelled alike (targum-internal#307) -----------
+
+
+@pytest.mark.parametrize(
+    ("lemma", "expected"),
+    [
+        ("הָלַךְ", "פעל"),
+        ("נָתַן", "פעל"),
+        ("נִמְצָא", "נפעל"),
+        ("נִכְנַס", "נפעל"),
+        ("דִּבֵּר", "פיעל"),
+        ("הִלֵּךְ", "פיעל"),
+        ("דֻּבַּר", "פועל"),
+        ("הִפְעִיל", "הפעיל"),
+        ("הִגִּיד", "הפעיל"),
+        ("הֻפְעַל", "הופעל"),
+        ("הִתְלַבֵּשׁ", "התפעל"),
+    ],
+)
+def test_a_pointed_lemma_says_which_binyan_it_is_built_in(lemma: str, expected: str) -> None:
+    """Wikidata carries no binyan statement, so it is read off the lemma — the third
+    person masculine singular past, which each binyan spells in its own pattern. This is
+    `hebrew.root_of` run the other way, and it is owned outright."""
+    assert binyan_of(lemma) == expected
+
+
+@pytest.mark.parametrize("lemma", ["אוחזר", "שלח", "בא", "א", ""])
+def test_an_unpointed_lemma_is_refused_rather_than_read_as_paal(lemma: str) -> None:
+    """The dump carries pointed and unpointed lemmas side by side. An unpointed one says
+    nothing about its binyan, and the pattern with no marks at all looks like פעל — which
+    is exactly the wrong answer to give confidently."""
+    assert binyan_of(lemma) is None
+
+
+@pytest.mark.parametrize("lemma", ["נִסָּה", "הֵבִיא"])
+def test_a_pattern_that_is_not_one_of_the_seven_is_refused(lemma: str) -> None:
+    """נִסָּה is the פיעל of נ־ס־ה and not a נפעל: its second letter carries no shva, so
+    the נ is a radical and not a prefix. Where the shape does not settle it, nothing is
+    claimed — the same guard every rule in `hebrew.py` ends at."""
+    assert binyan_of(lemma) is None
+
+
+def two_candidates() -> Table:
+    """One bare spelling, two verbs: the shape that made this necessary."""
+    paal = Paradigm(lemma="הָלַךְ", forms=(Form(written="הָלַכְתִּי", features=("1st", "past")),))
+    piel = Paradigm(lemma="הִלֵּךְ", forms=(Form(written="הִלַּכְתִּי", features=("1st", "past")),))
+    return Table(verbs={"a": paal, "b": piel}, by_form={"הלך": ("a", "b")})
+
+
+def test_the_binyan_picks_between_two_verbs_spelled_alike() -> None:
+    """`הלך` is both הָלַךְ and הִלֵּךְ. The source cannot say which; the binyan targum
+    worked out for the word can."""
+    shelf = two_candidates()
+    assert shelf.of("הלך") is None, "nothing to go on"
+    assert (found := shelf.of("הלך", binyan="פעל")) is not None and found.lemma == "הָלַךְ"
+    assert (found := shelf.of("הלך", binyan="פיעל")) is not None and found.lemma == "הִלֵּךְ"
+
+
+def test_a_binyan_no_candidate_is_built_in_settles_nothing() -> None:
+    """Neither of them is a הופעל, so neither is the answer. A binyan that matches none
+    is not a reason to fall back on the other one."""
+    assert two_candidates().of("הלך", binyan="הופעל") is None
+
+
+def test_where_the_two_signals_disagree_neither_is_taken() -> None:
+    """Measured over the built shelf, both signals decide for 971 verb tokens and they
+    disagree on 126 of them — a נפעל lemma whose surface is spelled the way its פעל
+    cousin spells one. The honest answer there is the one the card gives for a root it
+    could not work out."""
+    shelf = two_candidates()
+    # The pointing names the פעל; the binyan says פיעל.
+    assert shelf.of("הלך", seen="הָלַכְתִּי", binyan="פיעל") is None
+    # And where they agree, the verb.
+    found = shelf.of("הלך", seen="הָלַכְתִּי", binyan="פעל")
+    assert found is not None and found.lemma == "הָלַךְ"
+
+
+def test_the_binyan_lifts_coverage_on_the_shipped_table(shipped: Table) -> None:
+    """#307's own measure, in miniature: the commonest ambiguous verbs on the shelf draw
+    no table without a binyan and draw one with it. `scripts/measure_conjugations.py` is
+    the whole measurement — 55.4% of verb tokens to 72.4%."""
+    lifted = 0
+    for lemma, binyan in (("נתן", "פעל"), ("דבר", "פיעל"), ("ישב", "פעל")):
+        if shipped.of(lemma) is None and shipped.of(lemma, binyan=binyan) is not None:
+            lifted += 1
+    assert lifted, "none of the three commonest ambiguous verbs was settled by its binyan"
