@@ -50,7 +50,7 @@
         {%- if page_language == 'ru' %}<a href="/?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
         {%- else %}<b>EN</b><span>/</span><a href="/?lang=ru" hreflang="ru">RU</a>{% endif %}
       </p>
-      <a class="signin" href="/account/signin">{{ t("landing.page.sign-in", "Sign in") }}</a>
+      <a class="signin" href="/account/signin{% if asked %}?lang={{ asked }}{% endif %}">{{ t("landing.page.sign-in", "Sign in") }}</a>
       <a class="btn cta small" href="#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
     </div>
   </div>

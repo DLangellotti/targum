@@ -1311,7 +1311,7 @@ def about_page(language: str = "en") -> str:
     )
 
 
-def front_page(language: str = "en", address: str = "") -> str:
+def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
     The page `holding_page` stands in for. It is served at `/` only while
@@ -1328,6 +1328,9 @@ def front_page(language: str = "en", address: str = "") -> str:
         .render(
             t=words,
             page_language=_page_language(language),
+            # The language the visitor pressed for, or "" where the browser chose: only a
+            # press is carried on to the sign-in page.
+            asked=asked,
             # The tab and the search result speak the page's language too. They are the
             # two sentences a stranger reads before the page itself.
             title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
@@ -1536,6 +1539,7 @@ def signin_page(
     expired: bool = False,
     language: str = "en",
     said: str = "",
+    asked: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -1552,6 +1556,7 @@ def signin_page(
         .render(
             t=page_words(language),
             page_language=_page_language(language),
+            asked=asked,
             landing=landing,
             token=token,
             expired=expired,
