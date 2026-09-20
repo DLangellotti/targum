@@ -124,6 +124,73 @@ def binyan_of(lemma: str) -> str | None:
     return None
 
 
+#: The most verbs a card will name beside the one the reader tapped. A root with all
+#: seven binyanim exists — כתב has every one — and seven other words under a word is a
+#: list rather than a fact about it.
+SIBLINGS = 5
+
+
+@lru_cache(maxsize=1)
+def _families() -> dict[str, tuple[tuple[str, str], ...]]:
+    """Every root the shipped table can work out, and the verbs built on it.
+
+    Owned outright and computed here rather than fetched: the lemma gives its binyan
+    (`binyan_of`) and the two together give the root (`hebrew.root_of`), so a family is
+    two rules over a CC0 source and no licence door at all (targum-internal#301).
+
+    A verb whose lemma is unpointed says no binyan, and one whose root will not come out
+    at three letters says no root; both are left out rather than guessed at, which is the
+    same guard every rule in `hebrew.py` ends at. Of the table's 4,703 verbs, 2,613 have
+    a root and 2,071 of those have at least one sibling.
+    """
+    from .hebrew import root_of
+
+    out: dict[str, list[tuple[str, str]]] = {}
+    for verb in table().verbs.values():
+        binyan = binyan_of(verb.lemma)
+        if not binyan:
+            continue
+        root = root_of(verb.lemma, binyan)
+        if not root:
+            continue
+        out.setdefault(root, []).append((verb.lemma, binyan))
+    # In the order a learner meets them, so a family reads the same way every time and
+    # not in whatever order the dump happened to list it.
+    order = {name: at for at, name in enumerate(BINYAN_ORDER)}
+    return {
+        root: tuple(sorted(verbs, key=lambda one: (order.get(one[1], 99), one[0])))
+        for root, verbs in out.items()
+    }
+
+
+#: The binyanim in the order a grammar book teaches them, which is the order a family is
+#: read in. `hebrew.BINYANIM` is keyed on the tagger's names; this is the sequence.
+BINYAN_ORDER = ("פעל", "נפעל", "פיעל", "פועל", "הפעיל", "הופעל", "התפעל")
+
+
+def family_of(lemma: str, binyan: str | None) -> tuple[tuple[str, str], ...]:
+    """The other verbs built on this verb's root, each with its own binyan.
+
+    Empty where the root could not be had honestly — the card already hides a root it
+    could not work out, and a guessed family is worse than none — and empty where the
+    root is this verb's alone. The verb itself is never in its own family.
+    """
+    from .hebrew import root_of
+
+    root = root_of(lemma, binyan) if binyan else None
+    if not root:
+        return ()
+    # By binyan, not by spelling. A root has one verb per binyan, so the tapped verb's
+    # own binyan is the one to drop — and that also drops it where the annotator points
+    # its lemma differently from the source, which spelling alone would miss.
+    #
+    # Spelling cannot do this job: כָּתַב and כִּתֵּב are both written כתב, and a family
+    # filtered on the bare form would throw away the פיעל for looking like the פעל —
+    # which is the very pair the card exists to show.
+    kin = [one for one in _families().get(root, ()) if one[1] != binyan]
+    return tuple(kin[:SIBLINGS])
+
+
 def bare(text: str) -> str:
     """The letters alone, which is the only spelling two sources agree on."""
     return "".join(

@@ -17,7 +17,18 @@ from pathlib import Path
 
 import pytest
 
-from targum.annotate.paradigms import TABLE, Form, Paradigm, Table, bare, binyan_of, table
+from targum.annotate.paradigms import (
+    BINYAN_ORDER,
+    SIBLINGS,
+    TABLE,
+    Form,
+    Paradigm,
+    Table,
+    bare,
+    binyan_of,
+    family_of,
+    table,
+)
 
 
 @pytest.fixture(scope="module")
@@ -200,3 +211,51 @@ def test_the_binyan_lifts_coverage_on_the_shipped_table(shipped: Table) -> None:
         if shipped.of(lemma) is None and shipped.of(lemma, binyan=binyan) is not None:
             lifted += 1
     assert lifted, "none of the three commonest ambiguous verbs was settled by its binyan"
+
+
+# -- the other verbs built on the same root (targum-internal#301) ---------------------
+
+
+def test_a_verb_s_family_is_the_other_binyanim_of_its_root() -> None:
+    """The front door's own specimen: tapping נִפְגַּשׁ should show פָּגַשׁ and הִפְגִּישׁ.
+
+    Worked out from the same CC0 table the conjugations come from — the lemma gives its
+    binyan, the two together give the root — so a family is two rules over a source
+    targum may redistribute, and behind no licence door at all.
+    """
+    family = dict(family_of("נִפְגַּשׁ", "נפעל"))
+    assert "פָּגַשׁ" in family and family["פָּגַשׁ"] == "פעל"
+    assert "הִפְגִּישׁ" in family and family["הִפְגִּישׁ"] == "הפעיל"
+    assert "נִפְגַּשׁ" not in family, "a verb is not its own sibling"
+
+
+def test_a_family_is_read_in_the_order_a_grammar_teaches() -> None:
+    """So it reads the same way every time, rather than in whatever order the dump
+    happened to list it."""
+    order = [binyan for _, binyan in family_of("כָּתַב", "פעל")]
+    assert order == [name for name in BINYAN_ORDER if name in order]
+    assert order[0] == "נפעל", "the one after פעל, which is the word itself"
+
+
+def test_a_verb_spelled_like_its_own_sibling_keeps_it() -> None:
+    """כָּתַב and כִּתֵּב are both written כתב. A family filtered on the bare spelling
+    would throw away the פיעל for looking like the פעל — which is the very pair this is
+    for — so the tapped verb is dropped by its binyan and not by how it is written."""
+    family = dict(family_of("כָּתַב", "פעל"))
+    assert family.get("כִּתֵּב") == "פיעל"
+    assert "כָּתַב" not in family
+
+
+def test_a_root_that_could_not_be_had_honestly_has_no_family() -> None:
+    """The card already hides a root it could not work out, and a guessed family is
+    worse than none: a hollow root keeps its middle letter nowhere in קָם."""
+    assert family_of("קָם", "פעל") == ()
+    assert family_of("אוחזר", "הופעל") == (), "an unpointed lemma says no binyan"
+    assert family_of("הָלַךְ", None) == (), "and no binyan is no root"
+
+
+def test_a_family_is_a_fact_about_a_verb_and_not_a_list() -> None:
+    """A root with all seven binyanim exists — כתב has every one — and seven other words
+    under a word is a list rather than something said about it."""
+    for lemma, binyan in (("כָּתַב", "פעל"), ("הָלַךְ", "פעל"), ("נִפְגַּשׁ", "נפעל")):
+        assert len(family_of(lemma, binyan)) <= SIBLINGS
