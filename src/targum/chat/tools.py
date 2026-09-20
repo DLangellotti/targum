@@ -1211,6 +1211,13 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             haystack = f"{item.title} {item.summary}".lower()
             if query and not all(word in haystack for word in query):
                 continue
+            # What the reader would already know of it, from the hook the feed gives:
+            # a title and up to four hundred characters of summary. Not the article —
+            # nothing here has been fetched — so it is an estimate off an estimate, and
+            # `known_share` answers None below twenty tokens rather than guessing at a
+            # headline. Enough to tell two of the same day's stories apart, which is all
+            # it is asked to do.
+            known = _known_share(ctx, f"{item.title}\n{item.summary}")
             items.append(
                 {
                     "title": item.title,
@@ -1221,9 +1228,22 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                     "seconds": round(item.seconds) if item.seconds else 0,
                     "has_transcript": bool(item.transcript),
                     "licence": publisher.licence,
+                    "known_share": None if known is None else round(known, 2),
                 }
             )
-    items.sort(key=lambda row: str(row["published"]), reverse=True)
+    # Newest first, and within a day the one this reader would get furthest into
+    # (targum-internal#244, change 4b). The day is the window on purpose: news is worth
+    # reading because it is today's, so a story the reader knows more of does not climb
+    # over a fresher one — it only wins against the others published alongside it. An
+    # entry too short to measure sorts as if it were average rather than as nothing,
+    # since a headline that says little about its Hebrew is not evidence of hard Hebrew.
+    items.sort(
+        key=lambda row: (
+            str(row["published"])[:10],
+            0.5 if row["known_share"] is None else row["known_share"],
+        ),
+        reverse=True,
+    )
     out: dict[str, Any] = {"count": len(items), "items": items[:limit]}
     if skipped:
         out["unreachable"] = skipped
