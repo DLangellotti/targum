@@ -1016,6 +1016,59 @@ def test_a_measured_suggestion_says_the_share_in_words(world) -> None:
     assert top["id"] == "esther" and top["known_line"] == "You know about 5 words in 10 here."
 
 
+def test_a_bigger_ledger_is_offered_a_text_it_knows_more_of(world) -> None:
+    """targum-internal#244, acceptance criterion 1: over three nested ledgers the top
+    suggestion's `known_share` is monotone non-decreasing in the size of the ledger.
+
+    It is the whole claim of the card in one line — that what is offered follows what the
+    reader has, and not a number fixed to the text — and nothing pinned it.
+
+    That the *ranking* reads the share, rather than only reporting it, is pinned next
+    door by the register test, which sets two texts against each other. Here there is one
+    text to measure: `ruth` is the reader's own and `suggest_next` leaves out what is
+    already theirs, so `esther` is the shelf. What this asks is the criterion as written
+    — that the number the top card carries never falls as the reader learns more.
+    """
+    library, store, person, home = world
+
+    def mark(lemmas: list[str], at: int) -> None:
+        store.push(
+            person,
+            {
+                "words": [
+                    {
+                        "language": "he",
+                        "lemma": lemma,
+                        "surface": lemma,
+                        "status": 9,
+                        "at": at + n,
+                        "seen": at + n,
+                    }
+                    for n, lemma in enumerate(lemmas)
+                ]
+            },
+        )
+
+    def top() -> tuple[str, float]:
+        got = tools.suggest_next(context(library, store, person, home), {"limit": 5})
+        measured = [row for row in got["suggestions"] if row.get("known_share") is not None]
+        assert measured, "the shelf holds a text that was built and measured"
+        return str(measured[0]["id"]), float(measured[0]["known_share"])
+
+    # Nested, the way a reader's own ledger grows: nothing is ever taken back.
+    first, nothing = top()
+    mark(["מלך", "ספר"], 200)  # words of the other text: this one is unchanged
+    _, same = top()
+    mark(["רעב"], 300)  # and now the shelf's text is whole
+    last, more = top()
+
+    assert nothing <= same <= more, (
+        f"the top suggestion's share fell as the ledger grew: {nothing} → {same} → {more}"
+    )
+    assert first == last == "esther"
+    assert (nothing, more) == (0.5, 1.0), "half its words known, then all of them"
+
+
 def test_a_suggestion_leans_towards_the_registers_the_reader_reads(world, monkeypatch) -> None:
     """2026-09-11: "a text that fits your level and interests". Two texts the reader
     knows equally well: the one in a register they brought in themselves ranks first."""
