@@ -4,12 +4,36 @@ from __future__ import annotations
 
 
 class TargumError(Exception):
-    """Anything the user can act on. The CLI prints it and exits 1."""
+    """Anything the user can act on. The CLI prints it and exits 1.
 
-    def __init__(self, message: str, hint: str | None = None) -> None:
+    `key` names this refusal in the string catalogue, for the ones a reader can meet
+    (targum-internal#348). It is optional and most refusals have none: the command line
+    is English by design, and a message raised where nobody is reading has nobody to
+    translate it for. Where there is a key, the hint is `<key>.hint` by convention —
+    one field, two sentences, and no second field to keep in step.
+
+    The message stays here in English whatever the key says, because it is what the log
+    records and what a traceback carries; the language is chosen where the refusal
+    reaches a reader, which is the only place that knows who is reading.
+
+    `fill` is what the sentence names — the address, the host — because the English is
+    already interpolated by the time it is raised and a translation is not. Without it a
+    Russian reader would be handed the catalogue's `{url}` with the braces still on.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        hint: str | None = None,
+        *,
+        key: str = "",
+        **fill: object,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.hint = hint
+        self.key = key
+        self.fill = fill
 
 
 class UnsupportedSource(TargumError):

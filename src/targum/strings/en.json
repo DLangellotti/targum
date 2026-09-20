@@ -1747,5 +1747,17 @@
   "progress.spent.nothing": "Nothing here yet.",
   "reader.page.credits": "Credits",
   "reader.page.keys-on-the-track": "with the recording's track in focus, back and on five seconds; Home and End for its two ends",
-  "reader.page.keys-on-the-picture": "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps"
+  "reader.page.keys-on-the-picture": "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps",
+  "fetch.not-a-web-page": "We only read web pages, and {url} isn't one.",
+  "fetch.not-a-web-page.hint": "Paste an http:// or https:// address, or drop in a file.",
+  "fetch.no-site-name": "We couldn't find a site name in {url}.",
+  "fetch.no-site-name.hint": "Check the address and try again.",
+  "fetch.no-such-site": "We couldn't find {host}.",
+  "fetch.private-network": "{host} is on a private network, so we won't fetch it.",
+  "fetch.private-network.hint": "Paste a public web address, or save the page and drop in the file.",
+  "fetch.too-big-to-read": "{url} is too big for us to read.",
+  "fetch.too-big-to-read.hint": "Try a single article.",
+  "fetch.over-the-page-cap": "{url} is too big for us to read.",
+  "fetch.over-the-page-cap.hint": "We stop at 8 MB. Try a single article.",
+  "fetch.too-big-to-fetch": "{url} is too big for us to fetch."
 }
