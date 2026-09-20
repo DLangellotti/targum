@@ -1311,7 +1311,9 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   font-size: 0.875rem;
   color: var(--ink);
   display: flex;
-  align-items: baseline;
+  /* Centred, not `baseline`: a row is 2.75rem tall for the thumb and its words are one
+     line, and on the baseline they sat against the top of it with the room all below. */
+  align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
   text-align: start;
