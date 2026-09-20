@@ -1332,6 +1332,14 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
     max-inline-size: 46rem;
   }
 }
+/* Two rows, not eight: the ladder's two columns would set them side by side across
+   46rem, and a choice between two is read down. The question above them is said once in
+   each language, a line each. */
+.arrival-tongues { max-inline-size: 30rem; }
+@media (min-width: 48rem) {
+  .arrival-tongues { grid-template-rows: none; grid-auto-flow: row; }
+}
+.arrival-asks > span { display: block; }
 .arrival-rung {
   font: inherit;
   font-family: var(--chrome);
@@ -1459,7 +1467,16 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
     min-block-size: 4.25rem;
     background: var(--ground);
     border-block-start: 1px solid var(--hairline);
+    /* Back, Next, Skip and the count are four things since the language came first
+       (2026-09-20), and on a 320px phone four in a row ran under the pill. The count is
+       a line of its own above the three presses, and takes no room while it is empty. */
+    flex-wrap: wrap;
+    row-gap: 0.1rem;
   }
+  body.arriving .arrival-count { order: -1; flex: 1 0 100%; }
+  body.arriving .arrival-count:empty { display: none; }
+  /* And the page clears the taller foot. */
+  body.arriving .arrival { padding-block-end: 7rem; }
 }
 /* --- words you may already know, on the way in (targum-internal#297) --------- */
 

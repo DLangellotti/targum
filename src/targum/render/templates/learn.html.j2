@@ -75,6 +75,16 @@
         `learn.js`. -#}
     <section class="arrival" id="arrival" hidden aria-labelledby="arrival-asks">
       <p class="arrival-step" id="arrival-step"></p>
+      {#- Which language they read, before anything that has to be read (2026-09-20). Asked
+          in every language it offers at once, each row in its own name, because a reader
+          who cannot read "What are you interested in?" cannot be asked it. Drawn by
+          `learn.js`, and only for somebody who has never said: an account the operator
+          marked, a press on the front door's switcher and the conversation's own
+          question are all answers already. -#}
+      <div class="arrival-screen" id="arrival-language" hidden>
+        <p class="arrival-asks" id="arrival-asks-language"></p>
+        <div class="arrival-levels arrival-tongues" id="arrival-tongues" role="group" aria-labelledby="arrival-asks-language"></div>
+      </div>
       <div class="arrival-screen" id="arrival-subjects">
         <p class="arrival-asks" id="arrival-asks">{{ t("learn.arrival.what-are-you-interested-in", "What are you interested in?") }}</p>
         <p class="arrival-hint">{{ t("learn.arrival.pick-three-or-more", "Pick three or more. We use them to choose what to put in front of you.") }}</p>
