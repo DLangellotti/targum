@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
@@ -1014,6 +1014,52 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         }
 
     host = (parsed.hostname or "").lower()
+
+    # A direct link to a file, before anything reads it as a page (targum-internal#256).
+    # `episode.find` fetches an address it cannot name from its suffix, and `.mp4` is one
+    # — so a reader's link to a video was pulled whole, twice, and then described as
+    # "file". Named here from the address, timed from its front, and never pulled.
+    from ..video import is_video as is_video_file
+
+    path = unquote(parsed.path)
+    if episode_module.sounds_like_audio(url) or is_video_file(path):
+        watching = is_video_file(path)
+        try:
+            front = url_module.opening(url)
+        except Unreachable as error:
+            shut = refused(ctx, host, error)
+            return shut if shut is not None else {"error": error.message}
+        except TargumError as error:
+            return {"error": error.message}
+        if ctx is not None and ctx.store is not None:
+            ctx.store.reach(host, True, egress="direct")
+        from ..audio.probe import timed
+
+        seconds = timed(front.head, front.length)
+        said = [
+            "A video: only its sound is read, unless the pictures are kept."
+            if watching
+            else "A recording.",
+            "It would be transcribed; the hours count against the audio allowance.",
+        ]
+        if not seconds:
+            # Said rather than guessed. The length is read for certain when the file is
+            # fetched, and the quote is made from that.
+            said.append("How long it runs could not be read from the link; the quote will say.")
+        return {
+            "kind": "recording",
+            "title": Path(path).stem,
+            "medium": "video" if watching else "audio",
+            "content_type": front.content_type,
+            "seconds": round(seconds),
+            "hours": round(seconds / 3600, 2) if seconds else None,
+            "megabytes": round(front.length / (1024 * 1024), 1) if front.length else None,
+            "has_transcript": False,
+            "advice": said,
+            "quote_with": url,
+            **_licence_row(""),
+        }
+
     try:
         found = episode_module.find(url)
     except UnsupportedSource as refusal:
