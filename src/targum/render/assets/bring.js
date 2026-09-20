@@ -187,11 +187,16 @@
      `tell(share)` hears the upload. */
   function bring(files, choices, tell) {
     var payload = options(choices && choices.to, choices && choices.from);
+    // The link that was refused before this file was dropped, where there was one: the
+    // film's own home, so the reader page still says whose it is. The server keeps it
+    // only in the host table's canonical shape (targum-internal#331).
+    var from = (choices && choices.cameFrom) || "";
     return upload(files, tell).then(function (sent) {
       if (sent.reader) return { reader: sent.reader };
       Object.keys(sent).forEach(function (name) {
         payload[name] = sent[name];
       });
+      if (from) payload.came_from = from;
       return ask("/prepare", payload);
     });
   }

@@ -579,6 +579,11 @@
   // was sent, and the reader is left to open from the card or the strip.
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
+  //: The last film this conversation could not fetch. A reel Instagram refused, or a
+  //: TikTok, downloaded by the reader and dropped into the `+` next, is still that
+  //: film: the link goes up with the file and the page links home to the post
+  //: (targum-internal#331). Forgotten when the reader types a line instead.
+  var cameFrom = "";
   var heldList = document.getElementById("chat-held");
   var held = [];
   function showHeld() {
@@ -625,8 +630,10 @@
     var line = li.querySelector(".chat-line");
     line.textContent = t("chat.uploading", "Thanks. We're uploading it…");
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
+    var from = cameFrom;
+    cameFrom = "";
     return bringing
-      .bring(chosen, { to: into }, function (share) {
+      .bring(chosen, { to: into, cameFrom: from }, function (share) {
         line.textContent = t("chat.uploading-share", "Thanks. We're uploading it… {share}%", { share: share });
       })
       .then(function (job) {
@@ -704,6 +711,9 @@
       return;
     }
     if (!text) return;
+    // A line typed instead of the file is starting over: a video dropped after it is
+    // not the refused link's.
+    cameFrom = "";
     // Kept in the box while an answer is still coming, or while the conversation cannot
     // answer: the line used to be cleared first and then dropped without a word
     // (2026-09-14).
@@ -1476,6 +1486,7 @@
       givingUp = true;
       if (source) source.close();
       ask("/chat/turn/" + encodeURIComponent(chat) + "/" + n).then(function (state) {
+        if (state && state.refused) cameFrom = state.refused;
         if (state && state.done && !state.error) {
           if (state.words) words = state.words;
           return finish("done", { text: state.text || text });
@@ -1549,6 +1560,16 @@
         heardNow();
         quoteCard(li, JSON.parse(event.data || "{}"));
       });
+      source.addEventListener("refused", function (event) {
+        // A film we could not fetch. Remembered, not said: the model's own sentence is
+        // the answer, and this is only what the next dropped file needs.
+        heardNow();
+        try {
+          cameFrom = String(JSON.parse(event.data || "{}").url || "");
+        } catch (e) {
+          cameFrom = "";
+        }
+      });
       source.addEventListener("words", function (event) {
         heardNow();
         // The lines read as a text is read: drawn again with their words marked.
@@ -1586,6 +1607,7 @@
         (state.quotes || []).forEach(function (job) {
           if (!li.querySelector('[data-job="' + job.id + '"]')) quoteCard(li, job);
         });
+        if (state.refused) cameFrom = state.refused;
         if (state.done) return finish("done", { text: text });
         setTimeout(poll, 800);
       });

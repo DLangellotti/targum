@@ -5268,6 +5268,16 @@ class Handler(BaseHTTPRequestHandler):
                 "error": errors[-1]["message"] if errors else "",
                 # The cards this turn quoted, for a page polling rather than streaming.
                 "quotes": [json.loads(data) for kind, data in feed.events if kind == "quote"],
+                # And the film it could not fetch, so a page without EventSource keeps
+                # the link the same way a streaming one does (targum-internal#331).
+                "refused": next(
+                    (
+                        json.loads(data)["url"]
+                        for kind, data in reversed(feed.events)
+                        if kind == "refused"
+                    ),
+                    "",
+                ),
                 "words": read[-1] if read else None,
             }
         turns = self.chats.store.chat_turns(chat_id)

@@ -1752,3 +1752,110 @@ def test_the_conversation_is_the_same_conversation_without_a_handed_line() -> No
     """Which is every load but the one after a press on the fold."""
     drawn = run()
     assert drawn["field"] == ""
+
+
+# -- a video dropped after a refused link (targum-internal#331) -----------------------
+
+TOK = "https://www.tiktok.com/@kan/video/7312"
+
+
+def test_a_video_dropped_after_a_refused_link_keeps_that_link_as_its_home() -> None:
+    """The chat's + had no memory of a refused link, so a reel the reader downloaded
+    and dropped in came out linking nowhere. The refusal is remembered on the page and
+    rides up with the next file, the way the Add page's does."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "stream", "event": "refused", "data": json.dumps({"url": TOK})},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "We can't fetch it."})},
+            {"type": "file", "file": {"name": "reel.mp4", "size": 10}},
+            {"type": "send"},
+        ],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/upload/begin": {"upload": "u1", "chunk": 5},
+            "/upload/u1/0": {},
+            "/upload/u1/1": {},
+            "/upload/u1": {"upload": "u1"},
+            **BUILT,
+        },
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert prepared["body"]["came_from"] == TOK
+
+
+def test_a_file_dropped_in_a_fresh_conversation_links_nowhere() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers=BUILT,
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert "came_from" not in prepared["body"]
+
+
+def test_a_line_typed_after_the_refusal_forgets_it() -> None:
+    """Typing is starting over, the same rule the Add page keeps: a video dropped after
+    a new question is not the refused link's."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "stream", "event": "refused", "data": json.dumps({"url": TOK})},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "We can't fetch it."})},
+            {"type": "say", "text": "never mind, something else"},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "Of course."})},
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send"},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}, **BUILT},
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert "came_from" not in prepared["body"]
+
+
+def test_the_refusal_is_remembered_and_never_said() -> None:
+    """The model's own sentence is the answer; the event is only what the next file
+    needs, so it puts no line of its own in the thread."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "stream", "event": "refused", "data": json.dumps({"url": TOK})},
+            {"type": "stream", "event": "text", "data": "We couldn't fetch that TikTok."},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": "We couldn't fetch that TikTok."}),
+            },
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert [t["text"] for t in page["turns"]] == [TOK, "We couldn't fetch that TikTok."]
+
+
+def test_a_turn_read_back_rather_than_streamed_keeps_the_refused_link_too() -> None:
+    """Both roads to a turn's answer carry it: the stream's own event, and the state a
+    page asks for when it polls or when it gives up waiting. Either way the `+` behaves
+    the same."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "tick", "seconds": 275},
+            {"type": "file", "file": {"name": "reel.mp4", "size": 10}},
+            {"type": "send"},
+        ],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/chat/turn/abc/1": {
+                "text": "We couldn't fetch it.",
+                "done": True,
+                "error": "",
+                "refused": TOK,
+            },
+            "/upload/begin": {"upload": "u1", "chunk": 5},
+            "/upload/u1/0": {},
+            "/upload/u1/1": {},
+            "/upload/u1": {"upload": "u1"},
+            **BUILT,
+        },
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert prepared["body"]["came_from"] == TOK
