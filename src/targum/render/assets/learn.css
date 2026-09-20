@@ -687,6 +687,14 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
    own type unscaled inside it (2026-09-14). */
 body.learn:not(.yours) main,
 body.learn:not(.yours) .site-head-row { max-width: 110rem; margin-inline: auto; }
+/* And the foot, which the two rules above forgot. It is set in the 62rem column "so the
+   links start where the page does" (`chrome.css`), and on this page the page starts at
+   the window's edge: at 1440 the links began 170px in from everything above them. */
+body.learn:not(.yours) .site-foot { max-width: 110rem; padding-inline: 1.5rem; }
+@media (max-width: 40rem) {
+  /* The phone's gutter is 1rem, the mark's and the cards'. */
+  body.learn:not(.yours) .site-foot { padding-inline: 1rem; }
+}
 /* The lists behind the account are pages to read down, not a reader to fill the desk
    with: they keep the column every other list page stands in, header and all. */
 body.yours main { max-width: 62rem; padding: 1.5rem 1.25rem 5rem; }
