@@ -52,8 +52,64 @@ LAID_OUT = """
 """
 
 
+DOCKED = """
+() => {
+  const rect = (el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+  };
+  const panel = document.getElementById('video');
+  return {
+    window: document.documentElement.clientWidth,
+    panel: rect(panel),
+    picture: rect(panel.querySelector('.video-el')),
+    keys: [...panel.querySelectorAll('.video-keys > *')]
+      .filter((el) => getComputedStyle(el).display !== 'none' && el.offsetWidth > 0)
+      .map((el) => Object.assign({ name: el.className }, rect(el))),
+  };
+}
+"""
+
+
+def docked(browser, tmp_path, size):  # noqa: F811
+    built = video_reader(tmp_path, film="reel.webm", lines=12)
+    context, page = open_reader(browser, built, viewport=size)
+    try:
+        page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
+        page.wait_for_timeout(150)
+        return page.evaluate(DOCKED)
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [320, 390, 768])
+def test_a_docked_reel_is_a_band_on_a_phone(browser, tmp_path, width) -> None:  # noqa: F811
+    """Under 60rem the picture is an occupant of the band: the sheet is the window's
+    width, so no line of the page shows beside it, and its keys stand clear of a picture
+    too narrow to carry a row of them."""
+    got = docked(browser, tmp_path, {"width": width, "height": 844})
+    assert got["panel"]["left"] <= 1 and got["panel"]["right"] >= got["window"] - 1, got
+    picture = got["picture"]
+    for key in got["keys"]:
+        clear = key["right"] <= picture["left"] + 1 or key["left"] >= picture["right"] - 1
+        assert clear, f"{key['name']} is over the picture: {got}"
+
+
+def test_a_docked_reel_keeps_its_keys_in_the_panel(browser, tmp_path) -> None:  # noqa: F811
+    """The bar across the panel was written for the landscape dock's 20rem. On the
+    upright one "Full screen" ran off the edge with two keys under it."""
+    got = docked(browser, tmp_path, {"width": 1440, "height": 900})
+    assert len(got["keys"]) == 4, got
+    for key in got["keys"]:
+        assert key["left"] >= got["panel"]["left"] - 1, (key, got["panel"])
+        assert key["right"] <= got["panel"]["right"] + 1, (key, got["panel"])
+    ordered = sorted(got["keys"], key=lambda key: key["left"])
+    for before, after in zip(ordered, ordered[1:], strict=False):
+        assert before["right"] <= after["left"] + 1, f"two keys overlap: {before} {after}"
+
+
 @pytest.mark.parametrize("film", ["reel.webm", "film.webm"])
-def test_watching_keeps_a_real_film_inside_the_window(browser, tmp_path, film) -> None:
+def test_watching_keeps_a_real_film_in_the_window(browser, tmp_path, film) -> None:  # noqa: F811
     """The picture, the keys and the transport are all on the screen, at every size a
     reader holds — a phone both ways up, a tablet, a laptop, and a laptop window that is
     short, which is where a landscape film overflowed the same way."""
