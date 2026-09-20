@@ -3381,3 +3381,63 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         assert "targum is under construction" in page and '<html lang="en"' in page
     finally:
         server.shutdown()
+
+
+# -- what targum found, before the price (targum-internal#250) ------------------------
+
+
+def test_a_link_is_described_before_it_is_priced(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reading `describe_source` has done for the model since #126, opened to the
+    page: the Add box showed a price and a title, and nothing about what was being
+    bought. No model runs and no media file is fetched."""
+    from targum.chat import tools
+
+    asked: list[str] = []
+
+    def described(ctx: object, args: dict[str, object]) -> dict[str, object]:
+        asked.append(str(args.get("url")))
+        return {
+            "kind": "video",
+            "title": "מה קרה היום",
+            "seconds": 754,
+            "hours": 0.21,
+            "hebrew_subtitles": False,
+            "advice": ["No written Hebrew subtitles: the recording would be transcribed."],
+            "licence": "standard YouTube licence",
+        }
+
+    monkeypatch.setattr(tools, "describe_source", described)
+    port, key, _ = served
+
+    status, found, _ = call(
+        port, "POST", f"/describe?k={key}", {"url": "https://www.youtube.com/watch?v=abc"}
+    )
+
+    assert status == 200
+    assert asked == ["https://www.youtube.com/watch?v=abc"], "the link, once"
+    assert found["kind"] == "video" and found["seconds"] == 754
+    assert found["advice"] == ["No written Hebrew subtitles: the recording would be transcribed."]
+
+
+def test_describing_a_link_that_cannot_be_read_is_an_answer_and_not_a_failure(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refusal is what the page says about the link, so the reader can try another.
+    200 either way, the way the model's own tool result is."""
+    from targum.chat import tools
+
+    monkeypatch.setattr(
+        tools, "describe_source", lambda ctx, args: {"error": "That is not a link targum follows."}
+    )
+    port, key, _ = served
+
+    status, found, _ = call(port, "POST", f"/describe?k={key}", {"url": "ftp://example.com/x"})
+    assert status == 200 and "not a link" in found["error"]
+
+
+def test_describing_nothing_is_refused_at_the_door(served: tuple[int, str, Path]) -> None:
+    port, key, _ = served
+    status, found, _ = call(port, "POST", f"/describe?k={key}", {"url": "   "})
+    assert status == 400 and found["error"]

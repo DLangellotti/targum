@@ -2073,3 +2073,91 @@ def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
     page.keyboard.press("Enter")
     page.wait_for_url("**/reader/mendele-he/**", timeout=5000)
     context.close()
+
+
+#: What `/describe` says about a link, in the shape `chat.tools._describe` returns.
+FOUND = {
+    "kind": "video",
+    "title": "מה קרה היום",
+    "seconds": 754,
+    "hebrew_subtitles": False,
+    "advice": ["No written Hebrew subtitles: the recording would be transcribed."],
+    "licence": "standard YouTube licence",
+    "known_share": 0.7,
+}
+
+
+def test_a_pasted_link_says_what_was_found_before_it_says_the_price(
+    browser, tmp_path: Path
+) -> None:
+    """targum-internal#250. The box showed a price and a title and nothing about what
+    was being bought. `describe_source` has read this for the model since #126; the page
+    asks it now, and says it while `/prepare` is still fetching."""
+    html = add_page(TOKEN)
+    order: list[str] = []
+    let_price_through: list[object] = []
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            order.append("describe")
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(FOUND))
+        elif "/prepare" in request.url:
+            order.append("prepare")
+            let_price_through.append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.wait_for_selector(".found", timeout=4000)
+    found_text = open_page.inner_text(".found")
+    open_page.wait_for_timeout(400)
+    still_there = open_page.is_visible(".found")
+    context.close()
+
+    assert order[:2] == ["describe", "prepare"], "what it is, before what it costs"
+    assert "What targum found" in found_text
+    assert "12:34" in found_text, "the length, as a clock"
+    assert "standard YouTube licence" in found_text
+    assert "No written Hebrew subtitles" in found_text
+    assert "7 words in 10" in found_text, "how much of it the reader already has"
+    assert still_there, "the price is drawn under what was found, not over it"
+    assert let_price_through, "the price still follows"
+
+
+def test_a_link_nothing_can_be_found_about_is_still_priced(browser, tmp_path: Path) -> None:
+    """The reading never decides anything. A `/describe` that refuses, or falls over, is
+    passed over in silence and the price follows exactly as it did before."""
+    html = add_page(TOKEN)
+    priced: list[object] = []
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+        elif "/prepare" in request.url:
+            priced.append(request.post_data_json)
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.wait_for_timeout(600)
+    drawn = open_page.is_visible(".found")
+    context.close()
+
+    assert priced, "a link that could not be described was not priced either"
+    assert not drawn, "nothing was found, so nothing is said about it"
