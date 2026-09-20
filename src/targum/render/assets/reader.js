@@ -5755,7 +5755,8 @@ var targumReader = function () {
   // (targum-internal#263, change 4). The gender is the whole reason: a noun met as
   // *l'école* or *les écoles* is kept with no way to see it is feminine.
   function namedTerm(entry) {
-    if (!entry || entry.kind !== "word" || language !== "fr" || !entry.lemma) return "";
+    if (language !== "fr") return "";
+    if (!entry || entry.kind !== "word" || !entry.lemma) return "";
     if (namedTerms[entry.lemma] !== undefined) return namedTerms[entry.lemma];
     var met = firstMeeting(entry.lemma);
     var line = met && met.token.length > 8 ? grammarTable[met.token[8]] || "" : "";
