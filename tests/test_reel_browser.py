@@ -21,8 +21,10 @@ pytest.importorskip("playwright.sync_api")
 # The fixtures live in the browser module rather than a conftest, so they are
 # imported by name to register them here.
 from test_reader_browser import (  # noqa: E402, F401
+    address,
     browser,
     open_reader,
+    opened,
     video_reader,
     watch,
 )
@@ -175,3 +177,60 @@ def test_an_upright_film_in_a_wide_window(browser, tmp_path, size) -> None:  # n
     for edge in ("top", "bottom", "left", "right"):
         assert abs(got["tap"][edge] - picture[edge]) < 2, f"the tap is the picture: {got}"
     assert got["keysGround"] == "rgba(0, 0, 0, 0)", f"no box behind the keys: {got}"
+
+
+BEFORE_IT_LOADS = """
+() => {
+  const panel = document.getElementById('video');
+  const seen = panel.querySelector('.video-el').getBoundingClientRect();
+  return {
+    loaded: panel.querySelector('.video-el').readyState,
+    tall: panel.classList.contains('tall'),
+    film: panel.style.getPropertyValue('--film').trim(),
+    width: Math.round(seen.width),
+    height: Math.round(seen.height),
+  };
+}
+"""
+
+
+def test_a_reel_is_upright_before_it_loads(browser, tmp_path, monkeypatch) -> None:  # noqa: F811
+    """The page learnt a film's shape from the film, so until the metadata landed a reel
+    stood in the stylesheet's 16/9 and then jumped upright. The build measures the cut
+    and the page carries it. Here the film is never answered at all, so the only thing
+    that can have stood the frame upright is what the page was built with."""
+    from targum.audio import tools
+
+    # Said rather than probed, so the test does not need an ffprobe to be installed.
+    monkeypatch.setattr(tools, "frame", lambda path: [480, 854])
+    built = video_reader(tmp_path, film="reel.webm")
+    context = opened(browser, {"width": 390, "height": 844})
+    try:
+        page = context.new_page()
+        page.route("**/*.webm*", lambda route: None)
+        page.goto(address(built))
+        page.wait_for_selector(".pair")
+        page.wait_for_selector("#video:not([hidden])")
+        got = page.evaluate(BEFORE_IT_LOADS)
+    finally:
+        context.close()
+    assert got["loaded"] == 0, f"the film was not meant to load: {got}"
+    assert got["tall"] and got["film"] == "480 / 854", got
+    assert got["height"] > got["width"], f"the frame is upright already: {got}"
+
+
+def test_the_film_has_the_last_word(browser, tmp_path, monkeypatch) -> None:  # noqa: F811
+    """A page told the wrong shape is put right when the film arrives: what the build
+    measured is a head start, not an authority."""
+    from targum.audio import tools
+
+    monkeypatch.setattr(tools, "frame", lambda path: [854, 480])
+    built = video_reader(tmp_path, film="reel.webm")
+    assert 'data-film="854 / 480"' in built.read_text(encoding="utf-8")
+    context, page = open_reader(browser, built, viewport={"width": 390, "height": 844})
+    try:
+        page.wait_for_function("() => document.getElementById('video').classList.contains('tall')")
+        got = page.evaluate(BEFORE_IT_LOADS)
+    finally:
+        context.close()
+    assert got["film"] == "480 / 854", got
