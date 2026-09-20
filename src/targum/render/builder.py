@@ -1502,22 +1502,31 @@ def _paradigm_at(
     """Where this word's conjugations sit in the page's own tables, or 0 for none.
 
     Only Hebrew verbs, and only where the lookup is unambiguous — `Table.of` answers None
-    for a spelling two verbs share, because choosing between them without the sentence
+    for a spelling two verbs share that nothing settles, because choosing between them
     would be guessing and a wrong table is worse than no table.
 
-    The same verb twice on a page is one table: `table_at` is keyed on the lemma, which
-    is what the reader's marks are filed under anyway.
+    The binyan goes with it (targum-internal#307). Hebrew writes two binyanim of a root
+    identically without points, so `הלך` is both הָלַךְ and הִלֵּךְ and the source cannot say
+    which; the binyan targum worked out for this word can, and it is what takes the table
+    from 55.4% of the shelf's verb tokens to 72.4%. It is a fact about the lemma's
+    analysis rather than about this occurrence, so it keys the cache beside the lemma.
+
+    The surface is not passed. `Table.of` would take it, but the table is drawn once per
+    lemma for the whole page, and a pointing is per occurrence: the first one on the page
+    would be deciding for all the others.
     """
     from ..annotate.paradigms import table as paradigm_table
 
     lemma = str(getattr(token, "lemma", "") or "")
     if not lemma or getattr(token, "pos", "") != "VERB":
         return 0
-    if lemma in table_at:
-        return table_at[lemma]
-    found = paradigm_table().of(lemma)
+    binyan = str(getattr(token, "binyan", "") or "")
+    key = f"{lemma}\u0000{binyan}"
+    if key in table_at:
+        return table_at[key]
+    found = paradigm_table().of(lemma, binyan=binyan or None)
     if found is None:
-        table_at[lemma] = 0
+        table_at[key] = 0
         return 0
     rows: list[list[object]] = []
     for form in found.forms:
@@ -1528,8 +1537,8 @@ def _paradigm_at(
             codes.append(feature_at[feature])
         rows.append([form.written, codes])
     tables.append(rows)
-    table_at[lemma] = len(tables) - 1
-    return table_at[lemma]
+    table_at[key] = len(tables) - 1
+    return table_at[key]
 
 
 def signin_page(
