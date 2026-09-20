@@ -31,6 +31,9 @@ install({
   // The bell (2026-09-11): what the page told it.
   TargumNotices: { note: (id, text, extra) => notices.push({ id, text, href: (extra || {}).href || "" }) },
   TARGUM_CATALOGUE: payload.catalogue || [],
+  // The languages a translation can be in (2026-09-20). None unless a test says, so the
+  // arrival asks which one a reader reads only in the tests that are about that.
+  TARGUM_INTO: payload.into || [],
   // The drawer (2026-09-11): what the page asked it to do.
   TargumTalk: { show: (on) => talks.push(on), open: (id) => talks.push("open:" + id) },
   stored: payload.stored || {},
@@ -42,7 +45,12 @@ install({
     learning: () => [payload.language || "he"],
     // The switcher draws; the caller remembers. Both are asked for now.
     set: () => {},
-    into: () => "",
+    // What this browser reads into: what a test says it already holds, then whatever the
+    // page tells it.
+    into: (code) => {
+      if (code !== undefined) heldInto = code;
+      return heldInto;
+    },
     switcher: () => {},
     beta: () => false,
     betaNote: () => "",
@@ -54,6 +62,21 @@ install({
    about that is which text was sent — a card that offered one book and built its
    neighbour would be unnoticeable and expensive. */
 const asked = [];
+let heldInto = payload.held || "";
+let reloaded = 0;
+/* One visit's store, for what has to outlive the page being loaded again in the language
+   a reader chose. A test says what the visit already holds. */
+const visit = Object.assign({}, payload.visit || {});
+global.window.sessionStorage = {
+  getItem: (key) => (key in visit ? visit[key] : null),
+  setItem: (key, value) => {
+    visit[key] = String(value);
+  },
+};
+global.location.reload = () => {
+  reloaded += 1;
+};
+global.document.documentElement.lang = payload.pageLanguage || "en";
 const notices = [];
 const talks = [];
 const wheres = [];
@@ -208,6 +231,13 @@ function act(step) {
     );
     if (row) row.fire("click", {});
   }
+  // A language on the arrival's first screen, by its own name (2026-09-20).
+  if (step.tongue) {
+    const press = Array.from(at("arrival-tongues").children).find(
+      (p) => p.textContent === step.tongue
+    );
+    if (press) press.fire("click", {});
+  }
   // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
@@ -261,6 +291,14 @@ function withDoors(node) {
 
 setTimeout(() => {
   (payload.do || []).forEach(act);
+  /* Read a beat later, not in the same tick as the last press (2026-09-20). Every press
+     until now changed the page where it stood; choosing a language tells the account
+     first and goes on when the account has answered, and read at once the page was
+     always still on the question. */
+  setTimeout(report, 10);
+}, 30);
+
+function report() {
   const carry = at("carry-cover");
   process.stdout.write(
     JSON.stringify({
@@ -324,6 +362,18 @@ setTimeout(() => {
         at("arrival").hidden || at("arrival-level").hidden
           ? []
           : Array.from(at("arrival-levels").children).map((p) => p.textContent),
+      /* The language, where it is asked (2026-09-20): its rows in their own names, the
+         question a line a language, what the browser now reads into, whether the page
+         asked to be loaded again, and what the visit was told to remember. */
+      tongues:
+        at("arrival").hidden || at("arrival-language").hidden
+          ? []
+          : Array.from(at("arrival-tongues").children).map((p) => p.textContent),
+      tongueAsks: Array.from(at("arrival-asks-language").children || []).map((p) => p.textContent),
+      heldInto,
+      reloaded,
+      visit,
+      backShown: !at("arrival").hidden && !at("arrival-back").hidden,
       // Which screen is up and what it says of itself: "1 of 2".
       step: at("arrival").hidden ? "" : at("arrival-step").textContent,
       subjectsUp: !at("arrival").hidden && !at("arrival-subjects").hidden,
@@ -376,4 +426,4 @@ setTimeout(() => {
       seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
     })
   );
-}, 30);
+}
