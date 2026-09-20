@@ -2883,7 +2883,8 @@ def weekly_announce(
             )
         )
 
-    book = Store(store or default_store())
+    where = store or default_store()
+    book = Store(where)
     report = send(book, from_environment(), issue, address)
     if report.stopped:
         fail(
@@ -2893,7 +2894,18 @@ def weekly_announce(
                 f"picks up where it stopped.",
             )
         )
-    console.print(f"[green]{report}[/green]")
+    if report.nobody:
+        # Named with the database it looked in, because which database is the whole of
+        # the confusion (targum-internal#346): the weekly is written on a laptop and the
+        # people who asked for it signed up on the box, so a run here can publish an
+        # issue, ship it, and tell nobody without anything going wrong.
+        console.print(f"[yellow]{report}[/yellow] [dim]{where}[/dim]")
+        console.print(
+            "[dim]The issue is out; nobody was told. Subscribers live where readers "
+            "signed up.[/dim]"
+        )
+    else:
+        console.print(f"[green]{report}[/green]")
     for who, why in report.failed:
         console.print(f"[yellow]{who}[/yellow] [dim]{why}[/dim]")
 

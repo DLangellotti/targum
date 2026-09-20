@@ -1759,6 +1759,17 @@ class Store:
         ).fetchall()
         return [(str(row["email"]), str(row["stop"])) for row in rows]
 
+    def subscribed(self) -> int:
+        """How many people this database could mail at all, whatever issue is being sent.
+
+        `subscribers` answers "who has not had this one", which is empty both when a run
+        has already finished and when there is nobody here to mail. Those are different
+        facts and one of them is a defect (targum-internal#346), so the mailout asks
+        this before calling an empty list a finished job.
+        """
+        row = self.db.execute("SELECT COUNT(*) AS n FROM subscriber WHERE state = 'on'").fetchone()
+        return int(row["n"])
+
     def mark_sent(self, email: str, issue_id: str) -> None:
         with self.write() as db:
             db.execute(
