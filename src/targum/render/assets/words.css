@@ -467,16 +467,21 @@ table.rows tr.editor-row td { padding: 0; border: 0; }
 /* The checklist: the same rows, the check leading, the head kept for its check-all and
    set quiet; the two presses on a glass strip that stays at the foot while the list
    scrolls under it. */
+/* A word and what it means are read as a pair, so they stand together: the word's
+   column is the width of a word, and the list keeps a reading measure. With the two
+   sharing the row evenly, on a wide window the word was at one edge of a 1400px card and
+   its meaning 600px along — fifty rows of looking across and losing the line. */
+table.rows.claim-table { max-inline-size: 44rem; }
 table.rows.claim-table thead { display: block; }
 table.rows.claim-table thead tr {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto 7rem minmax(0, 1fr) auto;
   column-gap: 0.9rem;
   padding: 0.3rem 0.8rem 0.5rem;
 }
 table.rows.claim-table thead th { border: 0; padding: 0; }
 table.rows.claim-table tbody tr {
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto 7rem minmax(0, 1fr) auto;
   grid-template-areas: none;
 }
 table.rows.claim-table tbody td { grid-area: auto; }
@@ -487,6 +492,7 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
   position: sticky;
   inset-block-end: 0.75rem;
   z-index: 2;
+  max-inline-size: 44rem;
   padding: 0.6rem 0.8rem;
   border-radius: 999px;
   background: var(--glass);
@@ -500,7 +506,9 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
     grid-template-areas: "term when" "lemma status" "meaning band";
   }
   table.rows.claim-table tbody tr,
-  table.rows.claim-table thead tr { grid-template-columns: auto auto minmax(0, 1fr); }
+  /* A set width for the word, not `auto`: each row is a grid of its own, so `auto` gave
+     every row its own second column and the meanings began wherever the word ended. */
+  table.rows.claim-table thead tr { grid-template-columns: auto 4.5rem minmax(0, 1fr); }
   table.rows.claim-table td:nth-child(4), table.rows.claim-table th:nth-child(4) { display: none; }
 }
 /* On a phone the strip keeps clear of the pill at the foot of the window. */
