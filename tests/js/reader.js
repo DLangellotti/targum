@@ -54,6 +54,8 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   // Rows in another language than the page's, by segment id, as the builder ships them.
   ...(payload.languages ? { languages: payload.languages } : {}),
   registers: payload.registers || [],
+  // The annotator's pipe strings, which a token points into by its ninth field.
+  grammar: payload.grammar || [],
   sourceRegister: payload.sourceRegister || "",
   document: "a-chapter",
   // Which part of the document this file is, and how many there are. A targum finishes
@@ -329,6 +331,10 @@ process.stdout.write(
       lemma: item.lemma,
       status: item.status,
       done: Boolean(item.done),
+      // What the row, the file and the cards all write: the form it was met in, or a
+      // French noun with its article (targum-internal#263).
+      term: item.term,
+      shown: reader.namedTerm(item) || item.term,
     })),
   })
 );

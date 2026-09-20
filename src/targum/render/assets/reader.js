@@ -2867,9 +2867,11 @@ var targumReader = function () {
     term.className = "term";
     var word = document.createElement("bdi");
     word.setAttribute("lang", language);
-    word.textContent = entry.term;
+    var shown = namedTerm(entry) || entry.term;
+    word.textContent = shown;
     term.appendChild(word);
-    if (entry.lemma && entry.lemma !== entry.term) {
+    // The dictionary form after it would only repeat what the article already says.
+    if (entry.lemma && entry.lemma !== shown && entry.lemma !== entry.term) {
       var separator = document.createElement("span");
       separator.className = "sep";
       separator.textContent = "·";
@@ -2881,7 +2883,7 @@ var targumReader = function () {
       term.appendChild(dictionary);
     }
     // Inside the term's cell, so the row keeps its four columns.
-    term.appendChild(window.TargumVocab.copyButton(entry.term, { say: say }));
+    term.appendChild(window.TargumVocab.copyButton(shown, { say: say }));
     item.appendChild(term);
 
     // A phrase is in its own list now, so it no longer has to announce that it is one.
@@ -5621,7 +5623,7 @@ var targumReader = function () {
       ],
       wordEntries().map(function (entry) {
         return [
-          entry.term,
+          namedTerm(entry) || entry.term,
           entry.lemma,
           entry.level || "",
           statusName(entry.status),
@@ -5719,7 +5721,7 @@ var targumReader = function () {
       var met = firstMeeting(entry.lemma);
       var index = met ? met.token[4] : -1;
       var line = met && met.token.length > 8 ? grammarTable[met.token[8]] || "" : "";
-      var named = withArticle(wordOf(entry.lemma), line);
+      var named = namedTerm(entry);
       return {
         front: named || (met ? readingRun(met.segmentId, met.token[0], met.token[1]) : entry.term),
         // What the reader wrote or kept first; failing that, the meaning the page
@@ -5741,6 +5743,24 @@ var targumReader = function () {
     var gender = feat(line, "Gender") === "Fem" ? "f" : feat(line, "Gender") === "Masc" ? "m" : "";
     if (said.length !== 2 || said[0] !== gender) return "";
     return gt("reader.grammar.like-most-nouns-in", "like most nouns in -{ending}", { ending: said[1] });
+  }
+
+  //: What `namedTerm` has already worked out, by lemma. The grammar of a word on a page
+  //: does not change while the page is open, and `firstMeeting` walks every token on it —
+  //: so without this the list would walk the page once per word on every redraw.
+  var namedTerms = {};
+
+  // How a word is written where the list, the file and the cards all show it: a French
+  // noun with its article, and everything else exactly as it was met
+  // (targum-internal#263, change 4). The gender is the whole reason: a noun met as
+  // *l'école* or *les écoles* is kept with no way to see it is feminine.
+  function namedTerm(entry) {
+    if (language !== "fr") return "";
+    if (!entry || entry.kind !== "word" || !entry.lemma) return "";
+    if (namedTerms[entry.lemma] !== undefined) return namedTerms[entry.lemma];
+    var met = firstMeeting(entry.lemma);
+    var line = met && met.token.length > 8 ? grammarTable[met.token[8]] || "" : "";
+    return (namedTerms[entry.lemma] = withArticle(wordOf(entry.lemma), line));
   }
 
   // A French noun as a learner keeps it: its dictionary form with *un* or *une*, the only
@@ -8728,6 +8748,7 @@ var targumReader = function () {
     ankiText: ankiText,
     compoundLine: compoundLine,
     withArticle: withArticle,
+    namedTerm: namedTerm,
     endingLine: endingLine,
     tagOf: tagOf,
     builtIn: builtIn,

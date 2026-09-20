@@ -1618,3 +1618,57 @@ def test_a_split_words_pieces_are_said_in_the_pages_language() -> None:
         "ו и + ל к + בית + его",
         "מ из + ה артикль + ספר + with a pronoun on the end",
     ]
+
+
+def test_a_french_noun_is_kept_on_the_list_with_its_article() -> None:
+    """targum-internal#263, change 4: the list and the file store the form a word was met
+    in, so a noun met as *l'école* is kept with no way to see it is feminine — and the
+    article is the only place its gender shows.
+
+    The Anki cards already named it; the list beside the text and the CSV did not, which
+    is where a reader actually looks at their own words.
+    """
+    # One sentence, three words, each token pointing at its own grammar line: the ninth
+    # field is the index into the table the builder ships.
+    words = {
+        "s0": [
+            [0, 6, 3, 0, 0, 0, 0, 0, 0],
+            [7, 12, 3, 0, 1, 0, 0, 0, 1],
+            [13, 19, 3, 0, 2, 0, 0, 0, 2],
+        ]
+    }
+    lemmas = ["école", "livre", "manger"]
+    grammar = [
+        "UPOS=NOUN|Gender=Fem|Number=Sing",
+        "UPOS=NOUN|Gender=Masc|Number=Sing",
+        "UPOS=VERB|VerbForm=Inf",
+    ]
+    rows = run(
+        [],
+        language="fr",
+        chapter=words,
+        lemmas=lemmas,
+        grammar=grammar,
+        vocab={lemma: {"status": 2} for lemma in lemmas},
+    )["list"]
+
+    shown = {row["lemma"]: row["shown"] for row in rows}
+    assert shown["école"] == "une école", "the gender l' and les hide"
+    assert shown["livre"] == "un livre"
+    assert shown["manger"] == "manger", "a verb keeps the form it was met in"
+
+
+def test_a_noun_outside_french_keeps_the_form_it_was_met_in() -> None:
+    """The article is French's alone: a Hebrew or Russian noun is left exactly as it was,
+    and nothing on those pages pays for the lookup."""
+    words = {"s0": [[0, 4, 3, 0, 0, 0, 0, 0, 0]]}
+    for language, lemma in (("he", "ספר"), ("ru", "книга")):
+        rows = run(
+            [],
+            language=language,
+            chapter=words,
+            lemmas=[lemma],
+            grammar=["UPOS=NOUN|Gender=Fem|Number=Sing"],
+            vocab={lemma: {"status": 2}},
+        )["list"]
+        assert [row["shown"] for row in rows] == [lemma], language
