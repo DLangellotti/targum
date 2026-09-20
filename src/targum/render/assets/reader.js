@@ -3156,11 +3156,22 @@ var targumReader = function () {
   //
   // Overlays are not in any of these sums. A card takes nothing out of the page, so
   // nothing is told about it and nothing is laid out again for it — see `overlays`.
-  var footSaid = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
+  //
+  // And `--head`, for the one resident that can stand at the top instead: the picture,
+  // docked there. `atFoot` kept it out of the band's sums, which was right, and nothing
+  // then counted it anywhere. Pages are cut under it (`room`), but on a narrow window a
+  // docked picture suspends paging, so the reader it actually meets is the scrolling
+  // one, which knew of nothing at the top but the bar: the picture stood over the bar,
+  // over the first lines of the text with no way to scroll them clear, and over every
+  // line the voice brought to the top. Hidden in part one by a title tall enough to be
+  // the thing covered; plain in part two (David, on his phone, 2026-09-20).
+  var footSaid = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null, "--head": null };
+  //: `--head` as a number, for `ceiling`, which is asked far more often than this runs.
+  var headNow = 0;
 
   function seatFoot() {
     var root = document.documentElement.style;
-    var said = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
+    var said = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null, "--head": null };
     function tell(name) {
       if (said[name]) root.setProperty(name, said[name]);
       else root.removeProperty(name);
@@ -3197,7 +3208,20 @@ var targumReader = function () {
       });
       var foot = window.innerHeight - top;
       said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
+      var head = 0;
+      residents().forEach(function (thing) {
+        if (standing(thing) && !atFoot(thing) && !thing.classList.contains("watching")) {
+          head = Math.max(head, thing.getBoundingClientRect().height);
+        }
+      });
+      said["--head"] = head ? Math.round(head) + "px" : null;
     }
+    var headWas = headNow;
+    headNow = said["--head"] ? parseInt(said["--head"], 10) : 0;
+    // Said to the stylesheet now, not the next time somebody happens to ask: `--ceiling`
+    // is every line's `scroll-margin`, and the voice brings a line to the top without
+    // asking anything first.
+    if (headNow !== headWas) ceiling();
     var changed = false;
     Object.keys(said).forEach(function (name) {
       if (footSaid[name] === said[name]) return;
@@ -5839,7 +5863,9 @@ var targumReader = function () {
   // top of the text.
   var ceilingSaid = "";
   function ceiling() {
-    var band = (bar ? bar.getBoundingClientRect().height : 0) + 16;
+    // And under a picture docked at the top of a narrow window, which the bar now stands
+    // below: a line brought "to the top" is brought to the top of what can be read.
+    var band = (bar ? bar.getBoundingClientRect().height : 0) + headNow + 16;
     // Written where the stylesheet can read it: `scroll-margin-block-start` used to say
     // 4rem while this measured the truth, and on a narrow window the bar wraps past
     // 4rem — so `scrollIntoView` landed the sentence behind it. One measurement, two
