@@ -1509,6 +1509,8 @@
     en: { name: "English", asks: "What is your native language?" },
     ru: { name: "Русский", asks: "Какой у вас родной язык?" },
   };
+  //: The last row: neither of them. In every language the question is asked in.
+  var OTHER_TONGUE = "Other · Другой";
   //: `/account/me`, once it has answered; null until then and for nobody.
   var who = null;
 
@@ -1803,6 +1805,21 @@
         });
         tongues.appendChild(tongue);
       });
+      /* And a row for everybody else (David, 2026-09-20). "What is your native language?"
+         with two answers is a question most of the world cannot answer, and Skip is not
+         an answer — it says "not now", and this reader means "neither". Said in both
+         languages, since it is the one row that is nobody's own name. What it sets is
+         English, which is the only other language there is to read into; what it is for
+         is that they were asked, answered truly, and are not asked again. */
+      var other = document.createElement("button");
+      other.type = "button";
+      other.className = "arrival-rung";
+      other.textContent = OTHER_TONGUE;
+      other.addEventListener("click", function () {
+        thisVisit("1");
+        sayTongue("en", onward);
+      });
+      tongues.appendChild(other);
     }
 
     LEVELS.forEach(function (level) {
