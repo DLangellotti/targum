@@ -1539,3 +1539,59 @@ def test_an_italian_turn_is_held_to_the_italian_contract_and_its_words_are_on_it
     assert read == [(["Ciao.", "Come stai?"], "it")]
     job = library.jobs[f"chat-{chat_id}-{asked.n}"]
     assert job.spent > 0.99, "a million Haiku input tokens of word reading, on this turn"
+
+
+# -- a film that could not be fetched (targum-internal#331) ---------------------------
+
+
+def _refusing(url: str, answer: dict[str, Any]) -> Any:
+    return [
+        reply(
+            [{"type": "tool_use", "id": "d1", "name": "describe_source", "input": {"url": url}}],
+            stop="tool_use",
+        ),
+        reply([{"type": "text", "text": "We couldn't fetch that one."}]),
+    ]
+
+
+def _turn_over(client: Any, library: Any, store: Any) -> session_module.Feed:
+    feed = session_module.Feed()
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "bring this in"}],
+        feed,
+        lambda *_: None,
+    )
+    return feed
+
+
+def test_a_film_we_could_not_fetch_is_remembered_for_the_next_file(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The reader downloads what we could not, and drops it into the `+`. The page needs
+    the address to send as its home, and only the turn that was refused knows it."""
+    library, store = world(tmp_path)
+    url = "https://www.tiktok.com/@kan/video/7312"
+    monkeypatch.setattr(
+        tools,
+        "describe_source",
+        lambda ctx, args: {"kind": "video", "error": "TikTok wouldn't show us that video."},
+    )
+    feed = _turn_over(Script(_refusing(url, {})), library, store)
+    said = [json.loads(data) for kind, data in feed.events if kind == "refused"]
+    assert said == [{"url": url}], "the link the reader gave, as they gave it"
+
+
+def test_a_link_that_is_not_a_film_leaves_nothing_to_remember(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    library, store = world(tmp_path)
+    for found in (
+        {"kind": "article", "error": "That page is too big."},
+        {"kind": "post", "title": "A post", "pictures": 3},
+        {"kind": "video", "title": "A film", "seconds": 90},
+    ):
+        monkeypatch.setattr(tools, "describe_source", lambda ctx, args, f=found: f)
+        feed = _turn_over(Script(_refusing("https://example.com/x", {})), library, store)
+        assert [kind for kind, _ in feed.events if kind == "refused"] == [], found

@@ -263,6 +263,15 @@ def run_turn(
                 quoted = json.loads(text).get("quote")
                 if quoted:
                     feed.put("quote", quoted)
+            if name == "describe_source":
+                # A film we could not fetch: the address is remembered by the page, so a
+                # video the reader downloads and drops into the `+` still links home to
+                # the post it came from (targum-internal#331). The link the reader gave,
+                # not one the model wrote: `_builder` keeps it only in the host table's
+                # own shape, and anything else reduces to "" there.
+                refused = _refused_video(text, dict(block.get("input") or {}))
+                if refused:
+                    feed.put("refused", {"url": refused})
             results.append(
                 {
                     "type": "tool_result",
@@ -334,6 +343,22 @@ def _count(usage: Usage, reply: Any) -> None:
             cache_read=int(getattr(got, "cache_read_input_tokens", 0) or 0),
             cache_write=int(getattr(got, "cache_creation_input_tokens", 0) or 0),
         )
+
+
+def _refused_video(text: str, given: dict[str, Any]) -> str:
+    """The address `describe_source` was asked about, where what it found was a film it
+    could not fetch — and "" for anything else, including a refusal that is not a film's.
+
+    A post of pictures is not refused and an article is not a film: only `kind: video`
+    with an error is a link whose video the reader may bring by hand.
+    """
+    try:
+        found = json.loads(text)
+    except ValueError:
+        return ""
+    if not isinstance(found, dict) or found.get("kind") != "video" or not found.get("error"):
+        return ""
+    return str(given.get("url") or "").strip()
 
 
 def _announce(feed: Feed, announced: set[str], block: Any) -> None:
