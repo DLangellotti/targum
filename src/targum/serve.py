@@ -5074,6 +5074,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._weekly_follow(payload)
         if route == "/account/follows":
             return self._follows(payload)
+        if route == "/already":
+            return self._already(payload)
         if route == "/describe":
             return self._describe(payload)
         if route == "/prepare":
@@ -6501,6 +6503,50 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "counts": self.store.counts(person)}
         answer.update(self.store.pull(person, since))
         self._json(answer)
+
+    def _already(self, payload: dict[str, Any]) -> None:
+        """Whether the library already has what is in the Add box (targum-internal#251).
+
+        Asked while the reader is still typing, so it reads the catalogue and nothing
+        else: no fetch of the source, no model, no job. The catalogue is on this machine
+        and a lookup in it is a dictionary lookup.
+
+        A source first — a link, a `gutenberg:` or `wikisource:` name — because that is
+        exact and `_prepare` would answer with the same row a moment later. Then the
+        title, which is what somebody typing "בראשית" means. A title that matches more
+        than one row answers with none of them: offering the wrong Genesis is worse than
+        offering nothing, and Continue still works.
+        """
+        from . import catalogue as catalogue_module
+
+        typed = str(payload.get("text") or "").strip()
+        if len(typed) < 2:
+            return self._json({})
+        entry = catalogue_module.matching(typed)
+        if entry is None:
+            wanted = typed.lower()
+            rows = [
+                one
+                for one in catalogue_module.everything()
+                if one.title.lower() == wanted or one.english.lower() == wanted
+            ]
+            # One row, or nothing. Two texts called the same thing is a question, and a
+            # box somebody is still typing into is no place to ask it.
+            entry = rows[0] if len(rows) == 1 else None
+        if entry is None:
+            return self._json({})
+        return self._json(
+            {
+                "id": entry.id,
+                "title": entry.title,
+                "english": entry.english,
+                "author": entry.author,
+                "minutes": entry.minutes,
+                # How many people have published a translation of it: the sentence the
+                # card says depends on whether there is one.
+                "translations": len(entry.translations),
+            }
+        )
 
     def _describe(self, payload: dict[str, Any]) -> None:
         """What is at the end of a link, before anything is priced (targum-internal#250).

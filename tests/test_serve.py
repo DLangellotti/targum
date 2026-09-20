@@ -3441,3 +3441,59 @@ def test_describing_nothing_is_refused_at_the_door(served: tuple[int, str, Path]
     port, key, _ = served
     status, found, _ = call(port, "POST", f"/describe?k={key}", {"url": "   "})
     assert status == 400 and found["error"]
+
+
+# -- the library answers while you type (targum-internal#251) -------------------------
+
+
+def test_a_title_already_in_the_library_is_named_while_it_is_typed(
+    served: tuple[int, str, Path],
+) -> None:
+    """`instead()` says this too, but only after Continue and only once `/prepare` has
+    answered — so a reader is told a text is already here *after* being quoted a price
+    for making a second copy of it. Asked of the catalogue and nothing else."""
+    port, key, _ = served
+
+    status, found, _ = call(port, "POST", f"/already?k={key}", {"text": "בראשית"})
+    assert status == 200
+    assert found["id"] == "genesis" and found["english"] == "Genesis"
+    assert found["translations"] == 1, "so the card can say a person published one"
+
+    _, by_english, _ = call(port, "POST", f"/already?k={key}", {"text": "Ecclesiastes"})
+    assert by_english["id"] == "kohelet", "the name a reader of English would type"
+
+
+def test_a_catalogue_source_pasted_in_is_recognised_exactly(
+    served: tuple[int, str, Path],
+) -> None:
+    """A link or a `gutenberg:` name is exact, and `_prepare` would answer with the same
+    row a moment later — which is the point: it is answered before the press."""
+    port, key, _ = served
+    _, found, _ = call(port, "POST", f"/already?k={key}", {"text": "test:ruth"})
+    assert found["id"] == "ruth"
+
+
+def test_nothing_the_library_has_answers_with_nothing(served: tuple[int, str, Path]) -> None:
+    port, key, _ = served
+    for typed in ("", "x", "   ", "a text nobody has ever written"):
+        _, found, _ = call(port, "POST", f"/already?k={key}", {"text": typed})
+        assert found == {}, typed
+
+
+def test_a_title_two_texts_share_is_not_guessed_at(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Offering the wrong Genesis is worse than offering nothing, and a box somebody is
+    still typing into is no place to ask which they meant. Continue still works."""
+    import dataclasses
+
+    from targum import catalogue as catalogue_module
+
+    one = catalogue_module.by_id("genesis")
+    assert one is not None
+    twin = dataclasses.replace(one, id="genesis-again")
+    monkeypatch.setattr(catalogue_module, "everything", lambda: [one, twin])
+
+    port, key, _ = served
+    _, found, _ = call(port, "POST", f"/already?k={key}", {"text": "בראשית"})
+    assert found == {}

@@ -366,3 +366,9 @@ body.add > .add-main {
 .found-facts { margin: 0; color: var(--ink); font-size: 0.875rem; }
 .found-known { margin: 0; color: var(--ink); font-size: 0.875rem; }
 .found-note { margin: 0; color: var(--ink-soft); font-size: 0.875rem; line-height: 1.5; }
+
+/* The library answering while the box is typed in (targum-internal#251). Said before
+   Continue, so it is a reading with two ways on and not a refusal: Open is ink because
+   it is where the reader was going, and the way past it is a ghost. */
+.already { display: grid; gap: 0.5rem; margin-block-end: 0.75rem; }
+.already-line { margin: 0; color: var(--ink); font-size: 0.9375rem; }

@@ -2161,3 +2161,69 @@ def test_a_link_nothing_can_be_found_about_is_still_priced(browser, tmp_path: Pa
 
     assert priced, "a link that could not be described was not priced either"
     assert not drawn, "nothing was found, so nothing is said about it"
+
+
+def test_the_library_answers_while_the_box_is_typed_in(browser, tmp_path: Path) -> None:
+    """targum-internal#251. `instead()` says a text is already here, but only after
+    Continue and only once `/prepare` has answered — so a reader was told after being
+    quoted a price for a second copy. This is asked while they type, and asks nothing
+    of `/prepare`."""
+    html = add_page(TOKEN)
+    asked: list[str] = []
+
+    def answer(route, request):
+        if "/already" in request.url:
+            asked.append("already")
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {"id": "genesis", "title": "בראשית", "english": "Genesis", "translations": 1}
+                ),
+            )
+        elif "/prepare" in request.url:
+            asked.append("prepare")
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "בראשית")
+    open_page.wait_for_selector(".already", timeout=4000)
+    said = open_page.inner_text("#already")
+    context.close()
+
+    assert "prepare" not in asked, "nothing was priced"
+    assert "בראשית" in said and "already in the library" in said
+    assert "a translation a person published" in said
+    assert "Bring my own copy" in said, "and the way past it"
+
+
+def test_a_box_the_library_does_not_know_says_nothing(browser, tmp_path: Path) -> None:
+    """Empty is the ordinary state of this: most of what a reader pastes is not in the
+    catalogue, and a card that appeared for everything would be noise under the box."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/already" in request.url:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://example.com/an-article")
+    open_page.wait_for_timeout(700)
+    drawn = open_page.is_visible("#already")
+    context.close()
+
+    assert not drawn
