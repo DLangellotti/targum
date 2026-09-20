@@ -1775,5 +1775,16 @@
   "video.no-tiktok-video": "We couldn't find a TikTok video at that address.",
   "video.no-instagram-reel": "We couldn't find an Instagram reel at that address.",
   "video.no-instagram-post": "We couldn't find an Instagram post at that address.",
-  "video.post-too-many-pictures": "That post has more than {most} pictures."
+  "video.post-too-many-pictures": "That post has more than {most} pictures.",
+  "file.unknown-source": "We don't know the source '{named}'.",
+  "file.unknown-source.hint": "Supported: {supported}",
+  "file.protected": "This file is protected, so we can't read it.",
+  "file.not-there": "No such file: {name}",
+  "file.folder-without-pictures": "We only read a folder that holds pictures: {name}",
+  "file.unreadable-kind": "We can't read '{kind}' files.",
+  "file.unreadable-kind.hint": "Supported: {supported}",
+  "recording.silent-video": "There's nothing to transcribe in a silent video.",
+  "recording.unreadable": "We couldn't read this audio file.",
+  "recording.video-too-long": "That video is over 4 hours. Try a shorter one.",
+  "recording.too-long": "That recording is over 12 hours. Try a shorter one."
 }
