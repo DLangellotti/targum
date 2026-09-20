@@ -264,3 +264,108 @@ def test_a_translation_is_not_left_behind_when_its_english_changes() -> None:
             f"translated ({', '.join(stale[:5])}…). Bring the translation up to date, then run "
             "`uv run python scripts/stamp_strings.py`."
         )
+
+
+# -- a refusal in the reader's language (targum-internal#348) -------------------------
+
+
+def test_a_refusal_with_a_key_is_said_in_the_readers_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `TargumError` is raised where the trouble is — the fetch door, an ingester, a
+    video host — and none of those know who is reading. So it travels in English with a
+    key, and the language is chosen where it reaches a reader."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(
+        json.dumps(
+            {
+                "fetch.private-network": "{host} is on a private network.",
+                "fetch.private-network.hint": "Paste a public address.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "ru.json").write_text(
+        json.dumps(
+            {
+                "fetch.private-network": "{host} — частная сеть.",
+                "fetch.private-network.hint": "Вставьте публичный адрес.",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        refusal = TargumError(
+            "10.0.0.1 is on a private network.",
+            "Paste a public address.",
+            key="fetch.private-network",
+            host="10.0.0.1",
+        )
+        assert refused_in("ru", refusal) == "10.0.0.1 — частная сеть. Вставьте публичный адрес."
+        assert (
+            refused_in("en", refusal) == "10.0.0.1 is on a private network. Paste a public address."
+        )
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_a_refusal_with_no_key_is_said_as_it_always_was() -> None:
+    """Most refusals have none, and every one only an operator meets. The command line
+    is English by design."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    plain = TargumError("We couldn't open that PDF.", "Try another file.")
+    assert refused_in("ru", plain) == "We couldn't open that PDF. Try another file."
+    assert refused_in("ru", TargumError("No hint here.")) == "No hint here."
+
+
+def test_the_english_is_never_formatted_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The English is interpolated already — it was an f-string where the trouble was.
+    Formatting it a second time takes the whole refusal down on an address with a brace
+    in it, which is a legal thing for a URL to contain."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(json.dumps({"a.key": "x"}), encoding="utf-8")
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        awkward = "https://example.com/a{b}c"
+        refusal = TargumError(
+            f"We only read web pages, and {awkward} isn't one.",
+            key="fetch.not-a-web-page",
+            url=awkward,
+        )
+        assert awkward in refused_in("ru", refusal), "no catalogue entry, so the English stands"
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_a_translation_whose_blanks_do_not_match_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A translated sentence naming something the refusal does not carry would raise on
+    formatting. The English still says the true thing, which is what matters."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(json.dumps({"a.key": "x"}), encoding="utf-8")
+    (tmp_path / "ru.json").write_text(
+        json.dumps({"fetch.no-such-site": "Не нашли {site}."}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        refusal = TargumError("We couldn't find x.com.", key="fetch.no-such-site", host="x.com")
+        assert refused_in("ru", refusal) == "We couldn't find x.com."
+    finally:
+        strings.catalogue.cache_clear()

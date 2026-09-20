@@ -156,6 +156,44 @@ def said_in(ui: str, key: str, english: str, **fill: object) -> str:
     return text.format(**fill) if fill else text
 
 
+def refused_in(ui: str, error: TargumError) -> str:
+    """A refusal, in the language of whoever is about to read it (targum-internal#348).
+
+    A `TargumError` is raised where the trouble is — in the fetch door, in an ingester,
+    in a video host's module — and none of those know who is reading. So the message
+    travels in English with a key, and the language is chosen here, at the one point
+    that does know.
+
+    A refusal with no key is said as it always was. That is most of them, and all of the
+    ones only an operator meets.
+    """
+    from .strings import SOURCE, catalogue
+
+    if not error.key:
+        return f"{error.message} {error.hint or ''}".strip()
+    code = (ui or SOURCE).split("-")[0].lower()
+    book = catalogue(code) if code != SOURCE else {}
+
+    def say(key: str, english: str) -> str:
+        """The translation with the sentence's own values in it, or the English as it
+        was raised. The English is interpolated already — it was an f-string where the
+        trouble was — so it is never formatted again: an address with a brace in it
+        would take the whole refusal down with a KeyError."""
+        found = book.get(key)
+        if found is None:
+            return english
+        try:
+            return found.format(**error.fill)
+        except (KeyError, IndexError, ValueError):
+            # A translation whose blanks do not match what the refusal carries. The
+            # English still says the true thing, which is what matters here.
+            return english
+
+    said = say(error.key, error.message)
+    hint = say(f"{error.key}.hint", error.hint) if error.hint else ""
+    return f"{said} {hint}".strip()
+
+
 # A full-length novel costs real money to translate, and a page anyone on this machine
 # can reach should not be able to spend it by accident. Both are estimates rather than
 # billed amounts, so they are deliberately conservative.
@@ -2083,7 +2121,7 @@ class Library:
                 except UnsupportedSource as refusal:
                     # This is Library.prepare, not the handler: a refusal travels on
                     # the job, the way every prepare failure does.
-                    job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+                    job.error = refused_in(job.ui, refusal)
                     job.stage = "failed"
                     return
                 if found is not None:
@@ -2153,7 +2191,7 @@ class Library:
                 job.blocked = self.why_blocked(job.estimate, job.ui)
             job.stage = "blocked" if job.blocked else "ready"
         except TargumError as error:
-            job.error = f"{error.message} {error.hint or ''}".strip()
+            job.error = refused_in(job.ui, error)
             job.stage = "failed"
         except Exception as error:  # a bad file should not take the server down
             # Said plainly, with the library's own words kept for the back office: a
@@ -2403,7 +2441,7 @@ class Library:
         try:
             vetted(job.source)
         except TargumError as refusal:
-            job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+            job.error = refused_in(job.ui, refusal)
             job.stage = "failed"
             return
 
@@ -2420,7 +2458,7 @@ class Library:
             # An age gate, a private video, a region block — yt-dlp's own sentence is
             # better than anything written here, and a refusal travels on the job the
             # way every prepare failure does.
-            job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+            job.error = refused_in(job.ui, refusal)
             job.stage = "failed"
             return
         if not found.duration and unmeasured:
