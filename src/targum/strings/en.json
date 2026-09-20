@@ -1786,5 +1786,6 @@
   "recording.silent-video": "There's nothing to transcribe in a silent video.",
   "recording.unreadable": "We couldn't read this audio file.",
   "recording.video-too-long": "That video is over 4 hours. Try a shorter one.",
-  "recording.too-long": "That recording is over 12 hours. Try a shorter one."
+  "recording.too-long": "That recording is over 12 hours. Try a shorter one.",
+  "fetch.would-not-open": "We couldn't open {url}."
 }

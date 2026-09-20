@@ -409,3 +409,53 @@ def test_a_refusals_hint_is_said_where_it_has_one() -> None:
                     f"{path.name}: {key.group(1)} has a hint and the catalogue has no "
                     f"{key.group(1)}.hint"
                 )
+
+
+def test_a_host_that_would_not_answer_can_be_said_in_the_readers_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Unreachable` dropped `key` and `fill` on the floor, so the commonest refusal the
+    fetch door raises — a 4xx, a bot check, a timeout, too many redirects — was the one
+    the mechanism could not reach (targum-internal#348)."""
+    from targum.errors import Unreachable
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(
+        json.dumps({"fetch.would-not-open": "We couldn't open {url}."}), encoding="utf-8"
+    )
+    (tmp_path / "ru.json").write_text(
+        json.dumps({"fetch.would-not-open": "Не удалось открыть {url}."}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        shut = Unreachable(
+            "We couldn't open https://x.test/a.",
+            "HTTP 403",
+            status=403,
+            host="x.test",
+            key="fetch.would-not-open",
+            url="https://x.test/a",
+        )
+        # What Unreachable is for is untouched: the status and the host still travel.
+        assert shut.status == 403 and shut.host == "x.test"
+        assert refused_in("ru", shut) == "Не удалось открыть https://x.test/a. HTTP 403"
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_a_keyword_with_no_key_behind_it_is_a_mistake() -> None:
+    """Taking `**fill` is what stopped the signature catching a mistyped `hint`, and
+    mypy cannot catch it either. `fill` is only ever read against a key, so a keyword
+    with no key is certainly a mistake and is refused outright."""
+    from targum.errors import TargumError, Unreachable
+
+    with pytest.raises(TypeError, match="hnt"):
+        TargumError("We couldn't open it.", hnt="try again")
+    with pytest.raises(TypeError, match="url"):
+        Unreachable("We couldn't open it.", url="https://x.test")
+
+    # And the legitimate shapes still stand.
+    assert TargumError("plain").fill == {}
+    assert TargumError("named", key="a.key", url="u").fill == {"url": "u"}

@@ -217,7 +217,14 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         except Exception as exc:
             # Never got an answer at all: a timeout, a refused connection, a name that
             # does not resolve. No status, so `shut()` reads it as a shut door.
-            raise Unreachable(f"We couldn't open {url}.", str(exc), host=host, via=via) from exc
+            raise Unreachable(
+                f"We couldn't open {url}.",
+                str(exc),
+                host=host,
+                via=via,
+                key="fetch.would-not-open",
+                url=url,
+            ) from exc
         status = int(response.status_code)
         if 300 <= status < 400:
             location = response.headers.get("location")
@@ -238,6 +245,10 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
                 host=host,
                 challenge=challenge,
                 via=via,
+                # The hint is the status or the bot check, which is not a sentence to
+                # translate — so the key says the sentence and the hint rides as it is.
+                key="fetch.would-not-open",
+                url=url,
             )
         return response, target
     raise Unreachable(
@@ -245,6 +256,8 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         f"More than {MAX_REDIRECTS} redirects",
         host=urlparse(target).hostname or "",
         via=via,
+        key="fetch.would-not-open",
+        url=url,
     )
 
 
