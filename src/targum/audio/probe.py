@@ -104,6 +104,50 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
     )
 
 
+def timed(head: bytes, declared: int) -> float:
+    """How long a media file runs, from its front and the size the wire declared.
+
+    For a link the page has not fetched (targum-internal#256). ffprobe is given only the
+    bytes already read — a local file, so nothing here reaches the network — and there
+    are two ways an answer comes back:
+
+    Where the container puts its index at the front, ffprobe reads the real duration and
+    that is the answer. Where it does not, a truncated file's own `duration` is the
+    length of the *truncation* and is worse than no answer at all: ffprobe would say four
+    seconds of an hour-long recording with no hint that anything was missing. So it is
+    never taken. What is taken instead is the bit rate, which the first frames do state,
+    against the length the header declared — exact for constant bit rate and close for
+    the rest.
+
+    0.0 where neither works: no ffprobe, an unreadable front, a host that would not say
+    how big the file is. A recording of unknown length is still a recording.
+    """
+    import tempfile
+
+    from . import tools
+
+    if not head:
+        return 0.0
+    with tempfile.TemporaryDirectory() as raw:
+        front = Path(raw) / "front"
+        front.write_bytes(head)
+        try:
+            answer = tools.ffprobe_json(front)
+        except TargumError:
+            return 0.0
+    shape = answer.get("format") or {}
+    # Whole, so its own duration is the file's: the front held the index.
+    if declared and _floated(shape.get("size")) >= declared:
+        return max(0.0, _floated(shape.get("duration")))
+    rate = _floated(shape.get("bit_rate"))
+    if not rate:
+        streams = answer.get("streams") or []
+        rate = next((_floated(one.get("bit_rate")) for one in streams if one.get("bit_rate")), 0.0)
+    if rate <= 0 or declared <= 0:
+        return 0.0
+    return declared * 8 / rate
+
+
 def adopt(source: Path, workspace: Path, *, move: bool = False, allow_video: bool = False) -> Path:
     """The recording, inside the targum's own folder, with its probe beside it.
 

@@ -294,6 +294,57 @@ def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
 
 
 @dataclass(frozen=True)
+class Opening:
+    """The first bytes of a file, and what the wire said about the whole of it."""
+
+    head: bytes
+    content_type: str
+    #: What `content-length` declared, or 0 where the host would not say.
+    length: int
+
+
+#: How much of a media file's front is read to find out what it is. A container puts its
+#: header first — enough for ffprobe to name the codec and the bit rate — and a megabyte
+#: is generous for that while being nothing beside the file itself.
+OPENING_BYTES = 1024 * 1024
+
+
+def opening(url: str, most: int = OPENING_BYTES) -> Opening:
+    """The front of a file, through the same door and past the same checks as any fetch.
+
+    For saying what a link *is* without pulling what it holds (targum-internal#256): a
+    reader pastes a direct link to an hour of audio and the page should be able to say
+    so without a gigabyte moving. The connection is closed as soon as enough has been
+    read, so a server that would have streamed the rest never does.
+    """
+    try:
+        return _opened(url, most, via="direct")
+    except Unreachable as error:
+        proxy = _retry_through_proxy(url, error)
+        if not proxy:
+            raise
+        return _opened(url, most, via="proxy", proxy=proxy)
+
+
+def _opened(url: str, most: int, *, via: str, proxy: str = "") -> Opening:
+    response, _ = _open(url, None, via=via, proxy=proxy)
+    try:
+        declared = response.headers.get("content-length")
+        body = bytearray()
+        for chunk in response.iter_content():
+            body += chunk
+            if len(body) >= most:
+                break
+        return Opening(
+            bytes(body[:most]),
+            response.headers.get("content-type", ""),
+            int(declared) if declared and declared.isdigit() else 0,
+        )
+    finally:
+        response.close()
+
+
+@dataclass(frozen=True)
 class Downloaded:
     """A file pulled to disk, and what the wire said about it."""
 

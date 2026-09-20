@@ -1192,3 +1192,82 @@ def test_sentences_with_finds_a_word_in_every_form_on_the_shelf(world) -> None:
     assert got["sentences"][0]["title"] == "Рассказ"
     assert tools.sentences_with(ctx, {"lemma": "читать"})["count"] == 0
     assert "error" in tools.sentences_with(ctx, {"lemma": ""})
+
+
+# -- a direct link to a recording or a video (targum-internal#256) --------------------
+
+
+def test_a_direct_link_to_a_recording_is_named_and_timed_without_being_pulled(
+    world, monkeypatch
+) -> None:
+    """`episode.find` fetches an address it cannot name from its suffix, and `.mp4` is
+    one — so a reader's link to a video was pulled whole, twice, and then described as
+    "file". Named from the address now, timed from its front, and never pulled."""
+    from targum.audio import probe
+    from targum.ingest import url as url_module
+
+    pulled: list[str] = []
+    opened: list[str] = []
+
+    def never(url: str, *args: object, **kw: object) -> object:
+        pulled.append(url)
+        raise AssertionError("a media link must not be fetched as a page")
+
+    monkeypatch.setattr(url_module, "fetch", never)
+    monkeypatch.setattr(
+        url_module,
+        "opening",
+        lambda url, most=0: (
+            opened.append(url),
+            url_module.Opening(b"front", "audio/mpeg", 57_600_000),
+        )[1],
+    )
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 3600.0)
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    found = tools.describe_source(ctx, {"url": "https://example.com/shows/ep-12.mp3"})
+
+    assert pulled == [], "nothing was read as a page"
+    assert opened == ["https://example.com/shows/ep-12.mp3"], "only its front"
+    assert found["kind"] == "recording" and found["medium"] == "audio"
+    assert found["seconds"] == 3600 and found["hours"] == 1.0
+    assert found["megabytes"] == 54.9
+    assert found["title"] == "ep-12"
+    assert any("transcribed" in line for line in found["advice"])
+
+
+def test_a_direct_link_to_a_video_says_it_is_one(world, monkeypatch) -> None:
+    from targum.audio import probe
+    from targum.ingest import url as url_module
+
+    monkeypatch.setattr(
+        url_module, "opening", lambda url, most=0: url_module.Opening(b"f", "video/mp4", 1024)
+    )
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 90.0)
+
+    library, store, person, home = world
+    found = tools.describe_source(
+        context(library, store, person, home), {"url": "https://example.com/a/talk.mp4"}
+    )
+    assert found["kind"] == "recording" and found["medium"] == "video"
+    assert any("only its sound" in line for line in found["advice"])
+
+
+def test_a_recording_whose_length_could_not_be_read_says_so(world, monkeypatch) -> None:
+    """Said rather than guessed: the length is read for certain when the file is
+    fetched, and the quote is made from that."""
+    from targum.audio import probe
+    from targum.ingest import url as url_module
+
+    monkeypatch.setattr(
+        url_module, "opening", lambda url, most=0: url_module.Opening(b"f", "audio/mpeg", 0)
+    )
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 0.0)
+
+    library, store, person, home = world
+    found = tools.describe_source(
+        context(library, store, person, home), {"url": "https://example.com/a/talk.mp3"}
+    )
+    assert found["seconds"] == 0 and found["hours"] is None and found["megabytes"] is None
+    assert any("could not be read" in line for line in found["advice"])
