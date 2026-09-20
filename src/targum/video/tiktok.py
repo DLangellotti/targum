@@ -72,7 +72,9 @@ def home_url(url: str) -> str:
 
 def _vetted(url: str) -> None:
     if not is_tiktok(url):
-        raise TargumError("We couldn't find a TikTok video at that address.")
+        raise TargumError(
+            "We couldn't find a TikTok video at that address.", key="video.no-tiktok-video"
+        )
 
 
 def describe(url: str) -> dict[str, Any]:

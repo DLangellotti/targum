@@ -1759,5 +1759,21 @@
   "fetch.too-big-to-read.hint": "Try a single article.",
   "fetch.over-the-page-cap": "{url} is too big for us to read.",
   "fetch.over-the-page-cap.hint": "We stop at 8 MB. Try a single article.",
-  "fetch.too-big-to-fetch": "{url} is too big for us to fetch."
+  "fetch.too-big-to-fetch": "{url} is too big for us to fetch.",
+  "pictures.none-in-folder": "We couldn't find any pictures in {name}.",
+  "pictures.no-text": "We couldn't find any text in that picture.",
+  "pictures.no-text.hint": "Try a clearer photo or a screenshot.",
+  "pictures.unreadable": "We couldn't read that picture.",
+  "pdf.protected": "This PDF is protected, so we can't read it.",
+  "pdf.unopenable": "We couldn't open that PDF.",
+  "pdf.too-many-pages": "That PDF has {pages} pages. We can read up to {most} at a time.",
+  "pdf.is-a-scan": "This PDF is a scan, and we can't read scans yet.",
+  "video.one-at-a-time": "We can take one video at a time.",
+  "video.one-at-a-time.hint": "Paste the address of a single video.",
+  "video.no-youtube-video": "We couldn't find a YouTube video at that address.",
+  "video.over-four-gb": "That video is over 4 GB. Try a shorter one.",
+  "video.no-tiktok-video": "We couldn't find a TikTok video at that address.",
+  "video.no-instagram-reel": "We couldn't find an Instagram reel at that address.",
+  "video.no-instagram-post": "We couldn't find an Instagram post at that address.",
+  "video.post-too-many-pictures": "That post has more than {most} pictures."
 }

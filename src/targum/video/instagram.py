@@ -147,7 +147,9 @@ def home_url(url: str) -> str:
 
 def _vetted(url: str) -> None:
     if not is_reel(url):
-        raise TargumError("We couldn't find an Instagram reel at that address.")
+        raise TargumError(
+            "We couldn't find an Instagram reel at that address.", key="video.no-instagram-reel"
+        )
 
 
 def describe(url: str) -> dict[str, Any]:
@@ -274,7 +276,9 @@ def embedded(url: str) -> Post:
 
     code = hosts.video_id(url) if hosts.host_for(url) is hosts.INSTAGRAM else ""
     if not code:
-        raise TargumError("We couldn't find an Instagram post at that address.")
+        raise TargumError(
+            "We couldn't find an Instagram post at that address.", key="video.no-instagram-post"
+        )
     return read_embed(fetch_page(EMBED.format(code=code)).text, code)
 
 
@@ -364,7 +368,11 @@ def pictures_into(post: Post, folder: Path) -> list[Path]:
     from ..vision import MAX_PAGES
 
     if len(post.pictures) > MAX_PAGES:
-        raise TargumError(f"That post has more than {MAX_PAGES} pictures.")
+        raise TargumError(
+            f"That post has more than {MAX_PAGES} pictures.",
+            key="video.post-too-many-pictures",
+            most=MAX_PAGES,
+        )
     folder.mkdir(parents=True, exist_ok=True)
     written = []
     for n, address in enumerate(post.pictures, start=1):

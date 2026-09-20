@@ -210,7 +210,9 @@ def is_youtube(url: str) -> bool:
         # One video at a time. A playlist is a queue of separate decisions, and a
         # channel is somebody's whole shelf.
         raise TargumError(
-            "We can take one video at a time.", "Paste the address of a single video."
+            "We can take one video at a time.",
+            "Paste the address of a single video.",
+            key="video.one-at-a-time",
         )
     return parsed.path.startswith(("/watch", "/shorts/", "/live/"))
 
@@ -248,7 +250,9 @@ def fetch(url: str, into: Path) -> Path:
     the rest of the pipeline expects to find as `source.*`.
     """
     if not is_youtube(url):
-        raise TargumError("We couldn't find a YouTube video at that address.")
+        raise TargumError(
+            "We couldn't find a YouTube video at that address.", key="video.no-youtube-video"
+        )
     return fetch_through(
         url, into, refused="YouTube wouldn't give us that video.", routes=_routes()
     )
@@ -316,7 +320,7 @@ def fetch_through(
         raise TargumError("yt-dlp fetched nothing it could merge to mp4.")
     if target.stat().st_size > MAX_VIDEO_BYTES:
         target.unlink()
-        raise TargumError("That video is over 4 GB. Try a shorter one.")
+        raise TargumError("That video is over 4 GB. Try a shorter one.", key="video.over-four-gb")
     return target
 
 
@@ -389,7 +393,9 @@ def _refusal(
 
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
     if not is_youtube(argv[-1]):
-        raise TargumError("We couldn't find a YouTube video at that address.")
+        raise TargumError(
+            "We couldn't find a YouTube video at that address.", key="video.no-youtube-video"
+        )
     return run_ytdlp(
         argv,
         timeout=timeout,
