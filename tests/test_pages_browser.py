@@ -2227,3 +2227,92 @@ def test_a_box_the_library_does_not_know_says_nothing(browser, tmp_path: Path) -
     context.close()
 
     assert not drawn
+
+
+def test_add_records_a_voice_note_and_prices_it_like_a_dropped_file(
+    browser, tmp_path: Path
+) -> None:
+    """targum-internal#254. The recorder is `speak.js`'s, the same one the composer's
+    Speak uses; what a clip is for is the caller's, and here it is a file like any
+    dropped one — up the chunked door, priced as a recording."""
+    html = add_page(TOKEN)
+    sent: list[dict] = []
+
+    def answer(route, request):
+        if "/upload/begin" in request.url:
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"upload": "u1", "chunk": 1024 * 1024}),
+            )
+        elif "/upload/" in request.url:
+            route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"upload": "u1"})
+            )
+        elif "/prepare" in request.url:
+            sent.append(request.post_data_json or {})
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(
+        viewport={"width": 1280, "height": 900}, permissions=["microphone"]
+    )
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    # A recorder that answers without a microphone: what is under test is the page's
+    # half — that a clip becomes a held file and goes up as a recording.
+    open_page.add_init_script(
+        """
+        navigator.mediaDevices = navigator.mediaDevices || {};
+        navigator.mediaDevices.getUserMedia = () =>
+          Promise.resolve({ getTracks: () => [{ stop() {} }] });
+        window.MediaRecorder = class {
+          constructor() { this.mimeType = "audio/webm"; }
+          start() { setTimeout(() => this.ondataavailable(
+            { data: new Blob([new Uint8Array(2048)], { type: "audio/webm" }) }), 0); }
+          stop() { setTimeout(() => this.onstop(), 0); }
+        };
+        """
+    )
+    open_page.goto("http://add.test/add")
+    open_page.wait_for_selector("#record:not([hidden])", timeout=4000)
+    open_page.click("#record")
+    open_page.wait_for_timeout(200)
+    while_recording = open_page.inner_text("#record-word")
+    open_page.click("#record")
+    open_page.wait_for_selector(".given-file", timeout=4000)
+    chip = open_page.inner_text("#given-files")
+    open_page.click("#go")
+    open_page.wait_for_timeout(600)
+    context.close()
+
+    assert while_recording == "Stop", "the word follows the press"
+    assert "Recorded just now" in chip, f"the chip says what it is: {chip!r}"
+    assert sent, "Continue sent nothing"
+    assert sent[0].get("upload") == "u1", "up the chunked door, like any recording"
+
+
+def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_path: Path) -> None:
+    """The page never offers what it cannot do — the same rule the composer's Speak
+    follows. Nothing here defines `MediaRecorder`."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.add_init_script("delete window.MediaRecorder;")
+    open_page.goto("http://add.test/add")
+    open_page.wait_for_timeout(400)
+    drawn = open_page.is_visible("#record")
+    context.close()
+
+    assert not drawn

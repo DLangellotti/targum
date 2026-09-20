@@ -329,7 +329,17 @@
     var rows = [];
     if (chosen) {
       rows.push({
-        label: chosen.length === 1 ? chosen[0].name : tn("add.photos", chosen.length, "{n} photo of pages", "{n} photos of pages"),
+        // A voice note says what it is and how long it runs; a blob's name says neither
+        // (targum-internal#254). Its length is timed from the press, which is exact and
+        // needs nothing decoded.
+        label:
+          chosen.length === 1 && chosen[0].recordedSeconds
+            ? t("add.recorded", "Recorded just now · {length}", {
+                length: clock(chosen[0].recordedSeconds),
+              })
+            : chosen.length === 1
+              ? chosen[0].name
+              : tn("add.photos", chosen.length, "{n} photo of pages", "{n} photos of pages"),
         size: sized(chosen),
         remove: forget,
       });
@@ -518,6 +528,64 @@
   fileInput.onchange = function () {
     if (fileInput.files[0]) take(Array.prototype.slice.call(fileInput.files));
   };
+
+  /* Something the reader recorded themselves (targum-internal#254). The recording is
+     `speak.js`'s, the same one the composer's Speak uses; what a clip is for is the
+     caller's business, and here it is a file like any dropped one — up the chunked door,
+     priced as a recording, nothing new on the server at all.
+
+     The button is drawn only where the browser can record, so the page never offers
+     what it cannot do. */
+  var recordButton = document.getElementById("record");
+  var recordWord = document.getElementById("record-word");
+  var speaking = window.TargumSpeak;
+  if (recordButton && speaking && speaking.can) {
+    recordButton.hidden = false;
+    var startedAt = 0;
+    recordButton.onclick = function () {
+      if (speaking.recording()) {
+        // The word follows the press, the way the composer's does: Stop while it runs.
+        speaking.toggle(recordButton);
+        return;
+      }
+      startedAt = Date.now();
+      var going = speaking.toggle(
+        recordButton,
+        function (clip) {
+          if (recordWord) recordWord.textContent = t("add.page.record", "Record");
+          var seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+          // Named for what it is and when, because a blob has no name of its own and a
+          // reader looking at their uploads should see a voice note and not "blob".
+          var name = "voice-note." + (extensionOf(clip.type) || "webm");
+          var note = new File([clip], name, { type: clip.type || "audio/webm" });
+          note.recordedSeconds = seconds;
+          take([note]);
+        },
+        function (why) {
+          if (recordWord) recordWord.textContent = t("add.page.record", "Record");
+          say(line(why), true);
+        },
+        t("add.page.record", "Record")
+      );
+      if (going && recordWord) recordWord.textContent = t("speak.stop", "Stop");
+    };
+  }
+
+  // What a browser called the clip it just made, as a file's last piece: "audio/webm;
+  // codecs=opus" is a webm. Empty where the type says nothing, and the caller falls back.
+  function extensionOf(type) {
+    var kind = String(type || "").split(";")[0].trim().toLowerCase();
+    return (
+      {
+        "audio/webm": "webm",
+        "audio/ogg": "ogg",
+        "audio/opus": "opus",
+        "audio/mp4": "m4a",
+        "audio/mpeg": "mp3",
+        "audio/wav": "wav",
+      }[kind] || ""
+    );
+  }
 
   // The whole box is where a file is dropped.
   ["dragenter", "dragover"].forEach(function (name) {
