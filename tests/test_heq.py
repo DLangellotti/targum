@@ -131,6 +131,26 @@ def test_a_span_is_found_through_points_and_punctuation(eval_ask) -> None:  # ty
     assert not eval_ask.span_found("", answers)
 
 
+def test_an_answer_in_latin_or_digits_can_be_found_at_all(eval_ask) -> None:  # type: ignore[no-untyped-def]
+    """HeQ's answers are full of Latin names and bare numbers — Fiverr, Azure, 2018 —
+    and a pattern that kept only Hebrew letters reduced every one of them to nothing.
+    `span_found` then had no span to look for and answered False whatever the chat said:
+    16 of the first 200 questions were scored a miss by construction
+    (targum-internal#223, measured 2026-09-21)."""
+    assert eval_ask.span_found("היא הופיעה בתוכנית Stream Elements.", ("Stream Elements",))
+    assert eval_ask.span_found("בְּ-2018 — הטקסט אומר כך.", ("2018",))
+    assert eval_ask.span_found("פיבר (Fiverr) הוא הסטארטאפ הרביעי.", ("Fiverr",))
+    assert not eval_ask.span_found("היא הופיעה שם.", ("Stream Elements",))
+
+
+def test_a_word_keeps_the_marks_inside_it_and_drops_the_ones_after(eval_ask) -> None:  # type: ignore[no-untyped-def]
+    """Widening the pattern must not lose why it was narrow: HeQ keeps רשב"י as one
+    word, and the same gershayim after the last letter is the sentence's quotation."""
+    assert eval_ask.plain('רשב"י') == 'רשב"י'
+    assert eval_ask.plain('אמר "שלום".') == "אמר שלום"
+    assert eval_ask.plain("Stream Elements.") == "Stream Elements"
+
+
 def test_token_f1_is_squads_over_the_hebrew_words_and_the_best_span(eval_ask) -> None:  # type: ignore[no-untyped-def]
     answers = ("רבי אלעזר", "אלעזר")
     assert eval_ask.token_f1("רבי אלעזר", answers) == 1.0

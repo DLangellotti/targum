@@ -43,22 +43,35 @@ from targum.translate.anthropic_provider import output_config  # noqa: E402
 from targum.usage import Usage  # noqa: E402
 from targum.vocalize.base import strip_nikkud  # noqa: E402
 
-#: A run of Hebrew letters, which is what a span is made of once the points are gone.
+#: A word of an answer, once the points are gone. Hebrew letters, Latin letters and
+#: digits, because HeQ's answers are full of all three — "Fiverr", "Azure", "2018" — and
+#: a pattern that kept only Hebrew reduced every one of those to nothing. That was not a
+#: strict comparison but a blind one: 16 of the first 200 questions were scored a miss
+#: whatever the chat replied, because no accepted span survived normalising
+#: (targum-internal#223, measured 2026-09-21).
+#:
 #: A maqaf, geresh or gershayim *between* letters is part of the word, since HeQ's spans
 #: keep רשב"י as one; the same mark after the last letter is the sentence's quotation
 #: mark and is not.
-HEBREW_WORD = re.compile(r"[א-ת](?:[׳״־\"']?[א-ת])*")
+WORD = re.compile(r"[א-תA-Za-z0-9](?:[׳״־\"']?[א-תA-Za-z0-9])*")
 
 
 def plain(text: str) -> str:
     """The text with its points gone and its punctuation reduced to spaces, so a span
     quoted with different quotation marks or a final stop is still the same span."""
     bare = strip_nikkud(text)[0]
-    return " ".join(HEBREW_WORD.findall(bare))
+    return " ".join(WORD.findall(bare))
+
+
+#: The Hebrew alone, which is what `token_f1` is scored over. Deliberately narrower than
+#: `WORD`: a reply quotes the Hebrew where it helps and the English around it is not the
+#: answer, so counting the English would punish the chat for translating itself. That is
+#: this file's own decision and widening `WORD` must not quietly overturn it.
+HEBREW_WORD = re.compile(r"[א-ת](?:[׳״־\"']?[א-ת])*")
 
 
 def hebrew_tokens(text: str) -> list[str]:
-    return plain(text).split()
+    return HEBREW_WORD.findall(strip_nikkud(text)[0])
 
 
 def span_found(reply: str, answers: tuple[str, ...]) -> bool:
