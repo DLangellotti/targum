@@ -243,6 +243,25 @@ def test_why_a_recast_changed_something_rides_with_the_recast_and_nowhere_else()
     assert all(p.why == "" for p in plain)
 
 
+def test_a_why_line_belonging_to_no_recast_is_counted(  # targum-internal#242
+) -> None:
+    """The page never shows a stray `~ ` — `pairs()` drops it — so nothing could see the
+    contract being broken, and acceptance criterion 3 asks for it counted. `stray_why`
+    answers by difference against the parser itself, so the two cannot drift apart."""
+    said = (
+        "> אֲנִי הָלַכְתִּי אֶתְמוֹל.\n= I went yesterday.\n~ Past tense: הָלַכְתִּי, not הָלַךְ.\n"
+        "יָפֶה.\n= Nice.\n~ stray\nעוֹד.\n= More."
+    )
+    assert hebrew.stray_why(said) == 1, "one belongs to the recast, one to nothing"
+
+    kept = "> שָׁלוֹם.\n= Hello.\n~ A greeting takes no article.\nמָה שְׁלוֹמְךָ?\n= How are you?"
+    assert hebrew.stray_why(kept) == 0, "the one the contract allows is not a breach"
+
+    assert hebrew.stray_why("שָׁלוֹם.\n= Hello.") == 0, "no why line, no breach"
+    assert hebrew.stray_why("~ out of nowhere\nשָׁלוֹם.\n= Hello.") == 1, "before any recast"
+    assert hebrew.stray_why(ITALIAN_REPLY, "it") == 0, "the same rule in the other language"
+
+
 def test_a_reader_with_no_ledger_is_told_once_where_the_common_words_are() -> None:
     """targum-internal#245: a reader who already reads Hebrew arrives with a ledger of
     nothing; the way up is Words you may already know, said once, never a level."""

@@ -381,6 +381,24 @@ def pairs(text: str, language: str = "he") -> list[Pair]:
     return out
 
 
+def stray_why(text: str, language: str = "he") -> int:
+    """How many `~ ` lines in this turn belong to nothing, and are therefore dropped.
+
+    `pairs()` keeps one under the recast it explains and silently drops every other,
+    which is the right thing for the reader — a dangling reason is noise on the page —
+    and leaves nothing for an eval to count. The contract allows one `~ ` line, directly
+    under a recast that changed something, and a `~ ` anywhere else is the contract
+    broken (targum-internal#242, acceptance criterion 3). This is that count.
+
+    Asked of the same text `pairs()` is asked of, and it answers by difference: the
+    number written, less the number that found a recast to belong to. Nothing here
+    re-implements the parser, so the two cannot drift apart.
+    """
+    written = sum(1 for raw in text.splitlines() if raw.strip().startswith(WHY))
+    kept = sum(1 for pair in pairs(text, language) if pair.why)
+    return max(0, written - kept)
+
+
 def _has_hebrew(text: str) -> bool:
     return any("א" <= ch <= "ת" for ch in text)
 
