@@ -254,6 +254,11 @@
           meaning: word.meaning || "",
           band: word.band || "",
           learned: 0,
+          // Ticked off here rather than met in a text, and the ledger says which
+          // (targum-internal#245). The count is the same; what differs is what may be
+          // said about the word later, since a claim is the reader's own word and not
+          // evidence from a page they read.
+          source: "claimed",
           // One millisecond apart, so "kept" keeps the order they were shown in.
           at: now + n,
           seen: now + n,

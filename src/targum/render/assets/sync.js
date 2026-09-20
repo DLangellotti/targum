@@ -160,6 +160,9 @@
           status: word.status === undefined ? null : word.status,
           band: word.band || "",
           learned: word.learned ? 1 : 0,
+          // How the word got here: "claimed" for one ticked off on "Words you may
+          // already know", "" for one met in a text (targum-internal#245).
+          source: word.source || "",
           at: word.at || 0,
           seen: touchedAt(word),
         });
@@ -430,6 +433,7 @@
         band: row.band || "",
         // Rebuilt from a named list, so anything not named here is dropped on every sync.
         learned: row.learned ? 1 : 0,
+        source: row.source || "",
         at: row.at || 0,
         seen: row.seen || 0,
       };
