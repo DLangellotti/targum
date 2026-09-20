@@ -1243,11 +1243,17 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
+/* The question is the one thing a new reader is asked, and at a desk it was set at
+   the size of the hint under it: the greeting above and the pills below both outranked
+   it, and the eye went to nineteen pills before it found what they were for. A card
+   title's size and weight (§13) — a heading, and still well short of the sheet. */
 .arrival-asks {
   margin: 0 0 0.6rem;
   font-family: var(--chrome);
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
   color: var(--ink);
+  text-wrap: balance;
 }
 .arrival-doors {
   display: flex;
