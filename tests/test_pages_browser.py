@@ -740,7 +740,9 @@ def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -
     got = page.evaluate(LANGUAGE_MEASURE)
     context.close()
     assert got["step"] == "1 of 3", got
-    assert got["rows"] == ["English", "Русский"] and got["spoken"] == ["en", "ru"], got
+    assert got["rows"] == ["English", "Русский", "Other · Другой"], got
+    # Each language's row says which language it is in; the last is in both, and says none.
+    assert got["spoken"] == ["en", "ru", None], got
     assert len(got["asks"]) == 2, f"asked once in each language: {got['asks']}"
     assert got["tall"] and got["rowsClearOfFoot"] and got["footInView"], got
     assert got["skip"] and not got["back"] and not got["next"], got

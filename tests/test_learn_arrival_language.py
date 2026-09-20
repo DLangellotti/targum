@@ -28,7 +28,7 @@ def languages_sent(page: dict[str, Any]) -> list[dict[str, Any]]:
 def test_a_new_reader_is_asked_which_language_first_and_in_both() -> None:
     first = draw([], shared=seeded(), into=BOTH, me=NEW)
     assert first["step"] == "1 of 3"
-    assert first["tongues"] == ["English", "Русский"], "each in its own name"
+    assert first["tongues"] == ["English", "Русский", "Other · Другой"], "each in its own name"
     assert first["tongueAsks"] == ["What is your native language?", "Какой у вас родной язык?"]
     assert not first["subjectsUp"] and first["levels"] == [], "one question a screen"
     assert not first["nextShown"], "pressing a row is the answer, as on the ladder"
@@ -142,3 +142,14 @@ def test_the_first_text_is_one_with_their_language_under_it() -> None:
 
     nowhere = draw([], shared=shelf(""), into=BOTH, held="ru", do=answers)
     assert nowhere["went"] == ordinary, "and where none has it, what they asked for anyway"
+
+
+def test_other_is_an_answer_and_reads_english() -> None:
+    """A native speaker of neither. Skip says "not now" and keeps nothing; this reader
+    means "neither", which is an answer: English, the only other language there is to
+    read into, and never asked again."""
+    after = draw([], shared=seeded(), into=BOTH, me=NEW, do=[{"tongue": "Other · Другой"}])
+    assert after["heldInto"] == "en"
+    assert after["kept"].get("targum:asked-read") == "1"
+    assert languages_sent(after) == [{"learning": ["he"], "reads": ["en"]}]
+    assert after["reloaded"] == 0 and after["step"] == "2 of 3"
