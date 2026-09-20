@@ -58,6 +58,11 @@
   //: keeps it only if it is a video host's own address (targum-internal#255).
   var cameFrom = "";
 
+  //: How long the box has to be still before the library is asked (targum-internal#251).
+  //: A pause rather than a keystroke: the answer is worth nothing until a word is
+  //: finished, and a request a character is a request a character wasted.
+  var ALREADY_WAIT = 350;
+
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -532,8 +537,97 @@
     if (files && files[0]) take(Array.prototype.slice.call(files));
   });
 
+  /* Whether the library already has what is being typed (targum-internal#251).
+
+     `instead()` says this too, but only after Continue and only once `/prepare` has
+     answered — which means a reader is told a text is already here *after* being quoted
+     a price for making a second copy of it. This asks while they type.
+
+     Asked of the catalogue and nothing else: no fetch of the source, no model, no job.
+     One request in flight at a time and none until the typing pauses, because the box
+     is typed into a character at a time and the answer is worth nothing until it is
+     finished. An answer that arrives for text that is no longer in the box is dropped. */
+  var alreadyBox = document.getElementById("already");
+  var askingAlready = 0;
+  var alreadyFor = "";
+
+  function showAlready(entry) {
+    if (!alreadyBox) return;
+    alreadyBox.textContent = "";
+    if (!entry || !entry.id) {
+      alreadyBox.hidden = true;
+      return;
+    }
+    var head = document.createElement("p");
+    head.className = "already-line";
+    var sentence = entry.translations
+      ? t("add.already.translated", "{title} is already in the library, with a translation a person published.")
+      : t("add.already", "{title} is already in the library.");
+    var at = sentence.indexOf("{title}");
+    if (at < 0) at = 0;
+    head.appendChild(document.createTextNode(sentence.slice(0, at)));
+    var bold = document.createElement("b");
+    bold.textContent = entry.title;
+    head.appendChild(bold);
+    head.appendChild(document.createTextNode(sentence.slice(at).replace("{title}", "")));
+    alreadyBox.appendChild(head);
+
+    var row = document.createElement("div");
+    row.className = "row";
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "filled";
+    open.textContent = t("add.already.open", "Open {title}", { title: entry.title });
+    open.onclick = function () {
+      window.location.href = keyed("/library/" + entry.id);
+    };
+    row.appendChild(open);
+    // The way past it, named as what it is rather than as a refusal of the offer: some
+    // readers want their own copy, and Continue would have done it anyway.
+    var mine = document.createElement("button");
+    mine.type = "button";
+    mine.className = "ghost";
+    mine.textContent = t("add.already.mine", "Bring my own copy");
+    mine.onclick = function () {
+      alreadyBox.hidden = true;
+      if (go) go.click();
+    };
+    row.appendChild(mine);
+    alreadyBox.appendChild(row);
+    alreadyBox.hidden = false;
+  }
+
+  function askAlready() {
+    if (!alreadyBox || !given) return;
+    var typed = String(given.value || "").trim();
+    if (typed === alreadyFor) return;
+    alreadyFor = typed;
+    if (typed.length < 2 || chosen) {
+      showAlready(null);
+      return;
+    }
+    var mine = ++askingAlready;
+    ask("/already", { text: typed })
+      .then(function (entry) {
+        // The box has moved on: this answer is about something the reader has stopped
+        // typing, and drawing it would be answering a question they withdrew.
+        if (mine !== askingAlready || String(given.value || "").trim() !== typed) return;
+        showAlready(entry);
+      })
+      .catch(function () {
+        if (mine === askingAlready) showAlready(null);
+      });
+  }
+
+  var alreadySoon = null;
+  function askAlreadySoon() {
+    if (alreadySoon) clearTimeout(alreadySoon);
+    alreadySoon = setTimeout(askAlready, ALREADY_WAIT);
+  }
+
   if (given) {
     given.addEventListener("input", settle);
+    given.addEventListener("input", askAlreadySoon);
     // Typing is starting over; a file dropped after that is not the refused link's.
     given.addEventListener("input", function () {
       cameFrom = "";
