@@ -768,6 +768,56 @@ def test_seed_hands_a_reader_the_front_of_every_hebrew_track() -> None:
         assert head in planned, f"{group.id}: its first text is a build button"
 
 
+def test_seed_puts_a_text_behind_every_subject_the_arrival_offers() -> None:
+    """targum-internal#311. The arrival asks which subjects somebody came for and then
+    hands them a shelf. Measured on 2026-09-17 that shelf was 116 rows, 100 of them the
+    dialogues, so most of those doors opened onto a row of build buttons — history,
+    philosophy and Hebrew-itself had rows in the catalogue and nothing built."""
+    from targum.catalogue import CATALOGUE, by_id
+    from targum.cli import HOME_LANGUAGE, seeds
+
+    planned = seeds()
+    seeded = {
+        tag
+        for entry_id in planned
+        for tag in (by_id(entry_id).tags if by_id(entry_id) is not None else ())
+    }
+    offered = {
+        tag for entry in CATALOGUE if entry.language.startswith(HOME_LANGUAGE) for tag in entry.tags
+    }
+    assert offered, "the Hebrew catalogue carries subjects"
+    assert offered <= seeded, f"no text behind {sorted(str(t) for t in offered - seeded)}"
+
+
+def test_the_text_behind_a_subject_is_the_easiest_one_carrying_it() -> None:
+    """A door is opened by somebody who has just said this is what they came for, and
+    the cheapest way to lose them is to open it onto the hardest essay on the shelf. So
+    a subject nothing else already covers is given its easiest text, ties by id, and the
+    list is the same on every machine."""
+    from targum.catalogue import CATALOGUE, Kind, by_id, collections
+    from targum.cli import HOME_LANGUAGE, SEED, seeds
+
+    planned = seeds()
+    hebrew = [e for e in CATALOGUE if e.language.startswith(HOME_LANGUAGE)]
+    # What the seed holds for its own reasons: the two named, the scenes, and the front
+    # of every ordered track. A subject one of those already carries is not chosen for.
+    already = {*SEED, *(e.id for e in CATALOGUE if e.kind is Kind.dialogue)}
+    already |= {g.members[0] for g in collections() if g.ordered and g.members}
+    for tag in {tag for entry in hebrew for tag in entry.tags}:
+        if any(tag in entry.tags for i in already if (entry := by_id(i)) is not None):
+            continue
+        easiest = min((e for e in hebrew if tag in e.tags), key=lambda e: (e.difficulty, e.id))
+        assert easiest.id in planned, f"{tag}: seeded something other than {easiest.id}"
+
+
+def test_seeding_a_subject_costs_a_handful_of_texts_and_not_a_shelf() -> None:
+    """Heads only, and one text per subject: the annotator is about a minute a text on a
+    box with no GPU, and a seed that grew by a collection at a time would be hours."""
+    from targum.cli import seeds
+
+    assert len(seeds()) < 150, "the seed is a first press, not a library"
+
+
 def test_seed_names_each_text_once() -> None:
     """A collection's head may be one of the two named outright, and building a text
     twice is an annotator minute spent on nothing."""

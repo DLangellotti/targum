@@ -1629,6 +1629,30 @@ def seeds() -> list[str]:
         if group.ordered and group.members and group.members[0] in hebrew
     ]
     out = [*SEED, *(e.id for e in scenes), *heads]
+
+    # **One text behind every subject the arrival offers** (targum-internal#311). The
+    # arrival asks a new reader which subjects they came for and then hands them a
+    # shelf; measured on 2026-09-17 that shelf was 116 rows of which 100 were the
+    # dialogues, so most doors opened onto a row of build buttons. The heads above fixed
+    # the ordered tracks, which are scripture and the tractates; a subject is not a
+    # track, and history, philosophy and Hebrew-itself had rows in the catalogue and
+    # nothing built.
+    #
+    # The easiest text carrying the tag, not the first: a door is opened by somebody who
+    # has just said this is what they came for, and the cheapest way to lose them is to
+    # open it onto the hardest essay on the shelf. Ties go to catalogue order, so the
+    # list is the same on every machine.
+    covered = {tag for entry_id in out for tag in getattr(hebrew.get(entry_id), "tags", ())}
+    for tag in sorted({tag for entry in hebrew.values() for tag in entry.tags}):
+        if tag in covered:
+            continue
+        easiest = min(
+            (entry for entry in hebrew.values() if tag in entry.tags),
+            key=lambda entry: (entry.difficulty, entry.id),
+        )
+        out.append(easiest.id)
+        covered |= set(easiest.tags)
+
     # Stable, and each id once: a collection's head may be one of the two above.
     return list(dict.fromkeys(out))
 
