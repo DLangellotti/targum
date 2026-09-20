@@ -655,6 +655,121 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert "No publishers" in tools.search_sources(ctx, {})["note"]
 
 
+def test_the_day_s_stories_are_ordered_by_what_the_reader_would_know(
+    world, monkeypatch, tmp_path
+) -> None:
+    """targum-internal#244, change 4b. Two stories published the same day: the one this
+    reader would get furthest into comes first. The day stays the window — news is worth
+    reading because it is today's, so a familiar story never climbs over a fresher one."""
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {"publishers": [{"key": "kan", "name": "כאן", "feed": "https://kan.example/rss"}]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+
+    # Twenty tokens each, which is `level.MEASURABLE`: below it the estimate answers
+    # None rather than guessing, and a headline alone is below it.
+    plain = " ".join(["הילד", "אמר", "שלום", "לאבא"] * 5)
+    strange = " ".join(["פוליטיקאים", "התכנסו", "בירושלים", "לדיון"] * 5)
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        return [
+            feeds.Item(
+                title="הכתבה הקשה",
+                summary=strange,
+                link="https://kan.example/hard",
+                published=datetime(2026, 9, 5, 6, tzinfo=UTC),
+            ),
+            feeds.Item(
+                title="הכתבה הקלה",
+                summary=plain,
+                link="https://kan.example/easy",
+                published=datetime(2026, 9, 5, 20, tzinfo=UTC),
+            ),
+            feeds.Item(
+                title="של אתמול",
+                summary=plain,
+                link="https://kan.example/yesterday",
+                published=datetime(2026, 9, 4, tzinfo=UTC),
+            ),
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "surface": w, "status": 9, "at": 1, "seen": 1}
+                for w in ("הילד", "אמר", "שלום", "לאבא")
+            ]
+        },
+    )
+    ctx = context(library, store, person, home)
+
+    got = tools.search_sources(ctx, {})
+
+    shares = {row["link"]: row["known_share"] for row in got["items"]}
+    # Not 1.0: the title counts too, and its words are not in the ledger. The hook is
+    # what is measured, headline and all, because the hook is all the feed gives.
+    assert shares["https://kan.example/easy"] > 0.8
+    # Not 0 either: the commonest words of the language count as known for everybody,
+    # and two of these reduce to one once a prefix comes off.
+    assert shares["https://kan.example/hard"] < 0.5
+    assert shares["https://kan.example/hard"] < shares["https://kan.example/easy"]
+    assert [row["link"] for row in got["items"]] == [
+        "https://kan.example/easy",
+        "https://kan.example/hard",
+        "https://kan.example/yesterday",
+    ], "the day's easier one first, and yesterday's still last"
+
+
+def test_a_story_too_short_to_measure_is_not_treated_as_hard(world, monkeypatch, tmp_path) -> None:
+    """`known_share` answers None below twenty tokens, and a headline is below it. A hook
+    that says little about its Hebrew is not evidence of hard Hebrew, so it sorts as if
+    it were average rather than sinking under everything that was measured."""
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {"publishers": [{"key": "kan", "name": "כאן", "feed": "https://kan.example/rss"}]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    unknown = " ".join(["פוליטיקאים", "התכנסו", "בירושלים", "לדיון"] * 5)
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        when = datetime(2026, 9, 5, tzinfo=UTC)
+        return [
+            feeds.Item(title="קשה", summary=unknown, link="https://k/hard", published=when),
+            feeds.Item(title="כותרת בלבד", link="https://k/short", published=when),
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    got = tools.search_sources(context(library, store, person, home), {})
+
+    by_link = {row["link"]: row for row in got["items"]}
+    assert by_link["https://k/short"]["known_share"] is None, "not measured, not zero"
+    assert [row["link"] for row in got["items"]][0] == "https://k/short"
+
+
 def test_search_sources_pulls_the_feeds_side_by_side_and_keeps_them(
     world, monkeypatch, tmp_path
 ) -> None:
