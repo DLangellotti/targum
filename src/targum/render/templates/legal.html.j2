@@ -92,16 +92,36 @@
       by the reverse proxy through which the Service is served. Authentication tokens
       are removed from each record before it is written. Processed for the purposes of
       diagnosing faults and detecting misuse. Legal basis: Article 6(1)(f).</li>
+    <li><b>Records of use of the reader.</b> Namely, for each document opened by the
+      Data Subject: the words looked up and the segment in which each occurred; the
+      portions of any recording played, and whether its picture was shown; pages turned
+      and sections marked as finished, with the number of words in each; the position at
+      which a session ended; and the controls of the reader that were pressed. A record
+      of a control pressed identifies neither a document nor a segment. Processed for
+      the purpose of presenting to the Data Subject the time they have listened and
+      watched and the number of words they have read. Legal basis: Article 6(1)(b). The
+      Data Subject may at any time cease such recording, and erase the records held,
+      from the account page.</li>
+    <li><b>Aggregate records of use.</b> Counts, by segment and by control, of the
+      events described at clause 3.6, across all Data Subjects and bearing no identifier
+      of any of them, and confined to documents the licence of which permits their
+      redistribution; no such count is made in respect of material uploaded by a Data
+      Subject. Processed for the purposes of measuring the difficulty of the texts
+      offered and of arranging the controls of the reader. Legal basis: Article 6(1)(f),
+      the legitimate interest of the Controller in improving the Service.</li>
     <li>Where processing is founded upon Article 6(1)(f), the Data Subject may object
       to that processing in accordance with clause 7.6, and the Controller shall state
       which of the operations concerned it is able to cease without terminating the
       account.</li>
     <li>Authentication tokens and session identifiers are stored in the form of a
       one-way cryptographic digest and not in their original form.</li>
-    <li>No processing is undertaken for the purposes of advertising, profiling or
-      behavioural analytics. The Service transmits no analytics data, employs no
+    <li>No processing is undertaken for the purposes of advertising or profiling, and
+      no record of the conduct of a Data Subject is kept save as stated at clauses 3.6
+      and 3.7. The Service transmits no data to any provider of analytics, employs no
       third-party script, and sets no cookie other than that which maintains an
-      authenticated session. A generated targum makes no network request whatsoever.</li>
+      authenticated session. A generated targum opened from a file makes no network
+      request whatsoever; served to an authenticated Data Subject, it communicates with
+      the Service alone.</li>
   </ol>
 
   <h2>Recipients</h2>
@@ -377,10 +397,13 @@
       deleted.</li>
     <li><b>An account closed by the User.</b> Seven days from the request for closure.
       Upon expiry the following are deleted: words, meanings, phrases, documents, dates
-      of reading, sessions, authentication links and the account record itself, together
-      with all files generated for the account.</li>
+      of reading, records of use of the reader, sessions, authentication links and the
+      account record itself, together with all files generated for the account.</li>
     <li><b>Material retained by the User.</b> Until deleted by the User or until closure
       of the account. No period of inactivity causes such material to be deleted.</li>
+    <li><b>Records of use of the reader.</b> For so long as the account subsists, and
+      erased with it; or sooner, upon the request of the User made from the account
+      page, which takes effect at once.</li>
     <li><b>Server access records.</b> Written by the reverse proxy and rotated by file
       size, such that the records held comprise the recent past rather than the whole.
       Retained for so long as they remain of use in diagnosing faults and detecting

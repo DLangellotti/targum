@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The privacy notice says what the record of use is. Two clauses under the categories of
+  data: the reader's own record, kept to show them their time and words, which they can
+  stop or erase from their account page; and counts across everybody that carry nobody's
+  identifier and leave uploads out. A line in the retention schedule, the record named
+  in what closing an account deletes, and clause 3.10 no longer says nothing of what a
+  reader does is kept. This is what `TARGUM_EVENTS` was waiting for
+  (targum-internal#127).
 - Two more first-run moments, each a line said once and in place. When a new reader marks
   their first word on a text that has a recording, the line under the bar says "Now press
   play. The page follows the voice, line by line", and the press puts it away. The first
