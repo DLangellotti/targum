@@ -3844,6 +3844,15 @@ html:fullscreen { background: var(--paper); }
   /* --- the page, above the lot --- */
   body { padding-block-end: var(--foot, 0px); }
 
+  /* --- and below what stands at the top --- */
+  /* A picture docked at the top is a resident too, and takes its room out of the page
+     like the rest: the page begins under it, and the bar — the one strip that is always
+     targum's — sticks under it rather than behind it. `--head` is `reader.js`'s measure
+     of it, and nothing when nothing is there. Not while watching: the picture is the
+     window then, and the measure is not taken. */
+  body { padding-block-start: var(--head, 0px); }
+  .bar { inset-block-start: var(--head, 0px); }
+
   /* --- how it moves --- */
   /* An occupant rises from the foot of the window, and what stands on the band — the
      strip, the tab, the arrows — rides up with it rather than jumping to where it will
