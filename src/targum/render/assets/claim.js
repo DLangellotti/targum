@@ -6,9 +6,9 @@
  * that are not on the ledger, fifty at a time, each with the meaning the glossary already
  * holds and a checkbox (2026-09-11: "this should work with checkboxes, you can mark
  * words you checked as known, also option to check all"). One at the head checks the
- * page; "Mark checked as known" writes the checked ones as ordinary known words, marked
+ * page; "Mark known" writes the checked ones as ordinary known words, marked
  * by the reader's own hand, and leaves the unchecked unmet and remembered as passed over,
- * since they were looked at and left; "None of these" passes the whole page. Nothing is
+ * since they were looked at and left; "None" passes the whole page. Nothing is
  * bought; a word the glossary does not hold is shown bare.
  *
  * Drawn wherever it is mounted (2026-09-11): on Your Words, and as the conversation's
@@ -116,10 +116,10 @@
     host.appendChild(wrap);
 
     var actions = el("div", "claim-actions");
-    var yes = el("button", "claim-yes", t("claim.mark-known", "Mark checked as known"));
+    var yes = el("button", "claim-yes", t("claim.mark-known", "Mark known"));
     yes.type = "button";
     yes.disabled = true;
-    var no = el("button", "claim-no", t("claim.none", "None of these"));
+    var no = el("button", "claim-no", t("claim.none", "None"));
     no.type = "button";
     var said = el("span", "claim-said", "");
     actions.appendChild(yes);
