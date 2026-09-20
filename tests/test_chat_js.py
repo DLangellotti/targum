@@ -1194,6 +1194,7 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
         },
     )
     assert page["cards"][0]["known"] == "You know about 7 words in 10 here."
+    assert page["cards"][0]["voice"] == "", "a card says nothing about audio unless it can"
     bare = dict(quote)
     del bare["known_line"]
     page = run(
@@ -1211,6 +1212,19 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
         },
     )
     assert page["cards"][0]["known"] == "", "nothing where it was not measured"
+
+
+def test_a_silent_text_s_card_says_it_can_be_read_aloud_later() -> None:
+    """targum-internal#246, change 5: one line under the facts, and no button — the
+    press is in the reader, beside the section it would read."""
+    quoted = dict(QUOTE, voice_later=True)
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers={"/prepare": quoted, "/build": dict(quoted, stage="working")},
+    )
+    card = page["cards"][0]
+    assert card["voice"] == "Audio can be added in the reader."
+    assert card["button"] == "", "a note, not another thing to press"
 
 
 # -- the page as a viewport (targum-internal#247) -----------------------------------

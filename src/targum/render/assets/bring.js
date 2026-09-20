@@ -443,6 +443,15 @@
       known.textContent = line || job.known_line;
       card.appendChild(known);
     }
+    // A silent text can be read aloud once it is built (targum-internal#246). One line
+    // under the facts, no button: the press is in the reader, beside the section it
+    // would read, and this card is quoting a build that has not happened yet.
+    if (job.voice_later) {
+      var voice = document.createElement("p");
+      voice.className = "quote-voice";
+      voice.textContent = t("add.job.voice-later", "Audio can be added in the reader.");
+      card.appendChild(voice);
+    }
     // A text that arrived as pages shows its first lines as read: for a picture the
     // filename says nothing, and what will be built should be seen before it is.
     if (job.excerpt && job.excerpt.length) {

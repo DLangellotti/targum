@@ -2904,6 +2904,36 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
 
 
+def test_a_quote_says_a_silent_text_can_be_given_a_voice_later() -> None:
+    """targum-internal#246, change 5. The card says it in one line and offers no button:
+    the press is in the reader, beside the section it would read, and this card is
+    quoting a build that has not happened yet.
+
+    The same three conditions `render` draws the door on — a language the voice speaks,
+    no recording of its own, and a price for the voice.
+    """
+    from targum.serve import Job
+
+    assert Job(id="a", source="x", language="he").state()["voice_later"] is True
+    assert Job(id="b", source="x", language="en").state()["voice_later"] is False, (
+        "the voice does not speak it"
+    )
+    heard = Job(id="c", source="x", language="he", audio=True)
+    assert heard.state()["voice_later"] is False, "a recording is already sound"
+
+
+def test_an_unpriced_voice_is_not_offered_on_a_card_either(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unpriced voice is not for sale, which is the decision of 2026-09-10 and the
+    condition the reader's own door is drawn on."""
+    from targum import speech
+    from targum.serve import Job
+
+    monkeypatch.setattr(speech, "PRICES", {})
+    assert Job(id="a", source="x", language="he").state()["voice_later"] is False
+
+
 def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     served: tuple[int, str, Path],
 ) -> None:

@@ -699,6 +699,7 @@
   "add.job.sentences.other": "{n} sentences",
   "add.instead.one": "{title} is already in the library, with a translation a person published. It'll read better than ours.",
   "add.instead.other": "{title} is already in the library, with {n} translations a person published. It'll read better than ours.",
+  "add.job.voice-later": "Audio can be added in the reader.",
   "add.doubtful.one": "We couldn't read {n} line clearly.",
   "add.doubtful.other": "We couldn't read {n} lines clearly.",
   "building.plain.words": "reading the words",
