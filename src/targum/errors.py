@@ -29,6 +29,12 @@ class TargumError(Exception):
         key: str = "",
         **fill: object,
     ) -> None:
+        if fill and not key:
+            # `fill` is only ever read against a key, so a keyword with no key behind it
+            # is a mistyped `hint` or `key` rather than a sentence's values. Taking
+            # `**fill` at all is what stopped the signature catching that, and mypy
+            # cannot either — `**fill: object` accepts anything — so it is caught here.
+            raise TypeError(f"TargumError got {', '.join(sorted(fill))} with no key")
         super().__init__(message)
         self.message = message
         self.hint = hint
@@ -58,8 +64,13 @@ class Unreachable(TargumError):
         host: str = "",
         challenge: bool = False,
         via: str = "direct",
+        key: str = "",
+        **fill: object,
     ) -> None:
-        super().__init__(message, hint)
+        # Carried up rather than dropped: a host that would not answer is the commonest
+        # refusal the fetch door raises, so it is the one most worth saying in the
+        # reader's own language (targum-internal#348).
+        super().__init__(message, hint, key=key, **fill)
         self.status = status
         self.host = host
         #: The host answered with a bot check rather than a page — Cloudflare's
