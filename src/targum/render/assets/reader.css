@@ -3153,6 +3153,16 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
   }
   .video:not(.watching) .video-size svg { inline-size: 0.9rem; block-size: 0.9rem; }
   .video:not(.watching) .video-size:hover { background: var(--paper-raised); }
+
+  /* The bar across a vertical panel. It was written for 20rem and the upright dock is
+     narrower, so "Full screen" ran off the panel's edge and the corner and close keys
+     were under it. The panel is as wide as its keys need — still well short of the
+     landscape one — and the grip keeps its dots and drops its word, which is the one
+     word here a reader does not need to be told. */
+  .video.tall:not(.watching):not(.free) { inline-size: min(13.5rem, calc(100vw - 2.5rem)); }
+  .video.tall:not(.watching) .video-grip .video-word { display: none; }
+  .video.tall:not(.watching) .video-grip { flex: 0 0 auto; }
+  .video.tall:not(.watching) .video-mode { margin-inline-end: auto; }
 }
 
 .video.watching .video-keys { gap: 0.5rem; margin: 1rem; }
@@ -3695,6 +3705,29 @@ html:fullscreen { background: var(--paper); }
   .video.dock-top-start {
     inset-block: 0 auto;
     inset-inline: 0;
+  }
+
+  /* A vertical film is an occupant of the band like any other: the sheet is the width
+     of the window and the picture stands in the middle of it, sized by its height. The
+     wide window's narrow panel (`.video.tall`, four classes) outranked the sheet, so a
+     reel on a phone was an 11rem box in the corner with the page showing beside it —
+     and in a Hebrew text the corner it took is where every line begins. */
+  .video.tall:not(.watching):not(.free) {
+    inline-size: auto;
+    justify-content: center;
+  }
+  .video.tall:not(.watching) .video-el {
+    flex: none;
+    inline-size: auto;
+    block-size: min(16rem, calc(45svh - 1.75rem));
+  }
+  /* Beside the picture rather than on it, so on the sheet's own ground — and down the
+     edge, because a row of three reaches back over a picture this narrow. */
+  .video.tall:not(.watching) .video-keys {
+    flex-direction: column;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   /* --- the strip --- */
