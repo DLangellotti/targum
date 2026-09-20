@@ -31,6 +31,19 @@ is a separate switch from `TARGUM_INDEX_PARASHA`. Sharing one would mean that in
 crawlers to fifty-four portions — a corpus that is finished, and the same fifty-four every
 year — also invited them to four pages that change every night.
 
+**`targum parasha build` must run with the main checkout as its working directory.** The
+recordings root is `cwd/targum-out/recordings`, so a build from a worktree finds no
+chanted audio and ships the portions without it, silently — caught on 2026-09-20 only by
+diffing against a backup. `--out` does not govern it and neither does
+`TARGUM_PARASHA_DIR`.
+
+**A rebuild does not reach every reader.** `targum rebuild` rewrites what has artifacts
+beside it; the parasha corpus and the daily window keep none, and the four shared Russian
+texts are skipped by design. After any change to reader CSS or JS those stay as they were
+cut, and `deploy.sh` used to say "done" over them — three times. `targum preflight` now
+counts them (`stale readers`), so the gap is a line in the deploy rather than something
+found weeks later. Re-cut and ship what it names.
+
 Daily learning. `ship-daily.sh` carries the rolling window of `/mishna-yomi` and its
 three siblings. Unlike `ship-parasha.sh` it wants running **nightly**, and that is the
 whole difference between them: the parasha's corpus is the same fifty-four readings every
