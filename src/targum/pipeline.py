@@ -1858,6 +1858,11 @@ class Build:
                             )
                     if reel.exists():
                         entry.video = str(reel.relative_to(self.resolved_out))
+                        # Measured every build, not only when the cut is made: the
+                        # manifest is written afresh here each time, and a part cut
+                        # before this was recorded gets its shape on the next build
+                        # without being cut again.
+                        entry.frame = tools.frame(reel)
                 if piece.exists():
                     entry.audio = str(piece.relative_to(self.resolved_out))
                     entry.transcribed = True

@@ -9086,6 +9086,15 @@ var targumReader = function () {
      * is the switch the layout needs: a picture taller than it is wide is sized by its
      * height, or a 9:16 at the panel's width would be a column of video down the window.
      */
+    /* And before it lands, the shape the build measured (2026-09-20). Until the metadata
+     * arrived a reel stood in the 16/9 the stylesheet falls back to and then jumped
+     * upright — on a slow line, for as long as the line was slow. The build reads the
+     * cut's size and the page carries it as `data-film`; `tall` is already in the class
+     * the page came with. As an attribute and not a style: a served page's policy allows
+     * no inline style, and a property set from here is not one. The film still has the
+     * last word below, in the same form, so a page that was told wrong is put right. */
+    var builtFilm = videoBox ? videoBox.getAttribute("data-film") : "";
+    if (builtFilm && /^\d+ \/ \d+$/.test(builtFilm)) videoBox.style.setProperty("--film", builtFilm);
     videoEl.addEventListener("loadedmetadata", function () {
       var wide = videoEl.videoWidth;
       var high = videoEl.videoHeight;

@@ -474,7 +474,10 @@
     bare relative src would ask for the sidecar without it — refused, and the fallback
     would hide the whole feature. The script appends location.search, which is the key
     when there is one and nothing off a disk. -#}
-<div class="video" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}">
+{#- The film's shape, where the build measured it: `tall` for the layout and `data-film`
+    for the frame, so an upright film is upright before it has loaded. Not a `style`
+    attribute — the served page's policy refuses one — so `reader.js` reads this. -#}
+<div class="video{% if spoken_frame and spoken_frame[1] > spoken_frame[0] %} tall{% endif %}" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}"{% if spoken_frame %} data-film="{{ spoken_frame[0] }} / {{ spoken_frame[1] }}"{% endif %}>
   <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
   {#- Tap the picture to play or pause it. The strip's button is 2rem in a row that is
       already crowded on a phone, and the picture is the biggest target on the page and
