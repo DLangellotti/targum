@@ -6552,14 +6552,22 @@ var targumReader = function () {
 
      Watching is not suspended: the picture is the whole window then and there is no
      reading column under it to cut. And the reader's own setting is never written to —
-     this reads it, so pages come back the moment the picture is closed or watched. */
+     this reads it, so pages come back the moment the picture is closed or watched.
+
+     Closed by the reader, that is. A word's card takes the band and the band holds one
+     thing at a time, so the card puts the picture away — and gives it back when it goes
+     (`pictureWas`). That is a visit, not a closing, and it un-suspended paging all the
+     same: every tap on a word under a docked picture laid the chapter out in pages and
+     showed page one, the word the reader had asked about nowhere on the screen (David,
+     on his phone, 2026-09-20). A card covers the page and does not move it (design.md
+     §12), so while the picture is only put away for an overlay — or for the frame
+     between the overlay going and the picture coming back — nothing here has changed.
+     Put away for the words sheet is different: the sheet is a mode and means to stay,
+     and pages under it are what they always were. */
   function pagingSuspended() {
-    return (
-      !roomy.matches &&
-      !!videoPanel &&
-      !videoPanel.hidden &&
-      !videoPanel.classList.contains("watching")
-    );
+    if (roomy.matches || !videoPanel) return false;
+    if (pictureWas && (occupant === null || overlay(occupant))) return true;
+    return !videoPanel.hidden && !videoPanel.classList.contains("watching");
   }
 
   /* What the last layout was told, so a picture docking or closing can be noticed. */
@@ -6894,7 +6902,22 @@ var targumReader = function () {
        possible at all, and it arrives here rather than through the setting. Re-apply
        before the early return, or pages put away under a picture never come back. */
     if (paging && pagingSuspended() !== wasSuspended) {
+      /* And the reader keeps their place across it. `applyPaged` opens on the page last
+         turned to, which is the answer when a text is opened and the wrong one here: a
+         reader who scrolled to line forty under a picture and then closed it was shown
+         page one, and one who opened a picture on page nine was handed the top of the
+         transcript. The place is the line they are on — the top of the page that was
+         open, or the line under the bar of a scroll — taken before anything moves. */
+      var from = pages.length ? pairs[pages[current][0]] : lineUnderTheBar();
       applyPaged();
+      /* Past the first line only. At the top of a text there is no place to keep, and
+         bringing its first line under the bar takes the title off the screen — which is
+         what every text with a picture would have opened to, since the picture arriving
+         is the first of these changes. */
+      if (from && from.parentNode && pairs.indexOf(from) > 0) {
+        if (paged() && pages.length) showPage(pageFor(pairs.indexOf(from), pages), true);
+        else if (from.scrollIntoView) from.scrollIntoView({ block: "start" });
+      }
       return;
     }
     if (!paging || !paged()) return;
@@ -6919,6 +6942,18 @@ var targumReader = function () {
     if (linked && !linked.hidden) held = linked;
     paginate();
     showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
+  }
+
+  /* The line a scrolling reader is on: the first whose foot is under the bar. Not
+     `anchor`, which prefers a word they stood on wherever it now is, and otherwise the
+     middle of the window — right for holding a sentence still, and a third of a screen
+     out for saying which line a page should begin on. */
+  function lineUnderTheBar() {
+    var top = ceiling();
+    for (var i = 0; i < pairs.length; i++) {
+      if (!pairs[i].hidden && pairs[i].getBoundingClientRect().bottom > top + 4) return pairs[i];
+    }
+    return null;
   }
 
   function applyPaged() {
