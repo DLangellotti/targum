@@ -561,6 +561,64 @@ def test_the_export_holds_every_language_and_no_filter(hosted: tuple[int, str]) 
         assert expected in data, expected
 
 
+def test_a_claimed_word_says_so_in_the_export(hosted: tuple[int, str]) -> None:
+    """targum-internal#245. A word ticked off on "Words you may already know" counts the
+    same as one met in a text, and is not the same thing: the reader is telling us about
+    a word they never met here. The count does not care and the corpus does, so the row
+    carries how it got there and the export says it."""
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.whoever(session)
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "שולחן",
+                    "status": 9,
+                    "source": "claimed",
+                    "at": 3,
+                    "seen": 3,
+                },
+                {"language": "he", "lemma": "כיסא", "status": 9, "at": 4, "seen": 4},
+            ]
+        },
+    )
+
+    status, body = ask(port, "/account/export", "targum.page", session)
+    assert status == 200
+    words = {word["lemma"]: word for word in json.loads(body)["words"]}
+    assert words["שולחן"]["source"] == "claimed"
+    assert words["כיסא"]["source"] == "", "met in a text, which is the ordinary way"
+
+
+def test_a_word_already_in_the_ledger_is_not_reclassified_by_a_later_push(
+    hosted: tuple[int, str],
+) -> None:
+    """A field a push does not mention keeps what is stored, which is `_merge`'s own
+    rule. It matters here because every word marked before this column existed has no
+    source, and a browser that syncs one back must not be able to invent one for it."""
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.whoever(session)
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": "דלת", "status": 9, "source": "claimed", "seen": 1}
+            ]
+        },
+    )
+    store.push(person, {"words": [{"language": "he", "lemma": "דלת", "status": 5, "seen": 2}]})
+
+    words = {w["lemma"]: w for w in store.everything(person)["words"]}
+    assert words["דלת"]["status"] == 5, "the newer push wins on what it said"
+    assert words["דלת"]["source"] == "claimed", "and does not erase what it did not say"
+
+
 def test_the_export_holds_every_kind_the_account_syncs(hosted: tuple[int, str]) -> None:
     """Asked of `KINDS`, not of a list written here.
 

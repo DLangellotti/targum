@@ -131,10 +131,17 @@ SESSION_DAYS = 90
 #    merged (targum-internal#127, decided 2026-09-19). See `EVENTS` below for why it is a
 #    table of its own and not a seventh kind of `/sync`.
 #
+# 25: word.source — how a word came to be in the ledger. '' for the ordinary way, a word
+#    met in a text and marked there, which is everything written before this. 'claimed'
+#    for a row ticked off on "Words you may already know" (targum-internal#245), where
+#    the reader is telling us about a word they never met here. The count is the same
+#    either way; what differs is what the corpus may say about it, and a claim is the
+#    reader's own word rather than evidence from a text.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 24
+SCHEMA_VERSION = 25
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -328,6 +335,11 @@ MIGRATIONS: tuple[str, ...] = (
     # 'off' for stopped (targum-internal#127). On from the first session, by decision; the
     # switch is theirs, on the account page.
     "ALTER TABLE person ADD COLUMN events TEXT NOT NULL DEFAULT ''",
+    # How a word came to be in the ledger: '' for one met in a text and marked there,
+    # 'claimed' for one ticked off on "Words you may already know". Nothing can recover
+    # this for words marked before it existed, and '' is the honest answer for them —
+    # they were met in a text, because that was the only door there was.
+    "ALTER TABLE word ADD COLUMN source TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -380,6 +392,9 @@ CREATE TABLE IF NOT EXISTS word (
   note     TEXT    NOT NULL DEFAULT '',
   band     TEXT    NOT NULL DEFAULT '',
   learned  INTEGER NOT NULL DEFAULT 0,
+  -- How the word got here: '' for one met in a text, 'claimed' for one ticked off on
+  -- "Words you may already know" (targum-internal#245).
+  source   TEXT    NOT NULL DEFAULT '',
   at       INTEGER NOT NULL DEFAULT 0,
   seen     INTEGER NOT NULL DEFAULT 0,
   gone     INTEGER NOT NULL DEFAULT 0,
@@ -890,7 +905,7 @@ KINDS: dict[str, Kind] = {
     "words": Kind(
         table="word",
         key=("language", "lemma"),
-        fields=("surface", "status", "meaning", "note", "band", "learned", "at"),
+        fields=("surface", "status", "meaning", "note", "band", "learned", "source", "at"),
     ),
     "meanings": Kind(
         table="meaning",
