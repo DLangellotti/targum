@@ -2696,6 +2696,9 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .player-clock {
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
+  /* A clock is one thing. On a 320px phone it broke at the stroke — "0:09 /" over
+     "0:48" — and the strip grew a third line to hold it. */
+  white-space: nowrap;
   color: var(--ink-soft);
   display: none;
 }
