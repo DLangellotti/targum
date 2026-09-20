@@ -1548,6 +1548,7 @@
     var rungs = document.getElementById("arrival-levels");
     var done = document.getElementById("arrival-done");
     var skip = document.getElementById("arrival-skip");
+    var back = document.getElementById("arrival-back");
     var count = document.getElementById("arrival-count");
     var where = document.getElementById("arrival-step");
     var screens = [document.getElementById("arrival-subjects"), document.getElementById("arrival-level")];
@@ -1577,6 +1578,7 @@
       }
       done.hidden = step !== 0;
       done.disabled = picked.length < WANTED;
+      if (back) back.hidden = step !== 1;
       if (!count) return;
       var short = WANTED - picked.length;
       count.textContent =
@@ -1655,6 +1657,20 @@
     };
     // A question a reader may not decline is a gate, and the arrival is not one.
     skip.onclick = onward;
+    /* And a question a reader may not go back to is a one-way door (2026-09-20). The
+       subjects are as they were left — what was pressed is still pressed — and Next
+       keeps them again if they change. Focus goes to Next, or to the first subject
+       where Next is asleep because the question was skipped. */
+    if (back) {
+      back.onclick = function () {
+        if (step !== 1) return;
+        step = 0;
+        settle();
+        if (window.scrollTo) window.scrollTo(0, 0);
+        var to = done.disabled ? row.children[0] : done;
+        if (to && to.focus) to.focus({ preventScroll: true });
+      };
+    }
     settle();
     host.hidden = false;
     document.body.classList.add("arriving");

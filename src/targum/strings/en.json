@@ -1669,6 +1669,7 @@
   "job.tiktok-unavailable": "We can't fetch from TikTok here.",
   "learn.arrival.next": "Next",
   "learn.arrival.skip": "Skip",
+  "learn.arrival.back": "Back",
   "learn.arrival.step": "{n} of {of}",
   "learn.arrival.level-hint": "We start you there. What you mark as you go takes over from it.",
   "learn.card.start": "Start",

@@ -86,6 +86,11 @@
         <div class="arrival-levels" id="arrival-levels" role="group" aria-labelledby="arrival-asks-level"></div>
       </div>
       <p class="arrival-foot">
+        {#- The way back from the second question to the first (2026-09-20). A reader who
+            pressed Next a subject early, or wants to see what they chose, had no way to:
+            the arrival went one way. Drawn on the second screen only, and a ghost like
+            Skip — going back is not an answer. -#}
+        <button type="button" class="arrival-skip arrival-back" id="arrival-back" hidden>{{ t("learn.arrival.back", "Back") }}</button>
         <button type="button" class="arrival-done" id="arrival-done" disabled>{{ t("learn.arrival.next", "Next") }}</button>
         <button type="button" class="arrival-skip" id="arrival-skip">{{ t("learn.arrival.skip", "Skip") }}</button>
         <span class="arrival-count" id="arrival-count" aria-live="polite"></span>

@@ -1402,6 +1402,7 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   cursor: pointer;
 }
 .arrival-skip:hover { color: var(--ink); background: var(--teal-wash); }
+.arrival-back[hidden] { display: none; }
 .arrival-skip:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

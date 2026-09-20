@@ -1722,6 +1722,7 @@
   "job.tiktok-unavailable": "Здесь мы не можем загружать с TikTok.",
   "learn.arrival.next": "Дальше",
   "learn.arrival.skip": "Пропустить",
+  "learn.arrival.back": "Назад",
   "learn.arrival.step": "{n} из {of}",
   "learn.arrival.level-hint": "С этого мы начнём. Дальше решают слова, которые вы отмечаете.",
   "learn.card.start": "Начать",
