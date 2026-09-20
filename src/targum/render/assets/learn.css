@@ -687,6 +687,14 @@ body.learn .site-head-row { max-width: none; padding-inline: 1.5rem; }
    own type unscaled inside it (2026-09-14). */
 body.learn:not(.yours) main,
 body.learn:not(.yours) .site-head-row { max-width: 110rem; margin-inline: auto; }
+/* And the foot, which the two rules above forgot. It is set in the 62rem column "so the
+   links start where the page does" (`chrome.css`), and on this page the page starts at
+   the window's edge: at 1440 the links began 170px in from everything above them. */
+body.learn:not(.yours) .site-foot { max-width: 110rem; padding-inline: 1.5rem; }
+@media (max-width: 40rem) {
+  /* The phone's gutter is 1rem, the mark's and the cards'. */
+  body.learn:not(.yours) .site-foot { padding-inline: 1rem; }
+}
 /* The lists behind the account are pages to read down, not a reader to fill the desk
    with: they keep the column every other list page stands in, header and all. */
 body.yours main { max-width: 62rem; padding: 1.5rem 1.25rem 5rem; }
@@ -1243,11 +1251,17 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
+/* The question is the one thing a new reader is asked, and at a desk it was set at
+   the size of the hint under it: the greeting above and the pills below both outranked
+   it, and the eye went to nineteen pills before it found what they were for. A card
+   title's size and weight (§13) — a heading, and still well short of the sheet. */
 .arrival-asks {
   margin: 0 0 0.6rem;
   font-family: var(--chrome);
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
   color: var(--ink);
+  text-wrap: balance;
 }
 .arrival-doors {
   display: flex;
@@ -1305,13 +1319,36 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   gap: 0.4rem;
   max-inline-size: 30rem;
 }
+/* At a desk the ladder is two columns of four, read down and then across — the order
+   the keyboard walks it in. Eight rows in one column is 24rem of question, and the
+   arrival's whole argument at this width is that "somebody who ignores it still has a
+   text open": at 1440x900 the text was under the fold. */
+@media (min-width: 48rem) {
+  .arrival-levels {
+    grid-template-rows: repeat(4, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    column-gap: 0.6rem;
+    max-inline-size: 46rem;
+  }
+}
+/* Two rows, not eight: the ladder's two columns would set them side by side across
+   46rem, and a choice between two is read down. The question above them is said once in
+   each language, a line each. */
+.arrival-tongues { max-inline-size: 30rem; }
+@media (min-width: 48rem) {
+  .arrival-tongues { grid-template-rows: none; grid-auto-flow: row; }
+}
+.arrival-asks > span { display: block; }
 .arrival-rung {
   font: inherit;
   font-family: var(--chrome);
   font-size: 0.875rem;
   color: var(--ink);
   display: flex;
-  align-items: baseline;
+  /* Centred, not `baseline`: a row is 2.75rem tall for the thumb and its words are one
+     line, and on the baseline they sat against the top of it with the room all below. */
+  align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
   text-align: start;
@@ -1373,6 +1410,7 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   cursor: pointer;
 }
 .arrival-skip:hover { color: var(--ink); background: var(--teal-wash); }
+.arrival-back[hidden] { display: none; }
 .arrival-skip:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
@@ -1429,14 +1467,35 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
     min-block-size: 4.25rem;
     background: var(--ground);
     border-block-start: 1px solid var(--hairline);
+    /* Back, Next, Skip and the count are four things since the language came first
+       (2026-09-20), and on a 320px phone four in a row ran under the pill. The count is
+       a line of its own above the three presses, and takes no room while it is empty. */
+    flex-wrap: wrap;
+    row-gap: 0.1rem;
   }
+  body.arriving .arrival-count { order: -1; flex: 1 0 100%; }
+  body.arriving .arrival-count:empty { display: none; }
+  /* And the page clears the taller foot. */
+  body.arriving .arrival { padding-block-end: 7rem; }
 }
 /* --- words you may already know, on the way in (targum-internal#297) --------- */
 
 /* The same panel Your Words draws, offered here once. `Not now` is a plain link-weight
    press, not a button: declining is not an action of equal weight to answering. */
 .claim-here[hidden] { display: none; }
-.claim-away { margin: 0.75rem 0 0; }
+/* Declining stands at the head of the panel, across from its title, where a thing is
+   put away from. It was the last line under fifty rows — two thousand pixels down on a
+   phone — so the one reader certain to want it, the one who is not going to answer,
+   had to scroll the whole list to say so. The markup keeps its order; only the place
+   is moved, with the title kept clear of it. */
+.claim-here { position: relative; }
+.claim-here > h2 { padding-inline-end: 5.5rem; }
+.claim-away {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.75rem;
+  margin: 0;
+}
 .claim-away button {
   font: inherit;
   font-family: var(--chrome);
@@ -1444,8 +1503,11 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   color: var(--ink-soft);
   background: none;
   border: 0;
-  padding: 0;
+  /* The words stay link-weight; the press around them is a thumb's (§8). */
+  min-block-size: 2.75rem;
+  padding: 0 0.5rem;
   cursor: pointer;
   text-decoration: underline;
 }
+.claim-away button:hover { color: var(--ink); }
 .claim-away button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

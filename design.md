@@ -330,6 +330,115 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The arrival asks which language first — 2026-09-20
+
+"How in on-boarding does the russian user switch to russian?" David asked, and the honest
+answer was that they did not. An account's `reads` decides two things — the language of
+the line under each Hebrew one, and the language the desk speaks (§13) — and a new account
+was English in both. The ways out were the profile page, a question the conversation asks
+once and only of a browser that already says Russian, and the operator marking an invited
+address beforehand. The front door had a switcher, and what was pressed there was dropped
+at the next link: the sign-in page went back to the browser's language, and the phone of
+an olah who reads Russian is as often set to Hebrew or English.
+
+So the arrival is **three questions, a screen each**, and the first is *What is your
+native language?* — David's wording, the same day, over "Which language do you read?": it
+is the question a person answers without thinking, where the other asks them to work out
+what targum means by reading. What it sets is unchanged — `reads`, so the line under the
+Hebrew and the desk. A reader whose native language is neither has a third row, **Other ·
+Другой**, in both languages because it is nobody's own name: it sets English, the only
+other language there is to read into, and it is an answer, so they are not asked again —
+Skip says "not now", and this reader means "neither". This amends "The arrival is two questions" below in its count and in nothing
+else: one question a screen, where it is said in words, a Skip on each, a Back on all but
+the first, and the last answer opens the text.
+
+- **First, because it is the one that cannot wait.** A reader who cannot read "What are
+  you interested in?" cannot be asked it.
+- **Asked in every language it offers at once.** The question a line a language, each row
+  in its own name — English, Русский — and each marked as what it is. It is the one screen
+  that may not assume the page's language, so its words are in `learn.js` and not in the
+  catalogue. No flags: §10 stands, and the language menu's exception is the menu's.
+- **Pressing a row is the answer**, as on the ladder. The account is told the way the
+  profile page tells it, and the page is loaded again where the answer changed the
+  language it should be in, because the server draws a desk page in one language. It
+  comes back on "2 of 3", with the language one Back away.
+- **Asked of everybody who has never said, and of nobody who has.** Not only of a browser
+  that says Russian: that is the wrong signal for exactly the reader this is for. An
+  account with `reading` rows has said — its own, or the operator's mark; so has a page
+  that arrived in another language, a browser that holds a choice, and a reader the
+  conversation asked. `first.js` and the arrival keep the same two keys, so neither asks
+  after the other. `/account/me` says `readsSaid`, because `reads` answers English for an
+  account that has said nothing and the two have to be told apart.
+- **A press on the front door is a press.** The switcher's choice rides the sign-in link,
+  the sign-in page and its email are in it, `signin.js` keeps it as what the browser reads
+  into, and Learn hands it to the new account — once, at the arrival, which is the one
+  moment it is certainly a new reader's. Only what was pressed is carried; a language the
+  browser merely suggested is used and not kept.
+- **The first text is one with their language under it, where there is one.** The shelf is
+  English throughout and Russian in places (beta), so the arrival looks across all three
+  subjects for a text whose `targets` has the reader's language before it makes its
+  ordinary pick. Where none has it, the ordinary pick, in the language it exists in: a
+  Russian desk over English lines, which is the true state of the shelf and the argument
+  for translating more of it. Nothing is translated on the way in — no spend on a press
+  that did not ask for one.
+
+`test_learn_arrival_language.py` holds the rules; `test_pages_browser.py`'s arrival answers
+the language first, and its walk into a text is six presses where it was five.
+
+### A reel at the size a reel is — 2026-09-20
+
+A design review of the arrival, the vertical film and Learn, at 320 to 1920 wide. Most of
+what it changed is a repair and needs no entry. Three things are decisions, and would be
+"corrected" back by somebody reading the older entries.
+
+- **The fixture films were too small to fail.** `tiny.webm` is 64x36 and `tall.webm`
+  36x64. Watching is a grid, a grid track left `auto` is sized by what is in it, and a
+  reel comes down 480x854: the picture made its own row 2562px tall on a 900px window,
+  with the line and the transport under the fold, and a landscape film did the same in
+  any window shorter than it. Every test of the mode passed. `reel.webm` and `film.webm`
+  are the sizes the importer keeps, and `test_reel_browser.py` lays them out at six
+  windows. A layout test wants a fixture the size of the thing.
+- **An upright film in a wide window has its line beside it, not over it.** "Laid over
+  the picture in landscape" (2026-09-03) is right for a film that fills the window. An
+  upright one is a column in the middle with a letterbox each side wider than itself,
+  and the line and the transport were both laid across that column: two thirds of the
+  picture on a phone turned sideways, and at any size the place a reel burns its own
+  captions in. So: the film at the start, the line next to it as text on the letterbox,
+  the transport under the line, and the tap that plays the size of the picture. Portrait
+  is as it was — picture, line, transport, down the window.
+- **A docked reel on a phone is an occupant of the band**, full width like any other,
+  the picture in the middle of it and its keys down the edge. It was an 11rem box in the
+  corner with the page showing beside it, and in a Hebrew text the corner it took is
+  where every line begins. At a desk the upright dock is 13.5rem, as wide as its keys
+  need, and the grip drops its word there and nowhere else (2026-09-14, "The picture's
+  keys say what they do", stands for the other three).
+
+And on the arrival, inside what 2026-09-19 settled: the question is set as a card title
+at a desk as it already was on a phone — it was the size of the hint under it — and at
+48rem the ladder is two columns of four, read down then across, because eight rows put
+the text "somebody who ignores it still has" under the fold at 1440x900. Not now, on the
+words-you-know panel, stands at the panel's head rather than under its fifty rows.
+
+Three more the same day, each asked for by David after the review named it.
+
+- **The build measures a film, so the page need not wait for it.** The shape came from
+  the film's own metadata (2026-09-17), which is right and late: until it landed a reel
+  stood in the stylesheet's 16/9 and then jumped upright. `tools.frame` reads the cut's
+  size, `ManifestPart.frame` keeps it, and the page carries it as `tall` in the panel's
+  class and `data-film` beside it. An attribute and not a `style`, because a served
+  page's policy allows no inline style. A manifest from before today has no measure, so
+  the render asks the cut on the disk, and a reader rendered again is put right without
+  being imported again. The film still has the last word when it arrives.
+- **The second question has a Back.** "One question a screen" stands, and so do Skip
+  and the five presses. But the arrival went one way only, and a reader who pressed
+  Next a subject early could not see what they had chosen. Back is a ghost beside Skip
+  on the second screen and nowhere else; the subjects are as they were left, and Next
+  keeps them again if they change.
+- **Mark known, and None.** The two presses under the words-you-know list said "Mark
+  checked as known" and "None of these", which §6 already called long ("a button or a
+  link is one or two words"). On a phone they would not share a row beside the pill, so
+  the strip stood two rows tall over a list with three rows showing at 320x568.
+
 ### The arrival is two questions, a screen each, and the second one is kept — 2026-09-19
 
 The arrival is the one thing a new reader is asked, and until today nothing about it was

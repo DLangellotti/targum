@@ -1481,6 +1481,113 @@
     });
   }
 
+  /* --- which language they read (2026-09-20) ---------------------------------
+   *
+   * The arrival's first question, and the only one asked in more than one language at
+   * once. `reads` on the account decides two things — the language of the line under
+   * each Hebrew one, and the language this page speaks — and until today a new account
+   * was English in both whatever the person read, with the way out on a profile page or
+   * behind a question the conversation asks once. So a reader is asked, before they are
+   * asked anything they would have to read.
+   *
+   * Asked only of somebody who has never said. Every one of these is an answer already:
+   * the account has rows (its own, or the operator's mark on an invited address), this
+   * page arrived in another language, the browser holds a choice (the reader's picker,
+   * or a press on the front door carried through sign-in), or the conversation asked.
+   * The same two keys `first.js` keeps, so neither asks after the other.
+   */
+  var ASKED_READ = "targum:asked-read";
+  //: This visit's flag: the page is loaded again when the answer changes its language,
+  //: and the arrival has to come back as the second of three and not the first of two.
+  var TONGUE_ASKED = "targum:arrival-tongue";
+  //: Each language in its own name. Not from the page's strings: those are in one
+  //: language, and this is the screen that cannot assume which.
+  var TONGUES = {
+    // "Native language" and not "which do you read" (David, 2026-09-20): it is the
+    // question a person has an answer to without thinking, and what it decides — the
+    // language under each line, and the desk's — is what a native language is for.
+    en: { name: "English", asks: "What is your native language?" },
+    ru: { name: "Русский", asks: "Какой у вас родной язык?" },
+  };
+  //: The last row: neither of them. In every language the question is asked in.
+  var OTHER_TONGUE = "Other · Другой";
+  //: `/account/me`, once it has answered; null until then and for nobody.
+  var who = null;
+
+  function held(key) {
+    try {
+      return localStorage.getItem(key) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function thisVisit(value) {
+    try {
+      if (value === undefined) return window.sessionStorage.getItem(TONGUE_ASKED) || "";
+      window.sessionStorage.setItem(TONGUE_ASKED, value);
+    } catch (e) {
+      /* no session store: the step count starts again, and nothing else is lost */
+    }
+    return "";
+  }
+
+  function offered() {
+    return (window.TARGUM_INTO || []).filter(function (code) {
+      return !!TONGUES[code];
+    });
+  }
+
+  function pageTongue() {
+    var said = (document.documentElement && document.documentElement.lang) || "en";
+    return String(said).split("-")[0].toLowerCase() || "en";
+  }
+
+  function readsInto() {
+    return (lang && lang.into && lang.into()) || "";
+  }
+
+  function asksTongue() {
+    if (offered().length < 2) return false;
+    if (thisVisit()) return true;
+    if (held(ASKED_READ) || readsInto()) return false;
+    if (pageTongue() !== "en") return false;
+    if (who && who.signedIn && who.readsSaid) return false;
+    return true;
+  }
+
+  /* The account hears it the way the profile page's boxes say it: the whole set. Then
+     the page is loaded again where the answer changed the language it should be in,
+     because a desk page is drawn by the server in one language. `then` is what to do
+     where nothing has to be loaded again. */
+  function sayTongue(code, then) {
+    keep(ASKED_READ, "1");
+    if (lang && lang.into) lang.into(code);
+    if (!who || !who.signedIn) return then();
+    ask("/account/languages", { learning: who.learning || ["he"], reads: [code] })
+      .then(function (answer) {
+        if (answer && !answer.error && code !== pageTongue() && window.location.reload) {
+          window.location.reload();
+          return;
+        }
+        then();
+      })
+      .catch(then);
+  }
+
+  /* A choice this browser already holds and the account has never heard: a press on the
+     front door's switcher, carried through sign-in (`signin.js`). Handed over here, at
+     the one moment it is certainly a new reader's, rather than on every page for every
+     account — an account that has said nothing in a browser that reads Russian is not
+     this page's to re-file. */
+  function handOverTongue() {
+    var code = readsInto();
+    if (!who || !who.signedIn || who.readsSaid) return;
+    if (!code || offered().indexOf(code) < 0) return;
+    who.readsSaid = true;
+    sayTongue(code, function () {});
+  }
+
   function remember(ids) {
     arrived = ids.slice();
     keep(ARRIVED, arrived.join(","));
@@ -1510,9 +1617,33 @@
     return heard.length ? heard : rows;
   }
 
+  /* A first text with their language under it, where any of their subjects has one. The
+     shelf is English throughout and Russian in places (beta), so a reader who has just
+     said Русский would otherwise open a page in Russian with English under every line.
+     Across all their subjects and not only the first: three were asked for and none was
+     ranked. Where none has it, the ordinary pick below — what they asked for, honestly
+     in the language it exists in. */
+  function inTheirs(rows) {
+    var code = readsInto();
+    if (!code || code === "en") return [];
+    return rows.filter(function (reader) {
+      return (reader.targets || []).indexOf(code) >= 0;
+    });
+  }
+
   function firstText(handed, code) {
     var store = charts.collect(charts.meaningLanguage(code))[code];
     var rung = charts.seed(store && store.words, code);
+    for (var r = 0; r < arrived.length; r++) {
+      var asked = interestOf(arrived[r]);
+      if (!asked) continue;
+      var theirs = inTheirs(
+        handed.filter(function (reader) {
+          return wanted(reader, asked);
+        })
+      );
+      if (theirs.length) return pickByRung(voiced(theirs), rung);
+    }
     for (var w = 0; w < arrived.length; w++) {
       var came = interestOf(arrived[w]);
       if (!came) continue;
@@ -1548,10 +1679,17 @@
     var rungs = document.getElementById("arrival-levels");
     var done = document.getElementById("arrival-done");
     var skip = document.getElementById("arrival-skip");
+    var back = document.getElementById("arrival-back");
     var count = document.getElementById("arrival-count");
     var where = document.getElementById("arrival-step");
-    var screens = [document.getElementById("arrival-subjects"), document.getElementById("arrival-level")];
-    if (!host || !row || !rungs || !done || !skip || !screens[0] || !screens[1]) return;
+    var tongues = document.getElementById("arrival-tongues");
+    var asksIn = document.getElementById("arrival-asks-language");
+    var screenOf = {
+      tongue: document.getElementById("arrival-language"),
+      subjects: document.getElementById("arrival-subjects"),
+      level: document.getElementById("arrival-level"),
+    };
+    if (!host || !row || !rungs || !done || !skip || !screenOf.subjects || !screenOf.level) return;
     if (!asking) {
       host.hidden = true;
       document.body.classList.remove("arriving");
@@ -1560,27 +1698,37 @@
     var labels = interestLabels();
     var said = levelLabels();
     var picked = [];
-    var step = 0;
+    /* The screens, in order. The language comes first where it is asked at all
+       (2026-09-20), and a visit that has already answered it — the page was loaded again
+       in the language chosen — comes back on the second of three, not the first of two. */
+    var withTongue = !!(screenOf.tongue && tongues && asksIn && asksTongue());
+    var order = withTongue ? ["tongue", "subjects", "level"] : ["subjects", "level"];
+    var step = withTongue && thisVisit() ? 1 : 0;
     row.textContent = "";
     rungs.textContent = "";
+    if (tongues) tongues.textContent = "";
+    if (!withTongue) handOverTongue();
 
     /* One question a screen (David, 2026-09-19). The step is said in words, in the
        resting colour; Next belongs to the subjects alone, because on the second screen
        pressing a row *is* the answer and a second button would be a second question. */
     function settle() {
-      screens[0].hidden = step !== 0;
-      screens[1].hidden = step !== 1;
+      var now = order[step];
+      ["tongue", "subjects", "level"].forEach(function (name) {
+        if (screenOf[name]) screenOf[name].hidden = name !== now;
+      });
       if (where) {
         where.textContent = t("learn.arrival.step", "{n} of {of}")
           .replace("{n}", String(step + 1))
-          .replace("{of}", String(screens.length));
+          .replace("{of}", String(order.length));
       }
-      done.hidden = step !== 0;
+      done.hidden = now !== "subjects";
       done.disabled = picked.length < WANTED;
+      if (back) back.hidden = step === 0;
       if (!count) return;
       var short = WANTED - picked.length;
       count.textContent =
-        step === 0 && short > 0
+        now === "subjects" && short > 0
           ? t("learn.arrival.pick-more", "Pick {n} more").replace("{n}", String(short))
           : "";
     }
@@ -1595,17 +1743,24 @@
       if (again) again();
     }
 
+    /* A new screen starts at its top. Nineteen subjects scroll on a phone, and the
+       second question was drawn wherever the first had been left — its own words and
+       its first row under the bar (found by opening it, 2026-09-19). Focus goes to the
+       screen's first press without the browser scrolling to it on its own account. */
+    function arrive() {
+      settle();
+      if (window.scrollTo) window.scrollTo(0, 0);
+      var now = order[step];
+      var first =
+        now === "level" ? rungs.children[0] : now === "tongue" ? tongues.children[0] : null;
+      if (now === "subjects") first = done.disabled ? row.children[0] : done;
+      if (first && first.focus) first.focus({ preventScroll: true });
+    }
+
     function onward() {
-      if (step === 0) {
-        step = 1;
-        settle();
-        /* A new screen starts at its top. Nineteen subjects scroll on a phone, and the
-           second question was drawn wherever the first had been left — its own words and
-           its first row under the bar (found by opening it, 2026-09-19). Focus goes to
-           the first row without the browser scrolling to it on its own account. */
-        if (window.scrollTo) window.scrollTo(0, 0);
-        var first = rungs.children[0];
-        if (first && first.focus) first.focus({ preventScroll: true });
+      if (step < order.length - 1) {
+        step += 1;
+        arrive();
         return;
       }
       finish();
@@ -1628,6 +1783,44 @@
       });
       row.appendChild(press);
     });
+
+    /* The language, a row each in its own name; pressing one is the answer, as on the
+       ladder. The question is said once in every language offered, a line each and each
+       marked as what it is, so a screen reader reads Russian in a Russian voice. */
+    if (withTongue) {
+      asksIn.textContent = "";
+      offered().forEach(function (code) {
+        var line = document.createElement("span");
+        line.setAttribute("lang", code);
+        line.textContent = TONGUES[code].asks;
+        asksIn.appendChild(line);
+        var tongue = document.createElement("button");
+        tongue.type = "button";
+        tongue.className = "arrival-rung";
+        tongue.setAttribute("lang", code);
+        tongue.textContent = TONGUES[code].name;
+        tongue.addEventListener("click", function () {
+          thisVisit("1");
+          sayTongue(code, onward);
+        });
+        tongues.appendChild(tongue);
+      });
+      /* And a row for everybody else (David, 2026-09-20). "What is your native language?"
+         with two answers is a question most of the world cannot answer, and Skip is not
+         an answer — it says "not now", and this reader means "neither". Said in both
+         languages, since it is the one row that is nobody's own name. What it sets is
+         English, which is the only other language there is to read into; what it is for
+         is that they were asked, answered truly, and are not asked again. */
+      var other = document.createElement("button");
+      other.type = "button";
+      other.className = "arrival-rung";
+      other.textContent = OTHER_TONGUE;
+      other.addEventListener("click", function () {
+        thisVisit("1");
+        sayTongue("en", onward);
+      });
+      tongues.appendChild(other);
+    }
 
     LEVELS.forEach(function (level) {
       var rung = document.createElement("button");
@@ -1655,6 +1848,17 @@
     };
     // A question a reader may not decline is a gate, and the arrival is not one.
     skip.onclick = onward;
+    /* And a question a reader may not go back to is a one-way door (2026-09-20). The
+       subjects are as they were left — what was pressed is still pressed — and Next
+       keeps them again if they change. Focus goes to Next, or to the first subject
+       where Next is asleep because the question was skipped. */
+    if (back) {
+      back.onclick = function () {
+        if (step === 0) return;
+        step -= 1;
+        arrive();
+      };
+    }
     settle();
     host.hidden = false;
     document.body.classList.add("arriving");
@@ -1903,7 +2107,21 @@
 
   var opened = stored("targum:opened");
 
+  /* Asked beside the shelf and waited for with it (2026-09-20): whether the arrival opens
+     on the language depends on what the account has already said, and a question drawn
+     and then taken away a moment later is a page moving under the hand. One request, as
+     before — `hello` reads this answer rather than asking again. */
+  var whoAsked = ask("/account/me").catch(function () {
+    return null;
+  });
+
   ask("/readers")
+    .then(function (data) {
+      return whoAsked.then(function (me) {
+        who = me;
+        return data;
+      });
+    })
     .then(function (data) {
       var readers = (data && data.readers) || [];
       var shared = (data && data.shared) || [];
@@ -2090,7 +2308,7 @@
   function hello() {
     var name = window.TargumSync && window.TargumSync.who ? window.TargumSync.who.name : "";
     drawHello(name || "", []);
-    ask("/account/me")
+    whoAsked
       .then(function (me) {
         if (me && me.signedIn && me.name) drawHello(me.name, []);
         // What they answered on arrival, from the account rather than this browser: the

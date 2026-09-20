@@ -45,7 +45,7 @@
   {% elif expired %}
   <h1>{{ t("signin.page.that-link-has-been-used", "That link has been used") }}</h1>
   <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. We'll send you another.") }}</p>
-  <form method="post" action="/account/sign-in" id="ask">
+  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
@@ -68,7 +68,7 @@
   <p class="or">{{ t("signin.page.or", "or") }}</p>
   {%- endif %}
   <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "No password. We'll email you a link.") }}</p>
-  <form method="post" action="/account/sign-in" id="ask">
+  <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">

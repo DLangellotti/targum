@@ -29,6 +29,11 @@ class ManifestPart(BaseModel):
     #: The part's video cut, same convention, or "" for a soundtrack-only source. The
     #: same padded start and end as the audio cut, so one set of spans times both.
     video: str = ""
+    #: The video cut's shape as a player draws it, `[width, height]`, or `[]` where it
+    #: was never measured — every manifest written before 2026-09-20, and any part whose
+    #: cut the probe could not read. The page draws the frame from this before the film
+    #: has loaded, so an upright film does not stand in a 16:9 box until it has.
+    frame: list[int] = Field(default_factory=list)
     transcribed: bool = False
     provider: str = ""
     refiner: str = ""

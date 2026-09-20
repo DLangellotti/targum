@@ -4760,7 +4760,9 @@ class Handler(BaseHTTPRequestHandler):
             # signed-out visitor asks for is still the holding page, because the front
             # door is a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
-                page = front_page(language=self._front_language(), address=self.address)
+                page = front_page(
+                    language=self._front_language(), address=self.address, asked=self._asked()
+                )
                 return self._send(200, page.encode("utf-8"), HTML)
             return self._send(
                 200, holding_page(language=self._page_language()).encode("utf-8"), HTML
@@ -4775,7 +4777,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._series_stop(None)
         if route == "/account/signin":
             return self._send(
-                200, signin_page(language=self._page_language()).encode("utf-8"), HTML
+                200,
+                # In the language pressed on the front door, where one was: the link there
+                # carries it, and a stranger who chose Russian a page ago is not handed
+                # English to sign in with (2026-09-20).
+                signin_page(language=self._front_language(), asked=self._asked()).encode("utf-8"),
+                HTML,
             )
         # Google's two halves (targum-internal#304). Exempt from the start-up key for the
         # reason the sign-in page is — somebody signing in has no key yet — and never
@@ -5961,6 +5968,9 @@ class Handler(BaseHTTPRequestHandler):
             # not a boundary.
             "learning": sorted(self._learning(person)),
             "reads": sorted(self._reads(person)),
+            # Whether `reads` is their answer or the default, so the arrival asks which
+            # language they read only of somebody who has never said (2026-09-20).
+            "readsSaid": self.store.said_reading(person.id),
             # The language the switcher shows (2026-09-13), so every page and every device
             # opens in the language the reader last chose.
             "language": self.store.language(person.id),
@@ -6249,6 +6259,15 @@ class Handler(BaseHTTPRequestHandler):
 
         asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
         return asked if asked in set(languages()) else self._page_language()
+
+    def _asked(self) -> str:
+        """The language a visitor pressed for — `?lang=` — or "" where they pressed nothing
+        and the browser decided. The difference is a choice: what was pressed is carried
+        to the next page and kept, and what was inferred is only ever used."""
+        from .strings import languages
+
+        asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
+        return asked if asked in set(languages()) else ""
 
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")

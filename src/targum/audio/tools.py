@@ -56,6 +56,43 @@ def ffprobe_json(path: Path) -> dict[str, Any]:
     return answer
 
 
+def frame(path: Path) -> list[int]:
+    """The shape of a film as a player will draw it, `[width, height]`, or `[]`.
+
+    For the page, which otherwise learns the shape only when the file's metadata lands:
+    until then a reel stood in a 16:9 frame and jumped upright a moment later (design
+    review, 2026-09-20). Read off the cut rather than the source, because the cut is the
+    file the browser opens. A rotation the container still carries is applied — a phone
+    records upright as a landscape stream and a note saying turn it — and anything the
+    probe cannot say is `[]`, never a guess: the page already knows what to do with
+    nothing.
+    """
+    try:
+        streams = ffprobe_json(path).get("streams") or []
+    except TargumError:
+        return []
+    for stream in streams:
+        if stream.get("codec_type") != "video":
+            continue
+        if (stream.get("disposition") or {}).get("attached_pic"):
+            continue
+        try:
+            wide, high = int(stream["width"]), int(stream["height"])
+        except (KeyError, TypeError, ValueError):
+            return []
+        if wide <= 0 or high <= 0:
+            return []
+        turned = (stream.get("tags") or {}).get("rotate")
+        for note in stream.get("side_data_list") or []:
+            turned = note.get("rotation", turned)
+        try:
+            sideways = abs(int(float(turned or 0))) % 180 == 90
+        except (TypeError, ValueError):
+            sideways = False
+        return [high, wide] if sideways else [wide, high]
+    return []
+
+
 def duration(path: Path) -> float:
     raw = ffprobe_json(path).get("format", {}).get("duration")
     try:

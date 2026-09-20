@@ -562,8 +562,13 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     assert got["round"], f"the account is a circle: {got}"
 
 
-def _arrival_page(browser, width: int, height: int = 667):
-    """Learn for a brand-new account on a shelf of three, at a phone's size."""
+def _arrival_page(browser, width: int, height: int = 667, language: str | None = "English"):
+    """Learn for a brand-new account on a shelf of three, at a phone's size.
+
+    A brand-new account is asked which language it reads before anything else (design.md
+    §12, 2026-09-20), so the page handed back is the one after that answer — the subjects
+    — unless `language` is None, which leaves it on the first screen for the test that
+    is about it."""
     html = learn_page(TOKEN)
     shelf = [
         {
@@ -597,7 +602,10 @@ def _arrival_page(browser, width: int, height: int = 667):
     page = context.new_page()
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/?k={TOKEN}")
-    page.wait_for_selector("#arrival:not([hidden]) .arrival-door")
+    page.wait_for_selector("#arrival-language:not([hidden]) .arrival-rung")
+    if language is not None:
+        page.locator("#arrival-tongues .arrival-rung", has_text=language).tap()
+        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
     page.wait_for_timeout(150)
     return context, page, went
 
@@ -663,9 +671,10 @@ def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
     assert not got["sideways"]
 
 
-def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
-    """Three subjects, Next, a rung — and the reader is open, at the rung they named.
-    Not Learn again with a card to find (design.md §12, 2026-09-19)."""
+def test_the_arrival_leads_into_a_text_in_six_presses(browser) -> None:
+    """A language, three subjects, Next, a rung — and the reader is open, at the rung
+    they named. Not Learn again with a card to find (design.md §12, 2026-09-19; five
+    presses until the language was asked first, 2026-09-20)."""
     context, page, went = _arrival_page(browser, 375)
     for label in ("Sport", "History", "Art"):
         page.locator(".arrival-door", has_text=label).first.tap()
@@ -680,7 +689,7 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
     second = page.evaluate(
         """() => ({
           step: document.getElementById('arrival-step').textContent,
-          rungs: document.querySelectorAll('.arrival-rung').length,
+          rungs: document.querySelectorAll('#arrival-levels .arrival-rung').length,
           asked: document.getElementById('arrival-asks-level').getBoundingClientRect().top
                  >= document.querySelector('.site-head').getBoundingClientRect().bottom - 1,
           fits: document.querySelector('.arrival-levels').getBoundingClientRect().bottom
@@ -688,12 +697,57 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
                 || document.documentElement.scrollHeight > window.innerHeight,
         })"""
     )
-    assert second["step"] == "2 of 2" and second["rungs"] == 8 and second["fits"], second
+    assert second["step"] == "3 of 3" and second["rungs"] == 8 and second["fits"], second
     assert second["asked"], "the second question starts at its top, not where the first was left"
     page.locator(".arrival-rung", has_text="I follow almost anything").tap()
     page.wait_for_timeout(300)
     context.close()
     assert went and "/reader/hard" in went[-1], f"hey opens the hardest sport text: {went}"
+
+
+LANGUAGE_MEASURE = """() => {
+  const foot = document.querySelector('.arrival-foot').getBoundingClientRect();
+  const rows = [...document.querySelectorAll('#arrival-tongues .arrival-rung')];
+  const seen = (el) => !!el && !el.hidden && el.getBoundingClientRect().width > 0;
+  const pill = document.querySelector('.talk-cta').getBoundingClientRect();
+  return {
+    step: document.getElementById('arrival-step').textContent,
+    rows: rows.map((row) => row.textContent),
+    spoken: rows.map((row) => row.getAttribute('lang')),
+    asks: [...document.querySelectorAll('#arrival-asks-language span')].map((s) => s.textContent),
+    tall: rows.every((row) => row.getBoundingClientRect().height >= 43.5),
+    footInView: foot.top >= 0 && foot.bottom <= window.innerHeight,
+    rowsClearOfFoot: rows.every((row) => row.getBoundingClientRect().bottom <= foot.top + 1),
+    skip: seen(document.getElementById('arrival-skip')),
+    back: seen(document.getElementById('arrival-back')),
+    next: seen(document.getElementById('arrival-done')),
+    subjects: seen(document.getElementById('arrival-subjects')),
+    pillClear: [...document.querySelectorAll('.arrival-foot > *')].every((el) => {
+      const box = el.getBoundingClientRect();
+      return box.width === 0 || box.right <= pill.left || box.left >= pill.right;
+    }),
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [320, 375, 412])
+def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -> None:
+    """design.md §12, 2026-09-20. The first screen a new reader meets is the one they can
+    read whatever they read: the question a line a language, a row each in its own name,
+    and nothing else to press but Skip."""
+    context, page, _ = _arrival_page(browser, width, language=None)
+    got = page.evaluate(LANGUAGE_MEASURE)
+    context.close()
+    assert got["step"] == "1 of 3", got
+    assert got["rows"] == ["English", "Русский", "Other · Другой"], got
+    # Each language's row says which language it is in; the last is in both, and says none.
+    assert got["spoken"] == ["en", "ru", None], got
+    assert len(got["asks"]) == 2, f"asked once in each language: {got['asks']}"
+    assert got["tall"] and got["rowsClearOfFoot"] and got["footInView"], got
+    assert got["skip"] and not got["back"] and not got["next"], got
+    assert not got["subjects"], "one question a screen"
+    assert got["pillClear"] and not got["sideways"], got
 
 
 def _progress_with(browser, totals: dict):

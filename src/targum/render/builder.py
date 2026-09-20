@@ -626,6 +626,9 @@ class Spoken(NamedTuple):
     #: by anybody. Only ever seen where `credit` is set, so a dialogue keeps its default
     #: and shows nothing.
     credited: str = "Read by"
+    #: The video cut's shape as a player draws it, `[width, height]`, or `[]`. What lets
+    #: the page stand an upright film upright before the film has loaded.
+    frame: list[int] = []
 
 
 SILENT = Spoken({}, {}, "")
@@ -828,6 +831,16 @@ def _from_manifest(
         if segment.id in part.words
     }
     reel = folder / part.video if part.video else None
+    # The manifest's measure where it has one. Every manifest written before 2026-09-20
+    # has none, and those are all the films there are: the cut is on this disk, so it is
+    # asked here, and a reader rendered again gets its shape without being imported
+    # again. Where there is no ffprobe to ask, `[]`, and the page waits for the film as
+    # it always did.
+    frame = list(part.frame)
+    if not frame and reel is not None and reel.is_file():
+        from ..audio import tools
+
+        frame = tools.frame(reel)
     return Spoken(
         speakers,
         spans,
@@ -847,6 +860,7 @@ def _from_manifest(
         # whole video.
         max(0.0, part.start - PAD),
         credited,
+        frame,
     )
 
 
@@ -1297,7 +1311,7 @@ def about_page(language: str = "en") -> str:
     )
 
 
-def front_page(language: str = "en", address: str = "") -> str:
+def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
     The page `holding_page` stands in for. It is served at `/` only while
@@ -1314,6 +1328,9 @@ def front_page(language: str = "en", address: str = "") -> str:
         .render(
             t=words,
             page_language=_page_language(language),
+            # The language the visitor pressed for, or "" where the browser chose: only a
+            # press is carried on to the sign-in page.
+            asked=asked,
             # The tab and the search result speak the page's language too. They are the
             # two sentences a stranger reads before the page itself.
             title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
@@ -1522,6 +1539,7 @@ def signin_page(
     expired: bool = False,
     language: str = "en",
     said: str = "",
+    asked: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -1538,6 +1556,7 @@ def signin_page(
         .render(
             t=page_words(language),
             page_language=_page_language(language),
+            asked=asked,
             landing=landing,
             token=token,
             expired=expired,
@@ -2789,6 +2808,8 @@ def render(
             spoken_audio=bool(spoken.audio),
             voice_offer=voice_offer,
             spoken_video=spoken_video,
+            # The cut's shape, so the frame is right before the film has loaded.
+            spoken_frame=spoken.frame if spoken_video else [],
             # The video's home, for the one control that leaves the page. Where the
             # source was a file there is none, and the control is not drawn.
             spoken_home=spoken.home,

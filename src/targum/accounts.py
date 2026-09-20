@@ -1864,6 +1864,24 @@ class Store:
 
         return self._chosen(person_id, "reading", {code for code, _ in INTO}, "en")
 
+    def said_reading(self, person_id: int | None) -> bool:
+        """Whether this person has ever said what they read, in anybody's hand.
+
+        `reads` answers English for an account that has said nothing, which is the right
+        default and the wrong thing to ask twice about: the arrival asks a new reader
+        which language they read (2026-09-20), and "English because nobody asked" and
+        "English because they said so" have to be told apart. A row is a row whoever
+        wrote it — the profile page, the conversation's question, or the operator who
+        marked an invited address as a Russian reader before it ever signed in.
+        """
+        if not person_id:
+            return False
+        row = self.db.execute(
+            "SELECT 1 FROM chosen WHERE person = ? AND kind = 'reading' LIMIT 1",
+            (int(person_id),),
+        ).fetchone()
+        return row is not None
+
     def language(self, person_id: int | None) -> str:
         """The language this person is in right now: the one the switcher shows.
 
