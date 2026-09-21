@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from targum.chat import flores, ntrex
+from targum.chat import ntrex
 from targum.errors import TargumError
 
 
 def test_the_files_are_joined_by_line_number_and_blank_lines_are_left_out() -> None:
     assert ntrex.parse("One.\n\nThree.\n", "אחת.\n\nשלוש.\n") == [
-        flores.Pair("1", "One.", "אחת."),
-        flores.Pair("3", "Three.", "שלוש."),
+        ntrex.Line("1", "One.", "אחת."),
+        ntrex.Line("3", "Three.", "שלוש."),
     ]
 
 
@@ -48,17 +48,23 @@ def test_the_fetch_takes_the_source_english_and_the_hebrew_reference_plainly(
     def get(url: str, **kwargs: object) -> Answer:
         asked.append(url)
         assert "headers" not in kwargs, "NTREX is not gated: no token travels"
-        return Answer("One.\n" if "eng" in url else "אחת.\n")
+        if "eng" in url:
+            return Answer("One.\n")
+        return Answer("Один.\n" if "rus" in url else "אחת.\n")
 
     monkeypatch.setattr("httpx.get", get)
-    assert ntrex.fetch() == 2
+    assert ntrex.fetch() == 3
     assert [url.rsplit("/", 1)[1] for url in asked] == [
         "newstest2019-src.eng.txt",
         "newstest2019-ref.heb.txt",
-    ], "the source English, not one of the three English references"
-    assert ntrex.available()
-    assert ntrex.load() == [flores.Pair("1", "One.", "אחת.")]
-    assert ntrex.fetch() == 2 and len(asked) == 2, "files already here are left alone"
+        "newstest2019-ref.rus.txt",
+    ], "the source English, not one of the three English references, and the Russian beside it"
+    assert ntrex.available() and ntrex.available("ru") and ntrex.complete()
+    assert ntrex.load() == [ntrex.Line("1", "One.", "אחת.")]
+    assert ntrex.load("ru") == [ntrex.Line("1", "Один.", "אחת.")], (
+        "the Russian line against the Hebrew written for that same source line"
+    )
+    assert ntrex.fetch() == 3 and len(asked) == 3, "files already here are left alone"
 
 
 def test_loading_before_fetching_names_the_command(home: Path) -> None:
@@ -77,8 +83,29 @@ def test_the_eval_draws_ntrex_rows_under_its_own_corpus_name(
     eval_recast = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(eval_recast)
 
-    monkeypatch.setattr(ntrex, "load", lambda: [flores.Pair("4", "Four.", "ארבע.")])
+    monkeypatch.setattr(ntrex, "load", lambda source="en": [ntrex.Line("4", "Four.", "ארבע.")])
     assert eval_recast.reference_rows("ntrex", None, "devtest", None) == [
-        {"id": "4", "en": "Four.", "he": "ארבע."}
+        {"id": "4", "said": "Four.", "he": "ארבע."}
     ]
     assert eval_recast.CORPUS["ntrex"] == "ntrex-128"
+
+
+def test_a_russian_run_gets_its_own_ledger_line() -> None:
+    """`evals.Row.key()` is (stage, corpus, metric), so a Russian run filed under
+    `ntrex-128` would share a trend line with the English one and each would look like
+    the other moving (targum-internal#286)."""
+    spec = importlib.util.spec_from_file_location(
+        "eval_recast", Path(__file__).parent.parent / "scripts" / "eval_recast.py"
+    )
+    assert spec is not None and spec.loader is not None
+    eval_recast = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(eval_recast)
+
+    assert eval_recast.corpus_of("ntrex", "en") == "ntrex-128"
+    assert eval_recast.corpus_of("ntrex", "ru") == "ntrex-128-ru"
+    assert eval_recast.corpus_of("ntrex", "en") != eval_recast.corpus_of("ntrex", "ru")
+
+
+def test_the_length_refusal_names_the_source_language() -> None:
+    with pytest.raises(TargumError, match="1 Russian lines"):
+        ntrex.parse("Один.\n", "אחת.\nשתיים.\n", "ru")

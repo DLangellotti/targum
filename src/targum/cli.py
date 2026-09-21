@@ -3050,7 +3050,7 @@ def models_fetch(
     if language in {"ntrex", "ntrex-128"}:
         from .chat import ntrex
 
-        if ntrex.available():
+        if ntrex.complete():
             console.print("[dim]NTREX-128 is already downloaded.[/dim]")
             return
         console.print(
