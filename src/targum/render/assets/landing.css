@@ -195,6 +195,12 @@ h1, h2, h3 { text-wrap: balance; }
 .btn.ghost:hover { background: var(--hairline); }
 .btn.small { min-block-size: 2rem; padding: 0.35rem 0.8rem; font-size: 0.875rem; }
 @media (hover: none) and (pointer: coarse) { .btn { min-block-size: 44px; } }
+/* §8: a control a thumb presses answers a tap over 44px. The why-fold is a button
+   (`landing.html.j2`, `id="whyFold"`) and had none: the front door is the page most
+   likely to be opened on a phone, and it loads `landing.css` alone — `reader.css`
+   gives `.fold` its reach, and no landing page has ever loaded that. The icon stays
+   small; what answers the tap is 44px. */
+@media (hover: none) and (pointer: coarse) { .fold { min-block-size: 44px; } }
 
 /* the bar: glass, sticky, no rule */
 .bar { position: sticky; inset-block-start: 0; z-index: 20; background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
