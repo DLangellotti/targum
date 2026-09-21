@@ -9,6 +9,7 @@ browser's own code.
 from __future__ import annotations
 
 import json
+import random
 import shutil
 import subprocess
 from datetime import date
@@ -179,6 +180,38 @@ def test_known_share_counts_a_known_word_with_or_without_its_prefix() -> None:
     assert level.known_share("שָׁלוֹם " * 25, {"שלום"}) == 1.0, "points are stripped first"
     assert level.known_share("שלום עולם", {"שלום"}) is None, "too short to say"
     assert level.known_share("hello " * 40, {"שלום"}) is None, "no Hebrew, nothing measured"
+
+
+def test_known_share_answers_a_page_inside_its_budget() -> None:
+    """targum-internal#244, acceptance criterion 2: `known_share` on a 500-word page runs
+    under 50 ms.
+
+    It is a budget rather than a benchmark, and it is asserted because of where this
+    function is called: on the quote card a reader waits for, and on every row
+    `suggest_next` ranks, so a slow one is felt several times in a turn rather than once.
+    Nothing pinned it before.
+
+    Measured 2026-09-21 on an 8 GB laptop under load: median 0.32 ms, worst of twenty
+    0.36 ms — about 139× inside the budget. The assertion is the card's 50 ms and not the
+    measurement, so an ordinarily busy machine cannot make this fail; a regression big
+    enough to trip it is a real one.
+    """
+    import time
+
+    draw = random.Random(1)
+    words = [
+        "".join(draw.choice("אבגדהוזחטיכלמנסעפצקרשת") for _ in range(draw.randint(2, 7)))
+        for _ in range(500)
+    ]
+    page = " ".join(words)
+    forms = set(words[:250]) | {word + "ים" for word in words[:100]}
+
+    worst = 0.0
+    for _ in range(5):
+        started = time.perf_counter()
+        level.known_share(page, forms)
+        worst = max(worst, (time.perf_counter() - started) * 1000)
+    assert worst < 50.0, f"known_share took {worst:.1f} ms on a 500-word page"
 
 
 def test_the_share_is_said_in_words_never_a_percentage() -> None:
