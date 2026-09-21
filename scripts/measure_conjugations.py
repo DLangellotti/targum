@@ -39,16 +39,30 @@ from targum.annotate.paradigms import Table, bare, binyan_of, table  # noqa: E40
 COVERED = ("unique", "settled by binyan", "settled by pointing", "settled, both agree")
 
 
-def measure(out: Path) -> tuple[collections.Counter[str], dict[str, set[str]]]:
-    """Every verb token under `out`, bucketed — and the distinct lemmas in each bucket."""
+def measure(
+    out: Path, language: str = "he"
+) -> tuple[collections.Counter[str], dict[str, set[str]], int]:
+    """Every verb token under `out`, bucketed — and the distinct lemmas in each bucket.
+
+    **Only documents in `language`.** The table is Hebrew, and a directory can hold more
+    than Hebrew: run this over one with Italian or Russian in it and every foreign verb
+    lands in "no candidate", which reads as terrible Hebrew coverage rather than as the
+    wrong question. Measured 2026-09-21 over a mixed video directory, the answer came
+    back 5.3% and the commonest "missing Hebrew verbs" were `essere`, `avere` and `fare`.
+    `annotation.json` records its own language, so this asks it rather than guessing.
+    """
     verbs = table()
     tally: collections.Counter[str] = collections.Counter()
     lemmas: dict[str, set[str]] = collections.defaultdict(set)
+    skipped = 0
 
     for path in sorted(out.glob("**/annotation.json")):
         try:
             found = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
+            continue
+        if not str(found.get("language") or "").startswith(language):
+            skipped += 1
             continue
         for tokens in (found.get("tokens") or {}).values():
             for token in tokens:
@@ -60,7 +74,7 @@ def measure(out: Path) -> tuple[collections.Counter[str], dict[str, set[str]]]:
                 where = bucket(verbs, lemma, str(token.get("surface") or ""), token.get("binyan"))
                 tally[where] += 1
                 lemmas[where].add(lemma)
-    return tally, lemmas
+    return tally, lemmas, skipped
 
 
 def bucket(verbs: Table, lemma: str, surface: str, binyan: object) -> str:
@@ -97,16 +111,24 @@ def main() -> None:
         default=Path.home() / ".targum" / "targums",
         help="Where the built texts are. Default: ~/.targum/targums",
     )
+    parser.add_argument(
+        "--language",
+        default="he",
+        help="Only documents in this language; the table is Hebrew's. Default: he",
+    )
     args = parser.parse_args()
     if not args.out.is_dir():
         sys.exit(f"nothing built at {args.out}")
 
-    tally, lemmas = measure(args.out)
+    tally, lemmas, skipped = measure(args.out, args.language)
     total = sum(tally.values())
     if not total:
-        sys.exit(f"no annotated verbs under {args.out}")
+        sys.exit(f"no {args.language} verbs under {args.out}")
 
-    print(f"{total:,} verb tokens under {args.out}\n")
+    print(f"{total:,} {args.language} verb tokens under {args.out}")
+    if skipped:
+        print(f"  ({skipped:,} documents in another language left out)")
+    print()
     for where, count in tally.most_common():
         mark = "+" if where in COVERED else " "
         print(

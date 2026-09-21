@@ -12,6 +12,7 @@ most of the verbs a reader meets. The points break the tie.
 from __future__ import annotations
 
 import gzip
+import importlib.util
 import json
 from pathlib import Path
 
@@ -259,3 +260,44 @@ def test_a_family_is_a_fact_about_a_verb_and_not_a_list() -> None:
     under a word is a list rather than something said about it."""
     for lemma, binyan in (("כָּתַב", "פעל"), ("הָלַךְ", "פעל"), ("נִפְגַּשׁ", "נפעל")):
         assert len(family_of(lemma, binyan)) <= SIBLINGS
+
+
+def test_the_coverage_measurement_counts_only_the_language_the_table_is_for(
+    tmp_path: Path,
+) -> None:
+    """`scripts/measure_conjugations.py` answers how many Hebrew verbs get a table, and
+    the table is Hebrew's. Run over a directory holding anything else, every foreign verb
+    falls into "no candidate" and the answer reads as terrible Hebrew coverage rather
+    than as the wrong question having been asked.
+
+    Measured on 2026-09-21 over a mixed video directory: **5.3%**, with `essere`, `avere`
+    and `fare` among the commonest "missing Hebrew verbs". The same directory filtered to
+    its Hebrew answers **70.2%**, which is the shelf's 72.4% to within two points.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "measure_conjugations",
+        Path(__file__).parent.parent / "scripts" / "measure_conjugations.py",
+    )
+    assert spec is not None and spec.loader is not None
+    measure_conjugations = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(measure_conjugations)
+
+    def write(folder: str, language: str, lemma: str) -> None:
+        path = tmp_path / folder
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "annotation.json").write_text(
+            json.dumps(
+                {"language": language, "tokens": {"1": [{"pos": "VERB", "lemma": lemma}]}},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    write("hebrew", "he", "כָּתַב")
+    write("italian", "it", "essere")
+    write("russian", "ru", "писать")
+
+    tally, _lemmas, skipped = measure_conjugations.measure(tmp_path)
+    assert skipped == 2, "the Italian and the Russian are left out, not counted as misses"
+    assert sum(tally.values()) == 1
+    assert tally["no candidate"] == 0, "and no foreign verb is reported as an unknown Hebrew one"
