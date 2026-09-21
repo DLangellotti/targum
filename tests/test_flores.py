@@ -113,9 +113,12 @@ def test_the_eval_draws_flores_rows_in_the_pools_shape(monkeypatch: pytest.Monke
     long = flores.Pair("8", "Long.", " ".join(["מילה"] * 31))
     monkeypatch.setattr(flores, "load", lambda split: [short, long])
     rows = eval_recast.reference_rows("flores", None, "devtest", None)
-    assert rows == [{"id": "7", "en": "Short.", "he": "קצר."}]
+    # `said` rather than `en`: the eval takes a source language now, and a field named
+    # for one language holding another is how a number stops meaning what it says
+    # (targum-internal#286). FLORES+ itself is still English-side only.
+    assert rows == [{"id": "7", "said": "Short.", "he": "קצר."}]
     assert eval_recast.reference_rows("flores", None, "devtest", 40) == [
-        {"id": "7", "en": "Short.", "he": "קצר."},
-        {"id": "8", "en": "Long.", "he": long.he},
+        {"id": "7", "said": "Short.", "he": "קצר."},
+        {"id": "8", "said": "Long.", "he": long.he},
     ]
     assert eval_recast.CORPUS["flores"] == "flores-plus"
