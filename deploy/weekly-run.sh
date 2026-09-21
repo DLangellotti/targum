@@ -52,6 +52,32 @@ TARGUM="${TARGUM_BIN:-$ROOT/.venv/bin/targum}"
 WEEK="${1:-$(date +%G-w%V)}"
 say "$WEEK"
 
+# What this checkout is about to build the issue's readers with (targum-internal#350).
+#
+# The weekly has to run from here, because its writer is one of the gitignored modules —
+# and "here" is whichever branch happens to be checked out. On 2026-09-21 that was a
+# working branch fifty commits behind master, and the issue shipped with a reader built
+# from it: correct, live, answering 200, and not matching any other reader on the box.
+#
+# Said and not fatal, for the reason `preflight`'s stale-reader count is a warning: an
+# issue built from a branch is still an issue, and a run that refuses on a Monday
+# morning helps nobody. A checkout level with master says nothing at all.
+behind_master() {
+  git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  local branch behind assets
+  branch="$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" || return 0
+  # Whatever has already been fetched. A scheduled run is not the place to reach the
+  # network, and a stale remote ref understates the gap rather than inventing one.
+  behind="$(git -C "$ROOT" rev-list --count HEAD..origin/master 2>/dev/null)" || return 0
+  [ -n "$behind" ] && [ "$behind" -gt 0 ] || return 0
+  assets="$(git -C "$ROOT" diff --name-only HEAD origin/master -- \
+    src/targum/render/assets src/targum/render/templates 2>/dev/null | wc -l | tr -d ' ')"
+  echo "   building from $branch, $behind commit(s) behind origin/master"
+  [ "${assets:-0}" -gt 0 ] && echo "   $assets reader asset(s) differ — this issue's readers will not match the box"
+  return 0
+}
+behind_master
+
 state_of() {
   WEEK="$1" "$ROOT/.venv/bin/python" - <<'PY' 2>/dev/null || echo missing
 import json, os, sys
