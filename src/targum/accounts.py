@@ -1384,6 +1384,49 @@ class Store:
             for row in found
         ]
 
+    #: What counts as stalling, and why each one does. A word tapped for a gloss is a
+    #: word that was not known; a segment replayed is one that was not caught; a stop is
+    #: where somebody put the text down. targum-internal#127 names these three.
+    STALL_KINDS = ("lookup", "replay", "stop")
+
+    def stalls(self, document: str) -> list[dict[str, Any]]:
+        """Where readers stall in one text, by segment — targum-internal#127's read path.
+
+        In segment order, so it plots as the text reads rather than as a league table;
+        the counts are there for whoever wants to rank them.
+
+        **Aggregate, and of nobody.** It returns counts and a reader tally and never a
+        person or a day, which is the granularity the privacy notice describes (clause
+        3.7, aggregate records of use) rather than the per-reader log clause 3.6 covers.
+        `readers` is there because a segment ten people looked up is a hard word and a
+        segment one person looked up ten times is one person having a bad morning, and
+        the counts alone cannot tell those apart.
+
+        Keyed on the segment id, so a re-cut that keeps its ids keeps its history — the
+        same property translations and annotations already have.
+        """
+        marks = ", ".join(f"'{kind}'" for kind in self.STALL_KINDS)
+        found = self.db.execute(
+            "SELECT segment, "
+            "SUM(kind = 'lookup') AS lookups, "
+            "SUM(kind = 'replay') AS replays, "
+            "SUM(kind = 'stop') AS stops, "
+            "COUNT(DISTINCT person) AS readers "
+            f"FROM event WHERE document = ? AND segment <> '' AND kind IN ({marks}) "
+            "GROUP BY segment ORDER BY segment",
+            (document,),
+        ).fetchall()
+        return [
+            {
+                "segment": str(row["segment"]),
+                "lookups": int(row["lookups"] or 0),
+                "replays": int(row["replays"] or 0),
+                "stops": int(row["stops"] or 0),
+                "readers": int(row["readers"] or 0),
+            }
+            for row in found
+        ]
+
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.
     ADDRESSES = ("", "m", "f")
