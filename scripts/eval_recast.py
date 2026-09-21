@@ -31,14 +31,23 @@ and `corpus=ntrex-128`, so the references are separate lines and not one. Both a
 sentences from articles and run long, so the length cap is wider there than Tatoeba's;
 `--max-words` names any.
 
-**And the reader need not be writing English.** `--source ru` sends NTREX's Russian
-rendering as the reader's line and scores the recast against the Hebrew written for that
-same line — the two are aligned because every NTREX reference renders one English source.
-It files under `corpus=ntrex-128-ru`, a line of its own, because a Russian speaker
-writing to a contract written for English speakers is a different measurement from an
-English speaker doing it (targum-internal#286). The contract itself is untouched here:
-#286 asked for the number *before* anything the model is told changes, so this measures
-what a Russian reader gets today.
+**And the reader need not be writing English.** `--source ru` sends a Russian sentence
+as the reader's line and scores the recast against the Hebrew written for that same line.
+
+- With **NTREX**, the two are aligned because every NTREX reference renders one English
+  source, so its Russian and its Hebrew are renderings of the same sentence.
+- With **Tatoeba**, the pool carries a `ru` field once `scripts/tatoeba_russian.py` has
+  joined Tatoeba's own `heb-rus` links onto it — 6,644 rows at sentence length.
+  **This is the one to use.** targum-internal#222 measured the recast on NTREX and
+  concluded NTREX asks for faithfulness to a full translation, which a graded recast
+  does not aim for, so Tatoeba stays the recast's yardstick; a Russian number taken on
+  NTREX inherits that mismatch.
+
+Either files under its own ledger line — `tatoeba-ru`, `ntrex-128-ru` — because a
+reader writing Russian to a contract written for English speakers is a different
+measurement from an English speaker doing it (targum-internal#286). The contract itself
+is untouched: #286 asked for the number *before* anything the model is told changes, so
+this measures what a Russian reader gets today.
 
 **What it costs.** N chat turns and N judge calls at the chat's model. Nothing is cached
 by design: the question is what the model does today.
@@ -121,10 +130,16 @@ form, or a changed meaning is not. Ignore the vowel points. Answer YES or NO on 
 line, then one short sentence saying why."""
 
 
-def pool_rows(path: Path, max_words: int = MAX_WORDS) -> list[dict[str, Any]]:
-    """English originals with a native Hebrew rendering, at sentence length. Streamed
-    and filtered on the way in: the whole pool as Python objects is what tipped an
-    8 GB laptop into killing the run."""
+def pool_rows(path: Path, max_words: int = MAX_WORDS, source: str = "en") -> list[dict[str, Any]]:
+    """Sentences a native Hebrew speaker wrote, with what the reader would have written,
+    at sentence length. Streamed and filtered on the way in: the whole pool as Python
+    objects is what tipped an 8 GB laptop into killing the run.
+
+    `source="ru"` reads the `ru` field `scripts/tatoeba_russian.py` adds, and drops the
+    `from_english` condition with it — that flag says the *Hebrew* was translated out of
+    English, which is the right guard for an English turn and says nothing about a
+    Russian one.
+    """
     rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as lines:
         for line in lines:
@@ -132,12 +147,12 @@ def pool_rows(path: Path, max_words: int = MAX_WORDS) -> list[dict[str, Any]]:
             if not line:
                 continue
             raw = json.loads(line)
-            if (
-                raw.get("from_english")
-                and raw.get("en")
-                and len(str(raw["he"]).split()) <= max_words
-            ):
-                rows.append({"id": raw["id"], "said": raw["en"], "he": raw["he"]})
+            said = raw.get(source)
+            if not said or len(str(raw["he"]).split()) > max_words:
+                continue
+            if source == "en" and not raw.get("from_english"):
+                continue
+            rows.append({"id": raw["id"], "said": said, "he": raw["he"]})
     return rows
 
 
@@ -171,7 +186,7 @@ def reference_rows(
         )
     if pool is None:
         sys.exit("--pool is required with the Tatoeba reference")
-    return pool_rows(pool, max_words if max_words is not None else MAX_WORDS)
+    return pool_rows(pool, max_words if max_words is not None else MAX_WORDS, source)
 
 
 def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, Any]]:
@@ -299,13 +314,12 @@ def main() -> None:
 
     if args.exemplars and args.pool is None:
         sys.exit("--exemplars rides the Tatoeba pool: name it with --pool")
-    if args.source != "en" and args.reference != "ntrex":
-        # Tatoeba and FLORES+ are read English-side here, so a source language they do
-        # not carry would file English rows under a Russian name and nothing would show
-        # it. Refused rather than ignored.
-        sys.exit(
-            f"--source {args.source} needs --reference ntrex; {args.reference} is English only"
-        )
+    if args.source != "en" and args.reference == "flores":
+        # FLORES+ is read English-side here, so a source language it does not carry would
+        # file English rows under a Russian name and nothing would show it. Refused
+        # rather than ignored. Tatoeba carries Russian once `tatoeba_russian.py` has run,
+        # and the guard for that is on the rows themselves, below.
+        sys.exit(f"--source {args.source} is not available for FLORES+; use ntrex or tatoeba")
     rows = reference_rows(args.reference, args.pool, args.split, args.max_words, args.source)
     chosen = sample(rows, args.pairs, args.seed)
     if not chosen:
@@ -313,6 +327,11 @@ def main() -> None:
             sys.exit(
                 f"no {corpus_of(args.reference, args.source)} pairs; "
                 f"run targum models fetch {args.reference}"
+            )
+        if args.source != "en":
+            sys.exit(
+                f"no rows in the pool carry a {ntrex.NAMED.get(args.source, args.source)} "
+                f"sentence; add them with scripts/tatoeba_russian.py"
             )
         sys.exit("no English-original rows in the pool; build it with --limit first")
     # The sentences sent as turns are never among the exemplars. Only the Tatoeba

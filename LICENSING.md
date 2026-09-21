@@ -480,9 +480,17 @@ three contributors writing most of them — filtered and lemmatized by
 does not ship in the wheel or the repository. Tatoeba's audio is licensed per recording
 and most Hebrew recordings carry no reuse licence; none is taken.
 
+**And since 2026-09-21, the Russian too.** targum-internal#286 asks what a Russian
+reader's recast is worth, and #222 had settled that Tatoeba is the recast's yardstick —
+so the Russian number has to be taken here. `scripts/tatoeba_russian.py` joins Tatoeba's
+own `heb-rus` link file onto the pool, adding a Russian sentence to **6,682** of the
+165,454 rows. It is the same licence and the same terms: CC BY 2.0 FR, per sentence, per
+contributor, nothing else owed. Nothing is lemmatized again and no audio is taken.
+
 **Where the credit is given.** Here, and in every row of the pool, which keeps the
-username of the Hebrew contributor and of the English one, with the sentence's own
-address (`tatoeba.org/sentences/show/<id>`). The sentences reach the model as a prompt
+username of the Hebrew contributor, of the English one and — on a row that has one — of
+the **Russian** one (`ru_by`), with the sentence's own address
+(`tatoeba.org/sentences/show/<id>`). The sentences reach the model as a prompt
 and reach no page: a reader is shown the chat's own lines, which the contract asks it to
 write itself. If a Tatoeba sentence ever appears verbatim in a reader's saved
 conversation, that build's `licence` and `credit` fields are where the attribution
