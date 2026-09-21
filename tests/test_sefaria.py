@@ -853,3 +853,34 @@ class _WholeBlocks:
 
     def split(self, texts: list[str], language: str) -> list[list[str]]:
         return [[text] for text in texts]
+
+
+def test_fill_in_missing_segments_is_never_asked_for(monkeypatch: pytest.MonkeyPatch) -> None:
+    """targum-internal#200, acceptance 5. `daf.py` has had this guard since it was
+    written; this path only had the warning in its docstring.
+
+    It matters more here than anywhere, because the failure is silent and the licence
+    check cannot catch it. Ask Sefaria to fill a patchy version's gaps and it answers
+    with text from whatever else it holds, still labelled with the version — and the
+    licence — you asked for. Asked for the CC0 Community Translation of `Mishneh Torah,
+    Damages to Property` it returns 216 of 216 halakhot, says CC0, and hands over
+    Touger's Moznaim translation, which is CC-BY-NC and which a paid product may not
+    serve. `_payload`'s licence assertion reads the label and passes.
+
+    So the gaps stay: an untranslated halakhah is an em dash in the reader, and that is
+    the honest answer. This asserts the request, not the response, because the response
+    is the thing that lies.
+    """
+    asked: list[str] = []
+
+    def answering(url: str) -> str:
+        asked.append(url)
+        return json.dumps(json.loads((FIXTURES / "ruth.he.json").read_text(encoding="utf-8")))
+
+    monkeypatch.setattr(sefaria, "get", answering)
+    sefaria.SefariaFetcher().load("Ruth")
+
+    assert asked, "nothing was fetched, so the guard proved nothing"
+    for url in asked:
+        assert "fill_in_missing_segments" not in url, url
+        assert "fill_in" not in url, f"a spelling of the gap-filler reached the API: {url}"
