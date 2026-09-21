@@ -80,6 +80,38 @@ def span_found(reply: str, answers: tuple[str, ...]) -> bool:
     return any(f" {plain(span)} " in said for span in answers if plain(span))
 
 
+#: A vav or yod *inside* a word may be a mater lectionis — a letter standing in for a
+#: vowel — and whether it is written is the difference between ktiv male and ktiv haser.
+#: HeQ's spans are ktiv male, as ordinary modern Hebrew is; the chat answers in pointed
+#: Hebrew, where the vowel is a point and the letter is dropped. So `אומר` and `אֹמֵר`
+#: are the same word and the strict comparison cannot see it (targum-internal#223).
+#:
+#: The first letter is never touched: a word-initial vav or yod is a consonant — the
+#: conjunction ו most often — so dropping it would make `וכתב` and `כתב`, *and he wrote*
+#: against *he wrote*, into one word. That is also the reason a leading particle is not
+#: stripped more generally; see the PR for what that was measured to be worth.
+MATER = re.compile(r"[וי]")
+
+
+def ktiv(word: str) -> str:
+    """One word with its internal matres gone, so the two spellings meet."""
+    return word[:1] + MATER.sub("", word[1:])
+
+
+def span_found_ktiv(reply: str, answers: tuple[str, ...]) -> bool:
+    """As `span_found`, but blind to the male/haser spelling of every word.
+
+    Kept beside the strict comparison rather than replacing it: which of the two is the
+    honest number is a judgement about what counts as the same word, so the ledger
+    carries both and the floor can be set against either."""
+    said = f" {' '.join(ktiv(word) for word in plain(reply).split())} "
+    for span in answers:
+        want = [ktiv(word) for word in plain(span).split()]
+        if want and f" {' '.join(want)} " in said:
+            return True
+    return False
+
+
 def token_f1(reply: str, answers: tuple[str, ...]) -> float:
     """SQuAD's F1, over the Hebrew words of the reply and the best-matching span."""
     got = hebrew_tokens(reply)
@@ -168,14 +200,20 @@ def main() -> None:
             print(f"  {n + 1}/{len(chosen)} asked", flush=True)
 
     found = [span_found(reply, one.answers) for one, reply in zip(chosen, replies, strict=True)]
+    loosely = [
+        span_found_ktiv(reply, one.answers) for one, reply in zip(chosen, replies, strict=True)
+    ]
     scores = [token_f1(reply, one.answers) for one, reply in zip(chosen, replies, strict=True)]
     unanswered = sum(1 for reply in replies if not reply)
     found_share = sum(found) / len(chosen)
+    ktiv_share = sum(loosely) / len(chosen)
     f1 = sum(scores) / len(chosen)
 
     if args.save:
         with args.save.open("w", encoding="utf-8") as out:
-            for one, reply, hit, score in zip(chosen, replies, found, scores, strict=True):
+            for one, reply, hit, loose, score in zip(
+                chosen, replies, found, loosely, scores, strict=True
+            ):
                 out.write(
                     json.dumps(
                         {
@@ -185,6 +223,7 @@ def main() -> None:
                             "answers": list(one.answers),
                             "got": reply,
                             "span_found": hit,
+                            "span_found_ktiv": loose,
                             "token_f1": round(score, 3),
                         },
                         ensure_ascii=False,
@@ -197,7 +236,8 @@ def main() -> None:
         by_source.setdefault(one.source, []).append(hit)
     print(f"{len(chosen)} questions from HeQ {args.split}, seed={args.seed}")
     print(
-        f"span found: {found_share:.1%}   token F1: {f1:.3f}   no reply: {unanswered}   "
+        f"span found: {found_share:.1%}   ktiv-blind: {ktiv_share:.1%}   "
+        f"token F1: {f1:.3f}   no reply: {unanswered}   "
         + "   ".join(
             f"{source}: {sum(hits) / len(hits):.0%} of {len(hits)}"
             for source, hits in sorted(by_source.items())
@@ -205,7 +245,9 @@ def main() -> None:
     )
     print(f"spent ${usage.cost():.2f} over {usage.calls} calls")
     shown = 0
-    for one, reply, hit in zip(chosen, replies, found, strict=True):
+    for one, reply, hit in zip(chosen, replies, loosely, strict=True):
+        # The misses worth reading are the ones that survive the ktiv-blind comparison:
+        # a strict miss is usually only a spelling, and reading those wastes the reading.
         if hit or shown >= args.show:
             continue
         shown += 1
@@ -221,6 +263,17 @@ def main() -> None:
             CHAT_MODEL,
             "span_found_share",
             round(found_share, 4),
+            len(chosen),
+            corpus="heq",
+            note=note,
+        ),
+        evals.Row(
+            today,
+            "ask",
+            "chat",
+            CHAT_MODEL,
+            "span_found_share_ktiv",
+            round(ktiv_share, 4),
             len(chosen),
             corpus="heq",
             note=note,

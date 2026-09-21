@@ -151,6 +151,53 @@ def test_a_word_keeps_the_marks_inside_it_and_drops_the_ones_after(eval_ask) -> 
     assert eval_ask.plain("Stream Elements.") == "Stream Elements"
 
 
+def test_the_ktiv_blind_comparison_reads_the_two_spellings_as_one(eval_ask) -> None:  # type: ignore[no-untyped-def]
+    """HeQ's spans are ktiv male and the chat answers in pointed Hebrew, which is ktiv
+    haser once the points come off — so the same word reaches the comparison spelled two
+    ways. Measured over 200 questions on 2026-09-21: 157 strict, 179 ktiv-blind."""
+    assert not eval_ask.span_found("הַתַּהֲלִיךְ נִקְרָא הַבְּרֵרָה הַטִּבְעִית.", ("הברירה הטבעית",))
+    assert eval_ask.span_found_ktiv("הַתַּהֲלִיךְ נִקְרָא הַבְּרֵרָה הַטִּבְעִית.", ("הברירה הטבעית",))
+    assert eval_ask.span_found_ktiv("הטקסט אומר שכיהן כרבה של ליפניק.", ("לייפניק",)), (
+        "a doubled yod"
+    )
+    assert eval_ask.span_found_ktiv("פריסקופ שייך לטויטר, כלומר טויטר.", ("טוויטר",))
+    # …but only where the bare word is there: a prefix is a letter this rule keeps, so
+    # "בליפניק" alone does not answer "לייפניק". Both of the replies above really do
+    # carry the bare form further along, which is why they counted.
+    assert not eval_ask.span_found_ktiv("הוא כיהן בליפניק.", ("לייפניק",))
+    assert not eval_ask.span_found_ktiv("הוא ענה משהו אחר.", ("הברירה הטבעית",))
+    assert not eval_ask.span_found_ktiv("", ("הברירה הטבעית",))
+
+
+def test_the_loose_comparison_only_ever_adds(eval_ask) -> None:  # type: ignore[no-untyped-def]
+    """Whatever the strict comparison accepts, the ktiv-blind one accepts too: it maps
+    every word of both sides through the same function, so a sequence that matched still
+    matches. The two numbers can therefore only be read one way round, and a run where
+    the loose share came out below the strict one would mean the harness is broken."""
+    cases = [
+        ("רַבִּי אֶלְעָזָר הסתתר במערה.", ("רבי אלעזר",)),
+        ("The text says Stream Elements.", ("Stream Elements",)),
+        ("בְּ-2018 קרה הדבר.", ("2018",)),
+        ("הַתַּהֲלִיךְ נִקְרָא הַבְּרֵרָה הַטִּבְעִית.", ("הברירה הטבעית",)),
+        ("הוא ענה משהו אחר לגמרי.", ("הברירה הטבעית",)),
+    ]
+    for reply, answers in cases:
+        if eval_ask.span_found(reply, answers):
+            assert eval_ask.span_found_ktiv(reply, answers), reply
+
+
+def test_a_word_initial_vav_is_a_letter_and_is_never_dropped(eval_ask) -> None:  # type: ignore[no-untyped-def]
+    """The rule is blind to a mater *inside* a word only. A vav or yod at the front is a
+    consonant — most often the conjunction — and dropping it would make "and he wrote"
+    and "he wrote" the same word, which is the whole hazard of loosening the match."""
+    assert eval_ask.ktiv("וכתב") == "וכתב"
+    assert eval_ask.ktiv("כתב") == "כתב"
+    assert eval_ask.ktiv("וכתב") != eval_ask.ktiv("כתב")
+    assert eval_ask.ktiv("אומר") == "אמר"
+    assert eval_ask.ktiv("") == ""
+    assert not eval_ask.span_found_ktiv("וכתב את הספר.", ("כתב את הספר",))
+
+
 def test_token_f1_is_squads_over_the_hebrew_words_and_the_best_span(eval_ask) -> None:  # type: ignore[no-untyped-def]
     answers = ("רבי אלעזר", "אלעזר")
     assert eval_ask.token_f1("רבי אלעזר", answers) == 1.0
