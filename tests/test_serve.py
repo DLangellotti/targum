@@ -3497,3 +3497,54 @@ def test_a_title_two_texts_share_is_not_guessed_at(
     port, key, _ = served
     _, found, _ = call(port, "POST", f"/already?k={key}", {"text": "בראשית"})
     assert found == {}
+
+
+def test_where_readers_stall_in_one_text_can_be_read_back(tmp_path: Path) -> None:
+    """targum-internal#127, acceptance 3: one text's stall points can be plotted from
+    stored data — and acceptance 1's other half, that they survive a re-cut.
+
+    A word tapped for a gloss was a word not known, a segment replayed was one not
+    caught, and a stop is where somebody put the text down. Those three, per segment,
+    are what "where do readers stall" means.
+    """
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    people = []
+    for address in ("one@example.com", "two@example.com"):
+        signed = store.finish_sign_in(store.start_sign_in(address))
+        assert signed is not None
+        people.append(signed[0])
+
+    def at(person, kind, segment, document="ruth-he"):
+        store.add_events(
+            person,
+            [{"kind": kind, "day": "2026-09-20", "document": document, "segment": segment}],
+        )
+
+    # Segment 2 is the hard one: both readers look words up there and one replays it.
+    at(people[0], "lookup", "2")
+    at(people[0], "replay", "2")
+    at(people[1], "lookup", "2")
+    at(people[0], "lookup", "1")
+    at(people[1], "stop", "3")
+    # Another text's events must not leak into this one's plot.
+    at(people[0], "lookup", "2", document="esther-he")
+
+    found = store.stalls("ruth-he")
+    assert [row["segment"] for row in found] == ["1", "2", "3"], "in segment order, to plot"
+
+    hard = {row["segment"]: row for row in found}
+    assert hard["2"]["lookups"] == 2 and hard["2"]["replays"] == 1
+    assert hard["2"]["readers"] == 2, "two readers stalled here, not one reader twice"
+    assert hard["1"]["lookups"] == 1 and hard["1"]["readers"] == 1
+    assert hard["3"]["stops"] == 1
+
+    assert all("person" not in row and "day" not in row for row in found), (
+        "aggregate and of nobody: clause 3.7's granularity, not clause 3.6's"
+    )
+
+    # Acceptance 1: keyed on the segment id, so a re-cut that keeps its ids keeps its
+    # history — the property translations and annotations already have.
+    again = store.stalls("ruth-he")
+    assert again == found
