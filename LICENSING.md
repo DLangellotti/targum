@@ -381,6 +381,37 @@ transcribing and aligning are adaptations, and no access policy cures an ND term
 ShareAlike is accepted, which means the segments cut from such a recording carry
 ShareAlike onward.
 
+### Siddur audio, deferred — 2026-09-21
+
+**The siddur ships mute, deliberately, and this is the reason written down.**
+targum-internal#120 asked for siddur audio either licensed-and-attached or explicitly
+deferred with the reason recorded. It is deferred.
+
+Recordings of the siddur are abundant — it is chanted daily, everywhere — and abundance
+is exactly what makes this dangerous. **Free to listen to is not free to use**, and no
+recording has yet been found whose licence clears the bar above. That bar is not a
+formality here: the pipeline cuts a recording into per-section parts and aligns it word
+by word, which is adaptation, so an ND term refuses the recording outright however freely
+it is offered. NonCommercial is acceptable while the audio stays free to access; ND never
+is.
+
+The rule applied is `ingest/fetch/sefaria.py`'s: **check the licence at the source, never
+infer it from availability.** The cost of the other habit is already in this document —
+`audio/align.py` was described as "local and free" while running a CC BY-NC aligner, and
+Stanza's other languages were called clean here for months and were not.
+
+**And TTS is refused for this text in particular**, not merely unchosen. The engine
+ignores nikkud entirely, and the whole reason a vocalized siddur is worth having is that
+its vowels are *correct* rather than guessed. Synthesising it would throw away the one
+property that made the edition worth ingesting, and would do it silently — a reader
+cannot hear that a vowel was invented.
+
+What would lift the deferral is one recording with a licence stated at its source that is
+not no-derivatives. Until then the siddur is a text, and the mussar works beside it are
+text-only by their own nature: nobody listens to Chovot HaLevavot, and `spoken.is_spoken()`
+already derives spokenness from whether a recording exists, so silence is a native state
+rather than a gap.
+
 ### The treebanks the annotator is scored against, which never ship
 
 Until 2026-09-03 every number targum gave for its Hebrew annotation was one annotator
