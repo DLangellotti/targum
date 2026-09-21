@@ -215,6 +215,7 @@ THUMBED = (
     ".video-size",
     # What to work on (2026-09-18, targum-internal#103): the two answers a word row has.
     ".work-keys button",
+    ".fold",
     ".pair.voiced .say",
     # The chat's controls (2026-09-05): the button that sends, the door to a fresh
     # conversation, and the rows that open an old one.
