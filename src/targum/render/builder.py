@@ -316,6 +316,18 @@ def _page_language(language: str) -> str:
     return code if code in languages() else SOURCE
 
 
+def _commentary_named(name: str) -> bool:
+    """Whether a rendering's name says it is a commentary — "Rashi on Genesis".
+
+    The same shape `align.parallel` keys one by, and the reason the two agree is that
+    they are asking the same question: a commentary is numbered by the book it comments
+    on, and it is drawn as comments rather than as a line of prose.
+    """
+    import re
+
+    return bool(re.match(r"^[A-Z][A-Za-z]+ on .+$", (name or "").strip()))
+
+
 def _addressed_in(base: str, language: str) -> tuple[str, list[tuple[str, str]]]:
     """A public page's own address and the addresses of its other languages
     (targum-internal#188).
@@ -2962,6 +2974,13 @@ def render(
             covered=covered,
             primary=drawing.segments,
             primary_coarse=set(drawing.coarse),
+            # Whether the rendering beside the text is a commentary rather than a
+            # translation (targum-internal#200). A verse of Rashi is several comments
+            # joined with a newline, and a newline in a line of prose is whitespace: they
+            # ran together and read as one comment. Scoped to the rendering rather than
+            # set on every `.tr`, because a translation's line has no such structure and
+            # a stray newline in one should go on collapsing.
+            primary_commentary=_commentary_named(drawing.name),
             data=embed_json(
                 {
                     "schemaVersion": PAYLOAD_VERSION,

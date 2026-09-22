@@ -573,7 +573,7 @@
     {% if segment.id in unaccented %}
     <h{{ level }} class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'byline' %}
   <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
@@ -584,7 +584,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'turn' %}
   {#- A line of a dialogue. Who said it sits beside the words rather than inside them, so
@@ -603,7 +603,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% else %}
   {#- A verse answers to its address. The row is `#2:1`, which is what a link to Ruth 2:1
@@ -628,7 +628,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ tongue }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% endif %}
 {% endfor %}

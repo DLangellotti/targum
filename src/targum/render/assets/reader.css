@@ -589,6 +589,12 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 .pair p { margin: 0; }
 .src { max-width: var(--measure); }
 .tr { max-width: var(--measure); color: var(--ink-soft); }
+/* A verse of commentary is several comments, joined with a newline and each opening with
+   the words it comments on (targum-internal#200). Without this they run together and read
+   as one comment, which is not Rashi being terse — it is three comments pretending to be
+   one, and a reader cannot tell that is wrong. `pre-line` keeps the breaks and still
+   wraps, so a long comment behaves like the prose it is. */
+.tr.commented { white-space: pre-line; }
 .pair:hover .tr, .pair:focus-visible .tr, .pair.here .tr { color: var(--ink); }
 
 /* A title and its translation sit side by side like any other pair, but read as a

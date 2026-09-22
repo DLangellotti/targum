@@ -19,6 +19,7 @@ scripture.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from ..errors import TargumError
@@ -36,6 +37,16 @@ DECLARED = ("sefaria/", "published/")
 #: beside (`ingest/fetch/published.py`), so it keys as Sefaria does.
 _SAME_AS = {"published": "sefaria"}
 
+#: `Rashi on Genesis` and its cousins (targum-internal#200). A commentary is numbered by
+#: the book it comments on — that is what its reference *is* — so it pairs with that book
+#: by construction, exactly as Onkelos does, and keys as the book.
+#:
+#: Without this a commentary went to the machine aligner, which matches by similarity: a
+#: comment is *about* a verse rather than a rendering of it, so the links would have been
+#: arbitrary and nothing would have said so. Declared, `pair` links verse to verse and
+#: raises rather than guessing if the two ever stop lining up.
+_COMMENTARY_ON = re.compile(r"^[A-Z][A-Za-z]+ on (?P<book>.+)$")
+
 
 def parallel_key(document: object) -> str | None:
     """What this document is, if it came from somewhere that pairs by construction.
@@ -52,7 +63,11 @@ def parallel_key(document: object) -> str | None:
     if sep and len(head) <= 3 and head.isalpha():
         rest = tail
     scheme = _SAME_AS.get(scheme.lower(), scheme.lower())
-    return f"{scheme}:{' '.join(rest.split()).lower()}"
+    named = " ".join(rest.split())
+    commented = _COMMENTARY_ON.match(named)
+    if commented is not None:
+        named = commented.group("book")
+    return f"{scheme}:{named.lower()}"
 
 
 def _chapters(segments: list[Any]) -> list[list[Any]]:
