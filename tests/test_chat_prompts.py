@@ -259,13 +259,15 @@ def test_find_mode_is_told_which_language_to_write_in() -> None:
 
     assert "Write to the reader in Russian" in russian
     assert "Hebrew you quote stays Hebrew" in russian, "the Hebrew is the thing being read"
-    assert russian.startswith(english), "the ledger itself is unchanged; the line is added"
 
-    # English says nothing extra, so every English conversation's cached prefix stays
-    # byte-for-byte what it was.
-    assert prompts.ledger(level, "English") == english
-    assert prompts.ledger(level, "") == english
-    assert "Write to the reader" not in english
+    # And English is named too, rather than falling silent for it. That is not symmetry
+    # for its own sake: `SYSTEM` stopped saying "English" in item 3, so silence here
+    # would leave an English reader with no instruction anywhere at all.
+    assert "Write to the reader in English" in english
+    assert prompts.ledger(level, "") == english, "nothing said is English"
+
+    # The ledger itself is the same either way; only the last line differs.
+    assert english.rsplit("\n\n", 1)[0] == russian.rsplit("\n\n", 1)[0]
 
 
 def test_the_answer_follows_the_same_rule_as_the_gloss_lines() -> None:
@@ -280,3 +282,30 @@ def test_the_answer_follows_the_same_rule_as_the_gloss_lines() -> None:
     assert _answered_in(SimpleNamespace(reads={"ru"})) == "Russian"
     assert _answered_in(SimpleNamespace(reads={"en", "ru"})) == "English", "English wins"
     assert _answered_in(SimpleNamespace(reads=set())) == "English"
+
+
+def test_the_cached_half_of_the_prompt_names_no_language_of_its_own() -> None:
+    """targum-internal#286, item 3. `SYSTEM` is cached for every reader, so a rule in it
+    that names English is a rule about English written for readers who are not being
+    written to in English.
+
+    It used to say "How you write English", "its English beside it" and "the English
+    rules above". Which language to write in belongs to the ledger, which is the half
+    that changes per reader; `SYSTEM` says only *how*.
+
+    The one mention left is the note-answering paragraph, which names the English gloss
+    as its example and then says, in the same sentence, "in a conversation held in
+    another language, in that language, the same way". The hedge is what carries it, and
+    a neutral rewrite would lose the concrete example without gaining anything.
+    """
+    from targum.chat import prompts
+
+    named = [line.strip() for line in prompts.SYSTEM.splitlines() if "English" in line]
+    assert len(named) == 1, named
+    assert "with the English under every line" in named[0]
+    # And the sentence that hedges it is still there, two lines down.
+    assert "in a conversation held in another language, in that language" in prompts.SYSTEM
+
+    assert "How you write to the reader" in prompts.SYSTEM
+    assert "How you write English" not in prompts.SYSTEM
+    assert "its meaning beside it" in prompts.SYSTEM
