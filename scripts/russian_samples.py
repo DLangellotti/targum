@@ -65,6 +65,24 @@ Answer with JSON only: an object whose keys are the text ids, each holding a lis
 Russian strings, one per line, in order, the same number as were given. Nothing else."""
 
 
+def lines_of(got: Any) -> list[str]:
+    """The Russian lines out of whatever shape the answer came back in.
+
+    Asked for a bare list per id and given an object with the lines inside it — which is
+    the input's own shape, so it is the likelier answer, not a malfunction. Both are
+    read rather than one being called wrong: a run that refuses the model's honest
+    reading of the request is a run that spends and records nothing.
+    """
+    if isinstance(got, list):
+        return [str(one) for one in got]
+    if isinstance(got, dict):
+        for key in ("lines", "turns", "russian", "ru"):
+            inside = got.get(key)
+            if isinstance(inside, list):
+                return [str(one) for one in inside]
+    return []
+
+
 def wanted(raw: dict[str, Any], language: str) -> bool:
     """Whether this entry's sample still needs drafting: any line without the language."""
     return any(not (line.get("said") or {}).get(language) for line in raw)
@@ -121,8 +139,8 @@ def main() -> None:
         todo = todo[: args.sample]
     lines = sum(len(one[2]) for one in todo)
     words = sum(len(line["target"].split()) for _, _, ls in todo for line in ls)
-    print(f"{len(samples)} entries carry a sample; {len(todo)} need {args.language}")
-    print(f"{lines} lines, about {words} English words")
+    print(f"{len(samples)} entries carry a sample; {len(todo)} need {args.language}", flush=True)
+    print(f"{lines} lines, about {words} English words", flush=True)
     if not todo:
         return
     if not args.write:
@@ -147,20 +165,28 @@ def main() -> None:
             print(f"  ! batch at {start} failed: {error}", file=sys.stderr)
             continue
         for eid, _title, held in batch:
-            got = said.get(eid)
-            if not isinstance(got, list) or len(got) != len(held):
+            got = lines_of(said.get(eid))
+            if len(got) != len(held):
                 # Lines that do not line up would land under the wrong Hebrew, which is
-                # worse than no Russian at all.
+                # worse than no Russian at all. The count is said both ways because the
+                # first version of this message printed "2 for 2 lines, skipped" — it
+                # was the *shape* that was wrong, not the count, and the message hid it.
                 print(
-                    f"  ! {eid}: {len(got or [])} for {len(held)} lines, skipped", file=sys.stderr
+                    f"  ! {eid}: got {len(got)} usable lines for {len(held)}, skipped",
+                    file=sys.stderr,
                 )
                 continue
             for line, russian in zip(held, got, strict=True):
                 line.setdefault("said", {})[args.language] = str(russian)
             done += 1
         # Written as each batch lands, not at the end: a run that dies halfway keeps
-        # what it paid for.
-        path.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        # what it paid for. **Atomically**, the way `russian_titles.py` does it — this
+        # rewrites the whole catalogue thirty-eight times, and a kill between opening
+        # the file and finishing it would leave a half-written one where the only copy
+        # was. A plain `write_text` here was a real risk and not a theoretical one.
+        spare = path.with_suffix(".json.writing")
+        spare.write_text(json.dumps(body, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        spare.replace(path)
         print(f"  {done}/{len(todo)} drafted, ${usage.cost():.2f} so far", flush=True)
 
     print(f"\n{done} samples drafted. This run cost ${usage.cost():.2f}.")

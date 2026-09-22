@@ -62,6 +62,11 @@ How to write it:
   where the English fits.
 - No exclamation marks unless the English has one.
 - Israeli things keep their Israeli names: ulpan is ульпан, Tnuva is «Тнува».
+- **Every turn says who is speaking and whether they are a man or a woman. Use it.**
+  Russian marks gender where Hebrew does not: Hebrew's first-person past is the same
+  either way (באתי, איבדתי) and Russian's is not (я пришёл / я пришла, я потерял /
+  я потеряла). Getting this from the English is impossible and guessing it is a coin
+  toss, so it is given.
 - **The title is a title and gets translated too.** Handing back the English title
   unchanged is the one mistake to watch for here.
 
@@ -83,7 +88,19 @@ def asking(batch: list[Dialogue]) -> str:
             scene.id: {
                 "title": scene.english,
                 "gloss": scene.gloss,
-                "turns": [{"hebrew": turn.text, "english": turn.english} for turn in scene.turns],
+                "turns": [
+                    {
+                        "hebrew": turn.text,
+                        "english": turn.english,
+                        # Who is speaking and their gender, because Russian marks it and
+                        # Hebrew's past tense does not. Without this the model guesses,
+                        # and a guess is wrong about half the time in a way no reader
+                        # can see is wrong (found on the first run, 2026-09-22).
+                        "speaker": getattr(scene.cast, turn.who).name or turn.who,
+                        "speaker_gender": getattr(scene.cast, turn.who).gender,
+                    }
+                    for turn in scene.turns
+                ],
             }
             for scene in batch
         },
@@ -94,7 +111,11 @@ def asking(batch: list[Dialogue]) -> str:
 def drafted(client: Any, batch: list[Dialogue], model: str, usage: Usage) -> dict[str, Any]:
     reply = client.messages.create(
         model=model,
-        max_tokens=8000,
+        # Room for four long scenes and their titles. At 8000 a batch of four
+        # forty-turn scenes came back truncated mid-string on 2026-09-22 — valid-looking
+        # output that will not parse, which is the failure that costs a batch rather
+        # than a line.
+        max_tokens=16000,
         system=ASKED,
         messages=[{"role": "user", "content": asking(batch)}],
     )
