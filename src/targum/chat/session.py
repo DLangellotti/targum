@@ -199,7 +199,7 @@ def _answered_in(ctx: tools_module.Ctx) -> str:
     glosses and a build's target, and a reader who gets Russian meanings and an English
     answer in the same thread is being told the product has not decided.
     """
-    return language_name(hebrew_module.gloss_language(ctx.reads))
+    return language_name(ctx.language)
 
 
 def run_turn(
@@ -716,6 +716,7 @@ class Chats:
             chat_id=chat_id,
             level=level_module.snapshot(store, person_id, language),
             reads=(store.reads(person_id) & into) if person else into,
+            said_reads=store.reads(person_id) if person else None,
             learning=(store.learning(person_id) & reading) if person else reading,
             admin=admin,
         )
@@ -860,7 +861,7 @@ class Chats:
             spoken = ctx.level.language
             mode = mode_for(spoken, self.library.talks(home, person_id))
             chat_id = store.chat_open(person_id, language=spoken, mode=mode)
-        into = hebrew_module.gloss_language(ctx.reads)
+        into = ctx.language
         # In the language of the line it rides in, not the English the model reads
         # (targum-internal#287).
         because = tools_module.because_in(top, into).strip()
@@ -1080,7 +1081,7 @@ class Chats:
         # English, about the text (`Library.talks`).
         opened = store.chat_owned(person_id, asked.chat_id) or {}
         # The "= " lines in the language the account reads (targum-internal#243).
-        into = hebrew_module.gloss_language(ctx.reads)
+        into = ctx.language
         code = language.split("-")[0].lower()
         contract = (
             hebrew_module.contract_for(code, language_name(into))

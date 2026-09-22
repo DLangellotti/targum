@@ -170,3 +170,76 @@ def said_on(when: date, language: str = SOURCE) -> str:
         return said_date(when, language)
     months = _MONTHS[code]
     return f"{days[when.weekday()]}, {when.day} {months[when.month - 1]} {when.year}"
+
+
+# -- which language a reader is read to in (targum-internal#286, item 1) -----------------
+#
+# One rule, in one place, because there were two and they disagreed. The interface
+# picked the reader's other language and the conversation picked English whenever
+# English was read, so the common Russian account — `{"en", "ru"}`, since an account
+# starts at `{"en"}` and Russian is added to it — got Russian buttons with English
+# meanings under them, an English `= ` line and an English "Save as targum".
+
+#: The key prefixes that make a language one a desk page can be drawn in. A catalogue
+#: with nothing under any of them has been started and not yet used.
+DESK_KEYS = (
+    "nav.",
+    "progress.",
+    "learn.",
+    "library.",
+    "you.",
+    "add.",
+    "charts.",
+    "lang.",
+    "building.",
+    "account.",
+    "shelf.",
+    "follow.",
+    "bring.",
+    "yours.",
+    "lists.",
+    "vocab.",
+    "claim.",
+    "palette.",
+    "chat.",
+    "speak.",
+)
+
+
+def desk_languages() -> list[str]:
+    """The languages besides English with a catalogue that says something on a desk page."""
+    return [
+        code
+        for code in languages()
+        if code != SOURCE and any(key.startswith(DESK_KEYS) for key in catalogue(code))
+    ]
+
+
+def reading_language(reads: set[str] | None) -> str:
+    """The language targum speaks to a reader in: the meanings, the `= ` line, the name
+    a build is given, and the chrome where there are words for it.
+
+    The one language their account reads other than English: reading Russian is the
+    choice that says so, English beside it or not. English otherwise — for a reader who
+    reads only English, and for one who reads two other languages, where nothing says
+    which of them is meant.
+
+    There is deliberately no desk gate here. Whether targum has *interface strings* in a
+    language is a fact about targum; whether a reader wants their meanings in it is a
+    fact about the reader, and a French reader had French meanings before any of the
+    chrome was French. `drawn_in` is where the interface admits what it cannot draw.
+    """
+    if not reads:
+        return SOURCE
+    others = sorted(code for code in reads if code != SOURCE)
+    return others[0] if len(others) == 1 else SOURCE
+
+
+def drawn_in(reads: set[str] | None) -> str:
+    """`reading_language`, narrowed to what the chrome can actually be drawn in.
+
+    The interface falls back to English where nothing has been written for a language;
+    the meanings do not, because they are bought per language rather than written here.
+    """
+    said = reading_language(reads)
+    return said if said in desk_languages() else SOURCE

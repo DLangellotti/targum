@@ -104,12 +104,18 @@ HEBREW_SCRIPT = frozenset({"he", "yi", "arc"})
 
 
 def gloss_language(reads: set[str] | None) -> str:
-    """Which language the "= " lines are in: the one the account reads into, English
-    where it reads English or says nothing (targum-internal#243). The same rule
-    `tools.quote_build` uses for a build's target."""
-    if not reads or "en" in reads:
-        return "en"
-    return sorted(reads)[0]
+    """Which language the "= " lines are in, and the target `tools.quote_build` gives a
+    build: `strings.reading_language`, which the interface answers to as well.
+
+    It kept a rule of its own until 2026-09-22 — English whenever English was read —
+    while the interface picked the reader's *other* language. An account that reads
+    English and Russian is the common Russian account, since one starts at `{"en"}` and
+    Russian is added to it, and it got Russian buttons with English meanings under them,
+    an English `= ` line and an English "Save as targum" (targum-internal#286, item 1).
+    """
+    from ..strings import reading_language
+
+    return reading_language(reads)
 
 
 #: One line, at most one a reply, directly under the recast's English, only when the

@@ -5289,7 +5289,6 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
-            from .chat import hebrew as hebrew_module
             from .chat.session import mode_for
 
             # The hours beside the list: the one limit a reader is told about, in the
@@ -5312,7 +5311,7 @@ class Handler(BaseHTTPRequestHandler):
                     "language": spoken,
                     # The language the conversation's meanings are in, so a word looked
                     # up from it matches the ones it already carries (targum-internal#287).
-                    "into": hebrew_module.gloss_language(self._reads(person)),
+                    "into": self._reading_language(),
                     "usable": self.chats.usable,
                     # Whether a new conversation here is held in the talk shape: Hebrew for
                     # a reader with modern Hebrew to speak, and Italian (targum-internal
@@ -6091,7 +6090,7 @@ class Handler(BaseHTTPRequestHandler):
             n=min(self.COMMON_REACH, offset + limit), language=spoken
         )
         page = forms[offset : offset + limit]
-        target = hebrew_module.gloss_language(self._reads(self._person()))
+        target = self._reading_language()
         bands = FrequencyBands()
         provider = gloss_provider_name()
         rows = []
@@ -6397,16 +6396,37 @@ class Handler(BaseHTTPRequestHandler):
         return pages.get(name) or english
 
     def _ui_language(self) -> str:
-        """The language the chrome speaks to this reader in: the one language their account
-        reads other than English, where a desk rendering in it exists — English beside it
-        or not, since reading Russian is the choice that says so. English otherwise: for a
-        visitor, for an account that reads only English, and for one that reads two other
-        languages, where nothing says which."""
+        """The language the chrome speaks to this reader in: `strings.drawn_in`, which is
+        the one rule the conversation answers to as well (targum-internal#286, item 1).
+
+        It asked `self.translated` rather than the catalogue until 2026-09-22 — the same
+        answer on a running server, since that map is built from `desk_languages()` at
+        start-up, but not on one that never filled it.
+        """
+        from .strings import drawn_in
+
+        return drawn_in(self._said_reads())
+
+    def _said_reads(self) -> set[str] | None:
+        """What this reader *said* they read, or nothing where nobody is signed in.
+
+        Deliberately not `_reads`, which answers "everything" for a visitor because it is
+        a permission — which languages may be offered — rather than a preference. Feeding
+        it to a rule that picks *one* language made a signed-out visitor Russian, because
+        `INTO` holds exactly English and Russian and the rule takes the single other one
+        (2026-09-22). The old rule hid it by always preferring English.
+        """
         person = self._person()
         if person is None or self.store is None:
-            return "en"
-        others = [code for code in self.store.reads(person.id) if code != "en"]
-        return others[0] if len(others) == 1 and others[0] in self.translated else "en"
+            return None
+        return self.store.reads(person.id)
+
+    def _reading_language(self) -> str:
+        """The language this reader's meanings and `= ` lines are in: `_ui_language`
+        without the desk gate, since a meaning is bought rather than written here."""
+        from .strings import reading_language
+
+        return reading_language(self._said_reads())
 
     def _say(self, key: str, english: str, **fill: object) -> str:
         """A sentence the server sends back, in the language of whoever asked
@@ -7990,39 +8010,11 @@ def best_language(header: str) -> str:
     return SOURCE
 
 
-DESK_KEYS = (
-    "nav.",
-    "progress.",
-    "learn.",
-    "library.",
-    "you.",
-    "add.",
-    "charts.",
-    "lang.",
-    "building.",
-    "account.",
-    "shelf.",
-    "follow.",
-    "bring.",
-    "yours.",
-    "lists.",
-    "vocab.",
-    "claim.",
-    "palette.",
-    "chat.",
-    "speak.",
-)
-
-
-def desk_languages() -> list[str]:
-    """The languages besides English with a catalogue that says something on a desk page."""
-    from .strings import catalogue, languages
-
-    return [
-        code
-        for code in languages()
-        if code != "en" and any(key.startswith(DESK_KEYS) for key in catalogue(code))
-    ]
+# Moved into `strings` on 2026-09-22 (targum-internal#286, item 1), so that the one thing
+# which decides a reader's language is not half in the server. Re-exported under its own
+# name because that is what the start-up already imports it as; `DESK_KEYS` went with it
+# and is not re-exported, because nothing outside `strings` ever read it.
+from .strings import desk_languages  # noqa: E402
 
 
 def default_store() -> Path:
