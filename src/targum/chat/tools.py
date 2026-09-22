@@ -96,10 +96,25 @@ class Ctx:
     #: Whether the per-account rails apply. Read once from the session, carried on the
     #: job the quote makes, never taken from an argument.
     admin: bool = False
+    #: What this reader *said* they read, or `None` where nobody is signed in. Not the
+    #: same thing as `reads`, which answers "everything" for a visitor because it is a
+    #: permission rather than a preference — feeding that to a rule which picks one
+    #: language makes a signed-out conversation Russian, `INTO` holding exactly English
+    #: and Russian (targum-internal#286, item 1).
+    said_reads: set[str] | None = None
 
     @property
     def person_id(self) -> int | None:
         return self.person.id if self.person else None
+
+    @property
+    def language(self) -> str:
+        """The language this conversation is written to the reader in — its meanings, its
+        `= ` lines, and the name a build made from it is given. One rule with the chrome's
+        (`strings.reading_language`), which it disagreed with until 2026-09-22."""
+        from ..strings import reading_language
+
+        return reading_language(self.said_reads)
 
 
 Run = Callable[[Ctx, dict[str, Any]], dict[str, Any]]
@@ -677,7 +692,7 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # In the conversation's own language (targum-internal#280): `ctx.level` is read in the
     # language the conversation was opened in (`Chats.context`).
     held_in = (ctx.level.language or "he").split("-")[0].lower()
-    into = hebrew_module.gloss_language(ctx.reads)
+    into = ctx.language
     path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader, held_in, into)
     if kept < 2:
         return {

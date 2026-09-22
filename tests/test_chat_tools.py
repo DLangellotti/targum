@@ -1271,3 +1271,37 @@ def test_a_recording_whose_length_could_not_be_read_says_so(world, monkeypatch) 
     )
     assert found["seconds"] == 0 and found["hours"] is None and found["megabytes"] is None
     assert any("could not be read" in line for line in found["advice"])
+
+
+def test_a_conversation_is_written_in_the_language_the_reader_reads(tmp_path: Path) -> None:
+    """targum-internal#286, item 1. `Ctx.language` is the one rule the chrome answers to,
+    and this is it against a real `Ctx` rather than a stand-in.
+
+    `said_reads` and `reads` are deliberately different things. `reads` is a permission —
+    which languages may be offered — and it is *everything* for a visitor, so a rule that
+    picks one language out of it made a signed-out conversation Russian, `INTO` holding
+    exactly English and Russian.
+    """
+    from targum.translate.prompts import INTO
+
+    store = Store(tmp_path / "words.db")
+
+    def ctx_for(said: set[str] | None, reads: set[str]) -> tools.Ctx:
+        return tools.Ctx(
+            person=None,
+            home=tmp_path,
+            library=None,
+            store=store,
+            chat_id="c",
+            level=level.EMPTY,
+            reads=reads,
+            said_reads=said,
+        )
+
+    everything = {code for code, _ in INTO}
+    assert everything == {"en", "ru"}, "which is why the two must not be confused"
+
+    assert ctx_for(None, everything).language == "en", "nobody signed in"
+    assert ctx_for({"en"}, {"en"}).language == "en"
+    assert ctx_for({"en", "ru"}, everything).language == "ru", "the common Russian account"
+    assert ctx_for({"ru"}, {"ru"}).language == "ru"

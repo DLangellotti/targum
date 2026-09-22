@@ -184,7 +184,13 @@ def test_the_gloss_line_is_in_the_language_the_reader_reads() -> None:
     assert "No Russian and no English inside a Hebrew line" in russian
     assert "Do not think of an English sentence and translate it" in russian, "still about Hebrew"
     assert hebrew.gloss_language({"ru"}) == "ru"
-    assert hebrew.gloss_language({"ru", "en"}) == "en" and hebrew.gloss_language(set()) == "en"
+    # English beside Russian is still Russian since 2026-09-22 (targum-internal#286,
+    # item 1): an account starts at {"en"} and Russian is added to it, so "reads English
+    # too" was true of every Russian reader there is and English won for all of them.
+    assert hebrew.gloss_language({"ru", "en"}) == "ru"
+    assert hebrew.gloss_language(set()) == "en" and hebrew.gloss_language({"en"}) == "en"
+    # Two others and nothing says which is meant.
+    assert hebrew.gloss_language({"en", "ru", "fr"}) == "en"
 
 
 def test_the_level_target_is_a_number_the_tools_carry() -> None:
@@ -277,11 +283,29 @@ def test_the_answer_follows_the_same_rule_as_the_gloss_lines() -> None:
 
     from targum.chat.hebrew import gloss_language
     from targum.chat.session import _answered_in
+    from targum.strings import reading_language
+
+    def standing_in(said: set[str] | None) -> SimpleNamespace:
+        """A `Ctx` for this one question. `Level` takes eleven arguments and none of them
+        are about language; `Ctx.language` is the single call below, and the real one is
+        exercised against a real `Ctx` in `test_chat_tools.py`."""
+        return SimpleNamespace(said_reads=said, language=reading_language(said))
 
     assert gloss_language({"ru"}) == "ru"
-    assert _answered_in(SimpleNamespace(reads={"ru"})) == "Russian"
-    assert _answered_in(SimpleNamespace(reads={"en", "ru"})) == "English", "English wins"
-    assert _answered_in(SimpleNamespace(reads=set())) == "English"
+    assert _answered_in(standing_in({"ru"})) == "Russian"
+    assert _answered_in(standing_in({"en", "ru"})) == "Russian", "the common case"
+    assert _answered_in(standing_in(set())) == "English"
+    assert _answered_in(standing_in(None)) == "English", "nobody signed in"
+
+    # And it is the same rule the chrome answers to, which is the whole of item 1: these
+    # were two rules that disagreed, and the reader saw both at once.
+    from targum.strings import drawn_in
+
+    assert reading_language({"en", "ru"}) == drawn_in({"en", "ru"}) == "ru"
+    # The chrome alone falls back where nothing has been written for a language. The
+    # meanings do not: they are bought per language rather than written here, and a
+    # French reader had French meanings before any of the chrome was French.
+    assert reading_language({"fr"}) == "fr" and drawn_in({"fr"}) == "en"
 
 
 def test_the_cached_half_of_the_prompt_names_no_language_of_its_own() -> None:
