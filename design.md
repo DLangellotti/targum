@@ -346,6 +346,70 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A scope is a press that lasts — 2026-09-22
+
+Until now the rule was absolute and written in two places: a chat tool never spends, and
+the press that starts a build stays on the page where the card is. `connector.py` says why
+— "a client whose consent UI targum does not control would otherwise be a way round
+`Library.claim`" — and CLAUDE.md says the same thing from the other side. `Tool.spends` and
+`Tool.needs_consent` were drawn on 2026-09-05 for a surface where that might stop holding,
+and never set.
+
+The surface arrived. targum reached through Claude or ChatGPT (targum-internal#80) is worth
+building because the record fills there too, and the record only fills if something recasts
+what the reader wrote — `slip` is written by a model's judgement or it is not written at
+all. A connector that cannot spend cannot check a line, and a connector that cannot check a
+line is a read-only window onto a moat it does not deepen.
+
+So **one tool spends, and the consent is granted once rather than pressed each time.**
+`record_turn` takes what the reader wrote, targum recasts it on its own model against its
+own contract, and the row is written. The press is the reader ticking the `check` scope on
+targum's own approval page, where what it costs is said in hours before anything is
+granted, and where it is revoked.
+
+What makes that safe is not the grant. It is the two ceilings it sits inside — the reader's
+own `CHAT_BUDGET` and the eight hours, both unchanged, both already refusing in words — and
+a rate limit per token. Build them with the tool, not after it.
+
+- **Only a line in a language the reader is learning is recast**, so a question asked in
+  English spends nothing. The turn is a `job` row of kind `chat` through
+  `Library.claim_turn`, on the same rails and the same `SUM(length)`. No second counter.
+- **The host's correction is never the record.** It writes what the reader wrote; targum
+  judges it. One table, one judge, one standard — which is the whole reason the re-check is
+  worth paying for rather than trusting what comes back.
+- **A build still needs its own press.** Nothing here touches that seam: a quote over MCP
+  is still information, and it now carries a link to a targum page with the button on it.
+  The model still cannot press anything, anywhere.
+- **Elicitation is refused.** The protocol can ask the reader a question mid-tool-call,
+  which looks like the missing consent surface. It is the host's UI, and a host that
+  implements it badly would be deciding whether money moves. Consent is targum's page.
+
+What it does not overturn: ownership comes from `Ctx` and never from an argument; no
+invented currency; hours said in hours and never in money; the reader is never charged for
+a turn targum did not buy.
+
+### A door that is not a text — 2026-09-22
+
+Learn's row of doors has been two since 2026-09-06, and they are registers: Modern and
+Biblical, each carrying its own next text, its own progress and its own share of words
+known. The code says what the row means — "the track is the register, never a level" — and
+everything in it has so far been something to read.
+
+It now holds a third that carries a way in instead: **targum in Claude and ChatGPT**,
+styled exactly like the other two. Note 19 of 2026-09-22 asked for the invitation to be
+prominent on Learn, and the alternatives were both worse — a dismissible card on a page
+whose own panel promises "still pull and never push", or the account page, where nobody
+finds a feature.
+
+Styled the same is the decision and not an oversight. A door drawn as a lesser thing reads
+as an advertisement, which is what the page must not carry; drawn as a door it is what it
+is, a way in, and the reader chooses between three doors instead of two.
+
+The cost is real and is written down here so it is not rediscovered: Learn's first job is
+getting somebody into a text, and a third door competes with the two that carry one. The
+only signal that would say so is whether the reading doors are pressed less after it ships,
+and the `event` rows are where to look.
+
 ### The arrival asks which language first — 2026-09-20
 
 "How in on-boarding does the russian user switch to russian?" David asked, and the honest
