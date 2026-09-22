@@ -2220,6 +2220,10 @@ def corrections_command(
         bool,
         typer.Option("--agreed", help="Only what two kinds of judge reached independently."),
     ] = False,
+    export: Annotated[
+        bool,
+        typer.Option("--export", help="As the rows may leave: no context from a shut text."),
+    ] = False,
     out: Annotated[
         Path | None, typer.Option("--out", help="Write the candidate gold set here, as JSON.")
     ] = None,
@@ -2227,15 +2231,40 @@ def corrections_command(
 ) -> None:
     """The judgements written down so far, newest first (targum-internal#164).
 
-    `--agreed` answers with the candidate gold set instead: one line per judgement that
-    two *different roles* reached independently. A model is not a judge, a deletion is
-    not an answer, and two rows of one role count once — `Store.agreed` says why each of
-    those throws rows away. `--out` writes the same set as JSON for the harness to read.
+    `--agreed` answers with the candidate gold set instead: one line per judgement two
+    different judges reached independently. A model is not a judge, a deletion is not an
+    answer, and one judge counts once however often they say it — `Store.agreed` says why
+    each of those throws rows away. `--out` writes the set as JSON for the harness.
+
+    `--export` answers with the rows as they may leave. A judgement is a fact about
+    Hebrew and is targum's to give away; the sentence quoted beside it is a piece of
+    somebody's text, so it is dropped where that text's licence does not let it travel.
+    A text nobody has a licence for is treated as shut, which is `licensing.py`'s rule
+    for `unknown` and is the whole reason that standing is not called free.
     """
     from .accounts import Store
     from .serve import default_store
 
     keeping = Store(store or default_store())
+    if export:
+        from .accounts import exportable_corrections
+        from .catalogue import by_id
+        from .licensing import exportable
+
+        def may_leave(text: str) -> bool:
+            entry = by_id(text)
+            return entry is not None and exportable(entry.licence)
+
+        rows = exportable_corrections(keeping.corrections(stage, limit), may_leave)
+        shut = sum(1 for row in rows if row.get("context_withheld"))
+        if out is not None:
+            out.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            console.print(f"[green]Wrote[/green] {len(rows)} judgements to {out}")
+        console.print(
+            f"{len(rows)} judgements, {shut} with the sentence withheld "
+            "because the text it came from may not leave."
+        )
+        return
     if agreed:
         found = keeping.agreed(stage)
         if out is not None:
