@@ -71,7 +71,7 @@ def main() -> None:
             turns += 1
             other = "B" if turn.get("who") == "A" else "A"
             addressee = (cast.get(other) or {}).get("gender", "")
-            for one in check_turn(turn["text"], turn.get("english", ""), n, addressee):
+            for one in check_turn(turn["text"], turn.get("english", ""), n, addressee, sid):
                 found.append((sid, n, bare(one.word), one.kind, one.what))
 
     print(f"{len(files)} scenes, {turns} turns")

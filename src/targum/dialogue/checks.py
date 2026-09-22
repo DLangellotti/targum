@@ -203,7 +203,17 @@ def addressed_gender(word: str) -> str:
     return ""
 
 
-def cast_disagrees(line: str, turn: int, addressee: str) -> Iterator[Finding]:
+#: Lines where a masculine form rightly addresses a woman: Hebrew's impersonal "you"
+#: in a general truth. The corpus gate keeps the same list for the same reason and, on
+#: 2026-09-22, the same single entry — arrived at independently, which is the strongest
+#: thing that can be said for either. An entry earns its place by being read.
+GENERIC_YOU = {
+    # "as an instructor you hope, and as an examiner you only see"
+    ("78-the-driving-test", 23),
+}
+
+
+def cast_disagrees(line: str, turn: int, addressee: str, scene: str = "") -> Iterator[Finding]:
     """A word pointed for a man where a woman is spoken to, or the other way about.
 
     Only the forms `addressed_gender` will commit to, and only in a scene where the
@@ -211,7 +221,7 @@ def cast_disagrees(line: str, turn: int, addressee: str) -> Iterator[Finding]:
     generic 'you' is masculine and is not an error, so this is worth running where the
     addressee is a named person and worth ignoring where they are not.
     """
-    if addressee not in ("m", "f"):
+    if addressee not in ("m", "f") or (scene, turn) in GENERIC_YOU:
         return
     for word in words_of(line):
         says = addressed_gender(word)
@@ -334,12 +344,14 @@ def inconsistent_pointing(scenes: dict[str, list[str]], least: int = 2) -> list[
 # ----------------------------------------------------------------------------- all
 
 
-def check_turn(hebrew: str, english: str, turn: int, addressee: str = "") -> list[Finding]:
+def check_turn(
+    hebrew: str, english: str, turn: int, addressee: str = "", scene: str = ""
+) -> list[Finding]:
     """Everything decidable about one turn."""
     found: list[Finding] = []
     found += impossible_dagesh(hebrew, turn)
     found += hataf_on_non_guttural(hebrew, turn)
-    found += cast_disagrees(hebrew, turn, addressee)
+    found += cast_disagrees(hebrew, turn, addressee, scene)
     found += scales_disagree(hebrew, english, turn)
     return found
 

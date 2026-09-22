@@ -202,3 +202,16 @@ def test_a_hint_says_what_is_written_even_against_the_cast() -> None:
 def test_each_word_is_hinted_once() -> None:
     twice = pronunciation_hints("אָמַרְתָּ וְאָמַרְתָּ שׁוּב", "m")
     assert twice == ['אמרת, ואמרת: ends "-ta", the masculine']
+
+
+def test_the_impersonal_you_is_not_a_disagreement() -> None:
+    """78-the-driving-test t23: "as an instructor you hope" — masculine, to a woman.
+
+    Hebrew's generic "you" takes the masculine and is not an error. This was the only
+    false positive the check had over the hundred scenes, and the corpus gate keeps
+    the same exception, reached independently, with the same single entry.
+    """
+    line = "כִּי בְּתוֹר מוֹרֶה אַתָּה מְקַוֶּוה, וּבְתוֹר בּוֹחֵן אַתָּה רַק רוֹאֶה."
+    assert list(cast_disagrees(line, 23, "f", "78-the-driving-test")) == []
+    # The same line anywhere else is still a finding.
+    assert list(cast_disagrees(line, 23, "f", "99-somewhere-else")) != []
