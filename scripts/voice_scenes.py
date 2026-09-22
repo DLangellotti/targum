@@ -68,11 +68,14 @@ GAP = 0.45
 
 #: Seconds between requests, and the first backoff step. The model is limited per
 #: minute; pacing costs nothing and a 429 costs the whole scene.
-#: Measured 2026-09-22: the key sustains about 3.5 requests a minute, so 2 seconds
-#: between them spends the run backing off instead of speaking. Pacing at the real
-#: rate is faster than pacing fast and being throttled.
-SPACING = 15.0
-WAIT = 20
+#: Measured 2026-09-22: the key sustains about 3.5 requests a minute — roughly one
+#: every 17 seconds — so anything faster spends the run backing off instead of
+#: speaking. 15 seconds sat right on the edge and still 429'd on most turns; 21 is
+#: under it with room, and pacing at the real rate is the faster of the two.
+#: Anything else calling the same key steals from the same budget: a diagnostic
+#: probe run beside this will make *this* fail, not the probe.
+SPACING = 21.0
+WAIT = 30
 
 #: Kept short on purpose, and the length is not a style preference. Measured on
 #: 2026-09-22 against one turn of 81-the-army-friend: a 497-character prompt was
