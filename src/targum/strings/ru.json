@@ -2022,5 +2022,14 @@
   "connect.page.we-ll-email-you-when-your-turn-comes": "Мы напишем, когда придёт ваша очередь.",
   "connect.head.title": "targum в Claude и ChatGPT",
   "connect.head.description": "Читайте на иврите с targum прямо в Claude или ChatGPT: ваши слова, ваши ошибки и что читать дальше.",
-  "learn.door.claude-and-chatgpt": "Claude и ChatGPT"
+  "learn.door.claude-and-chatgpt": "Claude и ChatGPT",
+  "you.page.what-s-connected": "Что подключено",
+  "you.page.connections-says": "Приложения, к которым вы подключили targum, и что каждому разрешено. Отключение действует сразу.",
+  "you.connections.an-app": "Приложение",
+  "you.connections.disconnect": "Отключить",
+  "you.connections.disconnected": "Отключено.",
+  "you.connections.could-not": "Не удалось отключить. Попробуйте ещё раз.",
+  "you.connections.library": "библиотека",
+  "you.connections.record": "ваши слова и ошибки",
+  "you.connections.check": "проверка вашего иврита — расходует ваши часы"
 }

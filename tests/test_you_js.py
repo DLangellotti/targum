@@ -204,3 +204,71 @@ def test_the_page_says_its_words_in_the_readers_language() -> None:
         }
     )
     assert page["kept"] == "512 слов и 24 фразы во всех ваших языках."
+
+
+# --- what's connected, and taking it back (targum-internal#80) --------------------
+
+CONNECTED = {
+    **SIGNED_IN,
+    "connections": [
+        {
+            "client": "c-claude",
+            "name": "Claude",
+            "scopes": "library record",
+            "made": 1,
+            "seen": 2,
+        },
+        {"client": "c-gpt", "name": "ChatGPT", "scopes": "library", "made": 1, "seen": 2},
+    ],
+}
+
+
+def test_nothing_connected_draws_no_panel() -> None:
+    """A panel saying "nothing is connected" would be a panel advertising connecting."""
+    page = run()
+    assert page["connectionsPanel"] is True, "hidden"
+    assert page["connections"] == []
+
+
+def test_each_connector_says_what_it_may_do_in_the_reader_s_words() -> None:
+    page = run(who=CONNECTED)
+    assert page["connectionsPanel"] is False
+    assert [one["name"] for one in page["connections"]] == ["Claude", "ChatGPT"]
+    assert page["connections"][0]["says"] == "the library, your words and mistakes"
+    assert page["connections"][1]["says"] == "the library"
+
+
+def test_the_scope_that_uses_hours_says_so_here_too() -> None:
+    """design.md §12: this is the page they come to when they want to know what they
+    agreed to, so it says what the standing grant costs."""
+    page = run(
+        who={
+            **SIGNED_IN,
+            "connections": [
+                {"client": "c", "name": "Claude", "scopes": "library record check"},
+            ],
+        }
+    )
+    assert "uses your hours" in page["connections"][0]["says"]
+
+
+def test_a_connector_with_no_name_is_still_a_row() -> None:
+    page = run(who={**SIGNED_IN, "connections": [{"client": "c", "name": "", "scopes": "library"}]})
+    assert page["connections"][0]["name"] == "An app"
+
+
+def test_disconnecting_posts_the_client_and_redraws() -> None:
+    page = run(
+        who=CONNECTED,
+        do=[{"type": "press", "id": "connection-rows:0:2"}],
+        answers={
+            "/account/disconnect": {
+                "disconnected": 2,
+                "connections": [CONNECTED["connections"][1]],
+            }
+        },
+    )
+    posted = [one for one in page["posted"] if one["path"] == "/account/disconnect"]
+    assert posted and posted[0]["body"] == {"client": "c-claude"}
+    assert [one["name"] for one in page["connections"]] == ["ChatGPT"], "redrawn from the answer"
+    assert page["connectionsSaid"] == {"text": "Disconnected.", "hidden": False}

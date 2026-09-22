@@ -110,6 +110,19 @@
       when it lands, in the bell, and in your inbox. Here, behind the account, and not on
       the Library: the main pages stay as simple as they can. Drawn by `follow.js`;
       hidden until the server has named a series. -#}
+  {#- What is connected, and the way to end it (targum-internal#80). Here because this
+      is where a reader comes to take something back, and because design.md §12 ("A
+      scope is a press that lasts") rests on the grant being visible somewhere they can:
+      a standing consent that could not be found is not one. Hidden until there is one —
+      a panel saying "nothing is connected" is a panel advertising connecting, and
+      /connect is where that is done. -#}
+  <section class="panel" id="connections" hidden>
+    <h2>{{ t("you.page.what-s-connected", "What's connected") }}</h2>
+    <p class="note">{{ t("you.page.connections-says", "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.") }}</p>
+    <ul class="series" id="connection-rows"></ul>
+    <p class="said" id="connections-said" hidden></p>
+  </section>
+
   <section class="panel" id="subscriptions" hidden>
     <h2>{{ t("you.page.your-subscriptions", "Your subscriptions") }}</h2>
     <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on their own clock. Follow one and we'll put each
