@@ -1063,10 +1063,7 @@
   "parasha.page.it-follows-you": "It follows you.",
   "parasha.page.words-you-mark-here-are-marked-in": "Words you mark here are marked in everything else you read — this week's portion, next week's, and the newspaper.",
   "parasha.page.made-honestly": "Made honestly",
-  "parasha.page.the-scroll-at-the-top-is": "The scroll at the top is",
   "parasha.page.photographed-by-jacob-gucker": "photographed by Jacob Gucker",
-  "parasha.page.in-the-public-domain-under-cc0-where": ", in the public domain\n      under CC0. Where a reading has a recording it is",
-  "parasha.page.chanted-in-the-avery-binder-trope-and": ", chanted in the Avery-Binder trope and\n      used under",
   "parasha.page.every-portion": "Every portion",
   "parasha.page.keep-what-you-learn": "Keep what you learn",
   "parasha.page.every-word-you-mark-remembered": "Every word you mark, remembered.",
@@ -1808,5 +1805,10 @@
   "parasha.page.aliyot.one": "{n} aliyah",
   "parasha.page.aliyot.other": "{n} aliyot",
   "parasha.page.festival-instead": "A festival falls on this Shabbat, so this is what is read in its place rather than the portion the cycle would otherwise have reached.",
-  "parasha.page.two-portions": "Two portions are read together this week."
+  "parasha.page.two-portions": "Two portions are read together this week.",
+  "daily.page.made-honestly-says": "The Hebrew is the published edition, cut to today's reading and not edited. The English beside it is {translation}. The cycle and its calendar come from Hebcal. The picture is {picture}.",
+  "daily.page.a-published-translation": "a published translation",
+  "daily.page.published-by": "{name}, published by {who}",
+  "parasha.page.made-honestly-says": "The Hebrew is the Masoretic text as it is published, cut to this week's reading and not edited. The English beside it is {translation}. The haftarah is cut from the Prophets on the same shelf, with the translation each book carries there: the Metsudah Tanach for Judges, Samuel and I Kings, the 1917 JPS for the rest. The division into aliyot, the haftarah for each Shabbat and the calendar behind them — including which portion Israel reads and which the diaspora reads — come from Hebcal.",
+  "parasha.page.credits-say": "The scroll at the top is {photograph}, in the public domain under CC0. Where a reading has a recording it is {recording}, chanted in the Avery-Binder trope and used under {licence}."
 }

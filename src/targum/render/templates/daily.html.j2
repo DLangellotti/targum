@@ -109,10 +109,13 @@
 
   <section class="honest">
     <h2 class="label">{{ t("daily.page.made-honestly", "Made honestly") }}</h2>
+    {#- One key rather than four sentences with two blanks loose in the middle of them
+        (targum-internal#348): who made the English and who took the picture are names,
+        and everything around them is a sentence that a language puts in its own order. -#}
     <p class="made">
-      The Hebrew is the published edition, cut to today's reading and not edited. The
-      English beside it is {{ translation_said }}. The cycle and its calendar come from
-      Hebcal. The picture is {{ cycle.credit }}.
+      {{ t("daily.page.made-honestly-says",
+            "The Hebrew is the published edition, cut to today's reading and not edited. The English beside it is {translation}. The cycle and its calendar come from Hebcal. The picture is {picture}.",
+            translation=translation_said, picture=cycle.credit) }}
     </p>
     {#- What Hebcal publishes and this shelf cannot read. A list, because it was a
         sentence with semicolons in it and the full stops inside each reason ran into

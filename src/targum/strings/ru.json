@@ -1125,10 +1125,7 @@
   "parasha.page.it-follows-you": "Всё идёт с вами.",
   "parasha.page.words-you-mark-here-are-marked-in": "Слова, отмеченные здесь, отмечены и во всём остальном, что вы читаете: в главе этой недели, в главе следующей и в газете.",
   "parasha.page.made-honestly": "Сделано честно",
-  "parasha.page.the-scroll-at-the-top-is": "Свиток вверху —",
   "parasha.page.photographed-by-jacob-gucker": "снят Джейкобом Гуккером",
-  "parasha.page.in-the-public-domain-under-cc0-where": ", в общественном достоянии по CC0. Если у чтения есть запись, она —",
-  "parasha.page.chanted-in-the-avery-binder-trope-and": ", распета в тропе Эйвери-Биндера и используется по",
   "parasha.page.every-portion": "Каждая глава",
   "parasha.page.keep-what-you-learn": "Сохраняйте то, что выучили",
   "parasha.page.every-word-you-mark-remembered": "Каждое отмеченное слово запоминается.",
@@ -1847,5 +1844,10 @@
   "parasha.page.aliyot.few": "{n} алиёт",
   "parasha.page.aliyot.many": "{n} алиёт",
   "parasha.page.festival-instead": "На эту субботу приходится праздник, поэтому читают именно это, а не ту главу, до которой дошёл бы цикл.",
-  "parasha.page.two-portions": "На этой неделе две главы читают вместе."
+  "parasha.page.two-portions": "На этой неделе две главы читают вместе.",
+  "daily.page.made-honestly-says": "Иврит — это опубликованное издание, вырезанное под сегодняшнее чтение и не отредактированное. Перевод рядом — {translation}. Цикл и его календарь взяты из Hebcal. Изображение — {picture}.",
+  "daily.page.a-published-translation": "опубликованный перевод",
+  "daily.page.published-by": "{name}, издание {who}",
+  "parasha.page.made-honestly-says": "Иврит — это масоретский текст в опубликованном виде, вырезанный под чтение этой недели и не отредактированный. Перевод рядом — {translation}. Гафтара вырезана из Пророков на той же полке, с переводом, который несёт каждая книга: Мецуда Танах для Судей, Самуила и I Царей, JPS 1917 года для остальных. Деление на алиёт, гафтара для каждой субботы и календарь за ними — включая то, какую главу читают в Израиле и какую в диаспоре — взяты из Hebcal.",
+  "parasha.page.credits-say": "Свиток наверху — {photograph}, в общественном достоянии по CC0. Там, где у чтения есть запись, это {recording}, пропетая в тропе Эйвери-Биндера и используемая по {licence}."
 }
