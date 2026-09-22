@@ -51,6 +51,8 @@ building on targum is entitled to know about.
 | `align` | — | | empty since 2026-09-18: LaBSE is read with transformers |
 | `speech-align` | torchaudio, transformers | BSD-2, Apache-2.0 | the acoustic model is Apache-2.0 too |
 | `covers` | pillow | MIT-CMU | |
+| `bring` | pillow, pillow-heif, pypdf | MIT-CMU, BSD-3 | a picture or a PDF through the `+` |
+| `bring` | **pymupdf** | **AGPL-3.0** | a scanned PDF's pages as pictures — see below |
 | `difficulty` | wordfreq | Apache-2.0 | the code; its data files are CC BY-SA 4.0 — see below |
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
 | `browser` | playwright | Apache-2.0 | test-only |
@@ -192,6 +194,30 @@ The credit is at the foot of every reader whose pointing it made, beside the ann
 and keyed the same way: to the vocalizer that actually ran, and only where it pointed a
 word the edition had not. A reader pointed by Nakdimon, or by its edition, carries no
 DICTA credit for its vowels.
+
+### PyMuPDF — AGPL, chosen deliberately 2026-09-22
+
+A PDF with no text layer has one way in: render its pages as pictures and let the model
+read them (targum-internal#252). That needs a rasteriser, and the choice was a licence
+question rather than a technical one. **PyMuPDF is AGPL-3.0**, and it was taken over
+`pypdfium2` (Apache-2.0/BSD) and `pdf2image` (which wants poppler installed on the box).
+
+**For targum this adds no obligation.** The project is AGPL-3.0-or-later already, which
+is the strongest term in here, so a copyleft dependency asks for nothing the licence on
+this repository does not already give.
+
+**For somebody building on targum it is not nothing, and that is the honest part.** The
+short version at the top of this file promises you may install targum and use it for
+anything, commercial included — and that promise holds: the AGPL permits commercial use.
+What PyMuPDF adds is that a derived work which links it and is offered over a network
+must publish its source under the AGPL too. That was already true of targum's own code.
+It becomes true of this extra as well, and it is the one place where *not installing an
+extra* changes the terms rather than only the features: a box that never reads a scanned
+PDF can leave `bring` out and never links it.
+
+It is an extra and lazily imported, so nothing loads it until a reader presses to have a
+scan read. Artifex also sells a commercial licence for anyone who needs one; targum does
+not, for the reason above.
 
 ### Nakdimon's weights — MIT, confirmed 2026-09-02
 

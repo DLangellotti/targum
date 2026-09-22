@@ -864,10 +864,13 @@ class Job:
             # see the link to the article"). A link for a page on the web; a fetcher
             # id or a filename otherwise, which the page shows no link for.
             "source": self.source,
-            # An Instagram post whose pictures were not read: how many there are, so the
+            # Pages whose words are in pictures and have not been read: an Instagram
+            # post's, or a scanned PDF's (targum-internal#252). How many there are, so the
             # card can offer to read them. Offered, never run: the press is the consent.
             "pictures_offered": (
-                0 if self.options.get("pictures") else int(self.options.get("post_pictures") or 0)
+                0
+                if self.options.get("pictures")
+                else int(self.options.get("post_pictures") or self.options.get("pdf_pages") or 0)
             ),
             # Whether this text could be given a voice once it is built
             # (targum-internal#246). A line on the card and never a button: the press is
@@ -2260,10 +2263,33 @@ class Library:
         source = Path(job.source)
         if source.is_file() and source.suffix.lower() == ".pdf":
             pages = pdf_module.page_lines(source)
-            job.pages = len(pages)
-            job.doubtful = pdf_module.doubtful_lines(pages)
-            job.excerpt = excerpt_of([line for lines in pages for line in lines])
-            return ""
+            if pdf_module.looks_scanned(pages):
+                # No text layer, so there is nothing to read for free and the words are
+                # in the pictures of the pages (targum-internal#252). Offered with a
+                # count and never run: the press is the consent, exactly as an Instagram
+                # post's pictures are. Pressed, the pages become pictures and fall
+                # through to the picture path below, which prices and claims them.
+                offered = min(len(pages), MAX_PAGES)
+                if not job.options.get("pictures"):
+                    job.options["pdf_pages"] = offered
+                    # Raised rather than returned, and that is not a detail: a returned
+                    # sentence becomes `job.blocked`, which `add.js` shows through
+                    # `refuse()` — and `refuse()` has no way forward on it. Only
+                    # `job.error` reaches `refusedWith()`, which is where the button is.
+                    raise UnsupportedSource(
+                        "This PDF is a scan, so its words are in pictures of its pages. "
+                        "Read the pages to bring it in.",
+                        key="pdf.scan-read-the-pages",
+                    )
+                folder = Path(job.home) / "pages" if job.home else source.parent / "pages"
+                pdf_module.rasterise(source, folder, offered)
+                job.source = str(folder)
+                source = folder
+            else:
+                job.pages = len(pages)
+                job.doubtful = pdf_module.doubtful_lines(pages)
+                job.excerpt = excerpt_of([line for lines in pages for line in lines])
+                return ""
         if not picture_module.is_pictures(source):
             return ""
         paths = picture_module.pages_of(source)

@@ -1789,5 +1789,6 @@
   "recording.too-long": "That recording is over 12 hours. Try a shorter one.",
   "fetch.would-not-open": "We couldn't open {url}.",
   "fetch.needs-a-sign-in": "{site} asks you to sign in, so we can't open it.",
-  "fetch.needs-a-sign-in.hint": "Open it yourself and paste the text into the box instead."
+  "fetch.needs-a-sign-in.hint": "Open it yourself and paste the text into the box instead.",
+  "pdf.scan-read-the-pages": "This PDF is a scan, so its words are in pictures of its pages. Read the pages to bring it in."
 }
