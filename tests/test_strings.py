@@ -569,3 +569,38 @@ def test_a_date_is_said_the_way_its_language_writes_it() -> None:
     # visibly: «читают суббота» is not foreign, it is wrong.
     assert said_on(saturday, "ru") == "в субботу, 30 мая 2026"
     assert said_on(date(2026, 6, 2), "ru") == "во вторник, 2 июня 2026", "во, not в"
+
+
+def test_every_word_a_page_draws_is_said_in_russian() -> None:
+    """targum-internal#106 and #188: the mechanism has been there since #184, and the
+    gap it leaves is silent by design — `t()` falls back to the English written in the
+    template, so an unfilled key looks like a working page in the wrong language rather
+    than like a bug.
+
+    Sixty-five were unfilled on 2026-09-22, and they were not the obscure ones: the
+    library's whole set of subject chips, the Add page's "What targum found", and the
+    "What to work on" fold. Counted from the templates and the assets rather than from a
+    list kept by hand, so a key added tomorrow is covered tomorrow.
+
+    English is the source and is therefore exempt; a language with no catalogue at all is
+    a language targum does not speak yet, and `desk_languages()` is what answers that.
+    """
+    from targum.strings import SOURCE, catalogue, desk_languages
+
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    used: set[str] = set()
+    for path in sorted(root.glob("templates/*.j2")) + sorted(root.glob("assets/*.js")):
+        text = path.read_text(encoding="utf-8")
+        used |= set(re.findall(r'\bt\(\s*"([^"]+)"', text))
+        used |= set(re.findall(r'\btn\(\s*"([^"]+)"', text))
+
+    english = catalogue(SOURCE)
+    # A match that is not a key English holds is the regex catching something else — a
+    # Jinja `default()`, say — and not a string anybody failed to translate.
+    keys = sorted(key for key in used if key in english)
+    assert len(keys) > 1000, f"only {len(keys)} keys found; the scan is broken, not the catalogue"
+
+    for code in desk_languages():
+        said = catalogue(code)
+        missing = [key for key in keys if key not in said]
+        assert not missing, f"{code} has no word for {len(missing)}: {missing[:8]}"
