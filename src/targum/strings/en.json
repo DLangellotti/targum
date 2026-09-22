@@ -1810,5 +1810,17 @@
   "daily.page.a-published-translation": "a published translation",
   "daily.page.published-by": "{name}, published by {who}",
   "parasha.page.made-honestly-says": "The Hebrew is the Masoretic text as it is published, cut to this week's reading and not edited. The English beside it is {translation}. The haftarah is cut from the Prophets on the same shelf, with the translation each book carries there: the Metsudah Tanach for Judges, Samuel and I Kings, the 1917 JPS for the rest. The division into aliyot, the haftarah for each Shabbat and the calendar behind them — including which portion Israel reads and which the diaspora reads — come from Hebcal.",
-  "parasha.page.credits-say": "The scroll at the top is {photograph}, in the public domain under CC0. Where a reading has a recording it is {recording}, chanted in the Avery-Binder trope and used under {licence}."
+  "parasha.page.credits-say": "The scroll at the top is {photograph}, in the public domain under CC0. Where a reading has a recording it is {recording}, chanted in the Avery-Binder trope and used under {licence}.",
+  "series.weekly.name": "Weekly News Digest",
+  "series.weekly.what": "Hebrew news, written three ways, every week.",
+  "series.parasha.name": "The weekly portion",
+  "series.parasha.what": "This Shabbat's reading, with its cantillation, every week.",
+  "series.mishna-yomi.name": "Mishnah Yomit",
+  "series.mishna-yomi.what": "Two mishnayot a day, through all sixty-three tractates in about six years.",
+  "series.nach-yomi.name": "Nach Yomi",
+  "series.nach-yomi.what": "A chapter a day of the Prophets and the Writings, the whole of them in two years.",
+  "series.tanakh-yomi.name": "Tanakh Yomi",
+  "series.tehillim.name": "Daily Tehillim",
+  "series.tanakh-yomi.what": "The Prophets and the Writings on weekdays, by the sedarim the Masoretes divided them into.",
+  "series.tehillim.what": "The whole book of Psalms every month, a few chapters a day, by the day of the month."
 }

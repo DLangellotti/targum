@@ -5058,7 +5058,11 @@ class Handler(BaseHTTPRequestHandler):
 
             schedule = parse_qs(urlparse(self.path).query).get("schedule", ["diaspora"])[0]
             return self._json(
-                {"series": series_module.current(schedule, public=shelves_are_public())}
+                {
+                    "series": series_module.current(
+                        schedule, public=shelves_are_public(), language=self._ui_language()
+                    )
+                }
             )
         if route == "/words/common":
             return self._common_words(parse_qs(urlparse(self.path).query))
