@@ -2191,7 +2191,16 @@ class Build:
             )
             written.write(self.resolved_out / "translations" / name)
             translations.append(written)
-        if self.machine and written is None:
+        # An English that came with the text answers a build *into English*, and nothing
+        # else (targum-internal#288). A dialogue's English is written with the scene and a
+        # curated video's was bought once; either way `authored` hands one back without
+        # ever looking at what this build was asked for, so `--to ru` wrote the English,
+        # skipped the buy, and produced a Russian build with no Russian in it.
+        #
+        # The authored English is still written — it costs nothing and a reader may hold
+        # both — but it no longer stands in for a language it is not.
+        wants_buying = written is None or written.target_language != self.target_language
+        if self.machine and wants_buying:
             # A translation on disk is whole only when the build wants the whole text.
             # Buying by the chapter, it is where `translate` starts from rather than
             # where it stops: a heard part's page whose English was never bought matched

@@ -702,3 +702,66 @@ def test_a_chapter_bought_later_gets_its_words(
     assert all(
         s.id in merged.tokens for s in ids(first) + ids(second) if any(c.isalpha() for c in s.text)
     )
+
+
+def test_an_authored_english_does_not_stand_in_for_another_language(
+    source: Path, tmp_path: Path, fake_segmenter: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#288. A dialogue's English is written with the scene and a curated
+    video's was bought once, so `authored` hands one back — and it never looked at what
+    the build was asked for.
+
+    The effect was a Russian build with no Russian in it: the English was written, the
+    buy was skipped, and nothing said so. A scene or a video is exactly where that hurts,
+    because those are the texts a new reader opens first.
+    """
+    from targum.models import Translation
+
+    out = tmp_path / "out"
+    made = build(source, out, fake_segmenter, target_language="ru")
+
+    def english_regardless(self: object, document: object, segmented: object) -> Translation:
+        return Translation(
+            name="authored",
+            document_hash=segmented.document_hash,  # type: ignore[attr-defined]
+            source_language="he",
+            target_language="en",
+            provider="authored",
+            kind="authored",
+            segments={s.id: "written with the scene" for s in segmented.segments},  # type: ignore[attr-defined]
+        )
+
+    monkeypatch.setattr(type(made), "authored", english_regardless)
+    made.run()
+
+    named = sorted(path.name for path in (out / "translations").glob("*.json"))
+    assert "null.natural.ru.json" in named, "the Russian was asked for and must be bought"
+    assert "authored.en.json" in named, "and the English that came free is still kept"
+
+
+def test_an_authored_english_still_answers_a_build_into_english(
+    source: Path, tmp_path: Path, fake_segmenter: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half, and the reason the old condition existed: a dialogue built into
+    English spends nothing, because its English is already written."""
+    from targum.models import Translation
+
+    out = tmp_path / "out"
+    made = build(source, out, fake_segmenter, target_language="en")
+
+    def english_regardless(self: object, document: object, segmented: object) -> Translation:
+        return Translation(
+            name="authored",
+            document_hash=segmented.document_hash,  # type: ignore[attr-defined]
+            source_language="he",
+            target_language="en",
+            provider="authored",
+            kind="authored",
+            segments={s.id: "written with the scene" for s in segmented.segments},  # type: ignore[attr-defined]
+        )
+
+    monkeypatch.setattr(type(made), "authored", english_regardless)
+    made.run()
+
+    named = sorted(path.name for path in (out / "translations").glob("*.json"))
+    assert named == ["authored.en.json"], "nothing was bought"

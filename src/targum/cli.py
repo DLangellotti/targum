@@ -1697,12 +1697,25 @@ def seed(
         Path | None,
         typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
     ] = None,
+    to: Annotated[
+        str,
+        typer.Option("--to", help="Which language to read them in. Default: en"),
+    ] = "en",
 ) -> None:
     """Build the shared texts every new reader starts with.
 
     Into `<out>/shared`, which no request can write to: a reader is handed these,
     cannot buy, trash or rebuild them, and gets their own copy the moment they build
-    anything. Free — each has a published translation — and safe to run again.
+    anything. Safe to run again.
+
+    `--to` is which language they are read in (targum-internal#288). It was fixed at
+    English, so the texts a new reader opens first were the one part of the shelf that
+    could not be Russian however much else was. A second run with `--to ru` adds the
+    language beside the English rather than replacing it, the way every other build does.
+
+    **English is free and another language is not**, for most of these: a row with a
+    published English carries it, and nothing else. Run it with `--to` and it buys, so
+    the run is quoted by what the catalogue says each row already has.
     """
     from . import catalogue as catalogue_module
     from .annotate import lemma, model_lemma
@@ -1736,7 +1749,7 @@ def seed(
             shared_lemmatizer = lemmatizers[scripture]
         builder = Build(
             entry.source,
-            target_language="en",
+            target_language=to,
             # The row says what language it is in. Left to the script, every Latin
             # alphabet reads as English, and an Italian row was seeded as one.
             source_language=entry.language,
