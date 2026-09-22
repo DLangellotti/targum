@@ -390,6 +390,40 @@ def test_every_refusal_that_names_a_key_has_one_in_the_catalogue() -> None:
     assert not missing, "keys with nothing to say them:\n  " + "\n  ".join(missing)
 
 
+def test_every_refusal_that_names_a_key_is_answered_in_every_language() -> None:
+    """A key is what makes a refusal reader-facing: the ones only an operator meets carry
+    none, and are said in English for ever by design. So a refusal that has earned a key
+    and has no translation is half-converted — it reaches a Russian reader on a page that
+    is otherwise entirely in Russian, and says nothing in Russian.
+
+    That state was invisible and real. On 2026-09-22 all 31 keyed refusals were in
+    `en.json` and none was in `ru.json`, with this file green: the mechanism test proves
+    the machinery on a fixture catalogue of its own, so it cannot see that the real one is
+    empty. This asks the real catalogue.
+
+    Asked of the tree rather than of a list, so the refusals still to be converted are
+    covered the day each one is — and converting one now means translating it, which is
+    the whole of what a key promises.
+    """
+    here = Path(strings.__file__).resolve().parent.parent
+    keyed = {
+        key
+        for path in sorted(here.rglob("*.py"))
+        for key in re.findall(r'key="([a-z0-9.\-]+)"', path.read_text(encoding="utf-8"))
+    }
+    english = strings.catalogue("en")
+    wanted = sorted(key for key in keyed | {f"{key}.hint" for key in keyed} if key in english)
+    for code in strings.languages():
+        if code == strings.SOURCE:
+            continue
+        said = strings.catalogue(code)
+        silent = [key for key in wanted if key not in said]
+        assert not silent, (
+            f"{code}: {len(silent)} keyed refusals fall back to English "
+            f"({', '.join(silent[:5])}…). A refusal with a key is one a reader meets."
+        )
+
+
 def test_a_refusals_hint_is_said_where_it_has_one() -> None:
     """The hint rides at `<key>.hint` by convention. A key whose English carries a hint
     and whose catalogue does not would say the sentence and drop the way out of it."""
