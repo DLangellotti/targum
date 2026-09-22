@@ -183,3 +183,93 @@ def test_the_command_applies_the_correction_and_keeps_the_judgement(
     )
     empty = runner.invoke(app, ["corrections", "--stage", "lemma", "--store", str(db)])
     assert "No corrections yet." in empty.output
+
+
+# -- the candidate gold set (targum-internal#164, acceptance 4) -------------------------
+
+
+def _judged(store: Store, who: str, after: str, term: str = "עם", stage: str = "gloss") -> int:
+    return store.correct(stage, who=who, term=term, language="he", target="en", after=after)
+
+
+def test_two_kinds_of_judge_agreeing_is_a_candidate_gold_row(tmp_path: Path) -> None:
+    """Acceptance 4: a gold example once a second judge agrees. The author grounded it by
+    hand and a reader's tap bought the same sense back — two roles, reached apart."""
+    store = Store(tmp_path / "words.db")
+    assert store.agreed() == []
+    _judged(store, "author", "with")
+    _judged(store, "reader", "with")
+    found = store.agreed()
+    assert len(found) == 1
+    row = found[0]
+    assert row["term"] == "עם" and row["after"] == "with"
+    assert row["judges"] == 2 and row["seen"] == 2
+    assert sorted(str(row["roles"]).split(",")) == ["author", "reader"]
+
+
+def test_one_role_twice_is_one_judge(tmp_path: Path) -> None:
+    """`who` is a role and never a person, so two `reader` rows may be one reader twice.
+    Counting rows would call that corroboration; counting roles does not. Smaller and
+    never wrong — the alternative needs an anonymised judge id the table does not keep."""
+    store = Store(tmp_path / "words.db")
+    _judged(store, "reader", "with")
+    _judged(store, "reader", "with")
+    assert store.agreed() == [], "the same role twice is not a second judge"
+    _judged(store, "editor", "with")
+    assert len(store.agreed()) == 1, "and a different role is"
+
+
+def test_the_model_is_not_a_judge(tmp_path: Path) -> None:
+    """This card is every *human* judgement. A sense the model produced agreeing with a
+    person is not two people agreeing."""
+    store = Store(tmp_path / "words.db")
+    _judged(store, "author", "with")
+    _judged(store, "model", "with")
+    assert store.agreed() == []
+
+
+def test_a_deletion_is_not_a_gold_answer(tmp_path: Path) -> None:
+    """`after = ''` says the old gloss was wrong and offers nothing to stand instead, so
+    there is no example in it. Two judges agreeing to delete is a different question."""
+    store = Store(tmp_path / "words.db")
+    _judged(store, "author", "")
+    _judged(store, "editor", "")
+    assert store.agreed() == []
+
+
+def test_judges_agree_only_on_the_same_answer_for_the_same_word(tmp_path: Path) -> None:
+    """Two people correcting one word to two different senses is a disagreement, and the
+    set must not quietly hold both."""
+    store = Store(tmp_path / "words.db")
+    _judged(store, "author", "with")
+    _judged(store, "reader", "people")
+    assert store.agreed() == []
+    _judged(store, "editor", "with", term="אחר")
+    _judged(store, "author", "with", term="אחר")
+    assert [row["term"] for row in store.agreed()] == ["אחר"]
+
+
+def test_the_agreed_set_can_be_narrowed_to_one_stage_and_written_out(tmp_path: Path) -> None:
+    import json as json_module
+
+    db = tmp_path / "words.db"
+    store = Store(db)
+    _judged(store, "author", "with")
+    _judged(store, "reader", "with")
+    _judged(store, "author", "רוצה", term="שרוצים", stage="lemma")
+    _judged(store, "editor", "רוצה", term="שרוצים", stage="lemma")
+    assert len(store.agreed()) == 2
+    assert [row["term"] for row in store.agreed("lemma")] == ["שרוצים"]
+
+    runner = CliRunner()
+    out = tmp_path / "gold.json"
+    said = runner.invoke(app, ["corrections", "--agreed", "--out", str(out), "--store", str(db)])
+    assert said.exit_code == 0, said.output
+    written = json_module.loads(out.read_text(encoding="utf-8"))
+    assert len(written) == 2 and {row["term"] for row in written} == {"עם", "שרוצים"}
+    assert "2 judges" in said.output
+
+    quiet = runner.invoke(
+        app, ["corrections", "--agreed", "--stage", "pointing", "--store", str(db)]
+    )
+    assert "Nothing two kinds of judge have agreed on yet." in quiet.output

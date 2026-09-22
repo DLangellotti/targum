@@ -2216,13 +2216,43 @@ def correct_command(
 def corrections_command(
     stage: Annotated[str, typer.Option("--stage", help="gloss, lemma, pointing…")] = "",
     limit: Annotated[int, typer.Option("--limit", help="How many, newest first.")] = 50,
+    agreed: Annotated[
+        bool,
+        typer.Option("--agreed", help="Only what two kinds of judge reached independently."),
+    ] = False,
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write the candidate gold set here, as JSON.")
+    ] = None,
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
-    """The judgements written down so far, newest first (targum-internal#164)."""
+    """The judgements written down so far, newest first (targum-internal#164).
+
+    `--agreed` answers with the candidate gold set instead: one line per judgement that
+    two *different roles* reached independently. A model is not a judge, a deletion is
+    not an answer, and two rows of one role count once — `Store.agreed` says why each of
+    those throws rows away. `--out` writes the same set as JSON for the harness to read.
+    """
     from .accounts import Store
     from .serve import default_store
 
-    rows = Store(store or default_store()).corrections(stage, limit)
+    keeping = Store(store or default_store())
+    if agreed:
+        found = keeping.agreed(stage)
+        if out is not None:
+            out.write_text(json.dumps(found, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            console.print(f"[green]Wrote[/green] {len(found)} agreed judgements to {out}")
+        if not found:
+            console.print("[dim]Nothing two kinds of judge have agreed on yet.[/dim]")
+            return
+        for one in found:
+            console.print(
+                f"{one['stage']} {one['language']}>{one['target']} "
+                f"[bold]{one['term']}[/bold]: {one['after']!r} "
+                f"[dim]{one['judges']} judges — {one['roles']}[/dim]"
+            )
+        return
+
+    rows = keeping.corrections(stage, limit)
     if not rows:
         console.print("[dim]No corrections yet.[/dim]")
         return
