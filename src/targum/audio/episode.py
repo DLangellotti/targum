@@ -64,10 +64,14 @@ def find(url: str) -> Episode | None:
     if host.endswith("spotify.com"):
         # Spotify's page offers a one-minute preview as og:audio, and a reader handed
         # a minute titled as the episode has been lied to. The show exists elsewhere.
+        # The way on names the description box since targum-internal#253 built it:
+        # saying what the episode is and pressing Continue looks for it where it can be
+        # had. Offered, never run — the press is the reader's (targum-internal#252).
         raise UnsupportedSource(
             "Spotify keeps its audio to itself, so we can't fetch it.",
-            "Paste the show's page on Apple Podcasts, its RSS feed, or the episode's "
-            "own site instead.",
+            "Paste the show's page on Apple Podcasts, its RSS feed or the episode's own "
+            "site — or say what the episode is and press Continue, and we'll look.",
+            key="episode.spotify",
         )
     apple = _APPLE.search(url)
     if apple:

@@ -29,7 +29,6 @@
   "add.page.translation": "Translation",
   "add.page.translations-in": "Translations in",
   "add.page.we-can-read-books-articles-podcasts-videos": "We can read books, articles, podcasts, videos, voice notes, subtitles and photos of pages.",
-  "add.page.we-can-t-add-scanned-pdfs-protected": "We can't add protected audiobooks (.aax), Spotify or anything behind a login. A recording or a video uses some of your hours.",
   "add.page.we-ll-make-one": "We'll make one",
   "add.page.we-ll-translate-it-sentence-by-sentence": "We'll translate it, sentence by sentence.",
   "add.page.we-ll-write-down-what-s-said": "We'll write down what's said, part by part.",
@@ -1853,5 +1852,10 @@
   "add.found.known.one": "{n} word in ten you know",
   "add.found.known.other": "{n} words in ten you know",
   "add.continue.describe": "Continue reads a link, a file or the text itself — or describe what you want and we'll look, which is a turn of conversation.",
-  "add.description.look": "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your hours."
+  "add.description.look": "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your hours.",
+  "episode.spotify": "Spotify keeps its audio to itself, so we can't fetch it.",
+  "episode.spotify.hint": "Paste the show's page on Apple Podcasts, its RSS feed or the episode's own site — or say what the episode is and press Continue, and we'll look.",
+  "upload.protected": "This file is protected, so we can't read it.",
+  "upload.protected.hint": "If you have the book as an ordinary audio file, drop that in instead — or say what it is and press Continue, and we'll look.",
+  "add.page.a-recording-or-a-video-uses-some": "A recording or a video uses some of your hours."
 }

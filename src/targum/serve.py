@@ -7439,7 +7439,15 @@ class Handler(BaseHTTPRequestHandler):
         """
         suffix = Path(name).suffix.lower()
         if suffix in {".aax", ".aa"}:
-            raise TargumError("This file is protected, so we can't read it.")
+            # A way on rather than a wall (targum-internal#252). There is no lawful way
+            # through the protection and targum does not pretend otherwise; what it can
+            # say is where the same book might be had unprotected.
+            raise TargumError(
+                "This file is protected, so we can't read it.",
+                "If you have the book as an ordinary audio file, drop that in instead — "
+                "or say what it is and press Continue, and we'll look.",
+                key="upload.protected",
+            )
         if suffix not in self.READABLE:
             raise TargumError(
                 f"We can't read '{suffix}' files. Save it as plain text or "

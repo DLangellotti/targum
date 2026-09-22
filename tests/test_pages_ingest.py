@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -310,35 +311,47 @@ def test_only_as_many_pages_as_the_reader_was_quoted_are_rendered(tmp_path: Path
     assert len(made) == 1 and made[0].name == "p001.png"
 
 
-def test_the_add_page_does_not_claim_a_limit_the_code_no_longer_has() -> None:
-    """targum-internal#252. The Add page named its refusals in advance, and one of them
-    stopped being true when the rasteriser shipped: *"We can't add scanned PDFs"*, on a
-    product that refuses a scan once and then offers a button that reads its pages.
+def test_the_add_page_names_no_refusal_before_it_is_met() -> None:
+    """targum-internal#252, finished 2026-09-22. The page listed its refusals in advance
+    — scanned PDFs, .aax, Spotify, anything behind a login — and the list was the weaker
+    half twice over.
 
-    A page that tells a reader targum cannot do a thing it can do costs more than a page
-    that says nothing — they do not try, and nothing ever corrects them. The other three
-    are still true, and Spotify's own sentence waits on the description card (#253).
+    It was **wrong**: the rasteriser shipped and the box installs the extra that reads a
+    scan (`deploy.sh` puts `bring` in the install), so the page went on telling readers
+    targum could not do a thing it could. And it was in **the wrong place**: a reader met
+    the list before they had anything to add, and met silence at the moment it mattered.
 
-    Asserted against the string and the template together, because the template carries
-    the English as `t()`'s fallback and a reader with no catalogue sees that one.
+    Each of the four says itself where it happens now, with the way on. What is left of
+    that paragraph is the sentence about hours, which was never a refusal.
     """
     import json
 
     root = Path(__file__).parents[1] / "src" / "targum"
-    key = "add.page.we-can-t-add-scanned-pdfs-protected"
-    english = json.loads((root / "strings" / "en.json").read_text(encoding="utf-8"))[key]
-    template = (root / "render" / "templates" / "add.html.j2").read_text(encoding="utf-8")
+    english = json.loads((root / "strings" / "en.json").read_text(encoding="utf-8"))
+    # Jinja comments stripped first: a comment is not drawn, and the one above this
+    # paragraph names all four refusals in order to explain where they went.
+    template = re.sub(
+        r"\{#.*?#\}",
+        "",
+        (root / "render" / "templates" / "add.html.j2").read_text(encoding="utf-8"),
+        flags=re.S,
+    )
 
-    for said, where in ((english, "the catalogue"), (template, "the template fallback")):
-        assert "scanned PDF" not in said, f"{where} still refuses scans"
-    # And the three that are still true are still said.
-    for limit in (".aax", "Spotify", "behind a login"):
-        assert limit in english, limit
+    drawn = english["add.page.a-recording-or-a-video-uses-some"]
+    assert drawn == "A recording or a video uses some of your hours."
+    # Asserted against the template as well as the catalogue, because the template
+    # carries the English as `t()`'s fallback and a reader with no catalogue sees that.
+    for said, where in ((drawn, "the catalogue"), (template, "the template")):
+        for named in ("scanned PDF", "Spotify", ".aax", "behind a login"):
+            assert named not in said, f"{where} still refuses {named} in advance"
 
-    # The thing that makes the claim false: the rasteriser exists and the box installs
-    # the extra it needs. Read from deploy.sh rather than asserted from memory.
-    deploy = (Path(__file__).parents[1] / "deploy" / "deploy.sh").read_text(encoding="utf-8")
-    assert "bring" in deploy, "the box must install the extra that reads a scan"
+    # And the retired string is gone rather than left saying nothing.
+    assert "add.page.we-can-t-add-scanned-pdfs-protected" not in english
+
+    # Each refusal carries its own way on, where it happens.
+    assert english["episode.spotify.hint"].endswith("and we'll look.")
+    assert "drop that in instead" in english["upload.protected.hint"]
+    assert "paste the text into the box" in english["fetch.needs-a-sign-in.hint"]
     from targum.ingest import pdf as pdf_module
 
-    assert hasattr(pdf_module, "rasterise")
+    assert hasattr(pdf_module, "rasterise"), "the scan's way on is a real button"
