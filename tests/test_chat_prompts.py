@@ -333,3 +333,62 @@ def test_the_cached_half_of_the_prompt_names_no_language_of_its_own() -> None:
     assert "How you write to the reader" in prompts.SYSTEM
     assert "How you write English" not in prompts.SYSTEM
     assert "its meaning beside it" in prompts.SYSTEM
+
+
+# -- the contract is written for the reader's language (targum-internal#286 item 4) ------
+
+
+def test_the_calques_named_are_the_ones_this_reader_would_be_pulled_into() -> None:
+    """The four calques named were English ones, on a contract handed to every reader.
+    A Russian reader is pulled two ways, not one — and only one of them was named.
+
+    The English list stays whatever the reader reads: the model's own pull toward
+    English does not weaken because the person on the other side is Russian. The
+    reader's-language list is the *second* pull, and it exists only for a reader who has
+    a second language to be pulled by.
+    """
+    from targum.chat import hebrew
+
+    russian = " ".join(hebrew.contract("Russian").split())
+    english = " ".join(hebrew.contract("English").split())
+
+    # Both pulls are named for a Russian reader.
+    assert 'not "אָז נַגִּיד אֶת זֶה יָשִׁיר" for "let\'s say it straight"' in russian
+    assert "do not think of a Russian sentence and translate it either" in russian
+    assert "«сделать фотографию»" in russian and "לְצַלֵּם" in russian
+    assert "«сколько тебе лет»" in russian and "בֶּן כַּמָּה אַתָּה" in russian
+    assert "«заниматься спортом»" in russian
+
+    # And an English reader's contract is what it was: no Russian in it anywhere.
+    assert "Russian" not in english
+    assert "сделать" not in english
+
+    # A language nothing has been written for falls back to the contract as it was,
+    # rather than to an empty "and do not think of a … sentence" with nothing after it.
+    french = " ".join(hebrew.contract("French").split())
+    assert "do not think of a French sentence" not in french
+    assert 'not "מַדָּף הַתְחָלָה מְשׁוּתָּף" for "a shared starter shelf". Speak to the' in french
+
+
+def test_a_reader_who_has_said_their_gender_is_not_hedged_at() -> None:
+    """The contract knew one way to learn how to address somebody — the ledger — so a
+    Russian woman who wrote «я прочитала» went on being spoken to in forms that refuse to
+    choose. Her own sentence had already said, as plainly as the ledger would.
+
+    Never from a name, which is the one source that looks like an answer and is not.
+    """
+    from targum.chat import hebrew
+
+    russian = " ".join(hebrew.contract("Russian").split())
+    assert "«я прочитала» rather than «я прочитал»" in russian
+    assert "as plainly as the ledger would" in russian
+    assert "Never take it from a name." in russian
+
+    # The hedging forms are still there: they are what to do when nothing has said.
+    assert "an infinitive (כְּדַאי לִקְרוֹא)" in russian
+    assert "the first person plural (בּוֹאוּ נִקְרָא)" in russian
+
+    # An English reader gets the rule without a Russian example they could not read.
+    english = " ".join(hebrew.contract("English").split())
+    assert "a gendered form of their own in any language they write in" in english
+    assert "прочитала" not in english
