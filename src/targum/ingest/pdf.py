@@ -179,6 +179,24 @@ def _title(path: Path, pages: list[list[str]]) -> str | None:
     return None
 
 
+def _pymupdf() -> Any:
+    """PyMuPDF, or the sentence to say where the extra is not installed.
+
+    Held as `Any` the way `vision._pillow` is: the library ships no type information, and
+    under strict mypy a call into a typed name would be an untyped call in a typed
+    context. Imported here rather than at the top so a box that never reads a scan never
+    loads it — which is also what keeps its AGPL off an install that does not use it.
+    """
+    try:
+        import pymupdf
+    except ImportError as missing:  # pragma: no cover - the extra is installed in CI
+        raise TargumError(
+            "This PDF is a scan, and reading scans is not installed here.",
+            "Install the `bring` extra.",
+        ) from missing
+    return pymupdf
+
+
 def rasterise(path: Path, into: Path, most: int, dpi: int = 200) -> list[Path]:
     """A scanned PDF's pages as pictures, so the model can read what the text layer has
     not got (targum-internal#252).
@@ -197,17 +215,9 @@ def rasterise(path: Path, into: Path, most: int, dpi: int = 200) -> list[Path]:
     well inside the model's own ceiling on a side, so nothing is paid for pixels that are
     scaled away before they are read.
     """
-    try:
-        import pymupdf
-    except ImportError as missing:  # pragma: no cover - the extra is in CI
-        raise TargumError(
-            "This PDF is a scan, and reading scans is not installed here.",
-            "Install the `bring` extra.",
-        ) from missing
-
     into.mkdir(parents=True, exist_ok=True)
     made: list[Path] = []
-    with pymupdf.open(path) as document:
+    with _pymupdf().open(path) as document:
         for number, page in enumerate(document, start=1):
             if number > most:
                 break
