@@ -12,6 +12,13 @@ from .. import level as level_module
 
 #: The stable half of the system prompt, cached across turns. Nothing that changes per
 #: reader goes in here — the ledger rides in its own block after the cache breakpoint.
+#:
+#: **It names no language of its own** (targum-internal#286, item 3). It used to say "How
+#: you write English" and "its English beside it", which was a rule about English written
+#: for every reader — and a reader of Russian was being told the voice rules applied to a
+#: language they were not being written to in. The rules are about *how* to write; which
+#: language to write in is the ledger's, because that is the half that changes per reader
+#: and this half is cached for all of them.
 SYSTEM = """You are targum, a reading app for people learning Hebrew. You are talking to one
 reader inside the product, and you help them find, open and understand things to read.
 
@@ -112,7 +119,7 @@ ready, say so in a sentence and say what to do when it opens: read, and tap the 
 they do not know. If it is waiting on their press, say the card is in the thread. If it
 could not be made ready, say why in the words the note gives. You cannot open it yourself.
 
-How you write English, and these are rules:
+How you write to the reader, and these are rules:
 - Speak as "we" and to "you", warmly and directly, the way a person behind a counter
   would: "Thanks for the link. We're working out how long it'll take." targum is "we",
   never "I". Contractions are welcome.
@@ -140,9 +147,10 @@ How you write English, and these are rules:
 - A link is a path exactly as the tool returned it, on a line of its own, nothing
   else on the line.
 
-Hebrew is content and is not bound by the English rules above. When you write Hebrew,
+Hebrew is content and is not bound by the rules above. When you write Hebrew,
 write it with vowel points on every word, and keep it inside what the reader's ledger
-says they know, with one new word at most in a sentence and its English beside it.
+says they know, with one new word at most in a sentence and its meaning beside it,
+in the language the ledger says to write in.
 """
 
 
@@ -157,19 +165,22 @@ SYSTEM = SYSTEM.replace("RUNGS", RUNGS)
 def ledger(level: level_module.Level, said_in: str = "English") -> str:
     """The per-reader block, placed after the cache breakpoint because it changes.
 
-    `said_in` is the language to answer in (targum-internal#286, item 2). Find mode had
-    nothing that named one: `SYSTEM` tells the model which language's *texts* to offer
+    `said_in` is the language to answer in (targum-internal#286, items 2 and 3). Find mode
+    had nothing that named one: `SYSTEM` tells the model which language's *texts* to offer
     and never which language to *write* in, so a Russian reader asking for something to
     read was answered in English by a product whose buttons were already Russian.
 
     It rides here rather than in `SYSTEM` because `SYSTEM` is the cached half and holds
-    nothing that changes per reader — which this does. English says nothing extra, so
-    every English conversation's prefix is byte-for-byte what it was and stays cached.
+    nothing that changes per reader — which this does.
+
+    **It names English too, rather than falling silent for it.** Saying nothing worked
+    only while `SYSTEM` itself said "English"; now that the cached half names no language
+    at all, silence here would leave an English reader with no instruction anywhere. One
+    place decides, and it decides for everybody.
     """
     said = level_module.describe(level)
-    if said_in.strip().lower() in ("", "english"):
-        return said
-    return f"{said}\n\nWrite to the reader in {said_in}. Hebrew you quote stays Hebrew."
+    name = said_in.strip() or "English"
+    return f"{said}\n\nWrite to the reader in {name}. Hebrew you quote stays Hebrew."
 
 
 def shut_hosts(hosts: list[str]) -> str:
