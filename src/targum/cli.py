@@ -2557,13 +2557,22 @@ def licences() -> None:
     # (targum-internal#234). Nothing was closed; the count of what is owed was simply
     # short by that many.
     disagree: list[tuple[str, str, str]] = []
+    #: A licence recorded with no URL to re-check it against (targum-internal#355).
+    #: Asked of the rendering's own `licence_url` and never of its row's: the Russian
+    #: Torah is Sefaria's Hebrew under a rendering off a Russian State Library scan, so
+    #: the row's URL is a claim about a different work.
+    unbacked: list[tuple[str, str, str]] = []
     try:
         from .catalogue import everything
 
         for entry in everything():
             rows.append(("text", entry.id, entry.licence))
+            if entry.licence and not entry.licence_url:
+                unbacked.append(("text", entry.id, entry.licence))
             for beside in entry.translations:
                 rows.append(("translation", f"{entry.id} · {beside.name}", beside.licence))
+                if beside.licence and not beside.licence_url:
+                    unbacked.append(("translation", f"{entry.id} · {beside.name}", beside.licence))
                 if _worse(beside.licence, entry.licence):
                     disagree.append(
                         (
@@ -2639,6 +2648,31 @@ def licences() -> None:
             console.print(f"  [dim]{kind}[/dim]  {name}")
         if len(unchecked) > 12:
             console.print(f"  [dim]… and {len(unchecked) - 12} more[/dim]")
+
+    # A licence with no URL behind it (targum-internal#355). Reported apart from the
+    # block above because it is a different complaint: those have nothing written down
+    # at all, these have a claim that cannot be re-checked — which is the reason
+    # LICENSING.md asks for the URL verbatim. Quieter than `unknown`, since the licence
+    # *is* recorded; louder than silence, since a shelf that cannot be re-checked is one
+    # somebody researches a second time.
+    if unbacked:
+        # Split in the heading, because the two halves are different work: a row's URL
+        # is a research question and a rendering's is usually the same page the row was
+        # read off — and until 2026-09-22 a rendering could not carry one at all, so
+        # every rendering on the shelf is in this count by construction rather than by
+        # anybody's omission.
+        kinds: dict[str, int] = {}
+        for kind, _name, _licence in unbacked:
+            kinds[kind] = kinds.get(kind, 0) + 1
+        split = ", ".join(f"{count} {kind}" for kind, count in sorted(kinds.items()))
+        console.print(
+            f"\n[yellow]{len(unbacked)} with a licence and no URL behind it[/yellow] "
+            f"[dim]({split})[/dim]"
+        )
+        for kind, name, licence in unbacked[:12]:
+            console.print(f"  [dim]{kind}[/dim]  {name}  [dim]{licence}[/dim]")
+        if len(unbacked) > 12:
+            console.print(f"  [dim]… and {len(unbacked) - 12} more[/dim]")
 
 
 def _worse(translated: str, source: str) -> bool:
