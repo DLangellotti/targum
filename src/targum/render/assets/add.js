@@ -415,9 +415,13 @@
         : t("add.few", "A few words. We'll read them as a text.");
     }
     if (read.kind === "description") {
-      return talks()
-        ? t("add.description.talks", "That sounds like what you want to read. Ask targum and we'll look for it.")
-        : t("add.description", "That sounds like what you want to read. Paste a link or the text itself here.");
+      // Said *before* the press, because the press is what spends: looking is a turn of
+      // conversation and is metered like one (targum-internal#253). The old line sent
+      // them to the drawer; Continue does it in place now.
+      return t(
+        "add.description.look",
+        "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your hours."
+      );
     }
     if (read.kind === "foreign") {
       var code = adding();
@@ -715,6 +719,140 @@
         go.click();
       }
     });
+  }
+
+  /* --- a description, looked for in place (targum-internal#253) ------------------- */
+
+  /* One turn of conversation on Add itself, rather than handed to the drawer. The turn
+     is a `job` row of kind `chat` like any other — it goes through `/chat/say`, which is
+     the same door the composer uses, so the rails see it and the allowance is charged
+     once.
+
+     What comes back is **found**, not quoted: titles, links and what the feed's own hook
+     said about each. Nothing has been fetched and nothing priced. Choose puts the link
+     in the box and presses Continue, so the card and the price a chosen result gets are
+     not a copy of the pasted-link path — they are that path. */
+
+  // The page already has a `clock`, further down and better than the one I wrote:
+  // it carries hours and pads its minutes. Two would have been one too many, and
+  // the second would have been the one nobody saw — a function declaration hoists,
+  // so the later of two in a scope is the one that runs.
+  var looking = null;
+
+  function foundCard(row) {
+    var card = document.createElement("div");
+    card.className = "found-result";
+    var head = document.createElement("p");
+    head.className = "found-title";
+    head.textContent = row.title || row.link;
+    card.appendChild(head);
+
+    var facts = [];
+    var medium = {
+      podcast: t("add.found.recording", "a recording"),
+      video: t("add.found.video", "a video"),
+      news: t("add.found.article", "an article"),
+    }[String(row.kind || "")];
+    if (medium) facts.push(medium);
+    if (row.publisher) facts.push(String(row.publisher));
+    if (row.seconds) facts.push(clock(row.seconds));
+    if (row.known_share !== null && row.known_share !== undefined) {
+      facts.push(
+        tn("add.found.known", Math.round(row.known_share * 10), "{n} word in ten you know", "{n} words in ten you know", {
+          n: Math.round(row.known_share * 10),
+        })
+      );
+    }
+    if (facts.length) {
+      var said = document.createElement("p");
+      said.className = "found-facts";
+      said.textContent = facts.join(" \u00b7 ");
+      card.appendChild(said);
+    }
+
+    var choose = document.createElement("button");
+    choose.type = "button";
+    choose.className = "ghost";
+    choose.textContent = t("add.found.choose", "Choose");
+    choose.onclick = function () {
+      // The box, then Continue: the same path a pasted link takes, because it is that
+      // path. Nothing about a chosen result is priced here.
+      given.value = String(row.link || "");
+      // The box changed by script, so the handlers that read it are told:  is
+      // what an  event runs, and Continue reads what it leaves behind.
+      settle();
+      go.click();
+    };
+    card.appendChild(choose);
+    return card;
+  }
+
+  function look(text) {
+    if (looking) return;
+    looking = text;
+    say(line(t("add.looking", "We're looking\u2026")));
+    ask("/chat/say", { text: text })
+      .then(function (asked) {
+        if (asked.error) throw new Error(asked.error);
+        return wait(asked.chat, asked.turn);
+      })
+      .then(function (state) {
+        looking = null;
+        drawFound(state);
+      })
+      .catch(function (error) {
+        looking = null;
+        say(line(String((error && error.message) || t("add.could-not-send", "We couldn't send that. Try again."))), true);
+      });
+  }
+
+  function wait(chat, n) {
+    return new Promise(function (settle, fail) {
+      var tries = 0;
+      (function poll() {
+        ask("/chat/turn/" + encodeURIComponent(chat) + "/" + n)
+          .then(function (state) {
+            if (state.error && state.done) return fail(new Error(state.error));
+            if (state.done) {
+              state.chat = chat;
+              state.n = n;
+              return settle(state);
+            }
+            if (++tries > 90) return fail(new Error(t("add.looking.slow", "That took too long. Try again.")));
+            setTimeout(poll, 800);
+          })
+          .catch(fail);
+      })();
+    });
+  }
+
+  function drawFound(state) {
+    var rows = state.found || [];
+    var box = document.createDocumentFragment();
+    if (!rows.length) {
+      // The turn still cost what it cost, so it is still said. A search that found
+      // nothing is an answer, and the model's own words are the best thing to show.
+      box.appendChild(line(state.text ? plain(state.text) : t("add.looking.nothing", "We didn't find anything for that. Try different words, or paste a link.")));
+    } else {
+      box.appendChild(line(t("add.looking.found", "What we found")));
+      rows.forEach(function (row) {
+        box.appendChild(foundCard(row));
+      });
+    }
+    // What the turn cost, after it is over and never before (targum-internal#253). In
+    // the clock the rest of the page uses, never in money: design.md §10 takes that
+    // position and this page keeps it.
+    ask("/job/chat-" + encodeURIComponent(state.chat) + "-" + state.n)
+      .then(function (job) {
+        if (!job || !job.seconds) return;
+        box.appendChild(
+          line(t("add.looking.cost", "Looking used {clock} of your hours.", { clock: clock(job.seconds) }))
+        );
+        say(box);
+      })
+      .catch(function () {
+        say(box);
+      });
   }
 
   // Said in the conversation, by the reader's own press: a description is a turn of it.
@@ -1215,9 +1353,17 @@
       prepared = withTranslation(payload).then(function (body) {
         return ask("/prepare", body);
       });
+    } else if (read.kind === "description") {
+      // A description is looked for in place (targum-internal#253). One turn of
+      // conversation, on the rails every turn is on — the line under the box says so
+      // before this press, and what it cost is said after. Nothing here is priced and
+      // nothing is fetched: what comes back is titles and links, and the price arrives
+      // only when the reader chooses one.
+      go.disabled = false;
+      return look(read.text);
     } else {
-      // A description is never priced: it is a request, and Ask targum is where it
-      // goes. Words in another script are not a text targum reads.
+      // Words in another script are not a text targum reads, and an empty box is not
+      // one either.
       if (read.kind !== "link") {
         go.disabled = false;
         // What to do instead, not the line under the box said a second time in red.

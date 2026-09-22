@@ -1843,5 +1843,15 @@
   "waitlist.note.you-are-on": "You're on the list. We'll email you when it's your turn.",
   "waitlist.note.taken-off": "We've taken you off the waitlist.",
   "mail.waitlist.subject": "Confirm your place on the targum waitlist",
-  "mail.waitlist.body": "Press the button on this page and you're on the list:\n\n{link}\n\nWe're opening in small groups, and we'll email you when it's your turn.\n\nIf you did not ask for this, nothing has happened and you can ignore this.\n"
+  "mail.waitlist.body": "Press the button on this page and you're on the list:\n\n{link}\n\nWe're opening in small groups, and we'll email you when it's your turn.\n\nIf you did not ask for this, nothing has happened and you can ignore this.\n",
+  "add.looking": "We're looking…",
+  "add.looking.found": "What we found",
+  "add.looking.nothing": "We didn't find anything for that. Try different words, or paste a link.",
+  "add.looking.slow": "That took too long. Try again.",
+  "add.looking.cost": "Looking used {clock} of your hours.",
+  "add.found.choose": "Choose",
+  "add.found.known.one": "{n} word in ten you know",
+  "add.found.known.other": "{n} words in ten you know",
+  "add.continue.describe": "Continue reads a link, a file or the text itself — or describe what you want and we'll look, which is a turn of conversation.",
+  "add.description.look": "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your hours."
 }

@@ -1595,3 +1595,72 @@ def test_a_link_that_is_not_a_film_leaves_nothing_to_remember(
         monkeypatch.setattr(tools, "describe_source", lambda ctx, args, f=found: f)
         feed = _turn_over(Script(_refusing("https://example.com/x", {})), library, store)
         assert [kind for kind, _ in feed.events if kind == "refused"] == [], found
+
+
+# -- what a search found, carried to the page (targum-internal#253) ----------------------
+
+
+def test_what_a_search_found_is_carried_to_the_page_and_is_not_a_quote() -> None:
+    """Add's description box draws the results itself rather than reading them out of
+    the model's prose, so `search_sources` puts its rows on the feed.
+
+    The distinction this rests on is the consent seam. A **quote** is a card with a
+    price on it and a button that spends; a **found** row is a title and a link, off a
+    feed's own hook, with nothing fetched and nothing priced. The card's acceptance says
+    a description never quotes or builds by itself — so these must not arrive as quotes,
+    and Choose is what turns one into a priced card.
+    """
+    import json
+
+    from targum.chat.session import FOUND_FIELDS, MOST_FOUND, _found_rows
+
+    said = json.dumps(
+        {
+            "count": 4,
+            "items": [
+                {
+                    "title": "A podcast",
+                    "link": "https://a.example/1",
+                    "publisher": "Kan",
+                    "kind": "podcast",
+                    "published": "2026-09-20",
+                    "seconds": 900,
+                    "licence": "CC-BY",
+                    "known_share": 0.72,
+                    "has_transcript": True,
+                },
+                {"title": "No link", "link": "", "kind": "news"},
+                {"title": "An article", "link": "https://b.example/2", "kind": "news"},
+                {"title": "A video", "link": "https://c.example/3", "kind": "video"},
+                {"title": "One too many", "link": "https://d.example/4", "kind": "news"},
+            ],
+        }
+    )
+    rows = _found_rows(said)
+
+    assert len(rows) == MOST_FOUND, "two or three, not a search-results page"
+    assert [row["title"] for row in rows] == ["A podcast", "An article", "A video"]
+    assert all(set(row) == set(FOUND_FIELDS) for row in rows)
+    # A field the tool carries for the model's benefit does not reach a browser because
+    # somebody added it.
+    assert all("has_transcript" not in row for row in rows)
+    # Nothing here is a price, a job or a button.
+    assert all(not {"id", "estimate", "quote"} & set(row) for row in rows)
+
+    # A row Choose could not act on is dropped rather than drawn as a dead button.
+    assert all(row["link"] for row in rows)
+
+    # And the medium rides along, which is what lets the page show more than one kind.
+    assert {row["kind"] for row in rows} == {"podcast", "news", "video"}
+
+
+def test_a_search_that_answers_nothing_useful_puts_nothing_on_the_feed() -> None:
+    """A tool result that is not what this expects leaves the page with no cards rather
+    than with a broken one — and never raises inside the turn, which would lose the
+    reply that was already paid for."""
+    from targum.chat.session import _found_rows
+
+    assert _found_rows("not json at all") == []
+    assert _found_rows('{"count": 0, "items": []}') == []
+    assert _found_rows('{"note": "no publishers"}') == []
+    assert _found_rows('{"items": ["a string, not a row"]}') == []

@@ -273,6 +273,20 @@ def run_turn(
                 quoted = json.loads(text).get("quote")
                 if quoted:
                     feed.put("quote", quoted)
+            if name == "search_sources" and not failed:
+                # What the search turned up, for a page that draws the results itself
+                # rather than reading them out of the model's prose (Add's description
+                # box, targum-internal#253). Free by construction: nothing here has been
+                # fetched, priced or claimed — a row is a title, a link and what the
+                # feed's own hook says about it, and the price arrives only when the
+                # reader chooses one and `/prepare` looks at it.
+                #
+                # Put on the feed and never returned to the model differently: the model
+                # sees exactly what it always saw. This is the same rows, carried to the
+                # page as well.
+                found = _found_rows(text)
+                if found:
+                    feed.put("found", {"items": found})
             if name == "describe_source":
                 # A film we could not fetch: the address is remembered by the page, so a
                 # video the reader downloads and drops into the `+` still links home to
@@ -353,6 +367,46 @@ def _count(usage: Usage, reply: Any) -> None:
             cache_read=int(getattr(got, "cache_read_input_tokens", 0) or 0),
             cache_write=int(getattr(got, "cache_creation_input_tokens", 0) or 0),
         )
+
+
+#: What a found row carries to the page. Named rather than passed whole, so a field
+#: added to `search_sources` for the model's benefit does not silently start reaching a
+#: browser — and so the page's card is a contract rather than whatever the tool returned
+#: that day (targum-internal#253).
+FOUND_FIELDS = (
+    "title",
+    "link",
+    "publisher",
+    "kind",
+    "published",
+    "seconds",
+    "licence",
+    "known_share",
+)
+
+#: How many results a description draws. The card asks for "two or three": more than a
+#: handful is a search-results page, which is the thing Add is not.
+MOST_FOUND = 3
+
+
+def _found_rows(text: str) -> list[dict[str, Any]]:
+    """The rows `search_sources` turned up, cut to what a card draws.
+
+    A row that has no link is dropped rather than drawn: Choose posts the link, so a
+    card without one is a button that cannot do anything.
+    """
+    try:
+        items = json.loads(text).get("items") or []
+    except (ValueError, AttributeError):
+        return []
+    rows = []
+    for item in items:
+        if not isinstance(item, dict) or not str(item.get("link") or "").strip():
+            continue
+        rows.append({field: item.get(field) for field in FOUND_FIELDS})
+        if len(rows) >= MOST_FOUND:
+            break
+    return rows
 
 
 def _refused_video(text: str, given: dict[str, Any]) -> str:

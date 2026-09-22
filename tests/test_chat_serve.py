@@ -714,3 +714,47 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
     monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
     assert call(port, "GET", f"/suggest?k={key}")[1] == {"suggestion": None}
     assert catalogue
+
+
+def test_a_turn_that_searched_carries_what_it_found_to_the_page(chatting) -> None:
+    """targum-internal#253. Add draws the results of a description itself rather than
+    reading them out of the model's prose, so the turn's state carries them.
+
+    Beside `quotes` and never inside it, which is the consent seam this card rests on: a
+    quote is a card with a price and a button that spends, and one of these is a title
+    and a link off a feed's own hook. A description that arrived as a quote would have
+    priced something nobody chose.
+    """
+    port, key, store, chats = chatting
+    _, asked, _ = call(
+        port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "something about food"}
+    )
+    chats.answer(chats.queue.get())
+
+    feed = chats.feed_for(asked["chat"], 1)
+    assert feed is not None
+    feed.put(
+        "found",
+        {
+            "items": [
+                {"title": "A podcast", "link": "https://a.example/1", "kind": "podcast"},
+                {"title": "An article", "link": "https://b.example/2", "kind": "news"},
+            ]
+        },
+    )
+
+    status, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
+    assert status == 200
+    assert [row["title"] for row in state["found"]] == ["A podcast", "An article"]
+    assert [row["kind"] for row in state["found"]] == ["podcast", "news"]
+    assert state["quotes"] == [], "found is not quoted: nothing has been priced"
+
+
+def test_a_turn_that_found_nothing_says_so_rather_than_leaving_the_key_out(chatting) -> None:
+    """The page reads `state.found` on every turn; a key that is sometimes absent is a
+    page that sometimes throws."""
+    port, key, _store, chats = chatting
+    _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "hello"})
+    chats.answer(chats.queue.get())
+    status, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
+    assert status == 200 and state["found"] == []
