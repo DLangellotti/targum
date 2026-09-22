@@ -80,3 +80,64 @@ def test_a_book_named_in_the_translation_titles_its_chapters_in_that_language() 
     assert russian.title == "Руфь" and headings[0] == "Руфь 1"
     assert next(b.ref for b in russian.blocks if b.kind is BlockKind.verse) == "Ruth 1:1"
     assert parallel.parallel_key(russian) == parallel.parallel_key(document("he"))
+
+
+# -- a commentary pairs with the book it comments on (targum-internal#200) --------------
+
+
+def test_a_commentary_keys_as_the_book_it_comments_on() -> None:
+    """A commentary is numbered *by* the book it comments on — that is what its reference
+    is — so it pairs with that book by construction, exactly as Onkelos does.
+
+    Without this it went to the machine aligner, which matches by similarity: a comment is
+    *about* a verse rather than a rendering of it, so the links would have been arbitrary
+    and nothing would have said so. Declared, `pair` links verse to verse and raises
+    rather than guessing if the two ever stop lining up.
+    """
+    from types import SimpleNamespace
+
+    from targum.align.parallel import parallel_key
+
+    def document(source: str) -> object:
+        return SimpleNamespace(ingester="sefaria/1", source=source)
+
+    base = parallel_key(document("sefaria:Genesis"))
+    assert parallel_key(document("sefaria:Rashi on Genesis")) == base
+    assert parallel_key(document("sefaria:arc:Genesis")) == base, "Onkelos still does too"
+    assert parallel_key(document("published:ru:Genesis")) == base, "and the Russian Torah"
+
+    # A commentary on something else keys on that something else, not on Genesis.
+    assert parallel_key(document("sefaria:Rashi on Berakhot")) == "sefaria:berakhot"
+
+    # And a book whose own name has small words in it is not mistaken for one.
+    assert parallel_key(document("sefaria:Song of Songs")) == "sefaria:song of songs"
+    assert parallel_key(document("sefaria:Ecclesiastes")) == "sefaria:ecclesiastes"
+
+
+def test_a_rashi_verse_is_one_unit_so_the_two_sides_still_count_the_same() -> None:
+    """The pairing only works because both sides count the same, and a verse of Rashi is
+    several comments joined. It survives because `BlockKind.verse` is in `UNSPLIT`: a
+    verse is never broken into sentences, however many full stops it has — and Rashi's
+    catchwords end in one, so a sentence split would have turned three verses into eleven
+    units and made the pairing impossible."""
+    import json
+    from pathlib import Path
+
+    from targum.ingest.fetch.sefaria import document_from_payload
+    from targum.models import BlockKind
+    from targum.segment.base import UNSPLIT
+
+    assert BlockKind.verse in UNSPLIT
+
+    fixture = Path(__file__).parent / "fixtures" / "sefaria" / "rashi-genesis-1.he.json"
+    body = json.loads(fixture.read_text(encoding="utf-8"))
+    payload = {
+        "edition": body["versions"][0],
+        "body": body,
+        "licence": "Public Domain",
+        "version": "x",
+    }
+    document = document_from_payload(payload, "Rashi on Genesis", "he")
+    verses = [block for block in document.blocks if block.kind is BlockKind.verse]
+    assert len(verses) == 3, "one unit a verse, whatever the comments number"
+    assert verses[0].text.count("\n") == 2, "and its comments are still separable"

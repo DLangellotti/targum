@@ -5519,3 +5519,32 @@ def test_a_verb_ships_the_other_verbs_built_on_its_root(tmp_path: Path) -> None:
     assert "נִפְגַּשׁ" not in family, "a verb is not its own sibling"
     # The empty row at 0 is kept, because `siblings` indexes into this and 0 means none.
     assert extensions["families"][0] == []
+
+
+# -- a commentary's comments are separated (targum-internal#200) ------------------------
+
+
+def test_only_a_commentary_keeps_the_breaks_between_its_comments() -> None:
+    """A verse of Rashi is several comments joined with a newline, each opening with the
+    words it comments on. In a line of prose a newline is whitespace, so they ran together
+    and read as one comment — three comments pretending to be one, which a reader cannot
+    tell is wrong.
+
+    Scoped to the rendering: a translation's line has no such structure, and a stray
+    newline in one should go on collapsing rather than breaking the line.
+    """
+    from targum.render.builder import _commentary_named
+
+    assert _commentary_named("Rashi on Genesis")
+    assert _commentary_named("Ramban on Exodus")
+    assert not _commentary_named("Genesis")
+    assert not _commentary_named("Song of Songs"), "a book's own name is not a commentary"
+    assert not _commentary_named("The Metsudah Chumash"), "nor a translation's"
+    assert not _commentary_named("")
+
+    css = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.css"
+    ).read_text(encoding="utf-8")
+    assert ".tr.commented { white-space: pre-line; }" in css
+    # And the plain rendering line is left as it was.
+    assert ".tr { max-width: var(--measure); color: var(--ink-soft); }" in css
