@@ -242,6 +242,22 @@ arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the contr
   now, and the list in that test is the registry — a new control belongs in it the day it
   is drawn.
 
+  **A line of text that answers a tap is not a control — 2026-09-22.** The rule is about
+  the chrome: keys, toggles, handles, the things drawn to be pressed. A passage that
+  reveals its translation when you tap it is text with a gesture on it, and the thing
+  being tapped is the sentence itself, at whatever height the sentence is. Giving it the
+  44px reach would put a floor under every line of a conversation and space out the
+  reading to satisfy a rule written for buttons.
+
+  So `.chat-pair` stays out of the registry, deliberately (targum-internal#241, David's
+  call). What it must keep instead is the *keyboard* path, because that is the access the
+  44px was standing in for: the pair is focusable and Enter toggles it, and the toggle at
+  the head of the thread reveals every pair at once for anyone who would rather not aim
+  at a line at all.
+
+  The test for whether something is a control: **would it still be there with nothing to
+  read?** A play key would. A line of Hebrew would not.
+
 ## 9 · Building screens
 
 The palette is warm, but screens must not be a wash of brown on beige. **Contrast is the
