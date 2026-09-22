@@ -1787,5 +1787,7 @@
   "recording.unreadable": "We couldn't read this audio file.",
   "recording.video-too-long": "That video is over 4 hours. Try a shorter one.",
   "recording.too-long": "That recording is over 12 hours. Try a shorter one.",
-  "fetch.would-not-open": "We couldn't open {url}."
+  "fetch.would-not-open": "We couldn't open {url}.",
+  "fetch.needs-a-sign-in": "{site} asks you to sign in, so we can't open it.",
+  "fetch.needs-a-sign-in.hint": "Open it yourself and paste the text into the box instead."
 }

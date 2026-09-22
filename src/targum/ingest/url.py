@@ -238,6 +238,30 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         if status >= 400:
             challenge = (response.headers.get("cf-mitigated") or "").lower() == "challenge"
             response.close()
+            if status == 401 and not challenge:
+                # A sign-in wall, named rather than counted (targum-internal#252). Only
+                # 401, which means exactly this. 403 is left where it was: it is what a
+                # geo-block, a bot check and a permissions rule all answer with, and an
+                # Israeli site returns it to any address outside Israel (2026-09-07), so
+                # telling that reader to sign in would send them after a door that is not
+                # there. Here the hint is a sentence and does travel: the way in is to
+                # paste the text, which is the whole point of naming the refusal.
+                raise Unreachable(
+                    f"{host} asks you to sign in, so we can't open it.",
+                    "Open it yourself and paste the text into the box instead.",
+                    status=status,
+                    host=host,
+                    challenge=challenge,
+                    via=via,
+                    key="fetch.needs-a-sign-in",
+                    # `site`, not `host`: `Unreachable` takes `host` as a field of its
+                    # own, so it never reaches `fill` and a translation naming `{host}`
+                    # would quietly fall back to English — the failure is silent, which
+                    # is why a test pins the Russian interpolating rather than the key
+                    # merely existing. The same reason `fetch.would-not-open` passes
+                    # `url=` beside the `host=` it also takes.
+                    site=host,
+                )
             raise Unreachable(
                 f"We couldn't open {url}.",
                 "a bot check, not a page" if challenge else f"HTTP {status}",

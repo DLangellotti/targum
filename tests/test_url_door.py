@@ -133,6 +133,41 @@ def test_a_bot_check_is_named_as_one_and_is_a_shut_door(monkeypatch: Any) -> Non
     assert "bot check" in (error.hint or "")
 
 
+def test_a_sign_in_wall_is_named_and_says_to_paste_the_text(monkeypatch: Any) -> None:
+    """targum-internal#252: a refusal says what to do instead. A 401 means exactly one
+    thing — the page wants an account — and the way in is the reader's own hands, so here
+    the hint is a sentence rather than a status code.
+
+    `site` rather than `host` in the blanks: `Unreachable` takes `host` as a field of its
+    own, so it never reaches `fill`, and a translation naming `{host}` would fall back to
+    English without saying so.
+    """
+    doors = Doors([Answer(401, {"www-authenticate": "Basic"})])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://paywall.example/a")
+    error = caught.value
+    assert error.key == "fetch.needs-a-sign-in"
+    assert error.fill == {"site": "paywall.example"}
+    assert "sign in" in error.message
+    assert "paste the text" in (error.hint or "")
+    # What Unreachable is for is untouched: still a shut door, with its status.
+    assert error.status == 401 and error.host == "paywall.example" and door.shut(error)
+
+
+def test_a_403_is_not_called_a_sign_in_wall(monkeypatch: Any) -> None:
+    """403 is what a geo-block, a permissions rule and a bot check all answer with — and
+    what an Israeli site returns to any address outside Israel (measured 2026-09-07). So
+    only 401 is named as a sign-in wall: telling a blocked reader to sign in would send
+    them after a door that is not there."""
+    doors = Doors([Answer(403)])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://blocked.example/a")
+    assert caught.value.key == "fetch.would-not-open"
+    assert caught.value.hint == "HTTP 403"
+
+
 def test_a_refused_knock_is_retried_once_through_the_proxy(monkeypatch: Any) -> None:
     monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
     doors = Doors(

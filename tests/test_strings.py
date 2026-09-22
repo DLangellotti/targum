@@ -493,3 +493,33 @@ def test_a_keyword_with_no_key_behind_it_is_a_mistake() -> None:
     # And the legitimate shapes still stand.
     assert TargumError("plain").fill == {}
     assert TargumError("named", key="a.key", url="u").fill == {"url": "u"}
+
+
+def test_the_sign_in_refusal_really_interpolates_in_russian() -> None:
+    """targum-internal#252's sign-in wall, against the **real** catalogue rather than a
+    fixture one.
+
+    Every other refusal test here writes its own `en.json`/`ru.json` into `tmp_path`,
+    which proves the machinery and cannot prove the shipped sentences. This one has to
+    ask the real catalogue, because the bug it guards is invisible to a fixture: the
+    blanks are filled from `error.fill`, and `Unreachable` eats `host`, `status`,
+    `challenge` and `via` as fields of its own. A translation naming `{host}` would raise
+    `KeyError` inside `say()`, get caught, and **fall back to English without a word** —
+    a Russian reader would simply never see Russian, and nothing would fail.
+    """
+    from targum.errors import Unreachable
+    from targum.serve import refused_in
+
+    wall = Unreachable(
+        "paywall.example asks you to sign in, so we can't open it.",
+        "Open it yourself and paste the text into the box instead.",
+        status=401,
+        host="paywall.example",
+        key="fetch.needs-a-sign-in",
+        site="paywall.example",
+    )
+    said = refused_in("ru", wall)
+    assert "paywall.example" in said, "the site is named, so the blank was really filled"
+    assert "{" not in said, "and no blank was left standing in the page"
+    assert said != refused_in("en", wall), "a Russian reader is not handed the English"
+    assert "войти" in said
