@@ -178,3 +178,57 @@ def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> Non
         store, ConsoleMailer(io.StringIO()), "https://targum.page", [PORTION], pause=0
     )
     assert report.sent == []
+
+
+# -- a series says its name in the reader's language (targum-internal#289) --------------
+
+
+def test_a_series_row_is_said_in_the_readers_language() -> None:
+    """The follow page drew "Weekly News Digest" beside a Russian interface. The names and
+    blurbs were hard-coded English in `series.py` and `daily/cycles.py`, so they were the
+    one row on that page that could not be anything else."""
+    from targum import series
+
+    row = {
+        "id": "weekly",
+        "name": "Weekly News Digest",
+        "hebrew": "מבט השבוע",
+        "what": "Hebrew news, written three ways, every week.",
+        "page": "/weekly",
+    }
+
+    english = series.said_in(row, "en")
+    assert english["name"] == "Weekly News Digest"
+    assert english["what"].startswith("Hebrew news")
+
+    russian = series.said_in(row, "ru")
+    assert russian["name"] == "Недельный обзор новостей"
+    assert russian["what"].startswith("Новости")
+    assert series.said_in(row, "ru-RU") == russian, "a regional tag is the language"
+
+    # The Hebrew name is the series' name in Hebrew and stays Hebrew in every language.
+    assert russian["hebrew"] == "מבט השבוע"
+    # And nothing else about the row moves.
+    assert russian["page"] == "/weekly"
+
+
+def test_a_series_with_nothing_written_for_it_keeps_its_english() -> None:
+    """English beside it is never wrong, only foreign — the same fallback the catalogue's
+    own names make."""
+    from targum import series
+
+    row = {"id": "nobody-wrote-this", "name": "A Series", "what": "What it is."}
+    for language in ("ru", "fr", "xx"):
+        assert series.said_in(row, language) == row
+
+
+def test_every_cycle_and_series_has_its_words_in_the_catalogue() -> None:
+    """Asked of the list rather than of a hand-written set, so a cycle added later is
+    covered the day it is added rather than the day somebody notices."""
+    from targum.daily.cycles import CYCLES
+    from targum.strings import catalogue
+
+    english = catalogue("en")
+    for slug in [cycle.slug for cycle in CYCLES] + ["weekly", "parasha"]:
+        for part in ("name", "what"):
+            assert f"series.{slug}.{part}" in english, f"series.{slug}.{part}"

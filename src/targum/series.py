@@ -144,12 +144,38 @@ def _daily() -> list[dict[str, Any]]:
     return out
 
 
-def current(schedule: str = "diaspora", *, public: bool = True) -> list[dict[str, Any]]:
+def said_in(row: dict[str, Any], language: str) -> dict[str, Any]:
+    """One series' row with its name and blurb in the reader's language.
+
+    Keyed on the series' own id — `series.weekly.name`, `series.tehillim.what` — and
+    falling back to the English written beside it, which is never wrong, only foreign.
+    The Hebrew name is not touched: it is the series' name in Hebrew and stays Hebrew in
+    every language (targum-internal#289).
+
+    Done here rather than inside each builder because every row already carries its id,
+    and one place that rewrites six rows is easier to keep true than three that each
+    remember to.
+    """
+    from .strings import catalogue
+
+    said = catalogue(language.split("-")[0].lower())
+    out = dict(row)
+    for part in ("name", "what"):
+        out[part] = said.get(f"series.{row['id']}.{part}") or row.get(part, "")
+    return out
+
+
+def current(
+    schedule: str = "diaspora", *, public: bool = True, language: str = "en"
+) -> list[dict[str, Any]]:
     """Every series, each with its current instalment where this box has one built.
 
     The portion and the cycles have pages only where the shelves are public; on a box that
     keeps them shut they are not offered, since a page nobody can reach is not a series to
     follow. The weekly's readers are on every shelf.
+
+    `language` is the reader's: the names and blurbs were English for everybody, on a row
+    the follow page draws beside a Russian interface (targum-internal#289).
     """
     found: list[dict[str, Any]] = []
     for name, ask in (
@@ -165,7 +191,7 @@ def current(schedule: str = "diaspora", *, public: bool = True) -> list[dict[str
             log.warning("series: %s unavailable: %s", name, error)
             continue
         found.extend(got if isinstance(got, list) else [got])
-    return found
+    return [said_in(row, language) for row in found]
 
 
 # -- telling followers (2026-09-11) --------------------------------------------------------
