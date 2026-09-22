@@ -141,7 +141,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 27
+SCHEMA_VERSION = 28
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -360,6 +360,13 @@ MIGRATIONS: tuple[str, ...] = (
     # When this reader accepted the contribution grant, or 0. It gates the control
     # rather than the recording: no grant, no way to offer a correction at all.
     "ALTER TABLE person ADD COLUMN granted INTEGER NOT NULL DEFAULT 0",
+    # The language the reader was following in (targum-internal#289), the way
+    # `waiting.language` records the door they came through. A follower is keyed by
+    # address and needs no account, so there is nowhere else to read it from at send
+    # time — and the mail and the page it leads to were English for everybody, beside a
+    # library the same reader had in Russian. Empty means English, which is what every
+    # row written before this held in fact.
+    "ALTER TABLE follow ADD COLUMN language TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -629,6 +636,10 @@ CREATE TABLE IF NOT EXISTS follow (
   ended      INTEGER NOT NULL DEFAULT 0,
   sent       INTEGER NOT NULL DEFAULT 0,
   instalment TEXT    NOT NULL DEFAULT '',
+  -- The language they were following in, as `waiting.language` is the door they came
+  -- through. Empty means English. There is no account behind a follow, so this is the
+  -- only place the mail and the stop page can learn which language to be in.
+  language   TEXT    NOT NULL DEFAULT '',
   PRIMARY KEY (email, series)
 );
 
@@ -1793,11 +1804,19 @@ class Store:
 
     # -- series (2026-09-11) ---------------------------------------------------------
 
-    def follow_series(self, email: str, series: str, on: bool = True) -> bool:
-        """Follow, or stop following, one series. Signed in, so nothing is confirmed."""
+    def follow_series(self, email: str, series: str, on: bool = True, language: str = "") -> bool:
+        """Follow, or stop following, one series. Signed in, so nothing is confirmed.
+
+        `language` is the one the reader was reading in when they pressed, kept so the
+        mail and the stop page can be in it (targum-internal#289). It is written on every
+        press rather than only the first, because a reader who changed language and
+        followed again means the new one; and it is never cleared on a stop, so somebody
+        who follows again after stopping keeps what they last said.
+        """
         address = tidy(email)
         if not address or not series:
             raise ValueError("No address or no series given.")
+        code = language.split("-")[0].lower() if language else ""
         with self.write() as db:
             if not on:
                 db.execute(
@@ -1807,11 +1826,20 @@ class Store:
                 return False
             db.execute(
                 """
-                INSERT INTO follow (email, series, state, stop, since)
-                VALUES (?, ?, 'on', ?, ?)
-                ON CONFLICT(email, series) DO UPDATE SET state = 'on', since = ?
+                INSERT INTO follow (email, series, state, stop, since, language)
+                VALUES (?, ?, 'on', ?, ?, ?)
+                ON CONFLICT(email, series)
+                    DO UPDATE SET state = 'on', since = ?, language = ?
                 """,
-                (address, series, secrets.token_urlsafe(TOKEN_BYTES), now(), now()),
+                (
+                    address,
+                    series,
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    now(),
+                    code,
+                    now(),
+                    code,
+                ),
             )
         return True
 
@@ -1822,18 +1850,30 @@ class Store:
         ).fetchall()
         return [str(row["series"]) for row in rows]
 
-    def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str]]:
-        """Everyone to mail about this instalment, with the token that stops it.
+    def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str, str]]:
+        """Everyone to mail about this instalment, with the token that stops it and the
+        language they follow in.
 
         Selected on "has not had this one", as the weekly's are, so a run that died
         halfway resumes and one started twice sends nothing the second time.
         """
         rows = self.db.execute(
-            "SELECT email, stop FROM follow WHERE series = ? AND state = 'on' "
+            "SELECT email, stop, language FROM follow WHERE series = ? AND state = 'on' "
             "AND (? = '' OR instalment != ?) ORDER BY since",
             (series, not_sent, not_sent),
         ).fetchall()
-        return [(str(row["email"]), str(row["stop"])) for row in rows]
+        return [(str(row["email"]), str(row["stop"]), str(row["language"] or "en")) for row in rows]
+
+    def following_language(self, token: str) -> str:
+        """The language behind a stop token, for the page it opens.
+
+        A stop link is followed with no session and no account — that is the whole point
+        of it — so the token is the only thing the page has to go on.
+        """
+        if not token:
+            return "en"
+        row = self.db.execute("SELECT language FROM follow WHERE stop = ?", (token,)).fetchone()
+        return str(row["language"] or "en") if row is not None else "en"
 
     def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
         with self.write() as db:

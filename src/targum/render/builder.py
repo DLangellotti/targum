@@ -2132,6 +2132,7 @@ def weekly_note(
     pending: dict[str, str] | None = None,
     heading: str = "the weekly",
     home: str = "/weekly",
+    language: str = "en",
 ) -> str:
     """A sentence back from the weekly's own door — or, since 2026-09-11, from a series'
     (`heading`, `home`): the same furniture, read out of a mail client.
@@ -2139,11 +2140,18 @@ def weekly_note(
     Separate from `weekly_page` because these are read in a mail client, arrived at from
     a link, by somebody who has no account and may never have seen targum. Nothing here
     needs JavaScript and nothing here is behind anything.
+
+    `language` is the reader's (targum-internal#289). `message` and `heading` are the
+    caller's words and are expected in it already; what this settles is the furniture —
+    the page's `lang`, the foot, and the door at the bottom — which took `t` from the
+    environment's English global and so was English on a page that was otherwise not.
     """
     return (
         _environment()
         .get_template("weekly-note.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
             title="the weekly — targum",
             description="A weekly digest of the news in Modern Hebrew, at three levels.",
             canonical=f"{address}/weekly" if address else "",

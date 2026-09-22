@@ -24,7 +24,7 @@ import pytest
 
 from targum.accounts import Store
 from targum.mail import ConsoleMailer
-from targum.serve import POLICY, Handler, Library
+from targum.serve import POLICY, Handler, Library, desk_languages
 
 
 class Postbox(io.StringIO):
@@ -74,6 +74,13 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "store": Store(tmp_path / "words.db"),
             "mailer": ConsoleMailer(postbox),
             "address": f"http://127.0.0.1:{port}",
+            # Which languages a desk page was rendered in, which the real server fills
+            # from `desk_languages()` at start-up. Left out here until 2026-09-22, and
+            # `_ui_language` reads it — so every reader in this fixture was English
+            # whatever their account said, and anything downstream of the interface
+            # language was being tested against a server that had none. Empty pages:
+            # `_desk` falls back to the English one, so nothing else here moves.
+            "translated": {code: {} for code in desk_languages()},
         },
     )
     server.RequestHandlerClass = handler
@@ -562,7 +569,10 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
     _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert me["learning"] == ["he", "yi"] and me["reads"] == ["en", "ru"]
 
-    # A source language they have not ticked is refused the same way.
+    # A source language they have not ticked is refused the same way — and in Russian,
+    # because English and Russian is what they just said they read, and that is the whole
+    # of what picks the interface language. It read English here until 2026-09-22, when
+    # the fixture began filling `translated` the way the real server does.
     status, answer, _ = call(
         port,
         "POST",
@@ -570,7 +580,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "en", "from": "arc"},
         cookie=cookie,
     )
-    assert status == 400 and answer["error"].startswith("Aramaic isn't in your profile")
+    assert status == 400 and "язык: Арамейский" in answer["error"]
 
 
 def test_the_switcher_s_language_is_kept_on_the_account(
@@ -3227,13 +3237,67 @@ def test_a_follower_can_stop_from_the_email_with_one_press(
     cookie = sign_in(port, postbox)
     call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
     book = Store(out.parent / "words.db")
-    ((email, stop),) = book.followers("parasha")
+    ((email, stop, said),) = book.followers("parasha")
+    assert said == "en", "the press was in English, so the way out is"
     status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
     assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
     assert book.followers("parasha"), "fetching the link spent nothing"
     status, body, _ = form(port, "/series/stop", {"t": stop})
     assert status == 200 and b"tell you about it again" in body
     assert book.followers("parasha") == []
+
+
+def test_a_russian_reader_is_followed_down_as_one(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The press is the only moment the language can be learnt — there is no account
+    behind a follow row — so the door has to write it down as it happens."""
+    port, key, out = served
+    cookie = sign_in(port, postbox)
+    status, saved, _ = call(
+        port,
+        "POST",
+        f"/account/languages?k={key}",
+        {"learning": ["he"], "reads": ["en", "ru"]},
+        cookie=cookie,
+    )
+    assert status == 200 and saved["reads"] == ["en", "ru"]
+    call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
+
+    book = Store(out.parent / "words.db")
+    ((_, _, said),) = book.followers("parasha")
+    assert said == "ru", "reading Russian is the choice that says so"
+
+
+def test_the_way_out_is_in_the_language_the_reader_followed_in(
+    served: tuple[int, str, Path],
+) -> None:
+    """targum-internal#289. The stop page is followed out of a mail client with no session
+    and no account, so the token is the only thing it has to go on — and it drew English
+    at a reader whose library, whose letter and whose follow button were all Russian."""
+    port, key, out = served
+    book = Store(out.parent / "words.db")
+    book.follow_series("r@example.org", "parasha", language="ru")
+    ((_, stop, said),) = book.followers("parasha")
+    assert said == "ru"
+
+    status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
+    page = body.decode("utf-8")
+    assert status == 200
+    assert "Да, перестать" in page and "Yes, stop" not in page
+    assert "ваши подписки" in page
+    assert 'lang="ru"' in page, "the page says which language it is in"
+
+    status, body, _ = form(port, "/series/stop", {"t": stop})
+    page = body.decode("utf-8")
+    assert status == 200 and "Больше не сообщим." in page
+    assert "tell you about it again" not in page
+    assert book.followers("parasha") == [], "and it still stops them"
+
+    # A token matching nothing is English rather than an error: it is a link out of a mail
+    # client, and the page has to draw for somebody who already pressed it once.
+    status, body, _ = call(port, "GET", "/series/stop?t=nonsense")
+    assert status == 200 and b"Yes, stop" in body
 
 
 def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(

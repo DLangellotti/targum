@@ -1822,5 +1822,13 @@
   "series.tanakh-yomi.name": "Tanakh Yomi",
   "series.tehillim.name": "Daily Tehillim",
   "series.tanakh-yomi.what": "The Prophets and the Writings on weekdays, by the sedarim the Masoretes divided them into.",
-  "series.tehillim.what": "The whole book of Psalms every month, a few chapters a day, by the day of the month."
+  "series.tehillim.what": "The whole book of Psalms every month, a few chapters a day, by the day of the month.",
+  "mail.series.subject": "{name}: {title}",
+  "mail.series.body": "{name} — {title}{hebrew}\n\nIt is on targum now: {where}\n\nYou are getting this because you follow {name}. To stop: {stop}\n",
+  "series.stop.ask": "Should we stop telling you when a new one comes out?",
+  "series.stop.button": "Yes, stop",
+  "series.stop.done": "We won’t tell you about it again.",
+  "series.stop.heading": "your subscriptions",
+  "note.read-this-week": "Read this week",
+  "note.back-to-targum": "Back to targum"
 }

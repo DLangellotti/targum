@@ -37,7 +37,7 @@
     <button class="go" type="submit">{{ pending.button }}</button>
   </form>
   {%- else %}
-  <p class="door"><a class="go" href="{{ home }}">{% if home == '/weekly' %}Read this week{% else %}Back to targum{% endif %}</a></p>
+  <p class="door"><a class="go" href="{{ home }}">{% if home == '/weekly' %}{{ t("note.read-this-week", "Read this week") }}{% else %}{{ t("note.back-to-targum", "Back to targum") }}{% endif %}</a></p>
   {%- endif %}
 </main>
 
