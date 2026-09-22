@@ -96,6 +96,7 @@ def context(
     store: Store | None,
     person: Person | None = None,
     press_at: str = "",
+    ask: Callable[[], Any] | None = None,
 ) -> tools_module.Ctx:
     """Who the tools are answering, built by the server and never from an argument.
 
@@ -147,6 +148,9 @@ def context(
         said_reads=reads if store is not None else None,
         # Set only by the remote connector, which has no page of ours to draw a card on.
         press_at=press_at,
+        # And how to reach targum's own model, for the one tool that spends. The chat
+        # never sets this: a turn there has a client already.
+        ask=ask,
     )
 
 

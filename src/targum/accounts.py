@@ -176,6 +176,13 @@ REGISTRATIONS_PER_HOUR = 60
 #    names a person rather than a cookie. All three are new tables, so `CREATE TABLE IF
 #    NOT EXISTS` is the whole migration and nothing is added to MIGRATIONS below.
 #
+# 31: slip.source — which surface a mistake was recorded from (targum-internal#80).
+#    '' for targum's own chat, which is every row written before this; 'connector' for a
+#    line checked through Claude or ChatGPT. One judge writes both — `record_turn` recasts
+#    on targum's own model against targum's own contract — so this is not a quality mark.
+#    It is there because two surfaces is a fact worth being able to measure later, and a
+#    column added afterwards could not say anything about the rows already written.
+#
 # 30: the prompt table — what a reader wrote for their own connector to offer
 #    (targum-internal#80, note 17). A new table, so `CREATE TABLE IF NOT EXISTS` is
 #    the whole of it.
@@ -183,7 +190,7 @@ REGISTRATIONS_PER_HOUR = 60
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 30
+SCHEMA_VERSION = 31
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -305,6 +312,10 @@ CREATE TABLE IF NOT EXISTS chosen (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    # Which surface a mistake came from: '' is targum's own chat and is every row
+    # written before 2026-09-22; 'connector' is a line checked through Claude or ChatGPT
+    # (targum-internal#80). Not a quality mark — one judge writes both.
+    "ALTER TABLE slip ADD COLUMN source TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN chapters INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE person ADD COLUMN name TEXT NOT NULL DEFAULT ''",
@@ -3272,6 +3283,7 @@ class Store:
         chat: str = "",
         turn: int = 0,
         why: str = "",
+        source: str = "",
     ) -> int:
         """Write down one line that came back changed. Returns the row's id.
 
@@ -3282,7 +3294,7 @@ class Store:
         with self.write() as db:
             cursor = db.execute(
                 "INSERT INTO slip (person, language, at, chat, turn, wrote, recast,"
-                " changed, why) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " changed, why, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     person_id,
                     language,
@@ -3293,6 +3305,7 @@ class Store:
                     recast,
                     json.dumps(changed, ensure_ascii=False),
                     why,
+                    source,
                 ),
             )
             return int(cursor.lastrowid or 0)
@@ -3325,7 +3338,8 @@ class Store:
             args.append(language)
         args.append(limit)
         rows = self.db.execute(
-            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why, known FROM slip"
+            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why, known, source"
+            f" FROM slip"
             f" WHERE {where} ORDER BY at {order}, id {order} LIMIT ?",
             args,
         ).fetchall()

@@ -7199,6 +7199,10 @@ class Handler(BaseHTTPRequestHandler):
             person=person,
             scopes=scopes,
             address=self.address,
+            # The one tool that spends reaches targum's own model through this. The
+            # chat already holds a client, made once and kept; a second here would be a
+            # second connection pool for one call a minute.
+            ask=(lambda: self.chats.client()) if self.chats is not None else None,
         )
         self.send_response(status)
         if body:

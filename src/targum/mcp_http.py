@@ -172,6 +172,7 @@ def handle(
     person: Person | None,
     scopes: str | None,
     address: str = "",
+    ask: Any = None,
 ) -> dict[str, Any] | None:
     """Answer one JSON-RPC message, or None where the protocol says to answer nothing.
 
@@ -221,6 +222,7 @@ def handle(
             person=person,
             scopes=scopes,
             address=address,
+            ask=ask,
         )
     raise RpcError(METHOD_NOT_FOUND, f"This server has no {method}.")
 
@@ -247,6 +249,7 @@ def _call(
     person: Person | None,
     scopes: str | None,
     address: str = "",
+    ask: Any = None,
 ) -> dict[str, Any]:
     """Run one tool, for whoever the token named.
 
@@ -262,7 +265,7 @@ def _call(
         raise RpcError(INVALID_PARAMS, f"There is no tool called {name} here.")
     given = params.get("arguments")
     given = given if isinstance(given, dict) else {}
-    ctx = connector.context(library, store, person, press_at=address)
+    ctx = connector.context(library, store, person, press_at=address, ask=ask)
     text, failed = tools_module.run(name, given, ctx)
     return _result(
         request_id,
@@ -288,6 +291,7 @@ def answer(
     person: Person | None,
     scopes: str | None,
     address: str = "",
+    ask: Any = None,
 ) -> tuple[int, bytes]:
     """One POST to `/mcp`, in and out.
 
@@ -311,6 +315,7 @@ def answer(
         "person": person,
         "scopes": scopes,
         "address": address,
+        "ask": ask,
     }
     if isinstance(message, list):
         if not message:

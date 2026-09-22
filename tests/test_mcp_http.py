@@ -420,15 +420,35 @@ def test_another_origin_cannot_reach_it(box: tuple[int, str]) -> None:
     assert status == 404
 
 
-def test_nothing_that_spends_is_listed_while_nothing_spends(box: tuple[int, str]) -> None:
-    """Until `record_turn` lands, `check` grants pricing and nothing that costs money."""
-    port, _ = box
-    token = a_token(port, "library record check")
-    tools = rpc(port, token, "tools/list")["result"]["tools"]
+def test_the_only_tool_that_spends_needs_the_scope_that_consented(
+    box: tuple[int, str],
+) -> None:
+    """design.md §12: one scope may say otherwise, and it is the only thing that may."""
     from targum.chat import tools as registry
 
     by_name = {one.name: one for one in registry.REGISTRY}
-    assert not [one for one in tools if by_name[one["name"]].spends]
+    port, _ = box
+
+    without = rpc(port, a_token(port, "library record"), "tools/list")["result"]["tools"]
+    assert not [one for one in without if by_name[one["name"]].spends]
+
+    granted = rpc(port, a_token(port, "library record check"), "tools/list")["result"]["tools"]
+    spending = [one["name"] for one in granted if by_name[one["name"]].spends]
+    assert spending == ["record_turn"]
+    assert "Uses the reader's hours" in next(
+        one["description"] for one in granted if one["name"] == "record_turn"
+    ), "the model is told what it costs the person whose hours they are"
+
+
+def test_a_connector_without_the_scope_cannot_call_it_either(box: tuple[int, str]) -> None:
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "record_turn", "arguments": {"wrote": "x", "language": "he"}},
+    )
+    assert said["error"]["code"] == mcp_http.INVALID_PARAMS
 
 
 # --- the press, for a quote made somewhere targum has no page ---------------------

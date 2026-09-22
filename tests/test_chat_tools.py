@@ -300,7 +300,13 @@ def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
         "and nothing says so: the job reports done"
     )
     assert store.committed(0) == 0.0, "nothing was claimed"
-    assert not [tool for tool in tools.REGISTRY if tool.spends or tool.needs_consent]
+    # The chat is offered nothing that spends. `record_turn` is in the registry since
+    # 2026-09-22 but never in this list: in *this* conversation targum recasts every
+    # line itself, so offering it would record the same mistake twice and charge twice.
+    offered = {one["name"] for one in tools.anthropic_tools()}
+    by_name = {one.name: one for one in tools.REGISTRY}
+    assert not [name for name in offered if by_name[name].spends or by_name[name].needs_consent]
+    assert "record_turn" not in offered
 
 
 def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypatch) -> None:
