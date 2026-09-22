@@ -16,8 +16,10 @@ numbers are marked as what they are.
 You can also ask. targum has a chat that answers from the library and from your own
 shelf: what to read next at the words you know, what you have read, what a text you are
 looking at will cost you in words you have not met. It does not spend on your behalf —
-when something would have to be built, it says so and stops. `targum mcp` offers the same
-tools to Claude Desktop or Claude Code, if you would rather ask from there.
+when something would have to be built, it says so and stops. The same tools are in Claude
+and ChatGPT if you would rather ask from there: add targum as a connector and it answers
+about your own shelf, your own words and the library, wherever you already ask. `targum
+mcp` does the same over stdio for a client on your own machine.
 
 What sets it apart is that everything is curated to what a learner needs. A library that
 runs from Tanakh to this week's news, sorted by how much of it you can already read, with

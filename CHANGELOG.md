@@ -6,6 +6,42 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- targum in Claude and ChatGPT: the connector, with a token that names a person
+  (targum-internal#80). A reader adds targum by pasting one address and pressing Connect,
+  and the tools they already had in the chat answer about their own shelf, their own
+  ledger and the library — from wherever they already ask. `/connect` says how, assuming
+  it is their first connector of any kind: one block per host, each with its own steps,
+  and nothing detected or guessed.
+
+  It is OAuth 2.1, because both connector directories require the flow and because a key
+  pasted into somebody else's client is a bearer credential with no scopes and no way to
+  take it back one client at a time. Authorization code with PKCE (S256 only), dynamic
+  client registration, the two metadata documents a client reads off a 401, and refresh
+  tokens that rotate — so a refresh token presented twice finds itself revoked, which is
+  the one signal available that it was copied. Nothing is stored in the clear: codes and
+  tokens are digests, as sign-in links and sessions already were.
+
+  Three scopes, and the reader grants them on a page of ours. The library and what is at
+  a link; their words, their mistakes and how far they have got; and checking their
+  Hebrew and pricing a text, which is the one that uses their hours and says so before it
+  is granted. What each connector holds is listed on the account page and taken back
+  there, both kinds of token at once.
+
+  **One standing rule changed, and design.md §12 records it.** A chat tool could not
+  spend at all; now exactly one scope may say otherwise, because the record only fills if
+  something recasts what the reader wrote. Everything else holds: a build still needs its
+  own press, and a quote made through a connector comes back carrying a link to the page
+  the button is on rather than a way to spend. The model never presses anything.
+
+  The transport is JSON-RPC over the server targum already runs — no second process, no
+  SDK on the box, and no session held between two calls, so a deploy can restart
+  mid-conversation without a client noticing. `Mcp-Session-Id` is deliberately absent.
+  Prompts are offered by name — what to read next, work on what you got wrong, read with
+  me — which is how a reader reaches targum without having to describe what they want.
+
+  And Learn's row of doors takes a third that is not a text, styled exactly like the two
+  that carry one, because a door drawn as a lesser thing reads as an advertisement on a
+  page that promises to pull and never push.
 - The privacy notice says what the record of use is. Two clauses under the categories of
   data: the reader's own record, kept to show them their time and words, which they can
   stop or erase from their account page; and counts across everybody that carry nobody's
