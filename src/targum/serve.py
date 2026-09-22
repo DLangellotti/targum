@@ -38,6 +38,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
+from . import oauth
 from .accounts import CHAT_RESTARTED, Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
@@ -47,7 +48,9 @@ from .remembered import Remembered
 from .render.builder import (
     LEGAL,
     about_page,
+    approve_page,
     back_office_page,
+    connect_refused_page,
     daily_page,
     front_page,
     holding_page,
@@ -389,8 +392,25 @@ OPEN_TO_STRANGERS = frozenset(
         "/waitlist",
         "/waitlist/confirm",
         "/waitlist/stop",
+        # The connector (targum-internal#80). A client registering itself, asking for
+        # tokens or giving one back has no account and is not a person; the reader is,
+        # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
+        "/oauth/register",
+        "/oauth/token",
+        "/oauth/revoke",
+        "/oauth/authorize",
     }
 ) | frozenset(LEGAL_ROUTES)
+
+#: The two documents that tell a client where the doors are, at the well-known names the
+#: RFCs fix. A client reads the first off a 401 from `/mcp` and the second off the first,
+#: which is what lets a connector be added by pasting one URL and nothing else.
+OAUTH_METADATA = frozenset(
+    {
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-authorization-server",
+    }
+)
 
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
 # nothing is open to strangers until there is something worth arriving at and a
@@ -3314,6 +3334,23 @@ class Library:
 # sent; a hosted install serving HTTPS must add it.
 SESSION_COOKIE = "targum_session"
 
+# Where a Connect waits while its reader signs in (targum-internal#80). It holds one of
+# this server's own paths and never a credential, and `Handler._connecting` checks it
+# against the one prefix it may start with — so a cookie somebody else sets is dropped
+# rather than followed. Ten minutes, which is a sign-in and no more.
+CONNECT_COOKIE = "targum_connect"
+CONNECT_MINUTES = 10
+
+
+def _short_cookie(name: str, value: str) -> str:
+    """One cookie that lasts as long as one errand. Same flags as the session's."""
+    return f"{name}={quote(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age={CONNECT_MINUTES * 60}"
+
+
+def _forget_cookie(name: str) -> str:
+    return f"{name}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+
+
 # What the sign-in page says, whether or not the address has an account, and whether or
 # not the mail went out. Anything more specific turns the form into a way of asking
 # which addresses are registered here.
@@ -3559,10 +3596,18 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def _send(
-        self, status: int, body: bytes, kind: str, cache: str = "no-store", frames: str = ""
+        self,
+        status: int,
+        body: bytes,
+        kind: str,
+        cache: str = "no-store",
+        frames: str = "",
+        cookie: str = "",
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
         # by their hash, so it has to be taken before the bytes are compressed.
         policy = self._policy(body, frames) if kind.startswith("text/html") else None
@@ -3703,12 +3748,17 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, payload: Any, status: int = 200) -> None:
         self._send(status, json.dumps(payload).encode("utf-8"), "application/json")
 
-    def _go(self, where: str, cookie: str | None = None) -> None:
-        """Send them on, optionally handing over or taking back the session."""
+    def _go(self, where: str, cookie: str | list[str] | None = None) -> None:
+        """Send them on, optionally handing over or taking back the session.
+
+        A list where two have to be set at once: finishing a sign-in that interrupted a
+        Connect hands over the session and drops the cookie holding the Connect, and one
+        `Set-Cookie` header cannot say both.
+        """
         self.send_response(303)
         self.send_header("Location", where)
-        if cookie is not None:
-            self.send_header("Set-Cookie", cookie)
+        for one in [cookie] if isinstance(cookie, str) else (cookie or []):
+            self.send_header("Set-Cookie", one)
         self.send_header("Content-Length", "0")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -4864,6 +4914,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _icon(), "image/png")
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        # The connector's metadata, and the page a reader approves on. Before the account
+        # check: the two documents are read by a client that has no account and never will
+        # have one, and the approval page signs a reader in itself rather than handing a
+        # stranger the holding page halfway through pressing Connect.
+        if route in OAUTH_METADATA:
+            return self._oauth_metadata(route)
+        if route == "/oauth/authorize":
+            return self._oauth_authorize(parse_qs(urlparse(self.path).query))
         if route == "/sitemap.xml":
             if not shelves_are_public():
                 return self._send(404, b"not found", "text/plain")
@@ -5200,6 +5258,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._waitlist_post(route, self._form())
         if route == "/series/stop":
             return self._series_stop(self._form())
+        # The connector's four (targum-internal#80). Before the account check and before
+        # the JSON parse: three of them are spoken by a client rather than a browser, and
+        # two of those carry a form body the spec fixes. Approving is a press on a page
+        # this server drew, and reads its person from the cookie like any other press.
+        if route == "/oauth/register":
+            return self._oauth_register()
+        if route == "/oauth/token":
+            return self._oauth_token(self._form())
+        if route == "/oauth/revoke":
+            return self._oauth_revoke(self._form())
+        if route == "/oauth/authorize":
+            return self._oauth_approve(self._form())
         if self._needs_account(route):
             return self._json(
                 {
@@ -6676,8 +6746,249 @@ class Handler(BaseHTTPRequestHandler):
         _, session = got
         from .accounts import SESSION_DAYS
 
-        where = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        self._go(where, self._session_cookie(session, SESSION_DAYS))
+        # Somebody who pressed Connect in Claude and had to sign in first is put back
+        # where they were, rather than on Learn wondering what happened to the thing
+        # they were doing. See `_connecting`: the cookie holds one of our own paths and
+        # is checked against that prefix, so it cannot be turned into a way out.
+        waiting = self._connecting()
+        landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
+        where = waiting or landed
+        cookies = [self._session_cookie(session, SESSION_DAYS)]
+        if waiting:
+            cookies.append(_forget_cookie(CONNECT_COOKIE))
+        self._go(where, cookies)
+
+    # -- the connector's doors (targum-internal#80) --------------------------
+
+    def _connecting(self) -> str:
+        """The Connect the reader was in the middle of, if they were in the middle of one.
+
+        Held in a cookie rather than threaded through the sign-in link, so the mail and
+        the `link` table do not have to learn about OAuth for this. The value is a path
+        this server wrote, and it is checked against that one prefix on the way back
+        out: anything else is dropped, so the cookie is never a redirect somebody else
+        can choose.
+        """
+        waiting = self._cookie(CONNECT_COOKIE)
+        return waiting if waiting.startswith("/oauth/authorize?") else ""
+
+    def _oauth_metadata(self, route: str) -> None:
+        """The two documents a client reads before it knows how to ask for anything.
+
+        Cached for an hour: they change when the server does, which is a deploy, and a
+        client that fetches them on every connection is a client we are asking to do
+        work for nothing.
+        """
+        address = self.address or f"http://{self.headers.get('Host') or 'localhost'}"
+        said = (
+            oauth.protected_resource(address)
+            if route.endswith("oauth-protected-resource")
+            else oauth.authorization_server(address)
+        )
+        body = json.dumps(said).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=3600")
+        # A client fetches this from its own origin before it has a token.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _oauth_register(self) -> None:
+        """Dynamic client registration (RFC 7591), which both directories expect.
+
+        Open, because that is what dynamic means: a client that has never spoken to this
+        box registers itself and gets an id. Nothing it says is trusted — see
+        `oauth.check_registration` — and an id is worth nothing on its own, because every
+        token behind it needs a reader to have pressed Approve.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > 8192:
+            return self._json({"error": "invalid_client_metadata"}, 400)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return self._json({"error": "invalid_client_metadata"}, 400)
+        if not isinstance(payload, dict):
+            return self._json({"error": "invalid_client_metadata"}, 400)
+        try:
+            name, redirects = oauth.check_registration(payload)
+        except oauth.OAuthError as refused:
+            return self._json(refused.as_json(), refused.status)
+        client_id = self.store.register_client(name, redirects)
+        client = self.store.client(client_id) or {"made": 0}
+        body = oauth.registration_reply(client_id, name, redirects, int(client["made"])).encode()
+        self._send(201, body, "application/json")
+
+    def _oauth_authorize(self, query: dict[str, list[str]]) -> None:
+        """The approval page, and the only place a scope is ever granted.
+
+        Three ways out. A request that is malformed is answered to the *reader*, as a
+        page, because a redirect carrying an error to a client we could not verify is a
+        redirect to an address we have not checked. A reader who is not signed in signs
+        in first and comes back here. Everyone else is shown what is being asked for,
+        in words, with what the spending scope costs beside it — see design.md §12, "A
+        scope is a press that lasts", which is the whole reason that sentence has to be
+        on this page and not only in the docs.
+        """
+        try:
+            asked = oauth.read_request(query)
+            client = self.store.client(asked.client_id)
+            if client is None:
+                raise oauth.OAuthError("invalid_client", "We don't know that client.")
+            redirect = oauth.check_redirect(asked.redirect, client["redirects"])
+        except oauth.OAuthError as refused:
+            return self._send(
+                400,
+                connect_refused_page(
+                    refused.description or "That request was not one we could read.",
+                    language=self._page_language(),
+                ).encode("utf-8"),
+                HTML,
+            )
+        person = self._person()
+        if person is None:
+            here = f"/oauth/authorize?{urlparse(self.path).query}"
+            body = signin_page(language=self._page_language()).encode("utf-8")
+            return self._send(200, body, HTML, cookie=_short_cookie(CONNECT_COOKIE, here))
+        page = approve_page(
+            client=str(client["name"] or "That app"),
+            scopes=oauth.describe_scopes(asked.scopes),
+            spends=asked.spends,
+            hours=UPLOAD_HOURS,
+            query=urlparse(self.path).query,
+            redirect=redirect,
+            language=self._page_language(),
+        )
+        self._send(200, page.encode("utf-8"), HTML)
+
+    def _oauth_approve(self, form: dict[str, str]) -> None:
+        """The press. Mints one code and sends the client back to itself.
+
+        What is written on the grant is what this server worked out, never what the form
+        carried: the form says which request this is a press on, and every field is read
+        again from the query it names. A form that could name its own scopes would be a
+        page anybody could post to and get `check` out of.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"error": "invalid_request"}, 401)
+        query = parse_qs(form.get("asked", ""))
+        try:
+            asked = oauth.read_request(query)
+            client = self.store.client(asked.client_id)
+            if client is None:
+                raise oauth.OAuthError("invalid_client", "We don't know that client.")
+            redirect = oauth.check_redirect(asked.redirect, client["redirects"])
+        except oauth.OAuthError as refused:
+            return self._send(
+                400,
+                connect_refused_page(
+                    refused.description or "That request was not one we could read.",
+                    language=self._page_language(),
+                ).encode("utf-8"),
+                HTML,
+            )
+        if form.get("press") != "approve":
+            # A refusal is an answer, and the client is told in the way the spec says so
+            # that it can say something better than "it didn't work".
+            return self._go(
+                oauth.back_to(redirect, error="access_denied", state=asked.state),
+                _forget_cookie(CONNECT_COOKIE),
+            )
+        code = self.store.start_grant(
+            person.id,
+            asked.client_id,
+            scopes=asked.scope_string,
+            redirect=redirect,
+            challenge=asked.challenge,
+            resource=asked.resource,
+        )
+        self._go(
+            oauth.back_to(redirect, code=code, state=asked.state),
+            _forget_cookie(CONNECT_COOKIE),
+        )
+
+    def _oauth_token(self, form: dict[str, str]) -> None:
+        """Code for tokens, and refresh token for a new pair.
+
+        No client authentication: every client here is public, and PKCE is what stands in
+        its place — which is why a code with no verifier, or the wrong one, is refused
+        here rather than anywhere softer.
+        """
+        kind = form.get("grant_type", "")
+        if kind == "refresh_token":
+            return self._oauth_refresh(form)
+        if kind != "authorization_code":
+            return self._json({"error": "unsupported_grant_type"}, 400)
+        grant = self.store.spend_grant(form.get("code", ""))
+        if grant is None:
+            return self._json({"error": "invalid_grant"}, 400)
+        # Everything below is checked against the grant, not the form. The client id and
+        # redirect are re-presented by the client and have to match what the reader
+        # approved, or a code handed to the wrong client would be a code it could spend.
+        if not secrets.compare_digest(form.get("client_id", ""), str(grant["client"])):
+            return self._json({"error": "invalid_grant"}, 400)
+        if form.get("redirect_uri", str(grant["redirect"])) != str(grant["redirect"]):
+            return self._json({"error": "invalid_grant"}, 400)
+        if not oauth.verify_challenge(form.get("code_verifier", ""), str(grant["challenge"])):
+            return self._json({"error": "invalid_grant"}, 400)
+        self._oauth_issue(
+            int(grant["person"]), str(grant["client"]), str(grant["scopes"]), str(grant["resource"])
+        )
+
+    def _oauth_refresh(self, form: dict[str, str]) -> None:
+        """A new pair, and the old refresh token dies here.
+
+        Rotation rather than reuse: a refresh token presented a second time finds itself
+        revoked, which is the one signal available that it was copied.
+        """
+        spent = self.store.rotate_refresh(form.get("refresh_token", ""))
+        if spent is None:
+            return self._json({"error": "invalid_grant"}, 400)
+        if not secrets.compare_digest(form.get("client_id", ""), str(spent["client"])):
+            return self._json({"error": "invalid_grant"}, 400)
+        self._oauth_issue(
+            int(spent["person"]),
+            str(spent["client"]),
+            str(spent["scopes"]),
+            str(spent["resource"]),
+            parent=str(spent["hash"]),
+        )
+
+    def _oauth_issue(
+        self, person_id: int, client_id: str, scopes: str, resource: str, parent: str = ""
+    ) -> None:
+        """Write one access token and one refresh token, and say so without caching it."""
+        from .accounts import ACCESS_MINUTES
+
+        access = self.store.mint_token(
+            person_id, client_id, scopes=scopes, resource=resource, parent=parent
+        )
+        refresh = self.store.mint_token(
+            person_id, client_id, kind="refresh", scopes=scopes, resource=resource, parent=parent
+        )
+        body = json.dumps(oauth.token_reply(access, refresh, scopes, ACCESS_MINUTES * 60)).encode(
+            "utf-8"
+        )
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        # A token is not a thing to leave in a proxy, and the RFC says both of these.
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Pragma", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _oauth_revoke(self, form: dict[str, str]) -> None:
+        """RFC 7009. Always 200, whatever was handed over.
+
+        A revocation endpoint that answered differently for a token it did not recognise
+        would be a way to ask whether a token exists.
+        """
+        self.store.revoke_token(form.get("token", ""))
+        self._json({})
 
     def _sign_out(self) -> None:
         self.store.sign_out(self._cookie(SESSION_COOKIE) or None)

@@ -1673,6 +1673,64 @@ def signin_page(
     )
 
 
+def approve_page(
+    *,
+    client: str,
+    scopes: list[dict[str, str]],
+    spends: bool,
+    hours: int,
+    query: str,
+    redirect: str,
+    language: str = "en",
+) -> str:
+    """Where a reader grants a connector its scopes (targum-internal#80).
+
+    The one press design.md §12 ("A scope is a press that lasts") rests on, so what is
+    on it is not decoration: every scope in words, and what the spending one costs said
+    in hours before it is granted rather than in a receipt afterwards.
+
+    `client` is the name the client registered, which is the client's claim about itself
+    and not a fact about who it is — dynamic registration means a stranger wrote it. It
+    is escaped like everything else and shown as what it says it is.
+
+    `query` is the original authorization request, carried through the form so the press
+    can be read again from it. Nothing on the grant is taken from the form itself; see
+    `serve.Handler._oauth_approve` for why that matters.
+    """
+    return (
+        _environment()
+        .get_template("approve.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            client=client,
+            scopes=scopes,
+            spends=spends,
+            hours=hours,
+            query=query,
+            redirect=redirect,
+        )
+    )
+
+
+def connect_refused_page(said: str, language: str = "en") -> str:
+    """A Connect that could not be read, said to the reader instead of to the client.
+
+    Its own page rather than a redirect carrying an error: the request that failed is
+    one we could not verify, so the address it asked to be sent back to is an address
+    nobody has checked.
+    """
+    return (
+        _environment()
+        .get_template("connect_refused.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            said=said,
+        )
+    )
+
+
 def progress_page(token: str, language: str = "en") -> str:
     """Everything kept, with what it adds up to.
 

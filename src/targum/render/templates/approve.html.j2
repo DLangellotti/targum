@@ -1,0 +1,67 @@
+{#- The approval page: the one place a scope is granted, and the press design.md §12
+    ("A scope is a press that lasts", 2026-09-22) rests on.
+
+    It is the sign-in page's family — the lockup, one card on the desk, no navigation —
+    because it is the same kind of moment: somebody is in the middle of something that
+    started somewhere else, and a page with three ways off it would be three ways to
+    lose them. It reuses `signin.css` and adds only the scope list.
+
+    Two things on this page are load-bearing rather than decorative. The client's name is
+    said as the client's claim about itself, because dynamic registration means a
+    stranger wrote it. And the spending scope says what it costs, in hours, because a
+    standing grant that did not say so would be a worse seam than the press it replaces. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="signin">
+<main class="gate">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <div class="door">
+    <h1>{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client=client) }}</h1>
+    <p class="said">{{ t("connect.page.this-is-what-it-would-be-able-to-do", "This is what it would be able to do.") }}</p>
+
+    <ul class="scopes">
+      {%- for scope in scopes %}
+      <li>
+        <span class="scope-says">{{ scope.says }}</span>
+        {%- if scope.name == 'check' %}
+        <span class="scope-cost">{{ t("connect.page.uses-your-hours", "Uses your {hours} hours", hours=hours) }}</span>
+        {%- endif %}
+      </li>
+      {%- endfor %}
+    </ul>
+
+    {%- if spends %}
+    {#- Said once, in words, above the button. A reader who grants this is agreeing to
+        spending that happens later without another press, and the page they agree on is
+        the only place that can tell them so. -#}
+    <p class="said">{{ t("connect.page.checking-a-line-uses-your-hours", "Checking a line of Hebrew uses your hours, the same as a recording does. Everything else you say there is yours, and costs you none of them.") }}</p>
+    {%- endif %}
+
+    <form method="post" action="/oauth/authorize">
+      <input type="hidden" name="asked" value="{{ query }}">
+      <button class="go" type="submit" name="press" value="approve">{{ t("connect.page.connect", "Connect") }}</button>
+      <button class="ghost" type="submit" name="press" value="refuse">{{ t("connect.page.not-now", "Not now") }}</button>
+    </form>
+
+    <p class="aside">{{ t("connect.page.you-can-disconnect-it-later", "You can disconnect it whenever you like, from your account.") }}</p>
+    <p class="aside">{{ t("connect.page.it-will-come-back-to", "It will come back to {redirect}", redirect=redirect) }}</p>
+  </div>
+</main>
+</body>
+</html>

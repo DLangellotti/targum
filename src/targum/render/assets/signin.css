@@ -165,3 +165,53 @@ body.signin {
 /* What went wrong last time. Ink, not red: a cancelled sign-in is not an error, and the
    way out of every one of these is the form underneath. */
 .gate .trouble { margin-block-end: 0.75rem; }
+
+/* The approval page's scope list (targum-internal#80). What a connector would be able
+   to do, one row a scope, in the order `oauth.SCOPES` lists them — least first, so the
+   one that spends is the one the eye stops on last and lowest. */
+.gate .scopes {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1px;
+  background: var(--rule);
+  border-radius: var(--radius-row);
+  overflow: hidden;
+}
+.gate .scopes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--page);
+}
+.gate .scope-says { flex: 1 1 12rem; min-width: 0; }
+/* What the spending scope costs, said on its own row rather than in a footnote: a
+   standing grant that did not say so would be a worse seam than the press it replaces
+   (design.md §12, "A scope is a press that lasts"). Ink, not accent — it is a fact
+   about the reader's hours and never a warning. */
+.gate .scope-cost {
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+/* Not now. A ghost beside the filled press, per §13's three buttons: one filled per
+   view, and refusing is not the thing this page is for. */
+.gate .ghost {
+  width: 100%;
+  min-block-size: 2.75rem;
+  margin-block-start: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.gate .ghost:hover { color: var(--ink); }
+.gate .ghost:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
