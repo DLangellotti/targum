@@ -368,6 +368,27 @@ def page_words(language: str) -> Callable[..., Markup]:
     return t
 
 
+def page_counts(language: str) -> Callable[..., Markup]:
+    """A template's `tn(key, n, one, other)`: a counted string in the right plural form.
+
+    The scripts have had this since #184 through `Intl.PluralRules`; a server-rendered
+    page had nothing, so anything counted was written in English word order with an
+    English plural (targum-internal#348). Russian has three forms and the teens are the
+    trap — 21 is `one` and 11 is `many` — so a page that guessed would read as broken
+    rather than as foreign.
+
+    The English written at the call is the fallback, the same promise `t` makes, and `{n}`
+    is filled for free because every counted string wants it.
+    """
+    from ..strings import counted
+
+    def tn(key: str, n: int, one: str, other: str, **fill: object) -> Markup:
+        said = counted(key, n, language, {"one": one, "other": other})
+        return Markup(said).format(n=n, **fill)
+
+    return tn
+
+
 #: What the scripts every desk page carries say: the charts, the language menu, the
 #: notices bell, the account panel, the series the nav follows and the palette — and
 #: the nav's own words, which the palette says again.
@@ -1926,6 +1947,7 @@ def daily_page(
         .get_template("daily.html.j2")
         .render(
             t=page_words(language),
+            tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
             title=f"{day.title} — {cycle.name} — targum",
@@ -2003,8 +2025,9 @@ def parasha_page(
     """
     from ..parasha.build import COLLECTION_ID
     from ..parasha.models import neighbours
+    from ..strings import said_on
 
-    said = shabbat.strftime("%A, %B %-d, %Y") if shabbat is not None else "Shabbat"
+    said = said_on(shabbat, language) if shabbat is not None else "Shabbat"
     previous, following = neighbours(portion, listed or [])
     # The row to point at on the shelf: this portion's own, or — for a doubled week,
     # which is not on the shelf beside its halves — the first of its halves that is.
@@ -2025,6 +2048,7 @@ def parasha_page(
         .get_template("parasha.html.j2")
         .render(
             t=page_words(language),
+            tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
             week=week,

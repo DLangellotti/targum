@@ -1838,5 +1838,14 @@
   "you.page.correcting-read": "Прочитать условия",
   "you.page.correcting-accept": "Принять и включить",
   "you.grant.done": "Вы приняли условия, поэтому карточка слова предлагает исправление.",
-  "you.grant.thanks": "Спасибо. Теперь карточка слова предлагает исправление."
+  "you.grant.thanks": "Спасибо. Теперь карточка слова предлагает исправление.",
+  "parasha.page.dateline": "{name} читают {when} — {summary}, {verses} в {aliyot}.",
+  "parasha.page.verses.one": "{n} стих",
+  "parasha.page.verses.few": "{n} стиха",
+  "parasha.page.verses.many": "{n} стихов",
+  "parasha.page.aliyot.one": "{n} алие",
+  "parasha.page.aliyot.few": "{n} алиёт",
+  "parasha.page.aliyot.many": "{n} алиёт",
+  "parasha.page.festival-instead": "На эту субботу приходится праздник, поэтому читают именно это, а не ту главу, до которой дошёл бы цикл.",
+  "parasha.page.two-portions": "На этой неделе две главы читают вместе."
 }
