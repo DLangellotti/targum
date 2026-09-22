@@ -135,6 +135,12 @@ function element(tag) {
     /* Classes, and one attribute form: `[data-row="..."]`, which is how the library
        page finds the row a reader was sent to. Without it the selector fell through to
        the class match, never hit, and the stub quietly answered null. */
+    /* Whether a node is this one or inside it. Scripts poll with it to find out
+       whether the block they drew is still on the page before touching it again. */
+    contains(node) {
+      if (node === this) return true;
+      return (this.children || []).some((child) => child.contains && child.contains(node));
+    },
     querySelector(selector) {
       const attr = /^\[([\w-]+)="?([^"\]]*)"?\]$/.exec(selector);
       const hit = attr ? (node) => node.attrs[attr[1]] === attr[2] : wearing(selector);
@@ -171,6 +177,12 @@ function install(globals) {
        and the tag behaves like any other element. */
     createElementNS: (namespace, tag) => element(tag),
     createTextNode: (text) => ({ textContent: text, children: [] }),
+    /* A fragment, which several scripts build a block in before saying it once. Made of
+       the same stuff as an element: nothing here lays anything out, so a fragment that
+       stays a node when it is appended rather than dissolving into its parent is a tree
+       one level deeper and the same nodes in the same order. Every harness that reads a
+       block walks the children anyway. */
+    createDocumentFragment: () => element("fragment"),
     getElementById(id) {
       byId[id] = byId[id] || element("div");
       return byId[id];

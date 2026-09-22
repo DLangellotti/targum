@@ -5476,6 +5476,18 @@ class Handler(BaseHTTPRequestHandler):
                 "error": errors[-1]["message"] if errors else "",
                 # The cards this turn quoted, for a page polling rather than streaming.
                 "quotes": [json.loads(data) for kind, data in feed.events if kind == "quote"],
+                # And what it merely *found* (targum-internal#253): rows a search turned
+                # up, nothing fetched and nothing priced. Separate from `quotes` on
+                # purpose — a quote is a card with a price and a button that spends, and
+                # one of these is a title and a link. Add draws them so that a
+                # description finds things in place, and the price arrives only when the
+                # reader chooses one.
+                "found": [
+                    row
+                    for kind, data in feed.events
+                    if kind == "found"
+                    for row in json.loads(data).get("items", [])
+                ],
                 # And the film it could not fetch, so a page without EventSource keeps
                 # the link the same way a streaming one does (targum-internal#331).
                 "refused": next(
