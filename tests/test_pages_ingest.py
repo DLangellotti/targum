@@ -308,3 +308,37 @@ def test_only_as_many_pages_as_the_reader_was_quoted_are_rendered(tmp_path: Path
 
     made = pdf_module.rasterise(FIXTURES / "scan.pdf", tmp_path / "one", most=1)
     assert len(made) == 1 and made[0].name == "p001.png"
+
+
+def test_the_add_page_does_not_claim_a_limit_the_code_no_longer_has() -> None:
+    """targum-internal#252. The Add page named its refusals in advance, and one of them
+    stopped being true when the rasteriser shipped: *"We can't add scanned PDFs"*, on a
+    product that refuses a scan once and then offers a button that reads its pages.
+
+    A page that tells a reader targum cannot do a thing it can do costs more than a page
+    that says nothing — they do not try, and nothing ever corrects them. The other three
+    are still true, and Spotify's own sentence waits on the description card (#253).
+
+    Asserted against the string and the template together, because the template carries
+    the English as `t()`'s fallback and a reader with no catalogue sees that one.
+    """
+    import json
+
+    root = Path(__file__).parents[1] / "src" / "targum"
+    key = "add.page.we-can-t-add-scanned-pdfs-protected"
+    english = json.loads((root / "strings" / "en.json").read_text(encoding="utf-8"))[key]
+    template = (root / "render" / "templates" / "add.html.j2").read_text(encoding="utf-8")
+
+    for said, where in ((english, "the catalogue"), (template, "the template fallback")):
+        assert "scanned PDF" not in said, f"{where} still refuses scans"
+    # And the three that are still true are still said.
+    for limit in (".aax", "Spotify", "behind a login"):
+        assert limit in english, limit
+
+    # The thing that makes the claim false: the rasteriser exists and the box installs
+    # the extra it needs. Read from deploy.sh rather than asserted from memory.
+    deploy = (Path(__file__).parents[1] / "deploy" / "deploy.sh").read_text(encoding="utf-8")
+    assert "bring" in deploy, "the box must install the extra that reads a scan"
+    from targum.ingest import pdf as pdf_module
+
+    assert hasattr(pdf_module, "rasterise")
