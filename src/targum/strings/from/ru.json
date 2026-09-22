@@ -350,6 +350,8 @@
 "date.month.7": "e9cf7a1ca4",
 "date.month.8": "a66d8970e5",
 "date.month.9": "cd559ea0ab",
+"fetch.needs-a-sign-in": "2277eb3ae3",
+"fetch.needs-a-sign-in.hint": "f5055db13b",
 "fetch.no-site-name": "2ab3f30370",
 "fetch.no-site-name.hint": "c69a09cb51",
 "fetch.no-such-site": "b0eb80807a",
