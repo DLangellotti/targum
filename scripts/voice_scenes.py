@@ -91,6 +91,10 @@ ASK = "Read aloud as {name}, a {who}, in conversation. Only the line, nothing el
 GUIDE = " Read {hints}."
 
 
+class Daily(RuntimeError):
+    """The per-day quota is gone. Waiting will not help; tomorrow will."""
+
+
 def wav(pcm: bytes) -> bytes:
     head = b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt "
     head += struct.pack("<IHHIIHH", 16, 1, 1, RATE, RATE * 2, 2, 16) + b"data"
@@ -123,14 +127,30 @@ def say(text: str, voice: str, key: str, prompt: str) -> bytes:
             part = payload["candidates"][0]["content"]["parts"][0]
             return base64.b64decode(part["inlineData"]["data"])
         except urllib.error.HTTPError as error:
+            if error.code == 429:
+                # A per-minute limit is worth waiting out; the per-day one is not.
+                # This key allows 100 TTS requests a day, and on 2026-09-22 a run that
+                # did not tell them apart spent an hour backing off 20, 40, 80, 160
+                # seconds at a time against a quota five hours from resetting, looking
+                # for all the world like a rate limit it could out-wait.
+                detail = error.read()
+                try:
+                    said = json.loads(detail).get("error", {})
+                    for one in said.get("details", []):
+                        delay = str(one.get("retryDelay") or "")
+                        if delay.endswith("s") and float(delay[:-1]) > 600:
+                            raise Daily(said.get("message", "").strip()) from error
+                except (ValueError, KeyError):
+                    pass
             # 400 is in here because it is not always what it says: see ASK.
+            detail = detail if error.code == 429 else b""
             if error.code not in (400, 429, 500, 503) or attempt == 5:
                 # A bare "HTTP Error 400: Bad Request" says nothing anybody can act on,
                 # and that is what the first run of this printed after eleven good turns.
                 # The body says which field it disliked.
                 said = ""
                 try:
-                    said = json.loads(error.read()).get("error", {}).get("message", "")
+                    said = json.loads(detail or error.read()).get("error", {}).get("message", "")
                 except Exception:  # noqa: BLE001 - the body is a courtesy, not a contract
                     pass
                 raise RuntimeError(
@@ -273,7 +293,15 @@ def main() -> None:
     spent = 0.0
     for scene in scenes:
         print(f"\n{scene['id']}:", flush=True)
-        spans, seconds = voice(scene, key, into)
+        try:
+            spans, seconds = voice(scene, key, into)
+        except Daily as gone:
+            print(f"\n  the day's quota is gone: {gone}", file=sys.stderr)
+            print(
+                f"\n{len(scenes) - scenes.index(scene)} scenes left. Run this again "
+                f"when it resets; what is voiced is skipped."
+            )
+            return
         spent += seconds / 60 * PER_MINUTE
         # Written per scene, so a run that dies keeps what it paid for.
         (into / f"{scene['id']}.spans.json").write_text(
