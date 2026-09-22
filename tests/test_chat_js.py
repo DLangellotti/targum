@@ -1066,6 +1066,32 @@ def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
     assert [p["enHidden"] for p in again["pairs"]] == [False, True, True]
 
 
+def test_a_pair_is_reachable_from_a_keyboard_and_enter_opens_it() -> None:
+    """design.md §8 gained an exception on 2026-09-22 (targum-internal#241): a line of
+    text that answers a tap is not a control and does not take the 44px reach, because
+    that floor would space out every line of a conversation.
+
+    The exception rests on this. A tappable line with no keyboard path would be worse
+    than the reach it replaced, so the reach being absent is only safe while Enter works
+    — which is what this pins.
+    """
+    page = said(ledger=KNOWN)
+    # The invariant, and it is the one that matters: whatever answers a tap answers a
+    # key. A pair that folds nothing — the first line is drawn open with no toggle on it
+    # — is not tappable and needs no keyboard path.
+    for pair in page["pairs"]:
+        assert pair["tappable"] == (pair["focusable"] == "0"), pair["he"]
+    assert any(pair["tappable"] for pair in page["pairs"]), "and some of them do fold"
+
+    opened = said(ledger=KNOWN, then=[{"type": "key", "n": 1}])
+    assert [p["enHidden"] for p in opened["pairs"]] == [False, False, True]
+    again = said(ledger=KNOWN, then=[{"type": "key", "n": 1}, {"type": "key", "n": 1}])
+    assert [p["enHidden"] for p in again["pairs"]] == [False, True, True], "and folds again"
+
+    spaced = said(ledger=KNOWN, then=[{"type": "key", "n": 1, "key": " "}])
+    assert spaced["pairs"][1]["enHidden"] is False, "space too, as a control would"
+
+
 def test_show_english_opens_all_of_it_and_is_remembered() -> None:
     page = said(ledger=KNOWN, then=[{"type": "english"}])
     assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
