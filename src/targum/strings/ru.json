@@ -1202,7 +1202,7 @@
   "serve.cannot-read-aloud": "Здесь мы не можем читать вслух: {why}.",
   "serve.cannot-transcribe": "Здесь мы не можем записать речь: {why}.",
   "serve.we-translate-into": "Мы переводим на {languages}.",
-  "serve.not-in-profile": "{language} пока нет в вашем профиле. Добавьте его там и попробуйте снова.",
+  "serve.not-in-profile": "В вашем профиле пока не отмечен язык: {language}. Добавьте его и попробуйте снова.",
   "serve.we-can-read": "Мы читаем {languages}.",
   "serve.pdf-over-mb": "Этот PDF больше {size} МБ. Попробуйте поменьше.",
   "serve.picture-over-mb": "Это изображение больше {size} МБ. Попробуйте поменьше.",
@@ -1861,5 +1861,13 @@
   "series.tanakh-yomi.name": "Танах йоми",
   "series.tehillim.name": "Ежедневные Теилим",
   "series.tanakh-yomi.what": "Пророки и Писания по будням, по седарим, на которые их разделили масореты.",
-  "series.tehillim.what": "Вся книга Псалмов каждый месяц, по несколько глав в день, по числу месяца."
+  "series.tehillim.what": "Вся книга Псалмов каждый месяц, по несколько глав в день, по числу месяца.",
+  "mail.series.subject": "{name}: {title}",
+  "mail.series.body": "{name} — {title}{hebrew}\n\nУже на targum: {where}\n\nВы получили это письмо, потому что следите за «{name}». Чтобы отписаться: {stop}\n",
+  "series.stop.ask": "Перестать сообщать вам о новых выпусках?",
+  "series.stop.button": "Да, перестать",
+  "series.stop.done": "Больше не сообщим.",
+  "series.stop.heading": "ваши подписки",
+  "note.read-this-week": "Читать эту неделю",
+  "note.back-to-targum": "Назад в targum"
 }

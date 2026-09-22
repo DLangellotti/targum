@@ -4304,7 +4304,10 @@ class Handler(BaseHTTPRequestHandler):
             if series == "weekly":
                 store.follow(person.email, wanted)
             else:
-                store.follow_series(person.email, series, wanted)
+                # In the language they are reading targum in as they press, so the mail
+                # and the page it leads to are in it too (targum-internal#289). There is
+                # no account behind a follow row, so this is the only chance to know.
+                store.follow_series(person.email, series, wanted, self._page_language())
         follows = store.series_followed(person.email)
         if store.following(person.email):
             follows = ["weekly", *follows]
@@ -4314,26 +4317,42 @@ class Handler(BaseHTTPRequestHandler):
         """The one-click door out of a series, from an email: a page with a button, and
         the button is what spends the token — a mail client that fetches every link must
         not be able to answer for the person it was sent to."""
+        from .strings import text
+
         store = self.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
         if form is None:
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            # The token is all this page has: it is followed out of a mail client with
+            # no session and no account, so the language it was followed in is read off
+            # the row rather than off the request (targum-internal#289).
+            said = store.following_language(token)
             page = weekly_note(
-                "Should we stop telling you when a new one comes out?",
+                text("series.stop.ask", said),
                 address=self.address,
                 done=False,
-                pending={"action": "/series/stop", "token": token, "button": "Yes, stop"},
-                heading="your subscriptions",
+                pending={
+                    "action": "/series/stop",
+                    "token": token,
+                    "button": text("series.stop.button", said),
+                },
+                heading=text("series.stop.heading", said),
                 home="/library",
+                language=said,
             )
             return self._send(200, page.encode("utf-8"), HTML)
-        store.stop_following(form.get("t", ""))
+        token = form.get("t", "")
+        # Read before it is spent. Stopping does not clear the language, but a token that
+        # matches no row answers English, and this is the last moment one certainly does.
+        said = store.following_language(token)
+        store.stop_following(token)
         page = weekly_note(
-            "We won't tell you about it again.",
+            text("series.stop.done", said),
             address=self.address,
-            heading="your subscriptions",
+            heading=text("series.stop.heading", said),
             home="/library",
+            language=said,
         )
         return self._send(200, page.encode("utf-8"), HTML)
 

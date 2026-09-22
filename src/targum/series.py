@@ -202,14 +202,11 @@ def current(
 BATCH = 25
 PAUSE = 2.0
 
-SUBJECT = "{name}: {title}"
-
-BODY = """{name} — {title}{hebrew}
-
-It is on targum now: {where}
-
-You are getting this because you follow {name}. To stop: {stop}
-"""
+#: The mail, in the catalogue since targum-internal#289 rather than written here. It was
+#: the last thing in this file still English for everybody, on a series whose name and
+#: blurb the same reader already had in their own language.
+SUBJECT = "mail.series.subject"
+BODY = "mail.series.body"
 
 
 @dataclass
@@ -227,18 +224,32 @@ class Report:
         return line
 
 
-def letter(one: dict[str, Any], address: str, stop_token: str) -> tuple[str, str]:
+def letter(
+    one: dict[str, Any], address: str, stop_token: str, language: str = "en"
+) -> tuple[str, str]:
+    """The subject and body for one follower, in the language they follow in.
+
+    `one` is passed through `said_in` here rather than by the caller, because the series
+    is read once for everybody and the name in it is the name in *somebody's* language —
+    a letter that took it as given would say the Russian name to every English reader as
+    soon as one Russian follower came first.
+    """
+    from .strings import text
+
+    said = said_in(one, language)
     inst = one["instalment"]
     hebrew = f" · {inst['hebrew']}" if inst.get("hebrew") else ""
     where = f"{address.rstrip('/')}{one['page']}"
-    body = BODY.format(
-        name=one["name"],
+    body = text(
+        BODY,
+        language,
+        name=said["name"],
         title=inst["title"],
         hebrew=hebrew,
         where=where,
         stop=f"{address.rstrip('/')}/series/stop?t={stop_token}",
     )
-    return SUBJECT.format(name=one["name"], title=inst["title"]), body
+    return text(SUBJECT, language, name=said["name"], title=inst["title"]), body
 
 
 def announce(
@@ -264,8 +275,8 @@ def announce(
         holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()
         try:
             with holding:
-                for index, (email, stop_token) in enumerate(waiting):
-                    subject, body = letter(one, address, stop_token)
+                for index, (email, stop_token, language) in enumerate(waiting):
+                    subject, body = letter(one, address, stop_token, language)
                     unsubscribe = f"<{address.rstrip('/')}/series/stop?t={stop_token}>"
                     try:
                         mailer.notify(
