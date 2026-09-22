@@ -1106,7 +1106,7 @@ class Chats:
                 seed=seed,
             )
             if picked:
-                ledger = ledger + "\n\n" + exemplars_module.block(picked)
+                ledger = ledger + "\n\n" + exemplars_module.block(picked, into)
         # Where the fetch door was refused. After the breakpoint with the ledger, because
         # it changes as the box knocks, and a changing block before the breakpoint would
         # throw the cached prefix away every time it learned something.
