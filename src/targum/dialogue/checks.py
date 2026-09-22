@@ -421,3 +421,59 @@ def cast_voices_disagree(cast: dict[str, dict[str, str]]) -> list[str]:
             name = who.get("name") or side
             out.append(f"{side} ({name}): declared {gender}, but the voice {voice} is {said}")
     return out
+
+
+# ----------------------------------------------------------- telling the engine how
+
+
+def pronunciation_hints(text: str, addressee: str = "") -> list[str]:
+    """What a speech engine cannot work out from the letters, said in words.
+
+    Gemini ignores nikkud — a pointed line and the same line stripped of every vowel
+    come back identical (measured 2026-08-30) — so it reads Hebrew the way a literate
+    Israeli reads unpointed text: from context, fluently, and sometimes wrong. On
+    `עזבת` that is a coin toss between *azavta* and *azavt*, and a learner who hears
+    the wrong one is being taught the wrong one, in the single channel they cannot
+    check against the page.
+
+    **targum holds the answer and throws it away.** The pointing says which form it is.
+    The engine will not read the pointing, but it will take an instruction: told in
+    the prompt how a word is stressed, it changed the reading. So the pointing is
+    turned into an instruction here.
+
+    Only the genuinely ambiguous forms get a hint — the ones whose *letters* are the
+    same either way. `אתה` is never `את`, so it is left alone; `את` is `at` or `et`,
+    and the ending of `עזבת` is `-ta` or `-t`, and those are said.
+    """
+    # Grouped by what is said about them, not one line per word. Two words can want
+    # the identical instruction — אמרת and ואמרת differ by a conjunction and end the
+    # same way — and prompt length is the thing that makes this API fail: a 497
+    # character prompt was rejected four times in five, a 109 character one never.
+    grouped: dict[str, list[str]] = {}
+    for word in words_of(text):
+        says = addressed_gender(word)
+        if not says:
+            continue
+        plain = bare(word)
+        units_ = units(word)
+        if not units_:
+            continue
+        last = units_[-1][0]
+        # A leading conjunction does not change the word: ואת is still את.
+        stem = plain[1:] if plain[:1] == "\u05d5" and len(plain) > 2 else plain
+        if stem == "\u05d0\u05ea":
+            said = '"at", the word for "you" to a woman — not "et", the object marker'
+        elif last == "\u05ea":
+            said = 'ends "-t", the feminine' if says == "f" else 'ends "-ta", the masculine'
+        elif last in ("\u05da", "\u05db"):
+            said = 'ends "-akh", the feminine' if says == "f" else 'ends "-kha", the masculine'
+        else:
+            continue
+        if addressee and says != addressee:
+            # The line disagrees with the cast. Say what is written, not what is meant:
+            # the text is the thing being read aloud, and a hint that contradicts it
+            # would have the engine say a word that is not on the page.
+            said += " (as written, though the cast says otherwise)"
+        if plain not in grouped.setdefault(said, []):
+            grouped[said].append(plain)
+    return [f"{', '.join(words)}: {said}" for said, words in grouped.items()]

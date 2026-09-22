@@ -19,6 +19,7 @@ from targum.dialogue.checks import (
     hataf_on_non_guttural,
     impossible_dagesh,
     inconsistent_pointing,
+    pronunciation_hints,
     scales_disagree,
     units,
     voice_gender,
@@ -169,3 +170,35 @@ def test_voice_gender_knows_the_voices_the_scenes_use() -> None:
         assert voice_gender(voice) == "f", voice
     for voice in ("Charon", "Orus", "Puck", "Enceladus"):
         assert voice_gender(voice) == "m", voice
+
+
+def test_a_hint_is_given_where_the_letters_do_not_decide() -> None:
+    """`עזבת` is azavta or azavt and the letters are the same either way."""
+    assert pronunciation_hints("לָמָּה עָזַבְתְּ?", "f") == ['עזבת: ends "-t", the feminine']
+    assert pronunciation_hints("לָמָּה עָזַבְתָּ?", "m") == ['עזבת: ends "-ta", the masculine']
+
+
+def test_no_hint_where_the_letters_already_decide() -> None:
+    """אתה is never את, so the engine cannot get it wrong and is not told about it."""
+    assert pronunciation_hints("אַתָּה בָּא?", "m") == []
+    assert pronunciation_hints("שָׁלוֹם, מָה נִשְׁמָע?", "f") == []
+
+
+def test_at_is_hinted_because_it_is_also_et() -> None:
+    """The one two-letter word that is both a pronoun and the object marker."""
+    assert pronunciation_hints("וְאַתְּ?", "f") == [
+        'ואת: "at", the word for "you" to a woman — not "et", the object marker'
+    ]
+
+
+def test_a_hint_says_what_is_written_even_against_the_cast() -> None:
+    """The engine reads the page. A hint that contradicts the page is a hint that
+    makes it say a word which is not there."""
+    said = pronunciation_hints("לָמָּה עָזַבְתְּ?", "m")
+    assert said and 'ends "-t", the feminine' in said[0]
+    assert "though the cast says otherwise" in said[0]
+
+
+def test_each_word_is_hinted_once() -> None:
+    twice = pronunciation_hints("אָמַרְתָּ וְאָמַרְתָּ שׁוּב", "m")
+    assert twice == ['אמרת, ואמרת: ends "-ta", the masculine']
