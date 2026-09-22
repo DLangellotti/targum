@@ -123,6 +123,31 @@
     <p class="said" id="connections-said" hidden></p>
   </section>
 
+  {#- What a reader wrote for their connector to offer (targum-internal#80, note 17:
+      "enable users to use targum their way"). Two fields and no jargon: what to call it,
+      and what it should do. What they write appears in Claude or ChatGPT beside ours the
+      moment it saves.
+
+      Shown only once something is connected — a box for writing prompts, to somebody who
+      has no connector to show them in, is a control without a job (§6). -#}
+  <section class="panel" id="prompts" hidden>
+    <h2>{{ t("you.page.your-own-asks", "Your own asks") }}</h2>
+    <p class="note">{{ t("you.page.prompts-says", "Things you ask for often. Write one here and it appears in Claude or ChatGPT by name, next to ours.") }}</p>
+    <ul class="series" id="prompt-rows"></ul>
+    <label class="field">
+      <span>{{ t("you.page.prompt-name", "What to call it") }}</span>
+      <input type="text" id="prompt-name" maxlength="40" spellcheck="false" autocapitalize="off">
+    </label>
+    <label class="field">
+      <span>{{ t("you.page.prompt-says", "What it should do") }}</span>
+      <input type="text" id="prompt-says" maxlength="2000">
+    </label>
+    <p class="ending-row">
+      <button type="button" class="go-quiet" id="prompt-save">{{ t("you.page.prompt-save", "Save it") }}</button>
+    </p>
+    <p class="said" id="prompts-said" hidden></p>
+  </section>
+
   <section class="panel" id="subscriptions" hidden>
     <h2>{{ t("you.page.your-subscriptions", "Your subscriptions") }}</h2>
     <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on their own clock. Follow one and we'll put each

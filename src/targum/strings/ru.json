@@ -2031,5 +2031,16 @@
   "you.connections.could-not": "Не удалось отключить. Попробуйте ещё раз.",
   "you.connections.library": "библиотека",
   "you.connections.record": "ваши слова и ошибки",
-  "you.connections.check": "проверка вашего иврита — расходует ваши часы"
+  "you.connections.check": "проверка вашего иврита — расходует ваши часы",
+  "you.page.your-own-asks": "Ваши запросы",
+  "you.page.prompts-says": "То, о чём вы просите часто. Напишите здесь — и оно появится в Claude или ChatGPT по имени, рядом с нашими.",
+  "you.page.prompt-name": "Как это назвать",
+  "you.page.prompt-says": "Что это должно делать",
+  "you.page.prompt-save": "Сохранить",
+  "you.prompts.remove": "Убрать",
+  "you.prompts.removed": "Убрано.",
+  "you.prompts.could-not": "Не удалось сохранить. Попробуйте ещё раз.",
+  "you.prompts.saved": "Сохранено как {name}. Теперь это в ваших приложениях.",
+  "you.prompts.saved-plain": "Сохранено.",
+  "serve.give-it-a-name-and-say-what": "Дайте имя и скажите, что это должно делать. Можно хранить до {most}."
 }

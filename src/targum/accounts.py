@@ -77,6 +77,12 @@ ACCESS_MINUTES = 60
 # and "never existed" stay tellable apart for as long as that is worth anything.
 TOKEN_SWEEP_DAYS = 30
 
+#: How many prompts one reader may keep, and how long each may be. Enough for somebody
+#: who has worked out a handful of ways they like to be asked; not a place to keep an
+#: essay, because what is here is said to a model on every listing.
+MOST_PROMPTS = 20
+PROMPT_LENGTH = 2000
+
 # 2: person.leaving, for a deletion that waits out a grace period.
 # 3: job.spent, what a build really cost once the API said so.
 # 4: job.chapters, how a text divides — one means it is not a book.
@@ -159,10 +165,14 @@ TOKEN_SWEEP_DAYS = 30
 #    names a person rather than a cookie. All three are new tables, so `CREATE TABLE IF
 #    NOT EXISTS` is the whole migration and nothing is added to MIGRATIONS below.
 #
+# 30: the prompt table — what a reader wrote for their own connector to offer
+#    (targum-internal#80, note 17). A new table, so `CREATE TABLE IF NOT EXISTS` is
+#    the whole of it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 29
+SCHEMA_VERSION = 30
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -953,6 +963,33 @@ CREATE TABLE IF NOT EXISTS oauth_token (
   seen        INTEGER NOT NULL DEFAULT 0,
   revoked     INTEGER NOT NULL DEFAULT 0
 );
+-- A prompt a reader wrote for themselves (targum-internal#80, notes 11 and 17).
+--
+-- MCP prompts appear in the host by name — in effect a slash command targum ships into
+-- Claude or ChatGPT. targum's own set is fixed and lives in `mcp_http.PROMPTS`; this is
+-- where a reader's own go, so what appears beside ours is theirs.
+--
+-- "Enable users to use targum their way" was note 17, and this is the smallest thing
+-- that is actually that rather than a value: a text box, and what they write is in their
+-- host next to ours the moment they save it.
+--
+-- `says` is what the model is told. It is the reader's own words going to a model, which
+-- is a thing they do every time they use the chat, and it can only ever reach their own
+-- record — `prompts/get` reads it through the same `Ctx` every tool does, so a prompt
+-- naming somebody else's shelf is a prompt asking for nothing.
+--
+-- A tombstone rather than a delete, like every other thing a reader keeps, so that one
+-- device removing a prompt does not have another put it back.
+CREATE TABLE IF NOT EXISTS prompt (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  person  INTEGER NOT NULL,
+  name    TEXT    NOT NULL,
+  says    TEXT    NOT NULL,
+  made    INTEGER NOT NULL,
+  gone    INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS prompt_named ON prompt (person, name);
+
 CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
 CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
 """
@@ -965,6 +1002,17 @@ CHAT_RESTARTED = "We restarted while we were answering. Ask again."
 def now() -> int:
     """Milliseconds, because the client's own timestamps are `Date.now()`."""
     return int(time.time() * 1000)
+
+
+def _prompt_name(name: str) -> str:
+    """A prompt's name, as a host will draw it: one lowercase word, hyphens for spaces.
+
+    A host lists these as things to pick by name, and several draw them as slash
+    commands — where a space is the end of the name and the start of an argument. So a
+    name is narrowed here rather than shown to be wrong later in somebody else's app.
+    """
+    kept = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
+    return kept[:40]
 
 
 def digest(token: str) -> str:
@@ -2414,6 +2462,8 @@ class Store:
             # from a client on somebody else's machine, which is worse than a cookie.
             db.execute("DELETE FROM oauth_token WHERE person = ?", (person.id,))
             db.execute("DELETE FROM oauth_grant WHERE person = ?", (person.id,))
+            # And what they wrote for it. Their words, so they go with them.
+            db.execute("DELETE FROM prompt WHERE person = ?", (person.id,))
             # The weekly stops too. A subscription is deliberately not part of the
             # account — it outlives one, and that is the point of keeping it in its own
             # table — but somebody who asked to be forgotten did not mean "keep mailing
@@ -2654,6 +2704,9 @@ class Store:
         # Which clients they connected, and what they let each one do. The digests stay
         # out, for the reason at the top of this method.
         out["connections"] = self.connections(person.id)
+        # And what they wrote for those clients to offer. Theirs in the plainest sense:
+        # they typed it.
+        out["prompts"] = self.prompts(person.id)
         return out
 
     def marked(self, person: Person, language: str) -> dict[str, int]:
@@ -3285,6 +3338,58 @@ class Store:
             cursor = db.execute(
                 "UPDATE slip SET known = ? WHERE id = ? AND person = ? AND gone = 0",
                 (now() if known else 0, slip_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    # --- what a reader wrote for their own connector (targum-internal#80) ----------
+
+    def write_prompt(self, person_id: int, name: str, says: str) -> dict[str, Any] | None:
+        """Save a prompt under a name, replacing one of the same name. None if refused.
+
+        The name is what appears in their host, so it is narrowed to what a host will
+        show as one word and what a slash command can be: a name with a space in it reads
+        as two commands in every client that draws them.
+        """
+        name = _prompt_name(name)
+        says = says.strip()[:PROMPT_LENGTH]
+        if not name or not says:
+            return None
+        with self.write() as db:
+            standing = db.execute(
+                "SELECT COUNT(*) AS n FROM prompt WHERE person = ? AND gone = 0 AND name != ?",
+                (person_id, name),
+            ).fetchone()
+            if int(standing["n"]) >= MOST_PROMPTS:
+                return None
+            db.execute(
+                "INSERT INTO prompt (person, name, says, made) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(person, name) DO UPDATE SET"
+                "   says = excluded.says, made = excluded.made, gone = 0",
+                (person_id, name, says, now()),
+            )
+            row = db.execute(
+                "SELECT id, name, says, made FROM prompt WHERE person = ? AND name = ?",
+                (person_id, name),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def prompts(self, person_id: int | None) -> list[dict[str, Any]]:
+        """One reader's own prompts, oldest first — the order they wrote them in."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT id, name, says, made FROM prompt WHERE person = ? AND gone = 0"
+            " ORDER BY made, id",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def drop_prompt(self, person_id: int, name: str) -> bool:
+        """Take one away. A tombstone, like everything else a reader keeps."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE prompt SET gone = ? WHERE person = ? AND name = ? AND gone = 0",
+                (now(), person_id, _prompt_name(name)),
             )
             return cursor.rowcount > 0
 

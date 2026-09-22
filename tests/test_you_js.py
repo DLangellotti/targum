@@ -272,3 +272,72 @@ def test_disconnecting_posts_the_client_and_redraws() -> None:
     assert posted and posted[0]["body"] == {"client": "c-claude"}
     assert [one["name"] for one in page["connections"]] == ["ChatGPT"], "redrawn from the answer"
     assert page["connectionsSaid"] == {"text": "Disconnected.", "hidden": False}
+
+
+# --- a reader's own asks (targum-internal#80, note 17) ----------------------------
+
+
+def test_no_connector_no_box_to_write_one() -> None:
+    """A control for writing prompts, shown to somebody with nothing to show them in,
+    is a control without a job."""
+    page = run(who={**SIGNED_IN, "prompts": []})
+    assert page["promptsPanel"] is True, "hidden"
+
+
+def test_what_a_reader_wrote_is_listed_with_a_way_to_remove_it() -> None:
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs.", "made": 1}],
+        }
+    )
+    assert page["promptsPanel"] is False
+    assert page["prompts"] == [{"name": "my-verbs", "says": "Drill my verbs."}]
+
+
+def test_saving_one_posts_both_fields_and_says_what_it_was_called() -> None:
+    """The server narrows the name; the page says what it actually saved rather than
+    what was typed."""
+    page = run(
+        who=CONNECTED,
+        do=[
+            {"type": "write", "id": "prompt-name", "value": "My Verbs"},
+            {"type": "write", "id": "prompt-says", "value": "Drill my verbs."},
+            {"type": "press", "id": "prompt-save"},
+        ],
+        answers={
+            "/account/prompts": {
+                "written": {"id": 1, "name": "my-verbs", "says": "Drill my verbs."},
+                "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
+            }
+        },
+    )
+    posted = [one for one in page["posted"] if one["path"] == "/account/prompts"]
+    assert posted and posted[0]["body"] == {"name": "My Verbs", "says": "Drill my verbs."}
+    assert page["prompts"] == [{"name": "my-verbs", "says": "Drill my verbs."}]
+    assert page["promptsSaid"]["text"] == "Saved as my-verbs. It's in your apps now."
+
+
+def test_a_refusal_is_said_rather_than_claiming_it_saved() -> None:
+    page = run(
+        who=CONNECTED,
+        do=[{"type": "press", "id": "prompt-save"}],
+        answers={"/account/prompts": {"error": "Give it a name.", "prompts": []}},
+    )
+    assert page["promptsSaid"] == {"text": "Give it a name.", "hidden": False}
+    assert page["prompts"] == []
+
+
+def test_removing_one_posts_its_name_and_redraws() -> None:
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
+        },
+        do=[{"type": "press", "id": "prompt-rows:0:2"}],
+        answers={"/account/prompts": {"prompts": []}},
+    )
+    posted = [one for one in page["posted"] if one["path"] == "/account/prompts"]
+    assert posted[0]["body"] == {"name": "my-verbs", "gone": True}
+    assert page["prompts"] == []
+    assert page["promptsSaid"]["text"] == "Removed."

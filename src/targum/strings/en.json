@@ -1926,5 +1926,16 @@
   "you.connections.could-not": "We couldn't disconnect that. Try again.",
   "you.connections.library": "the library",
   "you.connections.record": "your words and mistakes",
-  "you.connections.check": "checking your Hebrew, which uses your hours"
+  "you.connections.check": "checking your Hebrew, which uses your hours",
+  "you.page.your-own-asks": "Your own asks",
+  "you.page.prompts-says": "Things you ask for often. Write one here and it appears in Claude or ChatGPT by name, next to ours.",
+  "you.page.prompt-name": "What to call it",
+  "you.page.prompt-says": "What it should do",
+  "you.page.prompt-save": "Save it",
+  "you.prompts.remove": "Remove",
+  "you.prompts.removed": "Removed.",
+  "you.prompts.could-not": "We couldn't save that. Try again.",
+  "you.prompts.saved": "Saved as {name}. It's in your apps now.",
+  "you.prompts.saved-plain": "Saved.",
+  "serve.give-it-a-name-and-say-what": "Give it a name and say what it should do. You can keep up to {most}."
 }

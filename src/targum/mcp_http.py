@@ -131,12 +131,37 @@ def tool_shapes(tools: list[tools_module.Tool]) -> list[dict[str, Any]]:
     ]
 
 
-def prompt_shapes() -> list[dict[str, Any]]:
-    """The prompts as `prompts/list` says them — everything but what they actually say."""
+def prompt_shapes(mine: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """The prompts as `prompts/list` says them — everything but what they actually say.
+
+    targum's set, then the reader's own beneath it (note 17). A reader's own name can
+    never take one of ours: `_prompts` puts ours first and drops a later collision, so
+    somebody who writes a `drill` of their own gets ours and is not quietly given a
+    different thing under a name they recognise.
+    """
     return [
         {key: one[key] for key in ("name", "description", "arguments") if key in one}
-        for one in PROMPTS
+        for one in _prompts(mine)
     ]
+
+
+def _prompts(mine: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Ours and theirs, ours first, one name each.
+
+    A reader's own prompt is one sentence saying what they want, so it is both the
+    description a host lists and the message it sends — there is no second field to
+    write and nothing gained by asking for one.
+    """
+    out = list(PROMPTS)
+    taken = {one["name"] for one in out}
+    for one in mine or []:
+        name = str(one.get("name") or "")
+        if not name or name in taken:
+            continue
+        taken.add(name)
+        says = str(one.get("says") or "")
+        out.append({"name": name, "description": says[:200], "arguments": [], "says": says})
+    return out
 
 
 def handle(
@@ -182,10 +207,11 @@ def handle(
         return _result(request_id, {})
     if method == "tools/list":
         return _result(request_id, {"tools": tool_shapes(connector.exposed(scopes, person=person))})
+    mine = store.prompts(person.id) if store is not None and person is not None else []
     if method == "prompts/list":
-        return _result(request_id, {"prompts": prompt_shapes()})
+        return _result(request_id, {"prompts": prompt_shapes(mine)})
     if method == "prompts/get":
-        return _result(request_id, _prompt(str(params.get("name") or "")))
+        return _result(request_id, _prompt(str(params.get("name") or ""), mine))
     if method == "tools/call":
         return _call(
             request_id,
@@ -199,9 +225,9 @@ def handle(
     raise RpcError(METHOD_NOT_FOUND, f"This server has no {method}.")
 
 
-def _prompt(name: str) -> dict[str, Any]:
+def _prompt(name: str, mine: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """One prompt, as the message a host drops into its own conversation."""
-    found = next((one for one in PROMPTS if one["name"] == name), None)
+    found = next((one for one in _prompts(mine) if one["name"] == name), None)
     if found is None:
         raise RpcError(INVALID_PARAMS, f"There is no prompt called {name}.")
     return {

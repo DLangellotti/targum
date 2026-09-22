@@ -306,6 +306,93 @@
     paint(who && who.connections);
   }
 
+  /* What a reader wrote for their connector to offer (#80, note 17).
+
+     Two fields and no jargon: what to call it, and what it should do. The name is
+     narrowed by the server to one lowercase word, because a host draws these as things
+     to pick by name and several draw them as slash commands, where a space ends the
+     name. The page does not pretend otherwise — what comes back is what was saved, and
+     the row shows that.
+
+     Drawn only where something is connected: a box for writing prompts, shown to
+     somebody with no connector to show them in, is a control without a job. */
+  function drawPrompts(who) {
+    var panel = at("prompts");
+    var rows = at("prompt-rows");
+    var name = at("prompt-name");
+    var says = at("prompt-says");
+    var save = at("prompt-save");
+    var said = at("prompts-said");
+    if (!panel || !rows || !save) return;
+    var connected = !!(who && who.connections && who.connections.length);
+
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+
+    function paint(prompts) {
+      rows.textContent = "";
+      panel.hidden = !connected;
+      (prompts || []).forEach(function (one) {
+        var row = document.createElement("li");
+        var called = document.createElement("span");
+        called.className = "series-name";
+        called.textContent = one.name;
+        var what = document.createElement("span");
+        what.className = "note";
+        what.textContent = one.says;
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "go-quiet danger";
+        press.textContent = t("you.prompts.remove", "Remove");
+        press.onclick = function () {
+          press.disabled = true;
+          ask("/account/prompts", { name: one.name, gone: true })
+            .then(function (answer) {
+              paint(answer && answer.prompts);
+              tell(t("you.prompts.removed", "Removed."));
+            })
+            .catch(function () {
+              press.disabled = false;
+              tell(t("you.prompts.could-not", "We couldn't save that. Try again."));
+            });
+        };
+        row.appendChild(called);
+        row.appendChild(what);
+        row.appendChild(press);
+        rows.appendChild(row);
+      });
+    }
+
+    save.onclick = function () {
+      ask("/account/prompts", { name: name.value, says: says.value })
+        .then(function (answer) {
+          if (answer && answer.error) {
+            tell(answer.error);
+            paint(answer.prompts);
+            return;
+          }
+          paint(answer && answer.prompts);
+          name.value = "";
+          says.value = "";
+          var written = answer && answer.written;
+          tell(
+            written
+              ? t("you.prompts.saved", "Saved as {name}. It's in your apps now.", {
+                  name: written.name,
+                })
+              : t("you.prompts.saved-plain", "Saved.")
+          );
+        })
+        .catch(function () {
+          tell(t("you.prompts.could-not", "We couldn't save that. Try again."));
+        });
+    };
+
+    paint(who && who.prompts);
+  }
+
   /* Accepting the contribution grant (targum-internal#164, door 3), which is the whole
      of what decides whether a word's card offers a way to correct a meaning.
 
@@ -452,6 +539,7 @@
       drawLanguages(who);
       drawRecord(who);
       drawConnections(who);
+      drawPrompts(who);
       drawGrant(who);
       at("you-name").addEventListener("input", saveName);
       var address = at("you-address");

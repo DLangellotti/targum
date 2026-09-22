@@ -39,7 +39,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from . import incidents as incidents_module
 from . import level as level_module
 from . import mcp_http, oauth
-from .accounts import CHAT_RESTARTED, Person, Store, now, plausible
+from .accounts import CHAT_RESTARTED, MOST_PROMPTS, Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -5372,6 +5372,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._follows(payload)
         if route == "/account/disconnect":
             return self._disconnect(payload)
+        if route == "/account/prompts":
+            return self._prompts(payload)
         if route == "/already":
             return self._already(payload)
         if route == "/describe":
@@ -6334,9 +6336,41 @@ class Handler(BaseHTTPRequestHandler):
             # reader can take it back, and this is that somewhere — see design.md §12,
             # "A scope is a press that lasts". Never the token itself.
             "connections": self.store.connections(person.id),
+            # And what they wrote for those connectors to offer (note 17). Listed here so
+            # the page that writes them is the page that shows them.
+            "prompts": self.store.prompts(person.id),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _prompts(self, payload: dict[str, Any]) -> None:
+        """What a reader wrote for their own connector to offer (#80, note 17).
+
+        One door for writing and removing, because they are the same act from the page's
+        side: a name and what it should do, or a name and nothing. What comes back is the
+        whole list, so the page never has to work out what it now holds.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        name = str(payload.get("name") or "")
+        if payload.get("gone"):
+            self.store.drop_prompt(person.id, name)
+            return self._json({"prompts": self.store.prompts(person.id)})
+        written = self.store.write_prompt(person.id, name, str(payload.get("says") or ""))
+        if written is None:
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.give-it-a-name-and-say-what",
+                        "Give it a name and say what it should do. You can keep up to {most}.",
+                        most=MOST_PROMPTS,
+                    ),
+                    "prompts": self.store.prompts(person.id),
+                },
+                400,
+            )
+        self._json({"written": written, "prompts": self.store.prompts(person.id)})
 
     def _disconnect(self, payload: dict[str, Any]) -> None:
         """Take a connector's tokens back — the other half of the approval page.

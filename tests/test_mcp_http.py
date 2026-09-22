@@ -463,3 +463,75 @@ def test_the_press_page_needs_an_account(box: tuple[int, str]) -> None:
     port, _ = box
     status, body, _ = send(port, "GET", "/build/anything")
     assert status != 200 or b"sign in" in body.lower()
+
+
+# --- a reader's own prompts, beside ours (note 17) --------------------------------
+
+
+def a_prompt(port: int, session: str, name: str, says: str) -> None:
+    status, body, _ = send(
+        port,
+        "POST",
+        "/account/prompts",
+        json.dumps({"name": name, "says": says}),
+        session=session,
+    )
+    assert status == 200, body
+
+
+def test_what_a_reader_writes_is_in_their_host(box: tuple[int, str]) -> None:
+    port, session = box
+    a_prompt(port, session, "my-verbs", "Drill the verbs I keep getting wrong.")
+    token = a_token(port, "library record")
+    listed = rpc(port, token, "prompts/list")["result"]["prompts"]
+    names = [one["name"] for one in listed]
+    assert "my-verbs" in names
+    assert names.index("my-verbs") > names.index("drill"), "ours first, theirs beneath"
+
+    got = rpc(port, token, "prompts/get", {"name": "my-verbs"})["result"]
+    assert got["messages"][0]["content"]["text"] == "Drill the verbs I keep getting wrong."
+
+
+def test_a_reader_cannot_shadow_one_of_ours(box: tuple[int, str]) -> None:
+    """Somebody who writes their own `drill` gets ours, not a different thing under a
+    name they recognise."""
+    port, session = box
+    a_prompt(port, session, "drill", "Something else entirely.")
+    token = a_token(port, "library record")
+    listed = rpc(port, token, "prompts/list")["result"]["prompts"]
+    assert [one["name"] for one in listed].count("drill") == 1
+    got = rpc(port, token, "prompts/get", {"name": "drill"})["result"]
+    assert "my_vocabulary" in got["messages"][0]["content"]["text"], "ours"
+
+
+def test_a_prompt_is_gone_from_the_host_when_it_is_removed(box: tuple[int, str]) -> None:
+    port, session = box
+    a_prompt(port, session, "for-now", "Temporary.")
+    token = a_token(port, "library record")
+    listed = rpc(port, token, "prompts/list")["result"]["prompts"]
+    assert "for-now" in [one["name"] for one in listed]
+    send(
+        port,
+        "POST",
+        "/account/prompts",
+        json.dumps({"name": "for-now", "gone": True}),
+        session=session,
+    )
+    assert "for-now" not in [
+        one["name"] for one in rpc(port, token, "prompts/list")["result"]["prompts"]
+    ]
+
+
+def test_a_stranger_cannot_write_one(box: tuple[int, str]) -> None:
+    port, _ = box
+    status, _, _ = send(port, "POST", "/account/prompts", json.dumps({"name": "x", "says": "y"}))
+    assert status == 401
+
+
+def test_a_prompt_with_nothing_in_it_says_so(box: tuple[int, str]) -> None:
+    port, session = box
+    status, body, _ = send(
+        port, "POST", "/account/prompts", json.dumps({"name": "", "says": ""}), session=session
+    )
+    assert status == 400
+    assert "name" in json.loads(body)["error"].lower()

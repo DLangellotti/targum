@@ -85,6 +85,8 @@ function act(step) {
     let node = at(path[0]);
     for (let n = 1; n < path.length; n++) node = node.children[Number(path[n])];
     node.fire("click", {});
+  } else if (step.type === "write") {
+    at(step.id).value = step.value;
   } else if (step.type === "tick") {
     const box = at(step.list).children.map((label) => label.children[0]).find((one) => one.value === step.code);
     box.checked = !box.checked;
@@ -129,6 +131,12 @@ setTimeout(() => {
           says: row.children[1].textContent,
           press: row.children[2].textContent,
         })),
+        promptsPanel: at("prompts").hidden,
+        prompts: Array.from(at("prompt-rows").children).map((row) => ({
+          name: row.children[0].textContent,
+          says: row.children[1].textContent,
+        })),
+        promptsSaid: { text: at("prompts-said").textContent, hidden: at("prompts-said").hidden },
         connectionsSaid: {
           text: at("connections-said").textContent,
           hidden: at("connections-said").hidden,

@@ -403,3 +403,72 @@ def test_a_registration_reply_offers_no_secret() -> None:
     assert "client_secret" not in said, "every client here is public; PKCE stands in"
     assert said["token_endpoint_auth_method"] == "none"
     assert said["client_id_issued_at"] == 1
+
+
+# --- what a reader wrote for their own connector (note 17) -----------------------
+
+
+def test_a_prompt_is_saved_under_a_name_a_host_can_draw(tmp_path: Path) -> None:
+    """A host draws these as things to pick by name, and several as slash commands."""
+    store = a_store(tmp_path)
+    person = a_person(store)
+    written = store.write_prompt(person.id, "Drill My Verbs", "Work on my verbs.")
+    assert written is not None and written["name"] == "drill-my-verbs"
+    assert store.prompts(person.id)[0]["says"] == "Work on my verbs."
+
+
+def test_saving_the_same_name_replaces_it(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    person = a_person(store)
+    store.write_prompt(person.id, "mine", "first")
+    store.write_prompt(person.id, "mine", "second")
+    kept = store.prompts(person.id)
+    assert len(kept) == 1 and kept[0]["says"] == "second"
+
+
+def test_a_prompt_with_no_name_or_nothing_to_say_is_refused(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    person = a_person(store)
+    assert store.write_prompt(person.id, "", "something") is None
+    assert store.write_prompt(person.id, "named", "   ") is None
+    assert store.write_prompt(person.id, "!!!", "something") is None, "no name survives that"
+
+
+def test_there_is_a_ceiling_on_how_many(tmp_path: Path) -> None:
+    from targum.accounts import MOST_PROMPTS
+
+    store = a_store(tmp_path)
+    person = a_person(store)
+    for n in range(MOST_PROMPTS):
+        assert store.write_prompt(person.id, f"p{n}", "x") is not None
+    assert store.write_prompt(person.id, "one-too-many", "x") is None
+    assert store.write_prompt(person.id, "p0", "replacing is not adding") is not None
+
+
+def test_removing_one_is_a_tombstone(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    person = a_person(store)
+    store.write_prompt(person.id, "mine", "x")
+    assert store.drop_prompt(person.id, "mine") is True
+    assert store.prompts(person.id) == []
+    assert store.drop_prompt(person.id, "mine") is False, "already gone"
+    assert store.write_prompt(person.id, "mine", "back") is not None, "and can come back"
+
+
+def test_prompts_are_exported_and_go_with_the_account(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    person = a_person(store)
+    store.write_prompt(person.id, "mine", "my own words")
+    assert store.everything(person)["prompts"][0]["says"] == "my own words"
+    store.forget(person)
+    assert store.prompts(person.id) == []
+
+
+def test_one_reader_s_prompts_are_their_own(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    mine = a_person(store, "mine@example.com")
+    theirs = a_person(store, "theirs@example.com")
+    store.write_prompt(mine.id, "mine", "x")
+    assert store.prompts(theirs.id) == []
+    assert store.drop_prompt(theirs.id, "mine") is False, "not theirs to remove"
+    assert len(store.prompts(mine.id)) == 1
