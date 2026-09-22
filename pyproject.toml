@@ -69,7 +69,12 @@ covers = ["pillow>=10.0"]
 # `pillow-heif` opens what an iPhone takes; `pypdf` reads a handout's text layer. All
 # three BSD-3. An extra rather than hard dependencies because a box that only reads
 # text should not carry libheif, and because a box without them refuses in one sentence.
-bring = ["pillow>=10.0", "pillow-heif>=0.18", "pypdf>=5.0"]
+# `pymupdf` turns a scanned PDF's pages into pictures so the model can read them, which
+# is the only way in for a PDF with no text layer (targum-internal#252). It is **AGPL**,
+# chosen by David on 2026-09-22 over the permissive alternatives: targum is already
+# AGPL-3.0-or-later so it adds no obligation here. LICENSING.md says what it does mean
+# for anybody building on targum under other terms.
+bring = ["pillow>=10.0", "pillow-heif>=0.18", "pypdf>=5.0", "pymupdf>=1.24"]
 difficulty = ["wordfreq>=3.1"]
 # Russian stress marks (targum-internal#260). MIT, with its weights inside the wheel
 # (38 MB) and torch, which Stanza already brings, as its only dependency. Its training
@@ -145,6 +150,7 @@ module = [
   "torchaudio.*",
   "transformers.*",
   "tokenizers.*",
+  "pymupdf.*",
 ]
 ignore_missing_imports = true
 

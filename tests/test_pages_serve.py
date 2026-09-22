@@ -215,13 +215,40 @@ def test_a_pdf_with_a_text_layer_is_read_by_nothing_that_costs(served, reading) 
 
 
 def test_a_scan_is_refused_at_the_quote_and_nothing_is_spent(served, reading) -> None:
+    """And since targum-internal#252 the refusal carries its way forward: the words are
+    in pictures of the pages, and the card offers to read them.
+
+    `job.error` and not `job.blocked`, which is not a detail — `add.js` shows a blocked
+    job through `refuse()`, which has no button on it. Only an errored job reaches
+    `refusedWith()`, where the way forward lives.
+    """
     port, token, _out, library = served
     status, done = send(port, token, "scan.pdf", (FIXTURES / "scan.pdf").read_bytes())
     assert status == 200
     status, job = prepare(port, token, {"upload": done["upload"]})
     assert status == 200, job
     assert job["stage"] == "failed" and "scan" in job["error"], job
+    assert not job.get("blocked"), "a blocked job would be shown without its way forward"
+    assert job["pictures_offered"] > 0, "the refusal carries its way forward"
+    assert "Read the pages" in job["error"]
     assert reading == [] and library.jobs[job["id"]].reading == 0.0
+
+
+def test_a_scan_is_read_as_pictures_when_the_reader_presses(served, reading) -> None:
+    """The press is the consent, exactly as it is for an Instagram post's pictures: the
+    pages are rendered, read on the rails a photograph brought by hand is, and priced
+    before anything is bought."""
+    pytest.importorskip("pymupdf", reason="the `bring` extra renders a scan's pages")
+    port, token, _out, library = served
+    status, done = send(port, token, "scan.pdf", (FIXTURES / "scan.pdf").read_bytes())
+    assert status == 200
+    status, job = prepare(port, token, {"upload": done["upload"], "pictures": True})
+    assert status == 200, job
+    assert not job["error"], job
+    assert job["pages"] > 0 and len(reading) == job["pages"], "every page was read once"
+    assert job["pictures_offered"] == 0, "nothing left to offer once they are read"
+    held = library.jobs[job["id"]]
+    assert held.reading > 0 and held.spent == held.reading, "reserved, then settled"
 
 
 def test_a_thirty_first_picture_is_refused_before_any_is_read(served, reading) -> None:

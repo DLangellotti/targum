@@ -282,3 +282,29 @@ def test_a_conversation_photographed_over_two_screens_is_one_dialogue(
         ("p1", "me", "שלום אמא"),
         ("p2", "אמא", "מה נשמע?"),
     ]
+
+
+def test_a_scans_pages_become_pictures_in_page_order(tmp_path: Path) -> None:
+    """targum-internal#252: the only way into a PDF with no text layer.
+
+    Named with a padded number so `picture.pages_of`'s sort is page order — unpadded,
+    page 10 sorts before page 2 and the text comes out shuffled.
+    """
+    pytest.importorskip("pymupdf", reason="the `bring` extra renders a scan's pages")
+    from targum.ingest import pdf as pdf_module
+
+    made = pdf_module.rasterise(FIXTURES / "scan.pdf", tmp_path / "pages", most=30)
+    assert made, "a scan has pages"
+    assert [path.name for path in made] == sorted(path.name for path in made), "page order"
+    assert all(path.suffix == ".png" and path.stat().st_size > 0 for path in made)
+    assert len(made) == pdf_module.page_count(FIXTURES / "scan.pdf")
+
+
+def test_only_as_many_pages_as_the_reader_was_quoted_are_rendered(tmp_path: Path) -> None:
+    """The cap is the reader's bill. A longer scan is not quietly turned into a different
+    text: the card says how many it will read before anything is read."""
+    pytest.importorskip("pymupdf", reason="the `bring` extra renders a scan's pages")
+    from targum.ingest import pdf as pdf_module
+
+    made = pdf_module.rasterise(FIXTURES / "scan.pdf", tmp_path / "one", most=1)
+    assert len(made) == 1 and made[0].name == "p001.png"
