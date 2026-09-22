@@ -68,7 +68,10 @@ GAP = 0.45
 
 #: Seconds between requests, and the first backoff step. The model is limited per
 #: minute; pacing costs nothing and a 429 costs the whole scene.
-SPACING = 2.0
+#: Measured 2026-09-22: the key sustains about 3.5 requests a minute, so 2 seconds
+#: between them spends the run backing off instead of speaking. Pacing at the real
+#: rate is faster than pacing fast and being throttled.
+SPACING = 15.0
 WAIT = 20
 
 #: Kept short on purpose, and the length is not a style preference. Measured on
@@ -205,6 +208,7 @@ def main() -> None:
     parser.add_argument("--into", type=Path, default=Path("voiced"))
     parser.add_argument("--only", action="append", default=[], help="one scene id; repeatable")
     parser.add_argument("--key", type=Path, help="file holding the key; or TARGUM_TTS_KEY")
+    parser.add_argument("--again", action="store_true", help="re-voice scenes already in --into")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -222,6 +226,18 @@ def main() -> None:
             sys.exit(f"no such scene: {', '.join(sorted(missing))}")
     if not scenes:
         sys.exit(f"No scenes in {source}.")
+
+    # Only what is missing, which is what the old synth.py did too. At about three
+    # and a half requests a minute the whole shelf is a whole night, so a run has to
+    # be able to stop and be started again without paying twice.
+    if not args.again:
+        before = len(scenes)
+        scenes = [s for s in scenes if not (into / f"{s['id']}.mp3").exists()]
+        if before != len(scenes):
+            print(f"{before - len(scenes)} already voiced in {into}; skipping them")
+    if not scenes:
+        print("Nothing to do: every scene asked for is already voiced.")
+        return
 
     turns = sum(len(s["turns"]) for s in scenes)
     # Priced off the audio the scenes already have, which is the only honest estimate
