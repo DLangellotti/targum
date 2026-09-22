@@ -282,3 +282,43 @@ def test_a_row_arriving_in_the_catalogue_is_dated_and_an_old_one_keeps_its_date(
         else:
             os.environ["TARGUM_CATALOGUE"] = was
         catalogue_module.reload()
+
+
+# -- a collection is named in the reader's language too (targum-internal#289) -----------
+
+
+def test_a_collection_carries_its_other_languages_the_way_an_entry_does() -> None:
+    """The rows learned their own language in targum#280 and the collections they fold
+    into did not, so a shelf could read "Тора" over a group still called "Torah"."""
+    from targum.catalogue import Collection
+
+    group = Collection(
+        id="torah",
+        title="תורה",
+        english="Torah",
+        blurb="The five books.",
+        named={"ru": "Тора"},
+        blurbs={"ru": "Пять книг."},
+    )
+    assert group.name_in("ru") == "Тора"
+    assert group.name_in("ru-RU") == "Тора", "a regional tag is the language"
+    assert group.name_in("en") == "Torah"
+    assert group.blurb_in("ru") == "Пять книг."
+
+    bare = Collection(id="x", title="ת", english="Torah", blurb="The five books.")
+    assert bare.name_in("ru") == "Torah", "English is the fallback, never wrong only foreign"
+    assert bare.blurb_in("ru") == "The five books."
+
+    # And the page is handed them, or the shelf cannot draw what it was given.
+    said = group.state()
+    assert said["named"] == {"ru": "Тора"} and said["blurbs"] == {"ru": "Пять книг."}
+    assert said["english"] == "Torah", "English stays where it was"
+
+
+def test_a_collection_written_before_this_still_reads() -> None:
+    """Every catalogue on disk predates these two fields."""
+    from targum.catalogue import _collection
+
+    made = _collection({"id": "x", "title": "ת", "english": "Torah", "members": ["a"]})
+    assert made.named == {} and made.blurbs == {}
+    assert made.name_in("ru") == "Torah"

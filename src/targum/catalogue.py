@@ -321,6 +321,26 @@ class Collection:
     #: Which door of the Beit Midrash it stands behind: one of `DOORS`, or "" for a
     #: collection that is not in it (an author's shelf, the scenes).
     door: str = ""
+    #: The name and the blurb in the other languages the interface is read in
+    #: (targum-internal#289), by language code, exactly as an `Entry` keeps them. English
+    #: lives in `english` and `blurb` rather than in here, for the reason the entry's own
+    #: comment gives: a fallback that sits in the same map as the things falling back to
+    #: it is a fallback you can delete by accident.
+    #:
+    #: A Russian reader met an all-English library. The rows learned their own language in
+    #: targum#280 and the collections they fold into did not, so a shelf could read
+    #: "Тора" over rows whose group was still called "Torah".
+    named: dict[str, str] = field(default_factory=dict)
+    blurbs: dict[str, str] = field(default_factory=dict)
+
+    def name_in(self, code: str) -> str:
+        """The collection's name for somebody reading the interface in `code`, and the
+        English where that language has none — never wrong, only foreign."""
+        return self.named.get(code.split("-")[0].lower(), "") or self.english
+
+    def blurb_in(self, code: str) -> str:
+        """And the blurb, the same way and for the same reason."""
+        return self.blurbs.get(code.split("-")[0].lower(), "") or self.blurb
 
     def state(self) -> dict[str, object]:
         return {
@@ -328,6 +348,8 @@ class Collection:
             "title": self.title,
             "english": self.english,
             "blurb": self.blurb,
+            "named": dict(self.named),
+            "blurbs": dict(self.blurbs),
             "members": list(self.members),
             "ordered": self.ordered,
             "door": self.door,
@@ -736,6 +758,8 @@ def _collection(raw: dict[str, Any]) -> Collection:
         members=tuple(str(member) for member in raw.get("members", [])),
         ordered=bool(raw.get("ordered", False)),
         door=_door(raw.get("door")),
+        named=_said_in(raw.get("named")),
+        blurbs=_said_in(raw.get("blurbs")),
     )
 
 

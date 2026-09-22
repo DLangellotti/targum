@@ -694,7 +694,12 @@
       rows: rows,
       entry: null,
       title: group.title,
-      english: group.english,
+      // The group's own name in the reader's language, by the same helpers a row uses —
+      // they only want something with `named` and `english`, and a collection has both
+      // since targum-internal#289. A shelf that read "Тора" over rows whose group was
+      // still called "Torah" was the complaint.
+      english: titleIn(group),
+      englishLang: namedIn(group) ? uiLanguage : "en",
       author: "",
       language: rows[0].language,
       kind: shared(rows, "kind"),
