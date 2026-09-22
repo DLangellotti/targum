@@ -2674,6 +2674,48 @@ def test_a_line_lights_each_word_as_it_is_said(browser, tmp_path: Path) -> None:
     context.close()
 
 
+def test_a_french_line_lights_each_word_as_it_is_said(browser, tmp_path: Path) -> None:
+    """The same thing again in French, which is the half of targum-internal#265 that the
+    Hebrew test cannot show. The card was widened to "every language with a voice" on
+    2026-09-14, and the word-lighting path reads character offsets off `data-bare` and
+    walks the DOM — both of which could carry a Hebrew assumption (right to left, a word
+    counted in Hebrew letters) without any Hebrew test noticing.
+
+    "une deux trois" gives the offsets 0-3, 4-8 and 9-14, where the Hebrew gives 0-3, 4-8
+    and 9-13: the third word is a letter longer, so a fixture that had hard-coded the
+    Hebrew numbers would light the wrong word here.
+    """
+    built = imported(tmp_path / "reader", language="fr", text="une deux trois")
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair.voiced .say")
+    page.wait_for_selector(".src .w")
+
+    # The offsets the clocks are matched against, before anything is played: this is the
+    # part that would break on a language whose letters count differently.
+    assert page.evaluate(
+        "() => Array.from(document.querySelectorAll('.src .w[data-bare]'))"
+        ".map(w => [w.textContent, w.getAttribute('data-bare')])"
+    ) == [["une", "0,3"], ["deux", "4,8"], ["trois", "9,14"]]
+
+    page.locator(".pair.voiced .say").first.click()
+    # Wait for the voice to be going before waiting for a word, so the budget below covers
+    # only the 0.8s until the middle word's clock opens and not however long the page took
+    # to start. Without this the wait carries both, and on a loaded machine it is the
+    # startup that spends it — measured here on 2026-09-22, four browser tests deep.
+    page.wait_for_selector(".say.saying", timeout=4000)
+    page.wait_for_function(
+        "() => { const w = document.querySelector('.w.voiced-now'); "
+        "return w && w.textContent === 'deux'; }",
+        timeout=4000,
+    )
+    assert page.locator(".w.voiced-now").count() == 1, "one word at a time, in French too"
+    page.wait_for_function(STILL_SAYING, timeout=4000)
+    assert page.locator(".w.voiced-now").count() == 0, "and none once the line is over"
+    context.close()
+
+
 def test_a_text_is_picked_up_where_it_was_left(scene) -> None:
     """Item 5 of the note. The speed, the shut picture and the reading place were all
     kept across the door; the one thing a listener would notice was not."""
@@ -4190,17 +4232,32 @@ def test_opening_the_menu_on_a_phone_leaves_the_pages_where_they_were(
 # never into the neighbouring word, and a silent page offers no ear at all.
 
 
-def imported(out: Path) -> Path:
-    """A built reader over an imported recording: manifest beside it, word clocks in."""
+def imported(
+    out: Path,
+    language: str = "he",
+    text: str = "אחד שתים שלוש",
+    said: str = "one two three",
+) -> Path:
+    """A built reader over an imported recording: manifest beside it, word clocks in.
+
+    Three words, whatever the language. The clocks are read off the text rather than
+    written down, so a French fixture gets the offsets its own letters give — the Hebrew
+    default still comes out [0,3], [4,8], [9,13], which is what it always was.
+    """
     from targum.audio import manifest as manifest_module
 
-    text = "אחד שתים שלוש"
     segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
     tokens = []
     offset = 0
     for word in text.split(" "):
         tokens.append(Token(start=offset, end=offset + len(word), surface=word, lemma=word, band=1))
         offset += len(word) + 1
+    # The middle word's clock ends before the next begins, so the pad has room on one
+    # side and a neighbour to stop at on the other.
+    clocks = [
+        [token.start, token.end, at, at + 0.5]
+        for token, at in zip(tokens, (0.2, 0.8, 1.4), strict=True)
+    ]
     out.mkdir(parents=True, exist_ok=True)
     voice(out / "voice.wav", 2.0)
     manifest_module.write(
@@ -4209,7 +4266,7 @@ def imported(out: Path) -> Path:
             source="audio:x",
             sha256="s",
             duration=2.0,
-            language="he",
+            language=language,
             parts=[
                 manifest_module.ManifestPart(
                     number=1,
@@ -4218,9 +4275,7 @@ def imported(out: Path) -> Path:
                     audio="voice.wav",
                     transcribed=True,
                     spans={segment.id: [0.2, 1.9]},
-                    # The middle word's clock ends before the next begins, so the pad
-                    # has room on one side and a neighbour to stop at on the other.
-                    words={segment.id: [[0, 3, 0.2, 0.7], [4, 8, 0.8, 1.3], [9, 13, 1.4, 1.9]]},
+                    words={segment.id: clocks},
                 )
             ],
         ),
@@ -4228,24 +4283,24 @@ def imported(out: Path) -> Path:
     document = Document(
         source="audio:x",
         title="A recording",
-        language="he",
+        language=language,
         blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
         content_hash="h",
     )
     segmented = SegmentedDocument(
-        document_hash="h", language="he", segmenter="test/1", segments=[segment]
+        document_hash="h", language=language, segmenter="test/1", segments=[segment]
     )
     translation = Translation(
         name="English",
         document_hash="h",
-        source_language="he",
+        source_language=language,
         target_language="en",
         provider="authored",
-        segments={segment.id: "one two three"},
+        segments={segment.id: said},
     )
     annotation = Annotation(
         document_hash="h",
-        language="he",
+        language=language,
         annotator="test/1",
         method="frequency",
         method_note="a test",
