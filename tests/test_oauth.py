@@ -472,3 +472,62 @@ def test_one_reader_s_prompts_are_their_own(tmp_path: Path) -> None:
     assert store.prompts(theirs.id) == []
     assert store.drop_prompt(theirs.id, "mine") is False, "not theirs to remove"
     assert len(store.prompts(mine.id)) == 1
+
+
+# --- what a leaked refresh token costs -------------------------------------------
+
+
+def test_reusing_a_rotated_refresh_token_takes_the_whole_family(tmp_path: Path) -> None:
+    """By the time one is presented twice, one of the two holding it is not the reader,
+    and nothing here can say which. So both of them lose it."""
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    first = store.mint_token(person.id, client, kind="refresh", scopes="library record")
+    spent = store.rotate_refresh(first)
+    assert spent is not None
+    # What the rotation minted — the thief's, or the reader's; there is no telling.
+    access = store.mint_token(person.id, client, scopes="library record")
+    second = store.mint_token(person.id, client, kind="refresh", scopes="library record")
+    assert store.bearer(access) is not None
+
+    assert store.rotate_refresh(first) is None, "the reuse is refused"
+    assert store.bearer(access) is None, "and what came of it stops working"
+    assert store.rotate_refresh(second) is None
+    assert store.connections(person.id) == []
+
+
+def test_a_reuse_does_not_reach_another_client(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    person = a_person(store)
+    claude = store.register_client("Claude", ["https://a.test/cb"])
+    other = store.register_client("ChatGPT", ["https://b.test/cb"])
+    kept = store.mint_token(person.id, other, scopes="library")
+    leaked = store.mint_token(person.id, claude, kind="refresh", scopes="library")
+    store.rotate_refresh(leaked)
+    store.rotate_refresh(leaked)
+    assert store.bearer(kept) is not None, "one connector's trouble is not another's"
+
+
+def test_registering_has_a_ceiling(tmp_path: Path) -> None:
+    """Open by definition, so the limit is on the act: there is no asker to key it on."""
+    store = a_store(tmp_path)
+    assert store.registering_too_often(limit=2) is False
+    assert store.registering_too_often(limit=2) is False
+    assert store.registering_too_often(limit=2) is True
+
+
+def test_the_sweep_is_called_at_start_up(tmp_path: Path) -> None:
+    """A sweep nothing calls is a sweep that never happens, which is what `Store.purge`
+    was until somebody noticed."""
+    from targum.serve import Library
+
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    store.mint_token(person.id, client, scopes="library", minutes=-100 * 24 * 60)
+    live = store.mint_token(person.id, client, scopes="library")
+    Library(tmp_path / "out", store=store)
+    assert store.bearer(live) is not None
+    rows = store.db.execute("SELECT COUNT(*) AS n FROM oauth_token").fetchone()
+    assert int(rows["n"]) == 1, "the dead one was swept on the way up"

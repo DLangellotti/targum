@@ -83,6 +83,17 @@ TOKEN_SWEEP_DAYS = 30
 MOST_PROMPTS = 20
 PROMPT_LENGTH = 2000
 
+#: How many clients may register themselves in an hour, across the whole box. Dynamic
+#: registration is open by definition — a client that has never spoken to us asks for an
+#: id and gets one — so there is nobody to key a limit on, and this is a ceiling on the
+#: act rather than on an asker. Generous against every real burst (a directory's review,
+#: a reader adding targum to three apps at once) and a floor under the one thing an open
+#: endpoint invites, which is somebody filling a table for the sake of it.
+#:
+#: An id on its own is worth nothing: every token behind it needs a reader to have
+#: pressed Approve. What this protects is the disk, not the account.
+REGISTRATIONS_PER_HOUR = 60
+
 # 2: person.leaving, for a deletion that waits out a grace period.
 # 3: job.spent, what a build really cost once the API said so.
 # 4: job.chapters, how a text divides — one means it is not a book.
@@ -3411,6 +3422,15 @@ class Store:
             )
         return client_id
 
+    def registering_too_often(self, limit: int = REGISTRATIONS_PER_HOUR) -> bool:
+        """Whether the box has handed out too many client ids in the last hour.
+
+        Keyed on nothing, because there is nothing to key it on: a client registering
+        itself has no account and no name we would believe. So this counts the act, over
+        the same `asked` table and the same hour the sign-in door uses.
+        """
+        return self.asking_too_often("oauth-register", limit)
+
     def client(self, client_id: str) -> dict[str, Any] | None:
         """One registered client, with its redirects already parsed."""
         if not client_id:
@@ -3553,9 +3573,16 @@ class Store:
     def rotate_refresh(self, token: str) -> dict[str, Any] | None:
         """Spend a refresh token and say what it was for, so a new pair can be written.
 
-        Rotation, not reuse: the old row is revoked here and the caller chains the new
-        one to it through `parent`. A refresh token presented twice is therefore a token
-        whose second use finds it revoked, which is the signal that it leaked.
+        Rotation, not reuse: the old row is revoked here and the caller chains the new one
+        to it through `parent`. A refresh token presented twice is a token that leaked.
+
+        **And a leaked one takes the whole family down.** Refusing the second use alone
+        would leave whatever was minted from the first still working, which is the wrong
+        half to keep: by the time a rotated token is presented again, one of the two
+        holding it is not the reader, and nothing here can say which. So every token this
+        client holds for this person is revoked, both kinds, and the reader connects
+        again — one press in the app it came from, against an account nobody else is
+        still inside.
         """
         if not token:
             return None
@@ -3565,7 +3592,14 @@ class Store:
                 " WHERE hash = ? AND kind = 'refresh'",
                 (digest(token),),
             ).fetchone()
-            if row is None or row["revoked"]:
+            if row is None:
+                return None
+            if row["revoked"]:
+                db.execute(
+                    "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
+                    " AND revoked = 0",
+                    (now(), row["person"], row["client"]),
+                )
                 return None
             db.execute("UPDATE oauth_token SET revoked = ? WHERE hash = ?", (now(), digest(token)))
             return dict(row)

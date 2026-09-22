@@ -1130,6 +1130,11 @@ class Library:
         self.adopt()
         self.empty_trash()
         self.purge_departed()
+        # And the connector's dead rows (#80). Here for the reason `purge_departed` is
+        # here: a sweep nothing calls is a sweep that never happens, which is exactly
+        # what `Store.purge` was until somebody noticed.
+        if self.store is not None:
+            self.store.sweep_tokens()
         self._committed = 0.0
         # Every job, with the builds indexed beside them; see `Jobs`. Assigned through
         # the property below so a plain dict handed in by a test is wrapped, not lost.
@@ -6911,6 +6916,9 @@ class Handler(BaseHTTPRequestHandler):
             name, redirects = oauth.check_registration(payload)
         except oauth.OAuthError as refused:
             return self._json(refused.as_json(), refused.status)
+        # Open by definition, so the ceiling is on the act rather than on an asker.
+        if self.store.registering_too_often():
+            return self._json({"error": "temporarily_unavailable"}, 429)
         client_id = self.store.register_client(name, redirects)
         client = self.store.client(client_id) or {"made": 0}
         body = oauth.registration_reply(client_id, name, redirects, int(client["made"])).encode()
@@ -7116,11 +7124,15 @@ class Handler(BaseHTTPRequestHandler):
     def _mcp(self) -> None:
         """The connector, at the one address `oauth.RESOURCE_PATH` names.
 
-        **Bearer only, and the session cookie is deliberately not accepted.** A cookie is
-        sent by a browser on a cross-site POST under `SameSite=Lax` in more cases than is
-        comfortable to reason about, and `/mcp` would then be a form on any page in the
-        world that could read a signed-in reader's ledger. A token is carried by a client
-        that meant to carry it, and nothing else.
+        **Bearer only, and the session cookie is deliberately not accepted.** Not because
+        `SameSite=Lax` would leak it — it does not send a cookie on a cross-site POST —
+        but because accepting one would mean this endpoint had two ways in, and the
+        weaker would decide its security: every script already running on a signed-in
+        reader's page would be able to read their whole ledger through it, and a future
+        change to the cookie, the flags or the origins would quietly become a change to
+        what a connector can reach. A token is carried by a client that meant to carry
+        it, and the scopes on it say what it may do. There is nothing a cookie would add
+        here except that.
 
         A 401 here is not a dead end: it names the metadata document, and following that
         is how a client with no token finds the way to get one. That chain is the whole
