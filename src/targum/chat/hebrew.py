@@ -141,14 +141,50 @@ MOST_WORDS = 40
 USUAL_WORDS = 8
 
 
+#: Calques out of the *reader's* language, beside the English ones every contract
+#: carries (targum-internal#286 item 4). The English list stays whatever the reader
+#: reads: the model's own pull toward English does not weaken because the person on the
+#: other side is Russian. This is the second pull, and it only exists for a reader who
+#: has a second language to be pulled by.
+#:
+#: Each is a phrase that is ordinary in the reader's language and is not Hebrew — a word
+#: borrowed whole where Hebrew has a verb of its own, or a preposition carried across.
+#: Written as "not X for Y", the shape the English list already uses.
+_CALQUES: dict[str, str] = {
+    "Russian": (
+        " And do not think of a Russian sentence and translate it either: not"
+        ' "לַעֲשׂוֹת תְּמוּנָה" for «сделать фотографию» — Hebrew says לְצַלֵּם — not'
+        ' "כַּמָּה שָׁנִים לְךָ" for «сколько тебе лет», which is בֶּן כַּמָּה אַתָּה'
+        " or בַּת כַּמָּה אַתְּ, and not"
+        ' "לְהִתְעַסֵּק בְּסְפּוֹרְט" for «заниматься спортом», which is לַעֲשׂוֹת סְפּוֹרְט.'
+    ),
+}
+
+#: What a reader's own sentence can tell you about how to address them, in a language
+#: whose verbs mark gender (targum-internal#286 item 4). Named per language because the
+#: example has to be one the reader would recognise as their own writing.
+_GENDERED: dict[str, str] = {
+    "Russian": "«я прочитала» rather than «я прочитал»",
+    "English": "a gendered form of their own in any language they write in",
+}
+
+
 def contract(gloss: str = "English") -> str:
     """The Hebrew contract, with the reader's own language on every "= " line.
 
     Until 2026-09-10 the line under each Hebrew line was English by name, whatever the
     account said it read (targum-internal#243): `gloss` is the name of the language the
     reader reads — `gloss_language` picks it from the account — and the rules that are
-    about the model thinking in English rather than Hebrew stay as they are."""
+    about the model thinking in English rather than Hebrew stay as they are.
+
+    Since 2026-09-22 two of them are about the reader's language rather than English:
+    the calques to avoid, and what their own sentence says about how to address them
+    (targum-internal#286 item 4). Both fall back to what every contract said before,
+    so a language with nothing written for it is exactly as it was.
+    """
     no_foreign = "No English" if gloss == "English" else f"No {gloss} and no English"
+    calques = _CALQUES.get(gloss, "")
+    gendered = _GENDERED.get(gloss, _GENDERED["English"])
     return f"""This conversation is in Hebrew, whatever language the reader writes in. The reader
 reads {gloss}: every "{ENGLISH}" line is in {gloss}.
 Every reply, including one that finds, offers or quotes a text, keeps to this:
@@ -185,10 +221,14 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   plain words. Do not think of an English sentence and translate it — no calques: not
   "אָז נַגִּיד אֶת זֶה יָשִׁיר" for "let's say it straight", not "אֲנִי מֵבִיא מִילִים"
   for "I bring words", not "הַצָּעָה לְטֶקְסְט" for "a suggestion for a text", not
-  "מַדָּף הַתְחָלָה מְשׁוּתָּף" for "a shared starter shelf". Speak to the reader in
-  forms that do not guess their gender unless the ledger says how to address them: an
+  "מַדָּף הַתְחָלָה מְשׁוּתָּף" for "a shared starter shelf".{calques} Speak to the reader in
+  forms that do not guess their gender unless something says how to address them: an
   infinitive (כְּדַאי לִקְרוֹא), the first person plural (בּוֹאוּ נִקְרָא), the past tense,
-  or a question about the text rather than about them. If a sentence would only
+  or a question about the text rather than about them. The ledger says, where the reader
+  has told it — and so does the reader's own sentence, in a language whose verbs mark
+  gender: somebody who writes {gendered} has said which, as plainly as the ledger would,
+  and going on hedging after that reads as not having listened. Never take it from a
+  name. If a sentence would only
   make sense to someone who knows the English under it, it is not Hebrew yet. The
   "{ENGLISH}" line under each of your lines is the {gloss} for the Hebrew you wrote,
   and may read a little differently from how you would have put it in {gloss}; that is
