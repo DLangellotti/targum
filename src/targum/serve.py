@@ -4079,7 +4079,7 @@ class Handler(BaseHTTPRequestHandler):
             Level(wanted),
             address=self.address,
             archive=published,
-            language=self._page_language(),
+            language=self._public_language(),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -4150,7 +4150,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, self._front_language())
+            token = store.join_waitlist(address, self._public_language())
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)
@@ -4438,10 +4438,48 @@ class Handler(BaseHTTPRequestHandler):
             for issue in published
             for edition in issue.editions
         ]
-        urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
+        weekly_paths = [
+            f"/weekly/{issue.id}/{edition.level.value}"
+            for issue in published
+            for edition in issue.editions
+        ]
+        # The pages that really answer in both languages, and only those
+        # (targum-internal#188). A sitemap that claims a Russian version of `/about`,
+        # which serves one language at one address, teaches a crawler to distrust the
+        # claims it makes about the pages that do have one.
+        bilingual = (
+            {"/", "/library"}
+            | {path for path in paths if path.startswith("/library/")}
+            | set(weekly_paths)
+        )
+        urls = "".join(self._sitemap_url(where, path, path in bilingual) for path in paths)
         return (
             f'<?xml version="1.0" encoding="UTF-8"?>\n'
-            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+            f' xmlns:xhtml="http://www.w3.org/1999/xhtml">{urls}</urlset>\n'
+        )
+
+    @staticmethod
+    def _sitemap_url(where: str, path: str, bilingual: bool) -> str:
+        """One `<url>`, with its other languages beside it where it has any.
+
+        Each language gets an entry of its own and every entry lists the whole set,
+        including itself — which is what the sitemap protocol asks for and is the half
+        people leave out. `?lang=` is the address, matching `_public_language`.
+        """
+        from .render.builder import _addressed_in
+
+        if not bilingual:
+            return f"<url><loc>{where}{path}</loc></url>"
+        _, alternates = _addressed_in(f"{where}{path}", "en")
+        links = "".join(
+            f'<xhtml:link rel="alternate" hreflang="{code}" href="{href}"/>'
+            for code, href in alternates
+        )
+        return "".join(
+            f"<url><loc>{href}</loc>{links}</url>"
+            for code, href in alternates
+            if code != "x-default"
         )
 
     def _measure(self, home: Path, readers: list[dict[str, Any]]) -> None:
@@ -4767,7 +4805,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, b"not found", "text/plain")
             return self._send(
                 200,
-                text_page(entry, self.address, language=self._page_language()).encode("utf-8"),
+                text_page(entry, self.address, language=self._public_language()).encode("utf-8"),
                 HTML,
             )
         # The shelves answer to whoever is asking. Signed out that is the public index —
@@ -4780,7 +4818,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(
                         200, holding_page(language=self._page_language()).encode("utf-8"), HTML
                     )
-                page = shelf_page(self.address, language=self._page_language())
+                page = shelf_page(self.address, language=self._public_language())
                 return self._send(200, page.encode("utf-8"), HTML)
 
         if self._needs_account(route):
@@ -4815,7 +4853,7 @@ class Handler(BaseHTTPRequestHandler):
             # door is a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
                 page = front_page(
-                    language=self._front_language(), address=self.address, asked=self._asked()
+                    language=self._public_language(), address=self.address, asked=self._asked()
                 )
                 return self._send(200, page.encode("utf-8"), HTML)
             return self._send(
@@ -4835,7 +4873,7 @@ class Handler(BaseHTTPRequestHandler):
                 # In the language pressed on the front door, where one was: the link there
                 # carries it, and a stranger who chose Russian a page ago is not handed
                 # English to sign in with (2026-09-20).
-                signin_page(language=self._front_language(), asked=self._asked()).encode("utf-8"),
+                signin_page(language=self._public_language(), asked=self._asked()).encode("utf-8"),
                 HTML,
             )
         # Google's two halves (targum-internal#304). Exempt from the start-up key for the
@@ -6315,13 +6353,18 @@ class Handler(BaseHTTPRequestHandler):
         self._said_by_browser = True
         return best_language(self.headers.get("Accept-Language", ""))
 
-    def _front_language(self) -> str:
-        """The language the front door answers in.
+    def _public_language(self) -> str:
+        """The language a public page answers in.
 
-        The browser's, as every other public page, unless the visitor pressed the
-        switcher in the bar: `?lang=` is the whole of the choice, kept in the address
-        rather than on a cookie or an account, because a stranger reading a landing page
-        has neither and should not be given one to change the language of a page.
+        The browser's, unless the visitor pressed the switcher in the bar: `?lang=` is
+        the whole of the choice, kept in the address rather than on a cookie or an
+        account, because a stranger reading a public page has neither and should not be
+        given one to change the language of a page.
+
+        It is the address and not only a preference because `hreflang` needs one: a
+        crawler cannot be told that two languages of a page exist unless each has a URL
+        of its own (targum-internal#188). Named for the front door until 2026-09-22, when
+        the text pages and the weekly began answering the same way.
         """
         from .strings import languages
 

@@ -284,6 +284,60 @@ def test_the_sitemap_lists_every_text_and_nothing_private(
         assert shut not in paths, shut
 
 
+def test_the_sitemap_gives_each_language_its_own_entry(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#188. A text page answers in two languages at two addresses, and a
+    sitemap that names only one of them is asking for only one to be indexed.
+
+    Every entry lists the whole alternate set including itself, which is what the sitemap
+    protocol asks for and is the half people leave out. And the claim is made only for
+    the pages that really answer in both: saying it of `/about`, which serves one
+    language at one address, teaches a crawler to distrust the claim where it is true.
+    """
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    xml = ask(port, "/sitemap.xml", "targum.page")[1].decode()
+    found = {
+        url.removeprefix("https://targum.page") for url in re.findall(r"<loc>(.*?)</loc>", xml)
+    }
+
+    one = CATALOGUE[0].id
+    assert f"/library/{one}" in found and f"/library/{one}?lang=ru" in found
+    assert "/" in found and "/?lang=ru" in found
+    assert "/library" in found and "/library?lang=ru" in found
+
+    assert '<xhtml:link rel="alternate" hreflang="ru"' in xml
+    assert 'xmlns:xhtml="http://www.w3.org/1999/xhtml"' in xml, "or the links are not valid"
+
+    # A page that answers in one language at one address makes no such claim.
+    assert "/about?lang=ru" not in found
+
+
+def test_a_public_page_answers_in_the_language_its_address_asks_for(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The address is the choice (targum-internal#188). Until now a text page read the
+    browser's `Accept-Language` and nothing else, so the Russian version had no address
+    to be indexed at — and the front door's switcher, which writes `?lang=`, led to pages
+    that ignored it."""
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    one = CATALOGUE[0].id
+    russian = ask(port, f"/library/{one}?lang=ru", "targum.page")[1].decode()
+    assert '<html lang="ru"' in russian
+    english = ask(port, f"/library/{one}", "targum.page")[1].decode()
+    assert '<html lang="en"' in english
+    # A language nobody has a catalogue for is not a language, and falls back rather than
+    # rendering a page in a code the catalogue has never heard of.
+    nonsense = ask(port, f"/library/{one}?lang=zz", "targum.page")[1].decode()
+    assert '<html lang="en"' in nonsense
+
+
 def test_the_legal_documents_are_shut_for_the_alpha(hosted: tuple[int, str]) -> None:
     """Shut all the way down, as the catalogue is: 404 rather than the holding page.
 

@@ -16,6 +16,13 @@
 {%- if canonical %}
 <link rel="canonical" href="{{ canonical }}">
 {%- endif %}
+{#- The same page in its other languages (targum-internal#188). A crawler cannot be told
+    two languages exist unless each has an address, so `?lang=` is the address and each
+    language canonicals to itself — pointing Russian's canonical at the English would ask
+    for the English to be indexed instead, which is the opposite of the point. -#}
+{%- for code, href in alternates | default([]) %}
+<link rel="alternate" hreflang="{{ code }}" href="{{ href }}">
+{%- endfor %}
 <meta property="og:type" content="{{ og_type | default('website') }}">
 <meta property="og:title" content="{{ title }}">
 <meta property="og:description" content="{{ description }}">

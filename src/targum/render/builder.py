@@ -316,6 +316,37 @@ def _page_language(language: str) -> str:
     return code if code in languages() else SOURCE
 
 
+def _addressed_in(base: str, language: str) -> tuple[str, list[tuple[str, str]]]:
+    """A public page's own address and the addresses of its other languages
+    (targum-internal#188).
+
+    `hreflang` needs a URL per language: a crawler cannot be told that two languages of a
+    page exist unless each has one, and a page that serves both by `Accept-Language` at a
+    single address reads as one page that keeps changing. So `?lang=` is the address, the
+    way the front door's switcher already writes it.
+
+    **Each language canonicals to itself.** Pointing the Russian page's canonical at the
+    English one would say "index the English", which is the opposite of the point: the
+    Russian would never be indexed and the card exists to have it indexed.
+
+    English carries no `?lang=`, so every address already published stays exactly what it
+    was and nothing that is indexed today moves.
+    """
+    from ..strings import SOURCE, languages
+
+    if not base:
+        return "", []
+
+    def address(code: str) -> str:
+        return base if code == SOURCE else f"{base}?lang={code}"
+
+    alternates = [(code, address(code)) for code in languages()]
+    # `x-default` is where a crawler sends somebody whose language is neither, and that
+    # is the English: it is the one every other language falls back to already.
+    alternates.append(("x-default", address(SOURCE)))
+    return address(_page_language(language)), alternates
+
+
 def page_words(language: str) -> Callable[..., Markup]:
     """A template's `t(key, English)` in `language` (targum-internal#184): that language's
     catalogue where it has the key, the English written in the template where not.
@@ -1322,6 +1353,7 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     the one script are inlined, and nothing on the page fetches anything.
     """
     words = page_words(language)
+    _front_at = _addressed_in(address.rstrip("/") + "/" if address else "", language)
     return (
         _environment()
         .get_template("landing.html.j2")
@@ -1340,7 +1372,8 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
                 "Vowels on every word, English beside every line, and any word explained "
                 "the moment you tap it.",
             ),
-            canonical=address.rstrip("/") + "/" if address else "",
+            canonical=_front_at[0],
+            alternates=_front_at[1],
             strings=script_strings(language, "landing."),
         )
     )
@@ -1672,6 +1705,7 @@ def shelf_page(address: str = "", language: str = "en") -> str:
     from ..catalogue import everything
 
     name, blurb = SHELF
+    _shelf_at = _addressed_in(f"{address}/library" if address else "", language)
     return (
         _environment()
         .get_template("shelf.html.j2")
@@ -1680,7 +1714,8 @@ def shelf_page(address: str = "", language: str = "en") -> str:
             page_language=_page_language(language),
             title=f"{name} — targum",
             description=blurb,
-            canonical=f"{address}/library" if address else "",
+            canonical=_shelf_at[0],
+            alternates=_shelf_at[1],
             shelf_name=name,
             shelf_blurb=blurb,
             entries=everything(),
@@ -1756,6 +1791,7 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     from ..models import direction_for
 
     name = SHELF[0]
+    here, alternates = _addressed_in(f"{address}/library/{entry.id}" if address else "", language)
     return (
         _environment()
         .get_template("text.html.j2")
@@ -1772,7 +1808,8 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             named=entry.name_in(language),
             lede=entry.blurb_in(language),
             description=entry.blurb_in(language),
-            canonical=f"{address}/library/{entry.id}" if address else "",
+            canonical=here,
+            alternates=alternates,
             og_type="book",
             structured=text_schema(entry, address),
             entry=entry,
@@ -1835,6 +1872,7 @@ def weekly_page(
     said = page_words(language)
     blurb = issue.blurb
     press = _press(issue)
+    _weekly_at = f"{address}/weekly/{issue.id}/{level.value}" if address else ""
     return (
         _environment()
         .get_template("weekly.html.j2")
@@ -1844,7 +1882,8 @@ def weekly_page(
             strings=script_strings(language, "weekly."),
             title=f"\u2068{issue.title}\u2069 — {spec.label} — targum",
             description=blurb,
-            canonical=f"{address}/weekly/{issue.id}/{level.value}" if address else "",
+            canonical=_addressed_in(_weekly_at, language)[0],
+            alternates=_addressed_in(_weekly_at, language)[1],
             issue=issue,
             level=level,
             spec=spec,

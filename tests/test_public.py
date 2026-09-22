@@ -359,3 +359,41 @@ def test_a_regional_tag_is_read_as_its_language() -> None:
     entry = a_russian_row()
     assert entry.blurb_in("ru-RU") == entry.blurbs["ru"]
     assert entry.name_in("RU") == entry.named["ru"]
+
+
+def test_each_language_of_a_text_page_has_its_own_address_and_canonicals_to_it() -> None:
+    """`hreflang` needs a URL per language: a crawler cannot be told two languages of a
+    page exist unless each has one (targum-internal#188).
+
+    And each canonicals to *itself*. Pointing the Russian page's canonical at the English
+    would ask for the English to be indexed instead, which is the opposite of the point —
+    the Russian would never rank and this card exists to have it rank.
+    """
+    entry = a_russian_row()
+    base = f"{ADDRESS}/library/{entry.id}"
+
+    english = text_page(entry, ADDRESS, language="en")
+    assert f'rel="canonical" href="{base}"' in english, "English keeps the address it had"
+
+    russian = text_page(entry, ADDRESS, language="ru")
+    assert f'rel="canonical" href="{base}?lang=ru"' in russian
+
+
+def test_a_text_page_declares_its_other_languages() -> None:
+    entry = a_russian_row()
+    base = f"{ADDRESS}/library/{entry.id}"
+    for html in (
+        text_page(entry, ADDRESS, language="en"),
+        text_page(entry, ADDRESS, language="ru"),
+    ):
+        assert f'<link rel="alternate" hreflang="en" href="{base}">' in html
+        assert f'<link rel="alternate" hreflang="ru" href="{base}?lang=ru">' in html
+        # Where a crawler sends somebody whose language is neither.
+        assert f'<link rel="alternate" hreflang="x-default" href="{base}">' in html
+
+
+def test_a_page_with_no_address_declares_no_alternates() -> None:
+    """A page rendered without an address has no URLs to point at, and half an hreflang
+    set is worse than none."""
+    html = text_page(a_russian_row(), "", language="ru")
+    assert "hreflang" not in html
