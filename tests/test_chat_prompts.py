@@ -232,3 +232,51 @@ def test_the_rules_steer_the_sentences_and_are_never_said() -> None:
     # And nothing at all where there is nothing recurring.
     quiet = ledger_block(level.EMPTY, ["ספר"], [])
     assert "corrected more than once" not in quiet
+
+
+# -- find mode answers in the reader's language (targum-internal#286, item 2) -----------
+
+
+def _a_level():  # type: ignore[no-untyped-def]
+    from targum import level as level_module
+
+    return level_module.Level("he", 400, 0, 400.0, None, None, 0, 0, 0, 0, 0)
+
+
+def test_find_mode_is_told_which_language_to_write_in() -> None:
+    """`SYSTEM` says which language's *texts* to offer and never which language to
+    *write* in, so a Russian reader asking for something to read was answered in English
+    by a product whose buttons were already Russian.
+
+    It rides in the per-reader block and not in `SYSTEM`, which is the cached half and
+    holds nothing that changes per reader.
+    """
+    from targum.chat import prompts
+
+    level = _a_level()
+    english = prompts.ledger(level)
+    russian = prompts.ledger(level, "Russian")
+
+    assert "Write to the reader in Russian" in russian
+    assert "Hebrew you quote stays Hebrew" in russian, "the Hebrew is the thing being read"
+    assert russian.startswith(english), "the ledger itself is unchanged; the line is added"
+
+    # English says nothing extra, so every English conversation's cached prefix stays
+    # byte-for-byte what it was.
+    assert prompts.ledger(level, "English") == english
+    assert prompts.ledger(level, "") == english
+    assert "Write to the reader" not in english
+
+
+def test_the_answer_follows_the_same_rule_as_the_gloss_lines() -> None:
+    """One rule rather than two: a reader who gets Russian meanings and an English answer
+    in the same thread is being told the product has not decided."""
+    from types import SimpleNamespace
+
+    from targum.chat.hebrew import gloss_language
+    from targum.chat.session import _answered_in
+
+    assert gloss_language({"ru"}) == "ru"
+    assert _answered_in(SimpleNamespace(reads={"ru"})) == "Russian"
+    assert _answered_in(SimpleNamespace(reads={"en", "ru"})) == "English", "English wins"
+    assert _answered_in(SimpleNamespace(reads=set())) == "English"
