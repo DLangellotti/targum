@@ -452,6 +452,20 @@ class Entry:
             found.append("arc")
         return list(dict.fromkeys(code for code in found if code))
 
+    def name_in(self, code: str) -> str:
+        """The text's name for somebody reading the interface in `code`, and the English
+        where that language has none — which is never wrong, only foreign.
+
+        The same rule `library.js` reads these by, so the page a stranger is shown and the
+        shelf a reader is shown do not disagree about what a book is called. The Hebrew
+        title is not this: that is `title`, and it stays Hebrew in every language.
+        """
+        return self.named.get(code.split("-")[0].lower(), "") or self.english
+
+    def blurb_in(self, code: str) -> str:
+        """And the blurb, the same way and for the same reason."""
+        return self.blurbs.get(code.split("-")[0].lower(), "") or self.blurb
+
     def state(self) -> dict[str, object]:
         from .spoken import is_spoken as _is_spoken
         from .spoken import is_video as _is_video

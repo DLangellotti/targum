@@ -1763,7 +1763,15 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             title=f"\u2068{entry.title}\u2069 — {name} — targum",
-            description=entry.blurb,
+            # The name and the blurb in the language this page is speaking
+            # (targum-internal#188). Every catalogue row carries both in Russian, and the
+            # shelf behind the sign-in has shown them since #289 — but this page, the one
+            # a search engine actually reads, said them in English to everybody. Somebody
+            # who found targum by searching in Russian met an English description of the
+            # book they had searched for.
+            named=entry.name_in(language),
+            lede=entry.blurb_in(language),
+            description=entry.blurb_in(language),
             canonical=f"{address}/library/{entry.id}" if address else "",
             og_type="book",
             structured=text_schema(entry, address),

@@ -285,3 +285,77 @@ def test_a_text_says_which_work_it_belongs_to() -> None:
     entry = by_id(group.members[0])
     assert entry is not None
     assert text_schema(entry)["isPartOf"]["name"] == group.title
+
+
+# -- the public pages in Russian (targum-internal#188) -------------------------
+#
+# Built on an entry of this file's own rather than on a catalogue row: the suite reads a
+# 22-row fixture with no Russian in it, and the real 920-row catalogue is private data
+# that CI's public checkout does not have. What is being tested is the page, not the data.
+
+
+def a_russian_row():  # type: ignore[no-untyped-def]
+    """A catalogue row drafted in Russian, the way all 920 real ones are."""
+    from dataclasses import replace
+
+    return replace(
+        CATALOGUE[0],
+        english="Israeli Declaration of Independence",
+        blurb="The founding declaration, in a formal register.",
+        named={"ru": "Декларация независимости Израиля"},
+        blurbs={"ru": "Учредительная декларация в торжественном регистре."},
+    )
+
+
+def test_a_text_page_says_the_name_and_the_blurb_in_the_language_it_speaks() -> None:
+    """These are the only pages a search engine sees, and this one said the book's name
+    and description in English to everybody — while the shelf behind the sign-in has
+    shown both in Russian since #289. Somebody who found targum by searching in Russian
+    met an English description of the book they had searched for.
+    """
+    entry = a_russian_row()
+
+    said = strip(text_page(entry, ADDRESS, language="ru"))
+    assert entry.named["ru"] in said
+    assert entry.blurbs["ru"] in said
+    assert entry.english not in said, "and not the English beside it, which would be both"
+
+    english = strip(text_page(entry, ADDRESS, language="en"))
+    assert entry.english in english and entry.blurb in english, "English is unchanged"
+    assert entry.blurbs["ru"] not in english
+
+
+def test_the_russian_page_marks_its_russian_as_russian() -> None:
+    """A Russian sentence inside `lang="en"` is read aloud in an English voice and
+    indexed as English, which is the opposite of what this page is for."""
+    html = text_page(a_russian_row(), ADDRESS, language="ru")
+    assert '<p class="english" lang="ru"' in html
+    assert '<p class="lede" lang="ru"' in html
+
+
+def test_the_description_a_search_engine_shows_is_in_the_pages_language() -> None:
+    """The meta description is the line under the title in a result, so it is the half of
+    this that a Russian searcher reads before deciding whether to click."""
+    entry = a_russian_row()
+    html = text_page(entry, ADDRESS, language="ru")
+    described = re.search(r'name="description" content="([^"]+)"', html)
+    assert described and unescape(described.group(1)) == entry.blurbs["ru"]
+
+
+def test_a_row_with_no_russian_shows_the_english_rather_than_nothing() -> None:
+    """Empty means "not drafted yet", and the English showing is never wrong, only
+    foreign — the rule the catalogue's own comment states."""
+    bare = CATALOGUE[0]
+    assert not bare.named.get("ru") and not bare.blurbs.get("ru"), "the fixture has none"
+    assert bare.name_in("ru") == bare.english
+    assert bare.blurb_in("ru") == bare.blurb
+    said = strip(text_page(bare, ADDRESS, language="ru"))
+    assert bare.blurb in said, "a Russian page with nothing Russian to say still says it"
+
+
+def test_a_regional_tag_is_read_as_its_language() -> None:
+    """`ru-RU` is Russian. The desk already normalises this; the public page must too, or
+    a browser that asks politely gets English."""
+    entry = a_russian_row()
+    assert entry.blurb_in("ru-RU") == entry.blurbs["ru"]
+    assert entry.name_in("RU") == entry.named["ru"]
