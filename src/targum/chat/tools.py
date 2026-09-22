@@ -1,8 +1,9 @@
 """The tools the chat may call, declared once.
 
-Each tool is a name, a description, a JSON schema, two flags and a function. The same
-list is handed to the Anthropic SDK today and will be mounted on a remote MCP server
-later (targum-internal #80), so nothing here knows which of the two is asking.
+Each tool is a name, a description, a JSON schema, four flags and a function. The same
+list is handed to the Anthropic SDK, served over stdio to a client on this machine, and
+mounted on the remote connector (targum-internal #80) — so nothing here knows which of
+the three is asking.
 
 Two rules hold the whole surface up.
 
@@ -18,6 +19,13 @@ button posts to, and `Handler._build` is then the only path to `Library.claim`. 
 model never holds a tool that could press. `spends` and `needs_consent` stay on `Tool`
 for a surface where that is not so (a client the server does not control), so the seam
 is drawn before the first tool needs it.
+
+**And a scope decides what a connector may even see.** `scope` says which of
+`oauth.SCOPES` a remote client must have been granted before a tool is listed to it at
+all: the library's by default, `record` for anything that reads the reader's own words,
+`check` for the one that prices a text. Over the Anthropic SDK and over stdio there is
+no token and no scope, and the whole registry stands — the reader is the person who
+started the process. See `connector.exposed`.
 """
 
 from __future__ import annotations
@@ -128,6 +136,18 @@ class Tool:
     run: Run
     spends: bool = False
     needs_consent: bool = False
+    #: Whether this tool has anything to say to nobody. Everything that reads the
+    #: reader's own shelf, ledger or builds does not: over stdio, where `Ctx.person` is
+    #: None because the machine has one signed-out reader, listing it would be offering
+    #: a tool that can only answer emptily. Remote, the token names a person and this is
+    #: always satisfied — see `connector.exposed`.
+    needs_account: bool = False
+    #: Which scope a connector must have been granted to see this at all
+    #: (targum-internal#80). Empty means the library's, which is what a tool that asks
+    #: nothing of the reader's record needs. The one tool that spends carries
+    #: `oauth.SPENDING_SCOPE`, and that pairing is the whole of what design.md §12's
+    #: "A scope is a press that lasts" allows.
+    scope: str = ""
 
 
 def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -1363,6 +1383,7 @@ REGISTRY: tuple[Tool, ...] = (
         "they know, when they last opened it and when they finished it.",
         _schema({"query": {"type": "string"}, "language": {"type": "string"}}),
         search_my_shelf,
+        scope="record",
     ),
     Tool(
         "sentences_with",
@@ -1372,6 +1393,7 @@ REGISTRY: tuple[Tool, ...] = (
         "side by side — a Russian verb beside its aspect partner — from what the reader has.",
         _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
         sentences_with,
+        scope="record",
     ),
     Tool(
         "my_vocabulary",
@@ -1384,6 +1406,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         my_vocabulary,
+        scope="record",
     ),
     Tool(
         "my_progress",
@@ -1391,6 +1414,7 @@ REGISTRY: tuple[Tool, ...] = (
         "sections finished. Never a placement.",
         _schema({}),
         my_progress,
+        scope="record",
     ),
     Tool(
         "suggest_next",
@@ -1406,6 +1430,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         suggest_next,
+        scope="record",
     ),
     Tool(
         "quote_build",
@@ -1428,6 +1453,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         quote_build,
+        scope="check",
     ),
     Tool(
         "describe_source",
@@ -1466,12 +1492,14 @@ REGISTRY: tuple[Tool, ...] = (
         "it returns. Never money.",
         _schema({}),
         my_hours,
+        scope="record",
     ),
     Tool(
         "check_job",
         "Where one of the reader's own builds has got to, by id.",
         _schema({"id": {"type": "string"}}, ("id",)),
         check_job,
+        scope="record",
     ),
 )
 

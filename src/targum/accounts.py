@@ -3363,6 +3363,11 @@ class Store:
         Whoever calls this must check the PKCE verifier against `challenge` and the
         client and redirect against what was stored — this only guarantees the code was
         fresh and is now gone.
+
+        The cutoff is inclusive, so a lifetime of zero refuses everything rather than
+        accepting whatever was minted inside the same millisecond. It reads as a detail
+        and it is the difference between a test that pins the boundary and one that
+        passes whenever the clock happens to tick.
         """
         if not code:
             return None
@@ -3373,7 +3378,7 @@ class Store:
                 " made, spent FROM oauth_grant WHERE hash = ?",
                 (digest(code),),
             ).fetchone()
-            if row is None or row["spent"] or row["made"] < cutoff:
+            if row is None or row["spent"] or row["made"] <= cutoff:
                 return None
             db.execute("UPDATE oauth_grant SET spent = ? WHERE hash = ?", (now(), digest(code)))
             return dict(row)

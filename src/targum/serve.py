@@ -38,7 +38,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
-from . import oauth
+from . import mcp_http, oauth
 from .accounts import CHAT_RESTARTED, Person, Store, now, plausible
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
@@ -4922,6 +4922,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._oauth_metadata(route)
         if route == "/oauth/authorize":
             return self._oauth_authorize(parse_qs(urlparse(self.path).query))
+        # There is no server-initiated stream here — every call is answered out of a
+        # `Ctx` built from the token on that request, and nothing is held between two.
+        # Saying so is better than holding a socket open that will never carry anything.
+        if route == oauth.RESOURCE_PATH:
+            self.send_response(405)
+            self.send_header("Allow", "POST")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
         if route == "/sitemap.xml":
             if not shelves_are_public():
                 return self._send(404, b"not found", "text/plain")
@@ -5270,6 +5279,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._oauth_revoke(self._form())
         if route == "/oauth/authorize":
             return self._oauth_approve(self._form())
+        # The connector itself. Before the account check, because what authorises it is a
+        # Bearer token and never the cookie — see `_mcp`.
+        if route == oauth.RESOURCE_PATH:
+            return self._mcp()
         if self._needs_account(route):
             return self._json(
                 {
@@ -6980,6 +6993,51 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Pragma", "no-cache")
         self.end_headers()
         self.wfile.write(body)
+
+    def _mcp(self) -> None:
+        """The connector, at the one address `oauth.RESOURCE_PATH` names.
+
+        **Bearer only, and the session cookie is deliberately not accepted.** A cookie is
+        sent by a browser on a cross-site POST under `SameSite=Lax` in more cases than is
+        comfortable to reason about, and `/mcp` would then be a form on any page in the
+        world that could read a signed-in reader's ledger. A token is carried by a client
+        that meant to carry it, and nothing else.
+
+        A 401 here is not a dead end: it names the metadata document, and following that
+        is how a client with no token finds the way to get one. That chain is the whole
+        of what "paste one URL" means.
+        """
+        token = oauth.bearer_from(self.headers.get("Authorization"))
+        held = self.store.bearer(token) if token else None
+        if held is None:
+            body = json.dumps({"error": "invalid_token"}).encode("utf-8")
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("WWW-Authenticate", oauth.challenge_header(self.address))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        person, scopes = held
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_UPLOAD:
+            return self._json({"error": "too large"}, 413)
+        status, body = mcp_http.answer(
+            self.rfile.read(length) if length > 0 else b"",
+            library=self.library,
+            store=self.store,
+            person=person,
+            scopes=scopes,
+        )
+        self.send_response(status)
+        if body:
+            self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
 
     def _oauth_revoke(self, form: dict[str, str]) -> None:
         """RFC 7009. Always 200, whatever was handed over.

@@ -1,25 +1,31 @@
-"""targum's tools for Claude Desktop or Claude Code, over stdio (targum-internal#80, #216).
+"""targum's tools for a client targum does not own (targum-internal#80, #216).
 
-The chat runs on one registry — `chat/tools.py` — declared as data: a name, a description,
-a JSON schema, a function. This serves that same list to a client the server does not own,
-so a reader who already talks to Claude somewhere else can ask it about their shelf.
+The chat runs on one registry — `chat/tools.py` — declared as data: a name, a
+description, a JSON schema, four flags and a function. This shapes that same list for
+somebody else's model, so a reader who already talks to Claude or ChatGPT can ask it
+about their shelf.
 
-**Read-only, plus a quote.** What is exposed is every tool that spends nothing:
-the library measured against the reader's words, their shelf, their ledger, a suggestion,
-a build's state, a link described, the publishers' feeds, and a text priced. A quote over
-MCP is information — the press that starts a build stays on the page where the card is,
-because a client whose consent UI targum does not control would otherwise be a way round
-`Library.claim`. `quote_conversation` is not here: it needs a conversation on the page, and
-over MCP there is none.
+**Two halves, and this module is the part they share.** `targum mcp` serves the registry
+over stdio to a client on this machine, as the machine's single signed-out person — the
+same footing the command line stands on. `mcp_http.py` serves it over HTTP to a client
+on the internet, as whoever a token names. What is common is here: which tools a caller
+may see (`exposed`), and the `Ctx` they answer from (`context`).
 
-**The local machine's own reader.** This runs beside the reader's own `targum serve`,
-against the same output directory and the same store, as the machine's single signed-out
-person — the same footing the command line stands on. A remote server with OAuth, for a
-box with accounts, is the version #80 describes and is not this one: it needs a token
-that names a person, and that is a separate piece of work.
+**Ownership is built, never argued.** `context` reads the home, the ladder, the languages
+and `admin` from the store, off a person a token named. Nothing a client sends reaches
+any of them. That rule is `chat/tools.py`'s and it is what makes the registry safe to
+hand to a client whose behaviour targum cannot see.
 
-The `mcp` SDK is an optional extra (`uv sync --extra mcp`), so a plain install carries
-nothing for it and this module imports it only when asked.
+**A quote is information; a scope is a press that lasts.** The press that starts a build
+stays on a targum page — a quote comes back with a link to one. Spending without a press
+per job is allowed for exactly one scope, granted by the reader on targum's approval
+page, and design.md §12 (2026-09-22) is where that is written down. Until a tool sets
+`spends`, the filter here refuses everything that would.
+
+The `mcp` SDK is an optional extra (`uv sync --extra mcp`) and only the stdio half needs
+it, so a plain install carries nothing for it and this module imports it only when asked.
+The remote half speaks JSON-RPC over the server targum already has and needs no SDK at
+all — which is also why the box does not install one.
 """
 
 from __future__ import annotations
@@ -31,11 +37,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from . import level as level_module
+from . import oauth
 from .chat import tools as tools_module
 from .errors import TargumError
 
 if TYPE_CHECKING:
-    from .accounts import Store
+    from .accounts import Person, Store
     from .serve import Library
 
 #: Tools that need a conversation on the page, and so have nothing to stand on here.
@@ -45,28 +52,96 @@ NOT_OVER_MCP = frozenset({"quote_conversation"})
 _TYPES: dict[str, type] = {"string": str, "integer": int, "number": float, "boolean": bool}
 
 
-def exposed() -> list[tools_module.Tool]:
-    """The registry, minus anything that spends or needs the page."""
-    return [
-        tool
-        for tool in tools_module.REGISTRY
-        if not tool.spends and not tool.needs_consent and tool.name not in NOT_OVER_MCP
-    ]
+def exposed(scopes: str | None = None, *, person: Person | None = None) -> list[tools_module.Tool]:
+    """What this caller may see of the registry.
+
+    Three filters, and which apply depends on who is asking.
+
+    Always: nothing that needs the page (`quote_conversation` has no conversation to read
+    back), and nothing that spends unless the scope consenting to it was granted. That
+    second clause is design.md §12, "A scope is a press that lasts" — before 2026-09-22 it
+    read "nothing that spends, full stop", and the whole of what changed is that one
+    scope can now say otherwise.
+
+    `scopes` is the token's scope string, or `None` for a caller that has no token —
+    stdio, and the Anthropic SDK. None means the whole registry, because the reader there
+    is whoever started the process; it is emphatically not "no scopes", which would be an
+    empty list of tools.
+
+    `needs_account` drops what can only answer emptily to nobody. Over stdio `Ctx.person`
+    is None by design, and a tool offered there that cannot work is worse than one that
+    is not offered.
+    """
+    out = []
+    for tool in tools_module.REGISTRY:
+        if tool.needs_consent or tool.name in NOT_OVER_MCP:
+            continue
+        if tool.needs_account and person is None and scopes is None:
+            continue
+        if scopes is not None:
+            if tool.scope and not oauth.granted(scopes, tool.scope):
+                continue
+            if tool.spends and not oauth.granted(scopes, oauth.SPENDING_SCOPE):
+                continue
+        elif tool.spends:
+            # No token, so nobody has consented to anything: the stdio connector keeps
+            # the posture it shipped with.
+            continue
+        out.append(tool)
+    return out
 
 
-def context(library: Library, store: Store | None) -> tools_module.Ctx:
-    """The machine's own reader: nobody signed in, every language offered."""
+def context(
+    library: Library, store: Store | None, person: Person | None = None
+) -> tools_module.Ctx:
+    """Who the tools are answering, built by the server and never from an argument.
+
+    With no person this is the machine's own reader — nobody signed in, every language
+    offered — which is what `targum mcp` serves over stdio and what the command line
+    stands on.
+
+    With one, it is that account: their home, their ladder, the languages they said they
+    read and are learning, and whether the per-account rails apply. Every one of those is
+    read here, from the store, off a token that named them. `admin` especially: it waives
+    the spend rails, and a request that could carry it would be a request that could
+    waive them.
+    """
     from .translate.prompts import INTO, READING
 
+    if person is None:
+        return tools_module.Ctx(
+            person=None,
+            home=library.home(None),
+            library=library,
+            store=store,
+            chat_id="",
+            level=level_module.EMPTY,
+            reads={code for code, _ in INTO},
+            learning={code for code, _ in READING},
+        )
+    reads = store.reads(person.id) if store is not None else set()
+    learning = store.learning(person.id) if store is not None else set()
     return tools_module.Ctx(
-        person=None,
-        home=library.home(None),
+        person=person,
+        home=library.home(person),
         library=library,
         store=store,
         chat_id="",
-        level=level_module.EMPTY,
-        reads={code for code, _ in INTO},
-        learning={code for code, _ in READING},
+        # The ladder is per language and a reader may be on several. Hebrew is the one
+        # every reader has, so it is what a tool that names no language is measured
+        # against; `my_progress` takes one and re-reads it for whichever it is given.
+        level=(
+            level_module.snapshot(store, person.id, "he")
+            if store is not None
+            else level_module.EMPTY
+        ),
+        reads=reads or {code for code, _ in INTO},
+        learning=learning or {code for code, _ in READING},
+        admin=store.is_admin(person.email) if store is not None else False,
+        # What they *said* they read, which is not `reads` — that answers "everything"
+        # for somebody who has said nothing, and a rule picking one language out of it
+        # lands on Russian. `session.py` reads it the same way.
+        said_reads=reads if store is not None else None,
     )
 
 
