@@ -180,6 +180,26 @@ class Pair:
     english: str
 
 
+#: Rashi on the five books (targum-internal#200). Silbermann's is public domain on both
+#: sides, and it is **two Hebrew pins and not one**: Numbers is filed under a title that
+#: ends four words differently, so a build that pinned one string would take four books
+#: and miss the fifth in silence. Checked against the v3 endpoint on 2026-09-22 — the v1
+#: one answers some of these with no version and no licence at all, which reads like a
+#: hole and is not one.
+_SILBERMANN = "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann, 1929-1934"
+_SILBERMANN_NUMBERS = (
+    "Pentateuch with Rashi's commentary by M. Rosenbaum and A.M. Silbermann "
+    "-- corrected vocalization"
+)
+RASHI_TORAH: dict[str, Pair] = {
+    "Genesis": Pair(_SILBERMANN, _SILBERMANN),
+    "Exodus": Pair(_SILBERMANN, _SILBERMANN),
+    "Leviticus": Pair(_SILBERMANN, _SILBERMANN),
+    "Numbers": Pair(_SILBERMANN_NUMBERS, _SILBERMANN),
+    "Deuteronomy": Pair(_SILBERMANN, _SILBERMANN),
+}
+
+
 # Everything that is not Tanakh, keyed by the reference's own name. Pinned the same way
 # and for the same reasons as `ENGLISH`, and arrived at the same way: fetch both sides,
 # count the words, and only then write it down.
@@ -590,6 +610,17 @@ def version_for(language: str, ref: str) -> str:
     Hebrew edition covering the shelf.
     """
     book = book_of(ref)
+    commented = _COMMENTARY_REF.match(ref.strip())
+    if commented is not None and commented.group("who") == "Rashi":
+        # Two pins, not one: see `RASHI_TORAH` (targum-internal#200).
+        pinned = RASHI_TORAH.get(commented.group("book").strip())
+        if pinned is None:
+            raise TargumError(
+                f"targum reads Rashi on the five books of the Torah, not on "
+                f"{commented.group('book').strip()}.",
+                f"It reads: {', '.join(RASHI_TORAH)}.",
+            )
+        return pinned.hebrew if language == "he" else pinned.english
     if language == ARAMAIC:
         if book in ONKELOS:
             return ONKELOS[book]
@@ -686,12 +717,45 @@ def _payload(ref: str, language: str) -> dict[str, Any]:
     # (targum-internal#120). What it was guarding against is guarded still: a complex work
     # asked for whole is refused by Sefaria itself, which answers "please pass a more
     # specific ref" and is surfaced above.
-    if body.get("textDepth") != 2:
+    # Chapters of verses is depth two. A commentary is depth three — a chapter of verses,
+    # a verse of comments — and is read since targum-internal#200, joined one unit to a
+    # verse by `said_in`. Nothing deeper, and nothing shallower: a depth-one work is a
+    # single run of text with no verses to pair against.
+    depth = body.get("textDepth")
+    if depth != 2 and not (depth == 3 and _COMMENTARY_REF.match(ref.strip())):
         raise TargumError(
             f"{ref} is not a plain chapters-and-verses text.",
-            "This reads chapters of verses. Other shapes need their own handling.",
+            "This reads chapters of verses, and a commentary of comments on them. "
+            "Other shapes need their own handling.",
         )
     return {"edition": edition, "body": body, "licence": licence, "version": version}
+
+
+def said_in(verse: Any) -> str:
+    """One verse's text, whether the edition gives one string or several.
+
+    A commentary is three deep — a chapter of verses, a verse of comments — and Rashi on
+    Genesis 1 carries about sixty comments across thirty-one verses (targum-internal#200).
+    They have to arrive as one unit all the same: `align/parallel.pair` raises where a
+    chapter's translation has more units than its source, and it is right to, because a
+    rendering with more verses than the text would misalign everything after the first
+    gap.
+
+    So the comments on a verse are joined with a newline. Not invented punctuation and
+    not run together: a newline is what separates them in every other text on the shelf,
+    it survives JSON and the alignment, and a verse with no comment at all — about a
+    fifth of them — comes out empty, which is exactly what an unremarked verse should be.
+
+    **What this does not yet do is mark the catchword.** Rashi opens each comment with the
+    words he is commenting on, and Sefaria bolds them; `plain` strips that, as it strips
+    every other tag. David chose on 2026-09-22 that the catchword should read as its own
+    mark, and a translation reaches the page as an escaped string, so that is a change to
+    how a paired line is drawn rather than to what is ingested here. Until it lands the
+    catchword is simply the comment's opening words, which is what it is in print.
+    """
+    if isinstance(verse, list):
+        return "\n".join(str(comment) for comment in verse if str(comment).strip())
+    return str(verse or "")
 
 
 def chapters(payload: dict[str, Any]) -> list[list[str]]:
@@ -746,7 +810,7 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
         for count, verse in enumerate(verses, start=1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.
-            clean = normalize(plain(verse or "")).strip()
+            clean = normalize(plain(said_in(verse))).strip()
             refs[len(paragraphs)] = f"{named_in_english} {number}:{count}".strip()
             if language == DEFAULT_LANGUAGE:
                 found = language_of(named_in_english, number, count)
@@ -801,7 +865,7 @@ class SefariaFetcher:
             # several comments — so it would otherwise be turned away for a missing
             # edition of a book that has one (targum-internal#200).
             commentary = _COMMENTARY_REF.match(ref.strip())
-            if commentary is not None:
+            if commentary is not None and commentary.group("who") != "Rashi":
                 raise TargumError(
                     f"targum does not read {commentary.group('who')} on the Tanakh yet.",
                     "Commentaries on the Talmud it does read: try "

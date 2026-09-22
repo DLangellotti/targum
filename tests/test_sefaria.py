@@ -884,3 +884,66 @@ def test_fill_in_missing_segments_is_never_asked_for(monkeypatch: pytest.MonkeyP
     for url in asked:
         assert "fill_in_missing_segments" not in url, url
         assert "fill_in" not in url, f"a spelling of the gap-filler reached the API: {url}"
+
+
+# -- Rashi on the Torah (targum-internal#200) -------------------------------------------
+
+
+def test_rashi_is_pinned_twice_because_numbers_is_filed_differently() -> None:
+    """Four books share a Hebrew edition and Numbers does not: its title ends four words
+    differently. A build that pinned one string would take four books and miss the fifth
+    in silence, which is why this is a table."""
+    assert len({pair.hebrew for pair in sefaria.RASHI_TORAH.values()}) == 2
+    assert sefaria.version_for("he", "Rashi on Genesis") == sefaria.version_for(
+        "he", "Rashi on Deuteronomy"
+    )
+    assert sefaria.version_for("he", "Rashi on Numbers").endswith("corrected vocalization")
+    # One English edition covers all five.
+    assert len({pair.english for pair in sefaria.RASHI_TORAH.values()}) == 1
+
+
+def test_rashi_outside_the_torah_is_refused_by_name() -> None:
+    with pytest.raises(TargumError, match="five books of the Torah"):
+        sefaria.version_for("he", "Rashi on Isaiah")
+
+
+def test_a_verses_comments_arrive_as_one_unit_and_an_unremarked_verse_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A commentary is three deep — a chapter of verses, a verse of comments — and it has
+    to arrive one unit to a verse all the same: `align.parallel.pair` raises where a
+    chapter's translation has more units than its source, and a rendering with more
+    verses than the text would misalign everything after the first gap.
+
+    The fixture is Genesis 1:1-3 as Sefaria really sends it: three comments, five, and
+    none. That third verse is the case this card exists to get right — about a fifth of
+    verses carry no comment, and it must read as an ordinary verse rather than as a gap.
+    """
+    body = json.loads((FIXTURES / "rashi-genesis-1.he.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(sefaria, "get", lambda url: json.dumps(body))
+    document = sefaria.SefariaFetcher().load("Rashi on Genesis")
+
+    verses = [block for block in document.blocks if block.kind is not BlockKind.heading]
+    assert len(verses) == 3, "one unit a verse, whatever the comments number"
+    # The ref is the unit's address in its *own* work, which is "Rashi on Genesis 1:1" and
+    # not "Genesis 1:1". The pairing does not read it — `parallel.pair` links by position
+    # within a chapter — so naming it after the verse it comments on would be a claim
+    # nothing checks and something would eventually believe.
+    assert [block.ref for block in verses] == [
+        "Rashi on Genesis 1:1",
+        "Rashi on Genesis 1:2",
+        "Rashi on Genesis 1:3",
+    ]
+
+    assert verses[0].text.count("\n") == 2, "three comments, two boundaries between them"
+    assert verses[1].text.count("\n") == 4, "and five comments, four"
+    # An unremarked verse keeps its place with the same placeholder every empty verse on
+    # this shelf gets — the count is what makes the pairing work at all. **Whether that
+    # reads as ordinary rather than as a gap is acceptance 3**, and it is a question for
+    # the reader rather than for the ingest: what arrives here is a verse that is present
+    # and says nothing, which is the truth about it.
+    assert verses[2].text == "—", "it keeps its place"
+
+    # The catchword is the comment's opening words, as it is in print. Marking it is a
+    # change to how a paired line is drawn and is not done here.
+    assert verses[0].text.startswith("בראשית")
