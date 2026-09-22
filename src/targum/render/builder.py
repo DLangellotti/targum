@@ -1848,7 +1848,14 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             entry=entry,
             shelf_name=name,
             direction=direction_for(entry.language),
-            sample=entry.sample,
+            # The opening, with its translation in the language this page speaks
+            # (targum-internal#188). The name and the blurb above it have been the
+            # reader's language since targum#362; the sample was the last English on a
+            # page whose whole point is that a Russian searcher can read it.
+            sample=[
+                {"source": line.source, "target": line.said_in(language)} for line in entry.sample
+            ],
+            sample_language=_page_language(language),
             minutes=max(1, round(entry.words / 130)),
         )
     )

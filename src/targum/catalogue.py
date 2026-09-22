@@ -213,6 +213,20 @@ class Line:
 
     source: str
     target: str
+    #: The same line in any other language targum speaks, by code (targum-internal#188).
+    #: The *only* place a sample is drawn is the public text page, and that page is the
+    #: one a Russian searcher arrives at from a Russian search — so a sample that can
+    #: only be English is a page that answers in English whatever the address said.
+    #: Empty for every sample written before this, which `said_in` reads as the English.
+    said: dict[str, str] = field(default_factory=dict)
+
+    def said_in(self, language: str) -> str:
+        """This line's translation in `language`, English where it has none.
+
+        Never wrong, only foreign — the same fallback every other string on the shelf
+        makes, and the one that lets a language be filled a row at a time.
+        """
+        return self.said.get(language.split("-")[0].lower()) or self.target
 
 
 @cache
@@ -220,7 +234,16 @@ def _samples() -> dict[str, list[Line]]:
     """The opening lines, from the catalogue file: content, beside the entries it belongs to."""
     raw = _read().get("samples") or {}
     return {
-        entry_id: [Line(source=line["source"], target=line["target"]) for line in lines]
+        entry_id: [
+            Line(
+                source=line["source"],
+                target=line["target"],
+                said={
+                    str(code): str(text) for code, text in (line.get("said") or {}).items() if text
+                },
+            )
+            for line in lines
+        ]
         for entry_id, lines in raw.items()
     }
 
