@@ -273,3 +273,93 @@ def test_the_agreed_set_can_be_narrowed_to_one_stage_and_written_out(tmp_path: P
         app, ["corrections", "--agreed", "--stage", "pointing", "--store", str(db)]
     )
     assert "Nothing two kinds of judge have agreed on yet." in quiet.output
+
+
+# -- which judge, and which text (targum-internal#164, David 2026-09-22) ----------------
+
+
+def test_a_judge_is_a_stable_pseudonym_and_never_the_account(tmp_path: Path) -> None:
+    """`who` says what kind of judge; this says which one, without saying who they are.
+
+    **Stable, not rotating.** A rotating salt would give one person a different pseudonym
+    in each window, so two windows of one reader would read as two readers agreeing —
+    manufacturing exactly the false corroboration the pseudonym exists to prevent.
+    """
+    store = Store(tmp_path / "words.db")
+    mine = store.judge_for(7)
+    assert mine == store.judge_for(7), "the same reader, the same judge, every time"
+    assert mine != store.judge_for(8)
+    # Sixteen hex digits of an HMAC: it carries the account id nowhere anybody can read,
+    # and cannot be turned back into one without the salt.
+    assert mine != "7" and len(mine) == 16 and set(mine) <= set("0123456789abcdef")
+
+    # A second store over the same file keeps the salt, so the pseudonym survives a
+    # restart — the thing a rotating salt would have broken.
+    assert Store(tmp_path / "words.db").judge_for(7) == mine
+
+
+def test_two_readers_agreeing_count_as_two_and_one_reader_twice_counts_as_one(
+    tmp_path: Path,
+) -> None:
+    """The whole reason for the pseudonym. Before it, `who` was a bare role and this
+    could only be counted by role, which made reader-corroborating-reader — most of the
+    gold set — uncountable."""
+    store = Store(tmp_path / "words.db")
+    one, two = store.judge_for(1), store.judge_for(2)
+
+    store.correct("gloss", who="reader", judge=one, term="עם", after="with")
+    store.correct("gloss", who="reader", judge=one, term="עם", after="with")
+    assert store.agreed() == [], "one reader saying it twice is one judge"
+
+    store.correct("gloss", who="reader", judge=two, term="עם", after="with")
+    found = store.agreed()
+    assert len(found) == 1 and found[0]["judges"] == 2, "two readers is two judges"
+    assert found[0]["seen"] == 3, "and all three rows are behind it"
+
+
+def test_a_row_with_no_judge_still_counts_by_its_role(tmp_path: Path) -> None:
+    """The author's hand has no account behind it, and every row written before the
+    column existed has none either. Those count by role, as they did."""
+    store = Store(tmp_path / "words.db")
+    store.correct("gloss", who="author", term="עם", after="with")
+    store.correct("gloss", who="reader", judge=store.judge_for(1), term="עם", after="with")
+    assert len(store.agreed()) == 1, "the author and a reader are two judges"
+
+
+def test_a_shut_texts_sentence_does_not_leave_but_its_judgement_does(tmp_path: Path) -> None:
+    """Acceptance 5. The judgement is a fact about Hebrew and is targum's to give away;
+    the sentence beside it is a piece of somebody's text."""
+    from targum.accounts import exportable_corrections
+
+    store = Store(tmp_path / "words.db")
+    store.correct(
+        "gloss", who="reader", term="עם", after="with", text="open-text", context="הלכתי עם אחי"
+    )
+    store.correct(
+        "gloss", who="reader", term="עם", after="with", text="shut-text", context="משפט סודי"
+    )
+    store.correct("gloss", who="author", term="עם", after="with", context="no text at all")
+
+    rows = exportable_corrections(store.corrections(), lambda text: text == "open-text")
+    by_text = {str(row["text"]): row for row in rows}
+
+    assert by_text["open-text"]["context"] == "הלכתי עם אחי"
+    assert not by_text["open-text"].get("context_withheld")
+
+    shut = by_text["shut-text"]
+    assert shut["context"] == "", "the sentence does not leave"
+    assert shut["context_withheld"] is True, "and the row says so rather than looking empty"
+    assert shut["term"] == "עם" and shut["after"] == "with", "the judgement does leave"
+
+    assert by_text[""]["context"] == "no text at all", "a row naming no text keeps its context"
+
+
+def test_a_grounding_writes_the_text_it_happened_in_and_the_judge_who_made_it(
+    tmp_path: Path,
+) -> None:
+    store = Store(tmp_path / "words.db")
+    note = grounding_note(store, "עם", "he", "en", text="genesis", judge="abc123")
+    note(Sense(gloss="people"), Sense(gloss="with"), "הלכתי עם אחי")
+    row = store.corrections()[0]
+    assert row["text"] == "genesis" and row["judge"] == "abc123"
+    assert row["who"] == "reader", "still a role, beside the pseudonym"

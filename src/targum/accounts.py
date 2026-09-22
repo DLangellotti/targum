@@ -38,7 +38,7 @@ import secrets
 import sqlite3
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -141,7 +141,7 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 25
+SCHEMA_VERSION = 26
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -340,6 +340,11 @@ MIGRATIONS: tuple[str, ...] = (
     # this for words marked before it existed, and '' is the honest answer for them —
     # they were met in a text, because that was the only door there was.
     "ALTER TABLE word ADD COLUMN source TEXT NOT NULL DEFAULT ''",
+    # Which judge made this correction, as a pseudonym (targum-internal#164, David
+    # 2026-09-22). `who` is a role and stays one; this is what tells two readers agreeing
+    # from one reader twice, which is most of the gold set. Empty on every row written
+    # before, and on the author's own hand, which has no account behind it.
+    "ALTER TABLE correction ADD COLUMN judge TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -724,9 +729,25 @@ CREATE TABLE IF NOT EXISTS correction (
   before   TEXT    NOT NULL DEFAULT '',
   after    TEXT    NOT NULL DEFAULT '',
   who      TEXT    NOT NULL,
+  -- Which judge, as a pseudonym: `who` says what kind of judge and this says which one,
+  -- without saying who they are (targum-internal#164). It is what tells two readers
+  -- agreeing from one reader correcting twice. Empty where there is no account behind
+  -- the judgement, which is the author's own hand.
+  judge    TEXT    NOT NULL DEFAULT '',
   licence  TEXT    NOT NULL DEFAULT '',
   context  TEXT    NOT NULL DEFAULT '',
   reason   TEXT    NOT NULL DEFAULT ''
+);
+
+-- The secret a judge's pseudonym is made with (targum-internal#164). One row, minted on
+-- first use and never rotated: a rotating salt would give one person a different
+-- pseudonym in each window, and two windows of one reader would then read as two readers
+-- agreeing — manufacturing exactly the false corroboration the pseudonym exists to
+-- prevent. Anonymity here is against what leaves, not against the operator: the salt
+-- never goes out with an export, and without it a pseudonym cannot be tied to a person.
+CREATE TABLE IF NOT EXISTS judging (
+  id   INTEGER PRIMARY KEY CHECK (id = 1),
+  salt TEXT    NOT NULL
 );
 
 -- What a reader got wrong, kept (2026-09-18, targum-internal#290).
@@ -874,6 +895,42 @@ class Person:
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
 NUMERIC = frozenset({"at", "updated", "opened", "done", "span_start", "span_end", "count"})
+
+
+def exportable_corrections(
+    rows: list[dict[str, Any]], may_leave: Callable[[str], bool]
+) -> list[dict[str, Any]]:
+    """Corrections as they may leave targum (targum-internal#164, acceptance 5).
+
+    > Rows about non-exportable texts appear in no export with their context; their spans
+    > and judgements do.
+
+    The judgement is a fact about *Hebrew* — this word, in this position, means that —
+    and it is targum's own to give away whatever the text it was noticed in allows. The
+    sentence quoted beside it is a piece of that text, and a NonCommercial or unknown
+    licence reaches it. So the context is dropped and everything else stays: the term, the
+    span, what stood, what stands, the stage and the judge.
+
+    A row naming no text keeps its context. That is the author's own hand at the lexicon,
+    which was never about a particular text and quotes nobody.
+
+    `may_leave` is asked about the text rather than baked in, so the licence rule lives in
+    `licensing.py` where it is already written and this function can be tested without a
+    catalogue.
+    """
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        text = str(row.get("text") or "")
+        if not text or may_leave(text):
+            out.append(dict(row))
+            continue
+        kept = dict(row)
+        kept["context"] = ""
+        # Said rather than merely missing: an empty context that means "there was none"
+        # and one that means "you may not have this" are different facts about a row.
+        kept["context_withheld"] = True
+        out.append(kept)
+    return out
 
 
 def initials(name: str, email: str) -> str:
@@ -2748,6 +2805,37 @@ class Store:
 
     # --- corrections (targum-internal#164, door 1) ---------------------------------
 
+    def judge_for(self, person_id: int) -> str:
+        """One reader's pseudonym as a judge (targum-internal#164, David 2026-09-22).
+
+        `who` says what *kind* of judge made a correction; this says *which one*, without
+        saying who they are. It is the whole of what tells two readers agreeing from one
+        reader correcting the same word twice — and since most rows will be readers'
+        groundings, that is most of the gold set.
+
+        **The salt is minted once and never rotated**, which is a correction to how this
+        was first proposed. A rotating salt gives one person a different pseudonym in each
+        window, so two windows of one reader would read as two readers agreeing — it would
+        manufacture exactly the false corroboration the pseudonym exists to prevent.
+
+        The anonymity that matters here is against what *leaves*. The salt never goes out
+        with an export and is not derivable from one, so a pseudonym cannot be tied to a
+        person by anybody holding only the rows. Inside the store, where the person table
+        already lives, no pseudonym was ever going to hide anybody from the operator.
+        """
+        import hmac
+
+        with self.write() as db:
+            row = db.execute("SELECT salt FROM judging WHERE id = 1").fetchone()
+            if row is None:
+                salt = secrets.token_hex(32)
+                db.execute("INSERT INTO judging (id, salt) VALUES (1, ?)", (salt,))
+            else:
+                salt = str(row["salt"])
+        return hmac.new(
+            salt.encode("utf-8"), str(int(person_id)).encode("utf-8"), hashlib.sha256
+        ).hexdigest()[:16]
+
     def correct(
         self,
         stage: str,
@@ -2760,6 +2848,7 @@ class Store:
         span: str = "",
         before: str = "",
         after: str = "",
+        judge: str = "",
         licence: str = "",
         context: str = "",
         reason: str = "",
@@ -2773,8 +2862,8 @@ class Store:
         with self.write() as db:
             cursor = db.execute(
                 "INSERT INTO correction (at, stage, language, target, term, text, span,"
-                " before, after, who, licence, context, reason)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " before, after, who, judge, licence, context, reason)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     now(),
                     stage,
@@ -2786,6 +2875,7 @@ class Store:
                     before,
                     after,
                     who,
+                    judge,
                     licence,
                     context[:500],
                     reason[:300],
@@ -2819,13 +2909,18 @@ class Store:
         offers nothing to stand instead, so it cannot be a gold example. Two judges
         agreeing to delete is real signal and is a different question.
 
-        **Two rows of the same role are one judge here.** `who` is a role and never a
-        person (see `correct`), so two `reader` rows may be one reader twice as easily as
-        two readers agreeing. Counting distinct roles rather than rows makes the set
-        smaller and never wrong. A reader corroborating a reader needs an anonymised
-        judge id the table deliberately does not keep — a privacy decision
-        (targum-internal#127), not an oversight, and recorded on #164.
+        **One judge counts once, however many times they say it.** A judge is the
+        pseudonym where there is one (`judge_for`, since David's decision of 2026-09-22)
+        and the role where there is not — the author's own hand has no account behind it,
+        and rows written before the column existed have none either. So two groundings by
+        one reader are one judge, two readers agreeing are two, and the author agreeing
+        with a reader is two. Before the pseudonym this could only be counted by role,
+        which made the set correct but small: reader-corroborating-reader, which is most
+        of it, was uncountable.
         """
+        # The judge, or the role standing in for one. `who` is never empty, so this is
+        # never null, and a role can never collide with a 16-hex-digit pseudonym.
+        judge = "CASE WHEN judge <> '' THEN judge ELSE who END"
         where = ["who <> 'model'", "after <> ''"]
         values: list[Any] = []
         if stage:
@@ -2834,11 +2929,11 @@ class Store:
         values.append(least)
         rows = self.db.execute(
             "SELECT stage, language, target, term, span, after,"
-            " COUNT(DISTINCT who) AS judges, GROUP_CONCAT(DISTINCT who) AS roles,"
+            f" COUNT(DISTINCT {judge}) AS judges, GROUP_CONCAT(DISTINCT who) AS roles,"
             " COUNT(*) AS seen, MIN(at) AS first_at, MAX(at) AS last_at"
             f" FROM correction WHERE {' AND '.join(where)}"
             " GROUP BY stage, language, target, term, span, after"
-            " HAVING COUNT(DISTINCT who) >= ?"
+            f" HAVING COUNT(DISTINCT {judge}) >= ?"
             " ORDER BY judges DESC, last_at DESC",
             values,
         ).fetchall()

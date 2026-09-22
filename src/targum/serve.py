@@ -704,7 +704,12 @@ def _icon() -> bytes:
 
 
 def grounding_note(
-    store: Store | None, lemma: str, source: str, target: str
+    store: Store | None,
+    lemma: str,
+    source: str,
+    target: str,
+    text: str = "",
+    judge: str = "",
 ) -> Callable[[Any, Any, str], None]:
     """What a grounding writes to the correction store (targum-internal#164, door 1).
 
@@ -712,6 +717,11 @@ def grounding_note(
     sentence; the row keeps the bare sense that stood, the grounded one that stands,
     and the line — under `who = reader`, never a person. Nothing here may fail the
     look-up: the reader asked what a word means, not for a record to be kept.
+
+    `text` is which document they were reading, so a row can be held to that text's
+    licence when the corpus is exported (acceptance 5); `judge` is their pseudonym, so
+    two readers agreeing can be told from one reader saying it twice (acceptance 4).
+    Both were added on 2026-09-22 and are empty on every row written before.
     """
 
     def note(before: Any, after: Any, context: str) -> None:
@@ -724,6 +734,8 @@ def grounding_note(
                 term=lemma,
                 language=source,
                 target=target,
+                text=text,
+                judge=judge,
                 before=str(getattr(before, "gloss", "") or ""),
                 after=str(getattr(after, "gloss", "") or ""),
                 context=context,
@@ -3349,6 +3361,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def _person(self) -> Person | None:
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
+
+    def _judge(self) -> str:
+        """Whoever is reading, as a judge's pseudonym, or "" where nobody is signed in.
+
+        Written on a correction so two readers agreeing can be told from one reader
+        saying it twice (targum-internal#164). Never a name and never an account id: see
+        `Store.judge_for`.
+        """
+        person = self._person()
+        return self.store.judge_for(person.id) if person is not None else ""
 
     def _reads(self, person: Person | None = None) -> set[str]:
         """Which languages to offer whoever is asking.
@@ -7086,6 +7108,9 @@ class Handler(BaseHTTPRequestHandler):
         # The sentence it was tapped in, which is what tells עם from עם. Capped: a
         # sentence is what this is for, and a paragraph is what a page could send.
         sentence = str(payload.get("sentence", "")).strip()[:400]
+        # Which text they were reading, so a judgement made in it can be held to that
+        # text's licence when the corpus leaves (targum-internal#164, acceptance 5).
+        document = str(payload.get("document", "")).strip()[:200]
         if not lemma or not source:
             return self._json({"error": "bad request"}, 400)
 
@@ -7123,7 +7148,9 @@ class Handler(BaseHTTPRequestHandler):
                 target,
                 provider,
                 context=sentence,
-                on_grounded=grounding_note(self.store, lemma, source, target),
+                on_grounded=grounding_note(
+                    self.store, lemma, source, target, text=document, judge=self._judge()
+                ),
             )
         except TargumError as error:
             return self._json({"error": error.message}, 502)

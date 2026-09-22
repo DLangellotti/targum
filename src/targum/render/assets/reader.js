@@ -1721,7 +1721,9 @@ var targumReader = function () {
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: form, source: wordLanguage(index), target: into, free: true }),
+      // `document` so a grounding can be held to the text's licence later
+      // (targum-internal#164, acceptance 5). It names the text, never the reader.
+      body: JSON.stringify({ lemma: form, source: wordLanguage(index), target: into, free: true, document: documentId }),
     })
       .then(function (response) {
         return response.json();
@@ -1777,6 +1779,7 @@ var targumReader = function () {
         lemma: form,
         source: wordLanguage(index),
         target: into,
+        document: documentId,
         sentence: sentence || "",
       }),
     })
