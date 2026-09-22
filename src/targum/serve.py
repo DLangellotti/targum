@@ -5242,6 +5242,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._address(payload)
         if route.startswith("/slips/"):
             return self._know_slip(route[len("/slips/") :], payload)
+        if route == "/account/grant":
+            return self._accept_grant()
+        if route == "/correction":
+            return self._propose_correction(payload)
         if route == "/account/languages":
             return self._languages(payload)
         if route == "/account/language":
@@ -6128,6 +6132,10 @@ class Handler(BaseHTTPRequestHandler):
             # The language the switcher shows (2026-09-13), so every page and every device
             # opens in the language the reader last chose.
             "language": self.store.language(person.id),
+            # Whether this reader has accepted the contribution grant, which is the whole
+            # of what decides if a correction control is drawn (targum-internal#164,
+            # acceptance 2). The page asks; it never guesses from anything else.
+            "granted": self.store.has_granted(person.id),
             # Which series this account follows (2026-09-11), so a browser that has just
             # signed in draws the same row as the one they followed from.
             "follows": (["weekly"] if self.store.following(person.email) else [])
@@ -7120,6 +7128,54 @@ class Handler(BaseHTTPRequestHandler):
         if not self.library.restore(self._home(), name):
             return self._json({"error": "not found"}, 404)
         self._json({"restored": True})
+
+    def _accept_grant(self) -> None:
+        """The reader accepted the contribution grant (targum-internal#164, door 3).
+
+        Once, per account, and never undone here: the sentence in CONTRIBUTING.md is what
+        they agreed to, and a correction already offered stays under the licence it
+        arrived with. Withdrawing means offering no more, which is the account page's.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"error": "sign in"}, 401)
+        self.store.grant(person.id)
+        self._json({"granted": True})
+
+    def _propose_correction(self, payload: dict[str, Any]) -> None:
+        """A reader says a meaning is wrong, and what it should be instead.
+
+        **A proposal, never an application.** It changes nothing a reader can see, here
+        or on anybody else's shelf, until somebody with standing settles it — the card's
+        "not a vote". So there is nothing to rate-limit against but noise, and nothing
+        here spends: no model is called and no gloss is touched.
+
+        Refused without the grant, which is acceptance 2: the control is not drawn
+        without it either, but a door that is only shut in the page is not shut.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"error": "sign in"}, 401)
+        if not self.store.has_granted(person.id):
+            return self._json({"error": "no grant"}, 403)
+        lemma = str(payload.get("lemma", "")).strip()
+        meaning = str(payload.get("meaning", "")).strip()[:200]
+        if not lemma or not meaning:
+            return self._json({"error": "bad request"}, 400)
+        made = self.store.propose_correction(
+            stage="gloss",
+            who="reader",
+            judge=self.store.judge_for(person.id),
+            term=lemma,
+            language=str(payload.get("source", "")).strip() or "he",
+            target=str(payload.get("target", "")).strip() or "en",
+            text=str(payload.get("document", "")).strip()[:200],
+            before=str(payload.get("stood", "")).strip()[:200],
+            after=meaning,
+            context=str(payload.get("sentence", "")).strip()[:400],
+            reason="offered by a reader",
+        )
+        self._json({"proposed": made})
 
     def _gloss_word(self, payload: dict[str, Any]) -> None:
         """One word, because a reader asked for it.

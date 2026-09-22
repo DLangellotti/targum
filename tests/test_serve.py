@@ -3548,3 +3548,58 @@ def test_where_readers_stall_in_one_text_can_be_read_back(tmp_path: Path) -> Non
     # history — the property translations and annotations already have.
     again = store.stalls("ruth-he")
     assert again == found
+
+
+def test_a_correction_is_refused_without_the_grant_and_kept_with_it(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#164, door 3, acceptance 2. The grant gates the *control* — the
+    reader's card draws nothing without it — and it gates the door as well, because a
+    door only shut in the page is not shut.
+
+    And acceptance 3's premise: what arrives is a proposal. It changes no gloss here and
+    nothing anybody else can see until somebody with standing settles it.
+    """
+    from targum.accounts import CONTRIBUTOR_GRANT, Store
+
+    port, token, home = served
+    cookie = sign_in(port, postbox)
+
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["granted"] is False, "nobody is granted by signing in"
+
+    offered = {"lemma": "עם", "meaning": "with", "stood": "people", "sentence": "הלכתי עם אחי"}
+    status, refused, _ = call(port, "POST", f"/correction?k={token}", offered, cookie=cookie)
+    assert status == 403 and refused["error"] == "no grant"
+
+    status, given, _ = call(port, "POST", f"/account/grant?k={token}", {}, cookie=cookie)
+    assert status == 200 and given["granted"] is True
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["granted"] is True, "and the page is told, which is what draws the control"
+
+    status, made, _ = call(port, "POST", f"/correction?k={token}", offered, cookie=cookie)
+    assert status == 200 and made["proposed"]
+
+    # The store sits beside the output directory, not inside it. Asserted rather than
+    # guarded with an `if`: a conditional body that silently does not run is a test that
+    # proves nothing, and this one did not run until the path was right.
+    beside = home.parent / "words.db"
+    assert beside.is_file(), beside
+    store = Store(beside)
+    row = next(r for r in store.corrections() if r["id"] == made["proposed"])
+    assert row["state"] == "proposed", "a proposal, not an application"
+    assert row["licence"] == CONTRIBUTOR_GRANT, "under the terms it arrived with"
+    assert row["who"] == "reader" and row["judge"], "a role, and a pseudonym beside it"
+    assert row["after"] == "with" and row["before"] == "people"
+    assert store.agreed() == [], "and nothing reaches the gold set unsettled"
+
+
+def test_a_correction_with_nothing_in_it_is_refused(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    call(port, "POST", f"/account/grant?k={token}", {}, cookie=cookie)
+    for bad in ({"lemma": "עם"}, {"meaning": "with"}, {}):
+        status, answer, _ = call(port, "POST", f"/correction?k={token}", bad, cookie=cookie)
+        assert status == 400, answer

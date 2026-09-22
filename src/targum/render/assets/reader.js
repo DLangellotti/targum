@@ -4415,6 +4415,111 @@ var targumReader = function () {
     card.appendChild(said);
   }
 
+
+  /* "This meaning is wrong", on a word's card (targum-internal#164, door 3).
+
+     A proposal and never an application: it changes nothing here, nothing on the shelf
+     and nothing for anybody else until a person with standing settles it. That is the
+     card's "not a vote", and it is also why this asks for no confirmation and costs
+     nothing — no model is called and no gloss is touched.
+
+     Drawn only for a reader who has accepted the contribution grant, which is acceptance
+     2. `granted` is null until the page has asked; the card redraws when the answer
+     lands, the way a look-up does, so the control appears without the page moving under
+     anybody who was already reading. A reader who has not accepted sees nothing at all
+     here — not a greyed control, which would be an invitation to a door that is shut. */
+  var granted = null;
+  var askingGrant = false;
+
+  function askGranted(then) {
+    if (granted !== null || askingGrant || !canAsk() || typeof fetch !== "function") return;
+    askingGrant = true;
+    fetch(keyed("/account/me"), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (me) {
+        granted = !!(me && me.granted);
+        if (then) then();
+      })
+      .catch(function () {
+        // Unknown stays unknown rather than becoming "no": a failed request is not an
+        // answer about what this reader agreed to.
+        askingGrant = false;
+      });
+  }
+
+  function correctionRow(index, word, lemma, stood) {
+    var row = document.createElement("div");
+    row.className = "fix-row";
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "fix-open";
+    open.textContent = t("reader.card.meaning-wrong", "This meaning is wrong");
+    row.appendChild(open);
+
+    open.onclick = function (event) {
+      event.stopPropagation();
+      row.removeChild(open);
+      var form = document.createElement("form");
+      form.className = "fix-form";
+      var field = document.createElement("input");
+      field.type = "text";
+      field.className = "fix-field";
+      field.dir = "auto";
+      field.autocomplete = "off";
+      field.setAttribute("aria-label", t("reader.card.what-it-means", "What it means here"));
+      field.placeholder = t("reader.card.what-it-means", "What it means here");
+      var go = document.createElement("button");
+      go.type = "submit";
+      go.className = "fix-go";
+      go.textContent = t("reader.card.send-correction", "Send");
+      form.appendChild(field);
+      form.appendChild(go);
+      form.addEventListener("submit", function (sent) {
+        sent.preventDefault();
+        var said = field.value.trim();
+        if (!said) return;
+        go.disabled = true;
+        fetch(keyed("/correction"), {
+          method: "POST",
+          headers: keyHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            lemma: lemma,
+            source: wordLanguage(index),
+            target: targetLanguage,
+            meaning: said,
+            stood: stood,
+            sentence: sentenceOf(word),
+            document: documentId,
+          }),
+        })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (answer) {
+            row.innerHTML = "";
+            var thanks = document.createElement("p");
+            thanks.className = "fix-said";
+            thanks.textContent =
+              answer && answer.proposed
+                ? t(
+                    "reader.card.correction-taken",
+                    "Thank you. We will look at it before it changes for anybody."
+                  )
+                : t("reader.card.correction-lost", "We could not send that. Try again later.");
+            row.appendChild(thanks);
+          })
+          .catch(function () {
+            go.disabled = false;
+          });
+      });
+      row.appendChild(form);
+      field.focus();
+    };
+    return row;
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
@@ -4727,6 +4832,14 @@ var targumReader = function () {
     // for either is `i`. Everything else keeps the editor exactly as it was.
     var level = levelOf(word);
     if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+
+    // A meaning can only be called wrong where there is one to call wrong.
+    if (sense && !own) {
+      askGranted(function () {
+        if (lookedUp === word) showCard(word);
+      });
+      if (granted) card.appendChild(correctionRow(index, word, lemma, sense));
+    }
 
     if (word.classList.contains("split") && !built) {
       // Say so rather than presenting one reading of an ambiguous string as settled —

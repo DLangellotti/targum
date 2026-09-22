@@ -1091,6 +1091,58 @@ body.marking .w.here,
 }
 
 
+/* --- saying a meaning is wrong (targum-internal#164, door 3) ---------------
+   Quiet, and under everything else on the card: a reader came to find out what a word
+   means, not to audit it. It is ink on paper rather than an accented key — the accent is
+   for the thing the card is for, and this is the thing it is not. */
+.gloss-card .fix-row { display: flex; flex-direction: column; gap: 0.4rem; }
+.gloss-card .fix-open {
+  align-self: start;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.gloss-card .fix-open:hover { color: var(--ink); }
+.gloss-card .fix-form { display: flex; gap: 0.4rem; align-items: center; }
+.gloss-card .fix-field {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.gloss-card .fix-field:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.gloss-card .fix-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+.gloss-card .fix-go:disabled { opacity: 0.5; cursor: default; }
+.gloss-card .fix-said { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+/* §8 again: these are controls, drawn to be pressed. */
+@media (hover: none) and (pointer: coarse) {
+  .gloss-card .fix-open,
+  .gloss-card .fix-go,
+  .gloss-card .fix-field { min-height: 44px; }
+}
+
+
 /* --- copying a word out --------------------------------------------------- */
 
 /* One control beside the thing it copies, built by `TargumVocab.copyButton`. An icon at
