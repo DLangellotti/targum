@@ -2806,6 +2806,44 @@ class Store:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def agreed(self, stage: str = "", least: int = 2) -> list[dict[str, Any]]:
+        """Judgements two different kinds of judge reached independently — the candidate
+        gold set of targum-internal#164, acceptance 4.
+
+        Three rules, each of which throws rows away on purpose:
+
+        **`model` is not a judge.** This card is "every *human* judgement about a word",
+        and a sense the model produced agreeing with itself is not corroboration.
+
+        **A deletion is not an answer.** `after = ''` says the old gloss was wrong and
+        offers nothing to stand instead, so it cannot be a gold example. Two judges
+        agreeing to delete is real signal and is a different question.
+
+        **Two rows of the same role are one judge here.** `who` is a role and never a
+        person (see `correct`), so two `reader` rows may be one reader twice as easily as
+        two readers agreeing. Counting distinct roles rather than rows makes the set
+        smaller and never wrong. A reader corroborating a reader needs an anonymised
+        judge id the table deliberately does not keep — a privacy decision
+        (targum-internal#127), not an oversight, and recorded on #164.
+        """
+        where = ["who <> 'model'", "after <> ''"]
+        values: list[Any] = []
+        if stage:
+            where.append("stage = ?")
+            values.append(stage)
+        values.append(least)
+        rows = self.db.execute(
+            "SELECT stage, language, target, term, span, after,"
+            " COUNT(DISTINCT who) AS judges, GROUP_CONCAT(DISTINCT who) AS roles,"
+            " COUNT(*) AS seen, MIN(at) AS first_at, MAX(at) AS last_at"
+            f" FROM correction WHERE {' AND '.join(where)}"
+            " GROUP BY stage, language, target, term, span, after"
+            " HAVING COUNT(DISTINCT who) >= ?"
+            " ORDER BY judges DESC, last_at DESC",
+            values,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     # --- slips: what the reader got wrong (targum-internal#290) --------------------
 
     def slip(
