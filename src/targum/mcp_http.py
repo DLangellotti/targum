@@ -146,6 +146,7 @@ def handle(
     store: Store | None,
     person: Person | None,
     scopes: str | None,
+    address: str = "",
 ) -> dict[str, Any] | None:
     """Answer one JSON-RPC message, or None where the protocol says to answer nothing.
 
@@ -186,7 +187,15 @@ def handle(
     if method == "prompts/get":
         return _result(request_id, _prompt(str(params.get("name") or "")))
     if method == "tools/call":
-        return _call(request_id, params, library=library, store=store, person=person, scopes=scopes)
+        return _call(
+            request_id,
+            params,
+            library=library,
+            store=store,
+            person=person,
+            scopes=scopes,
+            address=address,
+        )
     raise RpcError(METHOD_NOT_FOUND, f"This server has no {method}.")
 
 
@@ -211,6 +220,7 @@ def _call(
     store: Store | None,
     person: Person | None,
     scopes: str | None,
+    address: str = "",
 ) -> dict[str, Any]:
     """Run one tool, for whoever the token named.
 
@@ -226,7 +236,7 @@ def _call(
         raise RpcError(INVALID_PARAMS, f"There is no tool called {name} here.")
     given = params.get("arguments")
     given = given if isinstance(given, dict) else {}
-    ctx = connector.context(library, store, person)
+    ctx = connector.context(library, store, person, press_at=address)
     text, failed = tools_module.run(name, given, ctx)
     return _result(
         request_id,
@@ -251,6 +261,7 @@ def answer(
     store: Store | None,
     person: Person | None,
     scopes: str | None,
+    address: str = "",
 ) -> tuple[int, bytes]:
     """One POST to `/mcp`, in and out.
 
@@ -268,7 +279,13 @@ def answer(
     except json.JSONDecodeError:
         return 400, _dump(_failed(None, PARSE_ERROR, "That was not JSON."))
 
-    asked = {"library": library, "store": store, "person": person, "scopes": scopes}
+    asked = {
+        "library": library,
+        "store": store,
+        "person": person,
+        "scopes": scopes,
+        "address": address,
+    }
     if isinstance(message, list):
         if not message:
             return 400, _dump(_failed(None, INVALID_REQUEST, "An empty batch is not a request."))

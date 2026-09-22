@@ -1713,6 +1713,28 @@ def approve_page(
     )
 
 
+def press_page(job: dict[str, Any], language: str = "en") -> str:
+    """Where a quote made through a connector is pressed (targum-internal#80).
+
+    In the chat a quote becomes a card in the thread and the card's button posts
+    `/build`. Over a connector there is no thread of ours, so the quote comes back
+    carrying a link to this — the same quote, the same press, on a page targum drew.
+    `Handler._build` stays the only path to `Library.claim`.
+
+    `job` is `Job.state()`, so this page and the chat's card are drawn from one shape and
+    cannot drift into saying different things about the same build.
+    """
+    return (
+        _environment()
+        .get_template("press.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            job=job,
+        )
+    )
+
+
 def connect_refused_page(said: str, language: str = "en") -> str:
     """A Connect that could not be read, said to the reader instead of to the client.
 

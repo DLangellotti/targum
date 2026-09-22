@@ -425,3 +425,41 @@ def test_nothing_that_spends_is_listed_while_nothing_spends(box: tuple[int, str]
 
     by_name = {one.name: one for one in registry.REGISTRY}
     assert not [one for one in tools if by_name[one["name"]].spends]
+
+
+# --- the press, for a quote made somewhere targum has no page ---------------------
+
+
+def test_a_quote_comes_back_with_a_link_and_never_a_way_to_spend(box: tuple[int, str]) -> None:
+    """design.md §12: a quote is information, and the press stays on a targum page."""
+    port, _ = box
+    token = a_token(port, "library record check")
+    said = rpc(
+        port,
+        token,
+        "tools/call",
+        {"name": "quote_build", "arguments": {"catalogue_id": "ruth"}},
+    )["result"]
+    quoted = json.loads(said["content"][0]["text"])
+    if "error" in quoted or "in_library" in quoted:
+        pytest.skip(f"nothing quotable on this shelf: {quoted}")
+    # The link is there whether or not the text could be made ready — the suite is
+    # offline by force, so here it cannot be. That is the seam: a quote always comes
+    # back pointing at a page of ours, and never at a way to spend.
+    assert quoted["quote"]["open"].startswith(f"{PUBLIC}/build/")
+    assert "press" not in quoted["note"].lower(), "the model is never told to press"
+    # And no tool it holds could have: `quote_build` prices, `_build` claims.
+    assert quoted["quote"]["stage"] != "working"
+
+
+def test_the_press_page_needs_the_job_to_be_yours(box: tuple[int, str]) -> None:
+    port, session = box
+    status, _, _ = send(port, "GET", "/build/not-a-job-of-yours", session=session)
+    assert status == 404
+
+
+def test_the_press_page_needs_an_account(box: tuple[int, str]) -> None:
+    """Signed out it is the holding page or the door, and never somebody's build."""
+    port, _ = box
+    status, body, _ = send(port, "GET", "/build/anything")
+    assert status != 200 or b"sign in" in body.lower()

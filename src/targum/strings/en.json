@@ -1868,5 +1868,17 @@
   "connect.page.it-will-come-back-to": "It will come back to {redirect}",
   "connect.page.we-couldn-t-finish-that": "We couldn't finish that",
   "connect.page.try-connecting-again-from-the-app": "Try connecting again from the app you started in.",
-  "connect.page.how-connecting-works": "How connecting works"
+  "connect.page.how-connecting-works": "How connecting works",
+  "press.page.this-one-is-ready": "This one is ready",
+  "press.page.open-it": "Open it",
+  "press.page.we-re-making-it": "We're making it",
+  "press.page.see-how-it-s-going": "See how it's going",
+  "press.page.ready-in-about-minutes": "Ready in about {minutes} minutes",
+  "press.page.it-has-audio": "It has audio",
+  "press.page.uses-minutes-of-your-hours": "Uses {minutes} minutes of your hours",
+  "press.page.read-this": "Read this",
+  "press.page.you-asked-for-this-somewhere-else": "You asked for this somewhere else. Nothing has been made yet.",
+  "press.page.we-can-t-make-this-one": "We can't make this one",
+  "press.page.that-quote-has-gone-stale": "That quote has gone stale. Ask again where you asked before.",
+  "press.page.go-to-your-texts": "Go to your texts"
 }

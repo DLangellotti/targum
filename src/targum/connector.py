@@ -92,7 +92,10 @@ def exposed(scopes: str | None = None, *, person: Person | None = None) -> list[
 
 
 def context(
-    library: Library, store: Store | None, person: Person | None = None
+    library: Library,
+    store: Store | None,
+    person: Person | None = None,
+    press_at: str = "",
 ) -> tools_module.Ctx:
     """Who the tools are answering, built by the server and never from an argument.
 
@@ -142,6 +145,8 @@ def context(
         # for somebody who has said nothing, and a rule picking one language out of it
         # lands on Russian. `session.py` reads it the same way.
         said_reads=reads if store is not None else None,
+        # Set only by the remote connector, which has no page of ours to draw a card on.
+        press_at=press_at,
     )
 
 

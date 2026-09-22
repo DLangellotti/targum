@@ -110,6 +110,12 @@ class Ctx:
     #: language makes a signed-out conversation Russian, `INTO` holding exactly English
     #: and Russian (targum-internal#286, item 1).
     said_reads: set[str] | None = None
+    #: Where a press lives, for a caller that has no page of ours to draw a card on.
+    #: Empty in the chat, which draws the card itself and posts `/build` from it; the
+    #: public address over the connector, where the quote has to come back carrying a
+    #: link to the page the button is on (targum-internal#80). Either way the press is
+    #: the reader's own, on targum, and the model cannot make it.
+    press_at: str = ""
 
     @property
     def person_id(self) -> int | None:
@@ -670,6 +676,23 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     ctx.library.prepare(job)
     ctx.library.remember(job)
     state = job.state()
+    if ctx.press_at:
+        # No page of ours to draw a card on, so the press comes back as a link to one
+        # (targum-internal#80). The seam is unchanged: `/build/<id>` shows the quote and
+        # one button, `Handler._build` is still the only path to `Library.claim`, and
+        # what the model holds is a URL rather than a way to spend.
+        state["open"] = f"{ctx.press_at}/build/{job.id}"
+        return {
+            "quote": state,
+            "note": (
+                "Give the reader the link in `open` and say in ONE sentence what the "
+                "text is — in their time if you say how long, never in money, never as "
+                "a build. They press it on targum's own page; you cannot. Do not "
+                "describe the button or tell them to press it."
+                if state["stage"] == "ready"
+                else "This cannot be made ready now. Tell the reader why, in one sentence."
+            ),
+        }
     return {
         "quote": state,
         # One sentence, because the card says the rest (targum-internal#236). Asked to say

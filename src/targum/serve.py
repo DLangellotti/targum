@@ -58,6 +58,7 @@ from .render.builder import (
     legal_page,
     not_found_page,
     parasha_page,
+    press_page,
     shelf_page,
     signin_page,
     text_page,
@@ -3486,7 +3487,16 @@ class Handler(BaseHTTPRequestHandler):
     #: does not exist. It is not a page in the sense of having markup — it redirects —
     #: but it is a page in the sense this list is about, which is "could somebody be
     #: looking at this".
-    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/", "/open/")
+    PAGE_PREFIXES = (
+        "/reader/",
+        "/thumb/",
+        "/chat/",
+        "/glossary/",
+        "/job/",
+        "/open/",
+        # A quote made through a connector, pressed on a page of ours (#80).
+        "/build/",
+    )
 
     def _is_a_page(self, route: str) -> bool:
         return (
@@ -4922,6 +4932,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._oauth_metadata(route)
         if route == "/oauth/authorize":
             return self._oauth_authorize(parse_qs(urlparse(self.path).query))
+        # A quote made through a connector, as a page with its button. Needs an
+        # account like any other page that shows somebody their own build.
+        if route.startswith("/build/") and not self._needs_account(route):
+            return self._press_page(route[len("/build/") :])
         # There is no server-initiated stream here — every call is answered out of a
         # `Ctx` built from the token on that request, and nothing is held between two.
         # Saying so is better than holding a socket open that will never carry anything.
@@ -5303,6 +5317,11 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 403,
             )
+        # The press on a quote a connector handed over (#80). Before the JSON parse:
+        # it is a plain form submit carrying no body at all, and the JSON door would
+        # refuse it. Which job it is, is in the path; who may press it, `_own_job`.
+        if route.startswith("/build/"):
+            return self._press(route[len("/build/") :])
         # The chunked door, before the JSON parse: a chunk's body is raw bytes, and
         # holding it to the JSON ceiling would refuse the very uploads it exists for.
         if route.startswith("/upload/"):
@@ -6994,6 +7013,43 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _press_page(self, job_id: str) -> None:
+        """The quote a connector handed over, as a page with the button on it.
+
+        `_own_job` first, as everywhere: a job id is unguessable and is still checked
+        against the asker, because one that leaked through a log or a shared screen
+        should not hand over somebody else's text.
+        """
+        job = self._own_job(job_id)
+        if job is None:
+            return self._not_found()
+        self._send(200, press_page(job.state(), self._page_language()).encode("utf-8"), HTML)
+
+    def _press(self, job_id: str) -> None:
+        """The press itself, as a form post so the page works with script off.
+
+        The same three steps `_build` takes and in the same order — own it, claim it,
+        enqueue it — because there is exactly one path to `Library.claim` and this must
+        not become a second. What differs is only the answer: a browser running no script
+        is sent back to the page, which now says it is being made.
+        """
+        job = self._own_job(job_id)
+        if job is None:
+            return self._not_found()
+        wants_json = bool(self.headers.get("X-Targum-Press"))
+        if job.stage not in {"working", "done"}:
+            blocked = self.library.claim(job)
+            if blocked:
+                job.blocked = blocked
+                job.stage = "blocked"
+                if wants_json:
+                    return self._json(job.state(), 402)
+                return self._go(f"/build/{job.id}")
+            self.library.enqueue(job)
+        if wants_json:
+            return self._json(job.state())
+        self._go(f"/build/{job.id}")
+
     def _mcp(self) -> None:
         """The connector, at the one address `oauth.RESOURCE_PATH` names.
 
@@ -7029,6 +7085,7 @@ class Handler(BaseHTTPRequestHandler):
             store=self.store,
             person=person,
             scopes=scopes,
+            address=self.address,
         )
         self.send_response(status)
         if body:
