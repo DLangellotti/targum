@@ -214,3 +214,53 @@ def test_the_committed_ledger_holds_every_floor_in_the_repository() -> None:
     assert limits, "the floors file is part of the repository"
     crossed = evals.breaches(evals.read(here / "ledger.jsonl"), limits)
     assert not crossed, "\n".join(str(one) for one in crossed)
+
+
+# -- the aligner's own eval (targum-internal#265, acceptance 2) -------------------------
+
+
+def _eval_align():  # type: ignore[no-untyped-def]
+    import importlib.util
+    from pathlib import Path as P
+
+    spec = importlib.util.spec_from_file_location(
+        "eval_align", P(__file__).parent.parent / "scripts" / "eval_align.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_boundary_score_is_off_the_ends_and_not_counted_twice() -> None:
+    """A start is the previous end by construction here — the words were said one at a
+    time and joined — so scoring both would count every boundary twice and halve the
+    error it reports."""
+    align = _eval_align()
+    # Three words, true ends at 1.0, 2.0, 3.0; found 20ms, 80ms and 0ms out.
+    found = [(0.0, 1.02, 1.0), (1.02, 1.92, 1.0), (1.92, 3.0, 1.0)]
+    truth = [1.0, 2.0, 3.0]
+    marks = align.scored(found, truth)
+    assert marks["boundary_ms_mean"] == round((20 + 80 + 0) / 3, 1)
+    assert marks["boundary_ms_median"] == 20.0
+    assert marks["within_50ms"] == round(2 / 3, 4), "the 80ms one is not close"
+
+
+def test_a_mismatched_alignment_is_refused_rather_than_scored_short() -> None:
+    """`strict=True` on the zip: an aligner that answered with fewer words than it was
+    given would otherwise score only the ones it managed, which reads as a better number
+    the worse it did."""
+    import pytest as _pytest
+
+    align = _eval_align()
+    with _pytest.raises(ValueError):
+        align.scored([(0.0, 1.0, 1.0)], [1.0, 2.0])
+
+
+def test_the_words_drawn_stop_at_what_was_asked_for() -> None:
+    align = _eval_align()
+    assert len(align.words_of("he", 5)) == 5
+    assert align.words_of("he", 0) == []
+    assert align.words_of("xx", 5) == [], "a language with no lines draws nothing"
+    for code in ("he", "fr", "ru", "it"):
+        assert len(align.words_of(code, 999)) >= 20, f"{code} has enough to measure with"
