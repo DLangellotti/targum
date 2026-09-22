@@ -373,3 +373,35 @@ def test_a_rendering_written_before_this_still_reads() -> None:
     )
     (beside,) = made.translations
     assert beside.licence == "CC-BY" and beside.licence_url == ""
+
+
+# -- a sample is read in the reader's language (targum-internal#188) ---------------------
+
+
+def test_a_sample_line_is_said_in_the_language_the_page_speaks() -> None:
+    """The public text page is where a Russian searcher arrives from a Russian search,
+    and the sample is the only real reading on it — the reason it is worth indexing at
+    all. Its name and blurb have answered in Russian since targum#362; the sample was
+    the last English on the page.
+    """
+    from targum.catalogue import Line
+
+    line = Line(
+        source="בְּרֵאשִׁית בָּרָא אֱלֹהִים",
+        target="In the beginning God created",
+        said={"ru": "В начале сотворил Бог"},
+    )
+    assert line.said_in("ru") == "В начале сотворил Бог"
+    assert line.said_in("ru-RU") == "В начале сотворил Бог", "a regional tag is the language"
+    assert line.said_in("en") == "In the beginning God created"
+    # Never wrong, only foreign: a language nothing has been written for reads the
+    # English, which is what lets this be filled a row at a time.
+    assert line.said_in("fr") == "In the beginning God created"
+
+
+def test_a_sample_written_before_this_still_reads() -> None:
+    """Every sample on disk predates the field."""
+    from targum.catalogue import Line
+
+    line = Line(source="ש", target="A line")
+    assert line.said == {} and line.said_in("ru") == "A line"
