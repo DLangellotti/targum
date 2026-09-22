@@ -1316,6 +1316,57 @@ def test_onkelos_changes_the_column_and_the_card_stays_in_english(
     context.close()
 
 
+@pytest.fixture(scope="module")
+def beside_rashi(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return bilingual(
+        tmp_path_factory.mktemp("rashi") / "reader",
+        ("Rashi on Genesis", "he", "פירוש ראשון\nפירוש שני"),
+    )
+
+
+#: How the translation column is drawing right now: whether it is stamped a commentary,
+#: and what the browser actually resolves that to. The computed value is the point — a
+#: class nothing styles would pass a test that only looked for the class.
+COMMENTED = """
+() => {
+  const cell = document.querySelector('.pair .tr');
+  return {
+    marked: cell.classList.contains('commented'),
+    space: getComputedStyle(cell).whiteSpace,
+    lines: cell.getClientRects().length,
+  };
+}
+"""
+
+
+def test_pressing_a_commentary_separates_its_comments_in_the_browser(
+    browser, beside_rashi: Path
+) -> None:
+    """targum-internal#200. A verse of Rashi is several comments joined with a newline,
+    and only the rendering the page opens on is stamped as a commentary by the template.
+    So on a text carrying both, pressing Rashi drew its comments run together — the exact
+    thing that was fixed, undone by one press.
+
+    The computed `white-space` is what is asserted rather than the class, because a class
+    that nothing styles would satisfy a test looking only for the class.
+    """
+    context, page = open_reader(browser, beside_rashi)
+
+    english = page.evaluate(COMMENTED)
+    assert not english["marked"] and english["space"] == "normal"
+
+    page.evaluate(SWITCH, "t1")
+    rashi = page.evaluate(COMMENTED)
+    assert rashi["marked"], "the swap never stamped the commentary"
+    assert rashi["space"] == "pre-line"
+
+    # And back: English is prose again, so a newline in it goes on collapsing.
+    page.evaluate(SWITCH, "t0")
+    back = page.evaluate(COMMENTED)
+    assert not back["marked"] and back["space"] == "normal"
+    context.close()
+
+
 #: What tapping one word under `selector` opens: the word, the card's language, its
 #: meaning and its "from" line.
 TAP_WORD = """

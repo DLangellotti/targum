@@ -2620,6 +2620,12 @@ def render(
                     if translation.target_language in BESIDE
                     else {}
                 ),
+                # Whether this one's lines are several comments joined with a newline
+                # (targum-internal#200). The template can only stamp the rendering it
+                # draws, so on a text carrying both Onkelos and Rashi a reader who
+                # pressed Rashi got the comments run together again — the same shape of
+                # bug as the language and direction three fields up, one press away.
+                **({"commented": True} if _commentary_named(translation.name) else {}),
             }
             for index, translation in enumerate(translations)
         }
