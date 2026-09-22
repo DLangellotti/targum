@@ -1968,25 +1968,35 @@ def daily_page(
             absent=absent or [],
             opens=opens,
             is_today=is_today,
-            translation_said=_translation_said(day),
+            translation_said=_translation_said(day, language),
         )
     )
 
 
-def _translation_said(day: Any) -> str:
+def _translation_said(day: Any, language: str = "en") -> str:
     """Who made the English on a daily page, in a sentence.
 
     Off the catalogue rather than written down here, so a page never credits an edition
-    the shelf has since swapped.
+    the shelf has since swapped. The edition's own name is not translated — it is what it
+    is called — but the words around it are (targum-internal#348).
     """
     from ..daily.cut import entry_for
 
+    said = page_words(language)
     entry = entry_for(day.span.book) if getattr(day, "span", None) else None
     if entry is None or not entry.translations:
-        return "a published translation"
+        return str(said("daily.page.a-published-translation", "a published translation"))
     rendering = entry.translations[0]
-    who = rendering.publisher or rendering.name
-    return f"{rendering.name}" + (f", published by {who}" if rendering.publisher else "")
+    if not rendering.publisher:
+        return str(rendering.name)
+    return str(
+        said(
+            "daily.page.published-by",
+            "{name}, published by {who}",
+            name=rendering.name,
+            who=rendering.publisher,
+        )
+    )
 
 
 def parasha_page(

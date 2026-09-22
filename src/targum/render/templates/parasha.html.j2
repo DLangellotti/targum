@@ -241,28 +241,35 @@
 
   <section class="honest">
     <h2 class="label">{{ t("parasha.page.made-honestly", "Made honestly") }}</h2>
+    {#- One key, one paragraph (targum-internal#348). The edition names inside it stay as
+        they are — they are what those books are called — and the sentences around them
+        are a language's own. -#}
     <p class="made">
-      The Hebrew is the Masoretic text as it is published, cut to this week's reading and
-      not edited. The English beside it is {{ translation_said }}. The haftarah is cut
-      from the Prophets on the same shelf, with the translation each book carries there:
-      the Metsudah Tanach for Judges, Samuel and I Kings, the 1917 JPS for the rest. The
-      division into aliyot, the haftarah for each Shabbat and the calendar behind them —
-      including which portion Israel reads and which the diaspora reads — come from
-      Hebcal.
+      {{ t("parasha.page.made-honestly-says",
+            "The Hebrew is the Masoretic text as it is published, cut to this week's reading and not edited. The English beside it is {translation}. The haftarah is cut from the Prophets on the same shelf, with the translation each book carries there: the Metsudah Tanach for Judges, Samuel and I Kings, the 1917 JPS for the rest. The division into aliyot, the haftarah for each Shabbat and the calendar behind them — including which portion Israel reads and which the diaspora reads — come from Hebcal.",
+            translation=translation_said) }}
     </p>
     {#- Whose work this page is built out of. The photograph asks for nothing — it is
         CC0 — and is credited anyway, which is the rule the recordings already follow:
         a credit that lives only in a repository is a credit nobody reading ever sees.
         The recording's licence does require it. -#}
+    {#- Four keys became one. Each of the old ones was a fragment around a link — two of
+        them began with a comma — and a fragment can only ever be put back in English's
+        order. The links ride in blanks as `Markup`, which `Markup.format` passes through
+        while escaping everything else (targum-internal#348). -#}
+    {%- set photograph -%}
+      <a href="https://commons.wikimedia.org/wiki/File:Closeup_of_Torah_Scroll.jpg" rel="noopener noreferrer">{{ t("parasha.page.photographed-by-jacob-gucker", "photographed by Jacob Gucker") }}</a>
+    {%- endset -%}
+    {%- set recording -%}
+      <a href="https://archive.org/details/PockettorahAudioFiles" rel="noopener noreferrer">PocketTorah</a>
+    {%- endset -%}
+    {%- set licence -%}
+      <a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="noopener noreferrer">CC BY-SA 3.0</a>
+    {%- endset -%}
     <p class="made credits">
-      {{ t("parasha.page.the-scroll-at-the-top-is", "The scroll at the top is") }}
-      <a href="https://commons.wikimedia.org/wiki/File:Closeup_of_Torah_Scroll.jpg"
-         rel="noopener noreferrer">{{ t("parasha.page.photographed-by-jacob-gucker", "photographed by Jacob Gucker") }}</a>{{ t("parasha.page.in-the-public-domain-under-cc0-where", ", in the public domain
-      under CC0. Where a reading has a recording it is") }}
-      <a href="https://archive.org/details/PockettorahAudioFiles"
-         rel="noopener noreferrer">PocketTorah</a>{{ t("parasha.page.chanted-in-the-avery-binder-trope-and", ", chanted in the Avery-Binder trope and
-      used under") }} <a href="https://creativecommons.org/licenses/by-sa/3.0/"
-         rel="noopener noreferrer">CC BY-SA 3.0</a>.
+      {{ t("parasha.page.credits-say",
+            "The scroll at the top is {photograph}, in the public domain under CC0. Where a reading has a recording it is {recording}, chanted in the Avery-Binder trope and used under {licence}.",
+            photograph=photograph, recording=recording, licence=licence) }}
     </p>
 
     {% if listed %}

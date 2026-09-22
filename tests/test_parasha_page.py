@@ -880,3 +880,31 @@ def test_the_dateline_is_one_sentence_in_the_readers_language() -> None:
             parasha_page(one, schedule=cal.Schedule.diaspora, shabbat=when, language="ru")
         )
         assert form.strip() in said, (count, said)
+
+
+def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
+    """targum-internal#348. These were four keys, each a fragment around a link and two of
+    them beginning with a comma — a shape that can only ever be put back in English's
+    order. One key each now, with the links riding in blanks as `Markup`, which
+    `Markup.format` passes through while escaping everything else a blank carries."""
+    import re
+    from datetime import date
+
+    from targum.parasha.models import Portion as P
+    from targum.render.builder import parasha_page
+
+    portion = P(slug="x", name="N", hebrew="נ", numbers=[35], summary="s", verses=1, aliyot=1)
+    when = date(2026, 5, 30)
+
+    for language, expected in (("en", "The scroll at the top is"), ("ru", "Свиток наверху")):
+        html = parasha_page(
+            portion, schedule=cal.Schedule.diaspora, shabbat=when, language=language
+        )
+        found = re.search(r'<p class="made credits">(.*?)</p>', html, re.S)
+        assert found, language
+        credits = found.group(1)
+        assert expected in credits
+        # The links are links, not text that looks like one.
+        assert "&lt;a" not in html, "a link was escaped into the sentence"
+        assert 'href="https://archive.org/details/PockettorahAudioFiles"' in credits
+        assert "</a>, " in credits, "and the sentence closes onto them without a gap"
