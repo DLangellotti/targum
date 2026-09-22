@@ -1008,6 +1008,16 @@ def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:
     assert drawn["carry"]["title"] == "רות" and drawn["carry"]["heading"] == "Suggested for you"
 
 
+def test_a_box_with_no_connector_draws_no_door_to_one() -> None:
+    """The connector ships dark behind `TARGUM_CONNECTOR` (#80), and a door to a 404 is
+    worse than no door."""
+    shelf = [reader(f"r{n}", f"ספר {n}", built=100 - n, opened=50 - n) for n in range(8)]
+    stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(8)})}
+    drawn = draw(shelf, stamps, connector=False)
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Recently opened"]
+    assert CONNECT[0] not in [d["label"] for d in drawn["doors"]]
+
+
 def test_the_date_follows_the_language_the_page_is_in() -> None:
     """2026-09-14: the Hebrew date is for Hebrew, Aramaic and Yiddish, with the week's
     portion. In French, Italian or Russian the date is the country's, in its language,

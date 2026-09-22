@@ -809,7 +809,7 @@
        doors is worth drawing at all, on the reading doors alone. A row holding nothing
        but this would be the first thing a new reader met, which is the push the panel
        below promises not to be. */
-    if (!row.hidden) row.appendChild(connectDoor());
+    if (!row.hidden && window.TARGUM_CONNECTOR) row.appendChild(connectDoor());
     drawCards();
     markDoor(current);
     // The cards are only now in the page, so the mark the sheet set before they existed

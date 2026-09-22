@@ -1169,7 +1169,7 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     return out
 
 
-def learn_page(token: str, language: str = "en") -> str:
+def learn_page(token: str, language: str = "en", connector: bool = False) -> str:
     """The page you land on: carry on, what you have, what you know.
 
     In that order on purpose. Most visits are somebody returning to a text rather than
@@ -1224,6 +1224,10 @@ def learn_page(token: str, language: str = "en") -> str:
                 }
                 for entry in everything()
             ],
+            # Whether Learn draws a door to the connector (#80). The page is rendered
+            # once at start-up, so this is read then and not per request — which is the
+            # same thing the switch means: the day it opens is a restart.
+            connector=connector,
         )
     )
 

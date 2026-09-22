@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import secrets
 import threading
 import time
@@ -35,6 +36,9 @@ def box(tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]) 
     signed_in = store.finish_sign_in(store.start_sign_in("reader@example.com"))
     assert signed_in is not None
     port = free_port()
+    # Armed, the way `targum.env` arms it on the box: the connector ships dark
+    # and these tests are about what it does once somebody has turned it on.
+    os.environ["TARGUM_CONNECTOR"] = "1"
     threading.Thread(
         target=lambda: serve.start(
             out=tmp / "out",

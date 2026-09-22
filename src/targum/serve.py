@@ -415,6 +415,10 @@ OAUTH_METADATA = frozenset(
     }
 )
 
+#: The connector's four posted doors, so the switch above them is one line rather than
+#: four that can drift apart.
+OAUTH_POSTS = frozenset({"/oauth/register", "/oauth/token", "/oauth/revoke", "/oauth/authorize"})
+
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
 # nothing is open to strangers until there is something worth arriving at and a
 # whitelist deciding who may come in.
@@ -576,6 +580,27 @@ def keeps_events() -> bool:
     nothing, and Your Progress draws none of the three figures that read from it.
     """
     return os.environ.get("TARGUM_EVENTS", "").strip().lower() in {"1", "true", "yes"}
+
+
+def connector_is_open() -> bool:
+    """Whether targum can be added to Claude or ChatGPT (targum-internal#80).
+
+    Off unless the deployment says so, for the reason the front door's switch exists:
+    the whole of it can be deployed, walked end to end against a real client on the box
+    and looked at before a stranger can reach any of it, and the day it opens is one
+    line in `targum.env` rather than a release.
+
+    It earns the switch more than the others did. This is the first public surface where
+    a client targum does not control holds a credential and can write to a reader's
+    record, and the approval page is the entire first impression — see design.md §12,
+    "A scope is a press that lasts".
+
+    While it is off, `/mcp`, the two metadata documents, every `/oauth` door and
+    `/connect` answer 404, the sitemap does not mention the page, and Learn draws no
+    door to it. A token already issued stops working with them: `_mcp` is the only way
+    to use one, and it is not there.
+    """
+    return os.environ.get("TARGUM_CONNECTOR", "").strip().lower() in {"1", "true", "yes"}
 
 
 def front_door_is_open() -> bool:
@@ -4561,7 +4586,9 @@ class Handler(BaseHTTPRequestHandler):
         where = self.address or ""
         # `/connect` is here because it is a page a stranger searches for by name —
         # "targum ChatGPT" is how somebody finds out this exists at all (#80).
-        paths = ["/", "/about", "/library", "/connect"]
+        paths = ["/", "/about", "/library"]
+        if connector_is_open():
+            paths.append("/connect")
         if legal_is_public():
             paths += list(LEGAL_ROUTES)
         # A portion's catalogue id redirects to its own page, so the id is left out here
@@ -4940,11 +4967,17 @@ class Handler(BaseHTTPRequestHandler):
         # How to add targum to Claude or ChatGPT. Public, because the reader it is
         # written for has not got in yet (note 2: assume it is their first install).
         if route == "/connect":
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
             page = connect_page(self._public_language(), self.address)
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
             return self._oauth_metadata(route)
         if route == "/oauth/authorize":
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
             return self._oauth_authorize(parse_qs(urlparse(self.path).query))
         # A quote made through a connector, as a page with its button. Needs an
         # account like any other page that shows somebody their own build.
@@ -4954,6 +4987,8 @@ class Handler(BaseHTTPRequestHandler):
         # `Ctx` built from the token on that request, and nothing is held between two.
         # Saying so is better than holding a socket open that will never carry anything.
         if route == oauth.RESOURCE_PATH:
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
             self.send_response(405)
             self.send_header("Allow", "POST")
             self.send_header("Content-Length", "0")
@@ -5299,6 +5334,9 @@ class Handler(BaseHTTPRequestHandler):
         # the JSON parse: three of them are spoken by a client rather than a browser, and
         # two of those carry a form body the spec fixes. Approving is a press on a page
         # this server drew, and reads its person from the cookie like any other press.
+        if route in OAUTH_POSTS or route == oauth.RESOURCE_PATH:
+            if not connector_is_open():
+                return self._json({"error": "not found"}, 404)
         if route == "/oauth/register":
             return self._oauth_register()
         if route == "/oauth/token":
@@ -8667,7 +8705,7 @@ def start(
             # runs themselves and useless in an email: hosted, the link has to name the
             # address the reader can actually reach, not the one the server binds to.
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
-            "page": learn_page(token),
+            "page": learn_page(token, connector=connector_is_open()),
             "you": you_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
@@ -8680,7 +8718,7 @@ def start(
             "translated": {
                 code: {
                     "progress": progress_page(token, language=code),
-                    "page": learn_page(token, language=code),
+                    "page": learn_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),

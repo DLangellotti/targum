@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import secrets
 import threading
 import time
@@ -40,6 +41,9 @@ def connected(
     signed_in = store.finish_sign_in(token)
     assert signed_in is not None
     port = free_port()
+    # Armed, the way `targum.env` arms it on the box: the connector ships dark
+    # and these tests are about what it does once somebody has turned it on.
+    os.environ["TARGUM_CONNECTOR"] = "1"
     threading.Thread(
         target=lambda: serve.start(
             out=tmp / "out",
@@ -605,3 +609,48 @@ def test_a_token_is_never_in_the_account_answer(connected: tuple[int, str, Path]
     token = json.loads(body)["access_token"]
     _, body, _ = get(port, "/account/me", session=session)
     assert token not in body.decode(), "a credential is not data"
+
+
+# --- the switch (targum-internal#80) ---------------------------------------------
+
+
+def test_every_door_is_shut_while_the_connector_is_off(
+    tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]
+) -> None:
+    """It ships dark, the way the front door does: the day it opens is one line in
+    targum.env rather than a release."""
+    tmp = tmp_path_factory.mktemp("shut")
+    store_path = tmp / "targum.db"
+    Store(store_path)
+    port = free_port()
+    was = os.environ.pop("TARGUM_CONNECTOR", None)
+    threading.Thread(
+        target=lambda: serve.start(
+            out=tmp / "out",
+            port=port,
+            open_browser=False,
+            store=store_path,
+            require_account=True,
+            public_address=PUBLIC,
+        ),
+        daemon=True,
+    ).start()
+    try:
+        for _ in range(60):
+            try:
+                probe = HTTPConnection("127.0.0.1", port, timeout=1)
+                probe.request("GET", "/health")
+                probe.getresponse().read()
+                probe.close()
+                break
+            except OSError:
+                time.sleep(0.1)
+        for route in [*serve.OAUTH_METADATA, "/connect", "/oauth/authorize", "/mcp"]:
+            assert get(port, route)[0] == 404, route
+        for route in serve.OAUTH_POSTS:
+            assert post(port, route, "")[0] == 404, route
+        assert post(port, "/mcp", '{"jsonrpc":"2.0","id":1,"method":"ping"}')[0] == 404
+        assert b"/connect" not in get(port, "/sitemap.xml")[1]
+    finally:
+        if was is not None:
+            os.environ["TARGUM_CONNECTOR"] = was
