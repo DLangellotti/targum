@@ -1,0 +1,69 @@
+/* targum in Claude and ChatGPT (targum-internal#80). What the front door's stylesheet
+   does not already have: a list of what the connector can do, and the blocks of steps.
+
+   It rides on `landing.css` because it is a public page in the same family, and the one
+   thing a second stylesheet must not do is start a second set of tokens. Everything here
+   is a layout rule; every colour is one the front door already defines. */
+
+.open { padding-block: 3rem 1rem; }
+.close { padding-block: 2rem 4rem; }
+
+.lede {
+  margin-block: 0.5rem 1.5rem;
+  font-size: 1.25rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* What it can do, and what it may see. A list of facts, not a feature grid: the page
+   sells by being specific (§6), and a tick beside each would be selling by decoration. */
+.can {
+  margin-block: 1rem;
+  padding-inline-start: 1.1rem;
+  display: grid;
+  gap: 0.6rem;
+}
+.can li { line-height: 1.6; }
+
+.quiet {
+  margin-block-start: 1rem;
+  color: var(--muted);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* One block a host, each with its own steps and nothing guessed about which one the
+   reader wants (note 2: assume this is their first install). A card each, so a reader
+   in the wrong one can see that they are. */
+.host {
+  margin-block-start: 1.25rem;
+  padding: 1.25rem;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+.host h3 {
+  margin-block: 0 0.75rem;
+  font-size: 1.0625rem;
+}
+.host ol {
+  margin-block: 0;
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+.host li { line-height: 1.6; }
+
+/* The address itself, which is the one thing on the page somebody has to copy exactly.
+   Monospace and allowed to wrap anywhere, because it is long and a phone is narrow. */
+.address {
+  margin-block: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--field);
+  overflow-wrap: anywhere;
+}
+.address code {
+  font: 400 0.9375rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ink);
+}

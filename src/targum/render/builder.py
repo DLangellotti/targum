@@ -1735,6 +1735,40 @@ def press_page(job: dict[str, Any], language: str = "en") -> str:
     )
 
 
+def connect_page(language: str = "en", address: str = "") -> str:
+    """targum in Claude and ChatGPT: what it does, and how to add it (#80).
+
+    A public page, so §6's selling register applies and the feature names we use inside
+    the team do not. "MCP" is on it once, in the steps, because that is what the menu the
+    reader has to find is called.
+
+    Note 2 of 2026-09-22 is the design: assume this is their first connector of any kind.
+    One block a host, each with its own steps, and nothing detected — a reader in the
+    wrong block can see that they are, which is not true of a page that chose for them.
+    """
+    said = page_words(language)
+    # Its own address per language, like every other public page (#188): a crawler
+    # cannot be told two languages of this exist unless each has a URL.
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/connect" if address else "", language)
+    return (
+        _environment()
+        .get_template("connect.html.j2")
+        .render(
+            t=said,
+            page_language=_page_language(language),
+            title=said("connect.head.title", "targum in Claude and ChatGPT"),
+            description=said(
+                "connect.head.description",
+                "Read Hebrew with targum from inside Claude or ChatGPT: your words, your "
+                "mistakes, and something to read next.",
+            ),
+            canonical=here,
+            alternates=alternates,
+            address=address,
+        )
+    )
+
+
 def connect_refused_page(said: str, language: str = "en") -> str:
     """A Connect that could not be read, said to the reader instead of to the client.
 

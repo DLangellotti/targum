@@ -405,6 +405,17 @@ Styled the same is the decision and not an oversight. A door drawn as a lesser t
 as an advertisement, which is what the page must not carry; drawn as a door it is what it
 is, a way in, and the reader chooses between three doors instead of two.
 
+**It is appended, never counted.** The row is drawn only when there are enough reading
+doors to be worth one, and that rule still reads the reading doors alone. A row holding
+nothing but the way into Claude would be the first thing a new reader met on a page whose
+own panel promises to pull and never push — an advertisement standing where a text should
+be. So it is permanent in the sense that matters, never dismissed and always there, and
+it is there only where there was already a row.
+
+It is also the one door that is a link rather than a button: it goes somewhere, where the
+others swap the sheet below, and it is never marked as the way the sheet was reached
+because it never is.
+
 The cost is real and is written down here so it is not rediscovered: Learn's first job is
 getting somebody into a text, and a third door competes with the two that carry one. The
 only signal that would say so is whether the reading doors are pressed less after it ships,

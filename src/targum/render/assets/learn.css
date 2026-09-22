@@ -872,6 +872,12 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   white-space: nowrap;
   cursor: pointer;
 }
+/* The one door that is a link rather than a button (design.md §12, 2026-09-22): it goes
+   somewhere, where the reading doors swap the sheet below. Drawn identically on purpose
+   — a door styled as a lesser thing reads as an advertisement. An anchor needs the box
+   and the underline said out loud; a button had both already. */
+a.way { display: inline-flex; align-items: center; text-decoration: none; }
+a.way:hover { text-decoration: none; }
 .way:hover { background: var(--teal-wash); }
 .way.on { background: var(--teal-wash); color: var(--teal); }
 .way:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }

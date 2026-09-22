@@ -498,3 +498,110 @@ def test_another_origin_cannot_drive_any_of_it(connected: tuple[int, str, Path])
     port, session, _ = connected
     status, _, _ = post(port, "/oauth/token", urlencode({"grant_type": "x"}), host="evil.test")
     assert status == 404, "the host allowlist stands in front of everything that posts"
+
+
+# --- the doors a reader meets ----------------------------------------------------
+
+
+def test_connect_is_public_and_says_how(connected: tuple[int, str, Path]) -> None:
+    """The reader it is written for has not got in yet (note 2)."""
+    port, _, _ = connected
+    status, body, _ = get(port, "/connect")
+    assert status == 200
+    page = body.decode()
+    assert f"{PUBLIC}/mcp" in page, "the one thing they have to copy exactly"
+    assert "In Claude" in page and "In ChatGPT" in page
+    assert "claude mcp add" in page
+
+
+def test_connect_names_mcp_once_and_leads_with_what_they_get(
+    connected: tuple[int, str, Path],
+) -> None:
+    """§6: on a public page the copy sells, and our words are not the reader's."""
+    port, _, _ = connected
+    _, body, _ = get(port, "/connect")
+    page = body.decode()
+    where = page.index("targum in Claude and ChatGPT")
+    assert "MCP" not in page[:where], "the headline is what they get, not what it is"
+    assert page.count("MCP-server") == 0
+    assert "connector" not in page.split("<main")[0], "not a word a stranger decodes"
+
+
+def test_connect_guesses_nothing_about_which_app(connected: tuple[int, str, Path]) -> None:
+    """A reader in the wrong block can see that they are; a page that chose cannot."""
+    port, _, _ = connected
+    _, body, _ = get(port, "/connect")
+    page = body.decode()
+    for host in ("In Claude", "In ChatGPT", "In Claude Code"):
+        assert host in page, f"{host} is offered whoever is reading"
+
+
+def test_a_connection_is_listed_on_the_account_and_can_be_taken_back(
+    connected: tuple[int, str, Path],
+) -> None:
+    """design.md §12: a grant that lasts is visible somewhere the reader can end it."""
+    port, session, _ = connected
+    client_id = a_client(port)
+    verifier, challenge = pkce()
+    code = a_code(port, session, client_id, challenge, "library record")
+    post(
+        port,
+        "/oauth/token",
+        urlencode(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": client_id,
+                "redirect_uri": CALLBACK,
+                "code_verifier": verifier,
+            }
+        ),
+        session=session,
+    )
+    status, body, _ = get(port, "/account/me", session=session)
+    assert status == 200
+    mine = [one for one in json.loads(body)["connections"] if one["client"] == client_id]
+    assert mine and mine[0]["name"] == "Claude"
+    assert mine[0]["scopes"] == "library record"
+
+    status, body, _ = post(
+        port,
+        "/account/disconnect",
+        json.dumps({"client": client_id}),
+        kind="application/json",
+        session=session,
+    )
+    assert status == 200 and json.loads(body)["disconnected"] >= 1
+    _, body, _ = get(port, "/account/me", session=session)
+    assert not [one for one in json.loads(body)["connections"] if one["client"] == client_id]
+
+
+def test_nobody_can_disconnect_for_somebody_else(connected: tuple[int, str, Path]) -> None:
+    port, _, _ = connected
+    status, _, _ = post(
+        port, "/account/disconnect", json.dumps({"client": "whatever"}), kind="application/json"
+    )
+    assert status == 401
+
+
+def test_a_token_is_never_in_the_account_answer(connected: tuple[int, str, Path]) -> None:
+    port, session, _ = connected
+    client_id = a_client(port)
+    verifier, challenge = pkce()
+    code = a_code(port, session, client_id, challenge, "library")
+    _, body, _ = post(
+        port,
+        "/oauth/token",
+        urlencode(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": client_id,
+                "redirect_uri": CALLBACK,
+                "code_verifier": verifier,
+            }
+        ),
+    )
+    token = json.loads(body)["access_token"]
+    _, body, _ = get(port, "/account/me", session=session)
+    assert token not in body.decode(), "a credential is not data"

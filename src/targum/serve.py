@@ -50,6 +50,7 @@ from .render.builder import (
     about_page,
     approve_page,
     back_office_page,
+    connect_page,
     connect_refused_page,
     daily_page,
     front_page,
@@ -396,6 +397,7 @@ OPEN_TO_STRANGERS = frozenset(
         # The connector (targum-internal#80). A client registering itself, asking for
         # tokens or giving one back has no account and is not a person; the reader is,
         # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
+        "/connect",
         "/oauth/register",
         "/oauth/token",
         "/oauth/revoke",
@@ -4552,7 +4554,9 @@ class Handler(BaseHTTPRequestHandler):
         from . import catalogue as catalogue_module
 
         where = self.address or ""
-        paths = ["/", "/about", "/library"]
+        # `/connect` is here because it is a page a stranger searches for by name —
+        # "targum ChatGPT" is how somebody finds out this exists at all (#80).
+        paths = ["/", "/about", "/library", "/connect"]
         if legal_is_public():
             paths += list(LEGAL_ROUTES)
         # A portion's catalogue id redirects to its own page, so the id is left out here
@@ -4928,6 +4932,11 @@ class Handler(BaseHTTPRequestHandler):
         # check: the two documents are read by a client that has no account and never will
         # have one, and the approval page signs a reader in itself rather than handing a
         # stranger the holding page halfway through pressing Connect.
+        # How to add targum to Claude or ChatGPT. Public, because the reader it is
+        # written for has not got in yet (note 2: assume it is their first install).
+        if route == "/connect":
+            page = connect_page(self._public_language(), self.address)
+            return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
             return self._oauth_metadata(route)
         if route == "/oauth/authorize":
@@ -5361,6 +5370,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._weekly_follow(payload)
         if route == "/account/follows":
             return self._follows(payload)
+        if route == "/account/disconnect":
+            return self._disconnect(payload)
         if route == "/already":
             return self._already(payload)
         if route == "/describe":
@@ -6318,9 +6329,27 @@ class Handler(BaseHTTPRequestHandler):
             # a record at all, and whether this reader has left it on (#127). A page sends
             # nothing unless both are true.
             "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+            # Which connectors hold a token for this account, and what each may do
+            # (targum-internal#80). A grant that lasts has to be visible somewhere the
+            # reader can take it back, and this is that somewhere — see design.md §12,
+            # "A scope is a press that lasts". Never the token itself.
+            "connections": self.store.connections(person.id),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _disconnect(self, payload: dict[str, Any]) -> None:
+        """Take a connector's tokens back — the other half of the approval page.
+
+        Both kinds at once, because revoking the access token and leaving the refresh
+        token would be a disconnection that undid itself within the hour.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        client = str(payload.get("client") or "")
+        gone = self.store.disconnect(person.id, client) if client else 0
+        self._json({"disconnected": gone, "connections": self.store.connections(person.id)})
 
     def _events(self, payload: dict[str, Any]) -> None:
         """What a reader did in a text, appended (targum-internal#127). Signed in only, and
