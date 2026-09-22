@@ -1744,6 +1744,27 @@ class Store:
         ).fetchone()
         return None if row is None else str(row["email"])
 
+    def waiting_language(self, token: str) -> str:
+        """The language behind a waitlist token, for the page and the mail it opens.
+
+        `join_waitlist` has recorded the door somebody came through since
+        targum-internal#292, and until 2026-09-22 only the invitation read it back — so
+        somebody who joined at the Russian front door was answered in English at every
+        step between joining and being invited (targum-internal#288).
+
+        Matched on either token, because one row has two: `confirm` is hashed like a
+        sign-in link, and `stop` is in the clear so it can be minted into a mail. A token
+        that is neither answers English rather than raising: these pages are followed out
+        of a mail client and have to draw for somebody who already pressed once.
+        """
+        if not token:
+            return "en"
+        row = self.db.execute(
+            "SELECT language FROM waiting WHERE confirm = ? OR stop = ?",
+            (digest(token), token),
+        ).fetchone()
+        return str(row["language"] or "en") if row is not None else "en"
+
     def confirm_waiting(self, token: str) -> str | None:
         """Spend a confirmation. Returns the address, or None if it was not one."""
         if not token:

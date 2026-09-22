@@ -1934,5 +1934,18 @@
   "yours.page.csv": "CSV",
   "yours.page.lines-corrected-in-conversation": "Исправлено в разговоре",
   "yours.page.what-to-work-on": "Над чем поработать",
-  "library.subject.tanakh": "Танах"
+  "library.subject.tanakh": "Танах",
+  "waitlist.note.heading": "список ожидания",
+  "waitlist.note.link-spent": "Эта ссылка уже использована или устарела.",
+  "waitlist.note.keep-me": "Оставить {email} в списке ожидания?",
+  "waitlist.note.keep-me.button": "Да, оставить",
+  "waitlist.note.take-me-off": "Убрать вас из списка ожидания?",
+  "waitlist.note.take-me-off.button": "Да, убрать",
+  "waitlist.note.not-an-address": "Не похоже на адрес почты. Проверьте его и попробуйте снова.",
+  "waitlist.note.too-often": "С этого адреса уже приходило несколько запросов. Попробуйте через час.",
+  "waitlist.note.check-your-email": "Спасибо. Проверьте почту и нажмите кнопку в письме.",
+  "waitlist.note.you-are-on": "Вы в списке. Мы напишем, когда подойдёт ваша очередь.",
+  "waitlist.note.taken-off": "Мы убрали вас из списка ожидания.",
+  "mail.waitlist.subject": "Подтвердите место в списке ожидания targum",
+  "mail.waitlist.body": "Нажмите кнопку на этой странице — и вы в списке:\n\n{link}\n\nМы открываем доступ небольшими группами и напишем, когда подойдёт ваша очередь.\n\nЕсли вы этого не просили, ничего не произошло — просто не отвечайте на письмо.\n"
 }
