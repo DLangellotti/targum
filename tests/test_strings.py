@@ -523,3 +523,49 @@ def test_the_sign_in_refusal_really_interpolates_in_russian() -> None:
     assert "{" not in said, "and no blank was left standing in the page"
     assert said != refused_in("en", wall), "a Russian reader is not handed the English"
     assert "войти" in said
+
+
+# -- counted things and dates, said per language (targum-internal#348) ------------------
+
+
+def test_russian_takes_three_plural_forms_and_the_teens_are_the_trap() -> None:
+    """A page that says «5 стиха» reads as broken rather than as foreign. 21 is `one` and
+    11 is `many`, which is the pair that catches people out."""
+    from targum.strings import plural_form
+
+    assert [plural_form(n, "ru") for n in (1, 21, 101)] == ["one"] * 3
+    assert [plural_form(n, "ru") for n in (2, 3, 4, 22, 24)] == ["few"] * 5
+    assert [plural_form(n, "ru") for n in (5, 11, 12, 13, 14, 25, 111)] == ["many"] * 7
+    assert plural_form(1, "ru-RU") == "one", "a regional tag is the language"
+
+    assert plural_form(1, "en") == "one" and plural_form(0, "en") == "other"
+    assert plural_form(2, "xx") == "other", "a language nobody wrote a rule for reads as English"
+
+
+def test_a_counted_string_falls_back_the_way_a_plain_one_does() -> None:
+    from targum.strings import counted
+
+    said = counted("parasha.page.verses", 2, "ru", {"one": "{n} verse", "other": "{n} verses"})
+    assert said == "{n} стиха"
+    # A language with no catalogue gets what the template wrote, in the form it asked for.
+    assert counted("parasha.page.verses", 1, "xx", {"one": "{n} verse", "other": "{n} verses"}) == (
+        "{n} verse"
+    )
+
+
+def test_a_date_is_said_the_way_its_language_writes_it() -> None:
+    """English keeps exactly what it said, so nothing already on a page moves. Russian
+    puts the day first and the month in the genitive."""
+    from datetime import date
+
+    from targum.strings import said_date, said_on
+
+    saturday = date(2026, 5, 30)
+    assert said_date(saturday, "en") == "Saturday, May 30, 2026"
+    assert said_on(saturday, "en") == said_date(saturday, "en"), "English writes one phrase"
+
+    assert said_date(saturday, "ru") == "суббота, 30 мая 2026"
+    # The accusative after «в», which is the half a translated sentence gets wrong most
+    # visibly: «читают суббота» is not foreign, it is wrong.
+    assert said_on(saturday, "ru") == "в субботу, 30 мая 2026"
+    assert said_on(date(2026, 6, 2), "ru") == "во вторник, 2 июня 2026", "во, not в"

@@ -81,15 +81,30 @@
   {#- The dateline says which portion, when, and how much of it — the four things
       somebody preparing checks before they start. -#}
   <p class="dateline">
-    {#- The English name first, the Hebrew beside it (2026-09-14): an English sentence that
-        opened on a Hebrew word began at the wrong end for the eye. -#}
-    {{ portion.name }}{% if portion.hebrew %} (<bdi class="named" lang="he" dir="rtl">{{ portion.hebrew }}</bdi>){% endif %}
-    is read on {{ shabbat_said }}{% if hdate %} ({{ hdate }}){% endif %} —
-    {{ portion.summary }}, {{ portion.verses }} verses in
-    {{ portion.aliyot }} aliyot.{% if portion.kind.value == 'festival' %}
-    A festival falls on this Shabbat, so this is what is read in its place rather than
-    the portion the cycle would otherwise have reached.{% elif portion.doubled %}
-    Two portions are read together this week.{% endif %}
+    {#- One sentence and one key, not four fragments (targum-internal#348): a language
+        puts these in its own order, and a page assembled from "is read on" plus a comma
+        plus "verses in" can only ever come out in English's.
+
+        The name rides in a blank as markup — the Hebrew keeps its own `bdi`, and a
+        `Markup` value passes through `Markup.format` unescaped while everything else a
+        blank carries is escaped, which is the rule `page_words` states.
+
+        The counts go through `tn`, because Russian has three plural forms and the teens
+        are the trap: 21 стих, 22 стиха, 11 стихов. -#}
+    {%- set named -%}
+      {{ portion.name }}{% if portion.hebrew %} (<bdi class="named" lang="he" dir="rtl">{{ portion.hebrew }}</bdi>){% endif %}
+    {%- endset -%}
+    {{ t("parasha.page.dateline", "{name} is read on {when} — {summary}, {verses} in {aliyot}.",
+          name=named,
+          when=shabbat_said ~ ((" (" ~ hdate ~ ")") if hdate else ""),
+          summary=portion.summary,
+          verses=tn("parasha.page.verses", portion.verses, "{n} verse", "{n} verses"),
+          aliyot=tn("parasha.page.aliyot", portion.aliyot, "{n} aliyah", "{n} aliyot")) }}
+    {%- if portion.kind.value == 'festival' %}
+    {{ t("parasha.page.festival-instead", "A festival falls on this Shabbat, so this is what is read in its place rather than the portion the cycle would otherwise have reached.") }}
+    {%- elif portion.doubled %}
+    {{ t("parasha.page.two-portions", "Two portions are read together this week.") }}
+    {%- endif %}
   </p>
 
   {#- This week's reading, part by part: the aliyot and the haftarah, each a way into its

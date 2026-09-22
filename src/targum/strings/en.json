@@ -1801,5 +1801,12 @@
   "you.page.correcting-read": "Read the grant",
   "you.page.correcting-accept": "Accept and turn it on",
   "you.grant.done": "You've accepted the grant, so a word's card offers a correction.",
-  "you.grant.thanks": "Thank you. A word's card now offers a correction."
+  "you.grant.thanks": "Thank you. A word's card now offers a correction.",
+  "parasha.page.dateline": "{name} is read on {when} — {summary}, {verses} in {aliyot}.",
+  "parasha.page.verses.one": "{n} verse",
+  "parasha.page.verses.other": "{n} verses",
+  "parasha.page.aliyot.one": "{n} aliyah",
+  "parasha.page.aliyot.other": "{n} aliyot",
+  "parasha.page.festival-instead": "A festival falls on this Shabbat, so this is what is read in its place rather than the portion the cycle would otherwise have reached.",
+  "parasha.page.two-portions": "Two portions are read together this week."
 }
