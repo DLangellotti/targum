@@ -28,9 +28,12 @@
 
   <p class="where"><a href="/library">{{ shelf_name }}</a></p>
   <h1 lang="{{ entry.language }}" dir="{{ direction }}"><bdi>{{ entry.title }}</bdi></h1>
-  {% if entry.english %}<p class="english" lang="en" dir="ltr">{{ entry.english }}</p>{% endif %}
+  {#- The name and the blurb in whatever language this page speaks, with `lang` saying so:
+      a Russian sentence marked `lang="en"` is read aloud in an English voice and indexed
+      as English, which is the opposite of what this page is for (targum-internal#188). -#}
+  {% if named %}<p class="english" lang="{{ page_language }}" dir="ltr">{{ named }}</p>{% endif %}
   <p class="byline">{{ entry.author }}</p>
-  <p class="lede">{{ entry.blurb }}</p>
+  <p class="lede" lang="{{ page_language }}" dir="ltr">{{ lede }}</p>
 
   {%- if sample %}
   {#- The reason this page is worth indexing at all: real text, in both languages, laid
