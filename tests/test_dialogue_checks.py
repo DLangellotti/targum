@@ -15,11 +15,13 @@ from targum.dialogue.checks import (
     addressed_gender,
     bare,
     cast_disagrees,
+    cast_voices_disagree,
     hataf_on_non_guttural,
     impossible_dagesh,
     inconsistent_pointing,
     scales_disagree,
     units,
+    voice_gender,
 )
 
 
@@ -129,3 +131,41 @@ def test_inconsistent_pointing_ignores_a_word_pointed_one_way() -> None:
 def test_unpointed_words_are_not_compared() -> None:
     """A scene may carry an unpointed word; it is not a second spelling of a pointed one."""
     assert inconsistent_pointing({"a": ["אלף"], "b": ["אֶלֶף"]}) == []
+
+
+def test_a_man_read_by_a_man_and_a_woman_by_a_woman() -> None:
+    # 48-the-cleaning, as it stands: Orit is Achernar and Dor is Orus.
+    cast = {
+        "A": {"voice": "Achernar", "gender": "f", "name": "אורית"},
+        "B": {"voice": "Orus", "gender": "m", "name": "דור"},
+    }
+    assert cast_voices_disagree(cast) == []
+
+
+def test_two_men_may_share_two_mens_voices() -> None:
+    """Six of the hundred scenes have two men in them, and are voiced by two men."""
+    cast = {"A": {"voice": "Charon", "gender": "m"}, "B": {"voice": "Orus", "gender": "m"}}
+    assert cast_voices_disagree(cast) == []
+
+
+def test_a_man_read_by_a_womans_voice_is_caught() -> None:
+    cast = {
+        "A": {"voice": "Leda", "gender": "m", "name": "דור"},
+        "B": {"voice": "Kore", "gender": "f"},
+    }
+    found = cast_voices_disagree(cast)
+    assert len(found) == 1 and "Leda" in found[0] and "declared m" in found[0]
+
+
+def test_a_voice_the_table_does_not_know_is_reported_not_assumed() -> None:
+    """Adding a voice without adding it here has to fail, not pass quietly."""
+    cast = {"A": {"voice": "Betelgeuse", "gender": "f"}, "B": {"voice": "Puck", "gender": "m"}}
+    found = cast_voices_disagree(cast)
+    assert len(found) == 1 and "not in the table" in found[0]
+
+
+def test_voice_gender_knows_the_voices_the_scenes_use() -> None:
+    for voice in ("Achernar", "Leda", "Kore", "Callirrhoe", "Sulafat", "Aoede"):
+        assert voice_gender(voice) == "f", voice
+    for voice in ("Charon", "Orus", "Puck", "Enceladus"):
+        assert voice_gender(voice) == "m", voice

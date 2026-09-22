@@ -342,3 +342,82 @@ def check_turn(hebrew: str, english: str, turn: int, addressee: str = "") -> lis
     found += cast_disagrees(hebrew, turn, addressee)
     found += scales_disagree(hebrew, english, turn)
     return found
+
+
+# ------------------------------------------------------------------------- voices
+
+
+#: Google's published genders for the Gemini prebuilt voices, which are what a scene's
+#: `cast` names. A man read by Leda is not a subtle fault — it is the first thing a
+#: listener notices and the last thing anybody thinks to check, because the text, the
+#: cast and the audio are three artifacts and only two of them are ever read.
+#:
+#: This is a table and not a guess: a voice missing from it is reported rather than
+#: assumed, so adding a voice to a scene without adding it here fails loudly.
+FEMALE_VOICES = {
+    "Zephyr",
+    "Kore",
+    "Leda",
+    "Aoede",
+    "Callirrhoe",
+    "Autonoe",
+    "Despina",
+    "Erinome",
+    "Laomedeia",
+    "Achernar",
+    "Gacrux",
+    "Pulcherrima",
+    "Vindemiatrix",
+    "Sulafat",
+}
+MALE_VOICES = {
+    "Puck",
+    "Charon",
+    "Fenrir",
+    "Orus",
+    "Enceladus",
+    "Iapetus",
+    "Umbriel",
+    "Algieba",
+    "Algenib",
+    "Rasalgethi",
+    "Alnilam",
+    "Schedar",
+    "Achird",
+    "Zubenelgenubi",
+    "Sadachbia",
+    "Sadaltager",
+}
+
+
+def voice_gender(voice: str) -> str:
+    """'m', 'f', or '' where the voice is not one this table knows."""
+    if voice in FEMALE_VOICES:
+        return "f"
+    if voice in MALE_VOICES:
+        return "m"
+    return ""
+
+
+def cast_voices_disagree(cast: dict[str, dict[str, str]]) -> list[str]:
+    """Speakers whose voice does not match the gender they are declared to be.
+
+    Checked over the hundred scenes on 2026-09-22: none of the two hundred speakers
+    disagreed, and the six scenes voiced by two men are six scenes with two men in them.
+    The check stays because the cast is edited by hand and the audio is generated from
+    it, so the two can drift apart silently — and by the time anybody notices, it is
+    because a reader heard it.
+    """
+    out = []
+    for side in ("A", "B"):
+        who = cast.get(side) or {}
+        voice, gender = str(who.get("voice") or ""), str(who.get("gender") or "")
+        said = voice_gender(voice)
+        if not voice:
+            continue
+        if not said:
+            out.append(f"{side}: the voice {voice} is not in the table, so nothing can be said")
+        elif gender and said != gender:
+            name = who.get("name") or side
+            out.append(f"{side} ({name}): declared {gender}, but the voice {voice} is {said}")
+    return out
