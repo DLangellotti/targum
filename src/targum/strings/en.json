@@ -1830,5 +1830,18 @@
   "series.stop.done": "We won’t tell you about it again.",
   "series.stop.heading": "your subscriptions",
   "note.read-this-week": "Read this week",
-  "note.back-to-targum": "Back to targum"
+  "note.back-to-targum": "Back to targum",
+  "waitlist.note.heading": "the waitlist",
+  "waitlist.note.link-spent": "That link has already been used, or it's expired.",
+  "waitlist.note.keep-me": "Should we keep {email} on the waitlist?",
+  "waitlist.note.keep-me.button": "Yes, keep me on it",
+  "waitlist.note.take-me-off": "Should we take you off the waitlist?",
+  "waitlist.note.take-me-off.button": "Yes, take me off",
+  "waitlist.note.not-an-address": "We couldn't read that as an email address. Check it and try again.",
+  "waitlist.note.too-often": "We've had a few requests for that address. Try again in an hour.",
+  "waitlist.note.check-your-email": "Thanks. Check your email and press the button in it.",
+  "waitlist.note.you-are-on": "You're on the list. We'll email you when it's your turn.",
+  "waitlist.note.taken-off": "We've taken you off the waitlist.",
+  "mail.waitlist.subject": "Confirm your place on the targum waitlist",
+  "mail.waitlist.body": "Press the button on this page and you're on the list:\n\n{link}\n\nWe're opening in small groups, and we'll email you when it's your turn.\n\nIf you did not ask for this, nothing has happened and you can ignore this.\n"
 }

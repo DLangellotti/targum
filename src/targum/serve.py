@@ -4141,15 +4141,30 @@ class Handler(BaseHTTPRequestHandler):
         page = weekly_note(message, address=self.address, done=done)
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
-    def _waitlist_note(self, message: str, done: bool = True, **rest: Any) -> None:
+    def _waitlist_note(self, message: str, done: bool = True, said: str = "", **rest: Any) -> None:
         """A sentence back from the front door, on the furniture the weekly's doors use.
 
         The same page, a different heading and a different way home: this is read in a
         mail client by somebody who has no account, may never have seen targum, and is
         being asked one question about an address they typed.
+
+        `said` is the language, and it is the caller's to give because the two doors know
+        it two different ways: somebody typing into the front door is answered in the
+        language that door was in, and somebody arriving from a mail is answered in the
+        language recorded on their row. It falls back to the request's own, which is
+        right for the typed half and never wrong for the other (targum-internal#288).
         """
+        from .strings import text
+
+        code = said or self._public_language()
         page = weekly_note(
-            message, address=self.address, done=done, heading="the waitlist", home="/", **rest
+            message,
+            address=self.address,
+            done=done,
+            heading=text("waitlist.note.heading", code),
+            home="/",
+            language=code,
+            **rest,
         )
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
@@ -4160,74 +4175,97 @@ class Handler(BaseHTTPRequestHandler):
         the person it was sent to, which is why `/account/enter` and the weekly's own
         two stopped being bare GETs.
         """
+        from .strings import text
+
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
         token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+        # The confirm door reads the language off the row, because it already answers
+        # differently for a spent token and a live one — the link is single-use and
+        # personal, and that is the design.
+        #
+        # **The stop door must not**, and this is not a nicety: it is required to say the
+        # same thing for a real token and a made-up one, so that the endpoint cannot be
+        # used to ask whether an address is on the list. A page drawn in the row's
+        # language would answer Russian for a real token and English for a fake one,
+        # which is that question answered. It takes the request's language instead —
+        # the same for both — and the mail mints its link with `?lang=` so somebody who
+        # joined in Russian still lands on a Russian page.
+        said = (
+            store.waiting_language(token)
+            if route == "/waitlist/confirm"
+            else self._public_language()
+        )
         if route == "/waitlist/confirm":
             waiting = store.peek_waiting(token)
             if waiting is None:
-                return self._waitlist_note("That link has already been used, or it's expired.")
-            message = f"Should we keep {waiting} on the waitlist?"
-            button = "Yes, keep me on it"
+                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
+            message = text("waitlist.note.keep-me", said, email=waiting)
+            button = text("waitlist.note.keep-me.button", said)
         else:
-            message = "Should we take you off the waitlist?"
-            button = "Yes, take me off"
+            message = text("waitlist.note.take-me-off", said)
+            button = text("waitlist.note.take-me-off.button", said)
         return self._waitlist_note(
-            message, pending={"action": route, "token": token, "button": button}
+            message, said=said, pending={"action": route, "token": token, "button": button}
         )
 
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
         """Joining, confirming and leaving. Public by necessity, and public by design:
         nobody joining a waitlist has an account, and the whole point is that they
         cannot get one yet."""
+        from .strings import text
+
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
 
         if route == "/waitlist":
             address = (form.get("email") or "").strip()
+            said = self._public_language()
             if not plausible(address):
                 return self._waitlist_note(
-                    "We couldn't read that as an email address. Check it and try again.",
-                    done=False,
+                    text("waitlist.note.not-an-address", said), done=False, said=said
                 )
             if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
-                return self._waitlist_note(
-                    "We've had a few requests for that address. Try again in an hour.", False
-                )
+                return self._waitlist_note(text("waitlist.note.too-often", said), False, said=said)
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, self._public_language())
+            token = store.join_waitlist(address, said)
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)
             if token is not None and postable:
                 where = f"{self.address.rstrip('/')}/waitlist/confirm?t={token}"
                 with contextlib.suppress(Exception):
+                    # In the language of the door they pressed. It was English for
+                    # everybody until 2026-09-22, on a front door that has been
+                    # bilingual since #69 — so a Russian visitor typed into a Russian
+                    # page and the first thing targum ever sent them was English.
                     self.library.mailer.notify(  # type: ignore[union-attr]
                         address,
-                        "Confirm your place on the targum waitlist",
-                        f"Press the button on this page and you're on the list:\n\n{where}\n\n"
-                        f"We're opening in small groups, and we'll email you when it's "
-                        f"your turn.\n\n"
-                        f"If you did not ask for this, nothing has happened and you can "
-                        f"ignore this.\n",
+                        text("mail.waitlist.subject", said),
+                        text("mail.waitlist.body", said, link=where),
                     )
             # The same sentence whatever state the address is in, including already on:
             # an endpoint that answered differently would be a way to ask who is waiting.
-            return self._waitlist_note("Thanks. Check your email and press the button in it.")
+            return self._waitlist_note(text("waitlist.note.check-your-email", said), said=said)
 
         if route == "/waitlist/confirm":
+            said = store.waiting_language(form.get("t", ""))
             if store.confirm_waiting(form.get("t", "")) is None:
-                return self._waitlist_note("That link has already been used, or it's expired.")
-            return self._waitlist_note("You're on the list. We'll email you when it's your turn.")
+                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
+            return self._waitlist_note(text("waitlist.note.you-are-on", said), said=said)
 
         # Nothing is said about whether the token was one, for the reason the weekly's
         # unsubscribe says nothing: an endpoint that reported back would answer whether
         # an address is on the list.
+        # The request's language and never the row's, for the reason `_waitlist_get`
+        # gives: this reply has to be identical for a token that was one and a token
+        # that was not.
+        said = self._public_language()
         store.leave_waitlist(form.get("t", ""))
-        return self._waitlist_note("We've taken you off the waitlist.")
+        return self._waitlist_note(text("waitlist.note.taken-off", said), said=said)
 
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
         store = self.library.store
