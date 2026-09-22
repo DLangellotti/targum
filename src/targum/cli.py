@@ -2220,6 +2220,9 @@ def corrections_command(
         bool,
         typer.Option("--agreed", help="Only what two kinds of judge reached independently."),
     ] = False,
+    proposed: Annotated[
+        bool, typer.Option("--proposed", help="Only what readers have offered and nobody settled.")
+    ] = False,
     export: Annotated[
         bool,
         typer.Option("--export", help="As the rows may leave: no context from a shut text."),
@@ -2246,6 +2249,19 @@ def corrections_command(
     from .serve import default_store
 
     keeping = Store(store or default_store())
+    if proposed:
+        waiting = keeping.proposed_corrections(limit)
+        if not waiting:
+            console.print("[dim]No proposals waiting.[/dim]")
+            return
+        for row in waiting:
+            console.print(
+                f"#{row['id']} {row['stage']} {row['language']}>{row['target']} "
+                f"[bold]{row['term']}[/bold]: {row['before']!r} -> {row['after']!r} "
+                f"[dim]{row['licence']}[/dim]"
+            )
+        console.print("\n[dim]Settle one with:[/dim] targum settle <id> --accept | --reject")
+        return
     if export:
         from .accounts import exportable_corrections
         from .catalogue import by_id
@@ -2291,6 +2307,57 @@ def corrections_command(
             f"[bold]{row['term']}[/bold]: {row['before']!r} -> {row['after']!r}"
             + (f" [dim]{row['reason']}[/dim]" if row["reason"] else "")
         )
+
+
+@app.command(name="settle")
+def settle_command(
+    correction_id: Annotated[
+        int, typer.Argument(help="Which proposal, from `targum corrections --proposed`.")
+    ],
+    accept: Annotated[
+        bool, typer.Option("--accept/--reject", help="Take the reader's meaning, or refuse it.")
+    ],
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Settle a reader's proposed correction (targum-internal#164, door 3).
+
+    A reader's correction is a proposal until somebody with standing accepts it — this
+    card's own words, "not a vote". Accepting applies the meaning and writes the decision
+    down; refusing writes the decision down and changes nothing. Either way the proposal
+    keeps its row, so what was suggested and refused is as much of the record as what
+    was suggested and taken.
+
+    A refused proposal never reaches the gold set: `Store.agreed` counts only what was
+    accepted, because a refusal is a judgement that the suggestion was *wrong*.
+    """
+    from .accounts import Store
+    from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, Sense, set_gloss
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+    waiting = {row["id"]: row for row in keeping.proposed_corrections(limit=1000)}
+    proposal = waiting.get(correction_id)
+    if proposal is None:
+        fail(
+            TargumError(
+                f"No proposal #{correction_id} is waiting.", "Try: targum corrections --proposed"
+            )
+        )
+    if accept and proposal["stage"] == "gloss" and proposal["after"]:
+        set_gloss(
+            str(proposal["term"]),
+            str(proposal["language"]) or "he",
+            str(proposal["target"]) or "en",
+            AnthropicGlosses(GLOSS_MODEL).name,
+            Sense(str(proposal["after"]), grounded=True),
+        )
+    row = keeping.settle_correction(correction_id, accept=accept)
+    word, meaning = proposal["term"], proposal["after"]
+    console.print(
+        f"[green]Accepted[/green] #{correction_id} as #{row}: {word} now {meaning!r}"
+        if accept
+        else f"[yellow]Refused[/yellow] #{correction_id} as #{row}: {word} stays as it was"
+    )
 
 
 @app.command(name="dictionary")
