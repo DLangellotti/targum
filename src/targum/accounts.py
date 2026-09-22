@@ -141,12 +141,18 @@ SESSION_DAYS = 90
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 26
+SCHEMA_VERSION = 27
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
 #: Hebrew. `find` survives on rows written before that and means the same thing now.
 MODES = ("find", "talk")
+
+#: What a reader's correction is held under (targum-internal#164, David 2026-09-22): a
+#: licence to targum rather than the public domain, whose sentence is in CONTRIBUTING.md.
+#: Dated, because if that sentence ever changes, the rows written under the old one must
+#: still say which one they meant.
+CONTRIBUTOR_GRANT = "reader-grant-2026-09-22"
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -345,6 +351,15 @@ MIGRATIONS: tuple[str, ...] = (
     # from one reader twice, which is most of the gold set. Empty on every row written
     # before, and on the author's own hand, which has no account behind it.
     "ALTER TABLE correction ADD COLUMN judge TEXT NOT NULL DEFAULT ''",
+    # Where a correction stands (targum-internal#164, door 3). '' for a judgement that
+    # simply happened — a grounding, the author's own hand — and 'proposed', 'accepted'
+    # or 'rejected' for a reader's suggestion and what became of it. A reader's
+    # correction is a proposal until somebody with standing accepts it: this card's own
+    # words, "not a vote".
+    "ALTER TABLE correction ADD COLUMN state TEXT NOT NULL DEFAULT ''",
+    # When this reader accepted the contribution grant, or 0. It gates the control
+    # rather than the recording: no grant, no way to offer a correction at all.
+    "ALTER TABLE person ADD COLUMN granted INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """
@@ -360,7 +375,10 @@ CREATE TABLE IF NOT EXISTS person (
   -- When they asked to be forgotten. Everything goes at the end of the grace period;
   -- until then they are signed out and the account is unusable, so the only thing the
   -- delay buys is the chance to undo a mistake.
-  leaving  INTEGER
+  leaving  INTEGER,
+  -- When they accepted the contribution grant (targum-internal#164, door 3), or 0.
+  -- CONTRIBUTING.md holds the sentence; this holds that they read it.
+  granted  INTEGER NOT NULL DEFAULT 0
 );
 
 -- How often an address has asked for a link. A sign-in endpoint that anyone can call
@@ -734,6 +752,9 @@ CREATE TABLE IF NOT EXISTS correction (
   -- agreeing from one reader correcting twice. Empty where there is no account behind
   -- the judgement, which is the author's own hand.
   judge    TEXT    NOT NULL DEFAULT '',
+  -- '', 'proposed', 'accepted' or 'rejected'. A reader's correction is a proposal until
+  -- somebody with standing settles it; the author's own hand needs no state.
+  state    TEXT    NOT NULL DEFAULT '',
   licence  TEXT    NOT NULL DEFAULT '',
   context  TEXT    NOT NULL DEFAULT '',
   reason   TEXT    NOT NULL DEFAULT ''
@@ -2805,6 +2826,76 @@ class Store:
 
     # --- corrections (targum-internal#164, door 1) ---------------------------------
 
+    def grant(self, person_id: int) -> None:
+        """Record that this reader accepted the contribution grant (#164, door 3).
+
+        The sentence lives in `CONTRIBUTING.md`; this records that they met it. It gates
+        the *control* and not the recording: a reader who has not accepted is never shown
+        a way to offer a correction, so there is nothing to refuse later.
+        """
+        with self.write() as db:
+            db.execute("UPDATE person SET granted = ? WHERE id = ?", (now(), person_id))
+
+    def has_granted(self, person_id: int) -> bool:
+        row = self.db.execute("SELECT granted FROM person WHERE id = ?", (person_id,)).fetchone()
+        return bool(row and int(row["granted"] or 0))
+
+    def propose_correction(self, **fields: Any) -> int:
+        """A reader's suggestion, which is a proposal and not yet a judgement.
+
+        Named apart from `propose`, which is the shelf's build proposal and a different
+        feature entirely. Written under `CONTRIBUTOR_GRANT` so the row carries the terms
+        it arrived under, as acceptance 2 asks — the licence is recorded at the moment of
+        the offer, because that is the one moment anybody knows which sentence was shown.
+        """
+        fields.setdefault("licence", CONTRIBUTOR_GRANT)
+        return self.correct(state="proposed", **fields)
+
+    def proposed_corrections(self, limit: int = 100) -> list[dict[str, Any]]:
+        """What readers have offered and nobody has settled, oldest first: a queue.
+
+        Named apart from `proposals`, which is the shelf's — the second time these two
+        features have wanted the same word, and the reason `propose_correction` is not
+        `propose` either.
+        """
+        rows = self.db.execute(
+            "SELECT * FROM correction WHERE state = 'proposed' ORDER BY at, id LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def settle_correction(self, correction_id: int, *, accept: bool, by: str = "author") -> int:
+        """Accept or refuse a reader's proposal, and write the decision down.
+
+        **Acceptance is itself a row** — this card's words. So the proposal keeps its own
+        row and gains a state, and a second row records who decided and which way. The
+        decision row is written `state = 'accepted'` or `'rejected'` too, so it is never
+        mistaken for an ordinary judgement and `agreed` counts only what was accepted.
+
+        Applying the change to the gloss is the caller's: this store does not know what a
+        gloss is, and the same decision may settle a lemma or a pointing later.
+        """
+        state = "accepted" if accept else "rejected"
+        with self.write() as db:
+            row = db.execute(
+                "SELECT * FROM correction WHERE id = ? AND state = 'proposed'", (correction_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"no proposal {correction_id}")
+            db.execute("UPDATE correction SET state = ? WHERE id = ?", (state, correction_id))
+        return self.correct(
+            str(row["stage"]),
+            who=by,
+            term=str(row["term"]),
+            language=str(row["language"]),
+            target=str(row["target"]),
+            text=str(row["text"]),
+            before=str(row["before"]),
+            after=str(row["after"]),
+            state=state,
+            licence="targum",
+            reason=f"{state} a reader's proposal",
+        )
+
     def judge_for(self, person_id: int) -> str:
         """One reader's pseudonym as a judge (targum-internal#164, David 2026-09-22).
 
@@ -2849,6 +2940,7 @@ class Store:
         before: str = "",
         after: str = "",
         judge: str = "",
+        state: str = "",
         licence: str = "",
         context: str = "",
         reason: str = "",
@@ -2862,8 +2954,8 @@ class Store:
         with self.write() as db:
             cursor = db.execute(
                 "INSERT INTO correction (at, stage, language, target, term, text, span,"
-                " before, after, who, judge, licence, context, reason)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " before, after, who, judge, state, licence, context, reason)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     now(),
                     stage,
@@ -2876,6 +2968,7 @@ class Store:
                     after,
                     who,
                     judge,
+                    state,
                     licence,
                     context[:500],
                     reason[:300],
@@ -2921,7 +3014,11 @@ class Store:
         # The judge, or the role standing in for one. `who` is never empty, so this is
         # never null, and a role can never collide with a 16-hex-digit pseudonym.
         judge = "CASE WHEN judge <> '' THEN judge ELSE who END"
-        where = ["who <> 'model'", "after <> ''"]
+        # A proposal nobody has accepted is not a judgement yet, and one that was
+        # refused is a judgement that it was *wrong* — counting either would let a reader
+        # put an answer into the gold set by suggesting it, which is the whole thing
+        # "not a vote" is guarding against.
+        where = ["who <> 'model'", "after <> ''", "state IN ('', 'accepted')"]
         values: list[Any] = []
         if stage:
             where.append("stage = ?")

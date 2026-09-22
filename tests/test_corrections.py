@@ -363,3 +363,119 @@ def test_a_grounding_writes_the_text_it_happened_in_and_the_judge_who_made_it(
     row = store.corrections()[0]
     assert row["text"] == "genesis" and row["judge"] == "abc123"
     assert row["who"] == "reader", "still a role, beside the pseudonym"
+
+
+# -- door 3: a reader's proposal, behind the grant (targum-internal#164) ----------------
+
+
+def test_a_reader_who_has_not_accepted_the_grant_has_not_granted(tmp_path: Path) -> None:
+    """Acceptance 2's first half. The grant gates the *control*: a reader who has not
+    met the sentence is never shown a way to offer a correction, so there is nothing to
+    refuse afterwards."""
+    store = Store(tmp_path / "words.db")
+    made = store.sign_in_verified("reader@example.com")
+    assert made is not None
+    person, _ = made
+    assert store.has_granted(person.id) is False
+    store.grant(person.id)
+    assert store.has_granted(person.id) is True
+    assert store.has_granted(person.id + 999) is False, "and nobody is granted by default"
+
+
+def test_a_proposal_carries_the_grant_it_arrived_under(tmp_path: Path) -> None:
+    """Acceptance 2's second half. Recorded at the moment of the offer, because that is
+    the one moment anybody knows which sentence was shown."""
+    from targum.accounts import CONTRIBUTOR_GRANT
+
+    store = Store(tmp_path / "words.db")
+    made = store.propose_correction(
+        stage="gloss", who="reader", term="עם", language="he", target="en", after="with"
+    )
+    row = next(r for r in store.corrections() if r["id"] == made)
+    assert row["state"] == "proposed" and row["licence"] == CONTRIBUTOR_GRANT
+    assert [r["id"] for r in store.proposed_corrections()] == [made]
+
+
+def test_an_accepted_proposal_is_settled_and_counts_and_a_rejected_one_does_neither(
+    tmp_path: Path,
+) -> None:
+    """Acceptance 3: an accepted proposal changes the gloss, a rejected one does not, and
+    both are rows. The change to the gloss is the caller's; what is here is the record.
+
+    And the part that matters for the gold set: a **rejected** proposal is a judgement
+    that the suggestion was *wrong*, and an **unsettled** one is not a judgement at all.
+    Counting either would let a reader put an answer into the gold set by suggesting it,
+    which is exactly what this card's "not a vote" is guarding against.
+    """
+    store = Store(tmp_path / "words.db")
+    kept = store.propose_correction(
+        stage="gloss", who="reader", term="עם", language="he", target="en", after="with"
+    )
+    refused = store.propose_correction(
+        stage="gloss", who="reader", term="אור", language="he", target="en", after="nonsense"
+    )
+    # A second judge agrees with each, so only the settlement can tell them apart.
+    store.correct("gloss", who="author", term="עם", language="he", target="en", after="with")
+    store.correct("gloss", who="author", term="אור", language="he", target="en", after="nonsense")
+    assert store.agreed() == [], "a proposal nobody has settled is not a judgement yet"
+
+    said_yes = store.settle_correction(kept, accept=True)
+    said_no = store.settle_correction(refused, accept=False)
+
+    by_id = {r["id"]: r for r in store.corrections()}
+    assert by_id[kept]["state"] == "accepted" and by_id[refused]["state"] == "rejected"
+    assert by_id[said_yes]["who"] == "author" and "accepted" in by_id[said_yes]["reason"]
+    assert by_id[said_no]["who"] == "author" and "rejected" in by_id[said_no]["reason"]
+
+    terms = [row["term"] for row in store.agreed()]
+    assert terms == ["עם"], "the accepted one counts; the refused one never does"
+
+
+def test_a_proposal_can_only_be_settled_once(tmp_path: Path) -> None:
+    store = Store(tmp_path / "words.db")
+    made = store.propose_correction(stage="gloss", who="reader", term="עם", after="with")
+    store.settle_correction(made, accept=True)
+    with pytest.raises(KeyError):
+        store.settle_correction(made, accept=False)
+
+
+def test_the_command_settles_a_proposal_and_only_an_accepted_one_changes_the_gloss(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Acceptance 3 end to end: accepted changes the gloss, refused does not, both are
+    rows. The gloss cache is pointed at a temp directory so nothing on this machine moves.
+    """
+    monkeypatch.setattr(gloss_module, "_home", lambda: tmp_path / "glosses", raising=False)
+    monkeypatch.setenv("TARGUM_CACHE", str(tmp_path / "cache"))
+    db = tmp_path / "words.db"
+    store = Store(db)
+    taken = store.propose_correction(
+        stage="gloss", who="reader", term="עם", language="he", target="en", after="with"
+    )
+    refused = store.propose_correction(
+        stage="gloss", who="reader", term="אור", language="he", target="en", after="nonsense"
+    )
+
+    runner = CliRunner()
+    listed = runner.invoke(app, ["corrections", "--proposed", "--store", str(db)])
+    assert listed.exit_code == 0, listed.output
+    assert f"#{taken}" in listed.output and "reader-grant-2026-09-22" in listed.output
+
+    yes = runner.invoke(app, ["settle", str(taken), "--accept", "--store", str(db)])
+    assert yes.exit_code == 0, yes.output
+    assert "Accepted" in yes.output and "with" in yes.output
+
+    no = runner.invoke(app, ["settle", str(refused), "--reject", "--store", str(db)])
+    assert no.exit_code == 0, no.output
+    assert "Refused" in no.output and "stays as it was" in no.output
+
+    assert store.proposed_corrections() == [], "the queue is empty once both are settled"
+
+    # Accepting *is* the second judgement: the reader offered it and the author agreed,
+    # which is two judges on the same answer and exactly what the gold set is for. The
+    # refused one never reaches it, however many times it was written down.
+    assert [row["term"] for row in store.agreed()] == ["עם"]
+    assert all(row["term"] != "אור" for row in store.agreed())
+
+    gone = runner.invoke(app, ["settle", str(taken), "--accept", "--store", str(db)])
+    assert gone.exit_code != 0, "a proposal is settled once"
