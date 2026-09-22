@@ -192,6 +192,16 @@ def marked(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [*messages[:-1], last]
 
 
+def _answered_in(ctx: tools_module.Ctx) -> str:
+    """The language a find-mode reply is written in, by the rule the `= ` lines follow.
+
+    One rule rather than two: `hebrew.gloss_language` is what decides a conversation's
+    glosses and a build's target, and a reader who gets Russian meanings and an English
+    answer in the same thread is being told the product has not decided.
+    """
+    return language_name(hebrew_module.gloss_language(ctx.reads))
+
+
 def run_turn(
     client: Any,
     ctx: tools_module.Ctx,
@@ -407,7 +417,9 @@ def _stream_step(
             {"type": "text", "text": stable, "cache_control": CACHED},
             {
                 "type": "text",
-                "text": ledger or prompts.ledger(ctx.level),
+                # Find mode has no contract of its own, so this is where it learns which
+                # language to answer in (targum-internal#286, item 2).
+                "text": ledger or prompts.ledger(ctx.level, _answered_in(ctx)),
                 "cache_control": CACHED,
             },
         ],

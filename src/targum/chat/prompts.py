@@ -154,9 +154,22 @@ RUNGS = ", ".join(
 SYSTEM = SYSTEM.replace("RUNGS", RUNGS)
 
 
-def ledger(level: level_module.Level) -> str:
-    """The per-reader block, placed after the cache breakpoint because it changes."""
-    return level_module.describe(level)
+def ledger(level: level_module.Level, said_in: str = "English") -> str:
+    """The per-reader block, placed after the cache breakpoint because it changes.
+
+    `said_in` is the language to answer in (targum-internal#286, item 2). Find mode had
+    nothing that named one: `SYSTEM` tells the model which language's *texts* to offer
+    and never which language to *write* in, so a Russian reader asking for something to
+    read was answered in English by a product whose buttons were already Russian.
+
+    It rides here rather than in `SYSTEM` because `SYSTEM` is the cached half and holds
+    nothing that changes per reader — which this does. English says nothing extra, so
+    every English conversation's prefix is byte-for-byte what it was and stays cached.
+    """
+    said = level_module.describe(level)
+    if said_in.strip().lower() in ("", "english"):
+        return said
+    return f"{said}\n\nWrite to the reader in {said_in}. Hebrew you quote stays Hebrew."
 
 
 def shut_hosts(hosts: list[str]) -> str:
