@@ -1056,6 +1056,71 @@ def test_licences_counts_the_translation_beside_the_source(
     assert "free in the source, owed in the translation" in result.output
 
 
+def test_licences_names_a_claim_that_cannot_be_re_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#355. LICENSING.md asks for the licence together with the URL it
+    was read at, "precisely so it can be re-checked against the page rather than against
+    somebody's summary of it". A recorded licence with no URL is therefore a claim
+    nobody can check, and it was reported nowhere: the standing table counts it as free,
+    and the "nothing recorded" block below it is about a different defect — those have
+    no licence at all.
+
+    Reported per rendering and never per row, because a rendering's provenance is often
+    nothing like its row's: the Russian Torah is Sefaria's Hebrew under a translation off
+    a Russian State Library scan.
+    """
+    from targum.catalogue import Entry, Rendering
+
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "targum.catalogue.everything",
+        lambda: [
+            Entry(
+                id="checkable",
+                title="a",
+                author="a",
+                language="he",
+                source="sefaria:A",
+                blurb="a",
+                words=10,
+                licence="Public Domain",
+                licence_url="https://example.org/a",
+                translations=[
+                    Rendering(
+                        name="Backed",
+                        source="published:ru:A",
+                        licence="Public Domain",
+                        licence_url="https://rusneb.ru/catalog/000199_000009_009682814/",
+                    )
+                ],
+            ),
+            Entry(
+                id="bare",
+                title="b",
+                author="b",
+                language="he",
+                source="sefaria:B",
+                blurb="b",
+                words=10,
+                licence="Public Domain",
+                licence_url="https://example.org/b",
+                translations=[Rendering(name="Bare", source="sefaria:en:B", licence="CC-BY")],
+            ),
+        ],
+    )
+
+    result = runner.invoke(app, ["licences"])
+
+    assert result.exit_code == 0, result.output
+    assert "1 with a licence and no URL behind it" in result.output
+    assert "(1 translation)" in result.output, "the heading splits rows from renderings"
+    assert "bare \u00b7 Bare" in result.output and "CC-BY" in result.output
+    # The one that can be re-checked is not named, and neither row is: both carry a URL.
+    assert "Backed" not in result.output
+    assert "checkable" not in result.output.split("no URL behind it")[-1]
+
+
 def test_parasha_entries_write_puts_the_portions_on_the_shelf_as_one_collection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

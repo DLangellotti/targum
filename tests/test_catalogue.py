@@ -322,3 +322,54 @@ def test_a_collection_written_before_this_still_reads() -> None:
     made = _collection({"id": "x", "title": "ת", "english": "Torah", "members": ["a"]})
     assert made.named == {} and made.blurbs == {}
     assert made.name_in("ru") == "Torah"
+
+
+# -- a rendering says where its licence was read (targum-internal#355) -------------------
+
+
+def test_a_rendering_records_where_its_licence_was_read() -> None:
+    """LICENSING.md asks for the licence *and* the URL it was read at, and says why: the
+    URL is kept verbatim "precisely so it can be re-checked against the page rather than
+    against somebody's summary of it". A `Rendering` carried only the first half until
+    2026-09-22, so 246 of the 251 on the shelf recorded a claim nobody could re-check.
+    """
+    from targum.catalogue import _entry
+
+    made = _entry(
+        {
+            "id": "x",
+            "title": "ת",
+            "source": "s",
+            "language": "he",
+            "translations": [
+                {
+                    "name": "A rendering",
+                    "source": "published:ru:Genesis",
+                    "licence": "Public Domain",
+                    "licence_url": "https://rusneb.ru/catalog/000199_000009_009682814/",
+                }
+            ],
+        }
+    )
+    (beside,) = made.translations
+    assert beside.licence == "Public Domain"
+    assert beside.licence_url == "https://rusneb.ru/catalog/000199_000009_009682814/"
+
+
+def test_a_rendering_written_before_this_still_reads() -> None:
+    """Every catalogue on disk predates the field, so it is optional and empty — and the
+    emptiness is reported by `targum licences` rather than passed off as a checked
+    licence."""
+    from targum.catalogue import _entry
+
+    made = _entry(
+        {
+            "id": "x",
+            "title": "ת",
+            "source": "s",
+            "language": "he",
+            "translations": [{"name": "A rendering", "source": "s2", "licence": "CC-BY"}],
+        }
+    )
+    (beside,) = made.translations
+    assert beside.licence == "CC-BY" and beside.licence_url == ""

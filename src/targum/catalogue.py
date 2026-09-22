@@ -238,6 +238,20 @@ class Rendering:
     translation of scripture by who made it, so both are shown wherever the text is —
     and naming the licence is also how a CC-BY obligation gets discharged by the code
     rather than remembered by a person.
+
+    `licence_url` is where that claim was read, and it is the half this carried until
+    2026-09-22 (targum-internal#355). LICENSING.md's own standard asks for both, and says
+    why: the URL is kept verbatim *precisely so the claim can be re-checked against the
+    page rather than against somebody's summary of it*. Without it a rendering's licence
+    is recorded and cannot be re-checked.
+
+    The row's URL cannot stand in for it. A rendering's provenance is often nothing like
+    its row's: the five Russian Torah rows are Sefaria's Hebrew, and the rendering beside
+    them is Gerstein & Gordon 1875 off a scan at the Russian State Library.
+
+    Optional and empty by default, so every catalogue written before it still reads — and
+    `targum licences` names the ones still empty, so silence is not read as a checked
+    licence.
     """
 
     name: str
@@ -245,6 +259,7 @@ class Rendering:
     note: str = ""
     publisher: str = ""
     licence: str = ""
+    licence_url: str = ""
 
     @property
     def language(self) -> str:
@@ -732,6 +747,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
                 note=str(t.get("note", "")),
                 publisher=str(t.get("publisher", "")),
                 licence=str(t.get("licence", "")),
+                licence_url=str(t.get("licence_url", "")),
             )
             for t in raw.get("translations", [])
         ],
