@@ -231,6 +231,39 @@
     };
   }
 
+  /* Accepting the contribution grant (targum-internal#164, door 3), which is the whole
+     of what decides whether a word's card offers a way to correct a meaning.
+
+     Once, and not undone from here: a correction already offered stays under the terms
+     it arrived with, and withdrawing means offering no more rather than unmaking what
+     was given. So the control says what it does and then says it is done, instead of
+     becoming a switch that implies the first half can be taken back. */
+  function drawGrant(who) {
+    var panel = at("correcting");
+    var go = at("grant-go");
+    var said = at("grant-said");
+    if (!panel || !go) return;
+    if (who && who.granted) {
+      go.hidden = true;
+      said.hidden = false;
+      said.textContent = t("you.grant.done", "You've accepted the grant, so a word's card offers a correction.");
+      return;
+    }
+    go.textContent = t("you.page.correcting-accept", "Accept and turn it on");
+    go.onclick = function () {
+      go.disabled = true;
+      ask("/account/grant", {}).then(function (answer) {
+        if (!(answer && answer.granted)) {
+          go.disabled = false;
+          return;
+        }
+        go.hidden = true;
+        said.hidden = false;
+        said.textContent = t("you.grant.thanks", "Thank you. A word's card now offers a correction.");
+      });
+    };
+  }
+
   function drawLanguages(who) {
     drawTicks(
       "you-learning",
@@ -343,6 +376,7 @@
       drawWho(who);
       drawLanguages(who);
       drawRecord(who);
+      drawGrant(who);
       at("you-name").addEventListener("input", saveName);
       var address = at("you-address");
       if (address) address.addEventListener("change", saveAddress);

@@ -6969,3 +6969,78 @@ def test_a_vertical_film_docks_as_a_narrow_panel(browser, tmp_path) -> None:
     )
     # And the thing that was actually wrong: it is not taller than the whole window.
     assert portrait["height"] < 600, portrait
+
+
+def _card_with_account(browser, tmp_path, me: dict):
+    """A word's card with a meaning on it, and `/account/me` answering with `me`.
+
+    A meaning has to be *on* the card before there is anything to call wrong, so the
+    look-up is stubbed and pressed the way `test_a_word_is_bought_once` does. Everything
+    goes through one fake host so the page's own address carries a key and `canAsk()` is
+    true — without one a locally-opened reader correctly offers nothing.
+    """
+    built = imported(tmp_path / "reader")
+    html = built.read_text(encoding="utf-8")
+    context = opened(browser)
+    page = context.new_page()
+    sent: list[dict] = []
+
+    def answer(route, request):
+        if "/account/me" in request.url:
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(me))
+        if "/correction" in request.url:
+            sent.append(json.loads(request.post_data or "{}"))
+            return route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"proposed": 7})
+            )
+        if "/gloss" in request.url:
+            free = (request.post_data_json or {}).get("free")
+            return route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {"meaning": None, "cached": False}
+                    if free
+                    else {"meaning": MEANING, "grounded": True}
+                ),
+            )
+        return route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair .src .w")
+    page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    page.eval_on_selector(".look-up", "button => button.click()")
+    page.wait_for_timeout(500)  # the meaning, then the account's answer
+    return context, page, sent
+
+
+def test_a_reader_without_the_grant_is_offered_no_way_to_correct(browser, tmp_path: Path) -> None:
+    """targum-internal#164, acceptance 2: a reader who has not accepted the grant sees no
+    correction control. Absent, not disabled — a greyed control is an invitation to a
+    door that is shut."""
+    context, page, _ = _card_with_account(browser, tmp_path, {"signedIn": True, "granted": False})
+    assert page.evaluate(CARD)["meaning"] == MEANING, "there is a meaning to call wrong"
+    assert page.locator("#gloss-card .fix-open").count() == 0
+    context.close()
+
+
+def test_a_reader_with_the_grant_can_say_a_meaning_is_wrong(browser, tmp_path: Path) -> None:
+    """And acceptance 3's half a reader can reach: what they send is a proposal, carrying
+    the word, the sentence they read it in and the text it came from."""
+    context, page, sent = _card_with_account(browser, tmp_path, {"signedIn": True, "granted": True})
+    page.wait_for_selector("#gloss-card .fix-open")
+    page.click("#gloss-card .fix-open")
+    page.fill("#gloss-card .fix-field", "two")
+    page.click("#gloss-card .fix-go")
+    page.wait_for_selector("#gloss-card .fix-said")
+
+    assert len(sent) == 1, sent
+    said = sent[0]
+    assert said["meaning"] == "two" and said["lemma"]
+    assert said["stood"] == MEANING, "what it said before travels with what it should say"
+    assert said["sentence"], "the line it was read in travels with it"
+    assert said["document"], "and which text, so the licence can be applied later"
+    assert "Thank you" in page.locator("#gloss-card .fix-said").inner_text()
+    context.close()

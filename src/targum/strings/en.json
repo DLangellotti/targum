@@ -1790,5 +1790,16 @@
   "fetch.would-not-open": "We couldn't open {url}.",
   "fetch.needs-a-sign-in": "{site} asks you to sign in, so we can't open it.",
   "fetch.needs-a-sign-in.hint": "Open it yourself and paste the text into the box instead.",
-  "pdf.scan-read-the-pages": "This PDF is a scan, so its words are in pictures of its pages. Read the pages to bring it in."
+  "pdf.scan-read-the-pages": "This PDF is a scan, so its words are in pictures of its pages. Read the pages to bring it in.",
+  "reader.card.meaning-wrong": "This meaning is wrong",
+  "reader.card.what-it-means": "What it means here",
+  "reader.card.send-correction": "Send",
+  "reader.card.correction-taken": "Thank you. We will look at it before it changes for anybody.",
+  "reader.card.correction-lost": "We could not send that. Try again later.",
+  "you.page.correcting": "Correcting a meaning",
+  "you.page.correcting-says": "If a word's meaning is wrong, you can say so from the word's card and tell us what it should be. Nothing changes until a person looks at it. We keep what you send under the terms in the contribution grant, and you keep every right in it as well. Your name is never stored with it.",
+  "you.page.correcting-read": "Read the grant",
+  "you.page.correcting-accept": "Accept and turn it on",
+  "you.grant.done": "You've accepted the grant, so a word's card offers a correction.",
+  "you.grant.thanks": "Thank you. A word's card now offers a correction."
 }

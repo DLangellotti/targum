@@ -89,6 +89,20 @@
     <p class="said" id="record-said" hidden></p>
   </section>
 
+  {#- Correcting a meaning (targum-internal#164, door 3). Behind the account rather than
+      in the reader, because it is a thing you agree to once and not a thing you meet in
+      the middle of a sentence. Until it is accepted the reader offers no such control at
+      all — not a greyed one, which would be an invitation to a shut door. -#}
+  <section class="panel" id="correcting">
+    <h2>{{ t("you.page.correcting", "Correcting a meaning") }}</h2>
+    <p>{{ t("you.page.correcting-says", "If a word's meaning is wrong, you can say so from the word's card and tell us what it should be. Nothing changes until a person looks at it. We keep what you send under the terms in the contribution grant, and you keep every right in it as well. Your name is never stored with it.") }}</p>
+    <p class="ending-row">
+      <button type="button" class="go-quiet" id="grant-go"></button>
+      <a class="go-quiet" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a>
+    </p>
+    <p class="said" id="grant-said" hidden></p>
+  </section>
+
   {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
   {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
       weekly portion, a learning cycle — each with where it is this week, one press to

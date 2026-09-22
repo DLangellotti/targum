@@ -281,6 +281,12 @@ THUMBED = (
     # And Ask, on a word's card (2026-09-06), with the field the question is typed in.
     ".gloss-card .ask-go",
     ".gloss-card .ask-field",
+    # And saying a meaning is wrong (2026-09-22, targum-internal#164): the opener, the
+    # field the right meaning is typed in, and Send. Controls, not a line of text — §8's
+    # exception is for a passage that answers a tap, and these are drawn to be pressed.
+    ".gloss-card .fix-open",
+    ".gloss-card .fix-field",
+    ".gloss-card .fix-go",
     # And the record's two presses (2026-09-06): look a word up, save the conversation.
     ".chat-look",
     ".chat-save",
