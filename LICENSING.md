@@ -543,6 +543,47 @@ Credit is required by that licence and is given here, in `annotate/oshb.py`, and
 It is fetched rather than vendored, into the model directory beside the language models,
 and converted once on arrival — so a reader build parses no XML and fetches nothing.
 
+### The Russian Torah is targum's own reading of an 1875 page — 2026-09-22
+
+The five Torah rows carry a Russian translation beside the Hebrew: **Пятикнижие, пер.
+Герштейна и Гордона** (Vilna: Romm, 1875, for the ОПЕ). Each rendering records it as
+`Public Domain`, which `licensing.verdict` reads as **free**. targum-internal#187 asked
+for that claim to be checked before anything was bought on top of it; this is the check.
+
+**The work.** Published in 1875, and the translators' dates do not have to be looked up
+to say it is out of copyright: a translator who was twenty at publication and lived to a
+hundred would have died in 1955, which under life-plus-seventy expired at the end of
+2025. Every real possibility is decades earlier. The United States is simpler still —
+published before 1929.
+
+**The scan.** The page came from the open PDF on НЭБ, the Russian National Electronic
+Library, record `000199_000009_009682814`. A faithful reproduction of a public-domain
+printed page carries no new copyright of its own, and Russia's publisher's right (Civil
+Code art. 1337) reaches only works still unpublished when they entered the public domain,
+which an 1875 printed book is not. Nothing of НЭБ's is redistributed in any case: what
+ships is targum's own reading of the page.
+
+**What targum made.** The scan has no text layer, so the text on the shelf is targum's
+own OCR — every page read twice, a third read to settle disagreements, then pre-reform
+spelling converted by rule, about $48 in all. That work is targum's own. A few
+misreadings both reads agreed on are still in the text; `ru.json` is content and is not
+in this repository.
+
+**What was refused, so nobody researches it twice.** Sefaria's two Russian Tanakh
+versions are out: Slivniak is **CC BY-NC**, and Safronov has nothing recorded, which is
+`unknown` and deliberately not read as free. The Synodal translation (1876) *is* public
+domain and was still not taken — a positioning decision rather than a licence one, since
+it is a Christian rendering from a different textual tradition, with Greek numbering in
+the Psalms. russportal's typed Levison–Chwolson claims copyright on the typing and Russia
+grants a database right, so a scan is the safer source than somebody else's keying.
+Kovsan's modern Jewish Tanakh is **CC BY-SA** for the fifteen books he gave Wikimedia
+permission for, and would have to be asked for the rest.
+
+**The rest of the Tanakh has no free Jewish Russian translation**, which is the state of
+the world rather than a gap in the reading: Mandelstam (1872) and Steinberg (1913–14) are
+public domain but exist only as scans, and most of the Prophets and Writings have nothing
+at all.
+
 ### What is recorded, and how to ask
 
 Each source keeps the licence as its source writes it, verbatim, together with the URL
