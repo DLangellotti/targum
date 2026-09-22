@@ -14,9 +14,10 @@
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
+{#- The alternates moved into `_public_head.html.j2` on 2026-09-22, when the text pages
+    and the weekly began declaring theirs too. That file's own header says a head kept in
+    four copies is four copies that drift, and this was the copy. -#}
 {% include '_public_head.html.j2' %}
-<link rel="alternate" hreflang="en" href="{{ (canonical or '/')|replace('/', '/', 1) }}">
-<link rel="alternate" hreflang="ru" href="{{ canonical }}?lang=ru">
 <style>{{ asset('landing.css') }}</style>
 {{ hebrew_face() }}
 {#- The Torah's own face, beside the modern one: the ta'amim are boxes without it. -#}
