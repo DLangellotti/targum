@@ -7287,6 +7287,11 @@ var targumReader = function () {
       // wrong end of the line and read out in the wrong voice.
       if (columnLanguage) cell.setAttribute("lang", columnLanguage);
       if (columnDirection) cell.setAttribute("dir", columnDirection);
+      // And for the same reason: a commentary's line is several comments joined with a
+      // newline, and only the drawn rendering is stamped as one in the template. A text
+      // carrying Onkelos and Rashi both drew Rashi's comments run together the moment a
+      // reader pressed it (targum-internal#200).
+      cell.classList.toggle("commented", !!entry.commented);
       // Each translation is aligned independently, so which regions are approximate
       // changes with the translation on show.
       pair.classList.toggle("coarse", !!coarse[segmentId]);

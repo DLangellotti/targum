@@ -5548,3 +5548,47 @@ def test_only_a_commentary_keeps_the_breaks_between_its_comments() -> None:
     assert ".tr.commented { white-space: pre-line; }" in css
     # And the plain rendering line is left as it was.
     assert ".tr { max-width: var(--measure); color: var(--ink-soft); }" in css
+
+
+def _rashi() -> Translation:
+    return _rendering(
+        "Rashi on Genesis", "he", {s.id: f"קטע {s.index}\nעוד קטע {s.index}" for s in GENESIS}
+    )
+
+
+def test_rashi_is_offered_on_the_switch_beside_onkelos(tmp_path: Path) -> None:
+    """targum-internal#200's acceptance 2: Rashi is a rendering a reader can choose, on a
+    portion that already carries Onkelos. Nothing about it is special — it ships through
+    #199's switch like any other, named and pressable.
+    """
+    html = _genesis(tmp_path, [_onkelos(), _rashi()])
+    switch = _switch(html)
+    assert 'title="Rashi on Genesis"' in switch and 'title="Onkelos"' in switch
+    # Onkelos sorts last wherever it appears, so Rashi is what opens and Onkelos is the
+    # press — the ordering `render` already asks of the language rather than of the
+    # argument, which is why these are t0 and t1 and not the order they were passed in.
+    assert re.search(r'class="rendering on" data-translation="t0" aria-pressed="true"', switch)
+    assert re.search(r'class="rendering" data-translation="t1" aria-pressed="false"', switch)
+    assert "disabled" not in switch, "Rashi covers this chapter, so it is not refused"
+
+
+def test_pressing_the_commentary_separates_its_comments(tmp_path: Path) -> None:
+    """The template can only stamp the rendering it *draws*, so on a text carrying both,
+    everything #381 fixed came undone the moment a reader pressed Rashi: the cells kept
+    the plain class and the comments ran together again. Which one is a commentary is
+    shipped per rendering, and the swap toggles the class the way it already toggles the
+    language and the direction.
+    """
+    html = _genesis(tmp_path, [_onkelos(), _rashi()])
+    shipped = _payload(html)["translations"]
+    assert shipped["t0"]["commented"] is True
+    assert "commented" not in shipped["t1"], "Onkelos's lines are prose, not comments"
+
+    # Rashi opens, so the template stamps it — and that is as far as the template can go.
+    # Press Onkelos and the class has to come off, press Rashi and it has to come back,
+    # which is the swap's job and not the template's.
+    assert 'class="tr commented"' in html
+    js = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.js"
+    ).read_text(encoding="utf-8")
+    assert 'cell.classList.toggle("commented", !!entry.commented);' in js
