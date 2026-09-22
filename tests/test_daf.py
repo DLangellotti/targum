@@ -267,6 +267,13 @@ def test_a_commentary_on_the_tanakh_is_refused_in_its_own_words(
         raise AssertionError(f"asked Sefaria about a commentary it cannot read: {url}")
 
     monkeypatch.setattr(sefaria, "get", never)
-    with pytest.raises(TargumError, match="does not read Rashi on the Tanakh yet") as refused:
-        sefaria.SefariaFetcher().load("Rashi on Genesis")
+    # Rashi on the five books is read since targum-internal#200; everybody else on the
+    # Tanakh is still refused in their own words rather than for a missing edition.
+    with pytest.raises(TargumError, match="does not read Ramban on the Tanakh yet") as refused:
+        sefaria.SefariaFetcher().load("Ramban on Genesis")
     assert "Rashi on Berakhot" in (refused.value.hint or ""), "it says what it does read"
+
+    # And Rashi outside the Torah is refused by the pins, which name what they cover.
+    with pytest.raises(TargumError, match="five books of the Torah") as outside:
+        sefaria.SefariaFetcher().load("Rashi on Isaiah")
+    assert "Genesis" in (outside.value.hint or ""), "it lists the books it has"
