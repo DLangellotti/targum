@@ -184,6 +184,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write", action="store_true", help="edit the catalogue file in place")
     parser.add_argument("--sample", type=int, default=0, metavar="N", help="draft only the first N")
     parser.add_argument(
+        "--collections",
+        action="store_true",
+        help="the shelf's groups rather than its texts (targum-internal#289)",
+    )
+    parser.add_argument(
         "--tanakh",
         action="store_true",
         help="only the Tanakh, named the Israeli way; redraws whatever is already there",
@@ -200,6 +205,14 @@ def main(argv: list[str] | None = None) -> int:
     text = path.read_text(encoding="utf-8")
     loaded = json.loads(text)
     entries = loaded["entries"] if isinstance(loaded, dict) else loaded
+    if args.collections:
+        # The groups the rows fold into. `draft` needs only an id, an English name, a
+        # Hebrew one and a blurb, and a collection has all four — the `author` it also
+        # asks for is simply absent, which is what it is for a group.
+        entries = loaded.get("collections", []) if isinstance(loaded, dict) else []
+        if not entries:
+            print("no collections in the catalogue", file=sys.stderr)
+            return 1
 
     if args.tanakh:
         # Every Tanakh row, whatever it already says: the point is to replace the Synodal
