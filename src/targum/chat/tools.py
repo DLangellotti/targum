@@ -171,6 +171,10 @@ class Tool:
     #: `oauth.SPENDING_SCOPE`, and that pairing is the whole of what design.md §12's
     #: "A scope is a press that lasts" allows.
     scope: str = ""
+    #: For a conversation held somewhere else, where the host writes the replies
+    #: (targum-internal#80). Never offered to targum's own chat, which already holds its
+    #: conversation to the contract and recasts every line itself — see `anthropic_tools`.
+    elsewhere: bool = False
 
 
 def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -1465,6 +1469,77 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: What a host is told on top of the contract, because there the host writes the replies
+#: and targum does not (design.md §12, "The connector talks by the contract",
+#: 2026-09-23). Three things differ from targum's own page and nothing else does.
+ELSEWHERE = """You are holding this conversation for targum, inside another app. The contract
+below is the one targum's own chat is held to, and you keep to it, with three changes,
+because here you write the replies and there is no targum page to draw them:
+
+- The meaning lines. On targum's page every "= " line is folded under its Hebrew and a
+  tap opens it; you cannot fold, so the tap here is the reader asking. Write the Hebrew
+  lines, and the "= " line only when the reader asks what something means or asks for
+  the translation — for the lines they asked about, or for every line from then on if
+  that is what they asked for, until they say otherwise. A new word you bring in still
+  gets its meaning, on one "= " line after the reply naming only the new words. In your
+  first reply, say once, in one short Hebrew line with its meaning, that they can ask
+  for the translation at any time. This overrides "never a Hebrew line without its
+  line" below and nothing else.
+- The reader's own line. When record_turn is among your tools, call it with every line
+  the reader writes in the language this conversation is in, exactly as they wrote it,
+  before you answer, and make the recast it returns your "> " line and its why your
+  "~ " line — targum's judgement, not yours, because it is the one that is kept on their
+  record. Never send it your own correction. A line they wrote in another language you
+  say in Hebrew yourself, as the contract says, and nothing is kept. Without
+  record_turn, write the recast yourself.
+- Doors. Where the contract speaks of a path the page draws as a door, give the link
+  the tool returned, on a line of its own.
+
+Everything else holds: the vocabulary below, the length, the recast, never a level."""
+
+
+def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """targum's own talk contract and this reader's ledger, for a host to hold to.
+
+    Free and read-only. It is the system prompt targum's chat is given
+    (`session.py`, `contract_for` and `ledger_block`), handed to a model that is not
+    targum's so a conversation held in Claude or ChatGPT is held to the same standard:
+    one contract, both surfaces (design.md §12, 2026-09-23). No exemplars, which are
+    drawn per turn and would be stale by the second one.
+    """
+    language = str(args.get("language") or "he").split("-")[0].lower()
+    if language not in hebrew_module.TALKED:
+        talks = ", ".join(sorted(language_name(one) for one in hebrew_module.TALKED))
+        return {"error": f"We talk in {talks}. {language_name(language)} is coming."}
+    if ctx.learning and language not in ctx.learning:
+        return {"error": f"The reader is not learning {language_name(language)}."}
+    store, person_id = ctx.store, ctx.person_id
+    if store is not None and person_id is not None:
+        level = level_module.snapshot(store, person_id, language)
+        known = hebrew_module.known_words(store, person_id, language)
+        # One slice of the ledger a day, so a conversation that asks twice is told the
+        # same words both times.
+        seed = int(time.time() // 86400)
+        returning = hebrew_module.bring_back(store, person_id, language, seed=seed)
+        rules = hebrew_module.recurring(
+            store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+        )
+    else:
+        level, known, returning, rules = level_module.EMPTY, [], None, []
+    common = hebrew_module.common_words(language=language)
+    gloss = language_name(ctx.language)
+    return {
+        "language": language,
+        "contract": "\n\n".join(
+            [
+                ELSEWHERE,
+                hebrew_module.contract_for(language, gloss),
+                hebrew_module.ledger_block(level, known, common, returning, rules),
+            ]
+        ),
+    }
+
+
 REGISTRY: tuple[Tool, ...] = (
     Tool(
         "search_library",
@@ -1636,6 +1711,26 @@ REGISTRY: tuple[Tool, ...] = (
         spends=True,
         needs_account=True,
         scope="check",
+        elsewhere=True,
+    ),
+    Tool(
+        "how_to_talk",
+        "Call this first whenever the reader wants to talk, chat or practise in the "
+        "language they are learning. Returns targum's own conversation contract and this "
+        "reader's words: talk to them in that language, graded to what they know, with "
+        "the translation when they ask for it. Hold to it for the rest of the "
+        "conversation. Free.",
+        _schema(
+            {
+                "language": {
+                    "type": "string",
+                    "description": "The code of the language to talk in; Hebrew if not given.",
+                },
+            }
+        ),
+        how_to_talk,
+        scope="record",
+        elsewhere=True,
     ),
     Tool(
         "check_job",
@@ -1676,7 +1771,7 @@ def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
     tools: list[dict[str, Any]] = [
         {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
         for tool in REGISTRY
-        if not tool.spends
+        if not tool.spends and not tool.elsewhere
     ]
     if web_search:
         tools.append(

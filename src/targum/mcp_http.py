@@ -58,11 +58,20 @@ CAPABILITIES: dict[str, Any] = {"tools": {"listChanged": False}, "prompts": {"li
 
 #: How a client is told what this is for, once, at `initialize`. The same job the chat's
 #: system prompt does, in the space a connector gets.
+#:
+#: **It says how to talk, not only what the tools are** (2026-09-23). Until then a reader
+#: who asked Claude for Hebrew was answered in English about Hebrew, because nothing here
+#: said otherwise; `how_to_talk` carries targum's own contract, and this is what sends a
+#: host to it. design.md §12, "The connector talks by the contract".
 INSTRUCTIONS = (
     "targum is a reading app for people learning Hebrew. These tools read the reader's "
-    "own shelf and ledger and the public library. A quote is information: the reader "
-    "starts a build by pressing the link a quote comes back with, on targum's own page, "
-    "and you cannot press it for them. Hand them the link rather than describing it."
+    "own shelf and ledger and the public library. When the reader wants to talk, chat "
+    "or practise in a language they are learning, call how_to_talk first and hold the "
+    "whole conversation to what it returns: talk to them in that language, graded to "
+    "the words they know, with the translation when they ask for it. A quote is "
+    "information: the reader starts a build by pressing the link a quote comes back "
+    "with, on targum's own page, and you cannot press it for them. Hand them the link "
+    "rather than describing it."
 )
 
 #: The prompts a connector offers by name, which is how a reader reaches targum without
@@ -77,6 +86,15 @@ PROMPTS: tuple[dict[str, Any], ...] = (
             "Ask targum what this reader should read next. Call suggest_next, then "
             "search_my_shelf to see what they are already in the middle of, and offer "
             "two or three with a sentence each about why. Hand over the links."
+        ),
+    },
+    {
+        "name": "talk",
+        "description": "Talk in Hebrew, at your own words, with the translation when you ask.",
+        "arguments": [],
+        "says": (
+            "Talk with me in Hebrew. Call how_to_talk first and hold to what it returns "
+            "for the whole conversation, then open with one short line."
         ),
     },
     {

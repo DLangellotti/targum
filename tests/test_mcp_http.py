@@ -379,7 +379,7 @@ def test_the_prompts_are_offered_by_name(box: tuple[int, str]) -> None:
     port, _ = box
     token = a_token(port, "library record")
     names = {one["name"] for one in rpc(port, token, "prompts/list")["result"]["prompts"]}
-    assert {"what-next", "drill", "read-with-me"} <= names
+    assert {"what-next", "talk", "drill", "read-with-me"} <= names
 
 
 def test_a_prompt_comes_back_as_a_message(box: tuple[int, str]) -> None:
@@ -389,6 +389,49 @@ def test_a_prompt_comes_back_as_a_message(box: tuple[int, str]) -> None:
     text = said["messages"][0]["content"]["text"]
     assert "my_vocabulary" in text
     assert "never keep score" in text, "the page it came from promises as much"
+
+
+def test_the_talk_prompt_sends_the_host_to_the_contract(box: tuple[int, str]) -> None:
+    port, _ = box
+    token = a_token(port, "library record")
+    said = rpc(port, token, "prompts/get", {"name": "talk"})["result"]
+    assert "how_to_talk" in said["messages"][0]["content"]["text"]
+
+
+def test_the_host_is_told_how_to_talk_at_initialize() -> None:
+    """A reader who asked for Hebrew was answered in English about Hebrew (2026-09-23)."""
+    assert "how_to_talk" in mcp_http.INSTRUCTIONS
+    assert "translation" in mcp_http.INSTRUCTIONS
+
+
+def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]) -> None:
+    """One contract, both surfaces: the host is given what targum's own chat is given."""
+    from targum.chat import hebrew
+
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "how_to_talk", "arguments": {"language": "he"}},
+    )["result"]
+    assert said["isError"] is False
+    contract = json.loads(said["content"][0]["text"])["contract"]
+    assert hebrew.contract_for("he") in contract
+    assert "Their ledger" in contract
+    assert "folded" in contract, "the host is told why the translation waits to be asked"
+    assert "record_turn" in contract
+
+
+def test_how_to_talk_refuses_a_language_that_does_not_talk(box: tuple[int, str]) -> None:
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "how_to_talk", "arguments": {"language": "yi"}},
+    )["result"]
+    assert "coming" in json.loads(said["content"][0]["text"])["error"]
 
 
 def test_a_prompt_nobody_wrote_is_refused(box: tuple[int, str]) -> None:
