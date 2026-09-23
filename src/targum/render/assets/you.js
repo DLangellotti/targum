@@ -286,7 +286,7 @@
     }
 
     /* The scopes in the reader's words, in the order the approval page listed them.
-       The one that uses their hours says so here too, because this is the page they
+       The one that uses their credits says so here too, because this is the page they
        come to when they want to know what they agreed to. */
     function scopesSaid(scopes) {
       var held = (scopes || "").split(" ");
@@ -297,8 +297,15 @@
       if (held.indexOf("record") >= 0) {
         words.push(t("you.connections.record", "your words and mistakes"));
       }
-      if (held.indexOf("check") >= 0) {
-        words.push(t("you.connections.check", "checking your Hebrew, which uses your hours"));
+      /* `chat` was `check` until 2026-09-23 (§12, "A cost is credits, and a credit is a
+         minute"). A grant made before then still holds the old word — `oauth.RENAMED`
+         maps it server-side, and this list is drawn from what the grant stores, so it
+         answers to both spellings rather than showing a reader one fewer scope than
+         they agreed to. */
+      if (held.indexOf("chat") >= 0 || held.indexOf("check") >= 0) {
+        words.push(
+          t("you.connections.chat", "reading the Hebrew you write, which uses your credits")
+        );
       }
       return words.join(", ");
     }

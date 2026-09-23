@@ -238,18 +238,25 @@ def test_each_connector_says_what_it_may_do_in_the_reader_s_words() -> None:
     assert page["connections"][1]["says"] == "the library"
 
 
-def test_the_scope_that_uses_hours_says_so_here_too() -> None:
+def test_the_scope_that_uses_credits_says_so_here_too() -> None:
     """design.md §12: this is the page they come to when they want to know what they
-    agreed to, so it says what the standing grant costs."""
-    page = run(
-        who={
-            **SIGNED_IN,
-            "connections": [
-                {"client": "c", "name": "Claude", "scopes": "library record check"},
-            ],
-        }
-    )
-    assert "uses your hours" in page["connections"][0]["says"]
+    agreed to, so it says what the standing grant costs.
+
+    Both spellings, because a grant stores the words the reader approved and those
+    outlive a rename: `check` became `chat` on 2026-09-23, and every connector authorised
+    before then still holds the old one. A reader shown one fewer scope here than they
+    actually agreed to is the failure this guards.
+    """
+    for held in ("library record chat", "library record check"):
+        page = run(
+            who={
+                **SIGNED_IN,
+                "connections": [{"client": "c", "name": "Claude", "scopes": held}],
+            }
+        )
+        says = page["connections"][0]["says"]
+        assert "uses your credits" in says, f"{held!r} lost its spending scope"
+        assert "hours" not in says
 
 
 def test_a_connector_with_no_name_is_still_a_row() -> None:

@@ -338,7 +338,7 @@ def test_the_add_page_names_no_refusal_before_it_is_met() -> None:
     )
 
     drawn = english["add.page.a-recording-or-a-video-uses-some"]
-    assert drawn == "A recording or a video uses some of your hours."
+    assert drawn == "A recording or a video uses some of your credits — one credit a minute."
     # Asserted against the template as well as the catalogue, because the template
     # carries the English as `t()`'s fallback and a reader with no catalogue sees that.
     for said, where in ((drawn, "the catalogue"), (template, "the template")):

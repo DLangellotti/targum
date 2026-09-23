@@ -65,21 +65,42 @@ def test_asking_for_nothing_gets_the_smallest_scope() -> None:
 
 
 def test_scopes_come_back_in_the_order_the_page_lists_them() -> None:
-    assert oauth.known_scopes("check library") == ("library", "check")
+    assert oauth.known_scopes("chat library") == ("library", "chat")
 
 
 def test_only_one_scope_spends() -> None:
     spending = [name for name, _ in oauth.SCOPES if name == oauth.SPENDING_SCOPE]
-    assert spending == ["check"], "design.md §12: one tool spends, and this is its scope"
+    assert spending == ["chat"], "design.md §12: one tool spends, and this is its scope"
     assert not oauth.read_request(_query(scope="library record")).spends
-    assert oauth.read_request(_query(scope="library check")).spends
+    assert oauth.read_request(_query(scope="library chat")).spends
 
 
 def test_granted_reads_a_scope_string_and_not_a_substring() -> None:
-    assert oauth.granted("library check", "check")
-    assert not oauth.granted("library", "check")
+    assert oauth.granted("library chat", "chat")
+    assert not oauth.granted("library", "chat")
     assert not oauth.granted("libraryx", "library"), "a prefix is not a scope"
     assert not oauth.granted(None, "library")
+
+
+def test_a_grant_made_under_the_old_scope_name_still_carries_it() -> None:
+    """design.md §12, 2026-09-23: `check` became `chat`.
+
+    A grant stores the words the reader approved, and those outlive a rename. Every
+    connector authorised before today holds `check`, and `granted()` compares strings —
+    so without the map the rename would silently strip the spending scope from a live
+    connector, and its owner would see one fewer scope on their account page than they
+    agreed to.
+    """
+    assert oauth.granted("library record check", "chat"), "a live grant lost its scope"
+    assert oauth.current("library record check") == ("library", "record", "chat")
+    # And a client that still asks by the old name is answered, not quietly downgraded:
+    # the name is written into its own stored configuration and it will keep sending it.
+    assert oauth.known_scopes("library check") == ("library", "chat")
+    assert oauth.read_request(_query(scope="library check")).spends
+    # The old name is gone from everything the reader is shown or the server offers.
+    assert "check" not in dict(oauth.SCOPES)
+    assert oauth.current("check check") == ("chat",), "said twice is held once"
+    assert oauth.current("profile") == (), "a name this server never had grants nothing"
 
 
 # --- PKCE ------------------------------------------------------------------------
@@ -227,7 +248,7 @@ def test_a_token_names_a_person_and_carries_its_scopes(tmp_path: Path) -> None:
     assert got is not None
     who, scopes = got
     assert who.id == person.id and who.email == person.email
-    assert oauth.granted(scopes, "record") and not oauth.granted(scopes, "check")
+    assert oauth.granted(scopes, "record") and not oauth.granted(scopes, "chat")
 
 
 def test_a_token_is_stored_as_a_digest_and_never_in_the_clear(tmp_path: Path) -> None:
@@ -531,3 +552,22 @@ def test_the_sweep_is_called_at_start_up(tmp_path: Path) -> None:
     assert store.bearer(live) is not None
     rows = store.db.execute("SELECT COUNT(*) AS n FROM oauth_token").fetchone()
     assert int(rows["n"]) == 1, "the dead one was swept on the way up"
+
+
+def test_every_scope_is_said_in_the_reader_s_own_language() -> None:
+    """The approval page is where a reader agrees, so it must be readable to them.
+
+    `SCOPES` is written in this module as English and the page drew it raw, so a Russian
+    reader met the whole page in Russian except the three lines saying what they were
+    agreeing to (2026-09-23). The page goes through the catalogue now, and this holds the
+    English in both places to the same words — a scope whose two copies drift is a page
+    that promises one thing and stores another.
+    """
+    from targum import strings
+
+    english, russian = strings.catalogue("en"), strings.catalogue("ru")
+    for name, says in oauth.SCOPES:
+        key = f"connect.scope.{name}"
+        assert english.get(key) == says, f"{key} and oauth.SCOPES disagree"
+        assert russian.get(key), f"{key} is not said in Russian"
+        assert russian[key] != says, f"{key} is still English on the Russian page"

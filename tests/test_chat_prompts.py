@@ -104,6 +104,7 @@ def test_the_chat_is_offered_nothing_that_spends() -> None:
     the registry minus anything that spends, because targum already recasts every line
     here and writes the slip itself: offering it would record the same mistake twice.
     """
+    from targum import oauth
     from targum.chat.tools import anthropic_tools
 
     by_name = {tool.name: tool for tool in REGISTRY}
@@ -112,7 +113,7 @@ def test_the_chat_is_offered_nothing_that_spends() -> None:
     # And the one that does spend carries the scope that consents to it, and nothing else.
     spending = [tool for tool in REGISTRY if tool.spends]
     assert [tool.name for tool in spending] == ["record_turn"]
-    assert spending[0].scope == "check"
+    assert spending[0].scope == oauth.SPENDING_SCOPE == "chat"
 
 
 def test_a_question_from_inside_the_text_is_answered_in_the_conversation_s_hebrew() -> None:

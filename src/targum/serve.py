@@ -350,6 +350,19 @@ ACCOUNT_BUDGET = 10.00
 UPLOAD_HOURS = 8
 UPLOAD_SECONDS = UPLOAD_HOURS * 60 * 60
 
+# The same allowance in the unit the reader is shown (design.md §12, 2026-09-23: "A cost
+# is credits, and a credit is a minute"). Derived rather than typed, so the rate lives in
+# one place and a page cannot quote a number the server does not enforce — the bug the
+# refusal's own comment describes, where the pricing page and the constant said ten to
+# each other until one of them moved.
+#
+# Hours have not gone anywhere: they are the promise ("8 hours a month"), because eight
+# hours is a shape a reader pictures and 480 credits is not. Credits are what a cost is
+# counted in, because a cost is often a minute and nothing here has only durations to
+# price any more. Both numbers appear together wherever a balance does.
+SECONDS_A_CREDIT = 60
+UPLOAD_CREDITS = UPLOAD_SECONDS // SECONDS_A_CREDIT
+
 # What one reader's conversation may spend in a day. **A rate limit, like the account
 # rail above, and a narrower one**: a turn is uncacheable and the reader controls the
 # volume, so the rail that was sized for builds — where a novel is the unit — is the
@@ -1524,13 +1537,20 @@ class Library:
             # constant, because a server configured to a different one must not quote a
             # limit it does not enforce. The two agreed while both said ten; they stopped
             # agreeing the moment the constant moved, which is the whole bug.
+            # The rate is said as a rate and not as a second total (§12, 2026-09-23 asks
+            # for it beside every balance). "Your 480 credits — that's 8 hours" reads
+            # well at the allowance this box ships with and nowhere else: a test box set
+            # to thirty seconds would say "0.5 credits, that's 0.00833333 hours", and a
+            # sentence that is only true at one configuration is the bug this refusal was
+            # already fixed for once.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return said_in(
                 ui,
-                "job.out-of.hours",
-                "You've used your {hours} hours of audio for this month. They come back on "
-                "{date}. Text uploads still work, and the library is always free.",
-                hours=f"{allowed / 3600:g}",
+                "job.out-of.credits",
+                "You've used your {credits} credits for this month, and a credit is a "
+                "minute of audio. They come back on {date}. Text uploads still work, and "
+                "the library is always free.",
+                credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
         if whose == "account":
@@ -1550,11 +1570,11 @@ class Library:
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return said_in(
                 ui,
-                "job.out-of.talk-hours",
-                "You've used your {hours} hours of audio and conversation for this month. "
-                "They come back on {date}. Everything you have stays open, and the library is "
-                "always free.",
-                hours=f"{allowed / 3600:g}",
+                "job.out-of.talk-credits",
+                "You've used your {credits} credits of audio and conversation for this "
+                "month, and a credit is a minute. They come back on {date}. "
+                "Everything you have stays open, and the library is always free.",
+                credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
         if whose == "chat":
@@ -7014,6 +7034,7 @@ class Handler(BaseHTTPRequestHandler):
             client=str(client["name"] or "That app"),
             scopes=oauth.describe_scopes(asked.scopes),
             spends=asked.spends,
+            credits=UPLOAD_CREDITS,
             hours=UPLOAD_HOURS,
             query=urlparse(self.path).query,
             redirect=redirect,

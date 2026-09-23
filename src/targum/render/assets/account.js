@@ -110,13 +110,27 @@
     if (rest || !whole) parts.push(tn("account.minutes", rest, "{n} minute", "{n} minutes"));
     return parts.join(" ");
   }
+  /* A balance is credits, and one credit is one minute of audio or video (design.md §12,
+     2026-09-23). **The rate is shown wherever the balance is**: a credit a reader has to
+     convert from memory is the invented currency §6 forbids, and a credit with its
+     equivalence beside it is a minute with a better name. This says what is left rather
+     than what is gone, because "is that a lot?" is the question a balance is asked and
+     what remains is the answer. */
+  function credits(hours) {
+    return Math.round((Number(hours) || 0) * 60);
+  }
   function drawHours(got) {
     var has = got && got.allowed !== null && got.allowed !== undefined;
+    var spare = has ? Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0)) : 0;
     var said = has
-      ? t("account.hours.used", "{used} of your {allowed} used this month", {
-          used: spoken(got.used),
-          allowed: spoken(got.allowed),
-        })
+      ? tn(
+          "account.credits.left",
+          credits(spare),
+          "{n} credit left this month",
+          "{n} credits left this month"
+        ) +
+        " — " +
+        t("account.credits.rate", "about {clock} of audio", { clock: spoken(spare) })
       : "";
     if (hoursLine) {
       hoursLine.textContent = said;

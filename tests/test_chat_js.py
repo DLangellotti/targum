@@ -247,9 +247,13 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
             }
         }
     )
-    assert (
-        page["hours"]
-        == "You've used 6 hours 30 minutes of your 8 hours this month. They reset on 1 October."
+    # Credits with the rate beside them, and what is left rather than what is gone
+    # (design.md §12, 2026-09-23). It said "6 hours 30 minutes of your 8 hours" before
+    # that, which is the balance told twice in two units and neither of them the one a
+    # cost is counted in.
+    assert page["hours"] == (
+        "90 credits left this month. That's about 1 hour 30 minutes of audio. "
+        "They reset on 1 October."
     )
     assert not page["hoursHidden"]
     quiet = run(

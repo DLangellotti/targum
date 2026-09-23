@@ -1646,7 +1646,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         quote_build,
-        scope="check",
+        scope="chat",
     ),
     Tool(
         "describe_source",
@@ -1710,7 +1710,7 @@ REGISTRY: tuple[Tool, ...] = (
         record_turn,
         spends=True,
         needs_account=True,
-        scope="check",
+        scope="chat",
         elsewhere=True,
     ),
     Tool(
