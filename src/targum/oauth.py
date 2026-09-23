@@ -18,9 +18,14 @@ challenge. It holds no state and touches no database.
 
 **Three scopes, and only one of them spends** (design.md §12, "A scope is a press that
 lasts"). `library` is the catalogue and what is at a link. `record` is the reader's own
-words, read. `check` is the one that writes and the one that costs hours, and it is
+words, read. `chat` is the one that writes and the one that costs credits, and it is
 listed on the approval page with what it costs beside it, because a standing grant that
 did not say so would be a worse seam than the press it replaces.
+
+`chat` was called `check` until 2026-09-23, when §12 ("A cost is credits, and a credit is
+a minute") renamed it: "checking your Hebrew" was this module's scope name leaking into
+the reader's copy, and what a reader does in Claude or ChatGPT is have a conversation.
+The old name is still honoured wherever a stored grant is read — see `RENAMED`.
 
 **Everything a client sends is a claim.** Its name, its redirect list, its scope request:
 all of it is written down and none of it is trusted. What the reader approved is stored
@@ -40,12 +45,21 @@ from urllib.parse import urlencode, urlparse
 
 #: What a connector may be allowed to do. Ordered as the approval page lists them, which
 #: is least to most: the library is public knowledge, the record is the reader's own, and
-#: `check` is the one that writes to it and spends their hours doing so.
+#: `chat` is the one that writes to it and spends their credits doing so.
 SCOPES: tuple[tuple[str, str], ...] = (
     ("library", "Search the library and look up what is at a link"),
     ("record", "Read your words, your mistakes and how far you have got"),
-    ("check", "Check your Hebrew and keep it, mark words, and price a text"),
+    ("chat", "Read the Hebrew you write and keep it, mark words, and price a text"),
 )
+
+#: Scopes that have been renamed, old name to new. **A grant is stored as the words the
+#: reader approved**, so a rename that stopped here would quietly strip every connector
+#: already authorised — `granted()` compares strings, and `granted("library check",
+#: "chat")` is False. Read through `current()` instead of migrating the rows: a token is
+#: short-lived and a refresh mints the new spelling, so the table converges on its own,
+#: and a `REPLACE(scopes, 'check', 'chat')` over live rows is a substring edit on a column
+#: whose values are space-joined words. This map is the whole cost of the rename.
+RENAMED: dict[str, str] = {"check": "chat"}
 
 #: The scope a client gets if it asks for nothing. The smallest one: a client that did
 #: not say what it wanted has not been agreed to for anything else.
@@ -53,7 +67,7 @@ DEFAULT_SCOPE = "library"
 
 #: The only scope that reaches a tool with `spends` set. Named once here so the rule is
 #: greppable from either side of it.
-SPENDING_SCOPE = "check"
+SPENDING_SCOPE = "chat"
 
 #: The MCP revisions this server will speak. The newest is what an `initialize` that asks
 #: for something unknown is answered with, per the spec's version negotiation.
@@ -121,7 +135,7 @@ class Asked:
 
     @property
     def spends(self) -> bool:
-        """Whether what is being asked for includes the one scope that costs hours."""
+        """Whether what is being asked for includes the one scope that costs credits."""
         return SPENDING_SCOPE in self.scopes
 
 
@@ -132,8 +146,14 @@ def known_scopes(asked: str | None) -> tuple[str, ...]:
     is the kinder half: a client that asks for `profile` out of habit should get a working
     connector limited to what targum offers, not an error page the reader cannot act on.
     What the reader is shown, and what is stored, is what survives this.
+
+    A renamed scope is honoured rather than dropped, which is not the same kindness. A
+    client that registered before 2026-09-23 has `check` written into its own stored
+    configuration and will keep asking for it; dropping it would leave the reader with a
+    silent fall back to `library` alone and an approval page that no longer offers the
+    scope they had.
     """
-    wanted = {word for word in (asked or "").replace(",", " ").split() if word}
+    wanted = {RENAMED.get(word, word) for word in (asked or "").replace(",", " ").split() if word}
     kept = tuple(name for name, _ in SCOPES if name in wanted)
     return kept or (DEFAULT_SCOPE,)
 
@@ -144,13 +164,33 @@ def describe_scopes(scopes: tuple[str, ...]) -> list[dict[str, str]]:
     return [{"name": name, "says": said[name]} for name in scopes if name in said]
 
 
+def current(scopes: str | None) -> tuple[str, ...]:
+    """A stored scope string as the names this server uses today.
+
+    A grant holds the words the reader approved, and those outlive a rename: the
+    connector David authorised on 2026-09-22 holds `check`, which no longer names
+    anything. Mapping on the way out keeps every live grant working and keeps exactly one
+    spelling in the code above this line. An unknown scope is dropped, as `known_scopes`
+    drops one arriving from a client — a name this server has never had grants nothing.
+    """
+    known = {name for name, _ in SCOPES}
+    said = []
+    for word in (scopes or "").split():
+        name = RENAMED.get(word, word)
+        if name in known and name not in said:
+            said.append(name)
+    return tuple(said)
+
+
 def granted(scopes: str | None, wanted: str) -> bool:
     """Whether a token's scope string carries one scope.
 
-    Takes the string straight off the token row. Nothing here reads a scope out of a
-    request, and this signature is the place that is easiest to get wrong later.
+    Takes the string straight off the token row, through `current()` so a grant made
+    under an older spelling still carries what the reader agreed to. Nothing here reads a
+    scope out of a request, and this signature is the place that is easiest to get wrong
+    later.
     """
-    return wanted in (scopes or "").split()
+    return wanted in current(scopes)
 
 
 def verify_challenge(verifier: str, challenge: str) -> bool:
@@ -389,6 +429,7 @@ __all__ = [
     "LATEST_PROTOCOL",
     "MOST_REDIRECTS",
     "PROTOCOL_VERSIONS",
+    "RENAMED",
     "RESOURCE_PATH",
     "SCOPES",
     "SPENDING_SCOPE",
@@ -400,6 +441,7 @@ __all__ = [
     "challenge_header",
     "check_redirect",
     "check_registration",
+    "current",
     "describe_scopes",
     "granted",
     "known_scopes",

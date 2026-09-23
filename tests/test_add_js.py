@@ -64,7 +64,7 @@ def test_the_line_under_the_box_says_that_looking_spends_before_it_does() -> Non
     said = run(typed="something funny about food", answers=FOUND)
     assert "Press Continue and we'll look" in said["under"]
     assert "one turn of conversation" in said["under"]
-    assert "off your hours" in said["under"]
+    assert "off your credits" in said["under"]
 
 
 def test_a_description_looks_in_place_and_never_prices_anything_itself() -> None:
@@ -105,7 +105,7 @@ def test_what_the_turn_cost_is_said_after_it_is_over() -> None:
     """The other half of the card's sentence about cost. In the clock the rest of the
     page uses and never in money — design.md takes that position and this keeps it."""
     said = run(typed="something funny about food", answers=FOUND)
-    assert "Looking used 0:42 of your hours." in said["status"]
+    assert "Looking used 0:42 of your credits." in said["status"]
     assert not [line for line in said["status"] if "$" in line]
 
 
@@ -136,7 +136,7 @@ def test_a_search_that_found_nothing_says_so_and_still_says_what_it_cost() -> No
     )
     assert said["cards"] == []
     assert any("didn't find anything" in line for line in said["status"])
-    assert "Looking used 0:12 of your hours." in said["status"]
+    assert "Looking used 0:12 of your credits." in said["status"]
 
 
 def test_a_turn_that_fails_says_so_rather_than_drawing_an_empty_block() -> None:

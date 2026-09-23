@@ -8,8 +8,9 @@
 
     Two things on this page are load-bearing rather than decorative. The client's name is
     said as the client's claim about itself, because dynamic registration means a
-    stranger wrote it. And the spending scope says what it costs, in hours, because a
-    standing grant that did not say so would be a worse seam than the press it replaces. -#}
+    stranger wrote it. And the spending scope says what it costs, in credits with the rate
+    beside them (§12, 2026-09-23), because a standing grant that did not say so would be a
+    worse seam than the press it replaces. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -38,9 +39,18 @@
     <ul class="scopes">
       {%- for scope in scopes %}
       <li>
-        <span class="scope-says">{{ scope.says }}</span>
-        {%- if scope.name == 'check' %}
-        <span class="scope-cost">{{ t("connect.page.uses-your-hours", "Uses your {hours} hours", hours=hours) }}</span>
+        {#- Through the catalogue, not straight off `oauth.SCOPES`. The three scopes are
+            written in that module as English and were drawn here raw, so a Russian
+            reader met the whole page in their own language except the three lines that
+            say what they are agreeing to (2026-09-23). `tests/test_oauth.py` holds the
+            English here and there to the same words. -#}
+        <span class="scope-says">{{ t("connect.scope." + scope.name, scope.says) }}</span>
+        {#- The rate travels with the number, every time it is shown (§12, 2026-09-23):
+            a credit the reader has to convert from memory is the invented currency §6
+            forbids, and a credit with its equivalence beside it is a minute with a
+            better name. -#}
+        {%- if scope.name == 'chat' %}
+        <span class="scope-cost">{{ t("connect.page.uses-your-credits", "Uses your {credits} credits — about {hours} hours of audio", credits=credits, hours=hours) }}</span>
         {%- endif %}
       </li>
       {%- endfor %}
@@ -50,7 +60,7 @@
     {#- Said once, in words, above the button. A reader who grants this is agreeing to
         spending that happens later without another press, and the page they agree on is
         the only place that can tell them so. -#}
-    <p class="said">{{ t("connect.page.checking-a-line-uses-your-hours", "Checking a line of Hebrew uses your hours, the same as a recording does. Everything else you say there is yours, and costs you none of them.") }}</p>
+    <p class="said">{{ t("connect.page.we-read-the-hebrew-you-write", "We read the Hebrew you write and keep what you got wrong. A message is a few seconds, so it barely touches your credits, and everything else you say there is yours and costs none of them.") }}</p>
     {%- endif %}
 
     <form method="post" action="/oauth/authorize">

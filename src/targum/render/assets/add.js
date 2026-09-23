@@ -397,7 +397,7 @@
           " " +
           (transcript
             ? t("add.spoken.theirs", "We'll use the transcript that came with it, so there's nothing to write down.")
-            : t("add.spoken.ours", "We'll write down what's said, and that uses some of your hours."));
+            : t("add.spoken.ours", "We'll write down what's said, and that uses some of your credits."));
       }
       if (theirs) said += " " + t("add.translation.theirs", "We'll line up your translation with it, sentence by sentence.");
       return unpaired ? said + " " + unpaired : said;
@@ -420,7 +420,7 @@
       // them to the drawer; Continue does it in place now.
       return t(
         "add.description.look",
-        "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your hours."
+        "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your credits."
       );
     }
     if (read.kind === "foreign") {
@@ -846,7 +846,7 @@
       .then(function (job) {
         if (!job || !job.seconds) return;
         box.appendChild(
-          line(t("add.looking.cost", "Looking used {clock} of your hours.", { clock: clock(job.seconds) }))
+          line(t("add.looking.cost", "Looking used {clock} of your credits.", { clock: clock(job.seconds) }))
         );
         say(box);
       })
@@ -1437,6 +1437,18 @@
     return h ? h + ":" + two(m) + ":" + two(s) : m + ":" + two(s);
   }
 
+  // Hours as a person says them: "6 hours 30 minutes", never "6.5" (2026-09-14). The
+  // digital `clock` above is for a duration being played; this is for an allowance.
+  function clockOf(hours) {
+    var minutes = Math.round((Number(hours) || 0) * 60);
+    var whole = Math.floor(minutes / 60);
+    var rest = minutes % 60;
+    var parts = [];
+    if (whole) parts.push(tn("account.hours", whole, "{n} hour", "{n} hours"));
+    if (rest || !whole) parts.push(tn("account.minutes", rest, "{n} minute", "{n} minutes"));
+    return parts.join(" ");
+  }
+
   function describe(job) {
     if (job.audio) {
       var box = document.createDocumentFragment();
@@ -1842,17 +1854,19 @@
         // thing that is not true of them.
         if (!hours || typeof hours.allowed !== "number") return;
         var left = Math.max(0, hours.allowed - (hours.used || 0));
-        // One decimal, and no trailing nought: "6.5 hours" and "8 hours", never "8.0".
-        var said = String(Math.round(left * 10) / 10);
-        var whole = String(hours.allowed);
+        /* A balance is credits, and one credit is one minute of audio or video
+           (design.md §12, 2026-09-23). The rate travels with the number, so nobody has
+           to hold the conversion in their head — and the decimal goes with it: "6.5 of
+           your 8 hours" was a number nobody reads as six hours thirty. */
+        var spare = Math.round(left * 60);
         hoursLine.textContent =
           left > 0
-            ? t("add.hours.left", "You have {left} of your {all} hours this month. The library costs none of them.", {
-                left: said,
-                all: whole,
+            ? tn("add.credits.left", spare, "You have {n} credit left this month.", "You have {n} credits left this month.") +
+              " " +
+              t("add.credits.rate", "That's about {clock} of audio, and the library costs none of it.", {
+                clock: clockOf(left),
               })
-            : t("add.hours.none", "You've used your {all} hours this month. They come back on {date}, and the library is always free.", {
-                all: whole,
+            : t("add.credits.none", "You've used all your credits this month. They come back on {date}, and the library is always free.", {
                 date: hours.ends || "",
               });
         hoursLine.hidden = false;

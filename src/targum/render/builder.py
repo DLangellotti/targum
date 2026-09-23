@@ -1682,6 +1682,7 @@ def approve_page(
     client: str,
     scopes: list[dict[str, str]],
     spends: bool,
+    credits: int,
     hours: int,
     query: str,
     redirect: str,
@@ -1691,7 +1692,8 @@ def approve_page(
 
     The one press design.md §12 ("A scope is a press that lasts") rests on, so what is
     on it is not decoration: every scope in words, and what the spending one costs said
-    in hours before it is granted rather than in a receipt afterwards.
+    in credits, with the hours they are worth beside them, before it is granted rather
+    than in a receipt afterwards (§12, 2026-09-23).
 
     `client` is the name the client registered, which is the client's claim about itself
     and not a fact about who it is — dynamic registration means a stranger wrote it. It
@@ -1710,6 +1712,7 @@ def approve_page(
             client=client,
             scopes=scopes,
             spends=spends,
+            credits=credits,
             hours=hours,
             query=query,
             redirect=redirect,
@@ -3054,6 +3057,11 @@ def render(
             **shared,
             # The page's own words in the language it is read in (targum-internal#184).
             t=page_words(chrome),
+            # And its counted ones. The voice offer counted in raw English with a
+            # hand-rolled `'' if n == 1 else 's'`, so the one line on this page telling
+            # a reader what something costs was the one line not in their language
+            # (2026-09-23).
+            tn=page_counts(chrome),
             page_language=_page_language(chrome),
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,

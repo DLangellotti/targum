@@ -271,14 +271,23 @@
   //: (2026-09-10, targum-internal#237).
   var HOURS_WARN = 0.75;
 
-  // The line above the box when the month's hours are nearly gone, or nothing.
+  // The line above the box when the month's credits are nearly gone, or nothing.
   function hoursWarning(got) {
     if (!got || got.allowed === null || got.allowed === undefined) return "";
     if (!(got.used >= got.allowed * HOURS_WARN)) return "";
-    var line = t("bring.hours.used", "You've used {used} of your {allowed} this month.", {
-      used: said(got.used),
-      allowed: said(got.allowed),
-    });
+    /* Credits with the rate beside them, and what is left rather than what is gone
+       (design.md §12, 2026-09-23). The same two strings the inbox warning uses, because
+       it is the same warning in a different place and two wordings would drift. */
+    var spare = Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0));
+    var line =
+      tn(
+        "building.credits.left",
+        Math.round(spare * 60),
+        "{n} credit left this month.",
+        "{n} credits left this month."
+      ) +
+      " " +
+      t("building.credits.rate", "That's about {clock} of audio.", { clock: said(spare) });
     if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
     return line;
   }

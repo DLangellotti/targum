@@ -703,7 +703,7 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
-    assert "hours of audio and conversation" in said and "library is always free" in said
+    assert "credits of audio and conversation" in said and "library is always free" in said
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
 

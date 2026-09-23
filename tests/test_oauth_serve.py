@@ -228,7 +228,7 @@ def test_the_page_says_what_is_being_asked_for(connected: tuple[int, str, Path])
     assert "Claude" in page, "the client's claim about itself, shown as one"
     assert "Search the library" in page
     assert "Read your words" in page
-    assert "Check your Hebrew" not in page, "not asked for, so not granted"
+    assert "Read the Hebrew you write" not in page, "not asked for, so not granted"
 
 
 def test_the_spending_scope_says_what_it_costs(connected: tuple[int, str, Path]) -> None:
@@ -242,7 +242,7 @@ def test_the_spending_scope_says_what_it_costs(connected: tuple[int, str, Path])
         session=session,
     )
     page = body.decode()
-    assert "Check your Hebrew" in page
+    assert "Read the Hebrew you write" in page
     assert "hours" in page, "in hours, and never in money"
     assert str(serve.UPLOAD_HOURS) in page
 

@@ -5227,7 +5227,11 @@ def test_a_silent_hebrew_section_offers_its_audio_only_while_the_voice_is_priced
         encoding="utf-8"
     )
     assert 'id="voice-offer"' in offered and 'data-section="1"' in offered
-    assert "Hear this section" in offered and "of your hours" in offered
+    # A cost is credits since 2026-09-23 (design.md §12), and this line counted in raw
+    # English with a hand-rolled plural until then, so it agrees with itself now too.
+    assert "Hear this section" in offered
+    assert "credit" in offered and "of your hours" not in offered
+    assert "1 credits" not in offered
     assert "TargumVoice" in offered, "the press rides in the page"
     assert "http" not in offered.split('id="voice-offer"')[1][:600], "still fetches nothing"
 
