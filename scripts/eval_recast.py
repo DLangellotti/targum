@@ -181,7 +181,7 @@ def reference_rows(
         )
     if reference == "ntrex":
         return article_rows(
-            [(one.id, one.said, one.he) for one in ntrex.load(source)],
+            [(one.id, one.said, one.rendered) for one in ntrex.load(source)],
             max_words or ARTICLE_MAX_WORDS,
         )
     if pool is None:
