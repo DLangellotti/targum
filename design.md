@@ -33,7 +33,8 @@ UI elements may carry the gloss recipe and hover lift in §9. Metallic gold ramp
 everywhere.
 
 **A text that carries media opens as its media.** The player stands and is named; a
-picture is on. Nothing plays until pressed, and the text is still the page. This replaced
+picture is on. Nothing plays until pressed — inside a playlist a swipe is a press, see
+§12 (2026-09-23) — and the text is still the page. This replaced
 "the reader is a reader, not a player" on 2026-09-03 — see §12. What that sentence also
 meant still holds: engagement is welcome, arcade is not. Streaks,
 goals and milestones are a ledger: real counts in serif tabular numbers, leaf for
@@ -346,6 +347,68 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A playlist is swiped, and one press takes the set — 2026-09-23
+
+David, the same day, after a connector found him twelve Hebrew reels and could not bring
+them in: "Once in a playlist they can simply swipe into the next targum super fast, giving
+almost an instagram like feel to it. They won't really even feel like they are learning."
+For YouTube, articles, anything. The first stranger session (2026-09-03) said the product
+feels like work; this is the answer to that from the other side — not less machinery, but
+the machinery arriving one item after another without a decision in between.
+
+It reverses two written rules and adds a thing a reader owns. Each is said here before any
+of it is built.
+
+- **A playlist is the reader's.** An ordered list of texts, kept on the account and not
+  in the browser, with a name. Four hands make one: the connector, targum's own chat, the
+  reader by hand (add to a playlist from any reader or shelf row), and targum, whose own
+  sets — "couples and everyday life", "in the kitchen" — are built once on the shared
+  shelf like the Khan Academy rows and cost the reader nothing to open. A playlist of texts
+  already on the reader's shelf costs nothing either. This is not `series.py`: a series
+  comes out on its own clock, and a playlist is a list somebody made.
+
+- **One press takes a named set.** `video/youtube.py` refuses a playlist address with "A
+  playlist is a queue of separate decisions", and until today every build was a quote and
+  a press. A set now quotes as one: each item named, each with its length and how much of
+  it the reader knows, the total in credits, and one press on targum's page that builds
+  them all. That is still the reader's own hand on targum — "A scope is a press that
+  lasts" (2026-09-22) is the precedent for a press that covers more than one job, and
+  this one covers a list the reader can read before they press. What does **not** change
+  is the harvest guard: a playlist, channel or feed *address* is still refused, because
+  an address names somebody else's list, and the set is a list the reader (or a model on
+  their behalf) wrote out item by item. Every item is still their private import and
+  never the catalogue (#126). A set is capped, at twenty to start — the number is the
+  build's to tune, the cap is not.
+
+- **A swipe is a press.** "Nothing plays until pressed. Autoplay is the arcade's move"
+  ("A text that carries media opens as its media", 2026-09-03) was written for a page
+  that starts itself. Inside a playlist the reader's swipe
+  is their hand choosing the next one, and the next one plays. Nothing plays on arrival
+  — not from a link, not from the bell, not when a playlist is opened; the first item
+  waits for its press like any text. A swipe back plays nothing new.
+
+- **Inside a playlist, a video opens watching.** "A video text opens as its transcript"
+  (2026-09-17) stands for a text opened on its own, where the reader came to read. A
+  reader who swiped into a reel came to watch, so there it opens as the picture with its
+  line on, the way a reel is watched, and one press puts it back to reading. An article
+  opens as its text; the next item is past its end, so a long text is read before it is
+  left, and a swipe mid-text scrolls the text.
+
+- **The end offers more, once.** The last swipe lands on a card: the words met across the
+  set, and one next set chosen for them, quoted like any set and built only on a press.
+  It never refills itself. A feed that tops itself up is the Instagram habit that turns
+  "does not feel like learning" into "does not feel like anything", and a quote that
+  spends is not a thing that happens because a reader kept swiping.
+
+- **Motion stays optional.** The swipe is a gesture, not an animation: under
+  `prefers-reduced-motion` the next item replaces this one with no travel. And every swipe
+  has a key — a visible Next and the arrow keys — because a gesture nobody can find is a
+  control without a job.
+
+What it does not overturn: a quote is information and the model cannot press it; nothing
+that spends happens on a model's decision; engagement yes, arcade no — no counts of reels
+watched, no streak for swiping, and the words met are the only number at the end.
+
 ### The connector talks by the contract — 2026-09-23
 
 The connector shipped with one sentence for the host at `initialize`, and it said what the
@@ -360,6 +423,13 @@ host the contract targum's chat is given (`contract_for`) and the reader's ledge
 (`ledger_block`), free and read-only, and `mcp_http.INSTRUCTIONS` and the `talk` prompt
 send the host to it. It is marked `Tool.elsewhere` and never offered to targum's own
 chat, which holds that contract already.
+
+**The contract is the library's; the words are the record's.** `how_to_talk` is offered
+on the `library` scope, so every connected reader is talked to in Hebrew. The ledger rides
+with it only where `record` was granted (`Ctx.sees_record`), and without it the
+conversation is graded to the commonest words instead of the reader's own — the words and
+the slips are what `record` says it shares, and a tool that carried them past the scope
+would make the approval page a lie.
 
 Three things differ, and only three, because the host writes the replies and there is no
 page of ours to draw them (`tools.ELSEWHERE` says them to the host):
@@ -1867,7 +1937,8 @@ What stands in its place:
   video" above: the picture is not on beside the page, it is the page until the reader
   says otherwise.*
 - **Nothing plays until pressed.** Autoplay is the arcade's move, and a reader on a train
-  is still a reader.
+  is still a reader. *Amended 2026-09-23, see "A playlist is swiped" in §12: inside a
+  playlist a swipe is the press, and the next item plays.*
 - **A text with neither opens exactly as before.** The Tanakh page is untouched by this.
 - **The text is still the page.** The media is how it opens, not what it is: the player
   and the picture stay occupants of the band, and the reading column keeps its measure.
