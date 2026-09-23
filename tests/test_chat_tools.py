@@ -307,6 +307,10 @@ def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
     by_name = {one.name: one for one in tools.REGISTRY}
     assert not [name for name in offered if by_name[name].spends or by_name[name].needs_consent]
     assert "record_turn" not in offered
+    # Nor what exists for a conversation held somewhere else: this one already holds
+    # the contract `how_to_talk` would hand over.
+    assert not [name for name in offered if by_name[name].elsewhere]
+    assert "how_to_talk" not in offered
 
 
 def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypatch) -> None:

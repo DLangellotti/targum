@@ -346,6 +346,42 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The connector talks by the contract — 2026-09-23
+
+The connector shipped with one sentence for the host at `initialize`, and it said what the
+tools were and nothing about how to talk. So a reader who asked Claude for something to
+read in Hebrew was answered in English, about Hebrew: the conversation that targum's own
+chat holds in Hebrew, graded to the reader's own words, did not exist on the one surface
+where somebody else's model writes the replies. David asked for it on 2026-09-23 — "it's
+about immersion".
+
+**One contract, both surfaces, now in the other direction too.** `how_to_talk` hands the
+host the contract targum's chat is given (`contract_for`) and the reader's ledger block
+(`ledger_block`), free and read-only, and `mcp_http.INSTRUCTIONS` and the `talk` prompt
+send the host to it. It is marked `Tool.elsewhere` and never offered to targum's own
+chat, which holds that contract already.
+
+Three things differ, and only three, because the host writes the replies and there is no
+page of ours to draw them (`tools.ELSEWHERE` says them to the host):
+
+- **The translation is asked for, not shown.** On targum's page every `= ` line is
+  folded and a tap opens it. A host cannot fold, so an unfolded line under every Hebrew
+  line would be the in-app conversation with its folding taken away, and the reader
+  would read the English. The tap here is the reader asking: the `= ` line is written
+  for the lines they ask about, or for all of them once they ask for that. A new word
+  still gets its meaning, once, after the reply.
+- **The recast is targum's.** Where the scope that spends is granted, every line the reader
+  writes in the language goes through `record_turn` before the host answers, and the
+  recast it returns is the `> ` line — the host's own correction is never shown as the
+  record's, which is §12's "The host's correction is never the record" read from the
+  page's side.
+- **A door is a link.**
+
+What it does not overturn: never a level; the length; the vocabulary; the host is still a
+host, and a host that ignores the instruction is not something targum can stop. The
+contract is the best a server can do, and the in-app chat stays the one place it is
+guaranteed.
+
 ### A cost is credits, and a credit is a minute — 2026-09-23
 
 Two entries below say a cost is hours. "Price language left the product the same day — the
