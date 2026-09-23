@@ -10867,3 +10867,25 @@ else targumReader();
 
   window.TargumVoice = { POLL: POLL };
 })();
+
+/* Into a playlist (targum-internal#364), from the ⋯ menu.
+ *
+ * Only where the page arrived over a connection: a playlist is kept on the account, and a
+ * reader opened off a disk has none. The address names this reader's folder, read off
+ * where the page is, because the built file does not know the name it is served under.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+  var group = document.getElementById("to-playlist");
+  var link = document.getElementById("more-playlist");
+  var served = /^\/reader\/([^/]+)\/reader\//.exec(location.pathname);
+  if (!group || !link || !served) return;
+  var name = decodeURIComponent(served[1]);
+  var address = "/playlists?add=" + encodeURIComponent(name) +
+    "&title=" + encodeURIComponent(link.getAttribute("data-title") || name);
+  var key = new URLSearchParams(location.search).get("k");
+  if (key) address += "&k=" + encodeURIComponent(key);
+  link.href = address;
+  group.hidden = false;
+})();

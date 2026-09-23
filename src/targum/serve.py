@@ -3450,6 +3450,7 @@ class Handler(BaseHTTPRequestHandler):
     page: str
     adding: str
     progress: str
+    playlists: str
     catalogue: str
     you: str
     #: The conversation page, and the workers that answer it. Empty and None on a
@@ -3553,6 +3554,7 @@ class Handler(BaseHTTPRequestHandler):
             "/progress",
             "/library",
             "/you",
+            "/playlists",
             "/readers",
             "/suggest",
             "/series",
@@ -5249,6 +5251,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
+        if route == "/playlists":
+            page = self._desk("playlists", self.playlists)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/slips":
             # Lines this reader wrote that came back changed (targum-internal#290).
             # Theirs and nobody else's: signed out there is nobody to have any, and the
@@ -8810,6 +8815,7 @@ def start(
         learn_page,
         library_page,
         list_page,
+        playlists_page,
         progress_page,
         you_page,
     )
@@ -8871,6 +8877,7 @@ def start(
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
             "page": learn_page(token, connector=connector_is_open()),
             "you": you_page(token),
+            "playlists": playlists_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "chatting": chat_page(token),
@@ -8884,6 +8891,7 @@ def start(
                     "progress": progress_page(token, language=code),
                     "page": learn_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
+                    "playlists": playlists_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),
                     "chatting": chat_page(token, language=code),

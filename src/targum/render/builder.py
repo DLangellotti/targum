@@ -2301,6 +2301,23 @@ def weekly_note(
     )
 
 
+def playlists_page(token: str, language: str = "en") -> str:
+    """Your playlists, and the sheet a shelf row and a reader's ⋯ menu open
+    (targum-internal#364). Built like the other app pages: the server hands over the page
+    and the browser asks for the reader's own playlists."""
+    return (
+        _environment()
+        .get_template("playlists.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "playlists."),
+            token=token,
+            languages=_language_names(language),
+        )
+    )
+
+
 def you_page(token: str, language: str = "en") -> str:
     """Who you are, how you read, and the two things that end an account.
 

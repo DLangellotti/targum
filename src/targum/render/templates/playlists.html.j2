@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("playlists.page.title-targum", "Your playlists — targum") }}</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}{{ asset('playlists.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+<body class="words you playlists">
+{% set here = 'playlists' %}{% set title = t("playlists.page.title", "Your playlists") %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+{#- A playlist is the reader's (targum-internal#364; design.md §12, "A playlist is swiped,
+    and one press takes the set", 2026-09-23): texts kept in an order, to go through one
+    after another. This page keeps them; the swipe that goes through them is #366. -#}
+<main>
+  <section class="panel" id="stranger" hidden>
+    <p class="note">{{ t("playlists.page.sign-in", "Sign in from the corner and we'll show your playlists here.") }}</p>
+  </section>
+
+  {#- Reached from a shelf row or a reader's ⋯ menu with `?add=<name>&title=<title>`: the
+      one sheet both doors open. Every playlist is a button, and a new one is a name. -#}
+  <section class="panel" id="adding" hidden aria-labelledby="adding-head">
+    <h2 id="adding-head"></h2>
+    <ul class="choose" id="choose"></ul>
+    <form class="new-list" id="new-list">
+      <label class="field">
+        <span>{{ t("playlists.page.new-playlist", "New playlist") }}</span>
+        <input type="text" id="new-name" maxlength="80" dir="auto" autocomplete="off"
+               placeholder="{{ t("playlists.page.name-it", "Name it") }}">
+      </label>
+      <button type="submit" class="go-quiet">{{ t("playlists.page.make-it", "Make it") }}</button>
+    </form>
+    <p class="said" id="adding-said" role="status" hidden></p>
+  </section>
+
+  <section class="panel" id="lists" hidden>
+    <h2>{{ t("playlists.page.title", "Your playlists") }}</h2>
+    <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "You have no playlists yet. Add a text to one from your shelf or from its ⋯ menu.") }}</p>
+    <div id="playlists"></div>
+    <p class="said" id="lists-said" role="status" hidden></p>
+  </section>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('lang.js') }}</script>
+<script>{{ asset('sync.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('playlists.js') }}</script>
+</body>
+</html>
