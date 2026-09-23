@@ -1588,8 +1588,8 @@ SEED = ("ruth", "sport-holon-basketball")
 
 
 def seeds() -> list[str]:
-    """Every id `targum seed` builds: the two above, every scene, and the first text of
-    every ordered collection.
+    """Every id `targum seed` builds: the two above, every scene, the first text of
+    every ordered collection, one text per subject, and every member of a swipe set.
 
     The scenes are the modern reader's path — Learn opens a new account on Scene 1 and
     offers the next after each finish — and a path with a gap in it is a row of build
@@ -1652,6 +1652,16 @@ def seeds() -> list[str]:
         )
         out.append(easiest.id)
         covered |= set(easiest.tags)
+
+    # **Every member of targum's own playlists** (targum-internal#368). A swipe set is
+    # offered only where its members are built on the shared shelf, and opening one
+    # spends nothing, so a member left unbuilt is a member nobody is ever shown. Whole
+    # sets, unlike the tracks above, because a playlist is swiped end to end and is
+    # capped at a playlist's worth.
+    from .accounts import MOST_IN_PLAYLIST
+
+    for group in catalogue_module.swipe_sets():
+        out.extend(group.members[:MOST_IN_PLAYLIST])
 
     # Stable, and each id once: a collection's head may be one of the two above.
     return list(dict.fromkeys(out))
