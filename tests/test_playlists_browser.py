@@ -145,7 +145,7 @@ def test_a_playlist_lists_its_texts_in_order_with_its_keys(browser, tmp_path: Pa
     assert not thrown, thrown
     assert got == {
         "sheet": True,
-        "start": "/reader/cheese/reader/index.html?k=test-key",
+        "start": "/reader/cheese/reader/index.html?list=1&at=0&k=test-key",
         "titles": ["Cheese swirls", "Raiba"],
         "upFirst": True,
         "downLast": True,

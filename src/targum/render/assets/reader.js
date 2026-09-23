@@ -8905,6 +8905,15 @@ var targumReader = function () {
   });
 
   window.TargumReader = {
+    // Whether the reader is on its last page and its first, for a playlist deciding
+    // whether a swipe leaves the item or turns within it (targum-internal#366). A text
+    // that is not paged answers yes to both, and the scroll decides.
+    onLastPage: function () {
+      return !paged() || !pages.length || current >= pages.length - 1;
+    },
+    onFirstPage: function () {
+      return !paged() || current <= 0;
+    },
     where: where,
     placeNear: placeNear,
     stopHover: stopHover,
@@ -10718,9 +10727,22 @@ var targumReader = function () {
       var keptSize = parseFloat(localStorage.getItem(SIZE_STORE));
       if (keptSize > 0 && keptSize <= 1) size = keptSize;
     } catch (e) {}
+    /* Inside a playlist the picture is the item (design.md §12, 2026-09-23): a reader
+       who swiped into a reel came to watch it. So it opens watching, whatever this
+       text's own stores say — and writes neither of them, so the text opened on its own
+       later still opens the way its reader left it. `go` is the swipe that brought the
+       reader here, which was the press; opened any other way, nothing plays. */
+    var inList = false;
+    var swipedHere = false;
+    try {
+      var listed = new URLSearchParams(location.search);
+      inList = /^https?:$/.test(location.protocol) && /^\d+$/.test(listed.get("list") || "");
+      swipedHere = inList && listed.get("go") === "1";
+    } catch (e) {}
     setCorner(where, false);
-    showVideo(!putAway, false);
-    showWatch(!putAway && wantsFullScreen, false);
+    showVideo(inList || !putAway, false);
+    showWatch(inList || (!putAway && wantsFullScreen), false);
+    if (swipedHere) toggleScene();
   }
 
   /* The video's home, opened at the line in front of the reader. The sidecar stays
