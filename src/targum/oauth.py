@@ -189,6 +189,21 @@ def check_redirect(given: str, registered: list[str]) -> str:
     raise OAuthError("invalid_request", "That redirect is not one this client registered.")
 
 
+def origin_of(redirect: str) -> str:
+    """The scheme and host a redirect goes to, for the page's `form-action`.
+
+    An origin and never the whole URL: a policy naming a path would be a policy that
+    breaks the moment a client adds a query, and `form-action` matches on origin anyway.
+    Empty for anything that is not an absolute http(s) URL, which `check_redirect` has
+    already refused by the time this is asked — so a caller that somehow reaches here
+    with one widens the policy by nothing rather than by a value it did not check.
+    """
+    parsed = urlparse(redirect)
+    if parsed.scheme not in ("https", "http") or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def check_registration(payload: dict[str, Any]) -> tuple[str, list[str]]:
     """What a dynamic registration is allowed to say (RFC 7591).
 
@@ -388,6 +403,7 @@ __all__ = [
     "describe_scopes",
     "granted",
     "known_scopes",
+    "origin_of",
     "protected_resource",
     "protocol_version",
     "read_request",

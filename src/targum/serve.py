@@ -3594,7 +3594,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._person() is not None
 
     @staticmethod
-    def _policy(body: bytes, frames: str = "") -> str:
+    def _policy(body: bytes, frames: str = "", forms: str = "") -> str:
         """The content policy for one page, naming its own inline blocks by hash.
 
         A page that holds an `<iframe>` may frame its own origin — read off the page as
@@ -3617,6 +3617,22 @@ class Handler(BaseHTTPRequestHandler):
             hashes.append(f"'sha256-{digested}'")
         allowed = " ".join(dict.fromkeys(hashes))
         policy = POLICY
+        if forms:
+            # `form-action` is enforced on the *redirect*, not only on the action URL —
+            # Chrome has checked the whole chain since 2016. The approval page posts to
+            # this origin and is answered with a 303 to the client's callback, so
+            # `'self'` alone lets the POST leave and then silently refuses to follow the
+            # answer: the reader presses Connect and the page sits there, with no
+            # network entry and nothing in the console that a page script can see.
+            #
+            # No test could have caught it. The suite drives this flow over
+            # `HTTPConnection`, where no policy exists, and a policy is a browser's rule
+            # (targum-internal#80, found on the box 2026-09-23).
+            #
+            # What is named here is the one redirect already checked against what the
+            # client registered — never a value off the request — so this widens the
+            # policy by exactly the origin the reader was shown and no further.
+            policy = policy.replace("form-action 'self'", f"form-action 'self' {forms}")
         if frames == "out":
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
@@ -3645,6 +3661,7 @@ class Handler(BaseHTTPRequestHandler):
         cache: str = "no-store",
         frames: str = "",
         cookie: str = "",
+        forms: str = "",
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
@@ -3652,7 +3669,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
         # by their hash, so it has to be taken before the bytes are compressed.
-        policy = self._policy(body, frames) if kind.startswith("text/html") else None
+        policy = self._policy(body, frames, forms) if kind.startswith("text/html") else None
         zipped = self._worth_zipping(body, kind)
         if zipped:
             body = gzip.compress(body, 6)
@@ -7002,7 +7019,10 @@ class Handler(BaseHTTPRequestHandler):
             redirect=redirect,
             language=self._page_language(),
         )
-        self._send(200, page.encode("utf-8"), HTML)
+        # The press is answered with a 303 to the client's callback, and a policy of
+        # `'self'` alone refuses to follow it — see `_policy`. Only this redirect, which
+        # `check_redirect` has already matched against what the client registered.
+        self._send(200, page.encode("utf-8"), HTML, forms=oauth.origin_of(redirect))
 
     def _oauth_approve(self, form: dict[str, str]) -> None:
         """The press. Mints one code and sends the client back to itself.

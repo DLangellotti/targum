@@ -654,3 +654,55 @@ def test_every_door_is_shut_while_the_connector_is_off(
     finally:
         if was is not None:
             os.environ["TARGUM_CONNECTOR"] = was
+
+
+def test_the_approval_page_lets_the_press_reach_the_client(
+    connected: tuple[int, str, Path],
+) -> None:
+    """`form-action` is enforced on the redirect, not only on the action URL. With
+    `'self'` alone the POST leaves and Chrome silently refuses to follow the 303 to the
+    client's callback — the reader presses Connect and the page sits there, with nothing
+    in the network log and nothing a page script can see.
+
+    Found on the box on 2026-09-23 and invisible to every test before this one: the
+    suite drives this flow over `HTTPConnection`, where no policy exists.
+    """
+    port, session, _ = connected
+    client_id = a_client(port)
+    _, challenge = pkce()
+    status, _, headers = get(
+        port, f"/oauth/authorize?{an_authorize(client_id, challenge)}", session=session
+    )
+    assert status == 200
+    policy = headers["content-security-policy"]
+    said = next(one.strip() for one in policy.split(";") if one.strip().startswith("form-action"))
+    assert said == "form-action 'self' https://claude.ai", said
+
+
+def test_only_that_one_redirect_is_named(connected: tuple[int, str, Path]) -> None:
+    """The origin comes from what `check_redirect` matched against the registration,
+    never from the request — so the policy widens by exactly what the reader was shown."""
+    port, session, _ = connected
+    client_id = a_client(port, ["https://example.test/cb"])
+    _, challenge = pkce()
+    query = urlencode(
+        {
+            "response_type": "code",
+            "client_id": client_id,
+            "redirect_uri": "https://example.test/cb",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "scope": "library",
+        }
+    )
+    _, _, headers = get(port, f"/oauth/authorize?{query}", session=session)
+    policy = headers["content-security-policy"]
+    assert "form-action 'self' https://example.test" in policy
+    assert "claude.ai" not in policy
+
+
+def test_every_other_page_keeps_the_narrow_policy(connected: tuple[int, str, Path]) -> None:
+    port, _, _ = connected
+    _, _, headers = get(port, "/connect")
+    policy = headers["content-security-policy"]
+    assert "form-action 'self';" in policy or policy.rstrip().endswith("form-action 'self'")
