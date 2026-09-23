@@ -264,3 +264,29 @@ def test_the_words_drawn_stop_at_what_was_asked_for() -> None:
     assert align.words_of("xx", 5) == [], "a language with no lines draws nothing"
     for code in ("he", "fr", "ru", "it"):
         assert len(align.words_of(code, 999)) >= 20, f"{code} has enough to measure with"
+
+
+def test_the_two_ends_of_a_recast_run_never_share_a_ledger_line() -> None:
+    """`ntrex-128-ru` means a Russian speaker's turn against the Hebrew reference
+    (targum-internal#286). An English turn against the Russian reference is a different
+    measurement, and two of those on one trend line would each look like the other
+    moving — which is the whole reason `corpus_of` exists (#357)."""
+    import importlib.util
+    from pathlib import Path
+
+    where = Path(__file__).resolve().parents[1] / "scripts" / "eval_recast.py"
+    spec = importlib.util.spec_from_file_location("eval_recast", where)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    said = {
+        module.corpus_of("ntrex", "en", "he"),
+        module.corpus_of("ntrex", "ru", "he"),
+        module.corpus_of("ntrex", "en", "ru"),
+        module.corpus_of("ntrex", "en", "fr"),
+    }
+    assert len(said) == 4, said
+    assert module.corpus_of("ntrex", "en", "he") == "ntrex-128", "the default keeps its name"
+    assert module.corpus_of("ntrex", "ru", "he") == "ntrex-128-ru", "#286's line is unmoved"
+    assert module.corpus_of("ntrex", "en", "ru") == "ntrex-128-in-ru"
