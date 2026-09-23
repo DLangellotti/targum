@@ -144,6 +144,38 @@
     "why": "1 of 200 on 2026-09-15; a count, not a rate"
   },
   {
+    "stage": "recast",
+    "corpus": "ntrex-128-in-fr",
+    "metric": "judge_ok_share",
+    "system": "chat",
+    "at_least": 0.25,
+    "why": "0.415 on 2026-09-23 over 200 pairs, exemplars off, the first French run (targum-internal#282). Well over Hebrew's 0.09 on the same corpus and the same judge, so the floor is not Hebrew's: a floor for a collapse, not a ranking"
+  },
+  {
+    "stage": "recast",
+    "corpus": "ntrex-128-in-fr",
+    "metric": "unpaired",
+    "system": "chat",
+    "at_most": 5,
+    "why": "0 of 200 on 2026-09-23; a count, not a rate"
+  },
+  {
+    "stage": "recast",
+    "corpus": "ntrex-128-in-ru",
+    "metric": "judge_ok_share",
+    "system": "chat",
+    "at_least": 0.2,
+    "why": "0.350 on 2026-09-23 over 200 pairs, exemplars off, the first Russian run against this corpus (targum-internal#283). Tatoeba's Russian floor is 0.35 for a different reference; this one is NTREX's news register, where every dropped clause of a long sentence counts against a recast graded to a 300-word reader"
+  },
+  {
+    "stage": "recast",
+    "corpus": "ntrex-128-in-ru",
+    "metric": "unpaired",
+    "system": "chat",
+    "at_most": 5,
+    "why": "0 of 200 on 2026-09-23; a count, not a rate"
+  },
+  {
     "stage": "grading",
     "corpus": "",
     "metric": "outside_share",

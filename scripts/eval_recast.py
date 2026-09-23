@@ -65,6 +65,7 @@ import json
 import random
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -74,10 +75,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from targum import evals  # noqa: E402
 from targum.annotate import lemma  # noqa: E402
 from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
-from targum.chat import CHAT_MODEL, EFFORT, exemplars, flores, hebrew, ntrex, prompts  # noqa: E402
+from targum.chat import (  # noqa: E402
+    CHAT_MODEL,
+    EFFORT,
+    MAX_TOKENS,
+    exemplars,
+    flores,
+    flores200,
+    hebrew,
+    ntrex,
+    prompts,
+)
 from targum.level import EMPTY  # noqa: E402
 from targum.models import Segment  # noqa: E402
 from targum.translate.anthropic_provider import output_config  # noqa: E402
+from targum.translate.prompts import language_name  # noqa: E402
 from targum.usage import Usage  # noqa: E402
 from targum.vocalize.base import strip_nikkud  # noqa: E402
 
@@ -91,11 +103,18 @@ MAX_WORDS = 12
 ARTICLE_MAX_WORDS = 30
 
 #: What each reference is called in the ledger. Three references are three lines.
-CORPUS = {"tatoeba": "tatoeba", "flores": "flores-plus", "ntrex": "ntrex-128"}
+CORPUS = {
+    "tatoeba": "tatoeba",
+    "flores": "flores-plus",
+    "ntrex": "ntrex-128",
+    # Not FLORES+: its ungated predecessor, and the only reference carrying Yiddish.
+    # Comparable to published FLORES-200 numbers, only approximately to FLORES+ ones.
+    "flores200": "flores-200",
+}
 
 
-def corpus_of(reference: str, source: str) -> str:
-    """The ledger's name for this run, carrying the source language when it is not English.
+def corpus_of(reference: str, source: str, language: str = "he") -> str:
+    """The ledger's name for this run, carrying either end when it is not the default.
 
     `evals.Row.key()` is (stage, corpus, metric) and nothing else, so a Russian run filed
     under `ntrex-128` would share a trend line with the English one and each would look
@@ -104,6 +123,13 @@ def corpus_of(reference: str, source: str) -> str:
     to score worse — so it gets a line of its own rather than muddying that one.
     """
     name = CORPUS[reference]
+    if language != "he":
+        # The conversation's own language, and it must not collide with the source
+        # suffix below. `ntrex-128-ru` already means "a Russian speaker's turn against
+        # the Hebrew reference" (#286); "an English turn against the Russian reference"
+        # is a different measurement entirely, and two of those on one trend line is the
+        # fault this function exists to prevent. So the target end says `in`.
+        name = f"{name}-in-{language}"
     return name if source == "en" else f"{name}-{source}"
 
 
@@ -171,7 +197,12 @@ def article_rows(
 
 
 def reference_rows(
-    reference: str, pool: Path | None, split: str, max_words: int | None, source: str = "en"
+    reference: str,
+    pool: Path | None,
+    split: str,
+    max_words: int | None,
+    source: str = "en",
+    language: str = "he",
 ) -> list[dict[str, Any]]:
     """The rows the eval draws from, by reference."""
     if reference == "flores":
@@ -181,7 +212,12 @@ def reference_rows(
         )
     if reference == "ntrex":
         return article_rows(
-            [(one.id, one.said, one.rendered) for one in ntrex.load(source)],
+            [(one.id, one.said, one.rendered) for one in ntrex.load(source, language)],
+            max_words or ARTICLE_MAX_WORDS,
+        )
+    if reference == "flores200":
+        return article_rows(
+            [(one.id, one.en, one.he) for one in flores200.load(language, split)],
             max_words or ARTICLE_MAX_WORDS,
         )
     if pool is None:
@@ -196,12 +232,12 @@ def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, 
     return fit[:count]
 
 
-def content_lemmas(reader: lemma.Lemmatizer, lines: list[str]) -> list[set[str]]:
+def content_lemmas(reader: lemma.Lemmatizer, lines: list[str], into: str = "he") -> list[set[str]]:
     segments = [
         Segment(id=f"s{n}", block_id="eval", block_index=0, index=n, text=strip_nikkud(line)[0])
         for n, line in enumerate(lines)
     ]
-    read = reader.lemmas(segments, "he") if any(line.strip() for line in lines) else {}
+    read = reader.lemmas(segments, into) if any(line.strip() for line in lines) else {}
     return [
         {
             token.lemma
@@ -218,17 +254,27 @@ def jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
-def recast(client: object, system: list[dict[str, str]], said: str, usage: Usage) -> str:
+def recast(
+    client: object,
+    system: list[dict[str, str]],
+    said: str,
+    usage: Usage,
+    into: str = "he",
+) -> str:
     reply = client.messages.create(  # type: ignore[attr-defined]
         model=CHAT_MODEL,
-        max_tokens=600,
+        # What the chat gives a turn. It was 600, which fitted Hebrew, French and
+        # Russian and did not fit pointed Yiddish — dense enough to run past the cap,
+        # come back `stop_reason=max_tokens`, and never write the `> ` line at all.
+        # That scored as the contract failing (targum-internal#359).
+        max_tokens=MAX_TOKENS,
         system=system,
         messages=[{"role": "user", "content": said}],
         **output_config(CHAT_MODEL, EFFORT),
     )
     usage.add(CHAT_MODEL, reply.usage.input_tokens, reply.usage.output_tokens)
     text = "".join(getattr(block, "text", "") for block in reply.content)
-    for pair in hebrew.pairs(text):
+    for pair in hebrew.pairs(text, into):
         if pair.recast:
             return pair.hebrew
     return ""
@@ -242,6 +288,7 @@ def judge(
     usage: Usage,
     model: str = JUDGE_MODEL,
     language: str = "English",
+    named: str = "Hebrew",
 ) -> tuple[str, str]:
     """ "yes", "no", or "none" where the judge wrote nothing — counted apart, never as a
     no: the first run counted empty replies as wrong and the number could not be read."""
@@ -252,7 +299,11 @@ def judge(
             {
                 "role": "user",
                 "content": JUDGE.format(
-                    language=language, said=said, reference=reference, candidate=candidate
+                    named=named,
+                    language=language,
+                    said=said,
+                    reference=reference,
+                    candidate=candidate,
                 ),
             }
         ],
@@ -301,16 +352,38 @@ def main() -> None:
         "--save", type=Path, help="write every pair, recast and verdict here, JSONL"
     )
     parser.add_argument("--judge", default=JUDGE_MODEL, help="the model that scores the recast")
+    parser.add_argument(
+        "--into",
+        default="he",
+        choices=sorted({*hebrew.CONTRACTS, "he"}),
+        help="the language the conversation is held in; its contract is what is measured",
+    )
     args = parser.parse_args()
 
     import anthropic
 
-    common = hebrew.common_words()
-    if not common:
+    into = args.into
+    named = language_name(into)
+    if into != "he" and args.reference not in ("ntrex", "flores200"):
+        sys.exit(
+            f"{named} is scored against NTREX-128 (--reference ntrex) or FLORES-200 "
+            "(--reference flores200). Tatoeba's pool is Hebrew and Russian, and FLORES+ "
+            "needs a Hugging Face token."
+        )
+    if args.reference == "ntrex" and not ntrex.carried(into):
+        sys.exit(f"NTREX-128 has no {named}. FLORES-200 does: --reference flores200.")
+    common = hebrew.common_words(language=into)
+    if not common and not hebrew.common_words():
         sys.exit("wordfreq is not installed: uv sync --extra difficulty")
+    if not common:
+        # wordfreq has no list for this language — Yiddish and Aramaic are such
+        # languages. Production behaves the same way: the prompt stands on the ledger
+        # alone. Scoring against a different prompt would measure what nobody ships
+        # (targum-internal#360).
+        print(f"  wordfreq has no {named} list; the prompt stands on the ledger alone")
     known = common[: args.known]
     allowed = set(common) | set(known)
-    ledger = hebrew.ledger_block(EMPTY, known, common)
+    ledger = hebrew.ledger_block(replace(EMPTY, language=into), known, common)
 
     if args.exemplars and args.pool is None:
         sys.exit("--exemplars rides the Tatoeba pool: name it with --pool")
@@ -320,12 +393,12 @@ def main() -> None:
         # rather than ignored. Tatoeba carries Russian once `tatoeba_russian.py` has run,
         # and the guard for that is on the rows themselves, below.
         sys.exit(f"--source {args.source} is not available for FLORES+; use ntrex or tatoeba")
-    rows = reference_rows(args.reference, args.pool, args.split, args.max_words, args.source)
+    rows = reference_rows(args.reference, args.pool, args.split, args.max_words, args.source, into)
     chosen = sample(rows, args.pairs, args.seed)
     if not chosen:
         if args.reference != "tatoeba":
             sys.exit(
-                f"no {corpus_of(args.reference, args.source)} pairs; "
+                f"no {corpus_of(args.reference, args.source, into)} pairs; "
                 f"run targum models fetch {args.reference}"
             )
         if args.source != "en":
@@ -368,10 +441,10 @@ def main() -> None:
             if picked:
                 block = ledger + "\n\n" + exemplars.block(picked)
         system = [
-            {"type": "text", "text": prompts.SYSTEM + "\n\n" + hebrew.CONTRACT},
+            {"type": "text", "text": prompts.SYSTEM + "\n\n" + hebrew.contract_for(into)},
             {"type": "text", "text": block},
         ]
-        candidates.append(recast(client, system, str(row["said"]), usage))
+        candidates.append(recast(client, system, str(row["said"]), usage, into))
         if args.save:
             args.save.parent.mkdir(parents=True, exist_ok=True)
             with args.save.open("a", encoding="utf-8") as out:
@@ -394,8 +467,8 @@ def main() -> None:
     # The lemmatizer is loaded after the turns and dropped before the judging, so the
     # model is not held in memory through four hundred API calls.
     reader = lemma.for_source("chat:eval")
-    got = content_lemmas(reader, candidates)
-    want = content_lemmas(reader, references)
+    got = content_lemmas(reader, candidates, into)
+    want = content_lemmas(reader, references, into)
     del reader
     overlaps = [jaccard(a, b) for a, b in zip(got, want, strict=True)]
     unpaired = sum(1 for line in candidates if not line)
@@ -414,6 +487,7 @@ def main() -> None:
                 usage,
                 args.judge,
                 ntrex.NAMED.get(args.source, args.source),
+                named,
             )
         )
         if (n + 1) % 20 == 0:
@@ -445,7 +519,7 @@ def main() -> None:
                 )
 
     print(
-        f"{len(chosen)} pairs against {corpus_of(args.reference, args.source)}, "
+        f"{len(chosen)} pairs against {corpus_of(args.reference, args.source, into)}, "
         f"exemplars {'on' if args.exemplars else 'off'}, known={args.known}"
     )
     print(
@@ -469,7 +543,7 @@ def main() -> None:
         + (f" split={args.split}" if args.reference == "flores" else "")
         + (f" source={args.source}" if args.source != "en" else "")
     )
-    corpus = corpus_of(args.reference, args.source)
+    corpus = corpus_of(args.reference, args.source, into)
     rows_out = [
         evals.Row(
             today,
