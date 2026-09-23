@@ -203,10 +203,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    order, to swipe through (targum-internal#364; design.md §12, 2026-09-23). New tables,
 #    so `CREATE TABLE IF NOT EXISTS` is the whole of it.
 #
+# 32→33: playlist.next_set — the one set a finished playlist offered at its end
+#    (targum-internal#367; design.md §12, 2026-09-23: the end offers more, once, and never
+#    refills itself). Remembered so a second visit to the end shows the same set rather
+#    than quoting another. 0 means one was looked for and none could be made.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 32
+SCHEMA_VERSION = 33
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -436,6 +441,10 @@ MIGRATIONS: tuple[str, ...] = (
     # library the same reader had in Russian. Empty means English, which is what every
     # row written before this held in fact.
     "ALTER TABLE follow ADD COLUMN language TEXT NOT NULL DEFAULT ''",
+    # The set a finished playlist offered at its end (targum-internal#367): NULL until
+    # the end is reached, then the playlist it quoted, or 0 when none could be made. A
+    # column on a table that exists on the box since #364, so it is added here.
+    "ALTER TABLE playlist ADD COLUMN next_set INTEGER",
 )
 
 SCHEMA = """
@@ -3530,6 +3539,26 @@ class Store:
         out = dict(row)
         out["items"] = [{**dict(item), "failed": bool(item["failed"])} for item in items]
         return out
+
+    def next_set(self, person_id: int, playlist_id: int) -> int | None:
+        """The set this playlist offered at its end: a playlist id, 0 when one was looked
+        for and none could be made, or None when its end has not been reached yet."""
+        row = self.db.execute(
+            "SELECT next_set FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+            (playlist_id, person_id),
+        ).fetchone()
+        return None if row is None or row["next_set"] is None else int(row["next_set"])
+
+    def offer_next_set(self, person_id: int, playlist_id: int, next_id: int) -> bool:
+        """Remember the one set a playlist's end offered, once. False when it had one
+        already — the first writer keeps it, so two visits at once cannot offer two."""
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE playlist SET next_set = ? WHERE id = ? AND person = ? AND gone = 0"
+                " AND next_set IS NULL",
+                (next_id, playlist_id, person_id),
+            )
+        return done.rowcount > 0
 
     def add_to_playlist(
         self,

@@ -18,8 +18,10 @@
  *  - **No travel under reduced motion**, and nothing here animates in any case: the next
  *    item replaces this one.
  *
- * What comes after the last item is #367's: the end card. This file shows
- * `aside#list-end` there, empty, and fills nothing in it.
+ * What comes after the last item is the end card (#367): `aside#list-end`, filled from
+ * `/playlists/<id>/end.json` the first time it is shown — the words met across the set,
+ * and one next set to press on its own page. It offers that once and loads nothing
+ * after it: the end never refills itself.
  */
 (function () {
   "use strict";
@@ -132,6 +134,61 @@
     return true;
   }
 
+  /* The end card, once (#367): real counts and one door, and nothing that loads more. */
+  function drawEnd(end, said) {
+    var words = said && said.words;
+    if (words && words.met) {
+      var met = document.createElement("p");
+      met.className = "list-end-words";
+      met.textContent = words.new
+        ? tn(
+            "reader.list.end-words-new",
+            words.met,
+            "You met {n} word here, {new} of them new to you.",
+            "You met {n} words here, {new} of them new to you.",
+            { new: words.new }
+          )
+        : tn(
+            "reader.list.end-words",
+            words.met,
+            "You met {n} word here.",
+            "You met {n} words here."
+          );
+      end.appendChild(met);
+    }
+    var next = said && said.next;
+    if (next && next.open) {
+      var lead = document.createElement("p");
+      lead.className = "list-end-lead";
+      lead.textContent = t("reader.list.end-next", "We put together a next set for you.");
+      end.appendChild(lead);
+      var door = document.createElement("a");
+      door.className = "list-end-next";
+      door.href = keyed(String(next.open));
+      door.textContent = tn(
+        "reader.list.end-next-door",
+        next.count || 0,
+        "{name}, {n} text",
+        "{name}, {n} texts",
+        { name: String(next.name || "") }
+      );
+      end.appendChild(door);
+    }
+  }
+  var ended = false;
+  function fillEnd(end) {
+    if (ended) return;
+    ended = true;
+    fetch(keyed("/playlists/" + list + "/end.json"), { credentials: "same-origin" })
+      .then(function (answer) {
+        return answer.ok ? answer.json() : null;
+      })
+      .then(function (said) {
+        if (said) drawEnd(end, said);
+      })
+      .catch(function () {});
+  }
+
   function showEnd() {
     var end = document.getElementById("list-end");
     if (!end) return false;
@@ -143,6 +200,7 @@
       var mode = box && box.classList.contains("watching") ? box.querySelector(".video-mode") : null;
       if (mode) mode.click();
       if (end.scrollIntoView) end.scrollIntoView({ block: "start" });
+      fillEnd(end);
       document.dispatchEvent(new CustomEvent("targum:list-end", { detail: { list: list } }));
     }
     return true;

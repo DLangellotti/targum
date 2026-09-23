@@ -3530,6 +3530,11 @@ def _forget_cookie(name: str) -> str:
 SENT = "Thanks. Check your email."
 
 
+#: One end card at a time decides its playlist's next set, so two visits at once cannot
+#: quote two (targum-internal#367). The store's guard is the second line of that.
+_ENDING = threading.Lock()
+
+
 def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
     """A playlist as `/playlists/<id>.json` says it: each text with the address it opens
     at, and `null` for one still being made or one that could not be (#364, #366)."""
@@ -5388,6 +5393,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"slips": oldest})
         if route == "/playlists.json":
             return self._playlists_get(None)
+        if route.startswith("/playlists/") and route.endswith("/end.json"):
+            return self._playlist_end(route[len("/playlists/") : -len("/end.json")])
         if route.startswith("/playlists/") and route.endswith(".json"):
             return self._playlists_get(route[len("/playlists/") : -len(".json")])
         if route == "/readers":
@@ -6662,6 +6669,142 @@ class Handler(BaseHTTPRequestHandler):
         if "error" in opened:
             return self._json({"error": "not found"}, 404)
         return self._json(playlist_answer(opened))
+
+    def _playlist_end(self, which: str) -> None:
+        """What a finished playlist says at its end (targum-internal#367).
+
+        design.md §12, "A playlist is swiped, and one press takes the set": the end
+        offers more, once, and never refills itself. So two things and no more — the
+        words met across the set, as real counts, and one next set, quoted the first
+        time the end is reached and remembered after that. The quote spends nothing; the
+        set is built only when the reader presses it on its own page.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
+        if found is None:
+            return self._json({"error": "not found"}, 404)
+        playlist_id = int(found["id"])
+        folders = self._built_folders(found)
+        language = next((lang for _, lang in folders if lang), "") or "he"
+        with _ENDING:
+            offered = self.store.next_set(person.id, playlist_id)
+            if offered is None:
+                offered = self._quote_next_set(person, found, language)
+                if not self.store.offer_next_set(person.id, playlist_id, offered) and offered:
+                    # Somebody else's visit got there first; theirs is the one offered.
+                    self.store.drop_playlist(person.id, offered)
+                    offered = self.store.next_set(person.id, playlist_id) or 0
+        return self._json(
+            {
+                "words": self._words_met(person, folders),
+                "next": self._next_set_answer(person.id, offered),
+            }
+        )
+
+    def _built_folders(self, found: dict[str, Any]) -> list[tuple[Path, str]]:
+        """Each built item's folder, and the language its text is in. A reader's own
+        texts first, then the shared shelf, where a set can also point."""
+        out: list[tuple[Path, str]] = []
+        home = self._home()
+        for item in found.get("items") or []:
+            name = str(item.get("reader") or "")
+            if not name or item.get("failed") or "/" in name or name.startswith("."):
+                continue
+            for root in (home, self.library.shared):
+                folder = root / name
+                document = folder / "document.json"
+                if not document.is_file():
+                    continue
+                try:
+                    language = str(
+                        json.loads(document.read_text(encoding="utf-8")).get("language") or ""
+                    )
+                except (OSError, json.JSONDecodeError, AttributeError):
+                    language = ""
+                out.append((folder, language.split("-")[0].lower()))
+                break
+        return out
+
+    def _words_met(self, person: Person, folders: list[tuple[Path, str]]) -> dict[str, int] | None:
+        """How many distinct words the set held, and how many of them the reader had never
+        marked in any way — `coverage.lemmas` over each built text, so no model runs. None
+        where no text in it carries word-level annotation: saying nothing beats a zero."""
+        from . import coverage
+
+        met: set[tuple[str, str]] = set()
+        for folder, language in folders:
+            met.update((language, lemma) for lemma in coverage.lemmas(folder))
+        if not met:
+            return None
+        marked: dict[str, dict[str, int]] = {}
+        new = 0
+        for language, lemma in met:
+            if language not in marked:
+                marked[language] = self.store.marked(person, language)
+            if lemma not in marked[language]:
+                new += 1
+        return {"met": len(met), "new": new}
+
+    def _quote_next_set(self, person: Person, found: dict[str, Any], language: str) -> int:
+        """Quote the one set a playlist's end offers, and say which playlist it is, or 0.
+
+        Chosen the way `suggest_next` chooses — the library texts this reader has not
+        brought in, gentlest first by what they already know — in the set's language,
+        five at most. `quote_set` makes the playlist and prices it; nothing is claimed.
+        """
+        from .chat import tools as tools_module
+
+        ctx = tools_module.Ctx(
+            person=person,
+            home=self._home(),
+            library=self.library,
+            store=self.store,
+            chat_id="",
+            level=level_module.snapshot(self.store, person.id, language),
+            reads=self._reads(),
+            learning=self._learning(),
+            admin=self.store.is_admin(person.email),
+        )
+        try:
+            picked = tools_module.suggest_next(ctx, {"language": language, "limit": 5})
+            rows = picked.get("suggestions") or []
+            if not rows:
+                return 0
+            quoted = tools_module.quote_set(
+                ctx,
+                {
+                    "name": self._say(
+                        "playlists.next-name", "After {name}", name=str(found.get("name") or "")
+                    ),
+                    "items": [
+                        {"catalogue_id": row["id"], "title": str(row.get("title") or "")}
+                        for row in rows
+                        if row.get("id")
+                    ],
+                },
+            )
+        except Exception:  # noqa: BLE001 - an end card with no offer is still an end card
+            log.exception("could not quote the next set for playlist %s", found.get("id"))
+            return 0
+        made = (quoted.get("set") or {}).get("id")
+        return int(made) if made else 0
+
+    def _next_set_answer(self, person_id: int, offered: int) -> dict[str, Any] | None:
+        """The offered set as the end card draws it, or None: none was made, or the
+        reader has since taken it away."""
+        if not offered:
+            return None
+        found = self.store.playlist(person_id, offered)
+        if found is None:
+            return None
+        return {
+            "id": found["id"],
+            "name": found["name"],
+            "count": len(found.get("items") or []),
+            "open": f"/set/{found['id']}",
+        }
 
     def _playlists_post(self, which: str | None, payload: dict[str, Any]) -> None:
         """Make a playlist, or change one: add a text, move one, take one out, rename it,
