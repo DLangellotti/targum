@@ -39,6 +39,16 @@
     <p class="said" id="adding-said" role="status" hidden></p>
   </section>
 
+  {#- targum's own playlists (targum-internal#368): built once on the shared shelf, and
+      opened as a playlist of the reader's own for nothing. Shown only when this box has
+      one with something built in it. -#}
+  <section class="panel" id="from-targum" hidden aria-labelledby="from-targum-head">
+    <h2 id="from-targum-head">{{ t("playlists.page.from-targum", "From targum") }}</h2>
+    <p class="note">{{ t("playlists.page.from-targum-note", "Short texts we've made ready for you. Opening one uses none of your credits.") }}</p>
+    <ul class="choose" id="targum-sets"></ul>
+    <p class="said" id="targum-said" role="status" hidden></p>
+  </section>
+
   <section class="panel" id="lists" hidden>
     <h2>{{ t("playlists.page.title", "Your playlists") }}</h2>
     <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "You have no playlists yet. Add a text to one from your shelf or from its ⋯ menu.") }}</p>

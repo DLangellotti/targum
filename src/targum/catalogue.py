@@ -370,6 +370,11 @@ class Collection:
     #: "Тора" over rows whose group was still called "Torah".
     named: dict[str, str] = field(default_factory=dict)
     blurbs: dict[str, str] = field(default_factory=dict)
+    #: Whether this is one of targum's own playlists (targum-internal#368; design.md §12,
+    #: "A playlist is swiped, and one press takes the set", 2026-09-23): short texts
+    #: built once on the shared shelf, which a reader opens as a playlist of their own
+    #: and swipes through for nothing. `"swipe": true` in the file.
+    swipe: bool = False
 
     def name_in(self, code: str) -> str:
         """The collection's name for somebody reading the interface in `code`, and the
@@ -391,6 +396,7 @@ class Collection:
             "members": list(self.members),
             "ordered": self.ordered,
             "door": self.door,
+            "swipe": self.swipe,
         }
 
 
@@ -799,6 +805,7 @@ def _collection(raw: dict[str, Any]) -> Collection:
         door=_door(raw.get("door")),
         named=_said_in(raw.get("named")),
         blurbs=_said_in(raw.get("blurbs")),
+        swipe=bool(raw.get("swipe", False)),
     )
 
 
@@ -892,6 +899,16 @@ def collections() -> list[Collection]:
         if len(members) > 1:
             kept.append(replace(collection, members=members))
     return kept
+
+
+def swipe_sets() -> list[Collection]:
+    """targum's own playlists, as the file lists them (targum-internal#368).
+
+    Not `collections()`, which folds rows for the library and drops a collection of one:
+    a playlist of one is still a playlist, and which members are built is a question for
+    the box that serves them (`Library.targum_sets`), not for the file.
+    """
+    return [collection for collection in COLLECTIONS if collection.swipe]
 
 
 def collection_of(entry_id: str) -> Collection | None:

@@ -2059,6 +2059,69 @@ class Library:
                 return folder.name
         return None
 
+    def targum_sets(self) -> list[tuple[Any, list[tuple[Any, str]]]]:
+        """targum's own playlists as this box can serve them (targum-internal#368).
+
+        Each swipe collection with its members that are built on the shared shelf, as
+        (entry, folder), in the file's order and at most a playlist's worth. A member not
+        built here is left out rather than offered as something to make: opening one of
+        these spends nothing, and a member that needed making would be a way round the
+        press. A collection with nothing built is not offered at all.
+        """
+        from . import catalogue as catalogue_module
+
+        entries = {entry.id: entry for entry in catalogue_module.everything()}
+        offered: list[tuple[Any, list[tuple[Any, str]]]] = []
+        for collection in catalogue_module.swipe_sets():
+            built: list[tuple[Any, str]] = []
+            for member in collection.members:
+                entry = entries.get(member)
+                folder = self.built_from(self.shared, entry.source) if entry else None
+                if entry is not None and folder:
+                    built.append((entry, folder))
+                if len(built) == MOST_IN_PLAYLIST:
+                    break
+            if built:
+                offered.append((collection, built))
+        return offered
+
+    def open_targum_set(self, person_id: int, collection_id: str, language: str) -> dict[str, Any]:
+        """One of targum's playlists, copied into the reader's own, or the copy they have.
+
+        The copy is a playlist like any other, made by targum, pointing at the shared
+        shelf's readers, and claims nothing: every member is built already. Opened a
+        second time it is the same copy, found by any of the collection's names, so a
+        reader who changed the interface language does not get a second one.
+
+        Answers the playlist, `{"error": "unknown"}` for a set this box does not offer,
+        or `{"error": "full"}` when the reader keeps as many playlists as they may.
+        """
+        if self.store is None:
+            return {"error": "unknown"}
+        found = next(
+            (
+                (collection, built)
+                for collection, built in self.targum_sets()
+                if collection.id == collection_id
+            ),
+            None,
+        )
+        if found is None:
+            return {"error": "unknown"}
+        collection, built = found
+        names = {collection.english, collection.title, *collection.named.values()}
+        for mine in self.store.playlists(person_id):
+            if mine.get("made_by") == "targum" and mine.get("name") in names:
+                have = self.store.playlist(person_id, int(mine["id"]))
+                if have is not None:
+                    return have
+        made = self.store.make_playlist(person_id, collection.name_in(language), made_by="targum")
+        if made is None:
+            return {"error": "full"}
+        for entry, folder in built:
+            self.store.add_to_playlist(person_id, int(made["id"]), entry.title, reader=folder)
+        return self.store.playlist(person_id, int(made["id"])) or made
+
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
@@ -5550,6 +5613,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._prompts(payload)
         if route == "/playlists":
             return self._playlists_post(None, payload)
+        if route.startswith("/playlists/targum/"):
+            return self._targum_set(unquote(route[len("/playlists/targum/") :]))
         if route.startswith("/playlists/"):
             return self._playlists_post(route[len("/playlists/") :], payload)
         if route == "/already":
@@ -6560,11 +6625,43 @@ class Handler(BaseHTTPRequestHandler):
         if person is None:
             return self._json({"signedIn": False}, 401)
         if which is None:
-            return self._json({"playlists": self.store.playlists(person.id)})
+            language = self._page_language()
+            return self._json(
+                {
+                    "playlists": self.store.playlists(person.id),
+                    # targum's own (#368), each with how many of its texts this box has.
+                    "targum": [
+                        {"id": one.id, "name": one.name_in(language), "count": len(built)}
+                        for one, built in self.library.targum_sets()
+                    ],
+                }
+            )
         found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
         if found is None:
             return self._json({"error": "not found"}, 404)
         return self._json(playlist_answer(found))
+
+    def _targum_set(self, collection_id: str) -> None:
+        """Open one of targum's playlists: copied into the reader's own and answered like
+        any playlist, with nothing claimed (targum-internal#368)."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        opened = self.library.open_targum_set(person.id, collection_id, self._page_language())
+        if opened.get("error") == "full":
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.playlists-kept",
+                        "You keep {most} playlists already. Delete one to open this one.",
+                        most=MOST_PLAYLISTS,
+                    )
+                },
+                400,
+            )
+        if "error" in opened:
+            return self._json({"error": "not found"}, 404)
+        return self._json(playlist_answer(opened))
 
     def _playlists_post(self, which: str | None, payload: dict[str, Any]) -> None:
         """Make a playlist, or change one: add a text, move one, take one out, rename it,
