@@ -4219,3 +4219,9 @@ html:fullscreen { background: var(--paper); }
   padding: 0 1rem;
 }
 .list-end[hidden] { display: none; }
+
+/* The end card's words and its one door (#367): text, not a button, and nothing that
+   moves. */
+.list-end-words,
+.list-end-lead { margin: 0.5rem 0; }
+.list-end-next { display: inline-block; margin-top: 0.25rem; }

@@ -249,3 +249,47 @@ def test_the_ones_not_ready_are_passed_and_the_last_leads_to_the_end(
         assert "/two/" in page.url, "the end is shown here, and nothing is loaded after it"
     finally:
         context.close()
+
+
+def test_the_end_says_what_the_set_held_and_offers_one_next_set(
+    browser,  # noqa: F811
+    tmp_path,
+) -> None:
+    """#367: the end card is filled once from end.json, and its one door is a press page."""
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    ended: list[str] = []
+
+    def answer_end(route) -> None:  # type: ignore[no-untyped-def]
+        ended.append(route.request.url)
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "words": {"met": 84, "new": 12},
+                    "next": {"id": 9, "name": "After Reels", "count": 5, "open": "/set/9"},
+                }
+            ),
+        )
+
+    context.route("**/playlists/7/end.json", answer_end)
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
+        page.wait_for_selector("#list-nav")
+        page.click("#video .video-list-next")
+        page.wait_for_selector("#list-end .list-end-next")
+        said = page.inner_text("#list-end")
+        assert "You met 84 words here, 12 of them new to you." in said
+        assert "After Reels, 5 texts" in said
+        assert page.get_attribute("#list-end .list-end-next", "href").startswith("/set/9")
+        # Another press at the end loads nothing more and asks for nothing more.
+        page.evaluate(
+            "() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown'}))"
+        )
+        page.wait_for_timeout(300)
+        assert len(ended) == 1, "the end offers more once, and never refills itself"
+        assert "/two/" in page.url
+    finally:
+        context.close()
