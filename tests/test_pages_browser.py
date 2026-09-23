@@ -40,6 +40,7 @@ from targum.render.builder import (
     library_page,
     list_page,
     not_found_page,
+    playlists_page,
     progress_page,
     signin_page,
     you_page,
@@ -59,6 +60,7 @@ def pages() -> dict[str, str]:
         "chat": chat_page(TOKEN),
         "learn": learn_page(TOKEN),
         "library": library_page(TOKEN),
+        "playlists": playlists_page(TOKEN),
         "progress": progress_page(TOKEN),
         "you": you_page(TOKEN),
     }

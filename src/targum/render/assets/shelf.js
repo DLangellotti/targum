@@ -181,6 +181,7 @@
       var controls = document.createElement("span");
       controls.className = "row-controls";
       if (reader.chapters && reader.chapters.length) controls.appendChild(opener(reader, item));
+      controls.appendChild(listLink(reader));
       controls.appendChild(binButton(reader, item));
       item.appendChild(controls);
       list.appendChild(item);
@@ -284,6 +285,19 @@
         }
       });
     }, 1500);
+  }
+
+  /* Into a playlist (targum-internal#364). A link rather than a sheet of its own: the
+   * sheet is `/playlists?add=`, the one a reader's ⋯ menu opens too, so there is one
+   * place that chooses a playlist and it cannot drift into two. */
+  function listLink(reader) {
+    var link = document.createElement("a");
+    link.className = "add-to-list";
+    link.href = keyed(
+      "/playlists?add=" + encodeURIComponent(reader.name) + "&title=" + encodeURIComponent(reader.title || reader.name)
+    );
+    link.textContent = t("shelf.add-to-playlist", "Add to playlist");
+    return link;
   }
 
   /* Throwing one away and getting it back.

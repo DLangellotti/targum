@@ -83,6 +83,18 @@ TOKEN_SWEEP_DAYS = 30
 MOST_PROMPTS = 20
 PROMPT_LENGTH = 2000
 
+#: How many playlists one reader may keep, how many texts one may hold, and how long its
+#: name may be (targum-internal#364). Twenty is design.md §12's cap on a set, "A playlist
+#: is swiped, and one press takes the set" (2026-09-23); the number is the build's to
+#: tune, the cap is not.
+MOST_PLAYLISTS = 50
+MOST_IN_PLAYLIST = 20
+PLAYLIST_NAME = 80
+
+#: Who made a playlist. The reader by hand, targum's own chat, a connector on their
+#: behalf, or targum's own set copied onto their account (#368).
+PLAYLIST_MAKERS = ("reader", "chat", "connector", "targum")
+
 #: How many clients may register themselves in an hour, across the whole box. Dynamic
 #: registration is open by definition — a client that has never spoken to us asks for an
 #: id and gets one — so there is nobody to key a limit on, and this is a ceiling on the
@@ -187,10 +199,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    (targum-internal#80, note 17). A new table, so `CREATE TABLE IF NOT EXISTS` is
 #    the whole of it.
 #
+# 31→32: the playlist and playlist_item tables — a list of texts a reader keeps, in an
+#    order, to swipe through (targum-internal#364; design.md §12, 2026-09-23). New tables,
+#    so `CREATE TABLE IF NOT EXISTS` is the whole of it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 31
+SCHEMA_VERSION = 32
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -1011,6 +1027,34 @@ CREATE TABLE IF NOT EXISTS prompt (
   gone    INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS prompt_named ON prompt (person, name);
+-- A playlist: texts a reader keeps in an order, to swipe through one after another
+-- (targum-internal#364; design.md §12, "A playlist is swiped, and one press takes the
+-- set", 2026-09-23). The reader's, whoever made it: `made_by` says whose hand, never whose
+-- it is. A tombstone rather than a delete, like everything else a reader keeps.
+CREATE TABLE IF NOT EXISTS playlist (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  person   INTEGER NOT NULL,
+  name     TEXT    NOT NULL,
+  made_by  TEXT    NOT NULL DEFAULT 'reader',
+  made     INTEGER NOT NULL,
+  gone     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS playlist_person ON playlist (person, gone);
+-- One text in a playlist, at a position counted from 0. `reader` is the built reader's
+-- folder name — what `/reader/<name>/reader/index.html` opens — once there is one; `job`
+-- is the build making it until then (#365), and `failed` marks one that could not be
+-- made, which the swipe passes over (#366). `title` is kept so a row can be named before
+-- its text exists.
+CREATE TABLE IF NOT EXISTS playlist_item (
+  playlist INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  reader   TEXT,
+  job      TEXT,
+  title    TEXT    NOT NULL,
+  failed   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (playlist, position)
+);
+CREATE INDEX IF NOT EXISTS playlist_item_job ON playlist_item (job);
 
 CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
 CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
@@ -2486,6 +2530,13 @@ class Store:
             db.execute("DELETE FROM oauth_grant WHERE person = ?", (person.id,))
             # And what they wrote for it. Their words, so they go with them.
             db.execute("DELETE FROM prompt WHERE person = ?", (person.id,))
+            # And the lists they kept. Their choices, so they go with them.
+            db.execute(
+                "DELETE FROM playlist_item WHERE playlist IN"
+                " (SELECT id FROM playlist WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
             # The weekly stops too. A subscription is deliberately not part of the
             # account — it outlives one, and that is the point of keeping it in its own
             # table — but somebody who asked to be forgotten did not mean "keep mailing
@@ -2729,6 +2780,10 @@ class Store:
         # And what they wrote for those clients to offer. Theirs in the plainest sense:
         # they typed it.
         out["prompts"] = self.prompts(person.id)
+        # And the lists they kept, each with what is in it.
+        out["playlists"] = [
+            self.playlist(person.id, int(one["id"])) for one in self.playlists(person.id)
+        ]
         return out
 
     def marked(self, person: Person, language: str) -> dict[str, int]:
@@ -3417,6 +3472,197 @@ class Store:
                 (now(), person_id, _prompt_name(name)),
             )
             return cursor.rowcount > 0
+
+    # --- playlists: texts a reader keeps in an order (targum-internal#364) -----------
+
+    def make_playlist(
+        self, person_id: int, name: str, made_by: str = "reader"
+    ) -> dict[str, Any] | None:
+        """A new, empty playlist. None if it has no name or they already keep the most."""
+        name = " ".join(name.split())[:PLAYLIST_NAME]
+        if not name or made_by not in PLAYLIST_MAKERS:
+            return None
+        with self.write() as db:
+            standing = db.execute(
+                "SELECT COUNT(*) AS n FROM playlist WHERE person = ? AND gone = 0",
+                (person_id,),
+            ).fetchone()
+            if int(standing["n"]) >= MOST_PLAYLISTS:
+                return None
+            cursor = db.execute(
+                "INSERT INTO playlist (person, name, made_by, made) VALUES (?, ?, ?, ?)",
+                (person_id, name, made_by, now()),
+            )
+            made = int(cursor.lastrowid or 0)
+        return self.playlist(person_id, made)
+
+    def playlists(self, person_id: int | None) -> list[dict[str, Any]]:
+        """One reader's playlists, newest first, each with how many texts it holds and
+        the reader its first built text opens, where there is one."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT p.id, p.name, p.made_by, p.made,"
+            " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count,"
+            " (SELECT i.reader FROM playlist_item i WHERE i.playlist = p.id"
+            "   AND i.reader IS NOT NULL AND i.failed = 0 ORDER BY i.position LIMIT 1) AS first"
+            " FROM playlist p WHERE p.person = ? AND p.gone = 0 ORDER BY p.made DESC, p.id DESC",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def playlist(self, person_id: int | None, playlist_id: int) -> dict[str, Any] | None:
+        """One playlist and everything in it, in order. None if it is not theirs — the
+        same answer as one that does not exist, deliberately."""
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT id, name, made_by, made FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+            (playlist_id, person_id),
+        ).fetchone()
+        if row is None:
+            return None
+        items = self.db.execute(
+            "SELECT position, reader, job, title, failed FROM playlist_item"
+            " WHERE playlist = ? ORDER BY position",
+            (playlist_id,),
+        ).fetchall()
+        out = dict(row)
+        out["items"] = [{**dict(item), "failed": bool(item["failed"])} for item in items]
+        return out
+
+    def add_to_playlist(
+        self,
+        person_id: int,
+        playlist_id: int,
+        title: str,
+        reader: str | None = None,
+        job: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Put a text at the end of a playlist. None if the playlist is not theirs, is
+        full, or was given nothing to hold. A text already in it is not added twice: the
+        item already there comes back."""
+        title = " ".join(title.split())[:200] or (reader or "")
+        if not (reader or job) or not title:
+            return None
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT 1 FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return None
+            if reader:
+                there = db.execute(
+                    "SELECT position, reader, job, title, failed FROM playlist_item"
+                    " WHERE playlist = ? AND reader = ?",
+                    (playlist_id, reader),
+                ).fetchone()
+                if there is not None:
+                    return {**dict(there), "failed": bool(there["failed"])}
+            count = int(
+                db.execute(
+                    "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ?", (playlist_id,)
+                ).fetchone()["n"]
+            )
+            if count >= MOST_IN_PLAYLIST:
+                return None
+            db.execute(
+                "INSERT INTO playlist_item (playlist, position, reader, job, title)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (playlist_id, count, reader, job, title),
+            )
+        return {"position": count, "reader": reader, "job": job, "title": title, "failed": False}
+
+    def move_in_playlist(self, person_id: int, playlist_id: int, position: int, by: int) -> bool:
+        """Move one text up (-1) or down (+1) a place. False if there is no such place."""
+        if by not in (-1, 1):
+            return False
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT 1 FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            other = position + by
+            both = db.execute(
+                "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ? AND position IN (?, ?)",
+                (playlist_id, position, other),
+            ).fetchone()
+            if int(both["n"]) != 2:
+                return False
+            # Through -1, because the key is (playlist, position) and a swap in place
+            # would collide halfway.
+            for old, new in ((position, -1), (other, position), (-1, other)):
+                db.execute(
+                    "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
+                    (new, playlist_id, old),
+                )
+        return True
+
+    def drop_from_playlist(self, person_id: int, playlist_id: int, position: int) -> bool:
+        """Take one text out, closing the gap it leaves."""
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT 1 FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            cursor = db.execute(
+                "DELETE FROM playlist_item WHERE playlist = ? AND position = ?",
+                (playlist_id, position),
+            )
+            if cursor.rowcount == 0:
+                return False
+            later = db.execute(
+                "SELECT position FROM playlist_item WHERE playlist = ? AND position > ?"
+                " ORDER BY position",
+                (playlist_id, position),
+            ).fetchall()
+            for row in later:
+                db.execute(
+                    "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
+                    (int(row["position"]) - 1, playlist_id, int(row["position"])),
+                )
+        return True
+
+    def rename_playlist(self, person_id: int, playlist_id: int, name: str) -> bool:
+        name = " ".join(name.split())[:PLAYLIST_NAME]
+        if not name:
+            return False
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET name = ? WHERE id = ? AND person = ? AND gone = 0",
+                (name, playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    def drop_playlist(self, person_id: int, playlist_id: int) -> bool:
+        """Take a playlist away. A tombstone; the texts in it stay on the shelf."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET gone = ? WHERE id = ? AND person = ? AND gone = 0",
+                (now(), playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    def playlist_item_built(self, job: str, reader: str) -> int:
+        """A build a playlist was waiting on has its reader now (#365). Every item
+        naming that job takes it; how many did."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist_item SET reader = ?, failed = 0 WHERE job = ?", (reader, job)
+            )
+            return cursor.rowcount
+
+    def playlist_item_failed(self, job: str) -> int:
+        """A build a playlist was waiting on could not be made (#365). The swipe passes
+        over it (#366); the others stand."""
+        with self.write() as db:
+            cursor = db.execute("UPDATE playlist_item SET failed = 1 WHERE job = ?", (job,))
+            return cursor.rowcount
 
     # --- the connector: clients, grants and tokens (targum-internal#80) -------------
 

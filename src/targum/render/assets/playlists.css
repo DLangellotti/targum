@@ -1,0 +1,56 @@
+/* Your playlists (targum-internal#364): the sheet a shelf row and a reader's ⋯ menu open,
+   and the playlists under it, each a list of texts in order. */
+
+.playlists .choose {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.playlists .choose .count { color: var(--ink-soft); }
+
+.playlists .new-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.playlists .playlist { padding-block: 0.75rem; border-top: 1px solid var(--hairline); }
+.playlists .playlist:first-child { border-top: 0; }
+
+.playlists .playlist-head,
+.playlists .rename {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.playlists .playlist-head h3 { margin: 0; margin-inline-end: auto; font-size: 1.0625rem; }
+.playlists .rename input {
+  flex: 1;
+  min-inline-size: 10rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+
+.playlists .items { margin: 0.5rem 0 0; padding-inline-start: 1.5rem; }
+.playlists .item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+}
+.playlists .item-title { margin-inline-end: auto; color: var(--ink); }
+.playlists .item-state,
+.playlists .item.failed .item-title { color: var(--ink-soft); }
+.playlists .item-keys { display: flex; gap: 0.25rem; }
+.playlists .item-keys .go-quiet { min-inline-size: 2.25rem; }
+.playlists .said.bad { color: var(--clay); }

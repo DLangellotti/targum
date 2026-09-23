@@ -39,7 +39,16 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from . import incidents as incidents_module
 from . import level as level_module
 from . import mcp_http, oauth
-from .accounts import CHAT_RESTARTED, MOST_PROMPTS, Person, Store, now, plausible
+from .accounts import (
+    CHAT_RESTARTED,
+    MOST_IN_PLAYLIST,
+    MOST_PLAYLISTS,
+    MOST_PROMPTS,
+    Person,
+    Store,
+    now,
+    plausible,
+)
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -3410,6 +3419,25 @@ def _forget_cookie(name: str) -> str:
 SENT = "Thanks. Check your email."
 
 
+def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
+    """A playlist as `/playlists/<id>.json` says it: each text with the address it opens
+    at, and `null` for one still being made or one that could not be (#364, #366)."""
+    items = []
+    for item in found.get("items") or []:
+        reader = item.get("reader")
+        items.append(
+            {
+                **item,
+                "open": (
+                    f"/reader/{quote(str(reader))}/reader/index.html"
+                    if reader and not item.get("failed")
+                    else None
+                ),
+            }
+        )
+    return {**found, "items": items}
+
+
 class Handler(BaseHTTPRequestHandler):
     # Overridden on the type built in start(). Off here so a Handler made by hand —
     # which is how the tests make one — behaves like a machine somebody runs themselves.
@@ -3422,6 +3450,7 @@ class Handler(BaseHTTPRequestHandler):
     page: str
     adding: str
     progress: str
+    playlists: str
     catalogue: str
     you: str
     #: The conversation page, and the workers that answer it. Empty and None on a
@@ -3525,6 +3554,7 @@ class Handler(BaseHTTPRequestHandler):
             "/progress",
             "/library",
             "/you",
+            "/playlists",
             "/readers",
             "/suggest",
             "/series",
@@ -5107,6 +5137,8 @@ class Handler(BaseHTTPRequestHandler):
                     "/account/export",
                     "/chat/",
                     "/slips",
+                    "/playlists.json",
+                    "/playlists/",
                 )
             ):
                 return self._json(
@@ -5219,6 +5251,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
+        if route == "/playlists":
+            page = self._desk("playlists", self.playlists)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         if route == "/slips":
             # Lines this reader wrote that came back changed (targum-internal#290).
             # Theirs and nobody else's: signed out there is nobody to have any, and the
@@ -5236,6 +5271,10 @@ class Handler(BaseHTTPRequestHandler):
                 open_only=True,
             )
             return self._json({"slips": oldest})
+        if route == "/playlists.json":
+            return self._playlists_get(None)
+        if route.startswith("/playlists/") and route.endswith(".json"):
+            return self._playlists_get(route[len("/playlists/") : -len(".json")])
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
@@ -5454,6 +5493,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._disconnect(payload)
         if route == "/account/prompts":
             return self._prompts(payload)
+        if route == "/playlists":
+            return self._playlists_post(None, payload)
+        if route.startswith("/playlists/"):
+            return self._playlists_post(route[len("/playlists/") :], payload)
         if route == "/already":
             return self._already(payload)
         if route == "/describe":
@@ -6451,6 +6494,87 @@ class Handler(BaseHTTPRequestHandler):
                 400,
             )
         self._json({"written": written, "prompts": self.store.prompts(person.id)})
+
+    def _playlists_get(self, which: str | None) -> None:
+        """The reader's playlists, or one of them with its texts (targum-internal#364).
+
+        Theirs and nobody else's: the owner is the session, and another account's id is
+        a 404, the same answer as an id that does not exist.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if which is None:
+            return self._json({"playlists": self.store.playlists(person.id)})
+        found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
+        if found is None:
+            return self._json({"error": "not found"}, 404)
+        return self._json(playlist_answer(found))
+
+    def _playlists_post(self, which: str | None, payload: dict[str, Any]) -> None:
+        """Make a playlist, or change one: add a text, move one, take one out, rename it,
+        or take the playlist away. One door per playlist, and what comes back is the
+        playlist as it now stands, so the page never works out what it holds.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if which is None:
+            made = self.store.make_playlist(person.id, str(payload.get("name") or ""))
+            if made is None:
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.playlist-name-it",
+                            "Give it a name. You can keep up to {most} playlists.",
+                            most=MOST_PLAYLISTS,
+                        )
+                    },
+                    400,
+                )
+            reader = str(payload.get("reader") or "")
+            if reader:
+                self.store.add_to_playlist(
+                    person.id, int(made["id"]), str(payload.get("title") or reader), reader=reader
+                )
+            found = self.store.playlist(person.id, int(made["id"]))
+            return self._json(playlist_answer(found or made))
+        if not which.isdigit() or self.store.playlist(person.id, int(which)) is None:
+            return self._json({"error": "not found"}, 404)
+        playlist_id = int(which)
+        doing = str(payload.get("do") or "")
+        position = int(payload.get("position") or 0)
+        if doing == "add":
+            reader = str(payload.get("reader") or "")
+            added = self.store.add_to_playlist(
+                person.id, playlist_id, str(payload.get("title") or reader), reader=reader or None
+            )
+            if added is None:
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.playlist-full",
+                            "A playlist holds up to {most} texts.",
+                            most=MOST_IN_PLAYLIST,
+                        )
+                    },
+                    400,
+                )
+        elif doing == "move":
+            self.store.move_in_playlist(
+                person.id, playlist_id, position, 1 if int(payload.get("by") or 0) > 0 else -1
+            )
+        elif doing == "drop":
+            self.store.drop_from_playlist(person.id, playlist_id, position)
+        elif doing == "rename":
+            self.store.rename_playlist(person.id, playlist_id, str(payload.get("name") or ""))
+        elif doing == "gone":
+            self.store.drop_playlist(person.id, playlist_id)
+            return self._json({"gone": True, "playlists": self.store.playlists(person.id)})
+        else:
+            return self._json({"error": "bad request"}, 400)
+        found = self.store.playlist(person.id, playlist_id)
+        return self._json(playlist_answer(found) if found else {"gone": True})
 
     def _disconnect(self, payload: dict[str, Any]) -> None:
         """Take a connector's tokens back — the other half of the approval page.
@@ -8691,6 +8815,7 @@ def start(
         learn_page,
         library_page,
         list_page,
+        playlists_page,
         progress_page,
         you_page,
     )
@@ -8752,6 +8877,7 @@ def start(
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
             "page": learn_page(token, connector=connector_is_open()),
             "you": you_page(token),
+            "playlists": playlists_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "chatting": chat_page(token),
@@ -8765,6 +8891,7 @@ def start(
                     "progress": progress_page(token, language=code),
                     "page": learn_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
+                    "playlists": playlists_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),
                     "chatting": chat_page(token, language=code),

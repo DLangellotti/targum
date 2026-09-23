@@ -209,14 +209,14 @@ def test_a_shelf_row_is_a_row_of_columns() -> None:
         "all of it bought, said as a count rather than a fraction"
     )
     assert "ago" in row["opened"] or row["opened"] == "not opened yet"
-    assert row["controls"] == ["Chapters", "Delete"]
+    assert row["controls"] == ["Chapters", "Add to playlist", "Delete"]
 
 
 def test_a_text_with_one_part_says_so_rather_than_counting_to_one() -> None:
     drawn = draw(which="texts", readers=[reader("article-he", "כתבה")])
     (row,) = drawn["shelf"]
     assert row["chapters"] == "—", "nothing to count, and nothing pretending there is"
-    assert row["controls"] == ["Delete"], "and no chapters to open"
+    assert row["controls"] == ["Add to playlist", "Delete"], "and no chapters to open"
 
 
 def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:

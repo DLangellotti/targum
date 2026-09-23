@@ -107,6 +107,14 @@
     {% endif %}
     <div class="bar-more" id="more">
       <div class="more-head"><b>{{ t("reader.page.this-text", "This text") }}</b><button type="button" data-more aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
+    {#- Into a playlist (targum-internal#364). Hidden in the file and shown by the script
+        only where the page arrived over a connection: a playlist is kept on the account,
+        and a reader opened off a disk has no account to keep one on. The address is
+        drawn by the script from where the page is, since a built file does not know the
+        name of the folder it will be served from. -#}
+    <div class="group to-playlist" id="to-playlist" hidden>
+      <a class="more-playlist" id="more-playlist" data-title="{{ title }}">{{ t("reader.page.add-to-playlist", "Add to a playlist") }}</a>
+    </div>
     {#- Hear a silent text (2026-09-10, targum-internal#246): on a section with no
         recording, the one door that makes one — a call to action, so ink (§9) — with
         what it costs in the reader's own hours beside it. The press posts `/voice`;
