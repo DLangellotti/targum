@@ -95,10 +95,24 @@ def test_hebrew_is_content_and_graded() -> None:
     assert "one new word at most" in prompts.SYSTEM
 
 
-def test_no_tool_in_this_slice_spends() -> None:
-    """The seam is drawn before the first tool needs it: every tool that spends will need
-    a consent row, and nothing here has one to give."""
-    assert not [tool.name for tool in REGISTRY if tool.spends or tool.needs_consent]
+def test_the_chat_is_offered_nothing_that_spends() -> None:
+    """The seam was drawn on 2026-09-05 before any tool needed it. One does now —
+    `record_turn`, for a conversation held somewhere else (#80) — and design.md §12
+    ("A scope is a press that lasts") is where that is written down.
+
+    What is unchanged is this surface. In targum's own conversation the model is given
+    the registry minus anything that spends, because targum already recasts every line
+    here and writes the slip itself: offering it would record the same mistake twice.
+    """
+    from targum.chat.tools import anthropic_tools
+
+    by_name = {tool.name: tool for tool in REGISTRY}
+    offered = [tool["name"] for tool in anthropic_tools()]
+    assert not [name for name in offered if by_name[name].spends or by_name[name].needs_consent]
+    # And the one that does spend carries the scope that consents to it, and nothing else.
+    spending = [tool for tool in REGISTRY if tool.spends]
+    assert [tool.name for tool in spending] == ["record_turn"]
+    assert spending[0].scope == "check"
 
 
 def test_a_question_from_inside_the_text_is_answered_in_the_conversation_s_hebrew() -> None:

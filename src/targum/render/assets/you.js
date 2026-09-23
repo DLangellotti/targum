@@ -231,6 +231,168 @@
     };
   }
 
+  /* What holds a token for this account, and the press that ends it (#80).
+
+     One row a connector, never a token: what is shown is that Claude is connected and
+     what it may do, which is a fact about the reader. The token is a credential and is
+     on no page.
+
+     Disconnecting takes both kinds at once — an access token revoked while its refresh
+     token lives is a disconnection that undoes itself within the hour — and it does not
+     ask twice, because reconnecting is one press in the app it came from. */
+  function drawConnections(who) {
+    var panel = at("connections");
+    var rows = at("connection-rows");
+    var said = at("connections-said");
+    if (!panel || !rows) return;
+
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+
+    function paint(connections) {
+      rows.textContent = "";
+      panel.hidden = !(connections && connections.length);
+      (connections || []).forEach(function (one) {
+        var row = document.createElement("li");
+        var name = document.createElement("span");
+        name.className = "series-name";
+        name.textContent = one.name || t("you.connections.an-app", "An app");
+        var says = document.createElement("span");
+        says.className = "note";
+        says.textContent = scopesSaid(one.scopes);
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "go-quiet danger";
+        press.textContent = t("you.connections.disconnect", "Disconnect");
+        press.onclick = function () {
+          press.disabled = true;
+          ask("/account/disconnect", { client: one.client })
+            .then(function (answer) {
+              paint(answer && answer.connections);
+              tell(t("you.connections.disconnected", "Disconnected."));
+            })
+            .catch(function () {
+              press.disabled = false;
+              tell(t("you.connections.could-not", "We couldn't disconnect that. Try again."));
+            });
+        };
+        row.appendChild(name);
+        row.appendChild(says);
+        row.appendChild(press);
+        rows.appendChild(row);
+      });
+    }
+
+    /* The scopes in the reader's words, in the order the approval page listed them.
+       The one that uses their hours says so here too, because this is the page they
+       come to when they want to know what they agreed to. */
+    function scopesSaid(scopes) {
+      var held = (scopes || "").split(" ");
+      var words = [];
+      if (held.indexOf("library") >= 0) {
+        words.push(t("you.connections.library", "the library"));
+      }
+      if (held.indexOf("record") >= 0) {
+        words.push(t("you.connections.record", "your words and mistakes"));
+      }
+      if (held.indexOf("check") >= 0) {
+        words.push(t("you.connections.check", "checking your Hebrew, which uses your hours"));
+      }
+      return words.join(", ");
+    }
+
+    paint(who && who.connections);
+  }
+
+  /* What a reader wrote for their connector to offer (#80, note 17).
+
+     Two fields and no jargon: what to call it, and what it should do. The name is
+     narrowed by the server to one lowercase word, because a host draws these as things
+     to pick by name and several draw them as slash commands, where a space ends the
+     name. The page does not pretend otherwise — what comes back is what was saved, and
+     the row shows that.
+
+     Drawn only where something is connected: a box for writing prompts, shown to
+     somebody with no connector to show them in, is a control without a job. */
+  function drawPrompts(who) {
+    var panel = at("prompts");
+    var rows = at("prompt-rows");
+    var name = at("prompt-name");
+    var says = at("prompt-says");
+    var save = at("prompt-save");
+    var said = at("prompts-said");
+    if (!panel || !rows || !save) return;
+    var connected = !!(who && who.connections && who.connections.length);
+
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+
+    function paint(prompts) {
+      rows.textContent = "";
+      panel.hidden = !connected;
+      (prompts || []).forEach(function (one) {
+        var row = document.createElement("li");
+        var called = document.createElement("span");
+        called.className = "series-name";
+        called.textContent = one.name;
+        var what = document.createElement("span");
+        what.className = "note";
+        what.textContent = one.says;
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "go-quiet danger";
+        press.textContent = t("you.prompts.remove", "Remove");
+        press.onclick = function () {
+          press.disabled = true;
+          ask("/account/prompts", { name: one.name, gone: true })
+            .then(function (answer) {
+              paint(answer && answer.prompts);
+              tell(t("you.prompts.removed", "Removed."));
+            })
+            .catch(function () {
+              press.disabled = false;
+              tell(t("you.prompts.could-not", "We couldn't save that. Try again."));
+            });
+        };
+        row.appendChild(called);
+        row.appendChild(what);
+        row.appendChild(press);
+        rows.appendChild(row);
+      });
+    }
+
+    save.onclick = function () {
+      ask("/account/prompts", { name: name.value, says: says.value })
+        .then(function (answer) {
+          if (answer && answer.error) {
+            tell(answer.error);
+            paint(answer.prompts);
+            return;
+          }
+          paint(answer && answer.prompts);
+          name.value = "";
+          says.value = "";
+          var written = answer && answer.written;
+          tell(
+            written
+              ? t("you.prompts.saved", "Saved as {name}. It's in your apps now.", {
+                  name: written.name,
+                })
+              : t("you.prompts.saved-plain", "Saved.")
+          );
+        })
+        .catch(function () {
+          tell(t("you.prompts.could-not", "We couldn't save that. Try again."));
+        });
+    };
+
+    paint(who && who.prompts);
+  }
+
   /* Accepting the contribution grant (targum-internal#164, door 3), which is the whole
      of what decides whether a word's card offers a way to correct a meaning.
 
@@ -376,6 +538,8 @@
       drawWho(who);
       drawLanguages(who);
       drawRecord(who);
+      drawConnections(who);
+      drawPrompts(who);
       drawGrant(who);
       at("you-name").addEventListener("input", saveName);
       var address = at("you-address");

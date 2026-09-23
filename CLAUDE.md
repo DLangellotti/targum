@@ -135,6 +135,14 @@ wrong. There is; it is just not in the environment of a fresh shell.
   the same spend on the same rails (2026-09-18): its caption is read for free, and its
   pictures only when the person presses "Also read the pictures" on the card
   (`Library._prepare_post`).
+- **A scope is the one press that lasts** (2026-09-22, design.md §12). Over the remote
+  connector there is no page of ours to press per turn, so `record_turn` — the only tool
+  that spends without a card — is consented once, by the reader ticking the `check` scope
+  on targum's own approval page where the cost is said in hours, and revoked there. It is
+  still a `job` row of kind `chat` through `Library.claim_turn`, still inside
+  `CHAT_BUDGET` and the eight hours, and still no second counter. Everything else holds:
+  a build needs its own press, the model cannot press anything, and a quote is
+  information. Do not widen this to a second tool without an entry in §12 first.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

@@ -61,6 +61,39 @@ GRACE_DAYS = 7
 ASKS_PER_HOUR = 5
 SESSION_DAYS = 90
 
+# The connector's three lifetimes (targum-internal#80). An authorization code is spent
+# within seconds by a client that already has it; a minute would be enough and ten is
+# slack for a slow round trip, not for a code left lying about.
+GRANT_MINUTES = 10
+# An access token is short because a refresh token is the thing that lasts: a leaked
+# access token stops working within the hour, and a leaked refresh token is discovered
+# the next time the real client tries to use it and finds it rotated.
+ACCESS_MINUTES = 60
+# A refresh token does not expire on a clock. It ends when the reader disconnects the
+# client, when they leave, or when it is rotated — a connector that goes unused for a
+# year and then asks is the reader coming back to a machine, not an attack.
+#
+# Rows are swept long after they stop working rather than on expiry, so that "expired"
+# and "never existed" stay tellable apart for as long as that is worth anything.
+TOKEN_SWEEP_DAYS = 30
+
+#: How many prompts one reader may keep, and how long each may be. Enough for somebody
+#: who has worked out a handful of ways they like to be asked; not a place to keep an
+#: essay, because what is here is said to a model on every listing.
+MOST_PROMPTS = 20
+PROMPT_LENGTH = 2000
+
+#: How many clients may register themselves in an hour, across the whole box. Dynamic
+#: registration is open by definition — a client that has never spoken to us asks for an
+#: id and gets one — so there is nobody to key a limit on, and this is a ceiling on the
+#: act rather than on an asker. Generous against every real burst (a directory's review,
+#: a reader adding targum to three apps at once) and a floor under the one thing an open
+#: endpoint invites, which is somebody filling a table for the sake of it.
+#:
+#: An id on its own is worth nothing: every token behind it needs a reader to have
+#: pressed Approve. What this protects is the disk, not the account.
+REGISTRATIONS_PER_HOUR = 60
+
 # 2: person.leaving, for a deletion that waits out a grace period.
 # 3: job.spent, what a build really cost once the API said so.
 # 4: job.chapters, how a text divides — one means it is not a book.
@@ -138,10 +171,26 @@ SESSION_DAYS = 90
 #    either way; what differs is what the corpus may say about it, and a claim is the
 #    reader's own word rather than evidence from a text.
 #
+# 29: the three oauth tables — client, grant, token (targum-internal#80, 2026-09-22). A
+#    reader adds targum to Claude or ChatGPT by pressing Connect, which needs a token that
+#    names a person rather than a cookie. All three are new tables, so `CREATE TABLE IF
+#    NOT EXISTS` is the whole migration and nothing is added to MIGRATIONS below.
+#
+# 31: slip.source — which surface a mistake was recorded from (targum-internal#80).
+#    '' for targum's own chat, which is every row written before this; 'connector' for a
+#    line checked through Claude or ChatGPT. One judge writes both — `record_turn` recasts
+#    on targum's own model against targum's own contract — so this is not a quality mark.
+#    It is there because two surfaces is a fact worth being able to measure later, and a
+#    column added afterwards could not say anything about the rows already written.
+#
+# 30: the prompt table — what a reader wrote for their own connector to offer
+#    (targum-internal#80, note 17). A new table, so `CREATE TABLE IF NOT EXISTS` is
+#    the whole of it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 28
+SCHEMA_VERSION = 31
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -263,6 +312,10 @@ CREATE TABLE IF NOT EXISTS chosen (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    # Which surface a mistake came from: '' is targum's own chat and is every row
+    # written before 2026-09-22; 'connector' is a line checked through Claude or ChatGPT
+    # (targum-internal#80). Not a quality mark — one judge writes both.
+    "ALTER TABLE slip ADD COLUMN source TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN chapters INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE person ADD COLUMN name TEXT NOT NULL DEFAULT ''",
@@ -867,6 +920,100 @@ CREATE TABLE IF NOT EXISTS balance (
   at      INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS balance_service ON balance (service, at);
+
+-- The connector's three tables (targum-internal#80, 2026-09-22). targum is an
+-- authorization server for exactly one resource, its own `/mcp`, so a reader can add
+-- targum to Claude or ChatGPT by pressing Connect.
+--
+-- **Why an authorization server and not an API key.** Both connector directories require
+-- the OAuth flow, and a key pasted into somebody else's client is a bearer credential
+-- with no scopes and no revocation story. `serve.py` already reasons this way about the
+-- start-up key: hosted has none at all, because "a key in the address would only be a
+-- bearer token riding in every URL".
+--
+-- **Nothing here is stored in the clear**, for the reason at the top of this file: codes,
+-- access tokens and refresh tokens are held as digests, exactly as `link` and `session`
+-- are. What a client holds exists only in the client.
+--
+-- Schema 29 adds all three, so `CREATE TABLE IF NOT EXISTS` is the whole migration.
+
+-- A client that registered itself (RFC 7591). The directories expect dynamic
+-- registration, so this is written by strangers and holds nothing that is trusted: the
+-- name is shown to the reader on the approval page as *the client's claim about itself*,
+-- never as a fact about who it is.
+CREATE TABLE IF NOT EXISTS oauth_client (
+  id          TEXT PRIMARY KEY,
+  name        TEXT    NOT NULL DEFAULT '',
+  redirects   TEXT    NOT NULL DEFAULT '[]',
+  made        INTEGER NOT NULL
+);
+
+-- An authorization code, between the reader pressing Approve and the client exchanging
+-- it. Single-use and short-lived: `spent` is stamped rather than the row deleted, so a
+-- replayed code is a code we can recognise as replayed instead of one we have forgotten.
+-- `challenge` is the PKCE S256 challenge; there is no other kind, and a client that sends
+-- no challenge is refused rather than downgraded.
+CREATE TABLE IF NOT EXISTS oauth_grant (
+  hash        TEXT PRIMARY KEY,
+  person      INTEGER NOT NULL,
+  client      TEXT    NOT NULL,
+  scopes      TEXT    NOT NULL DEFAULT '',
+  redirect    TEXT    NOT NULL DEFAULT '',
+  challenge   TEXT    NOT NULL DEFAULT '',
+  resource    TEXT    NOT NULL DEFAULT '',
+  made        INTEGER NOT NULL,
+  spent       INTEGER NOT NULL DEFAULT 0
+);
+
+-- An access or refresh token. One row per token, `kind` saying which, `parent` chaining a
+-- refresh token to the one it replaced so a rotation is a fact and not a deletion.
+--
+-- `scopes` is the whole of what a token may do, and it is read from this row on every
+-- request — never from anything the client sends. That is the same rule `chat/tools.py`
+-- states about ownership: it comes from the context the server built, never from an
+-- argument.
+CREATE TABLE IF NOT EXISTS oauth_token (
+  hash        TEXT PRIMARY KEY,
+  person      INTEGER NOT NULL,
+  client      TEXT    NOT NULL,
+  kind        TEXT    NOT NULL DEFAULT 'access',
+  scopes      TEXT    NOT NULL DEFAULT '',
+  resource    TEXT    NOT NULL DEFAULT '',
+  parent      TEXT    NOT NULL DEFAULT '',
+  made        INTEGER NOT NULL,
+  expires     INTEGER NOT NULL DEFAULT 0,
+  seen        INTEGER NOT NULL DEFAULT 0,
+  revoked     INTEGER NOT NULL DEFAULT 0
+);
+-- A prompt a reader wrote for themselves (targum-internal#80, notes 11 and 17).
+--
+-- MCP prompts appear in the host by name — in effect a slash command targum ships into
+-- Claude or ChatGPT. targum's own set is fixed and lives in `mcp_http.PROMPTS`; this is
+-- where a reader's own go, so what appears beside ours is theirs.
+--
+-- "Enable users to use targum their way" was note 17, and this is the smallest thing
+-- that is actually that rather than a value: a text box, and what they write is in their
+-- host next to ours the moment they save it.
+--
+-- `says` is what the model is told. It is the reader's own words going to a model, which
+-- is a thing they do every time they use the chat, and it can only ever reach their own
+-- record — `prompts/get` reads it through the same `Ctx` every tool does, so a prompt
+-- naming somebody else's shelf is a prompt asking for nothing.
+--
+-- A tombstone rather than a delete, like every other thing a reader keeps, so that one
+-- device removing a prompt does not have another put it back.
+CREATE TABLE IF NOT EXISTS prompt (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  person  INTEGER NOT NULL,
+  name    TEXT    NOT NULL,
+  says    TEXT    NOT NULL,
+  made    INTEGER NOT NULL,
+  gone    INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS prompt_named ON prompt (person, name);
+
+CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
+CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
 """
 
 
@@ -877,6 +1024,17 @@ CHAT_RESTARTED = "We restarted while we were answering. Ask again."
 def now() -> int:
     """Milliseconds, because the client's own timestamps are `Date.now()`."""
     return int(time.time() * 1000)
+
+
+def _prompt_name(name: str) -> str:
+    """A prompt's name, as a host will draw it: one lowercase word, hyphens for spaces.
+
+    A host lists these as things to pick by name, and several draw them as slash
+    commands — where a space is the end of the name and the start of an argument. So a
+    name is narrowed here rather than shown to be wrong later in somebody else's app.
+    """
+    kept = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
+    return kept[:40]
 
 
 def digest(token: str) -> str:
@@ -2321,6 +2479,13 @@ class Store:
             db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
+            # And every connector. Signed out of everywhere has to mean everywhere, and
+            # a token left live would be a way into an account that has asked to end —
+            # from a client on somebody else's machine, which is worse than a cookie.
+            db.execute("DELETE FROM oauth_token WHERE person = ?", (person.id,))
+            db.execute("DELETE FROM oauth_grant WHERE person = ?", (person.id,))
+            # And what they wrote for it. Their words, so they go with them.
+            db.execute("DELETE FROM prompt WHERE person = ?", (person.id,))
             # The weekly stops too. A subscription is deliberately not part of the
             # account — it outlives one, and that is the point of keeping it in its own
             # table — but somebody who asked to be forgotten did not mean "keep mailing
@@ -2481,7 +2646,9 @@ class Store:
         Complete except for one deliberate omission. Sessions and sign-in links are
         credentials, not data — writing them into a file somebody downloads, mails to
         themselves and leaves in a downloads folder would be handing out live keys to
-        their own account. What is here is everything they wrote or caused.
+        their own account. What is here is everything they wrote or caused. The same
+        line divides a connector: *that* they connected Claude, with which scopes and
+        when, is a fact about them and is here; the token is a credential and is not.
 
         Everything the account keeps goes through `KINDS`, and this loops `KINDS` rather
         than naming tables, so a kind added tomorrow is exported tomorrow without anyone
@@ -2556,6 +2723,12 @@ class Store:
                 (person.id,),
             )
         ]
+        # Which clients they connected, and what they let each one do. The digests stay
+        # out, for the reason at the top of this method.
+        out["connections"] = self.connections(person.id)
+        # And what they wrote for those clients to offer. Theirs in the plainest sense:
+        # they typed it.
+        out["prompts"] = self.prompts(person.id)
         return out
 
     def marked(self, person: Person, language: str) -> dict[str, int]:
@@ -3110,6 +3283,7 @@ class Store:
         chat: str = "",
         turn: int = 0,
         why: str = "",
+        source: str = "",
     ) -> int:
         """Write down one line that came back changed. Returns the row's id.
 
@@ -3120,7 +3294,7 @@ class Store:
         with self.write() as db:
             cursor = db.execute(
                 "INSERT INTO slip (person, language, at, chat, turn, wrote, recast,"
-                " changed, why) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " changed, why, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     person_id,
                     language,
@@ -3131,6 +3305,7 @@ class Store:
                     recast,
                     json.dumps(changed, ensure_ascii=False),
                     why,
+                    source,
                 ),
             )
             return int(cursor.lastrowid or 0)
@@ -3163,7 +3338,8 @@ class Store:
             args.append(language)
         args.append(limit)
         rows = self.db.execute(
-            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why, known FROM slip"
+            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why, known, source"
+            f" FROM slip"
             f" WHERE {where} ORDER BY at {order}, id {order} LIMIT ?",
             args,
         ).fetchall()
@@ -3189,6 +3365,320 @@ class Store:
                 (now() if known else 0, slip_id, person_id),
             )
             return cursor.rowcount > 0
+
+    # --- what a reader wrote for their own connector (targum-internal#80) ----------
+
+    def write_prompt(self, person_id: int, name: str, says: str) -> dict[str, Any] | None:
+        """Save a prompt under a name, replacing one of the same name. None if refused.
+
+        The name is what appears in their host, so it is narrowed to what a host will
+        show as one word and what a slash command can be: a name with a space in it reads
+        as two commands in every client that draws them.
+        """
+        name = _prompt_name(name)
+        says = says.strip()[:PROMPT_LENGTH]
+        if not name or not says:
+            return None
+        with self.write() as db:
+            standing = db.execute(
+                "SELECT COUNT(*) AS n FROM prompt WHERE person = ? AND gone = 0 AND name != ?",
+                (person_id, name),
+            ).fetchone()
+            if int(standing["n"]) >= MOST_PROMPTS:
+                return None
+            db.execute(
+                "INSERT INTO prompt (person, name, says, made) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(person, name) DO UPDATE SET"
+                "   says = excluded.says, made = excluded.made, gone = 0",
+                (person_id, name, says, now()),
+            )
+            row = db.execute(
+                "SELECT id, name, says, made FROM prompt WHERE person = ? AND name = ?",
+                (person_id, name),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def prompts(self, person_id: int | None) -> list[dict[str, Any]]:
+        """One reader's own prompts, oldest first — the order they wrote them in."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT id, name, says, made FROM prompt WHERE person = ? AND gone = 0"
+            " ORDER BY made, id",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def drop_prompt(self, person_id: int, name: str) -> bool:
+        """Take one away. A tombstone, like everything else a reader keeps."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE prompt SET gone = ? WHERE person = ? AND name = ? AND gone = 0",
+                (now(), person_id, _prompt_name(name)),
+            )
+            return cursor.rowcount > 0
+
+    # --- the connector: clients, grants and tokens (targum-internal#80) -------------
+
+    def register_client(self, name: str, redirects: list[str]) -> str:
+        """Take a client's word for what it is, and give it an id (RFC 7591).
+
+        Dynamic registration means strangers write this row, so nothing in it is trusted.
+        The name is the client's claim about itself and is shown to the reader as one;
+        the redirect list is the only part that has to be right, and it is checked by
+        exact match at both the authorize and the token door.
+        """
+        client_id = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO oauth_client (id, name, redirects, made) VALUES (?, ?, ?, ?)",
+                (client_id, name.strip()[:200], json.dumps(redirects[:16]), now()),
+            )
+        return client_id
+
+    def registering_too_often(self, limit: int = REGISTRATIONS_PER_HOUR) -> bool:
+        """Whether the box has handed out too many client ids in the last hour.
+
+        Keyed on nothing, because there is nothing to key it on: a client registering
+        itself has no account and no name we would believe. So this counts the act, over
+        the same `asked` table and the same hour the sign-in door uses.
+        """
+        return self.asking_too_often("oauth-register", limit)
+
+    def client(self, client_id: str) -> dict[str, Any] | None:
+        """One registered client, with its redirects already parsed."""
+        if not client_id:
+            return None
+        row = self.db.execute(
+            "SELECT id, name, redirects, made FROM oauth_client WHERE id = ?", (client_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        got = dict(row)
+        try:
+            got["redirects"] = json.loads(got["redirects"] or "[]")
+        except json.JSONDecodeError:
+            got["redirects"] = []
+        return got
+
+    def start_grant(
+        self,
+        person_id: int,
+        client_id: str,
+        *,
+        scopes: str,
+        redirect: str,
+        challenge: str,
+        resource: str = "",
+    ) -> str:
+        """Mint an authorization code for a reader who has just pressed Approve.
+
+        The code is returned once and held as a digest, like a sign-in link. What it
+        carries is what the reader agreed to — the scopes are written here, from the
+        approval page, and never read back off anything the client sends later.
+        """
+        code = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO oauth_grant (hash, person, client, scopes, redirect,"
+                " challenge, resource, made) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    digest(code),
+                    person_id,
+                    client_id,
+                    scopes,
+                    redirect,
+                    challenge,
+                    resource,
+                    now(),
+                ),
+            )
+        return code
+
+    def spend_grant(self, code: str, minutes: int = GRANT_MINUTES) -> dict[str, Any] | None:
+        """Spend a code, once. None if it is spent, stale, or not a code.
+
+        Marked rather than deleted: a replayed code should be recognisable as replayed.
+        Whoever calls this must check the PKCE verifier against `challenge` and the
+        client and redirect against what was stored — this only guarantees the code was
+        fresh and is now gone.
+
+        The cutoff is inclusive, so a lifetime of zero refuses everything rather than
+        accepting whatever was minted inside the same millisecond. It reads as a detail
+        and it is the difference between a test that pins the boundary and one that
+        passes whenever the clock happens to tick.
+        """
+        if not code:
+            return None
+        cutoff = now() - minutes * 60 * 1000
+        with self.write() as db:
+            row = db.execute(
+                "SELECT hash, person, client, scopes, redirect, challenge, resource,"
+                " made, spent FROM oauth_grant WHERE hash = ?",
+                (digest(code),),
+            ).fetchone()
+            if row is None or row["spent"] or row["made"] <= cutoff:
+                return None
+            db.execute("UPDATE oauth_grant SET spent = ? WHERE hash = ?", (now(), digest(code)))
+            return dict(row)
+
+    def mint_token(
+        self,
+        person_id: int,
+        client_id: str,
+        *,
+        kind: str = "access",
+        scopes: str,
+        resource: str = "",
+        parent: str = "",
+        minutes: int = ACCESS_MINUTES,
+    ) -> str:
+        """Write one token and hand it back. It exists in the clear only in the reply."""
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        expires = 0 if kind == "refresh" else now() + minutes * 60 * 1000
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO oauth_token (hash, person, client, kind, scopes, resource,"
+                " parent, made, expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    digest(token),
+                    person_id,
+                    client_id,
+                    kind,
+                    scopes,
+                    resource,
+                    parent,
+                    now(),
+                    expires,
+                ),
+            )
+        return token
+
+    def bearer(self, token: str | None) -> tuple[Person, str] | None:
+        """Who is holding this access token, and what they let it do.
+
+        The scopes come off the row, never off the request: that is the same rule
+        `chat/tools.py` states about ownership, and it is what makes the registry safe to
+        expose to a client targum does not control. An account that is leaving is nobody,
+        the way it is nobody to `whoever`.
+
+        Touches `seen`, at most once a minute, so the account page can say when a
+        connector last asked. That is the only thing it decides.
+        """
+        if not token:
+            return None
+        row = self.db.execute(
+            "SELECT oauth_token.person AS id, oauth_token.scopes AS scopes,"
+            " oauth_token.expires AS expires, oauth_token.revoked AS revoked,"
+            " oauth_token.seen AS seen, person.email AS email, person.leaving AS leaving"
+            " FROM oauth_token JOIN person ON person.id = oauth_token.person"
+            " WHERE oauth_token.hash = ? AND oauth_token.kind = 'access'",
+            (digest(token),),
+        ).fetchone()
+        if row is None or row["revoked"] or row["leaving"] is not None:
+            return None
+        if row["expires"] and row["expires"] < now():
+            return None
+        if now() - row["seen"] > 60_000:
+            with self.write() as db:
+                db.execute("UPDATE oauth_token SET seen = ? WHERE hash = ?", (now(), digest(token)))
+        return Person(row["id"], row["email"], self.is_admin(row["email"])), row["scopes"]
+
+    def rotate_refresh(self, token: str) -> dict[str, Any] | None:
+        """Spend a refresh token and say what it was for, so a new pair can be written.
+
+        Rotation, not reuse: the old row is revoked here and the caller chains the new one
+        to it through `parent`. A refresh token presented twice is a token that leaked.
+
+        **And a leaked one takes the whole family down.** Refusing the second use alone
+        would leave whatever was minted from the first still working, which is the wrong
+        half to keep: by the time a rotated token is presented again, one of the two
+        holding it is not the reader, and nothing here can say which. So every token this
+        client holds for this person is revoked, both kinds, and the reader connects
+        again — one press in the app it came from, against an account nobody else is
+        still inside.
+        """
+        if not token:
+            return None
+        with self.write() as db:
+            row = db.execute(
+                "SELECT hash, person, client, scopes, resource, revoked FROM oauth_token"
+                " WHERE hash = ? AND kind = 'refresh'",
+                (digest(token),),
+            ).fetchone()
+            if row is None:
+                return None
+            if row["revoked"]:
+                db.execute(
+                    "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
+                    " AND revoked = 0",
+                    (now(), row["person"], row["client"]),
+                )
+                return None
+            db.execute("UPDATE oauth_token SET revoked = ? WHERE hash = ?", (now(), digest(token)))
+            return dict(row)
+
+    def revoke_token(self, token: str) -> bool:
+        """Revoke one token by its value, whichever kind it is (RFC 7009)."""
+        if not token:
+            return False
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE oauth_token SET revoked = ? WHERE hash = ? AND revoked = 0",
+                (now(), digest(token)),
+            )
+            return cursor.rowcount > 0
+
+    def disconnect(self, person_id: int, client_id: str) -> int:
+        """Revoke everything one client holds for one person — the account page's press.
+
+        Both kinds at once: revoking the access token and leaving the refresh token would
+        be a disconnection that reconnects itself within the hour.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
+                " AND revoked = 0",
+                (now(), person_id, client_id),
+            )
+            return cursor.rowcount
+
+    def connections(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Which clients this person has connected, and what each may do.
+
+        One row per client rather than per token, because a client holding an access
+        token and the refresh token that will replace it is one connection and reads as
+        two. Never the digests: see `everything`.
+        """
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT oauth_token.client AS client, oauth_client.name AS name,"
+            " MAX(oauth_token.scopes) AS scopes, MIN(oauth_token.made) AS made,"
+            " MAX(oauth_token.seen) AS seen"
+            " FROM oauth_token LEFT JOIN oauth_client ON oauth_client.id = oauth_token.client"
+            " WHERE oauth_token.person = ? AND oauth_token.revoked = 0"
+            " GROUP BY oauth_token.client ORDER BY made DESC",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def sweep_tokens(self, days: int = TOKEN_SWEEP_DAYS) -> int:
+        """Drop rows nothing can use any more: spent grants and long-dead tokens.
+
+        Kept for a while rather than deleted on expiry, so that "this token expired" and
+        "this token never existed" stay different answers for as long as they are useful
+        to tell apart.
+        """
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            gone = db.execute("DELETE FROM oauth_grant WHERE made < ?", (cutoff,)).rowcount
+            gone += db.execute(
+                "DELETE FROM oauth_token WHERE (revoked > 0 AND revoked < ?)"
+                " OR (expires > 0 AND expires < ?)",
+                (cutoff, cutoff),
+            ).rowcount
+            return gone
 
     def want(self, query: str, source: str, standing: str = "") -> None:
         """Count one ask the shelf could not answer. Keyed on the words and the link,

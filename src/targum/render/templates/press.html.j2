@@ -1,0 +1,88 @@
+{#- The press, for a quote made somewhere targum has no page (targum-internal#80).
+
+    In the chat a quote becomes a card in the thread, and the card's button posts
+    `/build`. Over a connector the quote is made in somebody else's app, so it comes back
+    as a link to this: the same quote, the same button, the same `/build`, on a page of
+    ours. `Handler._build` remains the only path to `Library.claim`, and the model still
+    cannot press anything.
+
+    It is the sign-in family's furniture — the lockup, one card, no navigation — for the
+    reason that page gives: somebody is in the middle of something that started
+    elsewhere, and three ways off this page would be three ways to lose them.
+
+    §6 governs the words. What a text takes is said in minutes and in their hours, never
+    as a price: this page never prints what the job cost to make. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="signin">
+<main class="gate">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <div class="door">
+  {% if job.reader %}
+    {#- Already built, which is what a second visit to the same link looks like. Not an
+        error, and the way on is the reader itself. -#}
+    <h1>{{ t("press.page.this-one-is-ready", "This one is ready") }}</h1>
+    <p class="said">{{ job.title }}</p>
+    <form method="get" action="/reader/{{ job.reader }}/reader/index.html">
+      <button class="go" type="submit">{{ t("press.page.open-it", "Open it") }}</button>
+    </form>
+
+  {% elif job.stage in ('working', 'reading') %}
+    {#- Pressed, and being made. With script this page never draws it — the press stays
+        put and watches. Without script the press redirects back here, and the way on is
+        to look again, which is what the button says. -#}
+    <h1>{{ t("press.page.we-re-making-it", "We're making it") }}</h1>
+    <p class="said">{{ job.title }}</p>
+    {%- if job.message %}<p class="said">{{ job.message }}</p>{% endif %}
+    <form method="get" action="/build/{{ job.id }}">
+      <button class="go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
+    </form>
+
+  {% elif job.stage == 'ready' %}
+    <h1>{{ job.title }}</h1>
+    {%- if job.english %}<p class="said">{{ job.english }}</p>{% endif %}
+    <ul class="scopes">
+      {%- if job.usually %}
+      <li><span class="scope-says">{{ t("press.page.ready-in-about-minutes", "Ready in about {minutes} minutes", minutes=job.usually|round|int) }}</span></li>
+      {%- endif %}
+      {%- if job.known_line %}
+      <li><span class="scope-says">{{ job.known_line }}</span></li>
+      {%- endif %}
+      {%- if job.audio %}
+      <li>
+        <span class="scope-says">{{ t("press.page.it-has-audio", "It has audio") }}</span>
+        <span class="scope-cost">{{ t("press.page.uses-minutes-of-your-hours", "Uses {minutes} minutes of your hours", minutes=(job.seconds / 60)|round|int) }}</span>
+      </li>
+      {%- endif %}
+    </ul>
+    <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}">
+      <button class="go" type="submit">{{ t("press.page.read-this", "Read this") }}</button>
+    </form>
+    <p class="aside">{{ t("press.page.you-asked-for-this-somewhere-else", "You asked for this somewhere else. Nothing has been made yet.") }}</p>
+
+  {% else %}
+    <h1>{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
+    <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "That quote has gone stale. Ask again where you asked before.") }}</p>
+    <p class="aside"><a href="/">{{ t("press.page.go-to-your-texts", "Go to your texts") }}</a></p>
+  {% endif %}
+  </div>
+</main>
+<script>{{ asset('press.js') }}</script>
+</body>
+</html>

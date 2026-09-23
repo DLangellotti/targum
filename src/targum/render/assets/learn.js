@@ -801,6 +801,15 @@
       );
     }
     if (series.length) row.appendChild(menu({ id: "subscriptions", label: SUBSCRIPTIONS, items: series }));
+    /* And one door that is not a text (design.md §12, 2026-09-22): targum in Claude and
+       ChatGPT. Styled exactly like the reading doors, because a door drawn as a lesser
+       thing reads as an advertisement and this page does not carry those.
+
+       It is appended rather than counted: the rule above still decides whether a row of
+       doors is worth drawing at all, on the reading doors alone. A row holding nothing
+       but this would be the first thing a new reader met, which is the push the panel
+       below promises not to be. */
+    if (!row.hidden && window.TARGUM_CONNECTOR) row.appendChild(connectDoor());
     drawCards();
     markDoor(current);
     // The cards are only now in the page, so the mark the sheet set before they existed
@@ -937,6 +946,16 @@
     }
     item.appendChild(link);
     return item;
+  }
+
+  /* The way in, as a door. A link and not a button: it goes somewhere, where the
+     reading doors swap the sheet below, and a reader who wants it in another tab should
+     be able to have it in another tab. */
+  function connectDoor() {
+    var way = el("a", "way", t("learn.door.claude-and-chatgpt", "Claude and ChatGPT"));
+    way.href = "/connect";
+    way.setAttribute("data-door", "connect");
+    return way;
   }
 
   function pill(one) {

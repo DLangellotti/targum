@@ -31,6 +31,9 @@ install({
   // The bell (2026-09-11): what the page told it.
   TargumNotices: { note: (id, text, extra) => notices.push({ id, text, href: (extra || {}).href || "" }) },
   TARGUM_CATALOGUE: payload.catalogue || [],
+  // Whether this box offers the connector (#80). On by default here, because the
+  // row's shape is what these tests are about; `connector: false` turns it off.
+  TARGUM_CONNECTOR: payload.connector !== false,
   // The languages a translation can be in (2026-09-20). None unless a test says, so the
   // arrival asks which one a reader reads only in the tests that are about that.
   TARGUM_INTO: payload.into || [],

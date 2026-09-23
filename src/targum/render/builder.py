@@ -1169,7 +1169,7 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     return out
 
 
-def learn_page(token: str, language: str = "en") -> str:
+def learn_page(token: str, language: str = "en", connector: bool = False) -> str:
     """The page you land on: carry on, what you have, what you know.
 
     In that order on purpose. Most visits are somebody returning to a text rather than
@@ -1224,6 +1224,10 @@ def learn_page(token: str, language: str = "en") -> str:
                 }
                 for entry in everything()
             ],
+            # Whether Learn draws a door to the connector (#80). The page is rendered
+            # once at start-up, so this is read then and not per request — which is the
+            # same thing the switch means: the day it opens is a restart.
+            connector=connector,
         )
     )
 
@@ -1669,6 +1673,120 @@ def signin_page(
             # its last step is worse than a door that is not there (#304).
             google=google_module.configured(),
             strings=script_strings(language, "signin."),
+        )
+    )
+
+
+def approve_page(
+    *,
+    client: str,
+    scopes: list[dict[str, str]],
+    spends: bool,
+    hours: int,
+    query: str,
+    redirect: str,
+    language: str = "en",
+) -> str:
+    """Where a reader grants a connector its scopes (targum-internal#80).
+
+    The one press design.md §12 ("A scope is a press that lasts") rests on, so what is
+    on it is not decoration: every scope in words, and what the spending one costs said
+    in hours before it is granted rather than in a receipt afterwards.
+
+    `client` is the name the client registered, which is the client's claim about itself
+    and not a fact about who it is — dynamic registration means a stranger wrote it. It
+    is escaped like everything else and shown as what it says it is.
+
+    `query` is the original authorization request, carried through the form so the press
+    can be read again from it. Nothing on the grant is taken from the form itself; see
+    `serve.Handler._oauth_approve` for why that matters.
+    """
+    return (
+        _environment()
+        .get_template("approve.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            client=client,
+            scopes=scopes,
+            spends=spends,
+            hours=hours,
+            query=query,
+            redirect=redirect,
+        )
+    )
+
+
+def press_page(job: dict[str, Any], language: str = "en") -> str:
+    """Where a quote made through a connector is pressed (targum-internal#80).
+
+    In the chat a quote becomes a card in the thread and the card's button posts
+    `/build`. Over a connector there is no thread of ours, so the quote comes back
+    carrying a link to this — the same quote, the same press, on a page targum drew.
+    `Handler._build` stays the only path to `Library.claim`.
+
+    `job` is `Job.state()`, so this page and the chat's card are drawn from one shape and
+    cannot drift into saying different things about the same build.
+    """
+    return (
+        _environment()
+        .get_template("press.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            job=job,
+        )
+    )
+
+
+def connect_page(language: str = "en", address: str = "") -> str:
+    """targum in Claude and ChatGPT: what it does, and how to add it (#80).
+
+    A public page, so §6's selling register applies and the feature names we use inside
+    the team do not. "MCP" is on it once, in the steps, because that is what the menu the
+    reader has to find is called.
+
+    Note 2 of 2026-09-22 is the design: assume this is their first connector of any kind.
+    One block a host, each with its own steps, and nothing detected — a reader in the
+    wrong block can see that they are, which is not true of a page that chose for them.
+    """
+    said = page_words(language)
+    # Its own address per language, like every other public page (#188): a crawler
+    # cannot be told two languages of this exist unless each has a URL.
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/connect" if address else "", language)
+    return (
+        _environment()
+        .get_template("connect.html.j2")
+        .render(
+            t=said,
+            page_language=_page_language(language),
+            title=said("connect.head.title", "targum in Claude and ChatGPT"),
+            description=said(
+                "connect.head.description",
+                "Read Hebrew with targum from inside Claude or ChatGPT: your words, your "
+                "mistakes, and something to read next.",
+            ),
+            canonical=here,
+            alternates=alternates,
+            address=address,
+        )
+    )
+
+
+def connect_refused_page(said: str, language: str = "en") -> str:
+    """A Connect that could not be read, said to the reader instead of to the client.
+
+    Its own page rather than a redirect carrying an error: the request that failed is
+    one we could not verify, so the address it asked to be sent back to is an address
+    nobody has checked.
+    """
+    return (
+        _environment()
+        .get_template("connect_refused.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            said=said,
         )
     )
 

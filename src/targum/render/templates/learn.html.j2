@@ -232,6 +232,7 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_CATALOGUE = {{ catalogue|tojson }};
+window.TARGUM_CONNECTOR = {{ connector|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 <script>{{ asset('strings.js') }}</script>

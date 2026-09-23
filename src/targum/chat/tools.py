@@ -1,8 +1,9 @@
 """The tools the chat may call, declared once.
 
-Each tool is a name, a description, a JSON schema, two flags and a function. The same
-list is handed to the Anthropic SDK today and will be mounted on a remote MCP server
-later (targum-internal #80), so nothing here knows which of the two is asking.
+Each tool is a name, a description, a JSON schema, four flags and a function. The same
+list is handed to the Anthropic SDK, served over stdio to a client on this machine, and
+mounted on the remote connector (targum-internal #80) — so nothing here knows which of
+the three is asking.
 
 Two rules hold the whole surface up.
 
@@ -11,13 +12,27 @@ whose words and whose builds from the context the server built out of the sessio
 argument naming an owner is not a thing that exists. That is what makes the registry
 safe to expose to a client the server does not control.
 
-**Only a person spends.** No tool here spends money. `quote_build` prices a text for
+**Only a person spends, and the chat holds nothing that does.** `anthropic_tools` —
+the list this conversation's model is given — leaves out anything with `spends` set, so
+the rule below is unchanged for the surface it was written for. One tool in the registry
+does spend (`record_turn`, for a conversation held somewhere else), and it is reachable
+only through a connector whose reader granted the scope that consented to it: design.md
+§12, "A scope is a press that lasts", 2026-09-22.
+
+`quote_build` prices a text for
 nothing — `Library.prepare` is the free half of the quote-then-consent seam — and hands
 the page a card; the card's button posts to `/build`, the same route the Add page's
 button posts to, and `Handler._build` is then the only path to `Library.claim`. The
 model never holds a tool that could press. `spends` and `needs_consent` stay on `Tool`
 for a surface where that is not so (a client the server does not control), so the seam
 is drawn before the first tool needs it.
+
+**And a scope decides what a connector may even see.** `scope` says which of
+`oauth.SCOPES` a remote client must have been granted before a tool is listed to it at
+all: the library's by default, `record` for anything that reads the reader's own words,
+`check` for the one that prices a text. Over the Anthropic SDK and over stdio there is
+no token and no scope, and the whole registry stands — the reader is the person who
+started the process. See `connector.exposed`.
 """
 
 from __future__ import annotations
@@ -42,6 +57,7 @@ from .. import level as level_module
 from ..level import Level
 from ..translate.prompts import INTO, language_name
 from ..usage import Usage
+from . import check as check_module
 from . import hebrew as hebrew_module
 from . import sources as sources_module
 
@@ -102,6 +118,21 @@ class Ctx:
     #: language makes a signed-out conversation Russian, `INTO` holding exactly English
     #: and Russian (targum-internal#286, item 1).
     said_reads: set[str] | None = None
+    #: How to reach targum's own model, for the one tool that spends (#80). A callable
+    #: rather than a client, so nothing here decides when one is made and a test can
+    #: hand over a script. `None` where there is no model to reach — the command line,
+    #: a box with no key — and `record_turn` says so rather than failing inside.
+    #:
+    #: The chat does not set it: a turn there already has a client and buys its own
+    #: reply. This is for a surface where the conversation is somebody else's and only
+    #: the judgement is ours.
+    ask: Callable[[], Any] | None = None
+    #: Where a press lives, for a caller that has no page of ours to draw a card on.
+    #: Empty in the chat, which draws the card itself and posts `/build` from it; the
+    #: public address over the connector, where the quote has to come back carrying a
+    #: link to the page the button is on (targum-internal#80). Either way the press is
+    #: the reader's own, on targum, and the model cannot make it.
+    press_at: str = ""
 
     @property
     def person_id(self) -> int | None:
@@ -128,6 +159,18 @@ class Tool:
     run: Run
     spends: bool = False
     needs_consent: bool = False
+    #: Whether this tool has anything to say to nobody. Everything that reads the
+    #: reader's own shelf, ledger or builds does not: over stdio, where `Ctx.person` is
+    #: None because the machine has one signed-out reader, listing it would be offering
+    #: a tool that can only answer emptily. Remote, the token names a person and this is
+    #: always satisfied — see `connector.exposed`.
+    needs_account: bool = False
+    #: Which scope a connector must have been granted to see this at all
+    #: (targum-internal#80). Empty means the library's, which is what a tool that asks
+    #: nothing of the reader's record needs. The one tool that spends carries
+    #: `oauth.SPENDING_SCOPE`, and that pairing is the whole of what design.md §12's
+    #: "A scope is a press that lasts" allows.
+    scope: str = ""
 
 
 def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -650,6 +693,23 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     ctx.library.prepare(job)
     ctx.library.remember(job)
     state = job.state()
+    if ctx.press_at:
+        # No page of ours to draw a card on, so the press comes back as a link to one
+        # (targum-internal#80). The seam is unchanged: `/build/<id>` shows the quote and
+        # one button, `Handler._build` is still the only path to `Library.claim`, and
+        # what the model holds is a URL rather than a way to spend.
+        state["open"] = f"{ctx.press_at}/build/{job.id}"
+        return {
+            "quote": state,
+            "note": (
+                "Give the reader the link in `open` and say in ONE sentence what the "
+                "text is — in their time if you say how long, never in money, never as "
+                "a build. They press it on targum's own page; you cannot. Do not "
+                "describe the button or tell them to press it."
+                if state["stage"] == "ready"
+                else "This cannot be made ready now. Tell the reader why, in one sentence."
+            ),
+        }
     return {
         "quote": state,
         # One sentence, because the card says the rest (targum-internal#236). Asked to say
@@ -1327,6 +1387,84 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 REGISTERS = [register.value for register in catalogue_module.Register]
 KINDS = [kind.value for kind in catalogue_module.Kind]
 
+
+def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Check one line the reader wrote elsewhere, and keep what they got wrong.
+
+    **The one tool that spends** (design.md §12, "A scope is a press that lasts"). It
+    takes what the reader wrote and never the host's correction: targum recasts it on its
+    own model against its own contract, so the record has one judge whichever surface a
+    line came from. See `chat/check.py` for why that is worth paying for.
+
+    Claimed and settled like a turn of conversation, on the same rails and the same eight
+    hours, because it is one — narrowed to the reader's own line, with no reply's worth
+    added, because the host wrote the reply and targum did not.
+    """
+    wrote = str(args.get("wrote") or "").strip()
+    language = str(args.get("language") or "he").split("-")[0].lower()
+    if not wrote:
+        return {"error": "Give the line the reader wrote."}
+    if ctx.person is None or ctx.store is None:
+        return {"error": "This needs an account."}
+    if language not in ctx.learning:
+        return {"error": f"The reader is not learning {language_name(language)}."}
+    if language not in hebrew_module.TALKED:
+        talks = ", ".join(sorted(language_name(one) for one in hebrew_module.TALKED))
+        return {"error": f"We can check {talks}. {language_name(language)} is coming."}
+    if hebrew_module.words_in(wrote) > check_module.MOST_WORDS:
+        return {
+            "error": (
+                f"That is more than {check_module.MOST_WORDS} words. Send one line at a "
+                "time — a paragraph recast as a sentence teaches nothing."
+            )
+        }
+    if ctx.ask is None:
+        return {"error": "This box cannot check a line."}
+    from ..serve import Job
+
+    job = Job(
+        id=f"check-{ctx.person.id}-{secrets.token_urlsafe(8)}",
+        source=f"check:{language}",
+        title="",
+        estimate=check_module.MOST_PER_LINE,
+        # The reader's own words and nothing else. An in-app turn adds a reply's worth
+        # because targum writes the reply; here the host wrote it.
+        seconds=hebrew_module.seconds_for(hebrew_module.words_in(wrote)),
+        stage="working",
+        owner=ctx.person.id,
+        home=ctx.home,
+        admin=ctx.admin,
+        kind="chat",
+    )
+    ctx.library.jobs[job.id] = job
+    ctx.library.remember(job)
+    refused = ctx.library.claim_turn(job)
+    if refused:
+        return {"error": refused}
+    try:
+        said = check_module.recast(ctx, language, wrote, ctx.ask())
+    except Exception as broke:  # noqa: BLE001 - the model reads this, a reader does not
+        ctx.library.release(job)
+        return {"error": f"We could not check that line. {type(broke).__name__}"}
+    job.spent = ctx.usage.cost()
+    ctx.library.settle(job)
+    if said is None:
+        return {"error": "We could not read that line back. Nothing was kept."}
+    kept = check_module.keep(ctx, language, wrote, said, "connector")
+    return {
+        "recast": said.hebrew,
+        "meaning": said.english,
+        "why": said.why,
+        "changed": bool(kept),
+        "note": (
+            "Show the reader this recast and the reason, in their own conversation. It "
+            "is kept on their record and will come back to them on targum."
+            if kept
+            else "That line was already right. Say so briefly and carry on."
+        ),
+    }
+
+
 REGISTRY: tuple[Tool, ...] = (
     Tool(
         "search_library",
@@ -1363,6 +1501,7 @@ REGISTRY: tuple[Tool, ...] = (
         "they know, when they last opened it and when they finished it.",
         _schema({"query": {"type": "string"}, "language": {"type": "string"}}),
         search_my_shelf,
+        scope="record",
     ),
     Tool(
         "sentences_with",
@@ -1372,6 +1511,7 @@ REGISTRY: tuple[Tool, ...] = (
         "side by side — a Russian verb beside its aspect partner — from what the reader has.",
         _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
         sentences_with,
+        scope="record",
     ),
     Tool(
         "my_vocabulary",
@@ -1384,6 +1524,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         my_vocabulary,
+        scope="record",
     ),
     Tool(
         "my_progress",
@@ -1391,6 +1532,7 @@ REGISTRY: tuple[Tool, ...] = (
         "sections finished. Never a placement.",
         _schema({}),
         my_progress,
+        scope="record",
     ),
     Tool(
         "suggest_next",
@@ -1406,6 +1548,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         suggest_next,
+        scope="record",
     ),
     Tool(
         "quote_build",
@@ -1428,6 +1571,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         quote_build,
+        scope="check",
     ),
     Tool(
         "describe_source",
@@ -1466,12 +1610,39 @@ REGISTRY: tuple[Tool, ...] = (
         "it returns. Never money.",
         _schema({}),
         my_hours,
+        scope="record",
+    ),
+    Tool(
+        "record_turn",
+        "Check one line of the language the reader is learning, as they wrote it, and "
+        "keep what they got wrong on their record. Send what the READER wrote, never "
+        "your own correction of it: targum checks it itself, so their record has one "
+        "judge. Returns targum's recast, its meaning and one line of why — show them "
+        "that. A line that was already right keeps nothing. Uses the reader's hours.",
+        _schema(
+            {
+                "wrote": {
+                    "type": "string",
+                    "description": "The line the reader wrote, exactly as they wrote it.",
+                },
+                "language": {
+                    "type": "string",
+                    "description": "The code of the language they were writing in.",
+                },
+            },
+            ("wrote",),
+        ),
+        record_turn,
+        spends=True,
+        needs_account=True,
+        scope="check",
     ),
     Tool(
         "check_job",
         "Where one of the reader's own builds has got to, by id.",
         _schema({"id": {"type": "string"}}, ("id",)),
         check_job,
+        scope="record",
     ),
 )
 
@@ -1494,10 +1665,18 @@ def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
     and a reader called it stingy. What keeps the search on Hebrew is the Hebrew the
     model searches in and the Hebrew share `describe_source` counts before anything is
     offered; the list added a failure mode and not a floor.
+
+    **Nothing that spends is offered here**, and the chat is the surface that rule was
+    written for: a tool that spends on a model's decision makes the pricing page a lie.
+    `record_turn` exists for a conversation held somewhere else, where the host wrote the
+    reply and only the judgement is ours. In *this* conversation targum already recasts
+    every line in its own contract and writes the slip itself (`chat/record.py`), so
+    offering it here would record the same mistake twice and charge for it twice.
     """
     tools: list[dict[str, Any]] = [
         {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
         for tool in REGISTRY
+        if not tool.spends
     ]
     if web_search:
         tools.append(

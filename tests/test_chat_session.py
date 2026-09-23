@@ -148,7 +148,13 @@ def test_a_plain_answer_streams_and_is_kept(tmp_path: Path) -> None:
         "and the last message, so the next turn reads the history back from the cache"
     )
     # The whole registry: this turn was answered on a box with no web_search.
-    assert [tool["name"] for tool in sent["tools"]] == [tool.name for tool in tools.REGISTRY]
+    # What the chat is given is the registry minus anything that spends: `record_turn`
+    # is in the registry since 2026-09-22 and never in this list, because targum recasts
+    # every line of *this* conversation itself (design.md §12).
+    assert [tool["name"] for tool in sent["tools"]] == [
+        tool["name"] for tool in tools.anthropic_tools()
+    ]
+    assert "record_turn" not in [tool["name"] for tool in sent["tools"]]
 
 
 def test_tool_results_go_back_in_one_message_in_order(tmp_path: Path) -> None:
@@ -1460,7 +1466,9 @@ def test_each_language_has_a_conversation_of_its_own(tmp_path: Path) -> None:
     store.use_language(person, "yi")
     yiddish_chat = chats.say(person, home, "", "something to read", admin=False)
     opened = store.chat_owned(person.id, yiddish_chat.chat_id)
-    assert opened["language"] == "yi" and opened["mode"] == "find"
+    # Yiddish holds a conversation since 2026-09-22 (#281). Aramaic is the language
+    # that still finds, and is deliberately the only one — see `hebrew.TALKED`.
+    assert opened["language"] == "yi" and opened["mode"] == "talk"
     chats.answer(yiddish_chat)
     assert hebrew.CONTRACT.splitlines()[0] not in client.requests[-1]["system"][0]["text"]
     assert chats.context(person, home, yiddish_chat.chat_id, False).level.language == "yi"
@@ -1494,14 +1502,19 @@ def test_an_aspect_question_is_pointed_at_the_partner_in_what_they_read() -> Non
 # -- Italian in the talk shape (targum-internal#280) --------------------------------------
 
 
-def test_italian_talks_and_a_language_with_no_talk_mode_still_finds() -> None:
+def test_five_languages_talk_and_the_one_that_does_not_still_finds() -> None:
+    """French, Russian and Yiddish joined Hebrew and Italian on 2026-09-22 (#281–#283).
+    Aramaic is the one left, deliberately: design.md §12 ruled the parallel case for
+    biblical Hebrew, and Onkelos and the Gemara are that shelf (#284)."""
     assert session_module.mode_for("it", False) == "talk", "a shelf's Hebrew decides nothing here"
     assert session_module.mode_for("he", True) == "talk"
     assert session_module.mode_for("he", False) == "find", "scripture-only Hebrew stays as it was"
-    assert session_module.mode_for("fr", True) == "find"
+    for code in ("fr", "ru", "yi"):
+        assert session_module.mode_for(code, False) == "talk", code
+    assert session_module.mode_for("arc", True) == "find"
     assert session_module.talking({"mode": "find"}, "it"), "stored find only for its language"
     assert not session_module.talking({"mode": "find"}, "he"), "stored find for its shelf"
-    assert not session_module.talking({"mode": "talk"}, "fr")
+    assert not session_module.talking({"mode": "talk"}, "arc")
 
 
 def test_an_italian_turn_is_held_to_the_italian_contract_and_its_words_are_on_its_receipt(

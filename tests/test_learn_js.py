@@ -23,6 +23,14 @@ import pytest
 
 HARNESS = Path(__file__).resolve().parent / "js" / "learn.js"
 
+#: The doors, in order. The last is not a text (design.md §12, 2026-09-22): it is the
+#: way into Claude and ChatGPT, drawn identically and always last, and it never decides
+#: whether the row is worth drawing at all — the reading doors do that.
+ROW = ["Continue reading", "Suggested", "Recently opened", "Claude and ChatGPT"]
+#: The same door as a (label, on) pair. It is never `on`: it leads off the page
+#: rather than swapping the sheet, so there is no state for it to be in.
+CONNECT = ("Claude and ChatGPT", False)
+
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
 
@@ -150,6 +158,7 @@ def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> 
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
         ("Recently opened", False),
+        CONNECT,
     ]
     recent = drawn["recent"]
     assert [i["label"] for i in recent["items"]] == [f"ספר {n}" for n in range(5)], (
@@ -166,6 +175,7 @@ def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> 
     assert [(d["label"], d["on"]) for d in pressed["doors"]] == [
         ("Continue reading", False),
         ("Recently opened", True),
+        CONNECT,
     ], "the door says which way the sheet was reached"
     assert [i["on"] for i in pressed["recent"]["items"]] == [False, False, True, False, False]
     assert not pressed["recent"]["open"], "a press closes the menu"
@@ -792,6 +802,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Continue reading", True),
         ("Recently opened", False),
         ("Subscriptions", False),
+        CONNECT,
     ]
     assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
     assert [(i["id"], i["label"], i["fresh"]) for i in drawn["menu"]["items"]] == [
@@ -810,6 +821,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Continue reading", False),
         ("Recently opened", False),
         ("The weekly portion", True),
+        CONNECT,
     ], "the door says which subscription is in the sheet"
     both = dict(stored, **{"targum:follows": json.dumps({"parasha": 1, "weekly": 1})})
     unseen = draw([mine], dict(both, **{"targum:series-seen": "{}"}), series=[portion, digest])
@@ -818,9 +830,11 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Weekly News Digest", True),
     ], "the newest lands in the sheet and is seen; the other keeps its dot"
     alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})}, series=[portion, digest])
-    assert [d["label"] for d in alone["doors"]] == ["Continue reading", "Recently opened"], (
-        "nothing followed: no subscriptions door"
-    )
+    assert [d["label"] for d in alone["doors"]] == [
+        "Continue reading",
+        "Recently opened",
+        CONNECT[0],
+    ], "nothing followed: no subscriptions door"
     nothing = draw([], {})
     assert nothing["doors"] == [], "no text in the sheet, no row"
 
@@ -882,7 +896,6 @@ def test_a_subscription_read_through_carries_a_check_in_its_menu() -> None:
 
 
 # The row over the sheet with one text of the reader's own and a suggestion (2026-09-11).
-ROW = ["Continue reading", "Suggested", "Recently opened"]
 
 
 def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
@@ -926,9 +939,11 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
         "built on the shared shelf: framed in the sheet"
     )
     none = draw([mine], stored)
-    assert [d["label"] for d in none["doors"]] == ["Continue reading", "Recently opened"], (
-        "nothing suggested and nothing followed: no Suggested door"
-    )
+    assert [d["label"] for d in none["doors"]] == [
+        "Continue reading",
+        "Recently opened",
+        CONNECT[0],
+    ], "nothing suggested and nothing followed: no Suggested door"
 
 
 def test_a_finished_suggestion_makes_way_for_the_next() -> None:
@@ -991,6 +1006,16 @@ def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:
     drawn = draw(built_all, stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert [d["label"] for d in drawn["doors"]] == ROW
     assert drawn["carry"]["title"] == "רות" and drawn["carry"]["heading"] == "Suggested for you"
+
+
+def test_a_box_with_no_connector_draws_no_door_to_one() -> None:
+    """The connector ships dark behind `TARGUM_CONNECTOR` (#80), and a door to a 404 is
+    worse than no door."""
+    shelf = [reader(f"r{n}", f"ספר {n}", built=100 - n, opened=50 - n) for n in range(8)]
+    stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(8)})}
+    drawn = draw(shelf, stamps, connector=False)
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Recently opened"]
+    assert CONNECT[0] not in [d["label"] for d in drawn["doors"]]
 
 
 def test_the_date_follows_the_language_the_page_is_in() -> None:

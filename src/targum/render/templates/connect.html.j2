@@ -1,0 +1,114 @@
+{#- targum in Claude and ChatGPT (targum-internal#80, 2026-09-22).
+
+    A public page, so §6 says it sells: lead with what the reader gets, in their words.
+    "Connector" and "MCP" are our words. The word MCP appears exactly once on this page,
+    in the steps, because that is what the menu they have to find is called — everything
+    above it is what they get.
+
+    **Note 2 is the whole design of this page: assume it is their first MCP install.**
+    So: one block per host, each with its own steps, and nothing detected or guessed. No
+    "we see you're on a Mac". A reader who is in the wrong block can see that they are,
+    which is not true of a page that chose for them.
+
+    Baked in like every public page — no script, stylesheet, font or image off the
+    network (§11). It carries no script at all: there is nothing here that moves. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('landing.css') }}{{ asset('connect.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="landing">
+<header class="bar">
+  <div class="col">
+    <a class="brand" href="/" aria-label="targum">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      <span>targum</span>
+    </a>
+  </div>
+</header>
+
+<main>
+  <div class="col open">
+    <h1>{{ t("connect.page.targum-in-claude-and-chatgpt", "targum in Claude and ChatGPT") }}</h1>
+    <p class="lede">{{ t("connect.page.your-hebrew-your-words-and-your-mistakes", "Your Hebrew, your words and your mistakes — wherever you already ask.") }}</p>
+    <p>{{ t("connect.page.ask-for-something-to-read-and-get-it", "Ask for something to read and get a text you can open, chosen for the words you already know. Ask what you were working on and hear what you actually marked, not a guess.") }}</p>
+  </div>
+
+  <section class="col">
+    <h2>{{ t("connect.page.what-it-can-do", "What it can do") }}</h2>
+    <ul class="can">
+      <li>{{ t("connect.page.find-you-something-to-read", "Find you something to read, from the library or from a link you paste.") }}</li>
+      <li>{{ t("connect.page.tell-you-what-you-were-working-on", "Tell you what you were working on, and which words you have not come back to.") }}</li>
+      <li>{{ t("connect.page.show-you-a-word-in-the-sentences", "Show you a word in the sentences you actually met it in.") }}</li>
+      <li>{{ t("connect.page.price-a-text-before-you-make-it", "Price a text before you make it, and hand you the link to start it.") }}</li>
+    </ul>
+    <p class="quiet">{{ t("connect.page.it-can-never-spend-your-hours-on-its-own", "It can never start a text on its own. It gives you a link; you press it, here.") }}</p>
+  </section>
+
+  <section class="col">
+    <h2>{{ t("connect.page.adding-it", "Adding it") }}</h2>
+    <p>{{ t("connect.page.paste-this-address-wherever-your-app-asks", "Paste this address wherever your app asks for one:") }}</p>
+    <p class="address"><code>{{ address }}/mcp</code></p>
+
+    <div class="host">
+      <h3>{{ t("connect.page.in-claude", "In Claude") }}</h3>
+      <ol>
+        <li>{{ t("connect.page.claude-open-settings-then-connectors", "Open Settings, then Connectors.") }}</li>
+        <li>{{ t("connect.page.claude-choose-add-custom-connector", "Choose Add custom connector.") }}</li>
+        <li>{{ t("connect.page.claude-paste-the-address-above", "Paste the address above and add it.") }}</li>
+        <li>{{ t("connect.page.claude-sign-in-and-choose-what-it-may-do", "Sign in to targum when it asks, and choose what it may do.") }}</li>
+      </ol>
+    </div>
+
+    <div class="host">
+      <h3>{{ t("connect.page.in-chatgpt", "In ChatGPT") }}</h3>
+      <ol>
+        <li>{{ t("connect.page.chatgpt-open-settings-then-connectors", "Open Settings, then Connectors.") }}</li>
+        <li>{{ t("connect.page.chatgpt-add-a-connector-and-paste", "Add a connector and paste the address above.") }}</li>
+        <li>{{ t("connect.page.chatgpt-sign-in-and-choose-what-it-may-do", "Sign in to targum when it asks, and choose what it may do.") }}</li>
+      </ol>
+    </div>
+
+    <div class="host">
+      <h3>{{ t("connect.page.in-claude-code", "In Claude Code") }}</h3>
+      <ol>
+        <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}</li>
+      </ol>
+      <p class="address"><code>claude mcp add --transport http targum {{ address }}/mcp</code></p>
+    </div>
+
+    <p class="quiet">{{ t("connect.page.mcp-is-what-the-menu-is-called", "Some apps call this an MCP server. That is the same thing.") }}</p>
+  </section>
+
+  <section class="col">
+    <h2>{{ t("connect.page.what-it-is-allowed-to-see", "What it is allowed to see") }}</h2>
+    <p>{{ t("connect.page.you-choose-when-you-connect-and-you-can", "You choose when you connect, and you can take any of it back from your account whenever you like.") }}</p>
+    <ul class="can">
+      <li>{{ t("connect.page.the-library-and-what-is-at-a-link", "The library, and what is at a link you give it.") }}</li>
+      <li>{{ t("connect.page.your-words-your-mistakes-and-how-far", "Your words, your mistakes, and how far you have got.") }}</li>
+      <li>{{ t("connect.page.pricing-a-text-which-uses-your-hours", "Checking your Hebrew and pricing a text, which use your hours.") }}</li>
+    </ul>
+    <p class="quiet">{{ t("connect.page.what-you-say-there-stays-there", "What you say to targum here is never sent the other way.") }}</p>
+  </section>
+
+  <div class="col close">
+    <h2>{{ t("connect.page.you-ll-need-a-targum-account", "You’ll need a targum account") }}</h2>
+    <form class="join-form" method="post" action="/waitlist">
+      <label class="field">
+        <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("connect.page.you-example-com", "you@example.com") }}" aria-label="{{ t("connect.page.your-email", "Your email") }}">
+        <button class="btn cta" type="submit">{{ t("connect.page.join-the-waitlist", "Join the waitlist") }}</button>
+      </label>
+      <p class="join-note">{{ t("connect.page.we-ll-email-you-when-your-turn-comes", "We’ll email you when your turn comes.") }}</p>
+    </form>
+  </div>
+</main>
+
+{% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+</body>
+</html>

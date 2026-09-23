@@ -1,0 +1,40 @@
+{#- A Connect that could not be read, said to the reader rather than to the client.
+
+    The reason it is a page and not a redirect: the request that failed is one we could
+    not verify, so the address it wanted to be sent back to is an address we have not
+    checked. Handing an error to it would be following a stranger's redirect to say that
+    we refused to trust the stranger.
+
+    §6 governs the sentence: we own it, we say what they can do, and we do not blame the
+    reader, who pressed a button in somebody else's app and has no idea what a redirect
+    URI is. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="signin">
+<main class="gate">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <div class="door">
+    <h1>{{ t("connect.page.we-couldn-t-finish-that", "We couldn't finish that") }}</h1>
+    <p class="said">{{ said }}</p>
+    <p class="said">{{ t("connect.page.try-connecting-again-from-the-app", "Try connecting again from the app you started in.") }}</p>
+    <p class="aside"><a href="/connect">{{ t("connect.page.how-connecting-works", "How connecting works") }}</a></p>
+  </div>
+</main>
+</body>
+</html>

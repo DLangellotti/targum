@@ -79,7 +79,14 @@ function act(step) {
     at("you-name").value = step.value;
     at("you-name").fire("input", {});
   } else if (step.type === "press") {
-    at(step.id).fire("click", {});
+    /* `id`, or `id:row:child` for a press inside a list the page drew — a connector's
+       Disconnect is a button in a row that did not exist when the page loaded. */
+    const path = String(step.id).split(":");
+    let node = at(path[0]);
+    for (let n = 1; n < path.length; n++) node = node.children[Number(path[n])];
+    node.fire("click", {});
+  } else if (step.type === "write") {
+    at(step.id).value = step.value;
   } else if (step.type === "tick") {
     const box = at(step.list).children.map((label) => label.children[0]).find((one) => one.value === step.code);
     box.checked = !box.checked;
@@ -101,6 +108,9 @@ setTimeout(() => {
           reading: at("reading").hidden,
           ending: at("ending").hidden,
         },
+        /* Its own key and not one of `panels` above: those four are shown to everybody
+           who is signed in, and this one is drawn only where there is something in it. */
+        connectionsPanel: at("connections").hidden,
         name: at("you-name").value,
         email: at("you-email").textContent,
         avatar: at("you-avatar").textContent,
@@ -114,6 +124,23 @@ setTimeout(() => {
         },
         ending: { text: at("you-ending-said").textContent, hidden: at("you-ending-said").hidden },
         forget: { label: at("you-forget").textContent, disabled: at("you-forget").disabled },
+        /* One row a connector: what it says it is, what it may do, and nothing that
+           could be a credential (targum-internal#80). */
+        connections: Array.from(at("connection-rows").children).map((row) => ({
+          name: row.children[0].textContent,
+          says: row.children[1].textContent,
+          press: row.children[2].textContent,
+        })),
+        promptsPanel: at("prompts").hidden,
+        prompts: Array.from(at("prompt-rows").children).map((row) => ({
+          name: row.children[0].textContent,
+          says: row.children[1].textContent,
+        })),
+        promptsSaid: { text: at("prompts-said").textContent, hidden: at("prompts-said").hidden },
+        connectionsSaid: {
+          text: at("connections-said").textContent,
+          hidden: at("connections-said").hidden,
+        },
         posted,
         restarted,
       })
