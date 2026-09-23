@@ -3057,11 +3057,6 @@ def render(
             **shared,
             # The page's own words in the language it is read in (targum-internal#184).
             t=page_words(chrome),
-            # And its counted ones. The voice offer counted in raw English with a
-            # hand-rolled `'' if n == 1 else 's'`, so the one line on this page telling
-            # a reader what something costs was the one line not in their language
-            # (2026-09-23).
-            tn=page_counts(chrome),
             page_language=_page_language(chrome),
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
