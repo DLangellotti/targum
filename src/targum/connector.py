@@ -97,6 +97,7 @@ def context(
     person: Person | None = None,
     press_at: str = "",
     ask: Callable[[], Any] | None = None,
+    sees_record: bool = True,
 ) -> tools_module.Ctx:
     """Who the tools are answering, built by the server and never from an argument.
 
@@ -151,6 +152,7 @@ def context(
         # And how to reach targum's own model, for the one tool that spends. The chat
         # never sets this: a turn there has a client already.
         ask=ask,
+        sees_record=sees_record,
     )
 
 

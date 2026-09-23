@@ -283,7 +283,14 @@ def _call(
         raise RpcError(INVALID_PARAMS, f"There is no tool called {name} here.")
     given = params.get("arguments")
     given = given if isinstance(given, dict) else {}
-    ctx = connector.context(library, store, person, press_at=address, ask=ask)
+    ctx = connector.context(
+        library,
+        store,
+        person,
+        press_at=address,
+        ask=ask,
+        sees_record=scopes is None or oauth.granted(scopes, "record"),
+    )
     text, failed = tools_module.run(name, given, ctx)
     return _result(
         request_id,

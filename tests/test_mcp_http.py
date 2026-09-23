@@ -423,6 +423,50 @@ def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]
     assert "record_turn" in contract
 
 
+def test_how_to_talk_without_record_is_the_contract_without_the_words(
+    box: tuple[int, str],
+) -> None:
+    """A reader who shared only the library still gets Hebrew, graded to common words."""
+    from targum.chat import hebrew
+
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library"),
+        "tools/call",
+        {"name": "how_to_talk", "arguments": {"language": "he"}},
+    )["result"]
+    assert said["isError"] is False
+    contract = json.loads(said["content"][0]["text"])["contract"]
+    assert hebrew.contract_for("he") in contract
+    assert "has marked no words known yet" in contract, "their record was not shared"
+
+
+def test_how_to_talk_never_reads_the_record_it_was_not_granted() -> None:
+    """The store is not touched at all: the words are what `record` shares."""
+    from pathlib import Path
+
+    from targum import level
+    from targum.accounts import Person
+    from targum.chat import tools as registry
+
+    class Untouchable:
+        def __getattr__(self, name: str) -> object:
+            raise AssertionError(f"read the record without the scope: {name}")
+
+    ctx = registry.Ctx(
+        person=Person(id=1, email="reader@example.com"),
+        home=Path("."),
+        library=None,  # type: ignore[arg-type]
+        store=Untouchable(),  # type: ignore[arg-type]
+        chat_id="",
+        level=level.EMPTY,
+        learning={"he"},
+        sees_record=False,
+    )
+    assert "contract" in registry.how_to_talk(ctx, {"language": "he"})
+
+
 def test_how_to_talk_refuses_a_language_that_does_not_talk(box: tuple[int, str]) -> None:
     port, _ = box
     said = rpc(

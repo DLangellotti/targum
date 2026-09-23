@@ -133,6 +133,11 @@ class Ctx:
     #: link to the page the button is on (targum-internal#80). Either way the press is
     #: the reader's own, on targum, and the model cannot make it.
     press_at: str = ""
+    #: Whether this caller may read the reader's record — their words and their slips.
+    #: Always, in the chat and over stdio; over the connector, only where the token was
+    #: granted `record`. Read by the one tool that is offered without that scope and
+    #: carries the record when it has it (`how_to_talk`).
+    sees_record: bool = True
 
     @property
     def person_id(self) -> int | None:
@@ -1514,7 +1519,10 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if ctx.learning and language not in ctx.learning:
         return {"error": f"The reader is not learning {language_name(language)}."}
     store, person_id = ctx.store, ctx.person_id
-    if store is not None and person_id is not None:
+    # The contract is offered to every connector, the words only to one granted
+    # `record`: a reader who shared only the library still gets the conversation in
+    # Hebrew, graded to the commonest words rather than their own.
+    if store is not None and person_id is not None and ctx.sees_record:
         level = level_module.snapshot(store, person_id, language)
         known = hebrew_module.known_words(store, person_id, language)
         # One slice of the ledger a day, so a conversation that asks twice is told the
@@ -1729,7 +1737,7 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         how_to_talk,
-        scope="record",
+        scope="",
         elsewhere=True,
     ),
     Tool(
