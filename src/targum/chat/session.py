@@ -658,10 +658,11 @@ def mode_for(language: str, talks: bool) -> str:
 
     `talk` — held in the language, graded to the reader — in Hebrew for a reader with
     modern Hebrew to hold it in (`Library.talks`), and in every other language
-    conversation has been built for (`hebrew.TALKED`: Italian since 2026-09-15,
-    targum-internal#280). `talks` is about which Hebrew a shelf holds, so it decides
-    nothing for Italian. Every other language opens in the English find mode (2026-09-13)
-    until conversation in it is built (#281 to #284).
+    conversation has been built for, which is `hebrew.TALKED`: Italian since 2026-09-15
+    (targum-internal#280), and French, Russian and Yiddish since 2026-09-23 (#281 to
+    #283). `talks` is about which Hebrew a shelf holds, so it decides nothing for any of
+    them. Aramaic stays out on purpose (#284), so it opens in the English find mode
+    (2026-09-13), as does any language with no contract in `hebrew.CONTRACTS`.
     """
     code = (language or "he").split("-")[0].lower()
     if code == "he":
