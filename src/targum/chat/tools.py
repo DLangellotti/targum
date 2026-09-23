@@ -45,7 +45,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -737,6 +737,101 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "This cannot be made ready now; the card says why. Tell the reader plainly, "
                 "in one sentence."
             )
+        ),
+    }
+
+
+#: How many texts one set may hold: design.md §12's cap, and the playlist's own.
+MOST_IN_SET = 20
+
+
+def _folder_of(reader: str) -> str:
+    """A reader's folder name from its address, `/reader/<name>/reader/index.html`."""
+    return unquote(reader.removeprefix("/reader/").split("/")[0])
+
+
+def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Price a named set of texts as one, and leave one press for all of them (#365).
+
+    design.md §12, "A playlist is swiped, and one press takes the set": each item is an
+    ordinary quote — `quote_build`, with its refusals in its words — and the set is a
+    playlist holding their jobs. The press is `/set/<id>` on a page of ours, and it claims
+    every text or none. A playlist or channel *address* is still refused item by item by
+    its door's own guard; a set is a list somebody wrote out, never somebody else's list.
+    """
+    if ctx.person is None or ctx.store is None:
+        return {"error": "A set needs an account."}
+    items = args.get("items") or []
+    if not isinstance(items, list) or not items:
+        return {"error": "Give the texts for the set: a link or a library id each."}
+    if len(items) > MOST_IN_SET:
+        return {"error": f"A set holds at most {MOST_IN_SET} texts. Send fewer."}
+    name = " ".join(str(args.get("name") or "").split()) or "Playlist"
+    # Each item quoted as the chat quotes one, with no press link of its own: the set's
+    # is the only press.
+    alone = replace(ctx, press_at="")
+    held: list[dict[str, Any]] = []
+    refused: list[dict[str, Any]] = []
+    for raw in items:
+        item = raw if isinstance(raw, dict) else {"source": str(raw)}
+        asked = {key: item[key] for key in ("source", "catalogue_id", "to") if item.get(key)}
+        said = quote_build(alone, asked)
+        if "in_library" in said:
+            # A published translation beats a machine one; quote that instead.
+            said = quote_build(alone, {**asked, "catalogue_id": said["in_library"]["id"]})
+        title = " ".join(str(item.get("title") or "").split())
+        if said.get("already_built"):
+            reader = str(said.get("reader") or "")
+            held.append({"title": title or _folder_of(reader), "reader": _folder_of(reader)})
+            continue
+        quote = said.get("quote")
+        if not quote or quote.get("stage") != "ready":
+            why = said.get("error") or (quote or {}).get("error") or (quote or {}).get("blocked")
+            refused.append(
+                {"source": asked.get("source") or asked.get("catalogue_id") or "", "why": why}
+            )
+            continue
+        credits = round(float(quote.get("seconds") or 0) / 60) if quote.get("audio") else 0
+        held.append(
+            {
+                "title": title or str(quote.get("title") or ""),
+                "job": str(quote["id"]),
+                "known_line": quote.get("known_line") or "",
+                "seconds": quote.get("seconds") or 0,
+                "audio": bool(quote.get("audio")),
+                "credits": credits,
+            }
+        )
+    if not held:
+        return {"error": "Nothing in that set can be made now.", "refused": refused}
+    made = ctx.store.make_playlist(
+        ctx.person.id, name, made_by="connector" if ctx.press_at else "chat"
+    )
+    if made is None:
+        return {"error": "The reader keeps as many playlists as we hold. Ask them to drop one."}
+    for one in held:
+        ctx.store.add_to_playlist(
+            ctx.person.id,
+            int(made["id"]),
+            one["title"],
+            reader=one.get("reader"),
+            job=one.get("job"),
+        )
+    link = f"{ctx.press_at}/set/{made['id']}"
+    return {
+        "set": {
+            "id": made["id"],
+            "name": made["name"],
+            "items": held,
+            "credits": sum(int(one.get("credits") or 0) for one in held),
+            "refused": refused,
+        },
+        "open": link,
+        "note": (
+            "Give the reader the link in `open`, on a line of its own, and say in ONE "
+            "sentence what the set is. They press it on targum's own page, where every "
+            "text is listed and they can untick any; you cannot press it. Name anything "
+            "in `refused` in one short sentence, with its reason."
         ),
     }
 
@@ -1751,6 +1846,37 @@ REGISTRY: tuple[Tool, ...] = (
         "the conversation opens on their shelf with every word tappable and on their ledger.",
         _schema({}),
         quote_conversation,
+    ),
+    Tool(
+        "quote_set",
+        "Estimate a set of texts as one playlist the reader can swipe through, free to "
+        "call: give it a name and up to 20 items, each a link or a library id. Use it "
+        'whenever the reader wants several texts at once ("find me some reels", "make '
+        'me a playlist"); use quote_build for one. Returns every text with what it uses, '
+        "the total, what could not be made and why, and one link: the reader presses it "
+        "on targum's page and every text is made together, or none. You cannot press it.",
+        _schema(
+            {
+                "name": {"type": "string", "description": "What to call the playlist."},
+                "items": {
+                    "type": "array",
+                    "maxItems": MOST_IN_SET,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source": {"type": "string", "description": "A link or fetcher id."},
+                            "catalogue_id": {"type": "string"},
+                            "title": {"type": "string", "description": "A short title."},
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            ("name", "items"),
+        ),
+        quote_set,
+        needs_account=True,
+        scope="chat",
     ),
     Tool(
         "my_playlists",

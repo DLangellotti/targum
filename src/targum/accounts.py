@@ -4216,6 +4216,57 @@ class Store:
             )
             return ""
 
+    def claim_all(
+        self,
+        claims: list[tuple[str, float, float]],
+        ceiling: float,
+        since: int,
+        *,
+        owner: int | None = None,
+        per_account: float | None = None,
+        month_from: int | None = None,
+        per_month_length: float | None = None,
+    ) -> tuple[str, float]:
+        """Claim a set of builds together, or none of them (#365, design.md §12).
+
+        `claims` is `(job id, amount, length)` for each, and the rails are `claim`'s,
+        checked against the set's totals in one transaction: one press takes the whole
+        set, so the reader is never left holding half of what the page quoted. Returns
+        which rail refused, or "", and — where the monthly seconds refused — how many
+        seconds were left, so the page can say how many credits would fit.
+        """
+        amount = sum(one[1] for one in claims)
+        length = sum(one[2] for one in claims)
+        with self.write() as db:
+            if per_account is not None:
+                mine = db.execute(
+                    "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+                    (since, owner),
+                ).fetchone()
+                if float(mine["spent"]) + amount > per_account:
+                    return "account", 0.0
+            if per_month_length is not None and month_from is not None and length > 0:
+                used = db.execute(
+                    "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+                    "WHERE length > 0 AND made >= ? AND owner IS ?",
+                    (month_from, owner),
+                ).fetchone()
+                if float(used["used"]) + length > per_month_length:
+                    return "hours", max(0.0, per_month_length - float(used["used"]))
+            row = db.execute(
+                "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                "WHERE claimed > 0 AND made >= ?",
+                (since,),
+            ).fetchone()
+            if float(row["spent"]) + amount > ceiling:
+                return "everyone", 0.0
+            for job_id, each, seconds in claims:
+                db.execute(
+                    "UPDATE job SET claimed = ?, length = ? WHERE id = ?", (each, seconds, job_id)
+                )
+            return "", 0.0
+
     def settle(
         self,
         job_id: str,

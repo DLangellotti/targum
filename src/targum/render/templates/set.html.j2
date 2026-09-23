@@ -1,0 +1,96 @@
+{#- One press for a whole set (targum-internal#365, design.md §12, "A playlist is swiped,
+    and one press takes the set").
+
+    A model quoted the set; the reader presses it here, on a page of ours, and the model
+    cannot. Every text is listed with what it uses and a tick, the total is said once, and
+    the one button claims every ticked text or none of them — David's call on 2026-09-23,
+    so a reader is never left holding half of what the page quoted. A refusal comes back
+    to this page and says how many credits are left.
+
+    `press.html.j2`'s furniture — the lockup, one card, no navigation — for its reason:
+    somebody is in the middle of something that started elsewhere. No script at all: the
+    ticks are checkboxes and the press is a form post. -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>targum</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('signin.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="signin">
+<main class="gate">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <div class="door">
+    <h1><bdi dir="auto">{{ playlist.name }}</bdi></h1>
+    {%- if refused %}
+    <p class="said" role="alert">{{ refused }}</p>
+    {%- endif %}
+
+    {%- if waiting %}
+    <form method="post" action="/set/{{ playlist.id }}" id="set-press">
+      <ul class="scopes set-items">
+      {%- for row in rows %}
+        <li>
+          {%- if row.job and row.stage == 'ready' %}
+          <label class="scope">
+            <input type="checkbox" name="keep" value="{{ row.item.position }}" checked>
+            <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
+          </label>
+          {%- if row.job.known_line %}<span class="scope-says">{{ row.job.known_line }}</span>{% endif %}
+          {%- if row.credits %}<span class="scope-cost">{{ tn("set.page.uses-credits", row.credits, "{n} credit", "{n} credits") }}</span>{% endif %}
+          {%- elif row.stage == 'failed' %}
+          <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
+          <span class="scope-cost">{{ t("set.page.we-can-t-make-this-one", "We can't make this one") }}</span>
+          {%- else %}
+          <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
+          <span class="scope-cost">{{ t("set.page.on-your-shelf", "On your shelf") }}</span>
+          {%- endif %}
+        </li>
+      {%- endfor %}
+      </ul>
+      {%- if total %}
+      <p class="said">{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</p>
+      {%- endif %}
+      <button class="go" type="submit">{{ t("set.page.read-these", "Read these") }}</button>
+    </form>
+    <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "You asked for these somewhere else. Nothing has been made yet, and untick anything you don't want.") }}</p>
+
+    {%- elif making %}
+    <p class="said" role="status">{{ tn("set.page.we-re-making-them", making|length, "We're making {n} text. The first is ready first.", "We're making {n} texts. The first is ready first.") }}</p>
+    {%- if first %}
+    <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
+      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start with the first") }}</button>
+    </form>
+    {%- else %}
+    <form method="get" action="/set/{{ playlist.id }}">
+      <button class="go" type="submit">{{ t("set.page.see-how-it-s-going", "See how it's going") }}</button>
+    </form>
+    {%- endif %}
+    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Go to your playlists") }}</a></p>
+
+    {%- elif first %}
+    <p class="said">{{ t("set.page.they-re-ready", "They're ready.") }}</p>
+    <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
+      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start with the first") }}</button>
+    </form>
+    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Go to your playlists") }}</a></p>
+
+    {%- else %}
+    <p class="said">{{ t("set.page.nothing-here-can-be-made", "Nothing in this set can be made now. Ask again where you asked before.") }}</p>
+    <p class="aside"><a href="/">{{ t("press.page.go-to-your-texts", "Go to your texts") }}</a></p>
+    {%- endif %}
+  </div>
+</main>
+</body>
+</html>

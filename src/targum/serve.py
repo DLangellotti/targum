@@ -69,6 +69,7 @@ from .render.builder import (
     not_found_page,
     parasha_page,
     press_page,
+    set_page,
     shelf_page,
     signin_page,
     text_page,
@@ -1186,6 +1187,9 @@ class Library:
         # Every job, with the builds indexed beside them; see `Jobs`. Assigned through
         # the property below so a plain dict handed in by a test is wrapped, not lost.
         self.jobs = Jobs()
+        # What stopped a set's press, held for the page it redirects back to (#365). A
+        # form post answered by a redirect has nowhere else to put a sentence.
+        self.set_refusals: dict[int, str] = {}
         # The quota's view of each home, cached a minute: a gigabyte arrives in a
         # hundred chunks and the disk should not be walked for every one of them.
         self._used: dict[Path, tuple[int, int]] = {}
@@ -1277,6 +1281,13 @@ class Library:
                 "finished": job.finished,
             }
         )
+        # A playlist waiting on this build learns how it ended (#365). Here for the reason
+        # the stamp above is: every stage change travels this road, so no finishing path
+        # can forget to tell the playlist.
+        if job.stage == "done" and job.reader:
+            self.store.playlist_item_built(job.id, job.reader.split("/")[0])
+        elif job.stage == "failed":
+            self.store.playlist_item_failed(job.id)
 
     # -- the queue --------------------------------------------------------------
 
@@ -2745,6 +2756,43 @@ class Library:
                 self._committed += job.estimate
             return blocked
 
+    def claim_set(self, jobs: list[Job], ui: str = "en") -> tuple[str, float]:
+        """Claim every build in a set, or none (#365, design.md §12: one press takes a
+        named set, and David chose all or nothing on 2026-09-23).
+
+        The same rails as `claim`, over the set's totals, in one transaction, so the page
+        can never have quoted a whole set and delivered half of it. Returns the refusal
+        in words, or "", and the seconds of allowance left where that was the rail —
+        which is how the page says how many credits would fit.
+        """
+        if not jobs:
+            return "", 0.0
+        for job in jobs:
+            if job.estimate > self.max_cost:
+                return self.why_blocked(job.estimate, ui), 0.0
+        owners = {job.owner for job in jobs}
+        if len(owners) != 1:
+            return self._out_of("everyone", ui), 0.0
+        owner = next(iter(owners))
+        admin = any(job.admin for job in jobs)
+        if self.store is not None:
+            refused, room = self.store.claim_all(
+                [(job.id, job.estimate, job.seconds if job.audio else 0.0) for job in jobs],
+                self.budget,
+                self._since(),
+                owner=owner,
+                per_account=None if admin else self.account_budget,
+                month_from=self._month_from(),
+                per_month_length=None if admin else self.upload_seconds,
+            )
+            return (self._out_of(refused, ui) if refused else ""), room
+        total = sum(job.estimate for job in jobs)
+        with self.lock:
+            blocked = self.why_blocked(total, ui)
+            if not blocked:
+                self._committed += total
+            return blocked, 0.0
+
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
 
@@ -3578,6 +3626,8 @@ class Handler(BaseHTTPRequestHandler):
         "/open/",
         # A quote made through a connector, pressed on a page of ours (#80).
         "/build/",
+        # A set quoted as one, pressed as one (#365).
+        "/set/",
     )
 
     def _is_a_page(self, route: str) -> bool:
@@ -5050,6 +5100,8 @@ class Handler(BaseHTTPRequestHandler):
         # account like any other page that shows somebody their own build.
         if route.startswith("/build/") and not self._needs_account(route):
             return self._press_page(route[len("/build/") :])
+        if route.startswith("/set/") and not self._needs_account(route):
+            return self._set_page(route[len("/set/") :])
         # There is no server-initiated stream here — every call is answered out of a
         # `Ctx` built from the token on that request, and nothing is held between two.
         # Saying so is better than holding a socket open that will never carry anything.
@@ -5450,6 +5502,9 @@ class Handler(BaseHTTPRequestHandler):
         # refuse it. Which job it is, is in the path; who may press it, `_own_job`.
         if route.startswith("/build/"):
             return self._press(route[len("/build/") :])
+        # The press on a whole set (#365): a form post too, carrying the ticked items.
+        if route.startswith("/set/"):
+            return self._set_press(route[len("/set/") :])
         # The chunked door, before the JSON parse: a chunk's body is raw bytes, and
         # holding it to the JSON ceiling would refuse the very uploads it exists for.
         if route.startswith("/upload/"):
@@ -7323,6 +7378,100 @@ class Handler(BaseHTTPRequestHandler):
         if wants_json:
             return self._json(job.state())
         self._go(f"/build/{job.id}")
+
+    def _own_set(self, playlist_id: str) -> tuple[dict[str, Any], list[Job | None]] | None:
+        """A playlist quoted as a set, with its jobs, if it is the asker's. Each item's
+        job comes back only if the asker owns it too — `_own_job`, as everywhere."""
+        person = self._person()
+        if person is None or self.store is None or not playlist_id.isdigit():
+            return None
+        found = self.store.playlist(person.id, int(playlist_id))
+        if found is None:
+            return None
+        jobs = [
+            self._own_job(str(item["job"])) if item.get("job") else None for item in found["items"]
+        ]
+        return found, jobs
+
+    def _set_page(self, playlist_id: str) -> None:
+        """A set a model quoted, as a page: every text, what each uses, the total, and one
+        button (#365). The model made the quote and cannot press it; this is the press."""
+        owned = self._own_set(playlist_id)
+        if owned is None:
+            return self._not_found()
+        found, jobs = owned
+        refused = self.library.set_refusals.pop(int(playlist_id), "")
+        self._send(
+            200,
+            set_page(
+                found,
+                [job.state() if job is not None else None for job in jobs],
+                self._page_language(),
+                refused=refused,
+            ).encode("utf-8"),
+            HTML,
+        )
+
+    def _set_press(self, playlist_id: str) -> None:
+        """One press for the whole set, all or nothing (#365, design.md §12).
+
+        Own it, drop what was unticked, claim every job that is still waiting in one
+        transaction, and enqueue them in the set's order so the first is ready first. The
+        same three steps as `_press`, over a list: `Library.claim_set` is the set's one
+        road to the rails, and nothing here spends on anybody's word but the reader's."""
+        owned = self._own_set(playlist_id)
+        if owned is None:
+            return self._not_found()
+        found, jobs = owned
+        wants_json = bool(self.headers.get("X-Targum-Press"))
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(length, 64 * 1024)) if length > 0 else b""
+        keep: set[int] | None = None
+        if wants_json:
+            with contextlib.suppress(ValueError, TypeError):
+                asked = json.loads(raw or b"{}").get("keep")
+                if isinstance(asked, list):
+                    keep = {int(one) for one in asked}
+        else:
+            keep = {
+                int(one) for one in parse_qs(raw.decode("utf-8")).get("keep", []) if one.isdigit()
+            }
+        person = self._person()
+        assert person is not None and self.store is not None
+        pid = int(playlist_id)
+        waiting = [
+            (item, job)
+            for item, job in zip(found["items"], jobs, strict=True)
+            if job is not None and job.stage == "ready"
+        ]
+        if keep is not None:
+            # Highest first, because taking one out closes the gap behind it.
+            for item, _ in sorted(waiting, key=lambda pair: -int(pair[0]["position"])):
+                if int(item["position"]) not in keep:
+                    self.store.drop_from_playlist(person.id, pid, int(item["position"]))
+            waiting = [(item, job) for item, job in waiting if int(item["position"]) in keep]
+        chosen = [job for _, job in waiting if job is not None]
+        blocked, room = self.library.claim_set(chosen, self._page_language())
+        if blocked:
+            fits = int(room // SECONDS_A_CREDIT)
+            said = blocked
+            if room > 0:
+                said = said_in(
+                    self._page_language(),
+                    "set.page.only-this-many-fit",
+                    "{refused} {n} credits are left, so untick what doesn't fit and press again.",
+                    refused=blocked,
+                    n=fits,
+                )
+            if wants_json:
+                return self._json({"error": said, "credits_left": fits}, 402)
+            self.library.set_refusals[pid] = said
+            return self._go(f"/set/{pid}")
+        for job in chosen:
+            self.library.enqueue(job)
+        if wants_json:
+            return self._json({"started": [job.id for job in chosen], "playlist": pid})
+        self._go(f"/set/{pid}")
 
     def _mcp(self) -> None:
         """The connector, at the one address `oauth.RESOURCE_PATH` names.

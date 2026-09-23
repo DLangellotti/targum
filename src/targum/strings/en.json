@@ -1984,5 +1984,22 @@
   "shelf.add-to-playlist": "Add to playlist",
   "nav.your-playlists": "Your playlists",
   "reader.page.add-to-playlist": "Add to a playlist",
-  "playlists.unreached": "We couldn't reach targum. Try again in a moment."
+  "playlists.unreached": "We couldn't reach targum. Try again in a moment.",
+  "set.page.go-to-your-playlists": "Go to your playlists",
+  "set.page.nothing-here-can-be-made": "Nothing in this set can be made now. Ask again where you asked before.",
+  "set.page.on-your-shelf": "On your shelf",
+  "set.page.only-this-many-fit": "{refused} {n} credits are left, so untick what doesn't fit and press again.",
+  "set.page.read-these": "Read these",
+  "set.page.see-how-it-s-going": "See how it's going",
+  "set.page.start-with-the-first": "Start with the first",
+  "set.page.they-re-ready": "They're ready.",
+  "set.page.uses-credits.one": "{n} credit",
+  "set.page.uses-credits.other": "{n} credits",
+  "set.page.uses-credits-in-all.one": "Uses {n} credit in all",
+  "set.page.uses-credits-in-all.other": "Uses {n} credits in all",
+  "set.page.we-can-t-make-this-one": "We can't make this one",
+  "set.page.we-re-making-them.one": "We're making {n} text. The first is ready first.",
+  "set.page.we-re-making-them.other": "We're making {n} texts. The first is ready first.",
+  "set.page.you-asked-for-these-somewhere-else": "You asked for these somewhere else. Nothing has been made yet, and untick anything you don't want.",
+  "chat.open-set": "See the set"
 }

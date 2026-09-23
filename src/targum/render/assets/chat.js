@@ -351,8 +351,9 @@
   // של ספר" was two runs, and an English line put the halves in the wrong order.
   var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'״׳־׀׃–0-9-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
-  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+)/g;
-  var ONLY_PATH = /^\/(?:reader|library)\/\S+$/;
+  // A set a model quoted (#365) is a door too, to the page where it is pressed.
+  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+)/g;
+  var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+)$/;
 
   // A path is drawn as a door: the model can say where a text is, and only the reader
   // opens it (design.md §9: the door-opening action is the ink call to action). The
@@ -361,6 +362,10 @@
     var a = document.createElement("a");
     a.className = "chat-door";
     a.href = keyed(path);
+    if (/^\/set\/\d+$/.test(path)) {
+      a.appendChild(document.createTextNode(t("chat.open-set", "See the set")));
+      return a;
+    }
     var name = path;
     try {
       name = decodeURIComponent(path);

@@ -743,3 +743,25 @@ def test_a_prompt_with_nothing_in_it_says_so(box: tuple[int, str]) -> None:
     )
     assert status == 400
     assert "name" in json.loads(body)["error"].lower()
+
+
+def test_a_set_over_the_connector_still_refuses_somebody_else_s_list(
+    box: tuple[int, str],
+) -> None:
+    """design.md §12: a set is a list the reader's side wrote out item by item, and a
+    playlist *address* is still refused by its door's own guard (#365)."""
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library record chat"),
+        "tools/call",
+        {
+            "name": "quote_set",
+            "arguments": {
+                "name": "Somebody's list",
+                "items": [{"source": "https://www.youtube.com/playlist?list=PLabc"}],
+            },
+        },
+    )["result"]
+    got = json.loads(said["content"][0]["text"])
+    assert "error" in got and "one video at a time" in got["refused"][0]["why"]
