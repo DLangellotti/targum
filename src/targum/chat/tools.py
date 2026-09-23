@@ -191,9 +191,18 @@ def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[
     }
 
 
-def reader_url(name: str) -> str:
-    """Where a built text opens. The same shape `Library.tell` mails out."""
-    return f"/reader/{quote(name)}/reader/index.html"
+def reader_url(name: str, at: str = "") -> str:
+    """Where a built text opens. The same shape `Library.tell` mails out.
+
+    `at` is the public address, and it is the whole difference between a link and a piece
+    of text. targum's own chat draws these into its own page, where a path is right and
+    an origin would be noise. A host is not on targum: Claude was handed
+    `/reader/%D7%A9.../reader/index.html` and printed it as words, because a relative path
+    resolves against *its* origin and no client will guess ours (2026-09-23). So over the
+    connector it carries the scheme and host, which is what makes it clickable — and
+    clicking it is the only way anything targum offers gets opened.
+    """
+    return f"{at.rstrip('/')}/reader/{quote(name)}/reader/index.html"
 
 
 # -- the shelf, measured -----------------------------------------------------------
@@ -250,7 +259,7 @@ def _shelf(ctx: Ctx) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         row["shared"] = True
     _measure(ctx, ctx.library.shared, shared)
     for row in [*mine, *shared]:
-        row["reader"] = reader_url(str(row["name"]))
+        row["reader"] = reader_url(str(row["name"]), ctx.press_at)
     return mine, shared
 
 
@@ -1549,7 +1558,7 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": "No build of yours has that id."}
     state = job.state()
     if state.get("reader"):
-        state["open"] = f"/reader/{state['reader']}"
+        state["open"] = f"{ctx.press_at.rstrip('/')}/reader/{state['reader']}"
     return state
 
 
@@ -1575,8 +1584,6 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": "Give the line the reader wrote."}
     if ctx.person is None or ctx.store is None:
         return {"error": "This needs an account."}
-    if language not in ctx.learning:
-        return {"error": f"The reader is not learning {language_name(language)}."}
     if language not in hebrew_module.TALKED:
         talks = ", ".join(sorted(language_name(one) for one in hebrew_module.TALKED))
         return {"error": f"We can check {talks}. {language_name(language)} is coming."}
@@ -1620,11 +1627,17 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if said is None:
         return {"error": "We could not read that line back. Nothing was kept."}
     kept = check_module.keep(ctx, language, wrote, said, "connector")
+    # And the language goes on, if it was not already (2026-09-23). This is the first
+    # moment anything of the reader's is written in it, and it happens under `chat` —
+    # the one scope whose words on the approval page say it keeps what they write. Asking
+    # to practise wrote nothing and needed no scope; writing a line does both.
+    turned_on = ctx.store.also_learning(ctx.person.id, language)
     return {
         "recast": said.hebrew,
         "meaning": said.english,
         "why": said.why,
         "changed": bool(kept),
+        "learning": turned_on,
         "note": (
             "Show the reader this recast and the reason, in their own conversation. It "
             "is kept on their record and will come back to them on targum."
@@ -1676,8 +1689,12 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if language not in hebrew_module.TALKED:
         talks = ", ".join(sorted(language_name(one) for one in hebrew_module.TALKED))
         return {"error": f"We talk in {talks}. {language_name(language)} is coming."}
-    if ctx.learning and language not in ctx.learning:
-        return {"error": f"The reader is not learning {language_name(language)}."}
+    # What the reader is *already* learning does not gate this (2026-09-23). It did, and
+    # an account set to Hebrew alone met "je veux pratiquer mon français" with a refusal
+    # naming its own configuration — turning the plainest possible statement of what
+    # somebody is learning into the reason they could not. Talking costs nothing and
+    # writes nothing, so there is nothing here to protect: the ledger comes back empty in
+    # a language they have no words in yet, which is true and is the point.
     store, person_id = ctx.store, ctx.person_id
     # The contract is offered to every connector, the words only to one granted
     # `record`: a reader who shared only the library still gets the conversation in

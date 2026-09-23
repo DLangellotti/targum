@@ -16,7 +16,7 @@
    It watches in both states. The ready state hangs the watch off the press form; the
    working state — a reload, or coming back to the link later — hangs it off
    `#press-watch`, which is there for no other reason. Looking for the form alone is what
-   made a reloaded tab sit on "We're making it" forever and never open the reader.
+   made a reloaded tab sit on "We're getting it ready" forever and never open the reader.
 
    Nothing here decides to spend. The button is the press; this only carries it. */
 (function () {
@@ -31,7 +31,7 @@
   /* What a build of this shape has taken here lately, in **seconds** — `Job.state` says
      so, and this page rendered it as minutes until 2026-09-23, promising "about 420
      minutes" for a seven-minute build. Zero means the box has not finished enough of
-     them to have a middle worth quoting, and then nothing is said at all. */
+     them to have a middle worth quoting. It is only ever the *first* guess: see below. */
   var usually = Number(host.getAttribute("data-usually") || 0);
   /* When the build actually started, in the same milliseconds as `Date.now()`. The
      working state knows it and says so; on the ready state nothing has started yet, so
@@ -42,6 +42,7 @@
   var left = document.getElementById("press-left");
   var note = document.getElementById("press-note");
   var away = document.getElementById("press-away");
+  var quoted = document.getElementById("press-quoted");
 
   function say(node, words) {
     if (!node) return;
@@ -49,32 +50,94 @@
     node.hidden = !words;
   }
 
-  /* How much longer, in the reader's own time (§6). Never a bar and never a share: what
-     the server reports is chapters done out of chapters known, and a text whose chapter
-     count arrives late would make a bar run backwards. A count cannot. */
-  function howLong(state) {
-    var far = "";
-    if (state && state.total > 1) {
-      far = t("press.page.done-of-total", "{done} of {total}", {
-        done: state.done || 0,
-        total: state.total,
-      });
-    }
-    if (!usually || !started) return far;
-    var over = Math.round((usually - (Date.now() - started) / 1000) / 60);
-    /* Past the middle is not a failure and must not read as one — half of all builds
-       are. Saying so beats counting down to zero and then standing there at zero. */
-    var when =
-      over >= 1
-        ? tn("press.page.minutes-left", over, "About {n} minute left", "About {n} minutes left")
-        : t("press.page.longer-than-usual", "Taking a little longer than usual");
-    return far ? far + " · " + when : when;
+  function minutes(seconds) {
+    return Math.max(1, Math.round(seconds / 60));
   }
 
-  function open(reader) {
-    say(doing, t("press.page.opening", "Opening it now."));
+  /* How far along, and how much longer — measured from this build rather than quoted
+     from the last one (2026-09-23).
+
+     `usually` is what builds of this shape took here lately, and it is a poor guide to
+     any particular one: a 68-chapter text was quoted a minute, so the card said "Ready
+     in about 1 minute" while the line under it already said this was taking longer than
+     usual. Two numbers about one wait, disagreeing, on one card.
+
+     So the quote is only the opening guess. The moment a chapter lands there is a real
+     rate — seconds elapsed per chapter done — and the rest is arithmetic on this text's
+     own pace, which corrects itself every poll and cannot be contradicted by the card.
+     The share is honest for the same reason: it is chapters done of chapters known, not
+     a bar filling on a timer. */
+  function howLong(state) {
+    var done = (state && state.done) || 0;
+    var total = (state && state.total) || 0;
+    var gone = started ? (Date.now() - started) / 1000 : 0;
+    var parts = [];
+    if (total > 1) {
+      parts.push(t("press.page.share-done", "{n}% done", { n: Math.floor((done / total) * 100) }));
+    }
+    var over = 0;
+    if (done > 0 && total > done && gone > 0) {
+      over = (gone / done) * (total - done);
+    } else if (usually && gone < usually) {
+      over = usually - gone;
+    }
+    if (over > 0) {
+      parts.push(
+        tn(
+          "press.page.minutes-left",
+          minutes(over),
+          "about {n} minute left",
+          "about {n} minutes left"
+        )
+      );
+    } else if (!parts.length) {
+      /* Past the quote with nothing measured yet. Half of all builds are past it, so it
+         must not read as a fault. */
+      parts.push(t("press.page.longer-than-usual", "this one's taking a little longer"));
+    }
+    return parts.join(" · ");
+  }
+
+  /* Where the reader actually is. `Job.reader` already carries "<folder>/reader/index.html"
+     — `serve.py` writes it that way — and this put the suffix on a second time and ran the
+     whole thing through `encodeURIComponent`, which escapes the slashes too. So every
+     finished build landed on "We can't find that page" (2026-09-24). Each segment is
+     encoded, the separators are not, and nothing is appended. */
+  function readerUrl(reader) {
+    return (
+      "/reader/" +
+      String(reader)
+        .split("/")
+        .map(function (bit) {
+          return encodeURIComponent(bit);
+        })
+        .join("/")
+    );
+  }
+
+  /* And it is looked at before the reader is sent there. A build is written to disk while
+     the box may also be rewriting every reader it holds — a deploy's rebuild does exactly
+     that — so "the job says done" and "the page is served" are not the same instant. Three
+     tries over a few seconds, then go anyway: a reader who sees the page a moment late is
+     better served than one sent to a 404, and better than one left on this page forever. */
+  function open(reader, tries) {
+    var where = readerUrl(reader);
+    say(doing, t("press.page.opening", "It's ready. Opening it now."));
     say(left, "");
-    window.location.href = "/reader/" + encodeURIComponent(reader) + "/reader/index.html";
+    var togo = tries === undefined ? 3 : tries;
+    fetch(where, { method: "HEAD", credentials: "same-origin" })
+      .then(function (answer) {
+        if (answer.ok || togo <= 0) {
+          window.location.href = where;
+          return;
+        }
+        window.setTimeout(function () {
+          open(reader, togo - 1);
+        }, 1500);
+      })
+      .catch(function () {
+        window.location.href = where;
+      });
   }
 
   function stop(why) {
@@ -113,15 +176,21 @@
     }, 2000);
   }
 
+  function working() {
+    started = Date.now();
+    // The quote's guess is put away; from here the line below it is measured and true.
+    if (quoted) quoted.hidden = true;
+    say(doing, t("press.page.getting-started", "We're getting it ready."));
+    if (note) note.hidden = true;
+    if (away) away.hidden = false;
+  }
+
   if (form) {
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       button.disabled = true;
-      button.textContent = t("press.page.making", "Making it…");
-      started = Date.now();
-      say(doing, t("press.page.getting-started", "Getting started."));
-      if (note) note.hidden = true;
-      if (away) away.hidden = false;
+      button.textContent = t("press.page.making", "We're getting it ready");
+      working();
       fetch("/build/" + encodeURIComponent(job), {
         method: "POST",
         headers: { "X-Targum-Press": "1" },

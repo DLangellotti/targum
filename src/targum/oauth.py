@@ -49,7 +49,11 @@ from urllib.parse import urlencode, urlparse
 SCOPES: tuple[tuple[str, str], ...] = (
     ("library", "Search the library and look up what is at a link"),
     ("record", "Read your words, your mistakes and how far you have got"),
-    ("chat", "Read the Hebrew you write and keep it, mark words, and price a text"),
+    (
+        "chat",
+        "Read what you write and keep it, mark words, turn on a language you practise, "
+        "and price a text",
+    ),
 )
 
 #: Scopes that have been renamed, old name to new. **A grant is stored as the words the

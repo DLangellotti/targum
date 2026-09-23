@@ -2359,6 +2359,53 @@ class Store:
             )
         return wanted
 
+    def also_learning(self, person_id: int, language: str) -> bool:
+        """Add one language to what a person is learning, keeping the rest.
+
+        `choose` replaces a kind wholesale, which is what a form submitting a set wants
+        and the wrong shape for this: a reader who says, in Claude, that they would like
+        to practise French has said nothing about Hebrew, and a wholesale write would be
+        this deciding what they meant about a language they never mentioned.
+
+        **Written where something is already being kept, and nowhere else** (2026-09-23).
+        An account set to Hebrew alone refused the request outright — "ton compte Targum
+        est configuré pour l'hébreu seulement" — when asking to practise French in your
+        own words is the plainest way there is of saying what you are learning. Talking
+        is free and writes nothing; it is the first line the reader writes and has kept
+        that turns the language on, because that is the first moment anything of theirs
+        is recorded, and it happens under the one scope that says it records.
+
+        False when the language is already there or is not one targum offers to learn, so
+        a caller can tell a change from a no-op without reading the set back.
+        """
+        from .translate.prompts import READING
+
+        code = str(language or "").strip().lower()
+        if not person_id or code not in {offered for offered, _ in READING}:
+            return False
+        # What they are learning *now*, which for almost everybody is the default and not
+        # a row: `_chosen` answers a person with no rows with `{"he"}`. Inserting one row
+        # beside that would turn an implicit Hebrew into an explicit French and drop
+        # Hebrew on the way — silently, for every reader who never opened the picker,
+        # which is most of them. So the effective set is written down whole, the first
+        # time anything is added to it.
+        current = self.learning(person_id)
+        if code in current:
+            return False
+        held = {
+            str(row["language"])
+            for row in self.db.execute(
+                "SELECT language FROM chosen WHERE person = ? AND kind = 'learning'",
+                (int(person_id),),
+            )
+        }
+        with self.write() as db:
+            db.executemany(
+                "INSERT INTO chosen (person, kind, language, at) VALUES (?, 'learning', ?, ?)",
+                [(int(person_id), one, now()) for one in sorted((current | {code}) - held)],
+            )
+        return True
+
     def is_admin(self, email: str) -> bool:
         address = tidy(email)
         if not address:
