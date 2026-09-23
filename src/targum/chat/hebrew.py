@@ -94,10 +94,16 @@ ENGLISH = "= "
 #: The languages a conversation is held in: graded to the reader, with its translation
 #: under every line, marked word by word and saved as a text. Hebrew since 2026-09-06;
 #: Italian since 2026-09-15, when David asked why an Italian conversation was all English
-#: and had no Save as targum (targum-internal#280); French, Russian and Yiddish since
-#: 2026-09-22 (#281, #282, #283), because the connector's `record_turn` needs a contract
-#: per language and a contract that applied there but not in targum's own chat would be
-#: two standards wearing one name.
+#: and had no Save as targum (targum-internal#280); French and Russian since 2026-09-22
+#: (#281, #282), because the connector's `record_turn` needs a contract per language and a
+#: contract that applied there but not in targum's own chat would be two standards wearing
+#: one name. Yiddish came with them and went out again a day later: see `HELD` below.
+#:
+#: **Nothing here is behind a flag.** `session.mode_for` reads this set and
+#: `TARGUM_CONNECTOR` never touches it, so a language added here is a language the
+#: ordinary product converses in on the next deploy — not only the connector. That is the
+#: decision of 2026-09-22 ("one contract, both surfaces") working as intended, and it is
+#: also why a language goes in only once it has a number.
 #:
 #: **Aramaic is deliberately not here** (#284, deferred 2026-09-22). design.md §12 ruled
 #: the parallel case for biblical Hebrew on 2026-09-06 — nobody converses in the Hebrew of
@@ -105,7 +111,25 @@ ENGLISH = "= "
 #: one shelf where every line must be right. Onkelos and the Gemara are that shelf.
 #:
 #: Every other language finds and answers in English (`session.mode_for`).
-TALKED = frozenset({"he", "it", "fr", "ru", "yi"})
+TALKED = frozenset({"he", "it", "fr", "ru"})
+
+#: A language whose contract is written and which does not hold a conversation yet.
+#:
+#: **Yiddish, since 2026-09-23.** Its contract landed with French's and Russian's and was
+#: measured the next day, and it was the one of the three that did not earn its place:
+#: about a third of its recasts came back with no `> ` line at all, against 0 of 200 for
+#: each of the others, and the rule that closes it tells the model to prefer "the common
+#: words listed below" when wordfreq has no Yiddish list and there are none
+#: (targum-internal#359, #360). French scored 41.5% and Russian 35.0% against Hebrew's
+#: 9.0% on the same corpus; Yiddish has no judge number at all.
+#:
+#: The contract stays because it is good — it writes real YIVO, pointed, and refuses
+#: daytshmerish, which is the hard part. What it has not shown is that it answers every
+#: time. So it is held here rather than deleted, and `CONTRACTS` may hold a language this
+#: set does not: a contract without a conversation is a thing waiting, and a conversation
+#: without a contract is a conversation with no rules. `test_chat_hebrew.py` holds that
+#: asymmetry the right way round.
+HELD = frozenset({"yi"})
 
 #: The languages written in Hebrew letters, which is how a line is told to be the
 #: conversation's own rather than its translation. Only by the script where the script

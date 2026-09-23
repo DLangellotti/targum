@@ -1466,9 +1466,11 @@ def test_each_language_has_a_conversation_of_its_own(tmp_path: Path) -> None:
     store.use_language(person, "yi")
     yiddish_chat = chats.say(person, home, "", "something to read", admin=False)
     opened = store.chat_owned(person.id, yiddish_chat.chat_id)
-    # Yiddish holds a conversation since 2026-09-22 (#281). Aramaic is the language
-    # that still finds, and is deliberately the only one — see `hebrew.TALKED`.
-    assert opened["language"] == "yi" and opened["mode"] == "talk"
+    # Yiddish had a conversation for a day (#283) and was held back on 2026-09-23 when
+    # it was measured: a third of its recasts had no recast line (#359). Its contract is
+    # written and kept, in `hebrew.HELD`; what it opens in is the English find mode, and
+    # this test is the reason that is worth asserting rather than assuming.
+    assert opened["language"] == "yi" and opened["mode"] == "find"
     chats.answer(yiddish_chat)
     assert hebrew.CONTRACT.splitlines()[0] not in client.requests[-1]["system"][0]["text"]
     assert chats.context(person, home, yiddish_chat.chat_id, False).level.language == "yi"
@@ -1502,19 +1504,25 @@ def test_an_aspect_question_is_pointed_at_the_partner_in_what_they_read() -> Non
 # -- Italian in the talk shape (targum-internal#280) --------------------------------------
 
 
-def test_five_languages_talk_and_the_one_that_does_not_still_finds() -> None:
-    """French, Russian and Yiddish joined Hebrew and Italian on 2026-09-22 (#281–#283).
-    Aramaic is the one left, deliberately: design.md §12 ruled the parallel case for
-    biblical Hebrew, and Onkelos and the Gemara are that shelf (#284)."""
+def test_four_languages_talk_and_two_do_not_for_different_reasons() -> None:
+    """French and Russian joined Hebrew and Italian on 2026-09-22 (#281, #282).
+
+    Two are out, and not for the same reason. **Aramaic** is a decision: design.md §12
+    ruled the parallel case for biblical Hebrew, and Onkelos and the Gemara are that
+    shelf (#284). **Yiddish** is a measurement: its contract is written and good, and a
+    third of its recasts came back without a recast line (#359, #360), so it is held in
+    `hebrew.HELD` until it answers every time."""
     assert session_module.mode_for("it", False) == "talk", "a shelf's Hebrew decides nothing here"
     assert session_module.mode_for("he", True) == "talk"
     assert session_module.mode_for("he", False) == "find", "scripture-only Hebrew stays as it was"
-    for code in ("fr", "ru", "yi"):
+    for code in ("fr", "ru"):
         assert session_module.mode_for(code, False) == "talk", code
-    assert session_module.mode_for("arc", True) == "find"
+    for code in ("arc", "yi"):
+        assert session_module.mode_for(code, True) == "find", code
     assert session_module.talking({"mode": "find"}, "it"), "stored find only for its language"
     assert not session_module.talking({"mode": "find"}, "he"), "stored find for its shelf"
     assert not session_module.talking({"mode": "talk"}, "arc")
+    assert not session_module.talking({"mode": "talk"}, "yi"), "a stored talk does not revive it"
 
 
 def test_an_italian_turn_is_held_to_the_italian_contract_and_its_words_are_on_its_receipt(
