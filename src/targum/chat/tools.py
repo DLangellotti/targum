@@ -819,6 +819,71 @@ def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# -- playlists (targum-internal#364) ---------------------------------------------------
+
+
+def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """The reader's playlists, and what is in each, in order."""
+    if ctx.store is None or ctx.person is None:
+        return {"error": "This needs an account."}
+    out = []
+    for row in ctx.store.playlists(ctx.person.id):
+        found = ctx.store.playlist(ctx.person.id, int(row["id"])) or {}
+        out.append(
+            {
+                "name": row["name"],
+                "texts": [
+                    {
+                        "title": item["title"],
+                        "reader": reader_url(str(item["reader"])) if item.get("reader") else None,
+                        "ready": bool(item.get("reader")) and not item.get("failed"),
+                    }
+                    for item in found.get("items") or []
+                ],
+            }
+        )
+    return {"count": len(out), "playlists": out}
+
+
+def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Put a text already on the reader's shelf into one of their playlists, making the
+    playlist if there is none by that name. Nothing is built or spent: a text that is
+    not on the shelf yet is quoted like any other, and the reader presses."""
+    if ctx.store is None or ctx.person is None:
+        return {"error": "This needs an account."}
+    wanted = " ".join(str(args.get("playlist") or "").split())
+    text = str(args.get("text") or "").strip()
+    if not wanted or not text:
+        return {"error": "Name the playlist and the text."}
+    mine, shared = _shelf(ctx)
+    # Only what is on this reader's shelf, by the name search_my_shelf gave it: the
+    # model cannot put an address or somebody else's text into a list by naming it.
+    row = next((one for one in [*mine, *shared] if str(one["name"]) == text), None)
+    if row is None:
+        return {"error": "That text is not on the reader's shelf. Find it with search_my_shelf."}
+    person = ctx.person.id
+    existing = next(
+        (one for one in ctx.store.playlists(person) if one["name"].lower() == wanted.lower()),
+        None,
+    )
+    if existing is None:
+        existing = ctx.store.make_playlist(
+            person, wanted, made_by="connector" if ctx.press_at else "chat"
+        )
+        if existing is None:
+            return {"error": "The reader keeps as many playlists as we hold. Use one of those."}
+    added = ctx.store.add_to_playlist(
+        person, int(existing["id"]), str(row.get("title") or text), reader=text
+    )
+    if added is None:
+        return {"error": "That playlist is full."}
+    return {
+        "playlist": existing["name"],
+        "added": str(row.get("title") or text),
+        "open": "/playlists",
+    }
+
+
 # -- finding things out there -----------------------------------------------------------
 
 #: Hebrew letters, for saying how much of a page is Hebrew before anybody pays to read it.
@@ -1686,6 +1751,35 @@ REGISTRY: tuple[Tool, ...] = (
         "the conversation opens on their shelf with every word tappable and on their ledger.",
         _schema({}),
         quote_conversation,
+    ),
+    Tool(
+        "my_playlists",
+        "The reader's playlists, and the texts in each, in order.",
+        _schema({}),
+        my_playlists,
+        needs_account=True,
+        scope="record",
+    ),
+    Tool(
+        "add_to_playlist",
+        "Put a text already on the reader's shelf (its name, from search_my_shelf) into one "
+        "of their playlists, making the playlist if there is none by that name. Builds and "
+        "spends nothing.",
+        _schema(
+            {
+                "playlist": {"type": "string", "description": "The playlist's name."},
+                "text": {
+                    "type": "string",
+                    "description": "The text's name, exactly as search_my_shelf gave it.",
+                },
+            },
+            ("playlist", "text"),
+        ),
+        add_to_playlist,
+        needs_account=True,
+        # A write, so the scope that says it writes: `record` is read-only on the approval
+        # page, and a list the reader did not make is more than they agreed to there.
+        scope="chat",
     ),
     Tool(
         "my_hours",

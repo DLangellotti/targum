@@ -256,3 +256,48 @@ def test_a_nameless_playlist_says_so(box: tuple[int, str, str]) -> None:
     port, mine, _ = box
     status, said = send(port, "POST", "/playlists", {"name": " "}, mine)
     assert status == 400 and "name" in said["error"].lower()
+
+
+# --- the tools -------------------------------------------------------------------
+
+
+def _ctx(store: Store, person_id: int, press_at: str = "") -> object:
+    from targum import level
+    from targum.chat import tools
+
+    return tools.Ctx(
+        person=Person(id=person_id, email="one@example.com"),
+        home=Path("."),
+        library=None,  # type: ignore[arg-type]
+        store=store,
+        chat_id="",
+        level=level.EMPTY,
+        press_at=press_at,
+    )
+
+
+def test_a_model_adds_only_what_is_on_the_shelf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.chat import tools
+
+    store, me, _ = a_store(tmp_path)
+    shelf = [{"name": "cheese-swirls", "title": "Cheese swirls"}]
+    monkeypatch.setattr(tools, "_shelf", lambda ctx: (shelf, []))
+    ctx = _ctx(store, me, press_at="https://targum.page")
+    refused = tools.add_to_playlist(ctx, {"playlist": "Kitchen", "text": "/reader/x"})  # type: ignore[arg-type]
+    assert "error" in refused and store.playlists(me) == []
+    added = tools.add_to_playlist(ctx, {"playlist": "Kitchen", "text": "cheese-swirls"})  # type: ignore[arg-type]
+    assert added["added"] == "Cheese swirls"
+    made = store.playlists(me)
+    assert made[0]["made_by"] == "connector", "made through a connector, said so"
+    listed = tools.my_playlists(ctx, {})  # type: ignore[arg-type]
+    assert listed["playlists"][0]["texts"][0]["ready"] is True
+
+
+def test_the_tool_that_writes_asks_for_the_scope_that_writes() -> None:
+    from targum.chat import tools
+
+    assert tools.BY_NAME["add_to_playlist"].scope == "chat"
+    assert not tools.BY_NAME["add_to_playlist"].spends
+    assert tools.BY_NAME["my_playlists"].scope == "record"
