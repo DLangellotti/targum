@@ -1751,6 +1751,58 @@ def press_page(job: dict[str, Any], language: str = "en") -> str:
     )
 
 
+def set_page(
+    playlist: dict[str, Any],
+    jobs: list[dict[str, Any] | None],
+    language: str = "en",
+    refused: str = "",
+) -> str:
+    """Where a set a model quoted is pressed, as one (targum-internal#365).
+
+    `press_page` for a list: each text with what it uses, the total, and one button that
+    claims them all or none (design.md §12). `jobs` runs beside `playlist["items"]` —
+    each item's `Job.state()`, or None where the item was already on the shelf. No
+    script: a text is unticked with a checkbox and the press is a form post, so the page
+    is the same with script off, and the CSP has nothing to hash but the styles.
+    """
+    rows = []
+    total = 0
+    for item, job in zip(playlist.get("items") or [], jobs, strict=False):
+        credits = int(round(float(job.get("seconds") or 0) / 60)) if job and job.get("audio") else 0
+        stage = "ready" if job is None and item.get("reader") else (job or {}).get("stage", "")
+        if item.get("failed"):
+            stage = "failed"
+        if stage == "ready" and job is not None:
+            total += credits
+        rows.append({"item": item, "job": job, "credits": credits, "stage": stage})
+    waiting = [row for row in rows if row["job"] is not None and row["stage"] == "ready"]
+    making = [row for row in rows if row["stage"] in ("queued", "working", "reading")]
+    first = next(
+        (
+            row["item"]
+            for row in rows
+            if row["item"].get("reader") and not row["item"].get("failed")
+        ),
+        None,
+    )
+    return (
+        _environment()
+        .get_template("set.html.j2")
+        .render(
+            t=page_words(language),
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            playlist=playlist,
+            rows=rows,
+            waiting=waiting,
+            making=making,
+            first=first,
+            total=total,
+            refused=refused,
+        )
+    )
+
+
 def connect_page(language: str = "en", address: str = "") -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 

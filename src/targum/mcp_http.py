@@ -71,7 +71,8 @@ INSTRUCTIONS = (
     "the words they know, with the translation when they ask for it. A quote is "
     "information: the reader starts a build by pressing the link a quote comes back "
     "with, on targum's own page, and you cannot press it for them. Hand them the link "
-    "rather than describing it."
+    "rather than describing it. For several texts at once, quote_set makes one playlist "
+    "with one link."
 )
 
 #: The prompts a connector offers by name, which is how a reader reaches targum without
