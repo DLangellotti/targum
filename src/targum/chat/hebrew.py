@@ -95,7 +95,7 @@ ENGLISH = "= "
 #: under every line, marked word by word and saved as a text. Hebrew since 2026-09-06;
 #: Italian since 2026-09-15, when David asked why an Italian conversation was all English
 #: and had no Save as targum (targum-internal#280); French, Russian and Yiddish since
-#: 2026-09-22 (#282, #283, #281), because the connector's `record_turn` needs a contract
+#: 2026-09-22 (#281, #282, #283), because the connector's `record_turn` needs a contract
 #: per language and a contract that applied there but not in targum's own chat would be
 #: two standards wearing one name.
 #:
@@ -109,7 +109,8 @@ TALKED = frozenset({"he", "it", "fr", "ru", "yi"})
 
 #: The languages written in Hebrew letters, which is how a line is told to be the
 #: conversation's own rather than its translation. Only by the script where the script
-#: settles it: Yiddish is in Hebrew letters and is not Hebrew (#283).
+#: settles it: Yiddish is in Hebrew letters and is not Hebrew (#283, and #282 is
+#: Russian: the three were cited the wrong way round until 2026-09-23).
 HEBREW_SCRIPT = frozenset({"he", "yi", "arc"})
 
 
@@ -381,7 +382,7 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 
 
 def french_contract(gloss: str = "English") -> str:
-    """The French contract (targum-internal#282): the shape the Hebrew one keeps, with the
+    """The French contract (targum-internal#281): the shape the Hebrew one keeps, with the
     rules that are French's own in place of nikkud and ktiv male.
 
     What it corrects is chosen from what a learner of French actually gets wrong rather
@@ -471,7 +472,7 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 
 
 def russian_contract(gloss: str = "English") -> str:
-    """The Russian contract (targum-internal#283): the shape the Hebrew one keeps, with
+    """The Russian contract (targum-internal#282): the shape the Hebrew one keeps, with
     the rules that are Russian's own.
 
     Two things carry most of what a learner of Russian gets wrong, and they are the two
@@ -566,7 +567,7 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 
 
 def yiddish_contract(gloss: str = "English") -> str:
-    """The Yiddish contract (targum-internal#281): the shape the Hebrew one keeps, with
+    """The Yiddish contract (targum-internal#283): the shape the Hebrew one keeps, with
     the rules that are Yiddish's own.
 
     **Daytshmerish is the error this contract exists to refuse.** A model asked for
