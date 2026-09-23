@@ -423,6 +423,46 @@ def test_how_to_talk_hands_over_the_contract_and_the_ledger(box: tuple[int, str]
     assert "record_turn" in contract
 
 
+def test_how_to_talk_talks_a_language_the_reader_never_chose(box: tuple[int, str]) -> None:
+    """2026-09-23. The reader in this box is learning Hebrew and has chosen nothing else.
+
+    Asking to practise French used to be met with a refusal naming the account's own
+    configuration — "ton compte Targum est configuré pour l'hébreu seulement" — which
+    turns the plainest statement there is of what somebody is learning into the reason
+    they cannot. Talking costs nothing and writes nothing, so there was nothing there to
+    protect: the contract is real and the ledger is simply empty in a language they have
+    no words in yet.
+    """
+    from targum.chat import hebrew
+
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "how_to_talk", "arguments": {"language": "fr"}},
+    )["result"]
+    assert said["isError"] is False
+    got = json.loads(said["content"][0]["text"])
+    assert "error" not in got, got
+    assert got["language"] == "fr"
+    assert hebrew.contract_for("fr") in got["contract"]
+
+
+def test_how_to_talk_still_refuses_a_language_with_no_contract(box: tuple[int, str]) -> None:
+    """What the reader chose is not a gate; whether targum can hold the conversation is.
+    Aramaic has no contract (#284), and saying so is the honest refusal."""
+    port, _ = box
+    said = rpc(
+        port,
+        a_token(port, "library record"),
+        "tools/call",
+        {"name": "how_to_talk", "arguments": {"language": "arc"}},
+    )["result"]
+    got = json.loads(said["content"][0]["text"])
+    assert "coming" in got["error"] and "Aramaic" in got["error"]
+
+
 def test_how_to_talk_without_record_is_the_contract_without_the_words(
     box: tuple[int, str],
 ) -> None:
@@ -765,3 +805,36 @@ def test_a_set_over_the_connector_still_refuses_somebody_else_s_list(
     )["result"]
     got = json.loads(said["content"][0]["text"])
     assert "error" in got and "one video at a time" in got["refused"][0]["why"]
+
+
+def test_the_press_page_sends_the_reader_where_the_reader_actually_is() -> None:
+    """The click-through 404'd on every finished build until 2026-09-24.
+
+    `serve.py` sets `job.reader` to "<folder>/reader/index.html" — the whole path under
+    the home, suffix included — and `press.js` treated it as a bare folder: it appended
+    "/reader/index.html" a second time and ran the lot through `encodeURIComponent`,
+    which escapes the separators too. So a build that worked perfectly ended on "We can't
+    find that page".
+
+    Nothing here runs the script, so what is pinned is the contract between the two
+    files: the shape `serve` writes, and that `press.js` neither appends to it nor
+    escapes its separators.
+    """
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "src" / "targum"
+    source = (root / "render" / "assets" / "press.js").read_text(encoding="utf-8")
+    writes = re.findall(
+        r'job\.reader = f"\{[^"]*\}(/reader/[^"]*)"',
+        (root / "serve.py").read_text(encoding="utf-8"),
+    )
+    assert writes, "serve.py no longer names the reader path here; this test is stale"
+    assert all(one.startswith("/reader/") for one in writes), writes
+
+    where = re.search(r"function readerUrl\(reader\) \{(.+?)\n  \}", source, re.S)
+    assert where, "press.js no longer builds the reader URL in one place"
+    built = where.group(1)
+    assert '"/reader/index.html"' not in built, "the suffix is already on job.reader"
+    assert "encodeURIComponent(reader)" not in built, "that escapes the separators"
+    assert ".split(" in built and "encodeURIComponent" in built, "each segment, not the path"

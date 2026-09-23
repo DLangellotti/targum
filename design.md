@@ -347,6 +347,49 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Asking to practise a language is how you choose it — 2026-09-23
+
+David, in Claude, on the day the connector went live: *"Bonjour, je veux pratiquer mon
+français. Est-ce que je peux faire ça avec Targum?"* — and was told no, because his targum
+account was configured for Hebrew only. Two tools carried the same guard, `how_to_talk` and
+`record_turn`: a language not in `Store.learning` was refused by name.
+
+**The guard had it backwards.** Saying, in your own words, that you would like to practise
+French *is* the reader telling targum what they are learning — a plainer statement than the
+picker, because nobody opens a picker by accident. Answering it with the account's own
+configuration makes the product argue with its reader about what the reader wants, and
+points them at a page they are not looking at.
+
+So the guard is gone from both, and the answer splits along the seam that already exists:
+
+- **Talking is free and writes nothing.** `how_to_talk` hands over the contract for any
+  language in `TALKED`, whatever the reader has chosen. The ledger comes back empty in a
+  language they have no words in yet, which is true and is the point — there is nothing
+  there to protect, because nothing is spent and nothing is kept.
+- **The language goes on where something is already being written.** `record_turn` keeps
+  the first line the reader writes and turns the language on in the same breath. That is
+  the first moment anything of theirs is recorded, and it happens under `chat` — the one
+  scope whose words on the approval page say it keeps what they write. That scope now says
+  so out loud, and dropped the word "Hebrew" while it was there, which had stopped being
+  true the moment French could be spoken.
+
+What is still refused, and by a better test: a language targum cannot hold a conversation
+in. Aramaic has no contract (#284), and the refusal names that rather than the account.
+
+**`Store.also_learning` adds; it never replaces.** `choose()` writes a kind wholesale,
+which is what a form submitting a set wants and the wrong shape here — a reader asking for
+French has said nothing about Hebrew. There is a trap underneath it that a test found
+rather than a reviewer: `_chosen` answers a person with *no* rows with the default,
+`{"he"}`, which is almost everybody, because almost nobody opens the picker. Inserting one
+French row beside that turns an implied Hebrew into an explicit French and drops Hebrew on
+the way, silently. So the effective set is written down whole, the first time anything is
+added to it.
+
+What it does not overturn: ownership comes from `Ctx` and never from an argument; a build
+still needs its own press; `REQUIRED_LEARNING` still keeps Hebrew on; and the model still
+decides nothing — it passes on a line the reader wrote, and the reader wrote it.
+
+
 ### A playlist is swiped, and one press takes the set — 2026-09-23
 
 David, the same day, after a connector found him twelve Hebrew reels and could not bring

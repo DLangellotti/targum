@@ -71,7 +71,13 @@
       {#- `usually` is seconds — `Library._how_long` says so. It was rendered as minutes
           here, which promised "about 420 minutes" for a seven-minute build. -#}
       {%- if job.usually and job.usually >= 30 %}
-      <li><span class="scope-says">{{ tn("press.page.ready-in-about-minutes", (job.usually / 60)|round|int, "Ready in about {n} minute", "Ready in about {n} minutes") }}</span></li>
+      {#- The quote's guess, from what builds of this shape took here lately. It is put
+          away the moment the press lands, because from then on the page is watching this
+          build and can say something truer: a 68-chapter text was quoted a minute, and
+          the card went on saying "Ready in about 1 minute" while the line under it said
+          this was taking longer than usual (2026-09-23). Two numbers about the same wait,
+          disagreeing, on one card. -#}
+      <li id="press-quoted"><span class="scope-says">{{ tn("press.page.ready-in-about-minutes", (job.usually / 60)|round|int, "Ready in about {n} minute", "Ready in about {n} minutes") }}</span></li>
       {%- endif %}
       {%- if job.known_line %}
       <li><span class="scope-says">{{ job.known_line }}</span></li>

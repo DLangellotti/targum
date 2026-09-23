@@ -154,10 +154,35 @@ def test_a_language_with_no_contract_is_refused_by_name(tmp_path: Path) -> None:
     assert "coming" in said["error"] and "Aramaic" in said["error"]
 
 
-def test_a_language_the_reader_is_not_learning_is_refused(tmp_path: Path) -> None:
-    ctx, _, _, _ = context(tmp_path, Script(), learning={"he"})
-    said = tools.record_turn(ctx, {"wrote": "je suis allé", "language": "fr"})
-    assert "not learning" in said["error"]
+def test_a_language_the_reader_never_chose_is_turned_on_rather_than_refused(
+    tmp_path: Path,
+) -> None:
+    """2026-09-23. An account set to Hebrew alone answered "je veux pratiquer mon
+    français" with a refusal naming its own configuration, which turns the plainest
+    statement there is of what somebody is learning into the reason they cannot.
+
+    The line is checked, the slip is kept, and French goes on — under `chat`, the one
+    scope whose words say it keeps what the reader writes. Hebrew stays, because this
+    adds rather than replacing: they said nothing about Hebrew.
+    """
+    client = Script(Reply(RECASTS["fr"]))
+    ctx, _, store, person = context(tmp_path, client, learning={"he"})
+    assert store.learning(person.id) == {"he"}
+    said = tools.record_turn(ctx, {"wrote": "je suis allé à la mer", "language": "fr"})
+    assert "error" not in said, said
+    assert said["recast"] == "Je suis allé à la mer."
+    assert said["learning"] is True, "the model is told the language went on"
+    assert store.learning(person.id) == {"he", "fr"}, "added, never replaced"
+    assert store.slips(person.id, language="fr"), "and the slip is kept in French"
+
+
+def test_a_language_already_on_is_not_written_again(tmp_path: Path) -> None:
+    """The flag tells a change from a no-op, so nothing says "turned on" twice."""
+    client = Script(Reply(HEBREW))
+    ctx, _, store, person = context(tmp_path, client, learning={"he"})
+    said = tools.record_turn(ctx, {"wrote": "אני הלך לים אתמול.", "language": "he"})
+    assert said["learning"] is False
+    assert store.learning(person.id) == {"he"}
 
 
 #: A recast in each language's own script, because `hebrew.pairs` tells a line from its
@@ -301,3 +326,28 @@ def test_the_chat_never_hands_a_tool_the_way_to_a_model(tmp_path: Path) -> None:
     chats = session_module.Chats(library, store, client_factory=lambda: Script())
     ctx = chats.context(None, library.home(None), "", admin=False)
     assert ctx.ask is None
+
+
+def test_turning_a_language_on_never_drops_the_one_that_was_implied(tmp_path: Path) -> None:
+    """The trap under `also_learning`, found by the test above (2026-09-23).
+
+    `Store._chosen` answers a person with *no* rows with the default, `{"he"}` — which is
+    almost everybody, because almost nobody opens the picker. Inserting a single French
+    row beside that turns an implied Hebrew into an explicit French and drops Hebrew on
+    the way, silently. The effective set is written down whole instead, the first time
+    anything is added to it.
+    """
+    _, store, person = world(tmp_path)
+    held = store.db.execute(
+        "SELECT COUNT(*) AS n FROM chosen WHERE person = ? AND kind = 'learning'",
+        (person.id,),
+    ).fetchone()
+    assert held["n"] == 0, "the reader has never chosen, which is the case that bites"
+    assert store.learning(person.id) == {"he"}, "and is answered with the default"
+
+    assert store.also_learning(person.id, "fr") is True
+    assert store.learning(person.id) == {"he", "fr"}, "Hebrew was implied, and stays"
+
+    assert store.also_learning(person.id, "fr") is False, "already on"
+    assert store.also_learning(person.id, "zz") is False, "not a language targum offers"
+    assert store.learning(person.id) == {"he", "fr"}
