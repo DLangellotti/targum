@@ -346,6 +346,71 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A cost is credits, and a credit is a minute — 2026-09-23
+
+Two entries below say a cost is hours. "Price language left the product the same day — the
+reader pays by the month, so a wait is a time and a cost is hours" (2026-09-13), and "hours
+said in hours and never in money" (2026-09-22). **Both are retired here.** What replaces
+them: **a balance is credits, and one credit is one minute of audio or video.**
+
+The hours language broke in two ways, and only the first is a bug.
+
+The first is grammatical. "Hours" was doing duty as the pool's name *and* as a unit, so any
+cost under an hour put the two in one sentence. The press card for a one-minute video read
+**"Uses 1 minutes of your hours"** — a plural error and a category error in six words, which
+is what prompted this. That alone would argue for saying minutes, not for a new noun.
+
+The second is what actually kills it. Hours described the pool truthfully while the pool was
+only audio: a recording transcribed on the way in, speech synthesised on the way out, both
+things this product buys by the clock, and `serve.UPLOAD_SECONDS` sums them in seconds. Then
+a written line of Hebrew began drawing on the same sum — charged, through
+`hebrew.seconds_for`, as the time it would take to say aloud. That conversion is defensible
+and it is invisible, and a reader told that writing a sentence costs them hours has been
+handed a rule they were never given. The pool stopped being hours before the word did.
+
+**Credits, and not minutes, and the argument against was heard.** A credit is a minute, so
+the name carries no information a minute did not: "1 credit" must be taught where "1 minute"
+is already known. It is taken anyway, for one reason — a credit is a quantity the reader
+*holds*, and a minute is a duration a thing *has*. The pool is no longer a pile of durations,
+and the moment anything is priced that has no length, "minutes" fails exactly the way "hours"
+just did, while "credits" does not. The rate is the promise, not the unit:
+
+> 480 credits a month — 8 hours of audio or video.
+
+**The rate is shown wherever a balance is, never only on the pricing page.** A credit that
+has to be converted from memory is the invented currency §6 forbids; a credit with its
+equivalence beside it is a minute with a better name. So the account page says *412 credits
+left this month — about 6 h 50 m of audio*, and the pricing page says both numbers in one
+line. Cost points may say the credit figure alone, because the balance they sit beside
+carries the rate.
+
+**A chat message rounds to nothing, and that is the honest answer rather than an oversight.**
+Eight words is about five seconds, which is under a tenth of a credit, and rounding it up to
+one would overcharge by twelve times for the privilege of showing a number. So chatting
+shows no per-message cost and the copy says it plainly: chatting is included. It is still
+metered — `Library.claim_turn` passes the same seconds into the same monthly sum, so somebody
+who talks for hours genuinely spends them — and the daily rail stays what its own comment
+already calls it, a rate limit and not a ration. Metered, and free at the scale of a message:
+both true, and the page says the second.
+
+**The word is chat.** "Checking your Hebrew" was the scope name `check` leaking out of
+`oauth.py` into the reader's copy. What the reader is doing in Claude or ChatGPT is having a
+conversation, the in-app surface has always been called the chat, and the rail is already
+`kind="chat"`. The scope is renamed with the copy; one word in the product, the record and
+the rails.
+
+Nothing in the rails moves. `UPLOAD_SECONDS` is still the ceiling, still in seconds, still
+8 × 60 × 60; 480 credits is that number divided by sixty. This is a vocabulary, and a
+vocabulary change that altered what anybody is charged would be a second decision wearing
+the first one's clothes.
+
+What it does not overturn: §6's ban on invented currency, which is about **engagement** and
+still forbids XP, points and levels outright — a credit is what a subscription buys, not a
+score, and nothing may be earned, awarded or levelled up; there is still no money anywhere
+inside the product, and the reader still pays by the month; a wait is still a time, in
+minutes, because a wait is not a cost; and the reader is still never charged for a turn
+targum did not buy.
+
 ### A language talks once it has a number — 2026-09-23
 
 French, Russian and Yiddish were given talk contracts on 2026-09-22 and all three went
@@ -421,7 +486,9 @@ a rate limit per token. Build them with the tool, not after it.
 
 What it does not overturn: ownership comes from `Ctx` and never from an argument; no
 invented currency; hours said in hours and never in money; the reader is never charged for
-a turn targum did not buy.
+a turn targum did not buy. *("Hours said in hours" was retired on 2026-09-23 — a cost is
+credits, and a credit is a minute. The rest of this line stands, and so does the scope
+being renamed from `check` to `chat` by that entry.)*
 
 ### A door that is not a text — 2026-09-22
 
@@ -2093,7 +2160,8 @@ What survives from the terse voice below: short lines, one- or two-word buttons,
 exclamation marks, no emoji, the lowercase name, no invented currency, no superlatives.
 What does not: the third-person narrator and the refusal to soften. Price language left
 the product the same day — the reader pays by the month, so a wait is a time and a cost
-is hours.
+is hours. *(Superseded 2026-09-23: a cost is credits, and a credit is a minute. A wait is
+still a time, and there is still no price inside the product.)*
 
 ### The voice is terser than "reasons given" — 2026-08-24
 

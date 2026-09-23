@@ -489,6 +489,103 @@ def test_the_press_page_needs_an_account(box: tuple[int, str]) -> None:
     assert status != 200 or b"sign in" in body.lower()
 
 
+def _prose(page: str) -> str:
+    """What the card actually reads as: no markup, no inlined CSS, no script.
+
+    Asserting over the whole page catches the stylesheet — `[lang$="-Latn"]` holds a
+    dollar sign, and `data-usually="420"` holds the number the prose must not say.
+    """
+    import re
+
+    body = re.sub(r"<(style|script)\b.*?</\1>", " ", page, flags=re.S | re.I)
+    return " ".join(re.sub(r"<[^>]+>", " ", body).split())
+
+
+def _quoted(**over: object) -> dict[str, object]:
+    """One `Job.state()`, carrying only the fields this page draws."""
+    job: dict[str, object] = {
+        "id": "abc123",
+        "made": 1758600000000,
+        "title": "מלמדים את הבעל לשתוף",
+        "english": "",
+        "stage": "ready",
+        "done": 0,
+        "total": 0,
+        "message": "",
+        "error": "",
+        "blocked": "",
+        "reader": "",
+        "usually": 0.0,
+        "audio": False,
+        "seconds": 0.0,
+        "known_line": "",
+    }
+    job.update(over)
+    return job
+
+
+def test_the_press_card_counts_in_credits_and_agrees_with_itself() -> None:
+    """design.md §12, 2026-09-23: a cost is credits, and a credit is a minute.
+
+    This card said "Uses 1 minutes of your hours" for a one-minute video — a plural
+    error and a category error in six words, and the reason the vocabulary changed. It
+    went through `t` with a `{minutes}` blank, where nothing could check the agreement;
+    it goes through `tn` now, where the catalogue picks the form.
+    """
+    from targum.render import builder
+
+    one = _prose(builder.press_page(_quoted(audio=True, seconds=62.0)))
+    assert "Uses 1 credit" in one and "1 credits" not in one
+    many = _prose(builder.press_page(_quoted(audio=True, seconds=2805.0)))
+    assert "Uses 47 credits" in many
+    # And a cost is never said in hours, in money, or in a mix of the two.
+    for gone in ("of your hours", "minutes of your", "$"):
+        assert gone not in one, f"the card still says {gone!r}"
+
+
+def test_the_press_card_says_the_wait_in_minutes_not_seconds() -> None:
+    """`usually` is seconds (`Job.state`) and was drawn as minutes, so a seven-minute
+    build promised "Ready in about 420 minutes"."""
+    from targum.render import builder
+
+    said = _prose(builder.press_page(_quoted(usually=420.0)))
+    assert "Ready in about 7 minutes" in said and "420" not in said
+    # Under half a minute there is nothing worth quoting, so it says nothing.
+    assert "Ready in about" not in _prose(builder.press_page(_quoted(usually=12.0)))
+
+
+def test_a_build_already_running_is_watched_and_offers_the_way_out() -> None:
+    """Coming back to the link mid-build used to dead-end.
+
+    The watcher hung off the press form, which this state has not got, so the page never
+    polled and never opened the reader: it sat on "We're making it" until somebody
+    reloaded it by hand. The watch is its own element now, and this state carries the way
+    to the shelf, which is where design.md §12 ("A build is on the shelf while it is
+    building") says the reader was going anyway.
+    """
+    from targum.render import builder
+
+    page = builder.press_page(
+        _quoted(stage="working", message="Fetching the video…", usually=420.0)
+    )
+    assert 'id="press-watch"' in page, "nothing for the watcher to hang off"
+    assert 'data-job="abc123"' in page and 'data-made="1758600000000"' in page
+    assert 'data-usually="420"' in page
+    assert 'id="press-doing"' in page and 'id="press-left"' in page
+    assert "/texts" in page, "no way off the page while it builds"
+
+
+def test_the_press_page_says_its_script_s_words_in_russian() -> None:
+    """`press.js` narrates the build, and said it in English on a Russian page until this
+    page was handed a `TargumStrings` (targum-internal#184)."""
+    from targum.render import builder
+
+    page = builder.press_page(_quoted(audio=True, seconds=62.0, usually=420.0), "ru")
+    assert "TARGUM_STRINGS" in page
+    assert "press.page.opening" in page, "the script's own words were never sent"
+    assert "Займёт 1 кредит" in page
+
+
 # --- a reader's own prompts, beside ours (note 17) --------------------------------
 
 

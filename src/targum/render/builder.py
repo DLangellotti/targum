@@ -1727,14 +1727,23 @@ def press_page(job: dict[str, Any], language: str = "en") -> str:
 
     `job` is `Job.state()`, so this page and the chat's card are drawn from one shape and
     cannot drift into saying different things about the same build.
+
+    `tn` because this page counts out loud and got it wrong: a one-minute video read
+    "Uses 1 minutes of your hours" (2026-09-23, §12). Every counted line here goes through
+    it, including the ones the credits vocabulary will replace.
     """
     return (
         _environment()
         .get_template("press.html.j2")
         .render(
             t=page_words(language),
+            tn=page_counts(language),
             page_language=_page_language(language),
             job=job,
+            # `press.js` narrates the build and says how much longer, so it says
+            # sentences — and said them in English on a Russian page until this was
+            # passed, because nothing had handed the page a `TargumStrings`.
+            strings=script_strings(language, "press."),
         )
     )
 
