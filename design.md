@@ -346,6 +346,41 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A language talks once it has a number — 2026-09-23
+
+French, Russian and Yiddish were given talk contracts on 2026-09-22 and all three went
+into `hebrew.TALKED` together, on the decision that one contract serves both surfaces:
+a contract that applied on the connector but not in targum's own chat would be two
+standards wearing one name. That stands, and this does not reverse it.
+
+What it adds is the thing that decision left unsaid. `TALKED` is read by
+`session.mode_for` and no flag touches it, so a language put there converses in the
+ordinary product on the next deploy — not only through the connector, which is
+flag-held. A language arriving in that set is therefore a release, and it should carry
+what a release carries.
+
+The three were measured the next day, 200 sentences each against a professional
+translator's rendering. French scored 41.5% and Russian 35.0%, against the Hebrew
+contract's 9.0% on the same corpus and the same judge. Yiddish returned no recast line
+at all about a third of the time, where the other two returned one every time, and the
+rule that closes its contract tells the model to prefer common words from a list that
+does not exist, because wordfreq has none for Yiddish. It has no judge number.
+
+So Yiddish came out again, into `hebrew.HELD`: written, kept, and not spoken. The
+contract is good — it writes real YIVO, pointed, and refuses daytshmerish, which is the
+hard part of Yiddish and the part a model gets wrong by default. What it has not shown
+is that it answers every time, and a conversation that fails a third of the time is
+worse for a learner than one that was never offered.
+
+The rule this leaves: **a language enters `TALKED` when it has a number, and the number
+is what the reader will actually meet.** A contract may sit in `HELD` indefinitely
+without costing anybody anything; a contract in `TALKED` is something a reader is
+handed. `CONTRACTS` may therefore hold a language `TALKED` does not, and never the
+reverse — a conversation with no rules is the failure that ordering prevents.
+
+What it does not overturn: one contract, both surfaces; Aramaic stays out on its own
+grounds, which are a decision about the register and not a measurement (#284).
+
 ### A scope is a press that lasts — 2026-09-22
 
 Until now the rule was absolute and written in two places: a chat tool never spends, and

@@ -171,13 +171,27 @@ RECASTS = {
 }
 
 
-@pytest.mark.parametrize("code", ["he", "it", "fr", "ru", "yi"])
+@pytest.mark.parametrize("code", ["he", "it", "fr", "ru"])
 def test_every_language_that_talks_can_be_checked(tmp_path: Path, code: str) -> None:
     client = Script(Reply(RECASTS[code]))
     ctx, _, _, _ = context(tmp_path, client, learning={code})
     said = tools.record_turn(ctx, {"wrote": "something they wrote", "language": code})
     assert "error" not in said, said
     assert said["recast"]
+
+
+@pytest.mark.parametrize("code", ["yi", "arc"])
+def test_a_language_that_does_not_talk_is_refused_without_buying_a_turn(
+    tmp_path: Path, code: str
+) -> None:
+    """Yiddish is held (#359, #360) and Aramaic is decided (#284). Either way there is
+    no conversation to record, and the refusal comes before a token is bought."""
+    client = Script()
+    ctx, _, store, person = context(tmp_path, client, learning={code})
+    said = tools.record_turn(ctx, {"wrote": "something they wrote", "language": code})
+    assert "coming" in said["error"]
+    assert not client.requests, "refused before the model was asked"
+    assert store.slips(person.id) == []
 
 
 def test_a_paragraph_is_refused_rather_than_recast_as_a_sentence(tmp_path: Path) -> None:

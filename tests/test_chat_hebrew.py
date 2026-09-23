@@ -303,10 +303,26 @@ def test_the_italian_contract_keeps_the_shape_and_none_of_hebrew_s_own_rules() -
 # --- the three that landed with the connector (#281–#283) ------------------------
 
 
-def test_every_language_that_talks_has_a_contract_and_the_other_way_round() -> None:
-    """A language in one list and not the other is either a conversation with no rules
-    or a contract nothing uses."""
-    assert set(hebrew.CONTRACTS) | {"he"} == set(hebrew.TALKED)
+def test_a_conversation_never_has_less_than_a_contract() -> None:
+    """The asymmetry, the right way round: a contract may exist for a language that is
+    held back, and a conversation may never exist without one.
+
+    A language in `TALKED` with no contract would be a conversation with no rules. A
+    contract not in `TALKED` is a thing waiting — Yiddish since 2026-09-23, because it
+    was the one of the three that did not earn its place (#359, #360)."""
+    assert set(hebrew.TALKED) <= set(hebrew.CONTRACTS) | {"he"}
+    assert set(hebrew.HELD) <= set(hebrew.CONTRACTS), "held, not deleted"
+    assert not (set(hebrew.HELD) & set(hebrew.TALKED)), "held means not talked"
+
+
+def test_yiddish_is_written_and_held_back() -> None:
+    """Its contract is good — real YIVO, pointed, refusing daytshmerish. What it has not
+    shown is that it answers every time: about a third of its recasts came back with no
+    recast line, against 0 of 200 for French and Russian (#359)."""
+    assert "yi" in hebrew.HELD and "yi" not in hebrew.TALKED
+    assert "yi" in hebrew.CONTRACTS
+    said = hebrew.contract_for("yi")
+    assert said.startswith("This conversation is in Yiddish"), "still written, still right"
 
 
 def test_aramaic_holds_no_conversation() -> None:
@@ -322,6 +338,7 @@ def test_aramaic_holds_no_conversation() -> None:
     [
         ("fr", "French", ("accent", "être", "tu", "calques")),
         ("ru", "Russian", ("case", "aspect", "ты", "ё")),
+        # Held out of `TALKED` since 2026-09-23 and still written, so still checked.
         ("yi", "Yiddish", ("YIVO", "Hebrew alphabet", "German in Hebrew letters", "דו")),
     ],
 )
