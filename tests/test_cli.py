@@ -818,6 +818,28 @@ def test_seeding_a_subject_costs_a_handful_of_texts_and_not_a_shelf() -> None:
     assert len(seeds()) < 150, "the seed is a first press, not a library"
 
 
+def test_seed_builds_every_member_of_a_swipe_set() -> None:
+    """targum-internal#368. A swipe set is offered only where its members are built on
+    the shared shelf, so the seed is what makes one exist on the box at all."""
+    from targum import catalogue
+    from targum.accounts import MOST_IN_PLAYLIST
+    from targum.cli import seeds
+
+    members = [f"swiped-{n}" for n in range(MOST_IN_PLAYLIST + 3)]
+    kept = list(catalogue.COLLECTIONS)
+    catalogue.COLLECTIONS.append(
+        catalogue._collection(
+            {"id": "kitchen", "title": "במטבח", "members": members, "swipe": True}
+        )
+    )
+    try:
+        planned = seeds()
+    finally:
+        catalogue.COLLECTIONS[:] = kept
+    assert set(members[:MOST_IN_PLAYLIST]) <= set(planned)
+    assert members[MOST_IN_PLAYLIST] not in planned, "a playlist's worth, no more"
+
+
 def test_seed_names_each_text_once() -> None:
     """A collection's head may be one of the two named outright, and building a text
     twice is an annotator minute spent on nothing."""
