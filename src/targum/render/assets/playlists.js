@@ -135,6 +135,42 @@
     });
   });
 
+  /* --- targum's own (targum-internal#368) --------------------------------------- */
+
+  /* Opening one copies it into the reader's playlists, or finds the copy they have, and
+     goes to its first text. Nothing is claimed: every text in it is built already. The
+     first text opens as any list item does from this page, without `go`. */
+  function openSet(one) {
+    ask("/playlists/targum/" + encodeURIComponent(one.id), {}).then(function (answer) {
+      if (answer.error) return say("targum-said", answer.error, true);
+      var first = (answer.items || []).filter(function (item) {
+        return item.open;
+      })[0];
+      if (!first) return load();
+      location.href = keyed(listed(first.open, answer.id, first.position));
+    });
+  }
+
+  function drawTargum(sets) {
+    var holder = at("targum-sets");
+    holder.textContent = "";
+    at("from-targum").hidden = !sets.length;
+    sets.forEach(function (one) {
+      var item = document.createElement("li");
+      var press = button(one.name, function () {
+        openSet(one);
+      });
+      press.setAttribute("aria-label", t("playlists.open-named", "Open {name}", { name: one.name }));
+      var count = document.createElement("span");
+      count.className = "count";
+      count.textContent = tn("playlists.texts", one.count, "{n} text", "{n} texts");
+      press.appendChild(document.createTextNode(" "));
+      press.appendChild(count);
+      item.appendChild(press);
+      holder.appendChild(item);
+    });
+  }
+
   /* --- the playlists ------------------------------------------------------------ */
 
   function change(id, body) {
@@ -266,6 +302,7 @@
       }
       var playlists = answer.playlists || [];
       drawSheet(playlists);
+      drawTargum(answer.targum || []);
       at("lists").hidden = false;
       at("none").hidden = playlists.length > 0;
       var holder = at("playlists");
