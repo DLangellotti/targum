@@ -50,21 +50,42 @@ def test_the_fetch_takes_the_source_english_and_the_hebrew_reference_plainly(
         assert "headers" not in kwargs, "NTREX is not gated: no token travels"
         if "eng" in url:
             return Answer("One.\n")
-        return Answer("Один.\n" if "rus" in url else "אחת.\n")
+        if "rus" in url:
+            return Answer("Один.\n")
+        return Answer("Un.\n" if "fra" in url else "אחת.\n")
 
     monkeypatch.setattr("httpx.get", get)
-    assert ntrex.fetch() == 3
+    # Four since 2026-09-23: French joined as a *reference* end, where Russian is there
+    # as a *source* (#286, #357). One file serves either, because every NTREX rendering
+    # is of the same English line.
+    assert ntrex.fetch() == 4
     assert [url.rsplit("/", 1)[1] for url in asked] == [
         "newstest2019-src.eng.txt",
         "newstest2019-ref.heb.txt",
         "newstest2019-ref.rus.txt",
-    ], "the source English, not one of the three English references, and the Russian beside it"
+        "newstest2019-ref.fra.txt",
+    ], "the source English, not one of the three English references, and the rest beside it"
     assert ntrex.available() and ntrex.available("ru") and ntrex.complete()
     assert ntrex.load() == [ntrex.Line("1", "One.", "אחת.")]
     assert ntrex.load("ru") == [ntrex.Line("1", "Один.", "אחת.")], (
         "the Russian line against the Hebrew written for that same source line"
     )
-    assert ntrex.fetch() == 3 and len(asked) == 3, "files already here are left alone"
+    # The other end, named (#357): the English line against the French written for it.
+    assert ntrex.load(into="fr") == [ntrex.Line("1", "One.", "Un.")]
+    assert ntrex.fetch() == 4 and len(asked) == 4, "files already here are left alone"
+
+
+def test_a_language_it_does_not_carry_is_refused_by_name(home: Path) -> None:
+    """Yiddish is not among NTREX's 128, which is why `flores200.py` exists (#283)."""
+    with pytest.raises(TargumError) as refused:
+        ntrex.load(into="yi")
+    assert "Yiddish" in str(refused.value) or "yi" in str(refused.value)
+    assert "FLORES-200" in (refused.value.hint or "")
+
+
+def test_a_language_is_never_scored_against_itself(home: Path) -> None:
+    with pytest.raises(TargumError):
+        ntrex.load("ru", into="ru")
 
 
 def test_loading_before_fetching_names_the_command(home: Path) -> None:
@@ -83,7 +104,9 @@ def test_the_eval_draws_ntrex_rows_under_its_own_corpus_name(
     eval_recast = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(eval_recast)
 
-    monkeypatch.setattr(ntrex, "load", lambda source="en": [ntrex.Line("4", "Four.", "ארבע.")])
+    monkeypatch.setattr(
+        ntrex, "load", lambda source="en", into="he": [ntrex.Line("4", "Four.", "ארבע.")]
+    )
     assert eval_recast.reference_rows("ntrex", None, "devtest", None) == [
         {"id": "4", "said": "Four.", "he": "ארבע."}
     ]
