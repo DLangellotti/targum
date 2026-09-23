@@ -1956,5 +1956,7 @@
   "job.out-of.talk-credits": "You've used your {credits} credits of audio and conversation for this month, and a credit is a minute. They come back on {date}. Everything you have stays open, and the library is always free.",
   "connect.scope.library": "Search the library and look up what is at a link",
   "connect.scope.record": "Read your words, your mistakes and how far you have got",
-  "connect.scope.chat": "Read the Hebrew you write and keep it, mark words, and price a text"
+  "connect.scope.chat": "Read the Hebrew you write and keep it, mark words, and price a text",
+  "serve.playlist-name-it": "Give it a name. You can keep up to {most} playlists.",
+  "serve.playlist-full": "A playlist holds up to {most} texts."
 }
