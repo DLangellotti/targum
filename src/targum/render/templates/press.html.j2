@@ -10,8 +10,9 @@
     reason that page gives: somebody is in the middle of something that started
     elsewhere, and three ways off this page would be three ways to lose them.
 
-    §6 governs the words. What a text takes is said in minutes and in their hours, never
-    as a price: this page never prints what the job cost to make. -#}
+    §6 governs the words. A wait is said in minutes and a cost in credits — one credit is
+    one minute of audio or video (§12, 2026-09-23) — and never as a price: this page never
+    prints what the job cost to make. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -44,37 +45,59 @@
     </form>
 
   {% elif job.stage in ('working', 'reading') %}
-    {#- Pressed, and being made. With script this page never draws it — the press stays
-        put and watches. Without script the press redirects back here, and the way on is
-        to look again, which is what the button says. -#}
+    {#- Pressed, and being made. Reached two ways: without script, where the press
+        redirects back here and the way on is the button; and **with** script, where the
+        reader simply reloaded or came back to the link while it built. That second way
+        used to dead-end — the watcher looked for the press form, which this state has
+        not got, so the page never polled and never opened the reader (2026-09-23). The
+        watch hangs off its own element, present in both states, so coming back to the
+        tab is the same as never having left it. -#}
     <h1>{{ t("press.page.we-re-making-it", "We're making it") }}</h1>
     <p class="said">{{ job.title }}</p>
-    {%- if job.message %}<p class="said">{{ job.message }}</p>{% endif %}
+    <div id="press-watch" data-job="{{ job.id }}" data-made="{{ job.made|int }}"
+         data-usually="{{ job.usually|round|int }}"></div>
+    <p class="said" id="press-doing" role="status">{{ job.message or t("press.page.getting-started", "Getting started.") }}</p>
+    <p class="said" id="press-left" role="status"></p>
     <form method="get" action="/build/{{ job.id }}">
       <button class="go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
     </form>
+    <p class="aside">{{ t("press.page.it-s-also-on-your-texts", "It's on your texts too, and we'll open it here when it's ready.") }}
+      <a href="/texts">{{ t("press.page.go-to-your-texts", "Go to your texts") }}</a></p>
 
   {% elif job.stage == 'ready' %}
     <h1>{{ job.title }}</h1>
     {%- if job.english %}<p class="said">{{ job.english }}</p>{% endif %}
     <ul class="scopes">
-      {%- if job.usually %}
-      <li><span class="scope-says">{{ t("press.page.ready-in-about-minutes", "Ready in about {minutes} minutes", minutes=job.usually|round|int) }}</span></li>
+      {#- `usually` is seconds — `Library._how_long` says so. It was rendered as minutes
+          here, which promised "about 420 minutes" for a seven-minute build. -#}
+      {%- if job.usually and job.usually >= 30 %}
+      <li><span class="scope-says">{{ tn("press.page.ready-in-about-minutes", (job.usually / 60)|round|int, "Ready in about {n} minute", "Ready in about {n} minutes") }}</span></li>
       {%- endif %}
       {%- if job.known_line %}
       <li><span class="scope-says">{{ job.known_line }}</span></li>
       {%- endif %}
       {%- if job.audio %}
+      {#- A cost is credits since 2026-09-23 (§12), and a credit is a minute of audio or
+          video. This line read "Uses 1 minutes of your hours" for a one-minute video,
+          which is the whole reason the vocabulary changed; the rate lives beside the
+          balance, so a cost point says the figure alone. -#}
       <li>
         <span class="scope-says">{{ t("press.page.it-has-audio", "It has audio") }}</span>
-        <span class="scope-cost">{{ t("press.page.uses-minutes-of-your-hours", "Uses {minutes} minutes of your hours", minutes=(job.seconds / 60)|round|int) }}</span>
+        <span class="scope-cost">{{ tn("press.page.uses-credits", (job.seconds / 60)|round|int, "Uses {n} credit", "Uses {n} credits") }}</span>
       </li>
       {%- endif %}
     </ul>
-    <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}">
+    <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}"
+          data-usually="{{ job.usually|round|int }}">
       <button class="go" type="submit">{{ t("press.page.read-this", "Read this") }}</button>
     </form>
-    <p class="aside">{{ t("press.page.you-asked-for-this-somewhere-else", "You asked for this somewhere else. Nothing has been made yet.") }}</p>
+    <p class="said" id="press-doing" role="status" hidden></p>
+    <p class="said" id="press-left" role="status" hidden></p>
+    {#- Said before the press, and replaced by the way out once it is pressed: until then
+        "go to your texts" would be pointing at a text that is not there. -#}
+    <p class="aside" id="press-note">{{ t("press.page.you-asked-for-this-somewhere-else", "You asked for this somewhere else. Nothing has been made yet.") }}</p>
+    <p class="aside" id="press-away" hidden>{{ t("press.page.it-s-also-on-your-texts", "It's on your texts too, and we'll open it here when it's ready.") }}
+      <a href="/texts">{{ t("press.page.go-to-your-texts", "Go to your texts") }}</a></p>
 
   {% else %}
     <h1>{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
@@ -83,6 +106,8 @@
   {% endif %}
   </div>
 </main>
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('press.js') }}</script>
 </body>
 </html>
