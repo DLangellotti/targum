@@ -4164,3 +4164,58 @@ html:fullscreen { background: var(--paper); }
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }
+
+/* --- a reader opened from a playlist (targum-internal#366) ----------------------------
+   Next and Back at the foot of the text, where an article is left after it has been
+   read, and Next among the picture's keys, where a reel is watched. The library's own
+   suggestion steps aside: a playlist already knows what is next. Nothing here moves, so
+   there is nothing for reduced motion to stop — the next item replaces this one. */
+.in-list .next-up:not(.here) { display: none; }
+
+.list-nav {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 2rem;
+  padding: 0.75rem 1rem 0;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.list-where { flex: 1 1 100%; margin: 0; }
+.list-up-next,
+.list-waiting { flex: 1 1 100%; margin: 0; }
+
+.list-key {
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+.list-key.list-next {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--paper);
+}
+.list-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* In the picture's keys it is one of them, not a second style. Shown only while
+   watching: docked, the foot of the text has its own. */
+.video-list-next,
+.video-list-back { display: none; }
+.video.watching .video-list-next,
+.video.watching .video-list-back { display: inline-flex; }
+
+.list-end {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 2rem;
+  padding: 0 1rem;
+}
+.list-end[hidden] { display: none; }

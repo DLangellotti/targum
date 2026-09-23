@@ -22,6 +22,13 @@
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
   }
 
+  /* An item opened from its playlist carries the list and its place in it, so the
+     reader draws Next and Back (targum-internal#366). Never `go`: opening one from here
+     is not a swipe, and it plays nothing until pressed. */
+  function listed(path, id, position) {
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "list=" + id + "&at=" + position;
+  }
+
   var UNREACHED = t("playlists.unreached", "We couldn't reach targum. Try again in a moment.");
 
   function ask(path, body) {
@@ -143,7 +150,7 @@
     var name;
     if (item.open) {
       name = document.createElement("a");
-      name.href = keyed(item.open);
+      name.href = keyed(listed(item.open, one.id, item.position));
     } else {
       name = document.createElement("span");
     }
@@ -201,7 +208,7 @@
     if (start) {
       var go = document.createElement("a");
       go.className = "go-quiet start";
-      go.href = keyed(start.open);
+      go.href = keyed(listed(start.open, one.id, start.position));
       go.textContent = t("playlists.start", "Start");
       head.appendChild(go);
     }
