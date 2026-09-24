@@ -19,6 +19,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
+from math import ceil
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -459,3 +460,36 @@ def ceiling_for(level: Level) -> int | None:
         if level.weighted < words:
             return ceiling
     return None
+
+
+#: The share of a text's running words a reader has to know to read it without a
+#: dictionary: the comprehension threshold in the vocabulary research (Laufer 1989;
+#: Hu and Nation 2000 put adequate unassisted reading at 95–98%). The lower edge, because
+#: a learner's text is read with a dictionary one tap away.
+TEXT_COVERAGE = 0.95
+
+
+def text_rung(
+    ranks: Iterable[int | None], ladder: Ladder, coverage: float = TEXT_COVERAGE
+) -> Rung | None:
+    """The rung a text needs, which is the text's and never the reader's (design.md §12,
+    2026-09-24).
+
+    `ranks` is the frequency rank of every running word's lemma, in order of the text,
+    with None for a word past the frequency list. The text needs the vocabulary that
+    covers `coverage` of its running words: the rank at that point in the sorted list. The
+    rung is the lowest one whose vocabulary reaches it, and a text that needs more than
+    the top rung has the top rung. None for a text with no words to count.
+    """
+    ordered = sorted(RANKED_PAST if one is None else one for one in ranks)
+    if not ordered or not ladder.rungs:
+        return None
+    needed = ordered[max(0, ceil(coverage * len(ordered)) - 1)]
+    for rung in ladder.rungs:
+        if rung.at >= needed:
+            return rung
+    return ladder.rungs[-1]
+
+
+#: What a word the frequency list never reached counts as: past every rung.
+RANKED_PAST = 10**9

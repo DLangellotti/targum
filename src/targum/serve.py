@@ -49,6 +49,7 @@ from .accounts import (
     now,
     plausible,
 )
+from .audio.manifest import POSTER
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -2175,6 +2176,21 @@ class Library:
                     "document": facts["content_hash"],
                     "words": words,
                     **self._shape(folder, facts["source"], language, words),
+                    # What the shelf row says at a glance (design.md §12, 2026-09-24): the
+                    # recording's own length where there is one, and the rung the text
+                    # needs. Both cached on the files they are read from.
+                    "seconds": remember(
+                        folder,
+                        "seconds",
+                        [folder / "audio.json"],
+                        partial(self._recording_seconds, folder),
+                    ),
+                    "level": remember(
+                        folder,
+                        f"level:{language}",
+                        [folder / "annotation.json"],
+                        partial(self._text_level, folder / "annotation.json", language),
+                    ),
                     "sections": sections or 1,
                     "chapters": chapters,
                     "readyChapters": sum(1 for c in chapters if c["ready"]),
@@ -2186,8 +2202,60 @@ class Library:
                     "built": int(index.stat().st_mtime),
                 }
             )
+            # A video import's own frame, where it has one, is its picture.
+            if not found[-1]["drawn"] and (folder / POSTER).is_file():
+                found[-1]["drawn"] = True
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
+
+    @staticmethod
+    def _recording_seconds(folder: Path) -> int:
+        """How long a text's recording runs, in whole seconds, or 0 for a text with none."""
+        from .audio import manifest as manifest_module
+
+        if not (folder / manifest_module.MANIFEST).is_file():
+            return 0
+        try:
+            loaded = manifest_module.load(folder)
+        except Exception:  # noqa: BLE001 - a manifest the shelf cannot read shows no length
+            return 0
+        if loaded is None:
+            return 0
+        seconds = loaded.duration or sum(part.end - part.start for part in loaded.parts)
+        return max(0, round(seconds))
+
+    @staticmethod
+    def _text_level(annotation: Path, language: str) -> dict[str, str] | None:
+        """The rung a text needs (design.md §12, 2026-09-24), or None.
+
+        Read off the annotation's running words, names left out, each lemma ranked by the
+        language's frequency list (`level.text_rung`). None where there is no annotation,
+        no ladder or no frequency list: no level is better than a made-up one.
+        """
+        from . import level as level_module
+        from .annotate.base import NOT_VOCABULARY
+        from .annotate.frequency import rank, ranks
+        from .models import Annotation, read_artifact
+
+        ladder = level_module.ladder_for(language)
+        if ladder is None or not annotation.is_file() or not ranks(language):
+            return None
+        loaded = read_artifact(Annotation, annotation)
+        if loaded is None:
+            return None
+        seen: dict[str, int | None] = {}
+        running: list[int | None] = []
+        for tokens in loaded.tokens.values():
+            for token in tokens:
+                if token.pos in NOT_VOCABULARY or not token.lemma:
+                    continue
+                if token.lemma not in seen:
+                    seen[token.lemma] = rank(token.lemma, language)
+                running.append(seen[token.lemma])
+        rung = level_module.text_rung(running, ladder)
+        if rung is None:
+            return None
+        return {"rung": rung.letter, "name": rung.name, "cefr": rung.cefr}
 
     @staticmethod
     def _sections(folder: Path) -> int:
@@ -5410,6 +5478,11 @@ class Handler(BaseHTTPRequestHandler):
                 reader["shared"] = True
             self._measure(self.library.shared, shared)
             person = self._person()
+            # The playlists each text is in, named on its row (design.md §12, 2026-09-24).
+            if person is not None and self.store is not None:
+                holding = self.store.playlists_holding(person.id)
+                for reader in (*mine, *shared):
+                    reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
             return self._json(
                 {
                     "readers": mine,
@@ -9042,6 +9115,17 @@ class Handler(BaseHTTPRequestHandler):
                 # it on every visit to the library is the whole page's weight again.
                 # Private rather than public: it still travelled a signed-in connection.
                 return self._send(200, target.read_bytes(), kind, cache="private, max-age=86400")
+        # No cover drawn: a video import's own frame, from the asker's shelf or the shared
+        # one (design.md §12, 2026-09-24). By folder name only, and resolved inside the
+        # shelf, so a name cannot reach anywhere else.
+        if "/" not in wanted and "\\" not in wanted and wanted not in ("", ".", ".."):
+            for shelf in (self._home(), self.library.shared):
+                base = shelf.resolve()
+                poster = (base / wanted / POSTER).resolve()
+                if base in poster.parents and poster.is_file():
+                    return self._send(
+                        200, poster.read_bytes(), "image/jpeg", cache="private, max-age=86400"
+                    )
         return self._send(404, b"not found", "text/plain")
 
     def _serve_reader(self, relative: str) -> None:

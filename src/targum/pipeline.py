@@ -1946,6 +1946,10 @@ class Build:
                 parts=entries,
             ),
         )
+        # A video import's picture for the shelf, from its own first cut.
+        from .video import poster
+
+        poster.ensure(self.resolved_out)
 
     # -- driving -----------------------------------------------------------
 
