@@ -106,7 +106,33 @@
 
   document.body.classList.add("in-list");
 
+  /* The direction of the interface, not of the text: the root carries the text's
+   * direction, and the English under a Hebrew text read ".You met 35 words" (2026-09-24).
+   * The root's `lang` is the interface's own (reader.html.j2). */
+  var uiLanguage = String(
+    (window.TargumStrings && window.TargumStrings.language) || document.documentElement.lang || "en"
+  ).split("-")[0];
+  var uiDir = /^(he|yi|ar|fa|ur|arc)$/.test(uiLanguage) ? "rtl" : "ltr";
+
+  /* A line with a title in it, the title isolated so its own punctuation stays on its
+   * own side: "Up next: {title}" with a Hebrew title that ends in "?". */
+  function withTitle(node, said, name, value) {
+    var cut = said.indexOf("{" + name + "}");
+    if (cut < 0) {
+      node.textContent = said;
+      return node;
+    }
+    node.appendChild(document.createTextNode(said.slice(0, cut)));
+    var inner = document.createElement("bdi");
+    inner.setAttribute("dir", "auto");
+    inner.textContent = value;
+    node.appendChild(inner);
+    node.appendChild(document.createTextNode(said.slice(cut + name.length + 2)));
+    return node;
+  }
+
   var items = [];
+  var setName = "";
   var near = { next: null, back: null, waiting: 0, last: true };
 
   function note(name) {
@@ -134,9 +160,29 @@
     return true;
   }
 
-  /* The end card, once (#367): real counts and one door, and nothing that loads more. */
+  /* The end card, once (#367): real counts, the words themselves, and one door, and
+   * nothing that loads more. When the end has nothing to say — end.json failed, or
+   * answered with neither — it still says where the reader is and where their
+   * playlists are. */
   function drawEnd(end, said) {
     var words = said && said.words;
+    var next = said && said.next;
+    if (!(words && words.met) && !(next && next.open)) {
+      var over = withTitle(
+        document.createElement("p"),
+        t("reader.list.end-of", "That's the end of {name}."),
+        "name",
+        setName
+      );
+      over.className = "list-end-over";
+      end.appendChild(over);
+      var home = document.createElement("a");
+      home.className = "list-end-home";
+      home.href = keyed("/playlists");
+      home.textContent = t("reader.list.your-playlists", "Your playlists");
+      end.appendChild(home);
+      return;
+    }
     if (words && words.met) {
       var met = document.createElement("p");
       met.className = "list-end-words";
@@ -155,8 +201,25 @@
             "You met {n} words."
           );
       end.appendChild(met);
+      // The words, not only their count (design.md §12: "the words met across the set"):
+      // the new ones first, as many as the server names — it caps them.
+      var shown = Array.isArray(words.list) ? words.list : [];
+      if (shown.length) {
+        var list = document.createElement("ul");
+        list.className = "list-end-list";
+        shown.forEach(function (one) {
+          var row = document.createElement("li");
+          if (one.new) row.className = "new";
+          var word = document.createElement("bdi");
+          word.setAttribute("dir", "auto");
+          if (one.language) word.setAttribute("lang", String(one.language));
+          word.textContent = String(one.word || "");
+          row.appendChild(word);
+          list.appendChild(row);
+        });
+        end.appendChild(list);
+      }
     }
-    var next = said && said.next;
     if (next && next.open) {
       var lead = document.createElement("p");
       lead.className = "list-end-lead";
@@ -165,13 +228,15 @@
       var door = document.createElement("a");
       door.className = "list-end-next";
       door.href = keyed(String(next.open));
-      door.textContent = tn(
-        "reader.list.end-next-door",
-        next.count || 0,
-        "{name}, {n} text",
-        "{name}, {n} texts",
-        { name: String(next.name || "") }
+      // One span inside the pill, so the name and its count stay one line of text.
+      var label = document.createElement("span");
+      withTitle(
+        label,
+        tn("reader.list.end-next-door", next.count || 0, "{name}, {n} text", "{name}, {n} texts"),
+        "name",
+        String(next.name || "")
       );
+      door.appendChild(label);
       end.appendChild(door);
     }
   }
@@ -184,9 +249,11 @@
         return answer.ok ? answer.json() : null;
       })
       .then(function (said) {
-        if (said) drawEnd(end, said);
+        drawEnd(end, said);
       })
-      .catch(function () {});
+      .catch(function () {
+        drawEnd(end, null);
+      });
   }
 
   function showEnd() {
@@ -219,20 +286,21 @@
     items = (set && set.items) || [];
     if (!items[at]) return;
     near = neighbours(items, at);
+    setName = String((set && set.name) || "");
 
     // At the foot of the text: where an article is left, after it has been read.
     var nav = document.createElement("nav");
     nav.id = "list-nav";
     nav.className = "list-nav";
     nav.setAttribute("aria-label", t("reader.list.label", "Your playlist"));
-    nav.setAttribute("dir", "ltr");
-    var where = document.createElement("p");
+    nav.setAttribute("dir", uiDir);
+    var where = withTitle(
+      document.createElement("p"),
+      t("reader.list.where", "{name}, {at} of {count}", { at: at + 1, count: items.length }),
+      "name",
+      setName
+    );
     where.className = "list-where";
-    where.textContent = t("reader.list.where", "{name}, {at} of {count}", {
-      name: String((set && set.name) || ""),
-      at: at + 1,
-      count: items.length,
-    });
     nav.appendChild(where);
     if (near.back !== null) {
       nav.appendChild(
@@ -249,11 +317,13 @@
       })
     );
     if (near.next !== null) {
-      var upNext = document.createElement("p");
+      var upNext = withTitle(
+        document.createElement("p"),
+        t("reader.list.up-next", "Up next: {title}"),
+        "title",
+        String(items[near.next].title || "")
+      );
       upNext.className = "list-up-next";
-      upNext.textContent = t("reader.list.up-next", "Up next: {title}", {
-        title: String(items[near.next].title || ""),
-      });
       nav.appendChild(upNext);
     }
     if (near.waiting) {
@@ -270,6 +340,7 @@
     var end = document.createElement("aside");
     end.id = "list-end";
     end.className = "list-end";
+    end.setAttribute("dir", uiDir);
     end.hidden = true;
 
     var main = document.querySelector("main") || document.body;
@@ -350,18 +421,54 @@
 
   /* The arrows up and down, where they have nothing else to do: they scroll the text,
    * and go on scrolling it until it has run out. Left and right are the word walk's, and
-   * are not touched. */
-  document.addEventListener("keydown", function (event) {
-    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    var on = event.target;
-    if (on && (/^(INPUT|SELECT|TEXTAREA)$/.test(on.tagName) || on.isContentEditable)) return;
-    if (event.key === "ArrowDown" && atEnd()) {
-      if (forward("list-arrow")) event.preventDefault();
-    } else if (event.key === "ArrowUp" && atStart() && near.back !== null) {
-      if (backward("list-arrow")) event.preventDefault();
-    }
-  });
+   * are not touched.
+   *
+   * On pages, a page that fits the window has nothing to scroll, so down at its foot
+   * turns to the next page and up at its head to the one before — the arrows' "go on
+   * until the text runs out" on a text that is cut into pages. Without that, a paged
+   * scene answered the arrow with nothing until its last page, and the key to Next
+   * looked dead (2026-09-24). Heard first, in the capture phase, so no control that
+   * happens to hold the focus — a word walked to, the player's own track — keeps the
+   * key from reaching the list at the end of the text; everywhere else it is left to go
+   * on as it was. */
+  function turnPage(by) {
+    if (!document.body.classList.contains("paged")) return false;
+    var reader = window.TargumReader;
+    if (!reader) return false;
+    if (by > 0 && reader.onLastPage && reader.onLastPage()) return false;
+    if (by < 0 && reader.onFirstPage && reader.onFirstPage()) return false;
+    var turn = document.querySelector('.turn button[data-turn="' + (by > 0 ? "1" : "-1") + '"]');
+    if (!turn) return false;
+    turn.click();
+    return true;
+  }
+  function scrolledToFoot() {
+    var root = document.documentElement;
+    return window.innerHeight + window.scrollY >= root.scrollHeight - 4;
+  }
+  document.addEventListener(
+    "keydown",
+    function (event) {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      var on = event.target;
+      if (on && (/^(INPUT|SELECT|TEXTAREA)$/.test(on.tagName) || on.isContentEditable)) return;
+      var moved = false;
+      if (event.key === "ArrowDown") {
+        if (atEnd()) moved = forward("list-arrow");
+        else if (scrolledToFoot()) moved = turnPage(1);
+      } else if (atStart()) {
+        moved = near.back !== null && backward("list-arrow");
+      } else if (window.scrollY <= 4) {
+        moved = turnPage(-1);
+      }
+      if (moved) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    true
+  );
 
   fetch(keyed("/playlists/" + list + ".json"), { credentials: "same-origin" })
     .then(function (answer) {

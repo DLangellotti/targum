@@ -210,7 +210,7 @@ def test_add_to_playlist_is_a_menu_in_place(browser, tmp_path: Path) -> None:
     context.close()
     assert after == before, "it stayed on the shelf"
     assert sent == [["/playlists/1", {"do": "add", "reader": "jonah", "title": "יונה"}]]
-    assert said == "Added to Kitchen"
+    assert said == "Added to Kitchen."
     assert not thrown
 
 
@@ -240,3 +240,120 @@ def test_escape_closes_the_menu_and_gives_focus_back(browser, tmp_path: Path) ->
     assert gone == 0
     assert "add-to-list" in focused
     assert not thrown
+
+
+# --- review fixes, 2026-09-24 -------------------------------------------------------
+
+
+def opened_with(browser, tmp_path: Path, extra: str, wait: str = "#playlists .playlist"):
+    """The page over FAKE, with `extra` run after it to change what the server says."""
+    page_file = tmp_path / "playlists.html"
+    page_file.write_text(playlists_page(TOKEN), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    page.add_init_script(f"const KITCHEN = {json.dumps(KITCHEN)};" + FAKE + extra)
+    page.goto(page_file.as_uri())
+    page.wait_for_selector(wait)
+    return context, page, thrown
+
+
+def test_delete_asks_before_it_takes_a_whole_playlist(browser, tmp_path: Path) -> None:
+    context, page, thrown = opened(browser, tmp_path)
+    away = page.locator(".playlist-head .danger").first
+    away.click()
+    first = posted(page)
+    label = away.text_content()
+    away.click()
+    page.wait_for_function("() => (sessionStorage.getItem('posted') || '').includes('gone')")
+    second = posted(page)
+    context.close()
+    assert not thrown, thrown
+    assert first == [], "one press takes nothing away"
+    assert label == "Confirm delete"
+    assert second == [["/playlists/1", {"do": "gone"}]]
+
+
+def test_the_account_button_is_told_who_is_here(browser, tmp_path: Path) -> None:
+    """Every desk page starts sync, which is what the header's account button asks; this
+    one did not, and said Sign in to a reader who was signed in."""
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        const before = window.fetch;
+        window.fetch = (url, opts) => {
+          if (String(url).indexOf('/account/me') >= 0) sessionStorage.setItem('me', '1');
+          return before(url, opts);
+        };
+        """,
+    )
+    page.wait_for_function("() => sessionStorage.getItem('me') === '1'")
+    context.close()
+    assert not thrown, thrown
+
+
+def test_no_connection_is_not_a_sign_in(browser, tmp_path: Path) -> None:
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        "window.fetch = () => Promise.reject(new TypeError('offline'));",
+        wait="#lists-said:not([hidden])",
+    )
+    said = page.locator("#lists-said").text_content()
+    stranger = page.locator("#stranger").is_hidden()
+    context.close()
+    assert not thrown, thrown
+    assert said == "We couldn't reach targum. Try again in a moment."
+    assert stranger, "a network that failed is not a reader who is signed out"
+
+
+def test_the_protocols_words_never_reach_the_reader(browser, tmp_path: Path) -> None:
+    context, page, thrown = opened_with(
+        browser,
+        tmp_path,
+        """
+        const before = window.fetch;
+        window.fetch = (url, opts) => {
+          if (opts && opts.method === 'POST' && !sessionStorage.getItem('refused')) {
+            sessionStorage.setItem('refused', '1');
+            const refused = JSON.stringify({error: 'bad request'});
+            return Promise.resolve(new Response(refused, {status: 400}));
+          }
+          return before(url, opts);
+        };
+        """,
+    )
+    page.locator(".item-keys .ghost", has_text="Remove").first.click()
+    page.wait_for_selector("#lists-said:not([hidden])")
+    refused = page.locator("#lists-said").text_content()
+    page.locator(".item-keys .ghost", has_text="Remove").first.click()
+    page.wait_for_selector("#lists-said", state="hidden")
+    context.close()
+    assert not thrown, thrown
+    assert refused == "We couldn't do that. Try again."
+
+
+def test_a_long_name_wraps_inside_its_press(browser, tmp_path: Path) -> None:
+    """A playlist's name runs to 80 characters; at phone width it wraps in its press and
+    in its heading rather than running the page off the side (2026-09-24)."""
+    long = "A playlist of kitchen conversations and market mornings, kept for Sundays"
+    page_file = tmp_path / "playlists.html"
+    page_file.write_text(playlists_page(TOKEN), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.add_init_script(
+        f"const KITCHEN = {json.dumps({**KITCHEN, 'name': long})};"
+        + FAKE.replace("name: 'Kitchen'", f"name: {json.dumps(long)}")
+    )
+    page.goto(page_file.as_uri() + "?add=jonah&title=Jonah")
+    page.wait_for_selector("#playlists .playlist")
+    over = page.evaluate(
+        """() => [...document.querySelectorAll('body *')]
+            .filter((el) => el.getBoundingClientRect().right > window.innerWidth + 1)
+            .map((el) => el.tagName + '.' + el.className)"""
+    )
+    width = page.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")
+    context.close()
+    assert over == [] and width <= 0, over

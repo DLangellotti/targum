@@ -62,6 +62,7 @@ from .render.builder import (
     back_office_page,
     connect_page,
     connect_refused_page,
+    credits_of,
     daily_page,
     front_page,
     holding_page,
@@ -373,6 +374,12 @@ UPLOAD_SECONDS = UPLOAD_HOURS * 60 * 60
 # price any more. Both numbers appear together wherever a balance does.
 SECONDS_A_CREDIT = 60
 UPLOAD_CREDITS = UPLOAD_SECONDS // SECONDS_A_CREDIT
+
+#: How many of the words met a playlist's end card names (#367): enough to be the words,
+#: few enough to read at a glance. The count beside them is still the whole of it.
+END_WORDS = 12
+#: A text finished this recently is not offered again in a next set.
+RECENT_DAYS = 30
 
 # What one reader's conversation may spend in a day. **A rate limit, like the account
 # rail above, and a narrower one**: a turn is uncacheable and the reader controls the
@@ -2887,23 +2894,23 @@ class Library:
                 self._committed += job.estimate
             return blocked
 
-    def claim_set(self, jobs: list[Job], ui: str = "en") -> tuple[str, float]:
+    def claim_set(self, jobs: list[Job], ui: str = "en") -> tuple[str, float, str]:
         """Claim every build in a set, or none (#365, design.md §12: one press takes a
         named set, and David chose all or nothing on 2026-09-23).
 
         The same rails as `claim`, over the set's totals, in one transaction, so the page
         can never have quoted a whole set and delivered half of it. Returns the refusal
-        in words, or "", and the seconds of allowance left where that was the rail —
-        which is how the page says how many credits would fit.
+        in words, or "", the seconds of allowance left where that was the rail — which
+        is how the page says how many credits would fit — and which rail refused.
         """
         if not jobs:
-            return "", 0.0
+            return "", 0.0, ""
         for job in jobs:
             if job.estimate > self.max_cost:
-                return self.why_blocked(job.estimate, ui), 0.0
+                return self.why_blocked(job.estimate, ui), 0.0, "cost"
         owners = {job.owner for job in jobs}
         if len(owners) != 1:
-            return self._out_of("everyone", ui), 0.0
+            return self._out_of("everyone", ui), 0.0, "everyone"
         owner = next(iter(owners))
         admin = any(job.admin for job in jobs)
         if self.store is not None:
@@ -2916,13 +2923,13 @@ class Library:
                 month_from=self._month_from(),
                 per_month_length=None if admin else self.upload_seconds,
             )
-            return (self._out_of(refused, ui) if refused else ""), room
+            return (self._out_of(refused, ui) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)
         with self.lock:
             blocked = self.why_blocked(total, ui)
             if not blocked:
                 self._committed += total
-            return blocked, 0.0
+            return blocked, 0.0, "everyone" if blocked else ""
 
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
@@ -6800,25 +6807,69 @@ class Handler(BaseHTTPRequestHandler):
                 break
         return out
 
-    def _words_met(self, person: Person, folders: list[tuple[Path, str]]) -> dict[str, int] | None:
-        """How many distinct words the set held, and how many of them the reader had never
-        marked in any way — `coverage.lemmas` over each built text, so no model runs. None
-        where no text in it carries word-level annotation: saying nothing beats a zero."""
+    def _words_met(self, person: Person, folders: list[tuple[Path, str]]) -> dict[str, Any] | None:
+        """The words the set held: how many distinct ones, how many of them the reader had
+        never marked in any way, and the words themselves, the new ones first and at most
+        `END_WORDS` of them — design.md §12 promises "the words met across the set", and a
+        count alone is not the words. `coverage.lemmas` over each built text, so no model
+        runs. None where no text in it carries word-level annotation: saying nothing beats
+        a zero."""
         from . import coverage
 
-        met: set[tuple[str, str]] = set()
+        met: dict[tuple[str, str], None] = {}
         for folder, language in folders:
-            met.update((language, lemma) for lemma in coverage.lemmas(folder))
+            for lemma in coverage.lemmas(folder):
+                met.setdefault((language, lemma), None)
         if not met:
             return None
         marked: dict[str, dict[str, int]] = {}
-        new = 0
+        fresh: list[dict[str, str]] = []
+        known: list[dict[str, str]] = []
         for language, lemma in met:
             if language not in marked:
                 marked[language] = self.store.marked(person, language)
-            if lemma not in marked[language]:
-                new += 1
-        return {"met": len(met), "new": new}
+            word = {"word": lemma, "language": language}
+            (known if lemma in marked[language] else fresh).append(word)
+        return {
+            "met": len(met),
+            "new": len(fresh),
+            "list": [{**one, "new": True} for one in fresh[:END_WORDS]]
+            + [{**one, "new": False} for one in known[: max(0, END_WORDS - len(fresh))]],
+        }
+
+    def _not_again(self, person: Person, found: dict[str, Any]) -> list[str]:
+        """The catalogue ids a next set must not offer: every text in the playlist just
+        finished, and whatever this reader finished in the last `RECENT_DAYS` days.
+
+        Found live on 2026-09-24: "More like QA quick scenes" held the three scenes just
+        finished and two more, because `suggest_next` leaves out only what a reader
+        brought in themselves, and targum's own sets point at the shared shelf."""
+        from . import catalogue as catalogue_module
+
+        def source_of(folder: Path) -> str:
+            with contextlib.suppress(OSError, json.JSONDecodeError, AttributeError):
+                document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+                return catalogue_module._key(str(document.get("source") or ""))
+            return ""
+
+        sources = {source_of(folder) for folder, _ in self._built_folders(found)}
+        since = (time.time() - RECENT_DAYS * 86400) * 1000
+        finished = {
+            key
+            for key, times in self.store.read_times(person.id).items()
+            if times["finished"] >= since
+        }
+        if finished:
+            for root in (self._home(), self.library.shared):
+                for row in self.library.readers(root):
+                    if row.get("document") in finished:
+                        sources.add(source_of(root / str(row["name"])))
+        sources.discard("")
+        return [
+            entry.id
+            for entry in catalogue_module.everything()
+            if catalogue_module._key(entry.source) in sources
+        ]
 
     def _quote_next_set(self, person: Person, found: dict[str, Any], language: str) -> int:
         """Quote the one set a playlist's end offers, and say which playlist it is, or 0.
@@ -6841,15 +6892,20 @@ class Handler(BaseHTTPRequestHandler):
             admin=self.store.is_admin(person.email),
         )
         try:
-            picked = tools_module.suggest_next(ctx, {"language": language, "limit": 5})
-            rows = picked.get("suggestions") or []
+            skip = self._not_again(person, found)
+            picked = tools_module.suggest_next(
+                ctx, {"language": language, "limit": 5, "skip": skip}
+            )
+            # And again here, whatever `suggest_next` did with it: the one thing this card
+            # must never do is offer back what was just read.
+            rows = [row for row in picked.get("suggestions") or [] if row.get("id") not in skip]
             if not rows:
                 return 0
             quoted = tools_module.quote_set(
                 ctx,
                 {
                     "name": self._say(
-                        "playlists.next-name", "After {name}", name=str(found.get("name") or "")
+                        "playlists.next-name", "More like {name}", name=str(found.get("name") or "")
                     ),
                     "items": [
                         {"catalogue_id": row["id"], "title": str(row.get("title") or "")}
@@ -7764,16 +7820,19 @@ class Handler(BaseHTTPRequestHandler):
                     self.store.drop_from_playlist(person.id, pid, int(item["position"]))
             waiting = [(item, job) for item, job in waiting if int(item["position"]) in keep]
         chosen = [job for _, job in waiting if job is not None]
-        blocked, room = self.library.claim_set(chosen, self._page_language())
+        blocked, room, rail = self.library.claim_set(chosen, self._page_language())
         if blocked:
             fits = int(room // SECONDS_A_CREDIT)
             said = blocked
-            if room > 0:
+            if rail == "hours":
+                # One line, not the balance's own refusal and then a second one about what
+                # is left (2026-09-24): what the set needs, what there is, what to do.
                 said = said_in(
                     self._page_language(),
                     "set.page.only-this-many-fit",
-                    "{refused} You have {n} credits left. Untick some texts and try again.",
-                    refused=blocked,
+                    "This playlist needs {total} credits and you have {n} left. "
+                    "Untick some texts and try again.",
+                    total=sum(credits_of(job.seconds) for job in chosen if job.audio),
                     n=fits,
                 )
             if wants_json:

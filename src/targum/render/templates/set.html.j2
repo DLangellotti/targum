@@ -37,58 +37,78 @@
     <p class="said" role="alert">{{ refused }}</p>
     {%- endif %}
 
+    {#- What a text in the set is, in words, whichever state the set is in: the list is
+        always drawn before anything is pressed (2026-09-24 — a next set said only
+        "Ready." and listed nothing). -#}
+    {%- macro state(row) -%}
+      {%- if row.stage in ('failed', 'blocked') -%}{{ t("set.page.we-can-t-make-this-one", "We can't add this one.") }}
+      {%- elif row.job is none -%}{{ t("set.page.on-your-shelf", "Already yours") }}
+      {%- elif row.stage == 'done' or row.item.reader -%}{{ t("set.page.ready", "Ready") }}
+      {%- else -%}{{ t("set.page.getting-ready", "Getting ready") }}
+      {%- endif -%}
+    {%- endmacro %}
+
     {%- if waiting %}
     <form method="post" action="/set/{{ playlist.id }}" id="set-press">
       <ul class="scopes set-items">
       {%- for row in rows %}
         <li>
           {%- if row.job and row.stage == 'ready' %}
-          <label class="scope">
+          <label class="set-item">
             <input type="checkbox" name="keep" value="{{ row.item.position }}" checked>
-            <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
+            <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
           </label>
-          {%- if row.job.known_line %}<span class="scope-says">{{ row.job.known_line }}</span>{% endif %}
+          {%- if row.job.known_line %}<span class="set-meta">{{ row.job.known_line }}</span>{% endif %}
           {%- if row.credits %}<span class="scope-cost">{{ tn("set.page.uses-credits", row.credits, "{n} credit", "{n} credits") }}</span>{% endif %}
-          {%- elif row.stage == 'failed' %}
-          <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
-          <span class="scope-cost">{{ t("set.page.we-can-t-make-this-one", "Can't be added") }}</span>
           {%- else %}
-          <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
-          <span class="scope-cost">{{ t("set.page.on-your-shelf", "On your shelf") }}</span>
+          <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
+          <span class="scope-cost">{{ state(row) }}</span>
           {%- endif %}
         </li>
       {%- endfor %}
       </ul>
       {%- if total %}
-      <p class="said">{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</p>
+      <p class="said set-total">{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</p>
       {%- endif %}
       <button class="go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
     </form>
-    <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "Untick anything you don't want, then confirm. Nothing is prepared until you do.") }}</p>
+    <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "Untick what you don't want, then press Confirm.") }}</p>
 
-    {%- elif making %}
-    <p class="said" role="status">{{ tn("set.page.we-re-making-them", making|length, "Preparing {n} text.", "Preparing {n} texts. You can start as soon as the first is ready.") }}</p>
+    {%- else %}
+    <ul class="scopes set-items">
+    {%- for row in rows %}
+      <li>
+        <bdi class="set-title" dir="auto">{{ row.item.title }}</bdi>
+        <span class="scope-cost">{{ state(row) }}</span>
+      </li>
+    {%- endfor %}
+    </ul>
+    {%- if making %}
+    <p class="said set-total" role="status">{{ tn("set.page.we-re-making-them", making|length, "Preparing {n} text.", "Preparing {n} texts. You can start as soon as the first is ready.") }}</p>
+    {%- elif first %}
+    <p class="said set-total">{{ t("set.page.they-re-ready", "Ready.") }}</p>
+    {%- else %}
+    <p class="said set-total">{{ t("set.page.nothing-here-can-be-made", "None of these texts can be added right now.") }}</p>
+    {%- endif %}
     {%- if first %}
+    {#- Opened as the playlist's first item, so the reader draws Next and the swipe
+        (targum-internal#366) — the same address Start on Your playlists builds. Never
+        `go`: opening a playlist plays nothing until pressed. -#}
     <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
+      <input type="hidden" name="list" value="{{ playlist.id }}">
+      <input type="hidden" name="at" value="{{ first.position }}">
       <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start") }}</button>
     </form>
-    {%- else %}
+    {%- elif making %}
     <form method="get" action="/set/{{ playlist.id }}">
       <button class="go" type="submit">{{ t("set.page.see-how-it-s-going", "Check progress") }}</button>
     </form>
     {%- endif %}
+    {%- if first or making %}
     <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Your playlists") }}</a></p>
-
-    {%- elif first %}
-    <p class="said">{{ t("set.page.they-re-ready", "Ready.") }}</p>
-    <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
-      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start") }}</button>
-    </form>
-    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Your playlists") }}</a></p>
-
     {%- else %}
-    <p class="said">{{ t("set.page.nothing-here-can-be-made", "None of these texts can be added right now.") }}</p>
     <p class="aside"><a href="/">{{ t("press.page.go-to-your-texts", "Go to your texts") }}</a></p>
+    {%- endif %}
     {%- endif %}
   </div>
 </main>

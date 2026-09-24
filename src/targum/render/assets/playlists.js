@@ -30,6 +30,20 @@
   }
 
   var UNREACHED = t("playlists.unreached", "We couldn't reach targum. Try again in a moment.");
+  var FAILED = t("playlists.failed", "We couldn't do that. Try again.");
+  var GONE = t("playlists.gone", "We couldn't find that playlist.");
+
+  /* What the server said, as a line for the reader. A refusal written for a reader
+     ("A playlist holds up to 20 texts.") is passed on; the protocol's own words — "not
+     found", "bad request" — never reach the page (2026-09-24). */
+  function plainly(answer) {
+    var said = String((answer && answer.error) || "");
+    if (!said) return "";
+    if (answer.status === 0) return UNREACHED;
+    if (answer.status === 404 || /^not found$/i.test(said)) return GONE;
+    if (/^bad request$/i.test(said) || answer.status >= 500) return FAILED;
+    return said;
+  }
 
   function ask(path, body) {
     return fetch(keyed(path), {
@@ -73,6 +87,29 @@
     return press;
   }
 
+  // A name the reader typed, isolated in its own direction, so a Hebrew name's
+  // punctuation stays on its own side of it.
+  function isolated(text) {
+    var bdi = document.createElement("bdi");
+    bdi.setAttribute("dir", "auto");
+    bdi.textContent = text;
+    return bdi;
+  }
+
+  // A press named for a playlist: its name and its count, the name free to wrap.
+  function named(one, onPress) {
+    var press = button("", onPress);
+    press.classList.add("named");
+    var name = isolated(one.name);
+    name.className = "name";
+    press.appendChild(name);
+    var count = document.createElement("span");
+    count.className = "count";
+    count.textContent = tn("playlists.texts", one.count, "{n} text", "{n} texts");
+    press.appendChild(count);
+    return press;
+  }
+
   var query = new URLSearchParams(location.search);
   var adding = query.get("add") || "";
   var addingTitle = query.get("title") || adding;
@@ -82,22 +119,25 @@
   function drawSheet(playlists) {
     if (!adding) return;
     at("adding").hidden = false;
-    at("adding-head").textContent = t("playlists.add-to", "Add {title} to a playlist", {
-      title: addingTitle,
-    });
+    var head = at("adding-head");
+    head.textContent = "";
+    var said = t("playlists.add-to", "Add {title} to a playlist");
+    var cut = said.indexOf("{title}");
+    if (cut < 0) head.textContent = said;
+    else {
+      head.appendChild(document.createTextNode(said.slice(0, cut)));
+      head.appendChild(isolated(addingTitle));
+      head.appendChild(document.createTextNode(said.slice(cut + "{title}".length)));
+    }
     var choose = at("choose");
     choose.textContent = "";
     playlists.forEach(function (one) {
       var item = document.createElement("li");
-      var press = button(one.name, function () {
-        addTo(one.id, one.name);
-      });
-      var count = document.createElement("span");
-      count.className = "count";
-      count.textContent = tn("playlists.texts", one.count, "{n} text", "{n} texts");
-      press.appendChild(document.createTextNode(" "));
-      press.appendChild(count);
-      item.appendChild(press);
+      item.appendChild(
+        named(one, function () {
+          addTo(one.id, one.name);
+        })
+      );
       choose.appendChild(item);
     });
     var first = choose.querySelector("button") || at("new-name");
@@ -116,7 +156,7 @@
 
   function addTo(id, name) {
     ask("/playlists/" + id, { do: "add", reader: adding, title: addingTitle }).then(function (answer) {
-      if (answer.error) return say("adding-said", answer.error, true);
+      if (answer.error) return say("adding-said", plainly(answer), true);
       added(name);
     });
   }
@@ -130,7 +170,8 @@
       body.title = addingTitle;
     }
     ask("/playlists", body).then(function (answer) {
-      if (answer.error) return say(adding ? "adding-said" : "lists-said", answer.error, true);
+      if (answer.error) return say(adding ? "adding-said" : "lists-said", plainly(answer), true);
+      say("lists-said", "");
       at("new-name").value = "";
       if (adding) return added(answer.name);
       load();
@@ -144,7 +185,8 @@
      first text opens as any list item does from this page, without `go`. */
   function openSet(one) {
     ask("/playlists/targum/" + encodeURIComponent(one.id), {}).then(function (answer) {
-      if (answer.error) return say("targum-said", answer.error, true);
+      if (answer.error) return say("targum-said", plainly(answer), true);
+      say("targum-said", "");
       var first = (answer.items || []).filter(function (item) {
         return item.open;
       })[0];
@@ -159,15 +201,10 @@
     at("from-targum").hidden = !sets.length;
     sets.forEach(function (one) {
       var item = document.createElement("li");
-      var press = button(one.name, function () {
+      var press = named(one, function () {
         openSet(one);
       });
       press.setAttribute("aria-label", t("playlists.open-named", "Open {name}", { name: one.name }));
-      var count = document.createElement("span");
-      count.className = "count";
-      count.textContent = tn("playlists.texts", one.count, "{n} text", "{n} texts");
-      press.appendChild(document.createTextNode(" "));
-      press.appendChild(count);
       item.appendChild(press);
       holder.appendChild(item);
     });
@@ -175,9 +212,10 @@
 
   /* --- the playlists ------------------------------------------------------------ */
 
+  // A change that worked clears whatever an earlier one said went wrong.
   function change(id, body) {
     return ask("/playlists/" + id, body).then(function (answer) {
-      if (answer.error) say("lists-said", answer.error, true);
+      say("lists-said", answer.error ? plainly(answer) : "", !!answer.error);
       load();
     });
   }
@@ -235,10 +273,7 @@
     var head = document.createElement("div");
     head.className = "playlist-head";
     var name = document.createElement("h3");
-    var bdi = document.createElement("bdi");
-    bdi.setAttribute("dir", "auto");
-    bdi.textContent = one.name;
-    name.appendChild(bdi);
+    name.appendChild(isolated(one.name));
     head.appendChild(name);
     var start = one.items.filter(function (item) {
       return item.open;
@@ -255,9 +290,30 @@
         rename(box, one);
       })
     );
+    // Two presses to delete a whole playlist (2026-09-24): the first asks, and the same
+    // key then says so; it goes back to Delete if nothing is pressed for a few seconds or
+    // the focus leaves it.
     var away = button(t("playlists.delete", "Delete"), function () {
-      change(one.id, { do: "gone" });
+      if (away.getAttribute("data-asking") === "1") {
+        change(one.id, { do: "gone" });
+        return;
+      }
+      away.setAttribute("data-asking", "1");
+      away.textContent = t("playlists.delete-confirm", "Confirm delete");
+      away.setAttribute(
+        "aria-label",
+        t("playlists.delete-confirm-named", "Confirm delete {name}", { name: one.name })
+      );
+      clearTimeout(away.settle);
+      away.settle = setTimeout(calmDown, 5000);
     }, "ghost danger");
+    function calmDown() {
+      clearTimeout(away.settle);
+      away.removeAttribute("data-asking");
+      away.textContent = t("playlists.delete", "Delete");
+      away.setAttribute("aria-label", t("playlists.delete-named", "Delete {name}", { name: one.name }));
+    }
+    away.addEventListener("blur", calmDown);
     away.setAttribute("aria-label", t("playlists.delete-named", "Delete {name}", { name: one.name }));
     head.appendChild(away);
     box.appendChild(head);
@@ -277,6 +333,7 @@
     field.type = "text";
     field.maxLength = 80;
     field.value = one.name;
+    field.dir = "auto";
     field.setAttribute("aria-label", t("playlists.rename", "Rename"));
     form.appendChild(field);
     var save = document.createElement("button");
@@ -296,11 +353,26 @@
     field.select();
   }
 
+  // The account button in the header asks who is here once sync has started, as it
+  // does on every other desk page; without this it said "Sign in" to a signed-in reader.
+  var synced = false;
+
   function load() {
     ask("/playlists.json").then(function (answer) {
-      if (answer.status === 401 || answer.status === 0) {
+      if (answer.status === 0) {
+        // Nothing answered: not the same as not being signed in.
+        at("lists").hidden = false;
+        say("lists-said", UNREACHED, true);
+        return;
+      }
+      if (answer.status === 401) {
         at("stranger").hidden = false;
         return;
+      }
+      at("stranger").hidden = true;
+      if (!synced && window.TargumSync) {
+        synced = true;
+        window.TargumSync.start();
       }
       var playlists = answer.playlists || [];
       drawSheet(playlists);
