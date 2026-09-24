@@ -71,7 +71,7 @@
         {%- else %}<b>EN</b><span>/</span><a href="/connect?lang=ru" hreflang="ru">RU</a>{% endif %}
       </p>
       <a class="signin" href="/account/signin">{{ t("connect.page.sign-in", "Sign in") }}</a>
-      <a class="btn cta small" href="#install">{{ t("connect.page.set-it-up", "Set it up") }}</a>
+      <a class="btn cta small" href="#install">{{ t("connect.page.connect-targum", "Connect targum") }}</a>
     </div>
   </div>
 </header>
@@ -86,12 +86,12 @@
             claim is "the one you already use", and each reader uses a different one.
             Without JavaScript it stands still on the first. Only apps the steps below
             cover are named: a name here is a promise that there is a tab for it. -#}
-        <h1><span class="first">{{ t("connect.page.practise-hebrew-with-ai", "Practise Hebrew with AI") }}</span>
+        <h1><span class="first">{{ t("connect.page.learn-hebrew", "Learn Hebrew") }}</span>
           <span class="inside">{{ t("connect.page.in-your-app", "in") }}
             <span class="rotor" id="rotor"><span class="rotor-name">{{ logo('claude') }}<span>Claude</span></span></span></span></h1>
-        <p class="lede">{{ t("connect.page.targum-connect-gives-your-assistant-your-hebrew", "targum Connect gives Claude, ChatGPT and other assistants your Hebrew: the words you know, the mistakes you make and a library to read from. So they talk to you at your level, correct you properly and find you something to read.") }}</p>
+        <p class="lede">{{ t("connect.page.connect-targum-to-the-ai-you-already-use", "Connect targum to the AI you already use, and it talks to you in Hebrew built from the words you know. When you slip, it shows you the fix and why. Every new word goes on your list.") }}</p>
         <div class="actions">
-          <a class="btn cta" href="#install">{{ t("connect.page.set-it-up", "Set it up") }}</a>
+          <a class="btn cta" href="#install">{{ t("connect.page.connect-targum", "Connect targum") }}</a>
           <button class="btn tonal" type="button" id="replay" hidden>
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
             {{ t("connect.page.watch-it-work", "Watch it work") }}
@@ -113,7 +113,7 @@
             replaces it and plays all three. -#}
         <div class="demo-thread" id="demoThread">
           <div class="msg you"><p>{{ t("connect.demo.find-me-something-short-to-read-about-food", "Find me something short to read about food. Nothing too hard.") }}</p></div>
-          <div class="tool done"><span class="tool-glyph">{{ mark() }}</span><span>{{ t("connect.demo.found-three-texts-at-your-level", "targum found three texts at your level") }}</span></div>
+          <div class="tool done"><span class="tool-glyph">{{ mark() }}</span><span>{{ t("connect.demo.found-three-at-your-level", "Found three at your level") }}</span></div>
           <div class="msg them">
             <p>{{ t("connect.demo.here-are-three-you-ll-mostly-understand", "Here are three you’ll mostly understand:") }}</p>
             <div class="finds">
@@ -122,9 +122,13 @@
             </div>
           </div>
         </div>
+        <div class="demo-compose" id="demoCompose" aria-hidden="true" hidden>
+          <span class="demo-field" id="demoField" data-empty="{{ t("connect.demo.write-in-hebrew-or-english", "Write in Hebrew or English") }}"></span>
+          <span class="demo-send"><svg viewBox="0 0 16 16"><path d="M8 13V3.5M3.8 7.5 8 3.3l4.2 4.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </div>
         <div class="scenes" role="group" aria-label="{{ t("connect.page.examples", "Examples") }}" id="scenes" hidden>
           <button class="scene" type="button" data-scene="0" aria-pressed="true"><span>{{ t("connect.page.find-something-to-read", "Find something to read") }}</span><i></i></button>
-          <button class="scene" type="button" data-scene="1" aria-pressed="false"><span>{{ t("connect.page.practise-and-be-corrected", "Practise and be corrected") }}</span><i></i></button>
+          <button class="scene" type="button" data-scene="1" aria-pressed="false"><span>{{ t("connect.page.get-corrected", "Get corrected") }}</span><i></i></button>
           <button class="scene" type="button" data-scene="2" aria-pressed="false"><span>{{ t("connect.page.pick-up-where-you-left-off", "Pick up where you left off") }}</span><i></i></button>
         </div>
       </figure>
@@ -149,8 +153,8 @@
       <div class="media flow-band">
         <div class="part-head">
           <p class="label">{{ t("connect.page.how-it-works", "How it works") }}</p>
-          <h2>{{ t("connect.page.your-assistant-asks-targum-then-answers-you", "Your assistant asks targum, then answers you.") }}</h2>
-          <p>{{ t("connect.page.targum-sits-behind-the-chat", "targum sits behind the chat you already have. When your question is about your Hebrew, your assistant asks targum first, so the answer is about you rather than a guess.") }}</p>
+          <h2>{{ t("connect.page.ask-your-usual-ai-it-checks-your-targum-list-first", "Ask your usual AI. It checks your targum list first.") }}</h2>
+          <p>{{ t("connect.page.when-you-ask-about-hebrew", "When you ask about Hebrew, your AI looks up the words you know and what you’re working on, then answers at your level.") }}</p>
         </div>
         <div class="flow" aria-hidden="true">
           <div class="node">
@@ -168,13 +172,13 @@
           <div class="node home">
             <span class="node-glyph">{{ mark() }}</span>
             <span class="node-name">targum</span>
-            <span class="node-note">{{ t("connect.page.your-words-your-mistakes-the-library", "Your words, your mistakes, the library") }}</span>
+            <span class="node-note">{{ t("connect.page.your-word-list-and-the-library", "Your word list and the library") }}</span>
           </div>
         </div>
         <ol class="flow-steps">
-          <li><span class="how-n">1</span><p>{{ t("connect.page.you-ask-for-something-to-read-or-write", "You ask for something to read, or write to it in Hebrew.") }}</p></li>
-          <li><span class="how-n">2</span><p>{{ t("connect.page.it-asks-targum-what-you-know", "It asks targum what you know, what you’re working on and what there is to read.") }}</p></li>
-          <li><span class="how-n">3</span><p>{{ t("connect.page.it-answers-in-hebrew-at-your-level", "It answers in Hebrew at your level, and what you learn goes back on your record.") }}</p></li>
+          <li><span class="how-n">1</span><p>{{ t("connect.page.write-in-hebrew-or-english-or-ask-for-something-to-read", "Write in Hebrew or English, or ask for something to read.") }}</p></li>
+          <li><span class="how-n">2</span><p>{{ t("connect.page.your-ai-checks-your-word-list-and-the-library", "Your AI checks your word list and the library.") }}</p></li>
+          <li><span class="how-n">3</span><p>{{ t("connect.page.it-answers-at-your-level-and-new-words-go-on-your-list", "It answers at your level, and new words go on your list.") }}</p></li>
         </ol>
       </div>
     </div>
@@ -186,65 +190,65 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("connect.page.what-you-get", "What you get") }}</p>
-        <h2>{{ t("connect.page.an-assistant-that-knows-your-hebrew", "An assistant that knows your Hebrew.") }}</h2>
-        <p>{{ t("connect.page.on-its-own-an-assistant-meets-you-fresh", "On its own, an assistant meets you fresh every time. With targum connected it knows the words you know, the mistakes you keep making and what’s worth reading next.") }}</p>
+        <h2>{{ t("connect.page.every-chat-starts-from-what-you-know", "Every chat starts from what you know.") }}</h2>
+        <p>{{ t("connect.page.without-targum-your-ai-forgets-you", "Without targum, your AI forgets you between chats. With it, your AI knows your words and the mistakes you keep making.") }}</p>
       </div>
 
       <aside class="new-here">
         <span class="new-mark">{{ mark() }}</span>
         <div>
           <h3>{{ t("connect.page.new-to-targum", "New to targum?") }}</h3>
-          <p>{{ t("connect.page.targum-is-a-reading-app-for-people-learning-hebrew", "targum is a reading app for people learning Hebrew. Videos, podcasts and books arrive with vowels on every word, English beside every line and a card for any word you tap, and it counts every word you learn.") }} <a href="/">{{ t("connect.page.see-targum", "See targum") }}</a></p>
+          <p>{{ t("connect.page.targum-is-where-you-learn-hebrew", "targum is where you learn Hebrew from videos, podcasts and books, with vowels on every word and English beside every line. Tap a word you don’t know and it goes onto your list.") }} <a href="/">{{ t("connect.page.see-targum", "See targum") }}</a></p>
         </div>
       </aside>
 
       <div class="usps">
         <div class="tile">
-          <h3>{{ t("connect.page.talks-at-your-level", "Talks at your level") }}</h3>
-          <p>{{ t("connect.page.it-answers-in-simple-hebrew-built-from-your-words", "It answers in simple Hebrew built from the words you already know, and gives you the English when you ask.") }}</p>
+          <h3>{{ t("connect.page.hebrew-at-your-level", "Hebrew at your level") }}</h3>
+          <p>{{ t("connect.page.short-replies-in-simple-hebrew", "Short replies in simple Hebrew, built from words you know. The English is there when you want it.") }}</p>
           <div class="spec">
             <span class="he">מָה בִּשַּׁלְתָּ הַיּוֹם?</span>
             <span class="gl">{{ t("connect.page.what-did-you-cook-today", "What did you cook today?") }}</span>
           </div>
         </div>
         <div class="tile">
-          <h3>{{ t("connect.page.corrects-you-and-says-why", "Corrects you, and says why") }}</h3>
-          <p>{{ t("connect.page.targum-checks-what-you-write", "targum checks what you write, shows you the fix and why, and keeps the mistake so you can work on it.") }}</p>
+          <h3>{{ t("connect.page.the-fix-and-why", "The fix, and why") }}</h3>
+          <p>{{ t("connect.page.write-in-hebrew-and-see-the-fix", "Write in Hebrew and see what to change and why. The mistake goes on your list to practise.") }}</p>
           <div class="spec">
             <span class="he"><s>הָיָה</s> <b class="fix">הָיְתָה</b> טְעִימָה</span>
             <span class="gl">{{ t("connect.page.shakshuka-is-feminine", "shakshuka is feminine, so the verb is too") }}</span>
           </div>
         </div>
         <div class="tile">
-          <h3>{{ t("connect.page.remembers-between-chats", "Remembers between chats") }}</h3>
-          <p>{{ t("connect.page.your-record-lives-in-targum", "Your words, mistakes and progress live in targum, so every chat starts where the last one ended, in any app.") }}</p>
+          <h3>{{ t("connect.page.picks-up-where-you-left-off", "Picks up where you left off") }}</h3>
+          <p>{{ t("connect.page.your-list-lives-in-targum", "Your list lives in targum, so ChatGPT knows what you learned in Claude.") }}</p>
           <div class="spec row">
             <span><b class="tnum">2,140</b> {{ t("connect.page.words-known", "words known") }}</span>
-            <span><b class="tnum">18</b> {{ t("connect.page.mistakes-to-revisit", "mistakes to revisit") }}</span>
+            <span><b class="tnum">18</b> {{ t("connect.page.mistakes-to-practise", "mistakes to practise") }}</span>
           </div>
         </div>
         <div class="tile">
-          <h3>{{ t("connect.page.finds-you-something-to-read", "Finds you something to read") }}</h3>
-          <p>{{ t("connect.page.nearly-500-free-texts-and-videos", "Nearly 500 free texts and videos, sorted by how much you’d understand, or anything you paste a link to.") }}</p>
+          <h3>{{ t("connect.page.something-to-read-next", "Something to read next") }}</h3>
+          <p>{{ t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "Nearly 500 free texts and videos, sorted by the words you know. Or paste a link to your own.") }}</p>
           <div class="spec">
             <span class="t">{{ t("connect.demo.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span>
             <span class="meter"><i class="p80"></i></span>
           </div>
         </div>
         <div class="tile">
-          <h3>{{ t("connect.page.shows-a-word-where-you-met-it", "Shows a word where you met it") }}</h3>
-          <p>{{ t("connect.page.ask-about-a-word-and-see-the-sentences", "Ask about a word and see the sentences you actually read it in, not a dictionary’s.") }}</p>
+          <h3>{{ t("connect.page.words-where-you-met-them", "Words where you met them") }}</h3>
+          <p>{{ t("connect.page.ask-about-a-word-and-see-it-in-the-sentence-you-read-it-in", "Ask about a word and see it in the sentence you read it in.") }}</p>
           <div class="spec">
             <span class="he">שָׂמִים שֶׁמֶן <b class="fix">בַּמַּחֲבַת</b></span>
             <span class="gl">{{ t("connect.page.shakshuka-in-ten-minutes-at-2-10", "Shakshuka in ten minutes, at 2:10") }}</span>
           </div>
         </div>
         <div class="tile">
-          <h3>{{ t("connect.page.leaves-you-in-charge", "Leaves you in charge") }}</h3>
-          <p>{{ t("connect.page.you-choose-what-it-can-see", "You choose what it can see. It never starts a new text on its own: it hands you a link, and you press it on targum.") }}</p>
+          <h3>{{ t("connect.page.you-decide-what-it-sees", "You decide what it sees") }}</h3>
+          <p>{{ t("connect.page.pick-what-your-ai-can-read", "Pick what your AI can read when you connect. It can’t start a text for you: it sends a link, and you open it.") }}</p>
           <div class="spec row">
             <span class="tick">{{ t("connect.page.the-library", "The library") }}</span>
-            <span class="tick">{{ t("connect.page.your-record", "Your record") }}</span>
+            <span class="tick">{{ t("connect.page.your-words", "Your words") }}</span>
           </div>
         </div>
       </div>
@@ -257,8 +261,8 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("connect.page.set-it-up", "Set it up") }}</p>
-        <h2>{{ t("connect.page.add-targum-in-about-two-minutes", "Add targum in about two minutes.") }}</h2>
-        <p>{{ t("connect.page.pick-your-app-every-one-uses-the-same-address", "Pick your app. Every one of them uses the same address:") }}</p>
+        <h2>{{ t("connect.page.connect-in-two-minutes", "Connect in two minutes.") }}</h2>
+        <p>{{ t("connect.page.pick-your-app-they-all-use-this-address", "Pick your app. They all use this address:") }}</p>
       </div>
       <div class="address-card">
         {{ copyable(mcp, t("connect.page.copy", "Copy")) }}
@@ -282,7 +286,7 @@
               <li>{{ t("connect.page.claude-open-settings-then-connectors", "Open Settings, then Connectors.") }}</li>
               <li>{{ t("connect.page.claude-choose-add-custom-connector", "Choose Add custom connector.") }}</li>
               <li>{{ t("connect.page.claude-name-it-and-paste", "Name it targum, paste the address and choose Add.") }}</li>
-              <li>{{ t("connect.page.claude-sign-in-and-choose-what-it-may-do", "Sign in to targum when it asks, and choose what it may do.") }}</li>
+              <li>{{ t("connect.page.claude-sign-in-then-choose-what-it-can-see", "Sign in to targum when asked, then choose what it can see.") }}</li>
             </ol>
             <p class="quiet">{{ t("connect.page.claude-once-and-on-your-phone", "Add it once on the web or the desktop app and it’s on your phone too.") }}</p>
           </div>
@@ -296,7 +300,7 @@
               <li>{{ t("connect.page.chatgpt-open-settings-then-apps", "Open Settings, then Apps & Connectors.") }}</li>
               <li>{{ t("connect.page.chatgpt-turn-on-developer-mode", "Under Advanced settings, turn on Developer mode.") }}</li>
               <li>{{ t("connect.page.chatgpt-create-and-paste", "Choose Create, name it targum and paste the address.") }}</li>
-              <li>{{ t("connect.page.chatgpt-oauth-and-sign-in", "Choose OAuth, then sign in to targum and choose what it may do.") }}</li>
+              <li>{{ t("connect.page.chatgpt-choose-oauth-then-sign-in", "Choose OAuth, then sign in to targum and choose what it can see.") }}</li>
             </ol>
             <p class="quiet">{{ t("connect.page.chatgpt-menus-move", "Developer mode is on ChatGPT’s paid plans. Its menus move now and then: if yours differ, look for Connectors or Apps.") }}</p>
           </div>
@@ -336,7 +340,7 @@
               <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
                 {{ copyable("gemini mcp add --transport http targum " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
               <li>{{ t("connect.page.gemini-start-and-auth", "Start Gemini CLI and type /mcp auth targum.") }}</li>
-              <li>{{ t("connect.page.sign-in-in-your-browser", "Sign in to targum in your browser, and choose what it may do.") }}</li>
+              <li>{{ t("connect.page.sign-in-in-your-browser-and-choose", "Sign in to targum in your browser and choose what it can see.") }}</li>
             </ol>
           </div>
           <div class="screen" hidden></div>
@@ -350,7 +354,7 @@
                 {{ copyable("codex mcp add targum --url " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
               <li>{{ t("connect.page.codex-then-sign-in", "Then run this, to sign in:") }}
                 {{ copyable("codex mcp login targum", t("connect.page.copy", "Copy")) }}</li>
-              <li>{{ t("connect.page.sign-in-in-your-browser", "Sign in to targum in your browser, and choose what it may do.") }}</li>
+              <li>{{ t("connect.page.sign-in-in-your-browser-and-choose", "Sign in to targum in your browser and choose what it can see.") }}</li>
             </ol>
           </div>
           <div class="screen" hidden></div>
@@ -364,7 +368,7 @@
               <li>{{ t("connect.page.other-paste-the-address", "Paste the address. If it asks how to connect, choose HTTP.") }}</li>
               <li>{{ t("connect.page.other-choose-oauth", "If it asks how to sign in, choose OAuth. It opens targum, and you sign in there.") }}</li>
             </ol>
-            <p class="quiet">{{ t("connect.page.other-no-key", "targum registers each app itself, so there is no key to copy and nothing to paste but the address.") }}</p>
+            <p class="quiet">{{ t("connect.page.other-no-key-to-copy", "There’s no key to copy. The address is all you need.") }}</p>
           </div>
           <div class="screen" hidden></div>
         </div>
@@ -378,12 +382,12 @@
     <div class="col split">
       <div class="part-head">
         <p class="label">{{ t("connect.page.what-it-sees", "What it sees") }}</p>
-        <h2>{{ t("connect.page.you-choose-what-it-sees-and-can-take-it-back", "You choose what it sees, and you can take it back.") }}</h2>
-        <p>{{ t("connect.page.when-you-connect-targum-asks", "When you connect, targum asks you on its own page what the app may do. Tick what you want, and change your mind from your account whenever you like.") }}</p>
+        <h2>{{ t("connect.page.you-decide-what-it-sees-and-can-change-your-mind", "You decide what it sees, and you can change your mind.") }}</h2>
+        <p>{{ t("connect.page.when-you-connect-we-ask", "When you connect, we ask what your AI may do. Tick what you want, and change it from your account at any time.") }}</p>
         <ul class="points">
-          <li>{{ t("connect.page.it-can-never-spend-your-hours-on-its-own", "It can never start a text on its own. It gives you a link; you press it, here.") }}</li>
-          <li>{{ t("connect.page.targum-sees-only-what-your-assistant-asks", "targum sees only what your assistant asks it for: a search, a word, a line to check.") }}</li>
-          <li>{{ t("connect.page.what-you-say-there-stays-there", "What you say to targum here is never sent the other way.") }}</li>
+          <li>{{ t("connect.page.it-cant-start-a-text-for-you", "It can’t start a text for you. It sends a link, and you open it on targum.") }}</li>
+          <li>{{ t("connect.page.we-only-see-what-your-ai-asks-for", "We only see what your AI asks us for: a search, a word, a line to check.") }}</li>
+          <li>{{ t("connect.page.nothing-from-targums-chat-goes-to-your-ai", "Nothing you say in targum’s own chat is sent to your AI.") }}</li>
         </ul>
       </div>
       <figure class="grant" id="grant" aria-label="{{ t("connect.page.example-the-page-you-approve-on", "Example: the page you approve on") }}">
@@ -407,10 +411,10 @@
       </div>
       <div class="faq">
         <details><summary>{{ t("connect.page.q-do-i-need-an-account", "Do I need a targum account?") }}</summary><p>{{ t("connect.page.a-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your assistant reads. We’re opening in small groups, so join the waitlist and we’ll email you when it’s your turn.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}</summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so are searching the library and reading your record. Checking what you write uses a few seconds of your credits a message, and only if you tick it when you connect.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}</summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so is searching the library and your word list. Checking what you write uses a few seconds of your credits a message, and only if you allow it when you connect.") }}</p></details>
         <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}</summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}</summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. targum hands your assistant the rules its own chat keeps: short replies in Hebrew, built from the words you know, with the English when you ask. The app writes the replies, so how closely it keeps to them is up to the app.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}</summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "It can’t start a text. When you ask for one it tells you what it takes and hands you a link, and nothing happens until you press it on targum.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}</summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. We give your AI the rules our own chat follows: short replies in simple Hebrew, built from the words you know, with the English when you ask.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}</summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it tells you how long it’ll take and sends you a link. Nothing starts until you press Start on targum.") }}</p></details>
         <details><summary>{{ t("connect.page.q-how-do-i-disconnect", "How do I disconnect?") }}</summary><p>{{ t("connect.page.a-how-do-i-disconnect", "From your targum account, where every connected app is listed, or by removing it in the app.") }}</p></details>
         <details><summary>{{ t("connect.page.q-what-is-mcp", "Why do the steps say MCP?") }}</summary><p>{{ t("connect.page.mcp-is-what-the-menu-is-called", "Some apps call this an MCP server. That is the same thing.") }}</p></details>
       </div>
@@ -418,13 +422,13 @@
   </section>
 
   <div class="col close">
-    <h2>{{ t("connect.page.you-ll-need-a-targum-account", "You’ll need a targum account") }}</h2>
+    <h2>{{ t("connect.page.learn-hebrew-in-the-chat-you-already-use", "Learn Hebrew in the chat you already use.") }}</h2>
     <form class="join-form" method="post" action="/waitlist">
       <label class="field">
         <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("connect.page.you-example-com", "you@example.com") }}" aria-label="{{ t("connect.page.your-email", "Your email") }}">
         <button class="btn cta" type="submit">{{ t("connect.page.join-the-waitlist", "Join the waitlist") }}</button>
       </label>
-      <p class="join-note">{{ t("connect.page.we-ll-email-you-when-your-turn-comes", "We’ll email you when your turn comes.") }}</p>
+      <p class="join-note">{{ t("connect.page.we-re-opening-in-small-groups", "You’ll need a targum account. We’re opening in small groups, and we’ll email you when your turn comes.") }}</p>
     </form>
   </div>
 </main>

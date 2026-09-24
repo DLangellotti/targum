@@ -77,10 +77,12 @@
 
   /* ---- the app's name in the headline ----------------------------------------------- */
   // The names and marks are the tabs' own, so the headline can only name an app the
-  // steps cover. Still under reduced motion: a name that changes by itself is motion.
+  // steps cover, though not every tab is named: VS Code is an editor, and a headline that
+  // turns over to it reads as a page for programmers. Still under reduced motion: a name
+  // that changes by itself is motion.
   var rotor = document.getElementById("rotor");
   var names = Array.prototype.filter.call(document.querySelectorAll(".plat"), function (tab) {
-    return tab.id !== "tab-other";
+    return tab.id !== "tab-other" && tab.id !== "tab-vscode";
   }).map(function (tab) {
     return [tab.querySelector(".logo").outerHTML, tab.querySelector("span").textContent];
   });
@@ -97,8 +99,8 @@
       var pad = rotor.getBoundingClientRect().width - old.getBoundingClientRect().width;
       rotor.style.inlineSize = next.getBoundingClientRect().width + pad + "px";
       old.classList.add("leave");
-      setTimeout(function () { old.remove(); }, 450);
-    }, 2400);
+      setTimeout(function () { old.remove(); }, 600);
+    }, 3200);
   }
 
   /* ---- Copy ------------------------------------------------------------------------ */
@@ -129,34 +131,68 @@
   }
 
   /* ---- the conversation ------------------------------------------------------------ */
+  // Paced to be read, not watched. What "you" say is typed into the box at the foot and
+  // then sent, the way a chat does it, so the thread only ever grows by whole messages;
+  // everything already in it glides up to make room rather than jumping; and a scene
+  // stays on screen long enough to read the last of it, longer while the pointer rests
+  // on the conversation. The bar along the chosen chip is that clock, drawn.
   var thread = document.getElementById("demoThread");
   var host = document.getElementById("demoHost");
+  var demo = document.getElementById("demo");
+  var compose = document.getElementById("demoCompose");
+  var field = document.getElementById("demoField");
   var scenesEl = document.getElementById("scenes");
   var replay = document.getElementById("replay");
   var chips = scenesEl ? scenesEl.querySelectorAll(".scene") : [];
+  var EASE = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 
-  function you(text, hebrew) {
+  // Runs `change`, then moves whatever it pushed from where it was to where it is now.
+  function settle(change) {
+    if (reduced || !thread.animate) return change();
+    var kids = Array.prototype.slice.call(thread.children);
+    var was = kids.map(function (kid) { return kid.getBoundingClientRect().top; });
+    var made = change();
+    kids.forEach(function (kid, n) {
+      var dy = was[n] - kid.getBoundingClientRect().top;
+      if (Math.abs(dy) > 0.5) kid.animate([{ transform: "translateY(" + dy + "px)" }, { transform: "none" }], { duration: 520, easing: EASE });
+    });
+    return made;
+  }
+  function add(node) { return settle(function () { thread.appendChild(node); return node; }); }
+  function addTo(parent, node) { return settle(function () { parent.appendChild(node); return node; }); }
+
+  // Types into the box, sends, and the message lands in the thread.
+  async function you(text, still, hebrew) {
+    if (compose && !reduced) {
+      field.classList.toggle("he", !!hebrew);
+      field.dir = hebrew ? "rtl" : "ltr";
+      await sleep(300, still);
+      await type(field, text, still, hebrew ? 85 : 42);
+      await sleep(450, still);
+      compose.classList.add("sent");
+      field.textContent = "";
+      field.dir = "ltr";
+      field.classList.remove("he");
+      setTimeout(function () { compose.classList.remove("sent"); }, 300);
+    }
     var m = make("div", "msg you in");
     var p = make("p", hebrew ? "he" : "");
+    p.textContent = text;
     m.appendChild(p);
-    thread.appendChild(m);
-    return p;
+    add(m);
   }
   function tool(working) {
     var chip = make("div", "tool in", '<span class="tool-glyph">' + MARK + "</span><span></span>");
     chip.lastChild.textContent = working;
-    thread.appendChild(chip);
-    return chip;
+    return add(chip);
   }
   function toolDone(chip, said) {
     chip.classList.add("done");
-    chip.lastChild.textContent = said;
+    var words = chip.lastChild;
+    words.classList.add("swap");
+    setTimeout(function () { words.textContent = said; words.classList.remove("swap"); }, reduced ? 0 : 160);
   }
-  function them(html) {
-    var m = make("div", "msg them in", html);
-    thread.appendChild(m);
-    return m;
-  }
+  function them(html) { return add(make("div", "msg them in", html)); }
   function find(title, kind, share) {
     return '<div class="find"><span class="t">' + esc(title) + '</span><span class="k">' + esc(kind) + '</span><span class="open">' +
       esc(t("connect.demo.open", "Open")) + '</span><span class="meter"><i data-share="' + share + '"></i></span></div>';
@@ -164,88 +200,87 @@
   function fillMeters(node) {
     node.querySelectorAll("[data-share]").forEach(function (bar, n) {
       bar.style.inlineSize = "0%";
-      bar.style.transition = "inline-size 700ms cubic-bezier(0.2, 0.8, 0.2, 1) " + (120 * n + 150) + "ms";
+      bar.style.transition = "inline-size 900ms " + EASE + " " + (160 * n + 250) + "ms";
       requestAnimationFrame(function () { requestAnimationFrame(function () { bar.style.inlineSize = bar.getAttribute("data-share") + "%"; }); });
+    });
+  }
+  // Rows of a list arrive one after another rather than all at once.
+  function stagger(node, gap) {
+    node.querySelectorAll(".find, .stat > div").forEach(function (row, n) {
+      row.classList.add("in");
+      row.style.animationDelay = n * (gap || 140) + "ms";
     });
   }
 
   var SCENES = [
     {
-      host: "claude", name: "Claude", length: 9500,
+      host: "claude", name: "Claude", length: 16000,
       play: async function (still) {
-        await sleep(400, still);
-        await type(you(), t("connect.demo.find-me-something-short-to-read-about-food", "Find me something short to read about food. Nothing too hard."), still);
-        await sleep(350, still);
-        var chip = tool(t("connect.demo.targum-is-searching-the-library", "targum is searching the library"));
-        await sleep(1300, still);
-        toolDone(chip, t("connect.demo.found-three-texts-at-your-level", "targum found three texts at your level"));
-        await sleep(350, still);
+        await you(t("connect.demo.find-me-something-short-to-read-about-food", "Find me something short to read about food. Nothing too hard."), still);
+        await sleep(600, still);
+        var chip = tool(t("connect.demo.searching-your-targum-library", "Searching your targum library"));
+        await sleep(1600, still);
+        toolDone(chip, t("connect.demo.found-three-at-your-level", "Found three at your level"));
+        await sleep(600, still);
         var m = them("<p></p><div class=\"finds\">" +
           find(t("connect.demo.shakshuka-in-ten-minutes", "Shakshuka in ten minutes"), t("connect.demo.video-you-know-80", "Video · you know 80%"), 80) +
           find(t("connect.demo.this-week-s-news-easy", "This week’s news · easy"), t("connect.demo.article-you-know-90", "Article · you know 90%"), 90) +
           find(t("connect.demo.homemade-hummus-step-by-step", "Homemade hummus, step by step"), t("connect.demo.video-you-know-70", "Video · you know 70%"), 70) +
           "</div>");
         m.firstChild.textContent = t("connect.demo.here-are-three-you-ll-mostly-understand", "Here are three you’ll mostly understand:");
+        stagger(m);
         fillMeters(m);
-        await sleep(1200, still);
+        await sleep(2000, still);
         var note = make("p", "en in");
         note.textContent = t("connect.demo.each-opens-in-targum", "Each one opens in targum, with vowels and English beside every line.");
-        m.appendChild(note);
+        addTo(m, note);
       }
     },
     {
-      host: "chatgpt", name: "ChatGPT", length: 11500,
+      host: "chatgpt", name: "ChatGPT", length: 19000,
       play: async function (still) {
-        await sleep(400, still);
-        await type(you("", true), "השקשוקה שלי היה טעים", still, 70);
-        await sleep(350, still);
-        var chip = tool(t("connect.demo.targum-is-checking-your-hebrew", "targum is checking your Hebrew"));
-        await sleep(1300, still);
-        toolDone(chip, t("connect.demo.targum-checked-your-hebrew", "targum checked your Hebrew"));
-        await sleep(350, still);
+        await you("השקשוקה שלי היה טעים", still, true);
+        await sleep(600, still);
+        var chip = tool(t("connect.demo.checking-your-hebrew", "Checking your Hebrew"));
+        await sleep(1600, still);
+        toolDone(chip, t("connect.demo.checked-with-targum", "Checked with targum"));
+        await sleep(600, still);
         var m = them("<div class=\"recast\"><span class=\"tag\"></span><p class=\"he\">הַשַּׁקְשׁוּקָה שֶׁלִּי <mark>הָיְתָה</mark> <mark>טְעִימָה</mark>.</p></div>");
         m.querySelector(".tag").textContent = t("connect.demo.corrected", "Corrected");
-        await sleep(900, still);
+        await sleep(1600, still);
         var why = make("p", "why-line in", '<span class="he">שַׁקְשׁוּקָה</span> ');
         why.appendChild(document.createTextNode(t("connect.demo.is-feminine-so-the-verb-and-the-adjective-are-too", "is feminine, so the verb and the adjective are too.")));
-        m.appendChild(why);
-        await sleep(1200, still);
-        var reply = make("p", "he in", "נִשְׁמָע טָעִים. מָה שַׂמְתָּ בִּפְנִים?");
-        m.appendChild(reply);
-        var fold = make("button", "fold-en in");
-        fold.type = "button";
-        fold.textContent = t("connect.demo.english", "English");
-        m.appendChild(fold);
+        addTo(m, why);
+        await sleep(2400, still);
+        addTo(m, make("p", "he in", "נִשְׁמָע טָעִים. מָה שַׂמְתָּ בִּפְנִים?"));
+        await sleep(1400, still);
         var en = make("p", "en in");
         en.textContent = t("connect.demo.sounds-delicious-what-did-you-put-in-it", "Sounds delicious. What did you put in it?");
-        fold.addEventListener("click", function () { fold.replaceWith(en); });
-        await sleep(1300, still);
-        if (fold.isConnected) fold.replaceWith(en);
-        await sleep(500, still);
+        addTo(m, en);
+        await sleep(1200, still);
         var kept = make("p", "noted in", CHECK + "<span></span>");
-        kept.lastChild.textContent = t("connect.demo.kept-on-your-record", "Kept on your record, to work on later");
-        thread.appendChild(kept);
+        kept.lastChild.textContent = t("connect.demo.added-to-your-list-to-practise", "Added to your list to practise");
+        add(kept);
       }
     },
     {
-      host: "claude", name: "Claude", length: 10500,
+      host: "claude", name: "Claude", length: 17000,
       play: async function (still) {
-        await sleep(400, still);
-        await type(you(), t("connect.demo.what-was-i-working-on-this-week", "What was I working on this week?"), still);
-        await sleep(350, still);
-        var chip = tool(t("connect.demo.targum-is-reading-your-record", "targum is reading your record"));
-        await sleep(1300, still);
-        toolDone(chip, t("connect.demo.targum-read-your-record", "targum read your record"));
-        await sleep(350, still);
+        await you(t("connect.demo.what-was-i-working-on-this-week", "What was I working on this week?"), still);
+        await sleep(600, still);
+        var chip = tool(t("connect.demo.reading-your-targum-list", "Reading your targum list"));
+        await sleep(1600, still);
+        toolDone(chip, t("connect.demo.read-your-targum-list", "Read your targum list"));
+        await sleep(600, still);
         var m = them('<div class="stat"><div><b class="tnum">3</b><span></span></div><div><b class="tnum">41</b><span></span></div><div><b class="tnum">2,140</b><span></span></div></div><p></p>');
         var labels = m.querySelectorAll(".stat span");
         labels[0].textContent = t("connect.demo.texts-finished", "texts finished");
         labels[1].textContent = t("connect.demo.new-words", "new words");
         labels[2].textContent = t("connect.demo.words-known", "words known");
         m.lastChild.textContent = t("connect.demo.these-five-keep-coming-back", "These five keep coming back:");
-        await sleep(700, still);
+        stagger(m);
+        await sleep(1400, still);
         var list = make("div", "words");
-        m.appendChild(list);
         var WORDS = [
           ["מַחֲבַת", t("connect.demo.gloss-frying-pan", "frying pan")],
           ["רֹטֶב", t("connect.demo.gloss-sauce", "sauce")],
@@ -253,74 +288,108 @@
           ["יְשִׁירוֹת", t("connect.demo.gloss-straight", "straight")],
           ["שָׁבַר", t("connect.demo.gloss-to-break", "to break")]
         ];
-        for (var i = 0; i < WORDS.length; i++) {
+        WORDS.forEach(function (word, n) {
           var w = make("span", "in", '<b class="he"></b><small></small>');
-          w.firstChild.textContent = WORDS[i][0];
-          w.lastChild.textContent = WORDS[i][1];
+          w.firstChild.textContent = word[0];
+          w.lastChild.textContent = word[1];
+          w.style.animationDelay = n * 110 + "ms";
           list.appendChild(w);
-          await sleep(160, still);
-        }
-        await sleep(700, still);
+        });
+        addTo(m, list);
+        await sleep(1800, still);
         var ask = make("p", "in");
         ask.textContent = t("connect.demo.want-to-see-them-where-you-met-them", "Want to see them in the sentences you met them in?");
-        m.appendChild(ask);
+        addTo(m, ask);
       }
     }
   ];
 
-  var sceneAt = 0, sceneRun = 0, heroSeen = true, heroPinned = false;
+  // How long the finished scene stays: about a quarter of a second a word, never less
+  // than four and a half seconds and never more than nine.
+  function holdFor() {
+    var words = (thread.textContent.match(/\S+/g) || []).length;
+    return Math.min(9000, Math.max(4500, words * 250));
+  }
+
+  var sceneRun = 0, heroSeen = true, heroHeld = false, heroPinned = false, clock = null;
+  function tick() {
+    if (!clock) return;
+    if (heroSeen && !heroHeld && !document.hidden) clock.play();
+    else clock.pause();
+  }
   function setHost(scene) {
+    if (host.textContent.trim() === scene.name) return;
     host.classList.add("swap");
     setTimeout(function () {
       host.innerHTML = logoOf(scene.host) + "<span></span>";
       host.lastChild.textContent = scene.name;
       host.classList.remove("swap");
-    }, reduced ? 0 : 160);
+    }, reduced ? 0 : 200);
   }
-  async function playScene(n) {
+  async function playScene(n, first) {
     var run = ++sceneRun;
     var still = function () { return run === sceneRun; };
-    sceneAt = n;
     var scene = SCENES[n];
+    if (clock) { clock.cancel(); clock = null; }
     chips.forEach(function (chip, i) {
       chip.setAttribute("aria-pressed", String(i === n));
       var bar = chip.querySelector("i");
-      bar.classList.remove("run");
-      if (i === n && !reduced && !heroPinned) {
-        chip.style.setProperty("--run", scene.length + 2200 + "ms");
-        void bar.offsetWidth;
-        bar.classList.add("run");
+      bar.style.inlineSize = "0";
+      if (i === n && !reduced && !heroPinned && bar.animate) {
+        clock = bar.animate([{ inlineSize: "0%" }, { inlineSize: "100%" }], { duration: scene.length, fill: "forwards" });
+        tick();
       }
     });
-    setHost(scene);
-    thread.textContent = "";
+    if (compose) { field.textContent = ""; field.dir = "ltr"; field.classList.remove("he"); }
     try {
+      // The last scene leaves before the next one comes: out, then in, never a cut.
+      if (!reduced && thread.children.length) {
+        thread.classList.add("leaving");
+        await sleep(first ? 250 : 420, still);
+      }
+      setHost(scene);
+      thread.textContent = "";
+      thread.classList.remove("leaving");
+      await sleep(350, still);
       await scene.play(still);
-      if (reduced || heroPinned) return;
-      await sleep(2200, still);
-      while (!heroSeen) await sleep(400, still);
+      if (reduced || heroPinned || !clock) return;
+      var hold = holdFor();
+      // A scene that ran long must not find its clock already run out: it still gets
+      // its hold, with the bar slowed to fit.
+      var at = Math.min(clock.currentTime || 0, scene.length * 0.9);
+      clock.currentTime = at;
+      var left = scene.length - at;
+      if (left < hold) clock.updatePlaybackRate(left / hold);
+      tick();
+      var mine = clock;
+      await mine.finished;
+      if (!still()) return;
       playScene((n + 1) % SCENES.length);
     } catch (e) {
-      if (e !== CANCEL) throw e;
+      if (e !== CANCEL && !(e && e.name === "AbortError")) throw e;
     }
   }
   if (scenesEl && thread) {
     scenesEl.hidden = false;
     replay.hidden = false;
+    if (compose) compose.hidden = false;
     chips.forEach(function (chip, i) {
       chip.addEventListener("click", function () { heroPinned = true; playScene(i); });
     });
     replay.addEventListener("click", function () {
       heroPinned = false;
-      var demo = document.getElementById("demo");
       var r = demo.getBoundingClientRect();
       if (r.top < 0 || r.bottom > window.innerHeight) demo.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
       playScene(0);
     });
+    // Resting the pointer on the conversation holds it, so nobody loses a line mid-read.
+    demo.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") { heroHeld = true; tick(); } });
+    demo.addEventListener("pointerleave", function () { heroHeld = false; tick(); });
+    document.addEventListener("visibilitychange", tick);
     if ("IntersectionObserver" in window) {
-      new IntersectionObserver(function (seen) { heroSeen = seen[0].isIntersecting; }).observe(document.getElementById("demo"));
+      new IntersectionObserver(function (seen) { heroSeen = seen[0].isIntersecting; tick(); }, { threshold: 0.35 }).observe(demo);
     }
-    playScene(0);
+    playScene(0, true);
   }
 
   /* ---- the apps' own screens -------------------------------------------------------- */
@@ -479,15 +548,22 @@
     if (document.dir === "rtl") x = x - box.width;
     pointer.classList.add("shown");
     pointer.style.transform = "translate(" + x + "px, " + y + "px)";
-    await sleep(760, still);
+    await sleep(900, still);
     pointer.classList.remove("tap");
     void pointer.getBoundingClientRect();
     pointer.classList.add("tap");
-    await sleep(260, still);
+    await sleep(380, still);
   };
+  // Redraws the picture. A window that is the same window as before (the settings, then
+  // the settings with the dialog open) stays where it is; only a change of window — the
+  // app, then the browser's approval page, then the app again — arrives afresh.
   Screen.prototype.draw = function (html) {
     var keep = this.el.querySelector(".pointer");
+    var was = this.el.firstElementChild && this.el.firstElementChild !== keep ? this.el.firstElementChild.className : "";
+    if (keep) keep.classList.remove("tap");
     this.el.innerHTML = html + (keep ? keep.outerHTML : POINTER);
+    var top = this.el.firstElementChild;
+    if (top && was && top.className === was) top.classList.add("stay");
     var pointer = this.el.querySelector(".pointer");
     if (keep) pointer.style.transform = keep.style.transform;
     if (keep && keep.classList.contains("shown")) pointer.classList.add("shown");
@@ -504,17 +580,17 @@
       item.setAttribute("data-hit", "pick");
       await this.point("pick", still);
       this.draw(settings(app, plat, { picked: true }));
-      await sleep(1100, still);
+      await sleep(1500, still);
     } else if (kind === "toggle") {
       this.draw(settings(app, plat, { picked: true }));
       await this.point("toggle", still);
       this.el.querySelector(".sc-switch").classList.add("on");
-      await sleep(1000, still);
+      await sleep(1300, still);
     } else if (kind === "press") {
       this.draw(settings(app, plat, { picked: true, toggled: !!app.toggle }));
       await this.point("add", still);
       this.el.querySelector('[data-hit="add"]').classList.add("pressed");
-      await sleep(600, still);
+      await sleep(800, still);
     } else if (kind === "dialog") {
       this.draw(settings(app, plat, { picked: true, toggled: !!app.toggle, pressed: true }));
       this.el.querySelector(".sc").insertAdjacentHTML("beforeend", dialog(app));
@@ -532,13 +608,13 @@
       var rows = this.el.querySelectorAll("[data-scope]");
       for (var r = 0; r < rows.length; r++) {
         rows[r].classList.add("on");
-        await sleep(reduced ? 0 : 380, still);
+        await sleep(reduced ? 0 : 520, still);
       }
       await this.point("connect", still);
       await sleep(400, still);
     } else if (kind === "done") {
       this.draw(settings(app, plat, { picked: true, toggled: !!app.toggle, done: true }));
-      await sleep(2200, still);
+      await sleep(3400, still);
     } else if (kind === "term") {
       var lines = frame[2];
       this.draw(terminal(app, lines));
@@ -552,10 +628,10 @@
         } else {
           ln.textContent = lines[l][1];
           ln.classList.add("in");
-          await sleep(450, still);
+          await sleep(600, still);
         }
       }
-      await sleep(1300, still);
+      await sleep(2200, still);
     } else if (kind === "palette" || kind === "transport" || kind === "url") {
       var q = kind === "palette" ? "> MCP: Add Server" : "";
       var opts = kind === "palette"
@@ -579,7 +655,7 @@
         on.setAttribute("data-hit", "opt");
         await this.point("opt", still);
       }
-      await sleep(900, still);
+      await sleep(1300, still);
     } else if (kind === "agent") {
       this.draw(editor(app, plat, '<p class="sc-h">Chat · Agent</p><div class="sc-row in">' + MARK + '<span>targum</span><span class="ok">' + CHECK + esc(t("connect.screen.connected", "Connected")) +
         '</span></div><div class="sc-chat"><span class="sc-bubble" data-q></span></div>'));
@@ -599,7 +675,7 @@
         if (reduced || once) return;
         while (!screenSeen) await sleep(400, still);
         n = (n + 1) % this.app.frames.length;
-        if (n === 0) await sleep(800, still);
+        if (n === 0) await sleep(1600, still);
       }
     } catch (e) {
       if (e !== CANCEL) throw e;
