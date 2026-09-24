@@ -2182,5 +2182,6 @@
   "shelf.status.started": "Начато",
   "shelf.status.finished": "Прочитано",
   "shelf.more": "Ещё для «{title}»",
-  "yours.page.playlists": "Плейлисты"
+  "yours.page.playlists": "Плейлисты",
+  "nav.texts": "Тексты"
 }

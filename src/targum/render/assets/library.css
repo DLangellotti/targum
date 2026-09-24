@@ -431,10 +431,15 @@
 }
 .book-facts .fact-status { display: none; }
 .book-facts .fact { white-space: nowrap; }
+/* The dot is drawn by each fact but the first, so a fact wrapped onto a new line never
+   starts or ends with one. */
+.book-facts .fact + .fact::before { content: "·"; margin-inline: 0.35em; }
 
 /* Status: New, a part count, Finished with the leaf check (§4: green is progress). */
 .row-status {
   justify-self: start;
+  align-self: center;
+  line-height: 1.25;
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
@@ -447,11 +452,11 @@
   color: var(--ink-soft);
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
-.row-status.new { color: var(--teal); background: var(--teal-wash); }
-.row-status.finished { color: var(--leaf); background: color-mix(in srgb, var(--leaf) 10%, transparent); }
+.row-status.is-new { color: var(--teal); background: var(--teal-wash); }
+.row-status.is-finished { color: var(--leaf); background: color-mix(in srgb, var(--leaf) 10%, transparent); }
 .row-status svg,
 .fact-status svg { inline-size: 0.85rem; block-size: 0.85rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.book-facts .fact-status.finished { color: var(--leaf); }
+.book-facts .fact-status.is-finished { color: var(--leaf); }
 
 /* The row's keys: Add to playlist, tonal, and ⋯, ghost (§13). Never wrapped. */
 .shelf-rows .row-controls {
@@ -541,8 +546,17 @@
     align-items: start;
   }
   .shelf-rows .thumb { inline-size: 3rem; block-size: 3rem; }
-  .book-facts { white-space: normal; }
-  .book-facts .fact-status { display: inline; }
+  /* On a phone the facts wrap, so they are spaced rather than dotted: a dot has nowhere
+     good to go at the end or the start of a wrapped line. */
+  .book-facts {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.75em;
+    row-gap: 0.1rem;
+    white-space: normal;
+  }
+  .book-facts .fact + .fact::before { content: none; }
+  .book-facts .fact-status { display: inline; font-weight: 600; }
   .books.shelf-rows .row-status { display: none; }
   .shelf-rows .add-to-list { inline-size: 2.75rem; padding: 0; }
   .shelf-rows .row-controls { flex-direction: column; gap: 0.15rem; }

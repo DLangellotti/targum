@@ -2055,5 +2055,6 @@
   "shelf.status.started": "Started",
   "shelf.status.finished": "Finished",
   "shelf.more": "More for {title}",
-  "yours.page.playlists": "Playlists"
+  "yours.page.playlists": "Playlists",
+  "nav.texts": "Texts"
 }

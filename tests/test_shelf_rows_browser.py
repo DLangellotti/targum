@@ -194,3 +194,44 @@ def test_the_nav_has_the_shelf_second_and_marks_it_here(browser, tmp_path: Path)
     context.close()
     assert places == ["learn", "texts", "library", "progress", "add"]
     assert here == "texts"
+
+
+def test_a_phone_calls_the_shelf_texts(browser, tmp_path: Path) -> None:
+    """The name is lowercase always, and "targums" alone beside Learn and Library read as
+    a typo; a phone says Texts, the desk Your targums (2026-09-24)."""
+    context, page, _ = shelf(browser, tmp_path, 390)
+    phone = page.locator(".site-nav a[data-nav='texts']").inner_text()
+    context.close()
+    context, page, _ = shelf(browser, tmp_path, 1280)
+    desk = page.locator(".site-nav a[data-nav='texts']").inner_text()
+    context.close()
+    assert phone.strip() == "Texts"
+    assert desk.strip() == "Your targums"
+
+
+def test_a_video_with_a_poster_shows_its_picture(browser, tmp_path: Path) -> None:
+    import base64
+
+    jpeg = base64.b64decode(
+        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4n"
+        "ICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACP/E"
+        "ABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q=="
+    )
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    drawn = [{**READERS[0], "drawn": True}]
+    page.add_init_script(
+        f"const readers = {json.dumps(drawn)};"
+        "window.fetch = () => Promise.resolve(new Response(JSON.stringify({readers, trash: []})));"
+    )
+    page.route("**/thumb/**", lambda route: route.fulfill(body=jpeg, content_type="image/jpeg"))
+    page.goto(page_file.as_uri())
+    page.wait_for_function(
+        "() => { const i = document.querySelector('#library-list .thumb img');"
+        " return i && i.complete && i.naturalWidth > 0; }"
+    )
+    source = page.get_attribute("#library-list .thumb img", "src")
+    context.close()
+    assert source and "/thumb/vlog" in source

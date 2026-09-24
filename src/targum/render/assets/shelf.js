@@ -169,7 +169,7 @@
     link.appendChild(what);
 
     var pill = document.createElement("span");
-    pill.className = "row-status " + state.kind;
+    pill.className = "row-status is-" + state.kind;
     if (state.kind === "finished") pill.appendChild(checkMark());
     pill.appendChild(document.createTextNode(state.said));
     link.appendChild(pill);
@@ -224,17 +224,17 @@
     if (reader.playlists && reader.playlists.length) {
       said.push(t("shelf.in-playlists", "In {names}", { names: reader.playlists.join(", ") }));
     }
-    said.forEach(function (fact, index) {
+    said.forEach(function (fact) {
       var bit = document.createElement("span");
       bit.className = "fact";
       bit.textContent = fact;
       line.appendChild(bit);
-      if (index < said.length - 1) line.appendChild(document.createTextNode(" · "));
+
     });
     // The status again, for a phone, where the pill beside the row folds away.
     var folded = document.createElement("span");
-    folded.className = "fact fact-status " + state.kind;
-    folded.textContent = (said.length ? " · " : "") + state.said;
+    folded.className = "fact fact-status is-" + state.kind;
+    folded.textContent = state.said;
     line.appendChild(folded);
     return line;
   }
