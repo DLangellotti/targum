@@ -10,12 +10,17 @@
 :root { --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .connect .mark { inline-size: 0.75rem; block-size: auto; flex: none; }
+/* A jump to a section lands under the sticky bar, not behind it. */
+.connect main [id] { scroll-margin-block-start: 4.5rem; }
 .logo { inline-size: 1.1rem; block-size: 1.1rem; fill: currentColor; flex: none; }
 
 /* --- the hero ---------------------------------------------------------------------- */
 .c-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); padding-block-end: 2rem; }
 .kicker { display: inline-flex; align-items: center; gap: 0.5rem; justify-self: start; padding: 0.3rem 0.8rem 0.3rem 0.65rem; border-radius: 999px; background: var(--card); box-shadow: var(--shadow-rest); font: 600 0.8125rem/1.2 var(--chrome); letter-spacing: 0.01em; }
 .c-hero .actions { margin-block-start: 0.25rem; }
+/* Connecting needs an account, and a stranger is told where to start, once. */
+.need-account { font-size: 0.875rem; color: var(--muted); }
+.need-account a { font-weight: 600; white-space: nowrap; }
 /* The app's name in the headline, as a chip: its mark and its name, in ink on a card,
    turning over upwards. The chip takes the width of the name it is showing, eased, so
    the full stop after it moves rather than jumps. */
@@ -32,7 +37,7 @@
 
 /* The conversation. A window of no app in particular — the app's name in the corner
    says which one this example is in, and it changes, because that is the point. */
-.demo { background: var(--card); border-radius: 24px; box-shadow: var(--shadow-floating); overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; min-inline-size: 0; }
+.demo { background: var(--card); border-radius: 24px; box-shadow: var(--shadow-floating); overflow: hidden; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto; min-inline-size: 0; }
 .demo-top { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1.1rem; border-block-end: 1px solid var(--hairline); }
 .demo-host { display: inline-flex; align-items: center; gap: 0.45rem; font: 600 0.875rem/1 var(--chrome); transition: opacity 200ms var(--ease); }
 .demo-host.swap { opacity: 0; }
@@ -45,8 +50,8 @@
 .demo-thread.leaving { opacity: 0; transform: translateY(-10px); }
 /* The box at the foot where "you" type before sending. */
 .demo-compose[hidden] { display: none; }
-.demo-compose { display: flex; align-items: center; gap: 0.5rem; margin: 0 0.75rem 0.1rem; padding: 0.4rem 0.4rem 0.4rem 0.9rem; border-radius: 999px; background: var(--field); }
-.demo-field { flex: 1; min-inline-size: 0; min-block-size: 1.6rem; display: flex; align-items: center; font-size: 0.9375rem; white-space: nowrap; overflow: hidden; }
+.demo-compose { min-inline-size: 0; display: flex; align-items: center; gap: 0.5rem; margin: 0 0.75rem 0.1rem; padding: 0.4rem 0.4rem 0.4rem 0.9rem; border-radius: 999px; background: var(--field); }
+.demo-field { flex: 1; min-inline-size: 0; min-block-size: 1.6rem; display: flex; align-items: center; font-size: 0.9375rem; overflow-wrap: anywhere; }
 .demo-field:empty::before { content: attr(data-empty); color: var(--muted); }
 .demo-field.he { font-size: 1.0625rem; }
 .demo-send { inline-size: 2rem; block-size: 2rem; border-radius: 999px; display: grid; place-items: center; background: var(--well); color: var(--card); flex: none; transition: background-color 200ms var(--ease), transform 200ms var(--ease); }
@@ -179,14 +184,18 @@
 .tile .spec .t { font: 600 0.9375rem/1.3 var(--reading); }
 .tile .spec s { color: var(--clay); text-decoration-thickness: 1.5px; }
 .tile .spec .fix { font-weight: 400; background: var(--teal-wash); border-radius: 4px; padding-inline: 0.1em; }
-.tick { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--ink); }
-.tick::before { content: ""; inline-size: 0.9rem; block-size: 0.9rem; border-radius: 4px; background: var(--teal); box-shadow: inset 0 0 0 3px var(--teal), inset 0 0 0 5px var(--card); }
+/* What the app will be able to do, as a plain list: the approval page grants it in one
+   press, so nothing here is drawn as a box to tick (design.md §12, 2026-09-24). */
+.spec .can { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--ink); }
+.spec .can::before, .grant-list .can { content: ""; flex: none; inline-size: 0.4rem; block-size: 0.4rem; border-radius: 999px; background: var(--teal); }
 @media (max-width: 60rem) { .usps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 40rem) { .usps { grid-template-columns: minmax(0, 1fr); } }
 
 /* --- set it up --------------------------------------------------------------------- */
 .copyable { display: flex; align-items: center; gap: 0.5rem; background: var(--field); border-radius: 12px; padding: 0.35rem 0.35rem 0.35rem 0.9rem; margin-block: 0.5rem 0.25rem; min-inline-size: 0; }
 .copyable code { flex: 1; min-inline-size: 0; font: 400 0.875rem/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; padding-block: 0.3rem; }
+/* A command is one line that scrolls inside its well, so an address never breaks in two. */
+.steps .copyable code { white-space: pre; overflow-wrap: normal; overflow-x: auto; scrollbar-width: thin; }
 .copy { display: inline-flex; align-items: center; gap: 0.35rem; flex: none; border: 0; border-radius: 999px; background: var(--card); color: var(--teal); box-shadow: var(--shadow-rest); padding: 0.4rem 0.8rem; font: 600 0.8125rem/1 var(--chrome); min-block-size: 2rem; transition: background-color var(--out) var(--ease), color var(--out) var(--ease); }
 .copy svg { inline-size: 0.9rem; block-size: 0.9rem; }
 .copy:hover { background: var(--teal-wash); }
@@ -200,6 +209,12 @@
 /* One pill an app, and the row scrolls sideways on a phone rather than folding. */
 .plats { display: flex; gap: 0.4rem; padding: 0.35rem; background: var(--field); border-radius: 999px; overflow-x: auto; scrollbar-width: none; margin-block-end: 1.25rem; }
 .plats::-webkit-scrollbar { display: none; }
+.plats { scroll-snap-type: x proximity; scroll-padding-inline: 0.35rem; }
+.plat { scroll-snap-align: start; }
+/* An edge fades where the row has more apps past it. */
+.plats.more-end { -webkit-mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent); mask-image: linear-gradient(to right, black calc(100% - 2.5rem), transparent); }
+.plats.more-start { -webkit-mask-image: linear-gradient(to right, transparent, black 2.5rem); mask-image: linear-gradient(to right, transparent, black 2.5rem); }
+.plats.more-start.more-end { -webkit-mask-image: linear-gradient(to right, transparent, black 2.5rem, black calc(100% - 2.5rem), transparent); mask-image: linear-gradient(to right, transparent, black 2.5rem, black calc(100% - 2.5rem), transparent); }
 .plat { flex: none; display: inline-flex; align-items: center; gap: 0.45rem; border: 0; background: none; border-radius: 999px; padding: 0.5rem 0.95rem; font: 600 0.875rem/1 var(--chrome); color: var(--muted); min-block-size: 2.5rem; transition: background-color var(--out) var(--ease), color var(--out) var(--ease), box-shadow var(--out) var(--ease); }
 .plat:hover { color: var(--ink); }
 .plat[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-raised); }
@@ -237,6 +252,13 @@
 .sc-p { font-size: 0.8125rem; color: var(--muted); }
 .sc-btn { justify-self: start; display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 999px; background: var(--ink); color: var(--paper); padding: 0.4rem 0.8rem; font: 600 0.8125rem/1 var(--chrome); transition: transform var(--out) var(--ease), box-shadow var(--out) var(--ease); }
 .sc-btn.ghost { background: var(--field); color: var(--ink); }
+.sc-btn.icon { inline-size: 1.7rem; block-size: 1.7rem; padding: 0; justify-content: center; font-size: 1.0625rem; }
+/* Tabs inside the place the side opens, and the menu the + opens. */
+.sc-tabs { display: flex; gap: 0.25rem; }
+.sc-tabs span { font-size: 0.6875rem; padding: 0.25rem 0.55rem; border-radius: 999px; color: var(--muted); transition: background-color var(--in) var(--ease), color var(--in) var(--ease); }
+.sc-tabs span.on { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.sc-pop { justify-self: start; display: grid; background: var(--card); border-radius: 12px; box-shadow: var(--shadow-floating); padding: 0.3rem; animation: arrive var(--in) var(--ease) both; }
+.sc-pop span { font-size: 0.8125rem; padding: 0.35rem 0.6rem; border-radius: 8px; background: var(--teal-wash); color: var(--teal); font-weight: 600; }
 .sc-btn.pressed { transform: scale(0.96); box-shadow: 0 0 0 4px var(--teal-wash); }
 .sc-row { display: flex; align-items: center; gap: 0.5rem; background: var(--paper); border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.8125rem; }
 .sc-row .mark { inline-size: 0.6rem; }
@@ -254,7 +276,7 @@
 .sc-field span { font: 400 0.8125rem/1.4 var(--mono); background: var(--field); border-radius: 8px; padding: 0.3rem 0.5rem; min-block-size: 1.75rem; overflow-wrap: anywhere; }
 .sc-field span.plain { font-family: var(--chrome); }
 .sc-dialog .sc-btn { justify-self: end; }
-/* The approval page, drawn as it is: the lockup, three ticks, one button. */
+/* The approval page, drawn as it is: the lockup, what the app may do, one button. */
 .sc-grant { position: absolute; inset: 0; display: grid; place-items: center; background: var(--ground); padding: 0.8rem; animation: arrive 360ms var(--ease) both; }
 .sc-grant .grant { inline-size: min(100%, 17rem); padding: 0.9rem; gap: 0.5rem; box-shadow: var(--shadow-floating); }
 .sc-grant .grant-title { font-size: 0.9375rem; }
@@ -290,11 +312,10 @@
 .grant-brand .mark { inline-size: 0.7rem; }
 .grant-title { font: 600 1.25rem/1.25 var(--chrome); }
 .grant-list { display: grid; gap: 0.6rem; }
-.grant-list li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: 0.6rem; font-size: 0.9375rem; line-height: 1.45; }
-.grant-list small { display: block; font-size: 0.8125rem; color: var(--clay); margin-block-start: 0.15rem; }
-.box { inline-size: 1.1rem; block-size: 1.1rem; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--well); margin-block-start: 0.15rem; position: relative; transition: background-color var(--in) var(--ease), box-shadow var(--in) var(--ease); }
-.on > .box { background: var(--teal); box-shadow: none; }
-.on > .box::after { content: ""; position: absolute; inset-inline-start: 0.36rem; inset-block-start: 0.16rem; inline-size: 0.28rem; block-size: 0.56rem; border: solid var(--teal-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.grant-said { font-size: 0.875rem; color: var(--muted); }
+.grant-list li { display: grid; grid-template-columns: 0.4rem minmax(0, 1fr); gap: 0.7rem; font-size: 0.9375rem; line-height: 1.45; }
+.grant-list .can { margin-block-start: 0.55em; }
+.grant-list small { display: block; font-size: 0.8125rem; color: var(--muted); margin-block-start: 0.15rem; }
 .grant-press { display: flex; gap: 0.4rem; }
 
 /* --- phones ------------------------------------------------------------------------ */

@@ -5222,7 +5222,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/connect":
             if not connector_is_open():
                 return self._send(404, b"not found", "text/plain")
-            page = connect_page(self._public_language(), self.address)
+            page = connect_page(
+                self._public_language(), self.address, signed_in=self._person() is not None
+            )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
             if not connector_is_open():
@@ -7509,25 +7511,16 @@ class Handler(BaseHTTPRequestHandler):
                 raise oauth.OAuthError("invalid_client", "We don't know that client.")
             redirect = oauth.check_redirect(asked.redirect, client["redirects"])
         except oauth.OAuthError as refused:
-            return self._send(
-                400,
-                connect_refused_page(
-                    refused.description or "That request was not one we could read.",
-                    language=self._page_language(),
-                ).encode("utf-8"),
-                HTML,
-            )
+            return self._refuse_connect(refused)
         person = self._person()
         if person is None:
             here = f"/oauth/authorize?{urlparse(self.path).query}"
             body = signin_page(language=self._page_language()).encode("utf-8")
             return self._send(200, body, HTML, cookie=_short_cookie(CONNECT_COOKIE, here))
         page = approve_page(
-            client=str(client["name"] or "That app"),
+            client=str(client["name"] or ""),
             scopes=oauth.describe_scopes(asked.scopes),
             spends=asked.spends,
-            credits=UPLOAD_CREDITS,
-            hours=UPLOAD_HOURS,
             query=urlparse(self.path).query,
             redirect=redirect,
             language=self._page_language(),
@@ -7536,6 +7529,17 @@ class Handler(BaseHTTPRequestHandler):
         # `'self'` alone refuses to follow it — see `_policy`. Only this redirect, which
         # `check_redirect` has already matched against what the client registered.
         self._send(200, page.encode("utf-8"), HTML, forms=oauth.origin_of(redirect))
+
+    def _refuse_connect(self, refused: oauth.OAuthError) -> None:
+        """A Connect we could not read, said to the reader in one catalogue line.
+
+        The client's own `error_description` ("This server takes S256 challenges.") is
+        for whoever wrote the client, and it is English whatever the reader reads, so it
+        goes to the log and never onto the page.
+        """
+        log.info("connect refused: %s (%s)", refused.code, refused.description)
+        body = connect_refused_page(language=self._page_language()).encode("utf-8")
+        self._send(400, body, HTML)
 
     def _oauth_approve(self, form: dict[str, str]) -> None:
         """The press. Mints one code and sends the client back to itself.
@@ -7556,14 +7560,7 @@ class Handler(BaseHTTPRequestHandler):
                 raise oauth.OAuthError("invalid_client", "We don't know that client.")
             redirect = oauth.check_redirect(asked.redirect, client["redirects"])
         except oauth.OAuthError as refused:
-            return self._send(
-                400,
-                connect_refused_page(
-                    refused.description or "That request was not one we could read.",
-                    language=self._page_language(),
-                ).encode("utf-8"),
-                HTML,
-            )
+            return self._refuse_connect(refused)
         if form.get("press") != "approve":
             # A refusal is an answer, and the client is told in the way the spec says so
             # that it can say something better than "it didn't work".

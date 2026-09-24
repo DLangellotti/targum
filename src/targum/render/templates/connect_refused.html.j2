@@ -7,7 +7,7 @@
 
     §6 governs the sentence: we own it, we say what they can do, and we do not blame the
     reader, who pressed a button in somebody else's app and has no idea what a redirect
-    URI is. -#}
+    URI is. What the client got wrong is in the log; the reader is told one line. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -31,8 +31,7 @@
 
   <div class="door">
     <h1>{{ t("connect.page.we-couldn-t-finish-that", "We couldn't finish that") }}</h1>
-    <p class="said">{{ said }}</p>
-    <p class="said">{{ t("connect.page.try-connecting-again-from-the-app", "Try connecting again from the app you started in.") }}</p>
+    <p class="said">{{ t("connect.page.your-app-sent-a-request-we-couldn-t-check", "Your app sent a request we couldn't check. Try connecting again from the app.") }}</p>
     <p class="aside"><a href="/connect">{{ t("connect.page.how-connecting-works", "How connecting works") }}</a></p>
   </div>
 </main>

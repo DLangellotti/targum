@@ -209,18 +209,16 @@ body.signin {
   align-items: baseline;
   gap: 0.5rem;
   padding: 0.75rem 0.875rem;
-  background: var(--page);
+  /* The card's own tone, so the 1px gaps over the rule read as hairlines. It named
+     --page, which nothing defines, and the rows ran together as one block. */
+  background: var(--card);
 }
+.gate .scopes + .said { margin-block-start: 1rem; }
 .gate .scope-says { flex: 1 1 12rem; min-width: 0; }
-/* What the spending scope costs, said on its own row rather than in a footnote: a
-   standing grant that did not say so would be a worse seam than the press it replaces
-   (design.md §12, "A scope is a press that lasts"). Ink, not accent — it is a fact
-   about the reader's hours and never a warning. */
-.gate .scope-cost {
-  color: var(--ink-soft);
-  font-size: 0.875rem;
-  white-space: nowrap;
-}
+/* Where Connect sends the reader, in bold at body size beside the press: the heading is
+   the app's claim about its own name, and the host is the fact that checks it. */
+.gate .dest { margin-block-start: 1rem; }
+.gate .dest .host { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
 
 /* Not now. A ghost beside the filled press, per §13's three buttons: one filled per
    view, and refusing is not the thing this page is for. */
