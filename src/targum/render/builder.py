@@ -1848,8 +1848,8 @@ def connect_page(language: str = "en", address: str = "") -> str:
             title=said("connect.head.title", "targum in Claude and ChatGPT"),
             description=said(
                 "connect.head.description",
-                "Read Hebrew with targum from inside Claude or ChatGPT: your words, your "
-                "mistakes, and something to read next.",
+                "Learn Hebrew in Claude, ChatGPT and the AI you already use. It talks to "
+                "you at your level, and every new word goes on your list.",
             ),
             canonical=here,
             alternates=alternates,
