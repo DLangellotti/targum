@@ -303,6 +303,10 @@ def _environment() -> Environment:
     env.globals["scripture_face"] = _scripture_face
     env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
+    # The foot carries the way into Claude and ChatGPT, and only where there is one
+    # to carry (design.md §12, 2026-09-24). A function rather than a value, like the
+    # line above it, so a template cannot be rendered against a stale answer.
+    env.globals["connector_is_open"] = _connector_is_open
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
@@ -1468,6 +1472,19 @@ LEGAL = {
         "The procedure for deleting a targum or closing an account, and the consequences of each.",
     ),
 }
+
+
+def _connector_is_open() -> bool:
+    """Whether targum can be added to Claude or ChatGPT, for the foot to know.
+
+    Read through `serve` at call time rather than imported at module scope: `serve`
+    imports this module, and the other direction would be a cycle. The switch is one line
+    in `targum.env`, so a value captured at start-up would also be a value that could go
+    stale between a deploy and a restart.
+    """
+    from ..serve import connector_is_open
+
+    return connector_is_open()
 
 
 def legal_is_public() -> bool:

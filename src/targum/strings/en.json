@@ -1902,7 +1902,6 @@
   "connect.page.we-ll-email-you-when-your-turn-comes": "We’ll email you when your turn comes.",
   "connect.head.title": "targum in Claude and ChatGPT",
   "connect.head.description": "Read Hebrew with targum from inside Claude or ChatGPT: your words, your mistakes, and something to read next.",
-  "learn.door.claude-and-chatgpt": "Claude and ChatGPT",
   "you.page.what-s-connected": "What's connected",
   "you.page.connections-says": "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.",
   "you.connections.an-app": "An app",
@@ -2181,5 +2180,9 @@
   "connect.screen.your-app": "your app",
   "connect.screen.connect": "Connect",
   "connect.page.practise-hebrew-with-ai": "Practise Hebrew with AI",
-  "connect.page.in-your-app": "in"
+  "connect.page.in-your-app": "in",
+  "foot.claude-and-chatgpt": "Claude and ChatGPT",
+  "learn.connect.read-hebrew-in-claude": "Read Hebrew inside Claude or ChatGPT, with your words and your mistakes.",
+  "learn.connect.connect": "Connect",
+  "learn.connect.not-now": "Not now"
 }

@@ -9,6 +9,13 @@
     routes themselves answer to, so the two cannot drift apart. -#}
 <footer class="site-foot">
   <a href="/about">{{ t("foot.whats-built", "What's built") }}</a>
+  {#- The way into Claude and ChatGPT lives here (design.md §12, 2026-09-24). It was a
+      fourth door in Learn's row, where it competed with the two that carry texts; the
+      foot is where a thing that is always true and rarely wanted belongs, and the banner
+      on Learn does the announcing once. Only where there is a connector to offer. -#}
+  {%- if connector_is_open() %}
+  <a href="/connect">{{ t("foot.claude-and-chatgpt", "Claude and ChatGPT") }}</a>
+  {%- endif %}
   {%- if legal_is_public() %}
   <a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a>
   <a href="/terms">{{ t("foot.terms", "Terms") }}</a>

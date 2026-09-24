@@ -2015,7 +2015,6 @@
   "connect.page.we-ll-email-you-when-your-turn-comes": "Мы напишем, когда придёт ваша очередь.",
   "connect.head.title": "targum в Claude и ChatGPT",
   "connect.head.description": "Читайте на иврите с targum прямо в Claude или ChatGPT: ваши слова, ваши ошибки и что читать дальше.",
-  "learn.door.claude-and-chatgpt": "Claude и ChatGPT",
   "you.page.what-s-connected": "Что подключено",
   "you.page.connections-says": "Приложения, к которым вы подключили targum, и что каждому разрешено. Отключение действует сразу.",
   "you.connections.an-app": "Приложение",
@@ -2308,5 +2307,9 @@
   "connect.screen.your-app": "приложение",
   "connect.screen.connect": "Подключить",
   "connect.page.practise-hebrew-with-ai": "Практикуйте иврит с ИИ",
-  "connect.page.in-your-app": "в"
+  "connect.page.in-your-app": "в",
+  "foot.claude-and-chatgpt": "Claude и ChatGPT",
+  "learn.connect.read-hebrew-in-claude": "Читайте на иврите прямо в Claude или ChatGPT — с вашими словами и вашими ошибками.",
+  "learn.connect.connect": "Подключить",
+  "learn.connect.not-now": "Не сейчас"
 }

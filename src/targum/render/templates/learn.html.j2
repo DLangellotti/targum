@@ -51,6 +51,15 @@
       </div>
       <div class="ways" id="doors" hidden></div>
     </div>
+    {#- targum in Claude and ChatGPT (design.md §12, 2026-09-24). A banner above the row
+        and not a door in it: the row is for things that carry texts, and a fourth door
+        styled like the other three competed with the two that get somebody reading.
+
+        Drawn by `learn.js`, and only for a reader who has not connected — the account
+        already knows, so nothing is stored to stop asking somebody who has said yes. The
+        cross is for somebody who does not want it now, and that one is per-browser,
+        being a convenience rather than a fact. -#}
+    <div class="connect-banner" id="connect-banner" hidden></div>
     {#- The sheet (§13, 2026-09-11): the text to carry on with, drawn as itself — the
         reader, framed and working, at the place it was left, on the desk, across the
         row; under it the title, what it is, and one press to the reader's own page. Learn
@@ -238,6 +247,14 @@ window.TARGUM_CONNECTOR = {{ connector|tojson }};
 <script>{{ asset('strings.js') }}</script>
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('lang.js') }}</script>
+{#- Learn has never counted anything (targum-internal#127 wired the reader and not this
+    page), which is why design.md §12's own request on 2026-09-22 — "a look at whether the
+    reading doors' press rate moves" — could not be answered even in principle. The doors
+    and the connector banner say what was pressed, and a `control` event carries a name
+    and the window's width: never which text, never where in it, never the time. It stays
+    silent signed out, in the preview frame, where the box keeps no such record, and where
+    the reader has turned it off. -#}
+<script>{{ asset('events.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>

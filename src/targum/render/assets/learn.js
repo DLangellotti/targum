@@ -801,15 +801,6 @@
       );
     }
     if (series.length) row.appendChild(menu({ id: "subscriptions", label: SUBSCRIPTIONS, items: series }));
-    /* And one door that is not a text (design.md §12, 2026-09-22): targum in Claude and
-       ChatGPT. Styled exactly like the reading doors, because a door drawn as a lesser
-       thing reads as an advertisement and this page does not carry those.
-
-       It is appended rather than counted: the rule above still decides whether a row of
-       doors is worth drawing at all, on the reading doors alone. A row holding nothing
-       but this would be the first thing a new reader met, which is the push the panel
-       below promises not to be. */
-    if (!row.hidden && window.TARGUM_CONNECTOR) row.appendChild(connectDoor());
     drawCards();
     markDoor(current);
     // The cards are only now in the page, so the mark the sheet set before they existed
@@ -948,14 +939,70 @@
     return item;
   }
 
-  /* The way in, as a door. A link and not a button: it goes somewhere, where the
-     reading doors swap the sheet below, and a reader who wants it in another tab should
-     be able to have it in another tab. */
-  function connectDoor() {
-    var way = el("a", "way", t("learn.door.claude-and-chatgpt", "Claude and ChatGPT"));
+  /* targum in Claude and ChatGPT, announced once (design.md §12, 2026-09-24).
+
+     A banner above the row rather than a fourth door in it: the row is for things that
+     carry texts, and a door styled like the reading doors competed with the two that get
+     somebody reading. The objection was written down the day that decision was taken and
+     it was right.
+
+     **It stops asking by itself.** Drawn only for a reader with no connection, which the
+     account already knows — so somebody who has connected is never asked again, on any
+     device, with nothing stored to make that true. The cross is for somebody who does not
+     want it *now*; that one is remembered in this browser, because it is a convenience
+     and not a fact about the account. A browser that refuses storage simply sees the
+     banner again, which is the right way round.
+
+     §6: it says what the reader gets. This page does not sell. */
+  var BANNER_SHUT = "targum:connect-banner-shut";
+
+  function shutBanner() {
+    try {
+      return window.localStorage.getItem(BANNER_SHUT) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function drawConnectBanner() {
+    var host = document.getElementById("connect-banner");
+    if (!host || !window.TARGUM_CONNECTOR) return;
+    // `who` is null until `/account/me` answers, and for a reader who is not signed in.
+    // Neither is somebody to invite, so neither draws it.
+    if (!who || !who.signedIn) return;
+    if ((who.connections || []).length) return;
+    if (shutBanner()) return;
+
+    var says = el("p", "connect-says", t("learn.connect.read-hebrew-in-claude",
+      "Read Hebrew inside Claude or ChatGPT, with your words and your mistakes."));
+    var way = el("a", "connect-go", t("learn.connect.connect", "Connect"));
     way.href = "/connect";
-    way.setAttribute("data-door", "connect");
-    return way;
+    way.addEventListener("click", function () {
+      counted("banner-connect");
+    });
+    var shut = el("button", "connect-shut", "\u00d7");
+    shut.type = "button";
+    shut.setAttribute("aria-label", t("learn.connect.not-now", "Not now"));
+    shut.addEventListener("click", function () {
+      try {
+        window.localStorage.setItem(BANNER_SHUT, "1");
+      } catch (e) {}
+      host.hidden = true;
+      counted("banner-shut");
+    });
+    host.appendChild(says);
+    host.appendChild(way);
+    host.appendChild(shut);
+    host.hidden = false;
+  }
+
+  /* What was pressed, and nothing else about it (targum-internal#127). A `control` event
+     carries a name and the window's width — never which text, never where in it, never
+     the time. Learn had no counting at all until today, which is why §12's own request
+     for "a look at whether the reading doors' press rate moves" could not be answered:
+     no door on this page has ever been counted. */
+  function counted(name) {
+    if (window.TargumEvents) window.TargumEvents.note({ kind: "control", control: name });
   }
 
   function pill(one) {
@@ -963,6 +1010,7 @@
     press.type = "button";
     press.setAttribute("data-door", one.id);
     press.addEventListener("click", function () {
+      counted("door:" + one.id);
       drawCarry(one.reader, one.door);
     });
     return press;
@@ -2138,6 +2186,9 @@
     .then(function (data) {
       return whoAsked.then(function (me) {
         who = me;
+        // The banner needs the account's answer and nothing else, so it is drawn the
+        // moment there is one rather than waiting on the shelf behind it.
+        drawConnectBanner();
         return data;
       });
     })
