@@ -347,6 +347,31 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The grant is one press, and chatting is included — 2026-09-24
+
+A design and QA pass over the connector and playlists found that the approval page and the
+words around it had drifted apart. "A scope is a press that lasts" (2026-09-22) says the
+press is the reader *ticking* the spending scope. The page never drew a tick: it grants
+what the app asked for, in one press. Meanwhile /connect told strangers to "Tick what you
+want", and every tab's steps said "choose what it can see". David, asked which one should
+give way: **keep the one press.**
+
+- **The approval page grants the scopes the app asked for, all together, in one press**,
+  and says plainly what each one lets the app do. Connect and Not now are the only choices.
+  To change what an app may do, you disconnect it from your account and connect it again.
+  Nothing on /connect, in the FAQ or in the steps promises a tick.
+- **Chatting is included.** A message rounds to zero credits ("A cost is credits",
+  2026-09-23), so the reader is told it is included rather than "a few seconds of your
+  credits". Credits are named only where audio or video is, with the rate beside the balance.
+- **A Russian reader is promised Russian.** The Russian /connect says a Russian line
+  under the Hebrew and asking in Russian, because the contract writes `= ` lines in the
+  language the reader reads.
+
+What it does not overturn: the spending scope is still the consent, the two ceilings still
+hold, and the model still cannot press anything. The consent just covers the whole request
+the app made, not a subset the reader picks, and the page has always done exactly that.
+
+
 ### The shelf says what a text is at a glance, and has its own door — 2026-09-24
 
 David, looking at the shelf: it should tell the reader, without opening anything, the
@@ -685,7 +710,9 @@ So **one tool spends, and the consent is granted once rather than pressed each t
 `record_turn` takes what the reader wrote, targum recasts it on its own model against its
 own contract, and the row is written. The press is the reader ticking the `check` scope on
 targum's own approval page, where what it costs is said in hours before anything is
-granted, and where it is revoked.
+granted, and where it is revoked. *(Amended 2026-09-24: there is no tick. The press
+grants what the app asked for, in one go, and chatting is said to be included — see "The
+grant is one press, and chatting is included".)*
 
 What makes that safe is not the grant. It is the two ceilings it sits inside — the reader's
 own `CHAT_BUDGET` and the eight hours, both unchanged, both already refusing in words — and
