@@ -2021,5 +2021,7 @@
   "set.page.we-re-making-them.other": "We're making {n} texts. The first is ready first.",
   "set.page.you-asked-for-these-somewhere-else": "You asked for these somewhere else. Nothing has been made yet, and untick anything you don't want.",
   "chat.open-set": "See the set",
-  "press.page.share-done": "{n}% done"
+  "press.page.share-done": "{n}% done",
+  "reader.page.voice-costs-credits.one": "This uses about {n} credit",
+  "reader.page.voice-costs-credits.other": "This uses about {n} credits"
 }

@@ -2145,5 +2145,8 @@
   "set.page.we-re-making-them.many": "Готовим {n} текстов. Первый будет готов первым.",
   "set.page.you-asked-for-these-somewhere-else": "Вы попросили об этом в другом месте. Пока ничего не сделано — снимите отметку с того, что не нужно.",
   "chat.open-set": "Открыть подборку",
-  "press.page.share-done": "{n}% готово"
+  "press.page.share-done": "{n}% готово",
+  "reader.page.voice-costs-credits.one": "Это израсходует примерно {n} кредит",
+  "reader.page.voice-costs-credits.few": "Это израсходует примерно {n} кредита",
+  "reader.page.voice-costs-credits.many": "Это израсходует примерно {n} кредитов"
 }
