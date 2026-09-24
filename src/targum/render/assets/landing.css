@@ -140,6 +140,9 @@
   --bar-raised: #201e1b;
   --bar-rule: #322e29;
   --bar-teal: #6fb8b3;
+  /* The muted of §4, for secondary lines. Every rule on this page painted with it from
+     the start, and nothing defined it, so they all fell back to full ink (2026-09-24). */
+  --muted: var(--ink-soft);
   /* The front door is light, always (David, 2026-09-16): one page and one
      look. A stranger meeting it for three seconds should not meet a second
      design because their phone is in night mode. Since 2026-09-19 the

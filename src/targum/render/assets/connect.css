@@ -1,69 +1,303 @@
-/* targum in Claude and ChatGPT (targum-internal#80). What the front door's stylesheet
-   does not already have: a list of what the connector can do, and the blocks of steps.
+/* targum Connect (targum-internal#80, remade 2026-09-24). What the front door's stylesheet
+   does not already have: the conversation that plays in the hero, the band that shows
+   what passes between the three of them, the tabs of apps and the screens that walk
+   through each one, and the approval page drawn small.
 
    It rides on `landing.css` because it is a public page in the same family, and the one
-   thing a second stylesheet must not do is start a second set of tokens. Everything here
-   is a layout rule; every colour is one the front door already defines. */
+   thing a second stylesheet must not do is start a second set of tokens. Every colour
+   here is one the front door already defines. */
 
-.open { padding-block: 3rem 1rem; }
-.close { padding-block: 2rem 4rem; }
+:root { --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-.lede {
-  margin-block: 0.5rem 1.5rem;
-  font-size: 1.25rem;
-  line-height: 1.5;
-  color: var(--muted);
+.connect .mark { inline-size: 0.75rem; block-size: auto; flex: none; }
+.logo { inline-size: 1.1rem; block-size: 1.1rem; fill: currentColor; flex: none; }
+
+/* --- the hero ---------------------------------------------------------------------- */
+.c-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); padding-block-end: 2rem; }
+.kicker { display: inline-flex; align-items: center; gap: 0.5rem; justify-self: start; padding: 0.3rem 0.8rem 0.3rem 0.65rem; border-radius: 999px; background: var(--card); box-shadow: var(--shadow-rest); font: 600 0.8125rem/1.2 var(--chrome); letter-spacing: 0.01em; }
+.c-hero .actions { margin-block-start: 0.25rem; }
+/* The app's name in the headline, as a chip: its mark and its name, in ink on a card,
+   turning over upwards. The chip takes the width of the name it is showing, eased, so
+   the full stop after it moves rather than jumps. */
+.c-hero h1 { max-inline-size: none; }
+.c-hero h1 .first { display: block; text-wrap: balance; }
+.c-hero h1 .inside { display: block; white-space: nowrap; }
+.rotor { display: inline-grid; vertical-align: bottom; overflow: hidden; margin-block: 0.08em; padding: 0.02em 0.32em; border-radius: 16px; background: var(--card); box-shadow: var(--shadow-raised); transition: inline-size 420ms var(--ease); }
+.rotor-name { grid-area: 1 / 1; justify-self: start; display: inline-flex; align-items: center; gap: 0.22em; white-space: nowrap; }
+.rotor-name .logo { inline-size: 0.72em; block-size: 0.72em; }
+.rotor-name.enter { animation: rotor-in 520ms var(--ease) both; }
+.rotor-name.leave { animation: rotor-out 420ms var(--ease) both; }
+@keyframes rotor-in { from { transform: translateY(100%); opacity: 0; } }
+@keyframes rotor-out { to { transform: translateY(-100%); opacity: 0; } }
+
+/* The conversation. A window of no app in particular — the app's name in the corner
+   says which one this example is in, and it changes, because that is the point. */
+.demo { background: var(--card); border-radius: 24px; box-shadow: var(--shadow-floating); overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-inline-size: 0; }
+.demo-top { display: flex; align-items: center; gap: 0.75rem; padding: 0.8rem 1.1rem; border-block-end: 1px solid var(--hairline); }
+.demo-host { display: inline-flex; align-items: center; gap: 0.45rem; font: 600 0.875rem/1 var(--chrome); transition: opacity var(--out) var(--ease); }
+.demo-host.swap { opacity: 0; }
+.demo-linked { margin-inline-start: auto; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8125rem; color: var(--leaf); font-weight: 600; }
+.demo-linked i { inline-size: 0.45rem; block-size: 0.45rem; border-radius: 999px; background: var(--leaf); }
+.demo-thread { display: flex; flex-direction: column; gap: 0.7rem; padding: 1.1rem; block-size: 25rem; overflow: hidden; justify-content: flex-end; background: var(--paper); }
+
+.msg { max-inline-size: 88%; display: grid; gap: 0.3rem; }
+.msg p { margin: 0; }
+.msg.you { align-self: flex-end; background: var(--field); border-radius: 16px 16px 4px 16px; padding: 0.55rem 0.85rem; }
+.msg.them { align-self: flex-start; }
+.msg .he, .msg.he { font-size: 1.0625rem; line-height: 1.9; }
+.msg .en { color: var(--muted); font: 400 0.875rem/1.5 var(--reading); }
+.msg .fold-en { justify-self: start; border: 0; background: none; padding: 0; font-size: 0.8125rem; color: var(--teal); font-weight: 600; }
+.caret::after { content: ""; display: inline-block; inline-size: 2px; block-size: 1em; margin-inline-start: 1px; vertical-align: -0.15em; background: var(--ink); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* A tool call, said as what targum did rather than what the function is called. */
+.tool { align-self: flex-start; display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem 0.35rem 0.4rem; border-radius: 999px; background: var(--teal-wash); color: var(--teal); font-size: 0.8125rem; font-weight: 600; }
+.tool-glyph { inline-size: 1.5rem; block-size: 1.5rem; border-radius: 999px; background: var(--card); display: grid; place-items: center; box-shadow: var(--shadow-rest); position: relative; }
+.tool:not(.done) .tool-glyph::after { content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid transparent; border-block-start-color: var(--teal); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(1turn); } }
+
+.finds { display: grid; gap: 0.4rem; margin-block-start: 0.2rem; }
+.find { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.75rem; align-items: center; background: var(--card); border-radius: 12px; box-shadow: var(--shadow-rest); padding: 0.55rem 0.75rem; }
+.find .t { font: 600 0.9375rem/1.3 var(--reading); }
+.find .k { font-size: 0.8125rem; color: var(--muted); }
+.find .meter, .tile .meter { grid-column: 1 / -1; display: block; block-size: 4px; border-radius: 999px; background: var(--field); overflow: hidden; }
+.find .meter i, .tile .meter i { display: block; block-size: 100%; background: var(--leaf); }
+.find .open { grid-row: 1 / span 2; grid-column: 2; font-size: 0.8125rem; font-weight: 600; color: var(--teal); }
+.recast { border-inline-start: 2px solid var(--teal); padding-inline-start: 0.7rem; display: grid; gap: 0.1rem; }
+.recast .tag { font-size: 0.8125rem; color: var(--teal); font-weight: 600; }
+.recast mark { background: var(--teal-wash); color: inherit; border-radius: 4px; padding-inline: 0.1em; }
+.why-line { font-size: 0.875rem; color: var(--muted); background: var(--field); border-radius: 12px; padding: 0.45rem 0.7rem; }
+.noted { align-self: flex-start; display: inline-flex; gap: 0.4rem; align-items: center; font-size: 0.8125rem; color: var(--leaf); font-weight: 600; }
+.noted svg { inline-size: 0.9rem; block-size: 0.9rem; }
+.words { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.words span { display: inline-grid; justify-items: center; background: var(--card); box-shadow: var(--shadow-rest); border-radius: 12px; padding: 0.25rem 0.6rem; }
+.words .he { font-size: 1.0625rem; line-height: 1.6; }
+.words small { font-size: 0.6875rem; color: var(--muted); }
+.stat { display: flex; gap: 1rem; flex-wrap: wrap; }
+.stat b { font: 600 1.25rem/1.1 var(--reading); font-variant-numeric: lining-nums tabular-nums; display: block; }
+.stat span { font-size: 0.8125rem; color: var(--muted); }
+
+/* Everything that arrives in the conversation arrives the same way: up and in. */
+.in { animation: arrive var(--in) var(--ease) both; }
+@keyframes arrive { from { opacity: 0; transform: translateY(8px); } }
+
+/* The three examples, each with the time it has left drawn along its foot. */
+.scenes { display: flex; gap: 0.35rem; padding: 0.6rem; border-block-start: 1px solid var(--hairline); }
+.scene { position: relative; flex: 1 1 0; min-inline-size: 0; text-wrap: balance; border: 0; background: none; border-radius: 12px; padding: 0.5rem 0.75rem; font: 600 0.8125rem/1.2 var(--chrome); color: var(--muted); overflow: hidden; transition: background-color var(--out) var(--ease), color var(--out) var(--ease); }
+.scene:hover { color: var(--ink); background: var(--hairline); }
+.scene[aria-pressed="true"] { background: var(--teal-wash); color: var(--teal); }
+.scene i { position: absolute; inset-inline-start: 0; inset-block-end: 0; block-size: 2px; inline-size: 0; background: var(--teal); }
+.scene[aria-pressed="true"] i.run { animation: fill var(--run, 9s) linear both; }
+@keyframes fill { to { inline-size: 100%; } }
+
+/* The apps it works with: one row, in ink, the way §2 draws a mark that is not ours. */
+.works { display: grid; justify-items: center; gap: 0.9rem; padding-block: 1rem 2rem; }
+.logos { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.6rem 1.75rem; color: var(--ink); }
+.logos li { display: inline-flex; align-items: center; gap: 0.45rem; font: 600 0.9375rem/1 var(--chrome); opacity: 0.72; transition: opacity var(--out) var(--ease); }
+.logos li:hover { opacity: 1; }
+.logos .logo { inline-size: 1.25rem; block-size: 1.25rem; }
+
+/* --- how it works: the one inverted block ------------------------------------------ */
+.flow-band { gap: 2.25rem; }
+.flow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(3rem, 1fr) minmax(0, 1fr) minmax(3rem, 1fr) minmax(0, 1fr); align-items: center; }
+.node { display: grid; justify-items: center; gap: 0.35rem; text-align: center; }
+.node-glyph { inline-size: 4rem; block-size: 4rem; border-radius: 24px; background: var(--bar-raised); color: var(--bar-ink); display: grid; place-items: center; box-shadow: inset 0 0 0 1px var(--bar-rule); }
+.node-glyph svg { inline-size: 1.6rem; block-size: 1.6rem; }
+.node-glyph .mark { inline-size: 1.4rem; }
+.node.home .node-glyph { background: var(--paper); color: var(--ink); box-shadow: 0 0 0 6px rgb(111 184 179 / 0.16); }
+.node-glyph.stack { display: flex; gap: 0.2rem; padding-inline: 0.6rem; inline-size: auto; min-inline-size: 4rem; }
+.node-glyph.stack .logo { inline-size: 1.05rem; block-size: 1.05rem; }
+.node-name { font: 600 1.0625rem/1.2 var(--chrome); color: var(--bar-ink); margin-block-start: 0.35rem; }
+.node-note { font-size: 0.8125rem; color: var(--bar-muted); max-inline-size: 11rem; }
+/* A question goes out along the top of the wire and the answer comes back along the
+   bottom, offset by half a beat so the two are never in the same place. */
+.wire { position: relative; block-size: 1.25rem; margin-block-end: 3.5rem; }
+.wire::before, .wire::after { content: ""; position: absolute; inset-inline: 0.5rem; block-size: 0; border-block-start: 2px dashed var(--bar-rule); }
+.wire::before { inset-block-start: 0.25rem; }
+.wire::after { inset-block-end: 0.25rem; }
+.wire i { position: absolute; inline-size: 0.55rem; block-size: 0.55rem; border-radius: 999px; }
+.wire .go { inset-block-start: 0.05rem; background: var(--bar-teal); animation: go 2.4s var(--ease) infinite; }
+.wire .back { inset-block-end: 0; background: #a8c37e; animation: back 2.4s var(--ease) infinite 1.2s; }
+.wire + .node + .wire .go { animation-delay: 0.6s; }
+.wire + .node + .wire .back { animation-delay: 0.6s; }
+@keyframes go { 0% { inset-inline-start: 0.5rem; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { inset-inline-start: calc(100% - 1rem); opacity: 0; } }
+@keyframes back { 0% { inset-inline-start: calc(100% - 1rem); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { inset-inline-start: 0.5rem; opacity: 0; } }
+.flow-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.flow-steps li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.75rem; align-items: start; background: var(--bar-raised); border-radius: 16px; padding: 1rem; }
+.flow-steps .how-n { background: rgb(111 184 179 / 0.16); color: var(--bar-teal); }
+.flow-steps p { color: var(--bar-ink); font-size: 0.9375rem; }
+@media (max-width: 52rem) {
+  .flow { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 0.5rem; }
+  .wire { inline-size: 1.25rem; block-size: 3.5rem; margin: 0; }
+  .wire::before, .wire::after { inset-inline: auto; inset-block: 0.25rem; block-size: auto; border-block-start: 0; border-inline-start: 2px dashed var(--bar-rule); }
+  .wire::before { inset-inline-start: 0.2rem; }
+  .wire::after { inset-inline-end: 0.2rem; }
+  .wire .go { inset-block-start: auto; inset-inline-start: 0; animation-name: go-down; }
+  .wire .back { inset-block-end: auto; inset-inline-start: auto; inset-inline-end: 0; animation-name: back-up; }
+  @keyframes go-down { 0% { inset-block-start: 0; opacity: 0; } 15%, 85% { opacity: 1; } 100% { inset-block-start: calc(100% - 0.55rem); opacity: 0; } }
+  @keyframes back-up { 0% { inset-block-start: calc(100% - 0.55rem); opacity: 0; } 15%, 85% { opacity: 1; } 100% { inset-block-start: 0; opacity: 0; } }
+  .flow-steps { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* What it can do, and what it may see. A list of facts, not a feature grid: the page
-   sells by being specific (§6), and a tick beside each would be selling by decoration. */
-.can {
-  margin-block: 1rem;
-  padding-inline-start: 1.1rem;
-  display: grid;
-  gap: 0.6rem;
-}
-.can li { line-height: 1.6; }
+/* --- what you get ------------------------------------------------------------------ */
+.new-here { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem; align-items: start; background: var(--card); border-radius: 16px; box-shadow: var(--shadow-rest); padding: 1.1rem 1.25rem; margin-block-end: 1.25rem; max-inline-size: 46rem; }
+.new-mark { inline-size: 2.5rem; block-size: 2.5rem; border-radius: 12px; background: var(--field); display: grid; place-items: center; }
+.new-mark .mark { inline-size: 0.9rem; }
+.new-here h3 { font: 600 1.0625rem/1.3 var(--chrome); margin-block-end: 0.2rem; }
+.new-here p { font-size: 0.9375rem; }
+.new-here a { font-weight: 600; white-space: nowrap; }
+.usps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.usps .tile { transition: transform var(--in) var(--ease), box-shadow var(--in) var(--ease); }
+.usps .tile:hover { transform: translateY(-2px); box-shadow: var(--shadow-floating); }
+.tile .spec.row { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.875rem; color: var(--muted); }
+.tile .spec.row b { font: 600 1.0625rem/1 var(--reading); color: var(--ink); }
+.tile .spec .t { font: 600 0.9375rem/1.3 var(--reading); }
+.tile .spec s { color: var(--clay); text-decoration-thickness: 1.5px; }
+.tile .spec .fix { font-weight: 400; background: var(--teal-wash); border-radius: 4px; padding-inline: 0.1em; }
+.tick { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--ink); }
+.tick::before { content: ""; inline-size: 0.9rem; block-size: 0.9rem; border-radius: 4px; background: var(--teal); box-shadow: inset 0 0 0 3px var(--teal), inset 0 0 0 5px var(--card); }
+@media (max-width: 60rem) { .usps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 40rem) { .usps { grid-template-columns: minmax(0, 1fr); } }
 
-.quiet {
-  margin-block-start: 1rem;
-  color: var(--muted);
-  font-size: 0.9375rem;
-  line-height: 1.6;
+/* --- set it up --------------------------------------------------------------------- */
+.copyable { display: flex; align-items: center; gap: 0.5rem; background: var(--field); border-radius: 12px; padding: 0.35rem 0.35rem 0.35rem 0.9rem; margin-block: 0.5rem 0.25rem; min-inline-size: 0; }
+.copyable code { flex: 1; min-inline-size: 0; font: 400 0.875rem/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; padding-block: 0.3rem; }
+.copy { display: inline-flex; align-items: center; gap: 0.35rem; flex: none; border: 0; border-radius: 999px; background: var(--card); color: var(--teal); box-shadow: var(--shadow-rest); padding: 0.4rem 0.8rem; font: 600 0.8125rem/1 var(--chrome); min-block-size: 2rem; transition: background-color var(--out) var(--ease), color var(--out) var(--ease); }
+.copy svg { inline-size: 0.9rem; block-size: 0.9rem; }
+.copy:hover { background: var(--teal-wash); }
+.copy.done { background: var(--teal); color: var(--teal-ink); }
+.address-card .copyable { background: var(--card); box-shadow: var(--shadow-raised); padding: 0.5rem 0.5rem 0.5rem 1.1rem; margin: 0 0 1.5rem; max-inline-size: 40rem; }
+.address-card code { font-size: 1.0625rem; }
+.address-card .copy { background: var(--ink); color: var(--paper); box-shadow: none; min-block-size: 2.5rem; padding-inline: 1.1rem; font-size: 0.875rem; }
+.address-card .copy:hover { background: var(--bar-rule); }
+.address-card .copy.done { background: var(--leaf); }
+
+/* One pill an app, and the row scrolls sideways on a phone rather than folding. */
+.plats { display: flex; gap: 0.4rem; padding: 0.35rem; background: var(--field); border-radius: 999px; overflow-x: auto; scrollbar-width: none; margin-block-end: 1.25rem; }
+.plats::-webkit-scrollbar { display: none; }
+.plat { flex: none; display: inline-flex; align-items: center; gap: 0.45rem; border: 0; background: none; border-radius: 999px; padding: 0.5rem 0.95rem; font: 600 0.875rem/1 var(--chrome); color: var(--muted); min-block-size: 2.5rem; transition: background-color var(--out) var(--ease), color var(--out) var(--ease), box-shadow var(--out) var(--ease); }
+.plat:hover { color: var(--ink); }
+.plat[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-raised); }
+.plat .logo { inline-size: 1rem; block-size: 1rem; }
+
+.panels { display: grid; gap: 1.25rem; }
+.panel { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 1.5rem; align-items: start; background: var(--card); border-radius: 24px; box-shadow: var(--shadow-raised); padding: 1.5rem; }
+.panel[hidden] { display: none; }
+.js .panel { animation: arrive var(--in) var(--ease) both; }
+.how-to h3 { display: flex; align-items: center; gap: 0.55rem; font: 600 1.25rem/1.2 var(--chrome); margin-block-end: 1rem; }
+.how-to h3 .logo { inline-size: 1.25rem; block-size: 1.25rem; }
+.steps { display: grid; gap: 0.35rem; counter-reset: step; }
+.steps > li { counter-increment: step; position: relative; display: block; padding: 0.65rem 0.75rem 0.65rem 3rem; border-radius: 12px; line-height: 1.5; transition: background-color var(--in) var(--ease); }
+.steps > li::before { content: counter(step); position: absolute; inset-inline-start: 0.75rem; inset-block-start: 0.6rem; inline-size: 1.6rem; block-size: 1.6rem; border-radius: 999px; background: var(--field); color: var(--muted); display: grid; place-items: center; font: 700 0.8125rem/1 var(--chrome); transition: background-color var(--in) var(--ease), color var(--in) var(--ease); }
+.js .steps > li { cursor: pointer; }
+.js .steps > li:hover { background: var(--hairline); }
+.steps > li.now { background: var(--teal-wash); }
+.steps > li.now::before, .steps > li.past::before { background: var(--teal); color: var(--teal-ink); }
+.steps > li:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.how-to .quiet { margin-block-start: 1rem; color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
+
+/* The screen: a small, plain picture of the app, walking through the steps beside it. */
+.screen { position: relative; border-radius: 16px; background: var(--ground); box-shadow: inset 0 0 0 1px var(--hairline); aspect-ratio: 4 / 3; overflow: hidden; }
+.sc { position: absolute; inset: 0.9rem; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--card); border-radius: 12px; box-shadow: var(--shadow-raised); overflow: hidden; animation: arrive var(--in) var(--ease) both; }
+.sc-top { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.7rem; border-block-end: 1px solid var(--hairline); font: 600 0.8125rem/1 var(--chrome); }
+.sc-top .dots { display: inline-flex; gap: 0.25rem; margin-inline-end: 0.4rem; }
+.sc-top .dots i { inline-size: 0.45rem; block-size: 0.45rem; border-radius: 999px; background: var(--well); }
+.sc-top .logo { inline-size: 0.9rem; block-size: 0.9rem; }
+.sc-body { display: grid; grid-template-columns: 34% minmax(0, 1fr); min-block-size: 0; }
+.sc-side { background: var(--paper); border-inline-end: 1px solid var(--hairline); padding: 0.6rem 0.4rem; display: grid; align-content: start; gap: 0.15rem; }
+.sc-side span { font-size: 0.8125rem; padding: 0.35rem 0.55rem; border-radius: 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background-color var(--in) var(--ease), color var(--in) var(--ease); }
+.sc-side span.on { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.sc-main { padding: 0.8rem; display: grid; align-content: start; gap: 0.55rem; min-inline-size: 0; position: relative; }
+.sc-h { font: 600 0.9375rem/1.2 var(--chrome); }
+.sc-p { font-size: 0.8125rem; color: var(--muted); }
+.sc-btn { justify-self: start; display: inline-flex; align-items: center; gap: 0.3rem; border-radius: 999px; background: var(--ink); color: var(--paper); padding: 0.4rem 0.8rem; font: 600 0.8125rem/1 var(--chrome); transition: transform var(--out) var(--ease), box-shadow var(--out) var(--ease); }
+.sc-btn.ghost { background: var(--field); color: var(--ink); }
+.sc-btn.pressed { transform: scale(0.96); box-shadow: 0 0 0 4px var(--teal-wash); }
+.sc-row { display: flex; align-items: center; gap: 0.5rem; background: var(--paper); border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.8125rem; }
+.sc-row .mark { inline-size: 0.6rem; }
+.sc-row .ok { margin-inline-start: auto; color: var(--leaf); font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem; }
+.sc-row .ok svg { inline-size: 0.8rem; block-size: 0.8rem; }
+.sc-switch { margin-inline-start: auto; inline-size: 2rem; block-size: 1.15rem; border-radius: 999px; background: var(--well); position: relative; transition: background-color var(--in) var(--ease); flex: none; }
+.sc-switch::after { content: ""; position: absolute; inset-block-start: 0.15rem; inset-inline-start: 0.15rem; inline-size: 0.85rem; block-size: 0.85rem; border-radius: 999px; background: var(--card); transition: transform var(--in) var(--ease); }
+.sc-switch.on { background: var(--teal); }
+.sc-switch.on::after { transform: translateX(0.85rem); }
+/* A dialog over the settings, the way every one of these apps asks for the address. */
+.sc-veil { position: absolute; inset: 0; background: rgb(28 26 23 / 0.28); display: grid; place-items: center; padding: 0.8rem; animation: arrive var(--in) var(--ease) both; }
+.sc-dialog { inline-size: min(100%, 17rem); background: var(--card); border-radius: 16px; box-shadow: var(--shadow-floating); padding: 0.85rem; display: grid; gap: 0.5rem; }
+.sc-field { display: grid; gap: 0.15rem; }
+.sc-field label { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.sc-field span { font: 400 0.8125rem/1.4 var(--mono); background: var(--field); border-radius: 8px; padding: 0.3rem 0.5rem; min-block-size: 1.75rem; overflow-wrap: anywhere; }
+.sc-field span.plain { font-family: var(--chrome); }
+.sc-dialog .sc-btn { justify-self: end; }
+/* The approval page, drawn as it is: the lockup, three ticks, one button. */
+.sc-grant { position: absolute; inset: 0; display: grid; place-items: center; background: var(--ground); padding: 0.8rem; }
+.sc-grant .grant { inline-size: min(100%, 17rem); padding: 0.9rem; gap: 0.5rem; box-shadow: var(--shadow-floating); }
+.sc-grant .grant-title { font-size: 0.9375rem; }
+.sc-grant .grant-list li { font-size: 0.8125rem; }
+.sc-url { font: 400 0.6875rem/1 var(--mono); color: var(--muted); background: var(--field); border-radius: 999px; padding: 0.3rem 0.6rem; margin-block-end: 0.5rem; justify-self: center; }
+/* A terminal, drawn light: the page has spent its one ink block on the band above. */
+.sc-term { font: 400 0.8125rem/1.6 var(--mono); padding: 0.8rem; display: grid; align-content: start; gap: 0.1rem; background: var(--paper); overflow: hidden; }
+.sc-term .ln { white-space: pre-wrap; overflow-wrap: anywhere; }
+.sc-term .ps { color: var(--teal); }
+.sc-term .out { color: var(--muted); }
+.sc-term .ok { color: var(--leaf); }
+.sc-term .pick { background: var(--teal-wash); color: var(--teal); border-radius: 4px; }
+.sc-palette { position: absolute; inset-inline: 10%; inset-block-start: 0.6rem; background: var(--card); border-radius: 12px; box-shadow: var(--shadow-floating); padding: 0.4rem; display: grid; gap: 0.15rem; animation: arrive var(--in) var(--ease) both; }
+.sc-palette .q { font: 400 0.8125rem/1.4 var(--mono); background: var(--field); border-radius: 8px; padding: 0.35rem 0.5rem; }
+.sc-palette .opt { font-size: 0.8125rem; padding: 0.3rem 0.5rem; border-radius: 8px; }
+.sc-palette .opt.on { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.sc-chat { align-self: end; display: grid; gap: 0.4rem; }
+.sc-bubble { justify-self: end; background: var(--field); border-radius: 12px 12px 4px 12px; padding: 0.35rem 0.6rem; font-size: 0.8125rem; }
+/* The pointer that does the pressing. */
+.pointer { position: absolute; inset-block-start: 0; inset-inline-start: 0; inline-size: 1.1rem; block-size: 1.1rem; z-index: 3; pointer-events: none; color: var(--ink); filter: drop-shadow(0 1px 1px rgb(28 26 23 / 0.25)); transition: transform 700ms var(--ease), opacity var(--out) var(--ease); opacity: 0; }
+.pointer.shown { opacity: 1; }
+.pointer.tap { animation: tap 320ms var(--ease); }
+@keyframes tap { 50% { scale: 0.8; } }
+@media (max-width: 52rem) {
+  .panel { grid-template-columns: minmax(0, 1fr); padding: 1.1rem; }
+  .screen { order: -1; }
+}
+@media (max-width: 30rem) { .screen { aspect-ratio: 1 / 1; } }
+
+/* --- what it sees ------------------------------------------------------------------ */
+.grant { background: var(--card); border-radius: 24px; box-shadow: var(--shadow-floating); padding: 1.5rem; display: grid; gap: 0.9rem; max-inline-size: 26rem; justify-self: center; }
+.grant-brand { display: inline-flex; align-items: center; gap: 0.4rem; font: 600 1.0625rem/1 var(--reading); }
+.grant-brand .mark { inline-size: 0.7rem; }
+.grant-title { font: 600 1.25rem/1.25 var(--chrome); }
+.grant-list { display: grid; gap: 0.6rem; }
+.grant-list li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: 0.6rem; font-size: 0.9375rem; line-height: 1.45; }
+.grant-list small { display: block; font-size: 0.8125rem; color: var(--clay); margin-block-start: 0.15rem; }
+.box { inline-size: 1.1rem; block-size: 1.1rem; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--well); margin-block-start: 0.15rem; position: relative; transition: background-color var(--in) var(--ease), box-shadow var(--in) var(--ease); }
+.on > .box { background: var(--teal); box-shadow: none; }
+.on > .box::after { content: ""; position: absolute; inset-inline-start: 0.36rem; inset-block-start: 0.16rem; inline-size: 0.28rem; block-size: 0.56rem; border: solid var(--teal-ink); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.grant-press { display: flex; gap: 0.4rem; }
+
+/* --- phones ------------------------------------------------------------------------ */
+@media (max-width: 52rem) {
+  .c-hero { grid-template-columns: minmax(0, 1fr); }
+  .demo-thread { block-size: 23rem; }
+}
+@media (max-width: 30rem) {
+  .kicker { font-size: 0.6875rem; }
+  .demo-thread { block-size: 19rem; padding: 0.8rem; }
+  /* The front door hides its hero's buttons on a phone because its video is the next
+     thing on the screen. Here the next thing is the conversation, and Set it up is the
+     one thing the page is asking for. */
+  .c-hero .actions { display: flex; }
+  .scene { padding-inline: 0.4rem; font-size: 0.6875rem; }
+  .msg { max-inline-size: 94%; }
+  .logos { gap: 0.6rem 1.1rem; }
+  .logos li { font-size: 0.875rem; }
+  .address-card code { font-size: 0.875rem; }
+  .new-here { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* One block a host, each with its own steps and nothing guessed about which one the
-   reader wants (note 2: assume this is their first install). A card each, so a reader
-   in the wrong one can see that they are. */
-.host {
-  margin-block-start: 1.25rem;
-  padding: 1.25rem;
-  border-radius: 16px;
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+/* §8: every control a thumb presses answers a tap over 44px. */
+@media (hover: none) and (pointer: coarse) {
+  .plat, .copy, .scene, .steps > li { min-block-size: 44px; }
 }
-.host h3 {
-  margin-block: 0 0.75rem;
-  font-size: 1.0625rem;
-}
-.host ol {
-  margin-block: 0;
-  padding-inline-start: 1.25rem;
-  display: grid;
-  gap: 0.5rem;
-}
-.host li { line-height: 1.6; }
 
-/* The address itself, which is the one thing on the page somebody has to copy exactly.
-   Monospace and allowed to wrap anywhere, because it is long and a phone is narrow. */
-.address {
-  margin-block: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  background: var(--field);
-  overflow-wrap: anywhere;
-}
-.address code {
-  font: 400 0.9375rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--ink);
+@media (prefers-reduced-motion: reduce) {
+  .wire i { display: none; }
+  .caret::after { animation: none; }
 }

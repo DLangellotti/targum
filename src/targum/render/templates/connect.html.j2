@@ -1,17 +1,47 @@
-{#- targum in Claude and ChatGPT (targum-internal#80, 2026-09-22).
+{#- targum Connect: targum in Claude, ChatGPT and the other assistants (targum-internal#80,
+    remade 2026-09-24 to stand beside the front door).
 
     A public page, so §6 says it sells: lead with what the reader gets, in their words.
-    "Connector" and "MCP" are our words. The word MCP appears exactly once on this page,
-    in the steps, because that is what the menu they have to find is called — everything
-    above it is what they get.
+    Most people who land here have not met targum at all, so the page says what targum is
+    before it says how to add it, and shows the conversation before it lists the steps.
 
-    **Note 2 is the whole design of this page: assume it is their first MCP install.**
-    So: one block per host, each with its own steps, and nothing detected or guessed. No
-    "we see you're on a Mac". A reader who is in the wrong block can see that they are,
-    which is not true of a page that chose for them.
+    **Note 2 is still the design of the steps: assume it is their first install.** Every
+    app has its own tab with its own steps, and nothing is detected or guessed. The tabs
+    are the reader's choice, and with JavaScript off every app's steps stand one under the
+    other, which is the page this replaced.
+
+    The apps' marks are drawn single-colour, in ink, from Simple Icons (CC0). §2 draws
+    targum's own mark single-colour "everywhere small or third-party", and the same holds
+    the other way round: an orange, a blue and a gradient in one row would spend the
+    page's whole hue budget on other people's names.
 
     Baked in like every public page — no script, stylesheet, font or image off the
-    network (§11). It carries no script at all: there is nothing here that moves. -#}
+    network (§11). `connect.js` makes the conversation and the set-up screens move, and
+    copies the address. Nothing here needs it. -#}
+{%- set mcp = address ~ "/mcp" -%}
+{%- macro logo(name) -%}
+<svg class="logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+{%- if name == 'claude' %}<path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"/>
+{%- elif name == 'openai' %}<path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
+{%- elif name == 'mistral' %}<path d="M17.143 3.429v3.428h-3.429v3.429h-3.428V6.857H6.857V3.43H3.43v13.714H0v3.428h10.286v-3.428H6.857v-3.429h3.429v3.429h3.429v-3.429h3.428v3.429h-3.428v3.428H24v-3.428h-3.43V3.429z"/>
+{%- elif name == 'gemini' %}<path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/>
+{%- elif name == 'vscode' %}<path d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-5.146 14.861L10.826 12l7.178-5.448v10.896z"/>
+{%- elif name == 'other' %}<path d="M9 3v4.5M15 3v4.5M6.5 7.5h11v3.5a5.5 5.5 0 0 1-11 0zM12 16.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+{%- macro mark() -%}
+<svg class="mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false"><rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect><rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect></svg>
+{%- endmacro -%}
+{%- macro copyable(text, label) -%}
+<span class="copyable">
+  <code>{{ text }}</code>
+  <button class="copy" type="button" data-copy="{{ text }}" hidden>
+    <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    <span>{{ label }}</span>
+  </button>
+</span>
+{%- endmacro -%}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -20,7 +50,7 @@
 {{ hebrew_face() }}
 {{ chrome_face() }}
 </head>
-<body class="landing">
+<body class="landing connect">
 <header class="bar">
   <div class="col">
     <a class="brand" href="/" aria-label="targum">
@@ -28,73 +58,379 @@
         <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
         <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
       </svg>
-      <span>targum</span>
+      targum
     </a>
+    <nav class="places" aria-label="{{ t("connect.page.on-this-page", "On this page") }}">
+      <a href="#how">{{ t("connect.page.how-it-works", "How it works") }}</a>
+      <a href="#why">{{ t("connect.page.what-you-get", "What you get") }}</a>
+      <a href="#install">{{ t("connect.page.set-it-up", "Set it up") }}</a>
+      <a href="#questions">{{ t("connect.page.faq", "FAQ") }}</a>
+    </nav>
+    <div class="end">
+      <p class="tongue">
+        {%- if page_language == 'ru' %}<a href="/connect?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
+        {%- else %}<b>EN</b><span>/</span><a href="/connect?lang=ru" hreflang="ru">RU</a>{% endif %}
+      </p>
+      <a class="signin" href="/account/signin">{{ t("connect.page.sign-in", "Sign in") }}</a>
+      <a class="btn cta small" href="#install">{{ t("connect.page.set-it-up", "Set it up") }}</a>
+    </div>
   </div>
 </header>
 
-<main>
-  <div class="col open">
-    <h1>{{ t("connect.page.targum-in-claude-and-chatgpt", "targum in Claude and ChatGPT") }}</h1>
-    <p class="lede">{{ t("connect.page.your-hebrew-your-words-and-your-mistakes", "Your Hebrew, your words and your mistakes — wherever you already ask.") }}</p>
-    <p>{{ t("connect.page.ask-for-something-to-read-and-get-it", "Ask for something to read and get a text you can open, chosen for the words you already know. Ask what you were working on and hear what you actually marked, not a guess.") }}</p>
+<main id="top">
+  {#- The hero: what it is in one line, and the conversation it makes, playing. -#}
+  <div class="col">
+    <div class="hero c-hero">
+      <div class="headline">
+        <p class="kicker">{{ mark() }}<span>targum Connect</span></p>
+        {#- The app's name turns over, one each couple of seconds, because the whole
+            claim is "the one you already use", and each reader uses a different one.
+            Without JavaScript it stands still on the first. Only apps the steps below
+            cover are named: a name here is a promise that there is a tab for it. -#}
+        <h1><span class="first">{{ t("connect.page.practise-hebrew-with-ai", "Practise Hebrew with AI") }}</span>
+          <span class="inside">{{ t("connect.page.in-your-app", "in") }}
+            <span class="rotor" id="rotor"><span class="rotor-name">{{ logo('claude') }}<span>Claude</span></span></span></span></h1>
+        <p class="lede">{{ t("connect.page.targum-connect-gives-your-assistant-your-hebrew", "targum Connect gives Claude, ChatGPT and other assistants your Hebrew: the words you know, the mistakes you make and a library to read from. So they talk to you at your level, correct you properly and find you something to read.") }}</p>
+        <div class="actions">
+          <a class="btn cta" href="#install">{{ t("connect.page.set-it-up", "Set it up") }}</a>
+          <button class="btn tonal" type="button" id="replay" hidden>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            {{ t("connect.page.watch-it-work", "Watch it work") }}
+          </button>
+        </div>
+        <ul class="facts">
+          <li>{{ t("connect.page.free-to-connect", "Free to connect") }}</li>
+          <li>{{ t("connect.page.set-up-in-two-minutes", "Set up in two minutes") }}</li>
+          <li>{{ t("connect.page.you-choose-what-it-sees", "You choose what it sees") }}</li>
+        </ul>
+      </div>
+
+      <figure class="demo" id="demo" aria-label="{{ t("connect.page.example-a-conversation-with-targum-connected", "Example: a conversation with targum connected") }}">
+        <div class="demo-top">
+          <span class="demo-host" id="demoHost">{{ logo('claude') }}<span>Claude</span></span>
+          <span class="demo-linked"><i></i>{{ t("connect.page.targum-connected", "targum connected") }}</span>
+        </div>
+        {#- With JavaScript off this is the first example, drawn still. `connect.js`
+            replaces it and plays all three. -#}
+        <div class="demo-thread" id="demoThread">
+          <div class="msg you"><p>{{ t("connect.demo.find-me-something-short-to-read-about-food", "Find me something short to read about food. Nothing too hard.") }}</p></div>
+          <div class="tool done"><span class="tool-glyph">{{ mark() }}</span><span>{{ t("connect.demo.found-three-texts-at-your-level", "targum found three texts at your level") }}</span></div>
+          <div class="msg them">
+            <p>{{ t("connect.demo.here-are-three-you-ll-mostly-understand", "Here are three you’ll mostly understand:") }}</p>
+            <div class="finds">
+              <div class="find"><span class="t">{{ t("connect.demo.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="k">{{ t("connect.demo.video-you-know-80", "Video · you know 80%") }}</span><span class="meter"><i class="p80"></i></span></div>
+              <div class="find"><span class="t">{{ t("connect.demo.this-week-s-news-easy", "This week’s news · easy") }}</span><span class="k">{{ t("connect.demo.article-you-know-90", "Article · you know 90%") }}</span><span class="meter"><i class="p90"></i></span></div>
+            </div>
+          </div>
+        </div>
+        <div class="scenes" role="group" aria-label="{{ t("connect.page.examples", "Examples") }}" id="scenes" hidden>
+          <button class="scene" type="button" data-scene="0" aria-pressed="true"><span>{{ t("connect.page.find-something-to-read", "Find something to read") }}</span><i></i></button>
+          <button class="scene" type="button" data-scene="1" aria-pressed="false"><span>{{ t("connect.page.practise-and-be-corrected", "Practise and be corrected") }}</span><i></i></button>
+          <button class="scene" type="button" data-scene="2" aria-pressed="false"><span>{{ t("connect.page.pick-up-where-you-left-off", "Pick up where you left off") }}</span><i></i></button>
+        </div>
+      </figure>
+    </div>
+
+    <div class="works">
+      <p class="label">{{ t("connect.page.works-with", "Works with") }}</p>
+      <ul class="logos">
+        <li>{{ logo('claude') }}<span>Claude</span></li>
+        <li>{{ logo('openai') }}<span>ChatGPT</span></li>
+        <li>{{ logo('mistral') }}<span>Le Chat</span></li>
+        <li>{{ logo('claude') }}<span>Claude Code</span></li>
+        <li>{{ logo('vscode') }}<span>VS Code</span></li>
+        <li>{{ logo('gemini') }}<span>Gemini CLI</span></li>
+        <li>{{ logo('openai') }}<span>Codex</span></li>
+      </ul>
+    </div>
   </div>
 
-  <section class="col">
-    <h2>{{ t("connect.page.what-it-can-do", "What it can do") }}</h2>
-    <ul class="can">
-      <li>{{ t("connect.page.find-you-something-to-read", "Find you something to read, from the library or from a link you paste.") }}</li>
-      <li>{{ t("connect.page.tell-you-what-you-were-working-on", "Tell you what you were working on, and which words you have not come back to.") }}</li>
-      <li>{{ t("connect.page.show-you-a-word-in-the-sentences", "Show you a word in the sentences you actually met it in.") }}</li>
-      <li>{{ t("connect.page.price-a-text-before-you-make-it", "Price a text before you make it, and hand you the link to start it.") }}</li>
-    </ul>
-    <p class="quiet">{{ t("connect.page.it-can-never-spend-your-hours-on-its-own", "It can never start a text on its own. It gives you a link; you press it, here.") }}</p>
+  {#- The page's one inverted block (§9): what passes between the three of them. -#}
+  <section class="part" id="how">
+    <div class="col">
+      <div class="media flow-band">
+        <div class="part-head">
+          <p class="label">{{ t("connect.page.how-it-works", "How it works") }}</p>
+          <h2>{{ t("connect.page.your-assistant-asks-targum-then-answers-you", "Your assistant asks targum, then answers you.") }}</h2>
+          <p>{{ t("connect.page.targum-sits-behind-the-chat", "targum sits behind the chat you already have. When your question is about your Hebrew, your assistant asks targum first, so the answer is about you rather than a guess.") }}</p>
+        </div>
+        <div class="flow" aria-hidden="true">
+          <div class="node">
+            <span class="node-glyph"><svg viewBox="0 0 16 16"><circle cx="8" cy="5.2" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M2.8 14c.6-2.9 2.7-4.4 5.2-4.4s4.6 1.5 5.2 4.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+            <span class="node-name">{{ t("connect.page.you", "You") }}</span>
+            <span class="node-note">{{ t("connect.page.ask-in-english-or-hebrew", "Ask in English or Hebrew") }}</span>
+          </div>
+          <div class="wire"><i class="go"></i><i class="back"></i></div>
+          <div class="node">
+            <span class="node-glyph stack">{{ logo('claude') }}{{ logo('openai') }}{{ logo('mistral') }}</span>
+            <span class="node-name">{{ t("connect.page.your-assistant", "Your assistant") }}</span>
+            <span class="node-note">{{ t("connect.page.claude-chatgpt-and-others", "Claude, ChatGPT and others") }}</span>
+          </div>
+          <div class="wire"><i class="go"></i><i class="back"></i></div>
+          <div class="node home">
+            <span class="node-glyph">{{ mark() }}</span>
+            <span class="node-name">targum</span>
+            <span class="node-note">{{ t("connect.page.your-words-your-mistakes-the-library", "Your words, your mistakes, the library") }}</span>
+          </div>
+        </div>
+        <ol class="flow-steps">
+          <li><span class="how-n">1</span><p>{{ t("connect.page.you-ask-for-something-to-read-or-write", "You ask for something to read, or write to it in Hebrew.") }}</p></li>
+          <li><span class="how-n">2</span><p>{{ t("connect.page.it-asks-targum-what-you-know", "It asks targum what you know, what you’re working on and what there is to read.") }}</p></li>
+          <li><span class="how-n">3</span><p>{{ t("connect.page.it-answers-in-hebrew-at-your-level", "It answers in Hebrew at your level, and what you learn goes back on your record.") }}</p></li>
+        </ol>
+      </div>
+    </div>
   </section>
 
-  <section class="col">
-    <h2>{{ t("connect.page.adding-it", "Adding it") }}</h2>
-    <p>{{ t("connect.page.paste-this-address-wherever-your-app-asks", "Paste this address wherever your app asks for one:") }}</p>
-    <p class="address"><code>{{ address }}/mcp</code></p>
+  {#- For somebody who has never heard of targum: what it is, then what connecting it
+      adds. The six tiles are the tools, said as what they do for a person. -#}
+  <section class="part" id="why">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("connect.page.what-you-get", "What you get") }}</p>
+        <h2>{{ t("connect.page.an-assistant-that-knows-your-hebrew", "An assistant that knows your Hebrew.") }}</h2>
+        <p>{{ t("connect.page.on-its-own-an-assistant-meets-you-fresh", "On its own, an assistant meets you fresh every time. With targum connected it knows the words you know, the mistakes you keep making and what’s worth reading next.") }}</p>
+      </div>
 
-    <div class="host">
-      <h3>{{ t("connect.page.in-claude", "In Claude") }}</h3>
-      <ol>
-        <li>{{ t("connect.page.claude-open-settings-then-connectors", "Open Settings, then Connectors.") }}</li>
-        <li>{{ t("connect.page.claude-choose-add-custom-connector", "Choose Add custom connector.") }}</li>
-        <li>{{ t("connect.page.claude-paste-the-address-above", "Paste the address above and add it.") }}</li>
-        <li>{{ t("connect.page.claude-sign-in-and-choose-what-it-may-do", "Sign in to targum when it asks, and choose what it may do.") }}</li>
-      </ol>
+      <aside class="new-here">
+        <span class="new-mark">{{ mark() }}</span>
+        <div>
+          <h3>{{ t("connect.page.new-to-targum", "New to targum?") }}</h3>
+          <p>{{ t("connect.page.targum-is-a-reading-app-for-people-learning-hebrew", "targum is a reading app for people learning Hebrew. Videos, podcasts and books arrive with vowels on every word, English beside every line and a card for any word you tap, and it counts every word you learn.") }} <a href="/">{{ t("connect.page.see-targum", "See targum") }}</a></p>
+        </div>
+      </aside>
+
+      <div class="usps">
+        <div class="tile">
+          <h3>{{ t("connect.page.talks-at-your-level", "Talks at your level") }}</h3>
+          <p>{{ t("connect.page.it-answers-in-simple-hebrew-built-from-your-words", "It answers in simple Hebrew built from the words you already know, and gives you the English when you ask.") }}</p>
+          <div class="spec">
+            <span class="he">מָה בִּשַּׁלְתָּ הַיּוֹם?</span>
+            <span class="gl">{{ t("connect.page.what-did-you-cook-today", "What did you cook today?") }}</span>
+          </div>
+        </div>
+        <div class="tile">
+          <h3>{{ t("connect.page.corrects-you-and-says-why", "Corrects you, and says why") }}</h3>
+          <p>{{ t("connect.page.targum-checks-what-you-write", "targum checks what you write, shows you the fix and why, and keeps the mistake so you can work on it.") }}</p>
+          <div class="spec">
+            <span class="he"><s>הָיָה</s> <b class="fix">הָיְתָה</b> טְעִימָה</span>
+            <span class="gl">{{ t("connect.page.shakshuka-is-feminine", "shakshuka is feminine, so the verb is too") }}</span>
+          </div>
+        </div>
+        <div class="tile">
+          <h3>{{ t("connect.page.remembers-between-chats", "Remembers between chats") }}</h3>
+          <p>{{ t("connect.page.your-record-lives-in-targum", "Your words, mistakes and progress live in targum, so every chat starts where the last one ended, in any app.") }}</p>
+          <div class="spec row">
+            <span><b class="tnum">2,140</b> {{ t("connect.page.words-known", "words known") }}</span>
+            <span><b class="tnum">18</b> {{ t("connect.page.mistakes-to-revisit", "mistakes to revisit") }}</span>
+          </div>
+        </div>
+        <div class="tile">
+          <h3>{{ t("connect.page.finds-you-something-to-read", "Finds you something to read") }}</h3>
+          <p>{{ t("connect.page.nearly-500-free-texts-and-videos", "Nearly 500 free texts and videos, sorted by how much you’d understand, or anything you paste a link to.") }}</p>
+          <div class="spec">
+            <span class="t">{{ t("connect.demo.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span>
+            <span class="meter"><i class="p80"></i></span>
+          </div>
+        </div>
+        <div class="tile">
+          <h3>{{ t("connect.page.shows-a-word-where-you-met-it", "Shows a word where you met it") }}</h3>
+          <p>{{ t("connect.page.ask-about-a-word-and-see-the-sentences", "Ask about a word and see the sentences you actually read it in, not a dictionary’s.") }}</p>
+          <div class="spec">
+            <span class="he">שָׂמִים שֶׁמֶן <b class="fix">בַּמַּחֲבַת</b></span>
+            <span class="gl">{{ t("connect.page.shakshuka-in-ten-minutes-at-2-10", "Shakshuka in ten minutes, at 2:10") }}</span>
+          </div>
+        </div>
+        <div class="tile">
+          <h3>{{ t("connect.page.leaves-you-in-charge", "Leaves you in charge") }}</h3>
+          <p>{{ t("connect.page.you-choose-what-it-can-see", "You choose what it can see. It never starts a new text on its own: it hands you a link, and you press it on targum.") }}</p>
+          <div class="spec row">
+            <span class="tick">{{ t("connect.page.the-library", "The library") }}</span>
+            <span class="tick">{{ t("connect.page.your-record", "Your record") }}</span>
+          </div>
+        </div>
+      </div>
     </div>
-
-    <div class="host">
-      <h3>{{ t("connect.page.in-chatgpt", "In ChatGPT") }}</h3>
-      <ol>
-        <li>{{ t("connect.page.chatgpt-open-settings-then-connectors", "Open Settings, then Connectors.") }}</li>
-        <li>{{ t("connect.page.chatgpt-add-a-connector-and-paste", "Add a connector and paste the address above.") }}</li>
-        <li>{{ t("connect.page.chatgpt-sign-in-and-choose-what-it-may-do", "Sign in to targum when it asks, and choose what it may do.") }}</li>
-      </ol>
-    </div>
-
-    <div class="host">
-      <h3>{{ t("connect.page.in-claude-code", "In Claude Code") }}</h3>
-      <ol>
-        <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}</li>
-      </ol>
-      <p class="address"><code>claude mcp add --transport http targum {{ address }}/mcp</code></p>
-    </div>
-
-    <p class="quiet">{{ t("connect.page.mcp-is-what-the-menu-is-called", "Some apps call this an MCP server. That is the same thing.") }}</p>
   </section>
 
-  <section class="col">
-    <h2>{{ t("connect.page.what-it-is-allowed-to-see", "What it is allowed to see") }}</h2>
-    <p>{{ t("connect.page.you-choose-when-you-connect-and-you-can", "You choose when you connect, and you can take any of it back from your account whenever you like.") }}</p>
-    <ul class="can">
-      <li>{{ t("connect.page.the-library-and-what-is-at-a-link", "The library, and what is at a link you give it.") }}</li>
-      <li>{{ t("connect.page.your-words-your-mistakes-and-how-far", "Your words, your mistakes, and how far you have got.") }}</li>
-      <li>{{ t("connect.page.reading-your-hebrew-and-pricing-a-text", "Reading the Hebrew you write and pricing a text, which use your credits.") }}</li>
-    </ul>
-    <p class="quiet">{{ t("connect.page.what-you-say-there-stays-there", "What you say to targum here is never sent the other way.") }}</p>
+  {#- The steps. One tab an app, with its own steps and its own moving picture; with
+      JavaScript off, every app's block stands in order and the tabs are not drawn. -#}
+  <section class="part" id="install">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("connect.page.set-it-up", "Set it up") }}</p>
+        <h2>{{ t("connect.page.add-targum-in-about-two-minutes", "Add targum in about two minutes.") }}</h2>
+        <p>{{ t("connect.page.pick-your-app-every-one-uses-the-same-address", "Pick your app. Every one of them uses the same address:") }}</p>
+      </div>
+      <div class="address-card">
+        {{ copyable(mcp, t("connect.page.copy", "Copy")) }}
+      </div>
+
+      <div class="plats" role="tablist" aria-label="{{ t("connect.page.your-app", "Your app") }}" id="plats" hidden>
+        <button class="plat" role="tab" type="button" id="tab-claude" aria-controls="p-claude" aria-selected="true">{{ logo('claude') }}<span>Claude</span></button>
+        <button class="plat" role="tab" type="button" id="tab-chatgpt" aria-controls="p-chatgpt" aria-selected="false" tabindex="-1">{{ logo('openai') }}<span>ChatGPT</span></button>
+        <button class="plat" role="tab" type="button" id="tab-lechat" aria-controls="p-lechat" aria-selected="false" tabindex="-1">{{ logo('mistral') }}<span>Le Chat</span></button>
+        <button class="plat" role="tab" type="button" id="tab-code" aria-controls="p-code" aria-selected="false" tabindex="-1">{{ logo('claude') }}<span>Claude Code</span></button>
+        <button class="plat" role="tab" type="button" id="tab-vscode" aria-controls="p-vscode" aria-selected="false" tabindex="-1">{{ logo('vscode') }}<span>VS Code</span></button>
+        <button class="plat" role="tab" type="button" id="tab-gemini" aria-controls="p-gemini" aria-selected="false" tabindex="-1">{{ logo('gemini') }}<span>Gemini CLI</span></button>
+        <button class="plat" role="tab" type="button" id="tab-codex" aria-controls="p-codex" aria-selected="false" tabindex="-1">{{ logo('openai') }}<span>Codex</span></button>
+        <button class="plat" role="tab" type="button" id="tab-other" aria-controls="p-other" aria-selected="false" tabindex="-1">{{ logo('other') }}<span>{{ t("connect.page.another-app", "Another app") }}</span></button>
+      </div>
+
+      <div class="panels">
+        <div class="panel" id="p-claude" role="tabpanel" aria-labelledby="tab-claude" data-plat="claude">
+          <div class="how-to">
+            <h3>{{ logo('claude') }}{{ t("connect.page.in-claude", "In Claude") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.claude-open-settings-then-connectors", "Open Settings, then Connectors.") }}</li>
+              <li>{{ t("connect.page.claude-choose-add-custom-connector", "Choose Add custom connector.") }}</li>
+              <li>{{ t("connect.page.claude-name-it-and-paste", "Name it targum, paste the address and choose Add.") }}</li>
+              <li>{{ t("connect.page.claude-sign-in-and-choose-what-it-may-do", "Sign in to targum when it asks, and choose what it may do.") }}</li>
+            </ol>
+            <p class="quiet">{{ t("connect.page.claude-once-and-on-your-phone", "Add it once on the web or the desktop app and it’s on your phone too.") }}</p>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-chatgpt" role="tabpanel" aria-labelledby="tab-chatgpt" data-plat="chatgpt">
+          <div class="how-to">
+            <h3>{{ logo('openai') }}{{ t("connect.page.in-chatgpt", "In ChatGPT") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.chatgpt-open-settings-then-apps", "Open Settings, then Apps & Connectors.") }}</li>
+              <li>{{ t("connect.page.chatgpt-turn-on-developer-mode", "Under Advanced settings, turn on Developer mode.") }}</li>
+              <li>{{ t("connect.page.chatgpt-create-and-paste", "Choose Create, name it targum and paste the address.") }}</li>
+              <li>{{ t("connect.page.chatgpt-oauth-and-sign-in", "Choose OAuth, then sign in to targum and choose what it may do.") }}</li>
+            </ol>
+            <p class="quiet">{{ t("connect.page.chatgpt-menus-move", "Developer mode is on ChatGPT’s paid plans. Its menus move now and then: if yours differ, look for Connectors or Apps.") }}</p>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-lechat" role="tabpanel" aria-labelledby="tab-lechat" data-plat="lechat">
+          <div class="how-to">
+            <h3>{{ logo('mistral') }}{{ t("connect.page.in-le-chat", "In Le Chat") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.lechat-open-intelligence-then-connectors", "Open Intelligence, then Connectors.") }}</li>
+              <li>{{ t("connect.page.lechat-add-a-custom-one", "Choose Add connector, then Custom MCP connector.") }}</li>
+              <li>{{ t("connect.page.lechat-name-it-and-paste", "Name it targum and paste the address.") }}</li>
+              <li>{{ t("connect.page.lechat-sign-in", "Choose Connect, sign in to targum and choose what it may do.") }}</li>
+            </ol>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-code" role="tabpanel" aria-labelledby="tab-code" data-plat="code">
+          <div class="how-to">
+            <h3>{{ logo('claude') }}{{ t("connect.page.in-claude-code", "In Claude Code") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
+                {{ copyable("claude mcp add --transport http targum " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.code-start-and-type-mcp", "Start Claude Code and type /mcp.") }}</li>
+              <li>{{ t("connect.page.code-choose-targum-and-sign-in", "Choose targum, then Authenticate, and sign in to targum in your browser.") }}</li>
+            </ol>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-vscode" role="tabpanel" aria-labelledby="tab-vscode" data-plat="vscode">
+          <div class="how-to">
+            <h3>{{ logo('vscode') }}{{ t("connect.page.in-vs-code", "In VS Code") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.vscode-run-add-server", "Open the Command Palette and run MCP: Add Server.") }}</li>
+              <li>{{ t("connect.page.vscode-choose-http-and-paste", "Choose HTTP, paste the address and name it targum.") }}</li>
+              <li>{{ t("connect.page.vscode-sign-in", "Sign in to targum when VS Code asks.") }}</li>
+              <li>{{ t("connect.page.vscode-agent-mode", "Open Copilot Chat in Agent mode and ask away.") }}</li>
+            </ol>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-gemini" role="tabpanel" aria-labelledby="tab-gemini" data-plat="gemini">
+          <div class="how-to">
+            <h3>{{ logo('gemini') }}{{ t("connect.page.in-gemini-cli", "In Gemini CLI") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
+                {{ copyable("gemini mcp add --transport http targum " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.gemini-start-and-auth", "Start Gemini CLI and type /mcp auth targum.") }}</li>
+              <li>{{ t("connect.page.sign-in-in-your-browser", "Sign in to targum in your browser, and choose what it may do.") }}</li>
+            </ol>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-codex" role="tabpanel" aria-labelledby="tab-codex" data-plat="codex">
+          <div class="how-to">
+            <h3>{{ logo('openai') }}{{ t("connect.page.in-codex", "In Codex") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
+                {{ copyable("codex mcp add targum --url " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.codex-then-sign-in", "Then run this, to sign in:") }}
+                {{ copyable("codex mcp login targum", t("connect.page.copy", "Copy")) }}</li>
+              <li>{{ t("connect.page.sign-in-in-your-browser", "Sign in to targum in your browser, and choose what it may do.") }}</li>
+            </ol>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+
+        <div class="panel" id="p-other" role="tabpanel" aria-labelledby="tab-other" data-plat="other">
+          <div class="how-to">
+            <h3>{{ logo('other') }}{{ t("connect.page.in-another-app", "In another app") }}</h3>
+            <ol class="steps">
+              <li>{{ t("connect.page.other-find-where", "Find where your app adds a remote MCP server. Some call it a connector or an integration.") }}</li>
+              <li>{{ t("connect.page.other-paste-the-address", "Paste the address. If it asks how to connect, choose HTTP.") }}</li>
+              <li>{{ t("connect.page.other-choose-oauth", "If it asks how to sign in, choose OAuth. It opens targum, and you sign in there.") }}</li>
+            </ol>
+            <p class="quiet">{{ t("connect.page.other-no-key", "targum registers each app itself, so there is no key to copy and nothing to paste but the address.") }}</p>
+          </div>
+          <div class="screen" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {#- What it may see. The three scopes are the approval page's own words, through the
+      same keys, so this page cannot promise something the approval page does not ask. -#}
+  <section class="part" id="sees">
+    <div class="col split">
+      <div class="part-head">
+        <p class="label">{{ t("connect.page.what-it-sees", "What it sees") }}</p>
+        <h2>{{ t("connect.page.you-choose-what-it-sees-and-can-take-it-back", "You choose what it sees, and you can take it back.") }}</h2>
+        <p>{{ t("connect.page.when-you-connect-targum-asks", "When you connect, targum asks you on its own page what the app may do. Tick what you want, and change your mind from your account whenever you like.") }}</p>
+        <ul class="points">
+          <li>{{ t("connect.page.it-can-never-spend-your-hours-on-its-own", "It can never start a text on its own. It gives you a link; you press it, here.") }}</li>
+          <li>{{ t("connect.page.targum-sees-only-what-your-assistant-asks", "targum sees only what your assistant asks it for: a search, a word, a line to check.") }}</li>
+          <li>{{ t("connect.page.what-you-say-there-stays-there", "What you say to targum here is never sent the other way.") }}</li>
+        </ul>
+      </div>
+      <figure class="grant" id="grant" aria-label="{{ t("connect.page.example-the-page-you-approve-on", "Example: the page you approve on") }}">
+        <p class="grant-brand">{{ mark() }}<span>targum</span></p>
+        <p class="grant-title">{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client="Claude") }}</p>
+        <ul class="grant-list">
+          <li class="on"><span class="box"></span><span>{{ t("connect.scope.library", "Search the library and look up what is at a link") }}</span></li>
+          <li class="on"><span class="box"></span><span>{{ t("connect.scope.record", "Read your words, your mistakes and how far you have got") }}</span></li>
+          <li class="on"><span class="box"></span><span>{{ t("connect.scope.chat", "Read what you write and keep it, mark words, turn on a language you practise, and price a text") }}<small>{{ t("connect.page.checking-uses-credits", "Checking what you write uses your credits") }}</small></span></li>
+        </ul>
+        <p class="grant-press"><span class="btn cta small">{{ t("connect.page.connect", "Connect") }}</span><span class="btn ghost small">{{ t("connect.page.not-now", "Not now") }}</span></p>
+      </figure>
+    </div>
+  </section>
+
+  <section class="part" id="questions">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("connect.page.questions", "Questions") }}</p>
+        <h2>{{ t("connect.page.before-you-connect", "Before you connect.") }}</h2>
+      </div>
+      <div class="faq">
+        <details><summary>{{ t("connect.page.q-do-i-need-an-account", "Do I need a targum account?") }}</summary><p>{{ t("connect.page.a-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your assistant reads. We’re opening in small groups, so join the waitlist and we’ll email you when it’s your turn.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}</summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so are searching the library and reading your record. Checking what you write uses a few seconds of your credits a message, and only if you tick it when you connect.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}</summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Le Chat, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}</summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. targum hands your assistant the rules its own chat keeps: short replies in Hebrew, built from the words you know, with the English when you ask. The app writes the replies, so how closely it keeps to them is up to the app.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}</summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "It can’t start a text. When you ask for one it tells you what it takes and hands you a link, and nothing happens until you press it on targum.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-how-do-i-disconnect", "How do I disconnect?") }}</summary><p>{{ t("connect.page.a-how-do-i-disconnect", "From your targum account, where every connected app is listed, or by removing it in the app.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-what-is-mcp", "Why do the steps say MCP?") }}</summary><p>{{ t("connect.page.mcp-is-what-the-menu-is-called", "Some apps call this an MCP server. That is the same thing.") }}</p></details>
+      </div>
+    </div>
   </section>
 
   <div class="col close">
@@ -110,5 +446,9 @@
 </main>
 
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+
+{% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
+{% endif %}<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('connect.js') }}</script>
 </body>
 </html>
