@@ -3567,6 +3567,24 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def playlists_holding(self, person_id: int | None) -> dict[str, list[str]]:
+        """Which of one reader's playlists hold each text, by reader name: what a shelf
+        row names on its fact line (design.md §12, 2026-09-24). One query for the shelf."""
+        if person_id is None:
+            return {}
+        rows = self.db.execute(
+            "SELECT i.reader, p.name FROM playlist_item i JOIN playlist p ON p.id = i.playlist"
+            " WHERE p.person = ? AND p.gone = 0 AND i.reader IS NOT NULL"
+            " ORDER BY p.made, p.id",
+            (person_id,),
+        ).fetchall()
+        holding: dict[str, list[str]] = {}
+        for row in rows:
+            names = holding.setdefault(str(row["reader"]), [])
+            if row["name"] not in names:
+                names.append(str(row["name"]))
+        return holding
+
     def playlist(self, person_id: int | None, playlist_id: int) -> dict[str, Any] | None:
         """One playlist and everything in it, in order. None if it is not theirs — the
         same answer as one that does not exist, deliberately."""

@@ -306,3 +306,35 @@ def test_the_chat_grades_to_the_seed_and_never_quotes_it() -> None:
     # The state a page is handed carries no trace of it: nothing can print it.
     shown = level.Level("he", 0, 0, 0.0, None, level.ULPAN[0], 0, 0, 0, 0, 0, declared="gimel")
     assert "gimel" not in json.dumps(shown.state())
+
+
+# --- the rung a text needs (design.md §12, 2026-09-24) -----------------------------
+
+
+def test_a_text_of_the_commonest_words_is_aleph() -> None:
+    from targum.level import ULPAN, ULPAN_LADDER, text_rung
+
+    assert text_rung([1, 5, 12, 40, 200] * 20, ULPAN_LADDER) == ULPAN[0]
+
+
+def test_a_text_full_of_rare_words_is_high() -> None:
+    from targum.level import ULPAN, ULPAN_LADDER, text_rung
+
+    assert text_rung([11_000] * 50, ULPAN_LADDER) == ULPAN[-1]
+    assert text_rung([None] * 50, ULPAN_LADDER) == ULPAN[-1], "past the list is past every rung"
+
+
+def test_the_rung_is_read_at_ninety_five_percent_of_the_running_words() -> None:
+    """Five rare words in a hundred are what a dictionary is for; six are not."""
+    from targum.level import ULPAN_LADDER, text_rung
+
+    easy = [100] * 95 + [8_000] * 5
+    harder = [100] * 94 + [8_000] * 6
+    assert text_rung(easy, ULPAN_LADDER).name == "aleph"  # type: ignore[union-attr]
+    assert text_rung(harder, ULPAN_LADDER).name == "hey"  # type: ignore[union-attr]
+
+
+def test_a_text_with_no_words_has_no_rung() -> None:
+    from targum.level import ULPAN_LADDER, text_rung
+
+    assert text_rung([], ULPAN_LADDER) is None

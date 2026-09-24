@@ -159,7 +159,8 @@ function tile(node) {
   return { className: found.className, letter: glyph ? glyph.textContent : "" };
 }
 
-/** The shelf rows: thumb, title, chapters, last opened — one cell each — and the controls. */
+/** The shelf rows (design.md §12, 2026-09-24): the picture, the title with its English
+ *  and its line of facts, the status, and the row's keys. */
 function shelf() {
   return at("library-list").children.map((row) => {
     const link = row.children[0];
@@ -171,8 +172,8 @@ function shelf() {
       cover: tile(link),
       title: part("book-title") || cells[1] || "",
       english: part("book-english"),
-      chapters: cells[2] || "",
-      opened: cells[3] || "",
+      facts: part("book-facts"),
+      status: cells[2] || "",
       controls: controls ? controls.children.map((c) => c.textContent) : [],
     };
   });

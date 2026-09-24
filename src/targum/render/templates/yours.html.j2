@@ -26,26 +26,23 @@
     Same markup and the same scripts as anywhere else a row is drawn, so a row here and a
     row there cannot drift. -#}
 <body class="words learn yours">
-{#- Your targums is where Learn's Recently read goes on, so the nav says Learn. Your words
-    and phrases are reached from the account, and a nav that lit Learn on them said the
-    reader was somewhere they were not (2026-09-14). -#}
-{% set here = 'learn' if which == 'texts' else 'yours' %}{% set title = heading %}
+{#- Your targums has its own place in the nav since 2026-09-24 (design.md §12, "The shelf
+    says what a text is at a glance"). Your words and phrases are reached from the
+    account, and a nav that lit Learn on them said the reader was somewhere they were not
+    (2026-09-14). -#}
+{% set here = 'texts' if which == 'texts' else 'yours' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
 <main id="page" hidden>
   {%- if which == 'texts' %}
   <section class="panel" id="shelf-panel">
-    <p class="note what-is">{{ t("yours.page.a-targum-is-an-interactive-bilingual-text", "A targum is an interactive bilingual text, optimised for
+    <div class="shelf-top">
+      <p class="note what-is">{{ t("yours.page.a-targum-is-an-interactive-bilingual-text", "A targum is an interactive bilingual text, optimised for
       language learning.") }}</p>
-    <p class="note" id="shelf-note"></p>
-    <div class="shelf-head" id="shelf-head" role="row" hidden>
-      <span></span>
-      <span>{{ t("yours.page.text", "Text") }}</span>
-      <span>{{ t("yours.page.chapters", "Chapters") }}</span>
-      <span>{{ t("yours.page.last-opened", "Last opened") }}</span>
-      <span></span>
+      <a class="to-playlists" href="/playlists{% if token %}?k={{ token }}{% endif %}">{{ t("yours.page.playlists", "Playlists") }}</a>
     </div>
+    <p class="note" id="shelf-note"></p>
     <ul class="books shelf-rows" id="library-list"></ul>
     <p class="empty" id="shelf-empty" hidden></p>
   </section>

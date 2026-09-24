@@ -1668,6 +1668,37 @@ def seeds() -> list[str]:
 
 
 @app.command()
+def posters(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Give every video import on the shelf its picture: one frame of its own cut.
+
+    New imports get one when they are built. This fills in the ones built before
+    2026-09-24. Free: ffmpeg reads a file already on the disk, and nothing is fetched.
+    Every reader's home and the shared shelf are walked, however deep they sit.
+    """
+    from .audio.manifest import MANIFEST, keeps_video
+    from .video import poster
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
+    made = kept = 0
+    for manifest in sorted(root.rglob(MANIFEST)):
+        folder = manifest.parent
+        if not (folder / "reader" / "index.html").is_file() or not keeps_video(folder):
+            continue
+        had = (folder / "poster.jpg").is_file()
+        if poster.ensure(folder):
+            kept += had
+            made += not had
+    console.print(f"[green]{made}[/green] pictures made[dim], {kept} already there.[/dim]")
+
+
+@app.command()
 def refs(
     out: Annotated[
         Path | None,

@@ -128,14 +128,15 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_four_places() -> None:
+def test_every_page_carries_the_same_five_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
     once already. Three from 2026-09-06, when the chat became the box at the top of
     Learn and uploading the `+` on it; four since 2026-09-13, when Add came back last,
-    because with the box in a drawer the Add page had no door of its own."""
+    because with the box in a drawer the Add page had no door of its own; five since
+    2026-09-24, when the shelf got its own, second (design.md §12)."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "library", "progress", "add"], name
+        assert found == ["learn", "texts", "library", "progress", "add"], name
 
 
 #: Reached from somewhere other than the nav — a profile is not one of the places you
@@ -145,7 +146,7 @@ NOT_IN_THE_NAV = {"you", "words", "phrases"}
 #: Learn's lists, gone to a page of their own, and the conversation, which is where a
 #: line typed into Learn's box goes. They mark Learn, which is where they came from and
 #: the only nav entry that could honestly be current.
-UNDER_LEARN = {"texts", "chat"}
+UNDER_LEARN = {"chat"}
 
 
 def test_the_nav_marks_where_you_are() -> None:
@@ -823,12 +824,12 @@ def test_a_list_page_carries_its_own_list_and_no_other(which: str, has: str, lac
     assert 'id="carry"' not in page, "and none of them repeats the landing page"
 
 
-def test_a_list_page_marks_learn_in_the_nav() -> None:
-    """Your targums is where Learn's Recently opened goes on, so the nav goes on saying
-    Learn. Your words and phrases are reached from the account and mark no place: a nav
-    that lit Learn on them said the reader was somewhere they were not (2026-09-14)."""
+def test_your_targums_marks_itself_in_the_nav() -> None:
+    """Your targums has its own place since 2026-09-24 (design.md §12). Your words and
+    phrases are reached from the account and mark no place: a nav that lit Learn on them
+    said the reader was somewhere they were not (2026-09-14)."""
     current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES["texts"])
-    assert current == ["learn"]
+    assert current == ["texts"]
     for which in ("words", "phrases"):
         current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES[which])
         assert current == [], which

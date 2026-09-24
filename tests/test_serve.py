@@ -2306,6 +2306,28 @@ def test_a_cover_is_served_and_only_from_the_covers_directory(
     assert climbing == 404
 
 
+def test_a_video_import_without_a_cover_shows_its_own_frame(
+    served: tuple[int, str, Path],
+) -> None:
+    port, key, out = served
+    (out / "local" / "clip").mkdir(parents=True)
+    (out / "local" / "clip" / "poster.jpg").write_bytes(b"\xff\xd8\xff" + b"0" * 40)
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Content-Type") or ""
+        finally:
+            connection.close()
+
+    status, body, kind = fetch(f"/thumb/clip?k={key}")
+    assert status == 200 and body.startswith(b"\xff\xd8") and kind == "image/jpeg"
+    climbing, _, _ = fetch(f"/thumb/..%2Fclip?k={key}")
+    assert climbing == 404
+
+
 def built_catalogue_text(out: Path, entry_id: str, titles: list[str]) -> Path:
     """One catalogue text on disk, with chapters, as a build would leave it."""
     from targum.catalogue import CATALOGUE

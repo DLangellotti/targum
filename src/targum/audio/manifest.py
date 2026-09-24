@@ -69,6 +69,12 @@ class AudioManifest(BaseModel):
         return None
 
 
+#: A video import's own picture, one frame of its first cut, beside the reader
+#: (design.md §12, 2026-09-24). Written by `video.poster.ensure`, served by `/thumb/<name>`
+#: when no cover was drawn.
+POSTER = "poster.jpg"
+
+
 def write(folder: Path, manifest: AudioManifest) -> None:
     write_atomic(folder / MANIFEST, manifest.model_dump_json(indent=2) + "\n")
 

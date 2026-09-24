@@ -880,9 +880,12 @@ def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
         """
     )
     open_page.goto(page_file.as_uri())
-    open_page.wait_for_selector(".bin")
-    open_page.locator(".open-chapters").first.click()
-    open_page.locator(".bin").first.click()
+    # Chapters and Delete are under the row's ⋯ since 2026-09-24 (design.md §12).
+    open_page.wait_for_selector(".row-more")
+    open_page.locator(".row-more").first.click()
+    open_page.locator(".row-menu .open-chapters").click()
+    open_page.locator(".row-more").first.click()
+    open_page.locator(".row-menu .bin").click()
     open_page.wait_for_selector("li.binned")
     got = open_page.evaluate(
         """() => ({
@@ -893,9 +896,11 @@ def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
         })"""
     )
     assert got == {"note": "יונה is in Trash", "focused": "Undo", "tree": False, "rows": 2}
-    open_page.locator("li.binned .restore").click()
-    open_page.wait_for_load_state("load")
-    open_page.wait_for_selector(".bin")
+    # Undo reloads the page. Waiting on the navigation itself, not on a selector the old
+    # page still matches, or the evaluate below can land in the middle of the reload.
+    with open_page.expect_navigation():
+        open_page.locator("li.binned .restore").click()
+    open_page.wait_for_selector(".row-more")
     posted = open_page.evaluate("() => JSON.parse(sessionStorage.getItem('posted'))")
     context.close()
     assert posted == [["trash", "jonah"], ["restore", "jonah"]]

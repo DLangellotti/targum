@@ -124,9 +124,15 @@ body {
    themselves they fitted three and dropped "+ Add" onto a line of its own (641 to about
    850px, 2026-09-14). Two things give way first — the word "Your", and the language's
    name beside its flag, as on a phone. */
+/* The shelf's place says "Your targums" where "Your" fits, and "Texts" where it does not:
+   the name is lowercase always, and "targums" alone beside Learn and Library read as a
+   typo (2026-09-24). */
+.site-nav .nav-short { display: none; }
 @media (max-width: 60rem) {
   .site-nav { flex-wrap: nowrap; }
   .site-nav .nav-your { display: none; }
+  .site-nav .nav-long { display: none; }
+  .site-nav .nav-short { display: inline; }
   .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 
@@ -777,7 +783,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
     margin: 0;
     padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.25rem;
     background: var(--glass);
     -webkit-backdrop-filter: blur(12px);
