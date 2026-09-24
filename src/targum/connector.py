@@ -38,6 +38,7 @@ from typing import TYPE_CHECKING, Any
 
 from . import level as level_module
 from . import oauth
+from .chat import sources as sources_module
 from .chat import tools as tools_module
 from .errors import TargumError
 
@@ -73,8 +74,13 @@ def exposed(scopes: str | None = None, *, person: Person | None = None) -> list[
     is not offered.
     """
     out = []
+    following = any(one.feed for one in sources_module.load())
     for tool in tools_module.REGISTRY:
         if tool.needs_consent or tool.name in NOT_OVER_MCP:
+            continue
+        if tool.name == "search_sources" and not following:
+            # A tool that can only answer "we don't follow any publishers yet" is a tool
+            # a host calls, and then says that to the reader.
             continue
         if tool.needs_account and person is None and scopes is None:
             continue
@@ -201,17 +207,29 @@ def build(library: Library, store: Store | None) -> Any:
         raise TargumError(
             "The connector needs the mcp package.", "Install it: uv sync --extra mcp"
         ) from error
+    from mcp.types import ToolAnnotations
+
+    from . import mcp_http
+
     ctx = context(library, store)
-    server = MCPServer(
-        "targum",
-        instructions=(
-            "targum is a reading app for people learning Hebrew. These tools read the "
-            "reader's own shelf and ledger and the library; none of them spends money. A "
-            "quote is information — the reader starts a build on targum's own page."
-        ),
-    )
+    # The remote connector's instructions, so both halves send a host to how_to_talk and
+    # neither talks about money.
+    server = MCPServer("targum", instructions=mcp_http.INSTRUCTIONS)
     for tool in exposed():
-        server.add_tool(callable_for(tool, ctx), name=tool.name, description=tool.description)
+        hints = tool.hints()
+        server.add_tool(
+            callable_for(tool, ctx),
+            name=tool.name,
+            title=tool.title or tool.name,
+            description=tool.description,
+            annotations=ToolAnnotations(
+                title=tool.title or tool.name,
+                read_only_hint=hints["readOnlyHint"],
+                destructive_hint=hints["destructiveHint"],
+                idempotent_hint=hints.get("idempotentHint"),
+                open_world_hint=hints["openWorldHint"],
+            ),
+        )
     return server
 
 

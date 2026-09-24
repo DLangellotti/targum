@@ -313,10 +313,13 @@ def describe(level: Level) -> str:
 
     code = (level.language or "he").split("-")[0].lower()
     ladder = _ladder_sentence(level, ladder_for(code))
+    # The longest run and never the current one (design.md §12, "The streak is the
+    # longest one, and the current one is refused"): a model handed a current streak says
+    # it back, and a connector's host says it to a reader on a page we do not draw.
     return (
         f"The reader is learning {language_name(code)}. Their ledger: {level.known:,} words "
-        f"marked known, {level.learning:,} still being learned; {level.days:,} days read, a "
-        f"current streak of {level.streak:,} (longest {level.longest:,}); "
+        f"marked known, {level.learning:,} still being learned; {level.days:,} days read, "
+        f"their longest run of days {level.longest:,}; "
         f"{level.sections:,} sections finished across {level.texts:,} texts. {ladder}"
         "Never tell the reader they are 'at a level' or name the rung as a placement — it is "
         "a guide from self-reported words, not a placement and not a test. Quote the real "

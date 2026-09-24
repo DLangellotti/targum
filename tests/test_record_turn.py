@@ -151,7 +151,7 @@ def test_a_language_with_no_contract_is_refused_by_name(tmp_path: Path) -> None:
     """#284: Aramaic holds no conversation, so there is nothing to check it against."""
     ctx, _, _, _ = context(tmp_path, Script(), learning={"he", "arc"})
     said = tools.record_turn(ctx, {"wrote": "מילתא", "language": "arc"})
-    assert "coming" in said["error"] and "Aramaic" in said["error"]
+    assert "not yet in Aramaic" in said["error"]
 
 
 def test_a_language_the_reader_never_chose_is_turned_on_rather_than_refused(
@@ -196,13 +196,38 @@ RECASTS = {
 }
 
 
+#: A line a learner of each might write, with a mistake in it.
+WROTE = {
+    "he": "אני הלך לים אתמול",
+    "it": "ieri sono andata al mare",
+    "fr": "hier je suis allé à la mer",
+    "ru": "вчера я ходил на море",
+}
+
+
 @pytest.mark.parametrize("code", ["he", "it", "fr", "ru"])
 def test_every_language_that_talks_can_be_checked(tmp_path: Path, code: str) -> None:
     client = Script(Reply(RECASTS[code]))
     ctx, _, _, _ = context(tmp_path, client, learning={code})
-    said = tools.record_turn(ctx, {"wrote": "something they wrote", "language": code})
+    said = tools.record_turn(ctx, {"wrote": WROTE[code], "language": code})
     assert "error" not in said, said
-    assert said["recast"]
+    assert said["recast"] and said["checked"] is True
+
+
+@pytest.mark.parametrize("code", ["he", "it", "fr", "ru"])
+def test_a_line_in_another_language_is_not_checked_and_buys_nothing(
+    tmp_path: Path, code: str
+) -> None:
+    """design.md §12, "A scope is a press that lasts": only a line in the language is
+    recast, so a question asked in English spends nothing. It spent on anything."""
+    client = Script()
+    ctx, library, store, person = context(tmp_path, client, learning={code})
+    said = tools.record_turn(ctx, {"wrote": "what does this word mean", "language": code})
+    assert "error" not in said, "not a failure: there was nothing to check"
+    assert said["checked"] is False and "nothing was used" in said["note"]
+    assert not client.requests, "refused before the model was asked"
+    assert store.hours_used(person.id, library._month_from()) == 0
+    assert store.slips(person.id) == []
 
 
 @pytest.mark.parametrize("code", ["yi", "arc"])
@@ -214,7 +239,7 @@ def test_a_language_that_does_not_talk_is_refused_without_buying_a_turn(
     client = Script()
     ctx, _, store, person = context(tmp_path, client, learning={code})
     said = tools.record_turn(ctx, {"wrote": "something they wrote", "language": code})
-    assert "coming" in said["error"]
+    assert "not yet in" in said["error"]
     assert not client.requests, "refused before the model was asked"
     assert store.slips(person.id) == []
 
@@ -248,14 +273,15 @@ def test_nobody_signed_in_checks_nothing(tmp_path: Path) -> None:
 def test_a_box_with_no_model_says_so_rather_than_failing_inside(tmp_path: Path) -> None:
     ctx, _, _, _ = context(tmp_path, client=None)
     said = tools.record_turn(ctx, {"wrote": "אני הלך לים.", "language": "he"})
-    assert "cannot check" in said["error"]
+    assert "can't check lines right now" in said["error"]
 
 
 def test_a_model_that_breaks_hands_the_hours_back(tmp_path: Path) -> None:
     """Releasing is the difference between a failed check and a charged one."""
     ctx, library, store, person = context(tmp_path, Script(RuntimeError("no")))
     said = tools.record_turn(ctx, {"wrote": "אני הלך לים.", "language": "he"})
-    assert "could not check" in said["error"]
+    assert "couldn't check that line" in said["error"]
+    assert "RuntimeError" not in said["error"], "a host would say the class name to a reader"
     assert store.hours_used(person.id, library._month_from()) == 0
     assert store.slips(person.id) == []
 
@@ -263,7 +289,7 @@ def test_a_model_that_breaks_hands_the_hours_back(tmp_path: Path) -> None:
 def test_a_reply_that_is_not_a_recast_keeps_nothing(tmp_path: Path) -> None:
     ctx, _, store, person = context(tmp_path, Script(Reply("I think that looks fine!")))
     said = tools.record_turn(ctx, {"wrote": "אני הלך לים.", "language": "he"})
-    assert "could not read that line back" in said["error"]
+    assert "couldn't read that line back" in said["error"]
     assert store.slips(person.id) == []
 
 

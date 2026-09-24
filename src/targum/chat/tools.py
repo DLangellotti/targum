@@ -30,7 +30,7 @@ is drawn before the first tool needs it.
 **And a scope decides what a connector may even see.** `scope` says which of
 `oauth.SCOPES` a remote client must have been granted before a tool is listed to it at
 all: the library's by default, `record` for anything that reads the reader's own words,
-`check` for the one that prices a text. Over the Anthropic SDK and over stdio there is
+`chat` for the one that prices a text. Over the Anthropic SDK and over stdio there is
 no token and no scope, and the whole registry stands — the reader is the person who
 started the process. See `connector.exposed`.
 """
@@ -180,6 +180,30 @@ class Tool:
     #: (targum-internal#80). Never offered to targum's own chat, which already holds its
     #: conversation to the contract and recasts every line itself — see `anthropic_tools`.
     elsewhere: bool = False
+    #: What a host shows a person in place of the name (MCP's `title`). Claude prints a
+    #: tool's name in its own interface, and "Quote build" or "My hours" is this
+    #: registry's vocabulary said to a reader. The name stays, because hosts already
+    #: connected call tools by it; the title is what somebody reads.
+    title: str = ""
+    #: Whether calling it changes anything the reader has: a playlist, a job waiting on
+    #: their press, a line kept. Everything else only reads (MCP's `readOnlyHint`).
+    writes: bool = False
+    #: Whether it reaches past targum to the web (MCP's `openWorldHint`).
+    open_world: bool = False
+    #: Whether calling it twice with the same arguments does no more than once
+    #: (MCP's `idempotentHint`, which only means something for a tool that writes).
+    idempotent: bool = False
+
+    def hints(self) -> dict[str, bool]:
+        """The tool's MCP annotations. None of them deletes or overwrites anything."""
+        said = {
+            "readOnlyHint": not self.writes,
+            "destructiveHint": False,
+            "openWorldHint": self.open_world,
+        }
+        if self.writes:
+            said["idempotentHint"] = self.idempotent
+        return said
 
 
 def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -311,6 +335,21 @@ def _matches(entry: catalogue_module.Entry, query: str) -> bool:
 # -- the tools ---------------------------------------------------------------------
 
 
+#: What a search in one language also finds. Aramaic sits on the Hebrew shelf — Onkelos
+#: beside its verse, the Gemara beside its Mishnah — and nobody learning Hebrew searching
+#: for either means "not that one".
+_FAMILY: dict[str, set[str]] = {"he": {"he", "arc"}}
+
+
+def _language_asked(ctx: Ctx, args: dict[str, Any]) -> str:
+    """The language a search is held to: the one named, or the conversation's own; ""
+    for "all"."""
+    said = str(args.get("language") or "").strip()
+    if said.lower() in ("all", "any", "*"):
+        return ""
+    return (language_code(said) or ctx.level.language or "he").split("-")[0].lower()
+
+
 def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "")
     register = str(args.get("register") or "")
@@ -322,10 +361,17 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         ceiling = level_module.ceiling_for(ctx.level)
     minutes = args.get("max_minutes")
     limit = max(1, min(int(args.get("limit") or 10), 20))
+    # The conversation's language unless another is named (2026-09-24: an Italian talk
+    # came back for a Hebrew reader). "all" is every language.
+    language = _language_asked(ctx, args)
     mine, shared = _shelf(ctx)
     built = _by_source([*mine, *shared])
     found: list[dict[str, Any]] = []
     for entry in catalogue_module.everything():
+        if language and entry.language.split("-")[0].lower() not in _FAMILY.get(
+            language, {language}
+        ):
+            continue
         if register and entry.register.value != register:
             continue
         if kind and entry.kind.value != kind:
@@ -343,10 +389,37 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if not found and query and ctx.store is not None:
         # What the shelf could not answer is what the operator most wants to know.
         ctx.store.want(query, "")
-    out: dict[str, Any] = {"count": len(found), "texts": found[:limit]}
+    out: dict[str, Any] = {
+        "count": len(found),
+        "language": language or "all",
+        "texts": found[:limit],
+    }
     if ceiling is not None and args.get("max_looked_up_percent") is None:
         out["ceiling_applied"] = int(ceiling)
     return out
+
+
+def _not_ready_yet(ctx: Ctx, entry_id: str) -> str:
+    """How to get a library text that is not on the reader's shelf yet.
+
+    Conditional on what the caller holds, because `quote_build` is offered only where the
+    chat scope was granted and this tool is offered to every connector: telling a host
+    with the library alone to call a tool it does not have is a dead end.
+    """
+    page = f"{ctx.press_at.rstrip('/')}/library/{quote(entry_id)}"
+    return (
+        f"Not on the reader's shelf yet. If quote_build is among your tools, call it with "
+        f"this id; otherwise send them this library link, on a line of its own: {page}"
+    )
+
+
+def _too_many_playlists(ctx: Ctx) -> str:
+    from ..accounts import MOST_PLAYLISTS
+
+    return (
+        f"The reader has {MOST_PLAYLISTS} playlists, the most we keep. Ask them to delete one "
+        "on targum first."
+    )
 
 
 def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -358,11 +431,7 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     row = _entry_row(entry, built)
     row["blurb"] = entry.blurb
     row["how_to_open"] = (
-        "Give the reader the link in `reader`."
-        if built
-        else "Not ready for this reader yet. Call quote_build with this id: the page shows "
-        "a card with a button, and the reader presses it to get the text ready. You "
-        "cannot start one."
+        "Give the reader the link in `reader`." if built else _not_ready_yet(ctx, entry.id)
     )
     return row
 
@@ -439,7 +508,12 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
 def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "").lower()
-    language = str(args.get("language") or "")
+    # A language named holds both halves to it. None named: the reader's own texts are
+    # all theirs and all listed, and the shared shelf is held to the conversation's
+    # language, which is where an Italian talk reached a Hebrew reader.
+    named = str(args.get("language") or "").strip()
+    language = _language_asked(ctx, args) if named else ""
+    starter = _language_asked(ctx, args)
     mine, shared = _shelf(ctx)
     # When each text was last opened and finished, from the reader's own sync. The
     # model answered "what was the last targum I read?" with "the list does not keep
@@ -453,7 +527,15 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         key=lambda row: -times.get(str(row.get("document") or ""), {}).get("opened", 0),
     )
     for row in ordered:
-        if language and str(row.get("language") or "") != language:
+        written = str(row.get("language") or "").split("-")[0].lower()
+        if language and written != language:
+            continue
+        if (
+            row.get("shared")
+            and starter
+            and written
+            and written not in _FAMILY.get(starter, {starter})
+        ):
             continue
         text = " ".join(str(row.get(k) or "") for k in ("title", "author", "name")).lower()
         if query and not all(word in text for word in query.split()):
@@ -512,13 +594,42 @@ def my_vocabulary(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "language": language,
         **by_status,
         "recent": [
-            {"lemma": lemma, "status": status, "band": band} for lemma, status, band, _ in recent
+            {
+                "lemma": lemma,
+                "status": _STATUS.get(-1 if status is None else status, "learning"),
+                "band": band,
+            }
+            for lemma, status, band, _ in recent
+            if band not in ("name", "number")
         ],
     }
 
 
+#: A word's status as a word rather than the store's number: 9 known, 1 to 3 learning,
+#: 0 ignored. A host handed "status": 2 guesses what it means, and says the guess.
+_STATUS: dict[int, str] = {9: "known", 1: "learning", 2: "learning", 3: "learning", 0: "ignored"}
+
+
 def my_progress(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    return ctx.level.state()
+    """Real counts, and nothing a model could say back as a placement or a streak.
+
+    `Level.state()` carries the current streak and the rung the ledger reaches, for the
+    page's own use. Neither goes to a model: the current streak is refused outright
+    (design.md §12, "The streak is the longest one, and the current one is refused"),
+    and a rung handed to a host is a level said to a reader — which is the one thing
+    every contract forbids, on a surface where nothing of ours can stop it being said.
+    """
+    state = ctx.level.state()
+    return {
+        "language": state["language"],
+        "known": state["known"],
+        "learning": state["learning"],
+        "days": state["days"],
+        "longest_run_of_days": state["longest"],
+        "sections": state["sections"],
+        "texts": state["texts"],
+        "ladder": {"name": state["ladder"]["name"], "note": state["ladder"]["note"]},
+    }
 
 
 def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -554,9 +665,14 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         known = row.get("known_share")
         tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
-            row["because"] = f"You know {round(float(known) * 100)}% of its words."
-            row["reason"] = {"key": "suggest.known", "share": round(float(known) * 100)}
             row["known_line"] = level_module.words_in_ten(float(known))
+            # Said the way the card says it, because a host repeats `because` and the rule
+            # is never a percentage (prompts.py). `reason` keeps the number for the page's
+            # own line, which `because_in` draws.
+            row["because"] = (
+                row["known_line"] or f"You know {round(float(known) * 100)}% of its words."
+            )
+            row["reason"] = {"key": "suggest.known", "share": round(float(known) * 100)}
             rank = (0.0, -(float(known) + 0.1 * tilt))
         elif entry.difficulty:
             # Which Hebrew only for Hebrew: every other language's catalogue rows carry
@@ -629,6 +745,20 @@ def language_code(value: str) -> str:
     return by_name.get(said.lower(), said)
 
 
+#: The fields of `Job.state()` that are dollars. The page never draws them as money, and
+#: a host would: it paraphrases whatever it is handed, and "there is no money anywhere
+#: inside the product" (design.md §12, "A cost is credits") covers what a host says on
+#: targum's behalf. So they stay on the in-app card's state and never leave for a host.
+DOLLAR_FIELDS = ("estimate", "meanings", "translation", "transcription")
+
+
+def _for_host(state: dict[str, Any]) -> dict[str, Any]:
+    """A job's state as a host may have it: no dollars, and the credits it uses."""
+    out = {key: value for key, value in state.items() if key not in DOLLAR_FIELDS}
+    out["credits"] = credits_for(float(state.get("seconds") or 0)) if state.get("audio") else 0
+    return out
+
+
 def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Price a text for nothing, and leave a job the reader can press to start.
 
@@ -663,7 +793,7 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             return {
                 "already_built": True,
                 "reader": built["reader"],
-                "note": "Nothing to build. Give the reader the link.",
+                "note": "It is on their shelf already. Give the reader the link in `reader`.",
             }
         source = entry.source
         payload.update(
@@ -716,16 +846,19 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         # (targum-internal#80). The seam is unchanged: `/build/<id>` shows the quote and
         # one button, `Handler._build` is still the only path to `Library.claim`, and
         # what the model holds is a URL rather than a way to spend.
+        state = _for_host(state)
         state["open"] = f"{ctx.press_at}/build/{job.id}"
         return {
             "quote": state,
             "note": (
-                "Give the reader the link in `open` and say in ONE sentence what the "
-                "text is — in their time if you say how long, never in money, never as "
-                "a build. They press it on targum's own page; you cannot. Do not "
-                "describe the button or tell them to press it."
+                "Give the reader the link in `open`, on a line of its own, and say in ONE "
+                "sentence what the text is. If `credits` is more than 0, say it uses that "
+                "many credits; never say money. They confirm it on targum's own page, and "
+                "you cannot. Don't describe the page, don't tell them to press anything, "
+                "and don't call this a quote, a price or a build."
                 if state["stage"] == "ready"
-                else "This cannot be made ready now. Tell the reader why, in one sentence."
+                else "We can't get this text ready now. Tell the reader why in one plain "
+                "sentence, from `error` or `blocked`."
             ),
         }
     return {
@@ -817,7 +950,7 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         ctx.person.id, name, made_by="connector" if ctx.press_at else "chat"
     )
     if made is None:
-        return {"error": "The reader keeps as many playlists as we hold. Ask them to drop one."}
+        return {"error": _too_many_playlists(ctx)}
     for one in held:
         ctx.store.add_to_playlist(
             ctx.person.id,
@@ -906,43 +1039,86 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"quote": state, "lines": kept, "dropped": dropped, "note": note}
 
 
+def credits_for(seconds: float) -> int:
+    """Seconds of audio or video in the unit the reader is told: a credit is a minute
+    (design.md §12, "A cost is credits, and a credit is a minute")."""
+    from ..serve import SECONDS_A_CREDIT
+
+    return round(max(0.0, float(seconds or 0)) / SECONDS_A_CREDIT)
+
+
+#: What a balance is said beside, wherever one is: the rate, so a credit is never a
+#: number somebody has to convert from memory.
+CREDIT_RATE = (
+    "One credit is one minute of audio or video: {month} credits a month is {hours} hours. "
+    "Chatting and reading text are included."
+)
+
+
 def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """The audio allowance, in the only unit a reader is ever told about."""
+    """The month's credits, in the only unit a reader is ever told about.
+
+    Named `my_hours` because hosts already connected call it by that name; what it says
+    is credits (design.md §12, 2026-09-23), and its title says so too.
+    """
     allowed = ctx.library.upload_seconds
     used = (
         ctx.store.hours_used(ctx.person_id, ctx.library._month_from())
         if ctx.store is not None
         else 0.0
     )
+    month = None if allowed is None else credits_for(allowed)
     return {
-        "used_hours": round(used / 3600, 2),
-        "allowed_hours": None if allowed is None else round(allowed / 3600, 2),
-        "left_hours": None if allowed is None else round(max(0.0, allowed - used) / 3600, 2),
+        "credits_used": credits_for(used),
+        "credits_a_month": month,
+        "credits_left": None if allowed is None else credits_for(max(0.0, allowed - used)),
         "month_ends": ctx.library._month_ends(),
-        "note": "Hours, never money. Text is unlimited; only recordings and video count.",
+        "note": (
+            "No monthly limit on this account."
+            if allowed is None
+            else CREDIT_RATE.format(month=month, hours=f"{allowed / 3600:g}")
+        )
+        + " Say it in credits, never in money.",
     }
 
 
 # -- playlists (targum-internal#364) ---------------------------------------------------
 
 
+def _playlist_link(ctx: Ctx, playlist_id: int, items: list[dict[str, Any]]) -> str:
+    """Where a playlist opens: its first ready text, carrying the list and its place in
+    it so the reader swipes on to the next (`playlists.js`'s `listed`), or the playlists
+    page while nothing in it is ready. Absolute over the connector, like every link."""
+    first = next((one for one in items if one.get("reader") and not one.get("failed")), None)
+    if first is None:
+        return f"{ctx.press_at.rstrip('/')}/playlists"
+    at = reader_url(str(first["reader"]), ctx.press_at)
+    return f"{at}?list={playlist_id}&at={int(first.get('position') or 0)}"
+
+
 def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """The reader's playlists, and what is in each, in order."""
+    """The reader's playlists, and what is in each, in order, each with its own link."""
     if ctx.store is None or ctx.person is None:
         return {"error": "This needs an account."}
     out = []
     for row in ctx.store.playlists(ctx.person.id):
         found = ctx.store.playlist(ctx.person.id, int(row["id"])) or {}
+        items = list(found.get("items") or [])
         out.append(
             {
                 "name": row["name"],
+                "open": _playlist_link(ctx, int(row["id"]), items),
                 "texts": [
                     {
                         "title": item["title"],
-                        "reader": reader_url(str(item["reader"])) if item.get("reader") else None,
+                        "reader": (
+                            reader_url(str(item["reader"]), ctx.press_at)
+                            if item.get("reader")
+                            else None
+                        ),
                         "ready": bool(item.get("reader")) and not item.get("failed"),
                     }
-                    for item in found.get("items") or []
+                    for item in items
                 ],
             }
         )
@@ -951,8 +1127,8 @@ def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
 def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Put a text already on the reader's shelf into one of their playlists, making the
-    playlist if there is none by that name. Nothing is built or spent: a text that is
-    not on the shelf yet is quoted like any other, and the reader presses."""
+    playlist if there is none by that name. Nothing is got ready or spent, and a text
+    that is not on the shelf is refused: `quote_set` is the door for one that isn't."""
     if ctx.store is None or ctx.person is None:
         return {"error": "This needs an account."}
     wanted = " ".join(str(args.get("playlist") or "").split())
@@ -964,7 +1140,10 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # model cannot put an address or somebody else's text into a list by naming it.
     row = next((one for one in [*mine, *shared] if str(one["name"]) == text), None)
     if row is None:
-        return {"error": "That text is not on the reader's shelf. Find it with search_my_shelf."}
+        return {
+            "error": "That text isn't on the reader's shelf. Find it with search_my_shelf, "
+            "or use quote_set for one that isn't ready yet."
+        }
     person = ctx.person.id
     existing = next(
         (one for one in ctx.store.playlists(person) if one["name"].lower() == wanted.lower()),
@@ -975,16 +1154,22 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             person, wanted, made_by="connector" if ctx.press_at else "chat"
         )
         if existing is None:
-            return {"error": "The reader keeps as many playlists as we hold. Use one of those."}
+            return {"error": _too_many_playlists(ctx)}
     added = ctx.store.add_to_playlist(
         person, int(existing["id"]), str(row.get("title") or text), reader=text
     )
     if added is None:
-        return {"error": "That playlist is full."}
+        from ..accounts import MOST_IN_PLAYLIST
+
+        return {
+            "error": f"That playlist holds {MOST_IN_PLAYLIST} texts, the most it can. "
+            "Start another."
+        }
+    found = ctx.store.playlist(person, int(existing["id"])) or {}
     return {
         "playlist": existing["name"],
         "added": str(row.get("title") or text),
-        "open": "/playlists",
+        "open": _playlist_link(ctx, int(existing["id"]), list(found.get("items") or [])),
     }
 
 
@@ -1156,8 +1341,8 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         advice: list[str] = []
         if not subtitled:
             advice.append(
-                "No written Hebrew subtitles: the recording would be transcribed, and the "
-                "hours count against the audio allowance."
+                "No written Hebrew subtitles, so the recording would be transcribed: it "
+                f"uses about {credits_for(media.duration)} credits."
             )
         else:
             advice.append("Has Hebrew subtitles somebody wrote, so nothing is transcribed.")
@@ -1169,7 +1354,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "kind": "video",
             "title": media.title,
             "seconds": round(media.duration),
-            "hours": round(media.duration / 3600, 2),
+            "credits": credits_for(media.duration),
             "audio_language": heard,
             "hebrew_subtitles": subtitled,
             "advice": advice,
@@ -1209,19 +1394,19 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
         media = screen_module.from_ytdlp(info)
         said = [
-            "An Instagram reel: it has no subtitles, so the recording would be transcribed "
-            "and the minutes count against the audio allowance."
+            "An Instagram reel: it has no subtitles, so the recording would be transcribed. "
+            f"It uses about {credits_for(media.duration or instagram_module.GUESS_S)} credits."
         ]
         if not media.duration:
             said.append(
-                "Instagram did not say how long it runs, so it is priced at "
+                "Instagram did not say how long it runs, so that is counted as "
                 f"{round(instagram_module.GUESS_S / 60)} minutes."
             )
         return {
             "kind": "video",
             "title": media.title.strip(),
             "seconds": round(media.duration or instagram_module.GUESS_S),
-            "hours": round((media.duration or instagram_module.GUESS_S) / 3600, 2),
+            "credits": credits_for(media.duration or instagram_module.GUESS_S),
             "audio_language": "",
             "hebrew_subtitles": False,
             "advice": said,
@@ -1246,12 +1431,12 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "kind": "video",
             "title": media.title.strip(),
             "seconds": round(media.duration),
-            "hours": round(media.duration / 3600, 2),
+            "credits": credits_for(media.duration),
             "audio_language": "",
             "hebrew_subtitles": False,
             "advice": [
-                "A TikTok: the recording would be transcribed, and the minutes count "
-                "against the audio allowance."
+                "A TikTok: the recording would be transcribed. It uses about "
+                f"{credits_for(media.duration)} credits."
             ],
             "quote_with": tiktok_module.home_url(str(info.get("webpage_url") or url)) or url,
             **_licence_row(media.licence),
@@ -1262,8 +1447,8 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         # pass it on instead of reading the login wall as an article.
         return {
             "kind": "video",
-            "error": f"{named.name} doesn't let us fetch its videos. Download the video "
-            "there and drop the file into Add.",
+            "error": f"{named.name} doesn't let us fetch its videos. Download it and add "
+            "the file on targum.",
         }
 
     host = (parsed.hostname or "").lower()
@@ -1293,7 +1478,9 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "A video: only its sound is read, unless the pictures are kept."
             if watching
             else "A recording.",
-            "It would be transcribed; the hours count against the audio allowance.",
+            f"It would be transcribed, and uses about {credits_for(seconds)} credits."
+            if seconds
+            else "It would be transcribed, and uses a credit a minute.",
         ]
         if not seconds:
             # Said rather than guessed. The length is read for certain when the file is
@@ -1305,7 +1492,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "medium": "video" if watching else "audio",
             "content_type": front.content_type,
             "seconds": round(seconds),
-            "hours": round(seconds / 3600, 2) if seconds else None,
+            "credits": credits_for(seconds) if seconds else None,
             "megabytes": round(front.length / (1024 * 1024), 1) if front.length else None,
             "has_transcript": False,
             "advice": said,
@@ -1327,12 +1514,15 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "kind": "recording",
             "title": found.title,
             "seconds": round(found.seconds),
-            "hours": round(found.seconds / 3600, 2) if found.seconds else None,
+            "credits": credits_for(found.seconds) if found.seconds else None,
             "has_transcript": bool(found.transcript_url),
             "advice": [
                 "Its own transcript comes with it, so nothing is transcribed."
                 if found.transcript_url
-                else "It would be transcribed; the hours count against the audio allowance."
+                else "It would be transcribed, and uses about "
+                f"{credits_for(found.seconds)} credits."
+                if found.seconds
+                else "It would be transcribed, and uses a credit a minute."
             ],
             "quote_with": url,
             **_licence_row(""),
@@ -1492,7 +1682,7 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {
             "count": 0,
             "items": [],
-            "note": "No publishers with feeds are registered on this box.",
+            "note": "We don't follow any publishers yet.",
         }
     items: list[dict[str, Any]] = []
     skipped: list[str] = []
@@ -1555,10 +1745,12 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = ctx.library.jobs.get(str(args.get("id") or ""))
     if job is None or job.owner != ctx.person_id:
-        return {"error": "No build of yours has that id."}
-    state = job.state()
+        return {"error": "None of the reader's texts has that id."}
+    # Read by a model on either surface and drawn by no page, so it never carries money.
+    state = _for_host(job.state())
     if state.get("reader"):
-        state["open"] = f"{ctx.press_at.rstrip('/')}/reader/{state['reader']}"
+        folder = str(state["reader"]).removesuffix("/reader/index.html")
+        state["open"] = reader_url(folder, ctx.press_at)
     return state
 
 
@@ -1585,8 +1777,18 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if ctx.person is None or ctx.store is None:
         return {"error": "This needs an account."}
     if language not in hebrew_module.TALKED:
-        talks = ", ".join(sorted(language_name(one) for one in hebrew_module.TALKED))
-        return {"error": f"We can check {talks}. {language_name(language)} is coming."}
+        return {"error": _not_yet(language)}
+    if not hebrew_module.written_in(wrote, language):
+        # Nothing to judge, so nothing is claimed: a question in English, a link, a line
+        # of numbers. design.md §12: only a line in the language is recast.
+        return {
+            "checked": False,
+            "note": (
+                f"That line isn't in {language_name(language)}, so there was nothing to "
+                "check and nothing was used. Answer it as the contract says, with the "
+                "recast written yourself."
+            ),
+        }
     if hebrew_module.words_in(wrote) > check_module.MOST_WORDS:
         return {
             "error": (
@@ -1595,7 +1797,7 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             )
         }
     if ctx.ask is None:
-        return {"error": "This box cannot check a line."}
+        return {"error": "We can't check lines right now. Carry on without the check."}
     from ..serve import Job
 
     job = Job(
@@ -1619,13 +1821,13 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": refused}
     try:
         said = check_module.recast(ctx, language, wrote, ctx.ask())
-    except Exception as broke:  # noqa: BLE001 - the model reads this, a reader does not
+    except Exception:  # noqa: BLE001 - the model reads this, and a host repeats it
         ctx.library.release(job)
-        return {"error": f"We could not check that line. {type(broke).__name__}"}
+        return {"error": "We couldn't check that line. Nothing was used. Carry on without it."}
     job.spent = ctx.usage.cost()
     ctx.library.settle(job)
     if said is None:
-        return {"error": "We could not read that line back. Nothing was kept."}
+        return {"error": "We couldn't read that line back, so nothing was kept."}
     kept = check_module.keep(ctx, language, wrote, said, "connector")
     # And the language goes on, if it was not already (2026-09-23). This is the first
     # moment anything of the reader's is written in it, and it happens under `chat` —
@@ -1633,47 +1835,67 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # to practise wrote nothing and needed no scope; writing a line does both.
     turned_on = ctx.store.also_learning(ctx.person.id, language)
     return {
+        "checked": True,
         "recast": said.hebrew,
         "meaning": said.english,
         "why": said.why,
         "changed": bool(kept),
         "learning": turned_on,
         "note": (
-            "Show the reader this recast and the reason, in their own conversation. It "
-            "is kept on their record and will come back to them on targum."
+            "Show the reader this recast and the reason, in their own conversation. "
+            "We'll remember it and bring it back on targum."
             if kept
             else "That line was already right. Say so briefly and carry on."
         ),
     }
 
 
-#: What a host is told on top of the contract, because there the host writes the replies
-#: and targum does not (design.md §12, "The connector talks by the contract",
-#: 2026-09-23). Three things differ from targum's own page and nothing else does.
-ELSEWHERE = """You are holding this conversation for targum, inside another app. The contract
+def _not_yet(language: str) -> str:
+    """The refusal for a language targum does not talk in, naming the ones it does."""
+    talks = sorted(language_name(one) for one in hebrew_module.TALKED)
+    said = ", ".join(talks[:-1]) + f" and {talks[-1]}" if len(talks) > 1 else talks[0]
+    return f"We talk in {said}, not yet in {language_name(language)}."
+
+
+def elsewhere(language: str = "he", gloss: str = "English") -> str:
+    """What a host is told on top of the contract, because there the host writes the
+    replies and targum does not (design.md §12, "The connector talks by the contract",
+    2026-09-23). Three things differ from targum's own page and nothing else does.
+
+    In the conversation's own language, and quoting the contract's own rule word for
+    word: it said Hebrew to an Italian conversation, and named a rule ("never a Hebrew
+    line without its line") that no contract says in those words.
+    """
+    named = language_name(language)
+    article = "an" if named[:1] in "AEIOU" else "a"
+    return f"""You are holding this conversation for targum, inside another app. The contract
 below is the one targum's own chat is held to, and you keep to it, with three changes,
 because here you write the replies and there is no targum page to draw them:
 
-- The meaning lines. On targum's page every "= " line is folded under its Hebrew and a
-  tap opens it; you cannot fold, so the tap here is the reader asking. Write the Hebrew
+- The meaning lines. On targum's page every "= " line is folded under its {named} and a
+  tap opens it; you cannot fold, so the tap here is the reader asking. Write the {named}
   lines, and the "= " line only when the reader asks what something means or asks for
   the translation — for the lines they asked about, or for every line from then on if
   that is what they asked for, until they say otherwise. A new word you bring in still
   gets its meaning, on one "= " line after the reply naming only the new words. In your
-  first reply, say once, in one short Hebrew line with its meaning, that they can ask
-  for the translation at any time. This overrides "never a Hebrew line without its
-  line" below and nothing else.
+  first reply, say once, in one short {named} line with its meaning, that they can ask
+  for the translation at any time. This overrides this rule below, and nothing else:
+  "Never {article} {named} line without its {gloss} line."
 - The reader's own line. When record_turn is among your tools, call it with every line
-  the reader writes in the language this conversation is in, exactly as they wrote it,
-  before you answer, and make the recast it returns your "> " line and its why your
-  "~ " line — targum's judgement, not yours, because it is the one that is kept on their
-  record. Never send it your own correction. A line they wrote in another language you
-  say in Hebrew yourself, as the contract says, and nothing is kept. Without
-  record_turn, write the recast yourself.
+  the reader writes in {named}, exactly as they wrote it, before you answer, and make
+  the recast it returns your "> " line and its why your "~ " line — targum's judgement,
+  not yours, because that is the one we remember and bring back to them on targum.
+  Never send it your own correction. A line they wrote in another language you say in
+  {named} yourself, as the contract says, and nothing is kept. Without record_turn,
+  write the recast yourself.
 - Doors. Where the contract speaks of a path the page draws as a door, give the link
   the tool returned, on a line of its own.
 
 Everything else holds: the vocabulary below, the length, the recast, never a level."""
+
+
+#: The Hebrew one, which is the one most hosts are handed.
+ELSEWHERE = elsewhere("he")
 
 
 def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -1687,8 +1909,7 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """
     language = str(args.get("language") or "he").split("-")[0].lower()
     if language not in hebrew_module.TALKED:
-        talks = ", ".join(sorted(language_name(one) for one in hebrew_module.TALKED))
-        return {"error": f"We talk in {talks}. {language_name(language)} is coming."}
+        return {"error": _not_yet(language)}
     # What the reader is *already* learning does not gate this (2026-09-23). It did, and
     # an account set to Hebrew alone met "je veux pratiquer mon français" with a refusal
     # naming its own configuration — turning the plainest possible statement of what
@@ -1699,45 +1920,77 @@ def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # The contract is offered to every connector, the words only to one granted
     # `record`: a reader who shared only the library still gets the conversation in
     # Hebrew, graded to the commonest words rather than their own.
-    if store is not None and person_id is not None and ctx.sees_record:
+    shared = store is not None and person_id is not None and ctx.sees_record
+    returning: hebrew_module.Returning | None = None
+    if store is not None and person_id is not None and shared:
         level = level_module.snapshot(store, person_id, language)
-        known = hebrew_module.known_words(store, person_id, language)
+        # The ledger holds whatever a reader tapped, and "and", "the", digits and single
+        # letters are in it; a host told these are the words they know writes with them.
+        known = hebrew_module.for_host(
+            hebrew_module.known_words(store, person_id, language), language
+        )
         # One slice of the ledger a day, so a conversation that asks twice is told the
         # same words both times.
         seed = int(time.time() // 86400)
-        returning = hebrew_module.bring_back(store, person_id, language, seed=seed)
+        back = hebrew_module.bring_back(store, person_id, language, seed=seed)
+        returning = hebrew_module.Returning(
+            new=hebrew_module.for_host(back.new, language),
+            learning=hebrew_module.for_host(back.learning, language),
+            nearly=hebrew_module.for_host(back.nearly, language),
+            known=hebrew_module.for_host(back.known, language),
+            phrases=back.phrases,
+        )
         rules = hebrew_module.recurring(
             store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
         )
     else:
-        level, known, returning, rules = level_module.EMPTY, [], None, []
-    common = hebrew_module.common_words(language=language)
+        level, known, rules = replace(level_module.EMPTY, language=language), [], []
+    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
     gloss = language_name(ctx.language)
     return {
         "language": language,
         "contract": "\n\n".join(
             [
-                ELSEWHERE,
+                elsewhere(language, gloss),
                 hebrew_module.contract_for(language, gloss),
-                hebrew_module.ledger_block(level, known, common, returning, rules),
+                hebrew_module.ledger_block(level, known, common, returning, rules, shared=shared),
             ]
         ),
     }
 
 
+#: The language a search is held to, as a schema property: the conversation's own
+#: unless another is named.
+_LANGUAGE_FILTER = {
+    "type": "string",
+    "description": 'A language code, or "all". Leave it out for the language the reader '
+    "is learning here.",
+}
+
+#: The language to translate into, as quote_build and each item of quote_set take it.
+_TRANSLATE_INTO = {
+    "type": "string",
+    "enum": [code for code, _ in INTO],
+    "description": "The code of the language to translate into: "
+    + ", ".join(f"{code} for {language_name(code)}" for code, _ in INTO)
+    + ". Leave it out for the language the reader reads.",
+}
+
 REGISTRY: tuple[Tool, ...] = (
     Tool(
         "search_library",
-        "Search the public library of texts with published translations. Filter by "
-        "register (which Hebrew), kind, how much a learner looks up, or reading time. "
-        "Returns whether each text is already on the reader's shelf and, if so, its link "
-        "and how much of it they know.",
+        "Search targum's public library: texts with published translations, in the "
+        "language the reader is learning here unless you name another. Filter by register "
+        "(which Hebrew), kind, how much a learner looks up, or reading time. Each result "
+        "says whether it is already on the reader's shelf and, if so, gives its link and "
+        "how much of it they know. Read only.",
         _schema(
             {
                 "query": {
                     "type": "string",
                     "description": "Words to match in title, author, blurb.",
                 },
+                "language": _LANGUAGE_FILTER,
                 "register": {"type": "string", "enum": REGISTERS},
                 "kind": {"type": "string", "enum": KINDS},
                 "max_looked_up_percent": {"type": "integer", "minimum": 0, "maximum": 100},
@@ -1746,37 +1999,44 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         search_library,
+        title="Search the library",
     ),
     Tool(
         "open_library_text",
-        "One library text by id: its blurb, whether it is built for this reader, and the "
-        "link to open it if it is.",
+        "One library text by id: what it is, whether it is on the reader's shelf, the "
+        "link to open it if it is, and how to get it if it isn't. Read only.",
         _schema({"id": {"type": "string"}}, ("id",)),
         open_library_text,
+        title="Look at a library text",
     ),
     Tool(
         "search_my_shelf",
-        "The reader's own built texts and the shared starter shelf, newest opened first, "
-        "each with its link, which languages it opens in, chapters ready, how much of it "
-        "they know, when they last opened it and when they finished it.",
-        _schema({"query": {"type": "string"}, "language": {"type": "string"}}),
+        "The reader's own texts and the shared starter shelf, newest opened first, each "
+        "with its link, which languages it opens in, chapters ready, how much of it they "
+        "know, when they last opened it and when they finished it. The starter shelf is "
+        "held to the language the reader is learning here unless you name one. Read only.",
+        _schema({"query": {"type": "string"}, "language": _LANGUAGE_FILTER}),
         search_my_shelf,
         scope="record",
+        title="Search my texts",
     ),
     Tool(
         "sentences_with",
         "Up to five sentences from the texts on the reader's shelf, and the shared one, in "
         "which a word appears, found by its dictionary form so every inflected form counts; "
         "each with the form it takes there and the text it is from. For setting two uses "
-        "side by side — a Russian verb beside its aspect partner — from what the reader has.",
+        "side by side — a Russian verb beside its aspect partner — from what the reader "
+        "has. Read only.",
         _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
         sentences_with,
         scope="record",
+        title="Sentences with a word",
     ),
     Tool(
         "my_vocabulary",
-        "The reader's ledger of words in one language: how many known, how many still "
-        "being learned, and the most recently marked.",
+        "The reader's word list in one language: how many words they know, how many they "
+        "are still learning, and the ones they marked most recently, each as known, "
+        "learning or ignored. Read only.",
         _schema(
             {
                 "language": {"type": "string"},
@@ -1785,20 +2045,26 @@ REGISTRY: tuple[Tool, ...] = (
         ),
         my_vocabulary,
         scope="record",
+        title="My words",
     ),
     Tool(
         "my_progress",
-        "Real counts of what the reader has done: words known, days read, streak, "
-        "sections finished. Never a placement.",
+        "Real counts of what the reader has done: words known, days read, their longest "
+        "run of days, sections finished. Say these counts; never say a level or a rung, "
+        "and never a streak in progress. Read only.",
         _schema({}),
         my_progress,
         scope="record",
+        title="My progress",
     ),
     Tool(
         "suggest_next",
-        "Library texts the reader has not built yet, ranked gentlest first by how much of "
-        "each they already know where that is measured, and by how much a learner looks "
-        "up otherwise. Each comes with one reason.",
+        "Library texts to read next, in the language the reader is learning, leaving out "
+        "the texts they brought in themselves. Some are on the shared shelf and open "
+        "straight away (`on_shelf`, with a `reader` link); the rest need getting ready "
+        "first. Ranked gentlest first, by how much of each they know where that is "
+        "measured and by how much a learner looks up otherwise, each with one reason you "
+        "can say as it is. Read only.",
         _schema(
             {
                 "language": {"type": "string"},
@@ -1809,44 +2075,45 @@ REGISTRY: tuple[Tool, ...] = (
         ),
         suggest_next,
         scope="record",
+        title="What to read next",
     ),
     Tool(
         "quote_build",
-        "Estimate how long a text will take for the reader, free to call: a link (an "
-        "article, a podcast episode, a YouTube address, a Gutenberg or Wikisource id) or a "
-        "library text by id. Returns the estimate the page draws a card from — title, "
-        "language, sentences or chapters, audio length — or why it cannot be built. The "
-        "reader presses the card to start it; you cannot.",
+        "For one text: a link (article, podcast episode, YouTube, Instagram or TikTok "
+        "video, Gutenberg or Wikisource id) or a library id. Free. Returns its length, how "
+        "much of it the reader knows, the credits it uses, and a link the reader opens to "
+        "confirm; you cannot confirm it. For two or more texts use quote_set. A playlist, "
+        "channel or profile address is refused; give single items.",
         _schema(
             {
                 "source": {"type": "string", "description": "A link or fetcher id."},
                 "catalogue_id": {"type": "string", "description": "A library text's id."},
-                "to": {
-                    "type": "string",
-                    "enum": [code for code, _ in INTO],
-                    "description": "The code of the language to translate into: "
-                    + ", ".join(f"{code} for {language_name(code)}" for code, _ in INTO)
-                    + ". Leave it out for the language the reader reads.",
-                },
+                "to": _TRANSLATE_INTO,
             }
         ),
         quote_build,
         scope="chat",
+        title="Get a text ready",
+        writes=True,
+        open_world=True,
     ),
     Tool(
         "describe_source",
-        "What is at a link before it is offered: a YouTube video (length, audio language, "
-        "whether it has Hebrew subtitles somebody wrote), a podcast episode (length, whether "
-        "a transcript comes with it), or an article (words, minutes, how much is Hebrew). "
-        "The licence is recorded, never a refusal. Metadata only; nothing is fetched whole.",
+        "What is at a link before you offer it: a YouTube, Instagram or TikTok video "
+        "(length, the credits it uses, whether it has Hebrew subtitles somebody wrote), a "
+        "podcast episode (length, credits, whether a transcript comes with it), or an "
+        "article (words, minutes, how much is Hebrew). Metadata only; nothing is fetched "
+        "whole and nothing is used.",
         _schema({"url": {"type": "string"}}, ("url",)),
         describe_source,
+        title="Look at a link",
+        open_world=True,
     ),
     Tool(
         "search_sources",
-        "What the Hebrew publishers this box knows have published lately, matched to words "
+        "What the Hebrew publishers targum follows have put out lately, matched to words "
         "in the title or summary. News, podcasts and videos, newest first, each with its "
-        "link to describe or offer.",
+        "link to look at or offer. Read only.",
         _schema(
             {
                 "query": {"type": "string"},
@@ -1855,6 +2122,8 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         search_sources,
+        title="What publishers put out",
+        open_world=True,
     ),
     Tool(
         "quote_conversation",
@@ -1863,15 +2132,17 @@ REGISTRY: tuple[Tool, ...] = (
         "the conversation opens on their shelf with every word tappable and on their ledger.",
         _schema({}),
         quote_conversation,
+        title="Keep this conversation",
+        writes=True,
     ),
     Tool(
         "quote_set",
-        "Estimate a set of texts as one playlist the reader can swipe through, free to "
-        "call: give it a name and up to 20 items, each a link or a library id. Use it "
-        'whenever the reader wants several texts at once ("find me some reels", "make '
-        'me a playlist"); use quote_build for one. Returns every text with what it uses, '
-        "the total, what could not be made and why, and one link: the reader presses it "
-        "on targum's page and every text is made together, or none. You cannot press it.",
+        "For two or more texts at once, as one playlist the reader swipes through: give "
+        "it a name and up to 20 items, each a link or a library id. Free. Use it whenever "
+        'the reader wants several texts ("find me some reels", "make me a playlist"); use '
+        "quote_build for one. Returns every text with the credits it uses, the total, "
+        "what could not be got ready and why, and one link the reader opens to confirm "
+        "them all together; you cannot confirm it.",
         _schema(
             {
                 "name": {"type": "string", "description": "What to call the playlist."},
@@ -1884,6 +2155,7 @@ REGISTRY: tuple[Tool, ...] = (
                             "source": {"type": "string", "description": "A link or fetcher id."},
                             "catalogue_id": {"type": "string"},
                             "title": {"type": "string", "description": "A short title."},
+                            "to": _TRANSLATE_INTO,
                         },
                         "additionalProperties": False,
                     },
@@ -1894,20 +2166,24 @@ REGISTRY: tuple[Tool, ...] = (
         quote_set,
         needs_account=True,
         scope="chat",
+        title="Get a playlist ready",
+        writes=True,
+        open_world=True,
     ),
     Tool(
         "my_playlists",
-        "The reader's playlists, and the texts in each, in order.",
+        "The reader's playlists and the texts in each, with a link to open each one. Read only.",
         _schema({}),
         my_playlists,
         needs_account=True,
         scope="record",
+        title="My playlists",
     ),
     Tool(
         "add_to_playlist",
-        "Put a text already on the reader's shelf (its name, from search_my_shelf) into one "
-        "of their playlists, making the playlist if there is none by that name. Builds and "
-        "spends nothing.",
+        "Add a text that is already on the reader's shelf (its name from search_my_shelf) "
+        "to one of their playlists, making the playlist if needed. Free. For a link that "
+        "isn't ready yet, use quote_set.",
         _schema(
             {
                 "playlist": {"type": "string", "description": "The playlist's name."},
@@ -1923,22 +2199,28 @@ REGISTRY: tuple[Tool, ...] = (
         # A write, so the scope that says it writes: `record` is read-only on the approval
         # page, and a list the reader did not make is more than they agreed to there.
         scope="chat",
+        title="Add to a playlist",
+        writes=True,
+        idempotent=True,
     ),
     Tool(
         "my_hours",
-        "How much of this month's audio allowance the reader has used, in hours, and when "
-        "it returns. Never money.",
+        "How many credits the reader has left this month, how many they get, and when "
+        "they come back. One credit is one minute of audio or video; chatting and reading "
+        "text are included. Say credits, never money. Read only.",
         _schema({}),
         my_hours,
         scope="record",
+        title="My credits",
     ),
     Tool(
         "record_turn",
-        "Check one line of the language the reader is learning, as they wrote it, and "
-        "keep what they got wrong on their record. Send what the READER wrote, never "
-        "your own correction of it: targum checks it itself, so their record has one "
-        "judge. Returns targum's recast, its meaning and one line of why — show them "
-        "that. A line that was already right keeps nothing. Uses the reader's hours.",
+        "Check one line the reader wrote in the language they are practising, exactly as "
+        "they wrote it, and remember what they got wrong. Send what the READER wrote, never "
+        "your own correction of it: targum checks it itself. Returns targum's recast, its "
+        "meaning and one line of why — show them that. A line that was already right keeps "
+        "nothing, and a line in another language is not checked. Chatting is included in "
+        "the reader's plan.",
         _schema(
             {
                 "wrote": {
@@ -1957,14 +2239,16 @@ REGISTRY: tuple[Tool, ...] = (
         needs_account=True,
         scope="chat",
         elsewhere=True,
+        title="Check what I wrote",
+        writes=True,
     ),
     Tool(
         "how_to_talk",
         "Call this first whenever the reader wants to talk, chat or practise in the "
-        "language they are learning. Returns targum's own conversation contract and this "
-        "reader's words: talk to them in that language, graded to what they know, with "
-        "the translation when they ask for it. Hold to it for the rest of the "
-        "conversation. Free.",
+        "language they are learning. Returns targum's own conversation rules and, where "
+        "the reader shared them, their words: talk to them in that language, graded to "
+        "what they know, with the translation when they ask for it. Hold to it for the "
+        "rest of the conversation. Free and read only.",
         _schema(
             {
                 "language": {
@@ -1976,13 +2260,16 @@ REGISTRY: tuple[Tool, ...] = (
         how_to_talk,
         scope="",
         elsewhere=True,
+        title="How to talk with me",
     ),
     Tool(
         "check_job",
-        "Where one of the reader's own builds has got to, by id.",
+        "Where a text the reader is getting ready has got to, by the id quote_build "
+        "returned, with its link once it is ready. Read only.",
         _schema({"id": {"type": "string"}}, ("id",)),
         check_job,
         scope="record",
+        title="Where a text has got to",
     ),
 )
 
@@ -2046,6 +2333,11 @@ def run(name: str, args: dict[str, Any], ctx: Ctx) -> tuple[str, bool]:
         return json.dumps({"error": "This needs the reader's own press, and has none."}), True
     try:
         out = tool.run(ctx, args or {})
-    except Exception as error:  # noqa: BLE001 - the model reads this, a reader does not
-        return json.dumps({"error": f"{type(error).__name__}: {error}"}), True
+    except Exception:  # noqa: BLE001 - the model reads this, and a host repeats it
+        # Never the exception itself: over the connector a host says it to the reader,
+        # and "KeyError: 'reader'" is not a sentence. The log has the traceback.
+        import logging
+
+        logging.getLogger(__name__).exception("tool %s failed", name)
+        return json.dumps({"error": "Something went wrong on our side. Try again later."}), True
     return json.dumps(out, ensure_ascii=False), "error" in out

@@ -64,35 +64,43 @@ CAPABILITIES: dict[str, Any] = {"tools": {"listChanged": False}, "prompts": {"li
 #: said otherwise; `how_to_talk` carries targum's own contract, and this is what sends a
 #: host to it. design.md §12, "The connector talks by the contract".
 INSTRUCTIONS = (
-    "targum is a reading app for people learning Hebrew. These tools read the reader's "
-    "own shelf and ledger and the public library. When the reader wants to talk, chat "
-    "or practise in a language they are learning, call how_to_talk first and hold the "
-    "whole conversation to what it returns: talk to them in that language, graded to "
-    "the words they know, with the translation when they ask for it. A quote is "
-    "information: the reader starts a build by pressing the link a quote comes back "
-    "with, on targum's own page, and you cannot press it for them. Hand them the link "
-    "rather than describing it. For several texts at once, quote_set makes one playlist "
-    "with one link."
+    "targum is a reading app for people learning Hebrew. These tools search the public "
+    "library and, where the reader allowed it, their texts and word list. When the reader "
+    "wants to talk or practise in a language they're learning, call how_to_talk first and "
+    "keep to what it returns for the whole conversation, translation included: only when "
+    "they ask. Nothing you call gets a text ready or charges the reader: quote_build and "
+    "quote_set return a link, and the reader confirms on targum's own page. Give them the "
+    "link on its own line; don't describe the page or tell them to press anything, and "
+    "don't call it a quote or a price. A cost is in credits, never money. For several "
+    "texts at once, use quote_set. When a tool returns an error, tell the reader in one "
+    "plain sentence what happened and what they can do, and don't retry the same call."
 )
 
 #: The prompts a connector offers by name, which is how a reader reaches targum without
 #: having to describe what they want (targum-internal#80, notes 11 and 17). Ours are
 #: fixed; a reader's own are added beside them once they can write one.
+#:
+#: **Each is said in the reader's voice**, because a host drops it into the conversation
+#: as the reader's own message, and **each names the tools its text needs**, so a
+#: connection that was not granted them is not offered a prompt that sends its host to a
+#: tool it does not have (`prompt_shapes`).
 PROMPTS: tuple[dict[str, Any], ...] = (
     {
         "name": "what-next",
         "description": "Find something to read next, chosen for the words you know.",
         "arguments": [],
+        "needs": ("suggest_next", "search_my_shelf"),
         "says": (
-            "Ask targum what this reader should read next. Call suggest_next, then "
-            "search_my_shelf to see what they are already in the middle of, and offer "
-            "two or three with a sentence each about why. Hand over the links."
+            "What should I read next on targum? Call suggest_next, then search_my_shelf "
+            "to see what I'm in the middle of, and offer me two or three with a sentence "
+            "each about why. Give me the links."
         ),
     },
     {
         "name": "talk",
         "description": "Talk in Hebrew, at your own words, with the translation when you ask.",
         "arguments": [],
+        "needs": ("how_to_talk",),
         "says": (
             "Talk with me in Hebrew. Call how_to_talk first and hold to what it returns "
             "for the whole conversation, then open with one short line."
@@ -100,23 +108,26 @@ PROMPTS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "drill",
-        "description": "Work on the words you marked and have not come back to.",
+        "description": "Practise the words you're still learning, in sentences you've read.",
         "arguments": [],
+        "needs": ("my_vocabulary", "sentences_with"),
         "says": (
-            "Call my_vocabulary for the words this reader is still learning, then "
-            "sentences_with for one or two of them, and practise those words in the "
-            "sentences they actually met them in. Never set a test, never keep score."
+            "Call my_vocabulary and pick one or two of my words marked learning, then "
+            "sentences_with for them, and help me practise those words in the sentences "
+            "I actually met them in. Never set me a test, never keep score."
         ),
     },
     {
         "name": "read-with-me",
         "description": "Read a text line by line, with the grammar explained as you go.",
         "arguments": [{"name": "text", "description": "What to read", "required": False}],
+        "needs": ("search_library",),
         "says": (
-            "Find this text with search_my_shelf or search_library and read it with the "
-            "reader a few lines at a time: the Hebrew, what it means, and what is worth "
-            "noticing in the grammar. Let them set the pace."
+            "Find {text} with search_my_shelf or search_library and read it with me a "
+            "few lines at a time: the Hebrew, what it means, and what is worth noticing "
+            "in the grammar. Let me set the pace."
         ),
+        "unnamed": "a text I'd like",
     },
 )
 
@@ -143,36 +154,59 @@ def tool_shapes(tools: list[tools_module.Tool]) -> list[dict[str, Any]]:
 
     `inputSchema`, not `input_schema`: the same dictionaries the Anthropic API is handed
     under a different key, which is most of what the two protocols disagree about.
+
+    Each carries a `title`, which is what a host shows a person, and its annotations —
+    so Claude says "Get a text ready" rather than "Quote build".
     """
     return [
-        {"name": tool.name, "description": tool.description, "inputSchema": tool.schema}
+        {
+            "name": tool.name,
+            "title": tool.title or tool.name,
+            "description": tool.description,
+            "inputSchema": tool.schema,
+            "annotations": {"title": tool.title or tool.name, **tool.hints()},
+        }
         for tool in tools
     ]
 
 
-def prompt_shapes(mine: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+def prompt_shapes(
+    mine: list[dict[str, Any]] | None = None, tools: set[str] | None = None
+) -> list[dict[str, Any]]:
     """The prompts as `prompts/list` says them — everything but what they actually say.
 
     targum's set, then the reader's own beneath it (note 17). A reader's own name can
     never take one of ours: `_prompts` puts ours first and drops a later collision, so
     somebody who writes a `drill` of their own gets ours and is not quietly given a
     different thing under a name they recognise.
+
+    Only those whose tools the caller holds, when `tools` is given: `drill` sends a host
+    to my_vocabulary, and a connection without the record would be offering a prompt that
+    ends in "there is no tool called my_vocabulary here".
     """
     return [
         {key: one[key] for key in ("name", "description", "arguments") if key in one}
-        for one in _prompts(mine)
+        for one in _prompts(mine, tools)
     ]
 
 
-def _prompts(mine: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def _prompts(
+    mine: list[dict[str, Any]] | None, tools: set[str] | None = None
+) -> list[dict[str, Any]]:
     """Ours and theirs, ours first, one name each.
 
     A reader's own prompt is one sentence saying what they want, so it is both the
     description a host lists and the message it sends — there is no second field to
     write and nothing gained by asking for one.
     """
-    out = list(PROMPTS)
-    taken = {one["name"] for one in out}
+    # A name is taken whether or not it is offered, so a reader's own `drill` never
+    # stands in for ours on a connection that was not granted ours.
+    taken = {one["name"] for one in PROMPTS}
+    out = [
+        one
+        for one in PROMPTS
+        if tools is None or all(need in tools for need in one.get("needs", ()))
+    ]
     for one in mine or []:
         name = str(one.get("name") or "")
         if not name or name in taken:
@@ -228,10 +262,14 @@ def handle(
     if method == "tools/list":
         return _result(request_id, {"tools": tool_shapes(connector.exposed(scopes, person=person))})
     mine = store.prompts(person.id) if store is not None and person is not None else []
-    if method == "prompts/list":
-        return _result(request_id, {"prompts": prompt_shapes(mine)})
-    if method == "prompts/get":
-        return _result(request_id, _prompt(str(params.get("name") or ""), mine))
+    if method in ("prompts/list", "prompts/get"):
+        held = {tool.name for tool in connector.exposed(scopes, person=person)}
+        if method == "prompts/list":
+            return _result(request_id, {"prompts": prompt_shapes(mine, held)})
+        return _result(
+            request_id,
+            _prompt(str(params.get("name") or ""), mine, held, params.get("arguments")),
+        )
     if method == "tools/call":
         return _call(
             request_id,
@@ -246,15 +284,29 @@ def handle(
     raise RpcError(METHOD_NOT_FOUND, f"This server has no {method}.")
 
 
-def _prompt(name: str, mine: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """One prompt, as the message a host drops into its own conversation."""
-    found = next((one for one in _prompts(mine) if one["name"] == name), None)
+def _prompt(
+    name: str,
+    mine: list[dict[str, Any]] | None = None,
+    tools: set[str] | None = None,
+    arguments: Any = None,
+) -> dict[str, Any]:
+    """One prompt, as the message a host drops into its own conversation, with its
+    arguments written in where it has any."""
+    found = next((one for one in _prompts(mine, tools) if one["name"] == name), None)
     if found is None:
         raise RpcError(INVALID_PARAMS, f"There is no prompt called {name}.")
+    says = str(found["says"])
+    given = arguments if isinstance(arguments, dict) else {}
+    for argument in found.get("arguments") or []:
+        key = str(argument["name"])
+        value = " ".join(str(given.get(key) or "").split())[:200]
+        if f"{{{key}}}" in says:
+            said = f'"{value}"' if value else str(found.get("unnamed") or "it")
+            says = says.replace(f"{{{key}}}", said)
     return {
         "description": found["description"],
         "messages": [
-            {"role": "user", "content": {"type": "text", "text": str(found["says"])}},
+            {"role": "user", "content": {"type": "text", "text": says}},
         ],
     }
 
@@ -366,7 +418,14 @@ def _one(message: Any, asked: dict[str, Any]) -> dict[str, Any] | None:
         # A traceback out of one tool should not take the connection down: the reader is
         # in the middle of a conversation somewhere else, and one broken call is a line
         # in it rather than the end of it. Same reasoning as `tools.run`'s own catch.
-        return _failed(message.get("id"), INTERNAL_ERROR, f"{type(broke).__name__}: {broke}")
+        # Never the exception's own words: a host says what it is handed, and a class name
+        # and a message are not a sentence for a reader. The log has the traceback.
+        import logging
+
+        logging.getLogger(__name__).exception("mcp request failed", exc_info=broke)
+        return _failed(
+            message.get("id"), INTERNAL_ERROR, "Something went wrong on our side. Try again later."
+        )
 
 
 def _dump(payload: Any) -> bytes:
