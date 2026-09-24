@@ -470,6 +470,26 @@ def test_a_refresh_token_rotates_and_the_old_one_dies(connected: tuple[int, str,
     assert post(port, "/oauth/token", refreshing)[0] == 400, "presented twice means it leaked"
 
 
+def test_a_refresh_mints_the_current_spelling_of_a_renamed_scope(
+    connected: tuple[int, str, Path],
+) -> None:
+    """A grant made as `check` before the rename comes back as `chat` on its next
+    refresh, which is what `oauth.RENAMED` says makes the table converge."""
+    port, _, store_path = connected
+    client_id = a_client(port)
+    store = Store(store_path)
+    who = store.person_by_email("reader@example.com")
+    assert who is not None
+    old = store.mint_token(who.id, client_id, kind="refresh", scopes="library check")
+    status, body, _ = post(
+        port,
+        "/oauth/token",
+        urlencode({"grant_type": "refresh_token", "refresh_token": old, "client_id": client_id}),
+    )
+    assert status == 200, body
+    assert json.loads(body)["scope"] == "library chat"
+
+
 def test_revoking_says_nothing_about_what_it_was(connected: tuple[int, str, Path]) -> None:
     port, session, store_path = connected
     client_id = a_client(port)

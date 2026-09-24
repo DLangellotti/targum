@@ -7626,7 +7626,9 @@ class Handler(BaseHTTPRequestHandler):
         self._oauth_issue(
             int(spent["person"]),
             str(spent["client"]),
-            str(spent["scopes"]),
+            # In the current spelling, so a grant stored as "check" comes back as "chat"
+            # and the table converges on its own (`oauth.RENAMED`).
+            " ".join(oauth.current(str(spent["scopes"]))),
             str(spent["resource"]),
             parent=str(spent["hash"]),
         )
