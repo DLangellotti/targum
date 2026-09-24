@@ -486,8 +486,8 @@
   function grant(app) {
     var scopes = [
       t("connect.scope.library", "Search the library and look up what is at a link"),
-      t("connect.scope.record", "Read your words, your mistakes and how far you have got"),
-      t("connect.scope.chat", "Read what you write and keep it, mark words, turn on a language you practise, and price a text")
+      t("connect.scope.record", "Read your words, your mistakes and your progress"),
+      t("connect.scope.chat", "Read what you write in the language you're learning, keep the lines we correct, get texts and playlists ready for you to confirm, and add a language you practise")
     ];
     return '<div class="sc-grant"><div class="grant"><span class="sc-url">' + esc(ADDRESS.replace(/^https?:\/\//, "").replace(/\/mcp$/, "")) + "/oauth/authorize</span>" +
       '<p class="grant-brand">' + MARK + "<span>targum</span></p>" +

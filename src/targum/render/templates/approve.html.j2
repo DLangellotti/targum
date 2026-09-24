@@ -1,16 +1,17 @@
 {#- The approval page: the one place a scope is granted, and the press design.md §12
-    ("A scope is a press that lasts", 2026-09-22) rests on.
+    ("The grant is one press, and chatting is included", 2026-09-24) rests on.
 
     It is the sign-in page's family — the lockup, one card on the desk, no navigation —
     because it is the same kind of moment: somebody is in the middle of something that
     started somewhere else, and a page with three ways off it would be three ways to
     lose them. It reuses `signin.css` and adds only the scope list.
 
-    Two things on this page are load-bearing rather than decorative. The client's name is
-    said as the client's claim about itself, because dynamic registration means a
-    stranger wrote it. And the spending scope says what it costs, in credits with the rate
-    beside them (§12, 2026-09-23), because a standing grant that did not say so would be a
-    worse seam than the press it replaces. -#}
+    It grants what the app asked for, together, in one press. There are no ticks, and
+    nothing here promises one. Two things are load-bearing rather than decorative. The
+    client's name is the client's claim about itself, because dynamic registration means
+    a stranger wrote it, so the host the reader goes back to stands in bold beside the
+    press. And the spending scope says that chatting is included, because a message
+    rounds to no credits at all (§12, 2026-09-23). -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -33,35 +34,29 @@
   </a>
 
   <div class="door">
-    <h1>{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client=client) }}</h1>
-    <p class="said">{{ t("connect.page.this-is-what-it-would-be-able-to-do", "This is what it would be able to do.") }}</p>
+    <h1>{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client=client or t("connect.page.this-app", "this app")) }}</h1>
+    <p class="said">{{ t("connect.page.it-will-be-able-to", "It will be able to:") }}</p>
 
     <ul class="scopes">
       {%- for scope in scopes %}
-      <li>
-        {#- Through the catalogue, not straight off `oauth.SCOPES`. The three scopes are
-            written in that module as English and were drawn here raw, so a Russian
-            reader met the whole page in their own language except the three lines that
-            say what they are agreeing to (2026-09-23). `tests/test_oauth.py` holds the
-            English here and there to the same words. -#}
-        <span class="scope-says">{{ t("connect.scope." + scope.name, scope.says) }}</span>
-        {#- The rate travels with the number, every time it is shown (§12, 2026-09-23):
-            a credit the reader has to convert from memory is the invented currency §6
-            forbids, and a credit with its equivalence beside it is a minute with a
-            better name. -#}
-        {%- if scope.name == 'chat' %}
-        <span class="scope-cost">{{ t("connect.page.uses-your-credits", "Uses your {credits} credits — about {hours} hours of audio", credits=credits, hours=hours) }}</span>
-        {%- endif %}
-      </li>
+      {#- Through the catalogue, not straight off `oauth.SCOPES`. The three scopes are
+          written in that module as English and were drawn here raw, so a Russian
+          reader met the whole page in their own language except the three lines that
+          say what they are agreeing to (2026-09-23). `tests/test_oauth.py` holds the
+          English here and there to the same words. -#}
+      <li><span class="scope-says">{{ t("connect.scope." + scope.name, scope.says) }}</span></li>
       {%- endfor %}
     </ul>
 
     {%- if spends %}
-    {#- Said once, in words, above the button. A reader who grants this is agreeing to
-        spending that happens later without another press, and the page they agree on is
-        the only place that can tell them so. -#}
-    <p class="said">{{ t("connect.page.we-read-the-hebrew-you-write", "We read the Hebrew you write and keep what you got wrong. A message is a few seconds, so it barely touches your credits, and everything else you say there is yours and costs none of them.") }}</p>
+    {#- Said once, in words, above the button. What the grant lets targum keep, and that
+        talking costs the reader nothing they have to count. -#}
+    <p class="said">{{ t("connect.page.we-read-what-you-write", "We read what you write in the language you're learning and keep the lines we correct. Chatting is included.") }}</p>
     {%- endif %}
+
+    {#- Where the press sends the reader, beside the press and at body size: the heading
+        says what the app calls itself, and this says where it actually lives. -#}
+    <p class="said dest">{{ t("connect.page.then-we-ll-send-you-back-to", "Then we'll send you back to {host}.", host=host) }}</p>
 
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="asked" value="{{ query }}">
@@ -69,8 +64,7 @@
       <button class="ghost" type="submit" name="press" value="refuse">{{ t("connect.page.not-now", "Not now") }}</button>
     </form>
 
-    <p class="aside">{{ t("connect.page.you-can-disconnect-it-later", "You can disconnect it whenever you like, from your account.") }}</p>
-    <p class="aside">{{ t("connect.page.it-will-come-back-to", "It will come back to {redirect}", redirect=redirect) }}</p>
+    <p class="aside">{{ t("connect.page.you-can-disconnect-it-later", "You can disconnect it from your account at any time.") }}</p>
   </div>
 </main>
 </body>

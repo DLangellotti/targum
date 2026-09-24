@@ -48,11 +48,11 @@ from urllib.parse import urlencode, urlparse
 #: `chat` is the one that writes to it and spends their credits doing so.
 SCOPES: tuple[tuple[str, str], ...] = (
     ("library", "Search the library and look up what is at a link"),
-    ("record", "Read your words, your mistakes and how far you have got"),
+    ("record", "Read your words, your mistakes and your progress"),
     (
         "chat",
-        "Read what you write and keep it, mark words, turn on a language you practise, "
-        "and price a text",
+        "Read what you write in the language you're learning, keep the lines we correct, "
+        "get texts and playlists ready for you to confirm, and add a language you practise",
     ),
 )
 

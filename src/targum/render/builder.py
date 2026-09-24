@@ -21,6 +21,7 @@ from datetime import UTC, date, datetime
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
+from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -1703,27 +1704,28 @@ def approve_page(
     client: str,
     scopes: list[dict[str, str]],
     spends: bool,
-    credits: int,
-    hours: int,
     query: str,
     redirect: str,
     language: str = "en",
 ) -> str:
     """Where a reader grants a connector its scopes (targum-internal#80).
 
-    The one press design.md §12 ("A scope is a press that lasts") rests on, so what is
-    on it is not decoration: every scope in words, and what the spending one costs said
-    in credits, with the hours they are worth beside them, before it is granted rather
-    than in a receipt afterwards (§12, 2026-09-23).
+    The one press design.md §12 rests on ("The grant is one press, and chatting is
+    included", 2026-09-24): every scope the app asked for, in words, granted together by
+    Connect. Chatting is said to be included rather than costed, because a message rounds
+    to no credits at all.
 
     `client` is the name the client registered, which is the client's claim about itself
-    and not a fact about who it is — dynamic registration means a stranger wrote it. It
-    is escaped like everything else and shown as what it says it is.
+    and not a fact about who it is — dynamic registration means a stranger wrote it. So
+    the host the reader will be sent back to stands beside the press, in bold: a client
+    that calls itself "targum" still says where it lives.
 
     `query` is the original authorization request, carried through the form so the press
     can be read again from it. Nothing on the grant is taken from the form itself; see
     `serve.Handler._oauth_approve` for why that matters.
     """
+    parsed = urlparse(redirect)
+    host = parsed.netloc or redirect
     return (
         _environment()
         .get_template("approve.html.j2")
@@ -1733,10 +1735,8 @@ def approve_page(
             client=client,
             scopes=scopes,
             spends=spends,
-            credits=credits,
-            hours=hours,
             query=query,
-            redirect=redirect,
+            host=Markup('<b class="host">{}</b>').format(host),
         )
     )
 
@@ -1861,21 +1861,18 @@ def connect_page(language: str = "en", address: str = "") -> str:
     )
 
 
-def connect_refused_page(said: str, language: str = "en") -> str:
+def connect_refused_page(language: str = "en") -> str:
     """A Connect that could not be read, said to the reader instead of to the client.
 
     Its own page rather than a redirect carrying an error: the request that failed is
     one we could not verify, so the address it asked to be sent back to is an address
-    nobody has checked.
+    nobody has checked. The reason is one catalogue line; the client's own description
+    of what was wrong is for the log, not the reader.
     """
     return (
         _environment()
         .get_template("connect_refused.html.j2")
-        .render(
-            t=page_words(language),
-            page_language=_page_language(language),
-            said=said,
-        )
+        .render(t=page_words(language), page_language=_page_language(language))
     )
 
 

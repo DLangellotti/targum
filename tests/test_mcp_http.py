@@ -862,7 +862,7 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
     """
     import re
 
-    from targum import oauth, serve
+    from targum import oauth
     from targum.render import builder
 
     def presses(html: str) -> dict[str, bool]:
@@ -881,8 +881,6 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
         client="Claude",
         scopes=oauth.describe_scopes(("library", "chat")),
         spends=True,
-        credits=serve.UPLOAD_CREDITS,
-        hours=serve.UPLOAD_HOURS,
         query="x=1",
         redirect="https://claude.ai/cb",
     )

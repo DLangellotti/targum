@@ -228,11 +228,12 @@ def test_the_page_says_what_is_being_asked_for(connected: tuple[int, str, Path])
     assert "Claude" in page, "the client's claim about itself, shown as one"
     assert "Search the library" in page
     assert "Read your words" in page
-    assert "turn on a language you practise" not in page, "not asked for, so not granted"
+    assert "add a language you practise" not in page, "not asked for, so not granted"
 
 
-def test_the_spending_scope_says_what_it_costs(connected: tuple[int, str, Path]) -> None:
-    """design.md §12: a standing grant that did not say so is a worse seam than a press."""
+def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str, Path]) -> None:
+    """design.md §12, 2026-09-24: a message rounds to no credits, so the page says that
+    chatting is included, and names no allowance that reads as being spent."""
     port, session, _ = connected
     client_id = a_client(port)
     _, challenge = pkce()
@@ -242,9 +243,11 @@ def test_the_spending_scope_says_what_it_costs(connected: tuple[int, str, Path])
         session=session,
     )
     page = body.decode()
-    assert "turn on a language you practise" in page
-    assert "hours" in page, "in hours, and never in money"
-    assert str(serve.UPLOAD_HOURS) in page
+    assert "add a language you practise" in page
+    assert "Chatting is included." in page
+    said = page.split("<main", 1)[1]  # the page inlines `reader.css`, which says plenty
+    assert "credits" not in said and "hours" not in said, "no allowance on this page"
+    assert '<b class="host">claude.ai</b>' in page, "where Connect sends the reader, in bold"
 
 
 def test_a_signed_out_reader_signs_in_and_is_brought_back(
@@ -271,6 +274,8 @@ def test_a_request_we_cannot_read_is_a_page_and_never_a_redirect(
     assert status == 400
     assert "location" not in headers
     assert b"couldn't finish" in body
+    assert b"We don't know that client" not in body, "the client's detail stays in the log"
+    assert b"Your app sent a request we couldn't check." in body
 
 
 def test_an_unregistered_redirect_never_receives_anything(
