@@ -185,10 +185,10 @@ def test_a_browser_with_nothing_kept_is_told_so() -> None:
 # -- Your targums: the shelf rows (moved here from Learn on 2026-09-11) ---------------
 
 
-def test_a_shelf_row_is_a_row_of_columns() -> None:
-    """It was a stack of two-line entries with the controls floating off to the right —
-    three alignments in one row, which reads as none. One cell each now, under a heading
-    that says what it is."""
+def test_a_shelf_row_says_what_the_text_is_at_a_glance() -> None:
+    """design.md §12, 2026-09-24: the picture, the title, one line of facts, the status,
+    and two keys, Add to playlist and ⋯ for the rest. It was a row of columns under a
+    heading, and a book's "4 of 7 translated" ran into its "4 days ago"."""
     drawn = draw(
         which="texts",
         readers=[
@@ -198,25 +198,24 @@ def test_a_shelf_row_is_a_row_of_columns() -> None:
                 entry="genesis",
                 chapters=[{"number": n} for n in range(50)],
                 readyChapters=50,
+                minutes=12,
             )
         ],
     )
     (row,) = drawn["shelf"]
-    assert drawn["head"] is False, "the columns are labelled"
     assert row["title"] == "בראשית"
     assert row["cover"] is not None
-    assert row["chapters"] == "50 chapters", (
-        "all of it bought, said as a count rather than a fraction"
-    )
-    assert "ago" in row["opened"] or row["opened"] == "not opened yet"
-    assert row["controls"] == ["Chapters", "Add to playlist", "Delete"]
+    assert "12 min read" in row["facts"]
+    assert "translated" not in row["facts"], "all of it bought: nothing to say"
+    assert row["status"] == "New"
+    assert row["controls"] == ["Add to playlist", "⋯"], "Chapters and Delete are under ⋯"
 
 
-def test_a_text_with_one_part_says_so_rather_than_counting_to_one() -> None:
+def test_a_text_with_one_part_has_the_same_two_keys() -> None:
     drawn = draw(which="texts", readers=[reader("article-he", "כתבה")])
     (row,) = drawn["shelf"]
-    assert row["chapters"] == "—", "nothing to count, and nothing pretending there is"
-    assert row["controls"] == ["Add to playlist", "Delete"], "and no chapters to open"
+    assert row["controls"] == ["Add to playlist", "⋯"]
+    assert "translated" not in row["facts"]
 
 
 def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
@@ -234,7 +233,7 @@ def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
         ],
     )
     (row,) = drawn["shelf"]
-    assert row["chapters"] == "2 of 4 translated"
+    assert "2 of 4 translated" in row["facts"]
 
 
 def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:

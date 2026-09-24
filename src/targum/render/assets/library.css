@@ -377,36 +377,18 @@
   .rows .row-video { display: none; }
 }
 
-/* --- the shelf, as a table ------------------------------------------------- */
+/* --- the shelf: what a text is at a glance (design.md §12, 2026-09-24) ------------- */
 
-/* The same row the library draws, with the columns this page has: what it is, how much
-   of it is bought, when it was last open. It was a stack of two-line entries with the
-   controls floating off to the right, which is three alignments in one row and reads as
-   none. */
-.shelf-head,
+/* One row per text: the picture, the title with its English and one line of facts, the
+   status, and the row's two keys. Every track a fixed size or a fraction, never `auto`:
+   each row is its own grid, and an `auto` track sized to its own content put every row's
+   columns in a different place. */
 .books.shelf-rows li {
   display: grid;
-  /* Every track a fixed size or a fraction, and none of them `auto`. Each row is its
-     own grid, so an `auto` track sized to its own content — a row with a Chapters button
-     is wider there than one without, which left a different remainder for the title and
-     put every row's columns in a different place. The header, whose last cell is empty,
-     lined up with none of them. */
-  grid-template-columns: 2.25rem minmax(6rem, 3fr) 5rem 7.5rem 9.75rem;
+  grid-template-columns: 3.5rem minmax(0, 1fr) 6.5rem 11.5rem;
   align-items: center;
-  gap: 0.7rem;
-}
-.shelf-head {
-  padding: 0.3rem 0.5rem;
-  border-block-end: 1px solid var(--hairline);
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.shelf-head[hidden] { display: none; }
-
-.books.shelf-rows li {
-  padding: 0.4rem 0.5rem;
+  gap: 0.85rem;
+  padding: 0.6rem 0.5rem;
   border-block-end: none;
   border-radius: var(--radius-row);
 }
@@ -417,17 +399,16 @@
 .books.shelf-rows li:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
 /* `display: contents` so the cells inside the link are laid out by the row's own grid.
-   The link still covers them; the controls beside it stay their own targets. */
+   The link still covers them; the keys beside it stay their own targets. */
 .books.shelf-rows li > a {
   display: contents;
   color: inherit;
   text-decoration: none;
 }
-/* §8: hover lifts muted to ink. The accent on this page belongs to .rows li.pointed,
-   which is the row the reader was sent here to find. */
 .books.shelf-rows li > a:hover .book-title { color: var(--ink); }
-/* The title cell: the Hebrew title and, under it, its English in ink. */
-.book-what { min-inline-size: 0; }
+.shelf-rows .thumb { inline-size: 3.5rem; block-size: 3.5rem; }
+
+.book-what { min-inline-size: 0; display: grid; gap: 0.1rem; }
 .book-english {
   display: block;
   color: var(--ink);
@@ -436,32 +417,145 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The facts: one line at a desk, cut rather than wrapped, so no row grows taller than
+   its neighbours; wrapped on a phone, where the line is the row's whole second half. */
+.book-facts {
+  display: block;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-facts .fact-status { display: none; }
+.book-facts .fact { white-space: nowrap; }
 
-/* Narrow: the two middle columns go and the row is cover, title, controls. They were
-   fixed tracks — 5rem, 7.5rem, 9.75rem — which is 27rem of row before the title has
-   anything, so under about 36rem the page itself scrolled sideways rather than the row.
-   What survives is what a phone is for: which text, and the way into it. */
-@media (max-width: 46rem) {
-  .shelf-head { display: none; }
+/* Status: New, a part count, Finished with the leaf check (§4: green is progress). */
+.row-status {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+.row-status.new { color: var(--teal); background: var(--teal-wash); }
+.row-status.finished { color: var(--leaf); background: color-mix(in srgb, var(--leaf) 10%, transparent); }
+.row-status svg,
+.fact-status svg { inline-size: 0.85rem; block-size: 0.85rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.book-facts .fact-status.finished { color: var(--leaf); }
+
+/* The row's keys: Add to playlist, tonal, and ⋯, ghost (§13). Never wrapped. */
+.shelf-rows .row-controls {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+}
+.shelf-rows .add-to-list,
+.shelf-rows .row-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.5rem;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+.shelf-rows .add-to-list { padding: 0 0.9rem; background: var(--teal-wash); color: var(--teal); }
+.shelf-rows .add-to-list:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.shelf-rows .row-more {
+  inline-size: 2.5rem;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.shelf-rows .row-more:hover,
+.shelf-rows .row-more[aria-expanded="true"] { background: var(--teal-wash); color: var(--ink); }
+.shelf-rows .add-to-list:focus-visible,
+.shelf-rows .row-more:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
+/* The ⋯ menu: a floating panel (§13: radius 24), its items ghost pills. */
+.row-menu {
+  position: fixed;
+  z-index: 60;
+  display: grid;
+  gap: 0.15rem;
+  min-inline-size: 11rem;
+  padding: 0.4rem;
+  border-radius: 24px;
+  background: var(--paper);
+  box-shadow: var(--lift, 0 8px 28px rgba(0, 0, 0, 0.16));
+  font-family: var(--chrome);
+}
+.row-menu button {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: start;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.row-menu button:hover,
+.row-menu button:focus-visible { background: var(--teal-wash); outline: none; }
+.row-menu button.bin:hover,
+.row-menu button.bin:focus-visible { background: color-mix(in srgb, var(--clay) 10%, transparent); color: var(--clay); }
+.row-menu button:disabled { opacity: 0.5; cursor: default; }
+
+@media (pointer: coarse) {
+  .shelf-rows .add-to-list,
+  .shelf-rows .row-more,
+  .row-menu button { min-block-size: 2.75rem; }
+  .shelf-rows .row-more { inline-size: 2.75rem; }
+}
+
+/* Phone: the picture and the title, the facts wrapping under it with the status folded
+   in, and the two keys. Add to playlist becomes its glyph alone. */
+@media (max-width: 40rem) {
   .books.shelf-rows li {
-    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    align-items: start;
   }
-  .books.shelf-rows li .cell.count,
-  .books.shelf-rows li .cell.when { display: none; }
+  .shelf-rows .thumb { inline-size: 3rem; block-size: 3rem; }
+  .book-facts { white-space: normal; }
+  .book-facts .fact-status { display: inline; }
+  .books.shelf-rows .row-status { display: none; }
+  .shelf-rows .add-to-list { inline-size: 2.75rem; padding: 0; }
+  .shelf-rows .row-controls { flex-direction: column; gap: 0.15rem; }
+  .shelf-rows .add-to-list .add-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.shelf-rows .add-to-list .add-glyph { display: none; inline-size: 1.1rem; block-size: 1.1rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+@media (max-width: 40rem) {
+  .shelf-rows .add-to-list .add-glyph { display: block; }
 }
 .shelf-rows .cell {
   color: var(--ink-soft);
   font-size: 0.6875rem;
   white-space: nowrap;
-}
-.shelf-rows .cell.count {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-}
-.shelf-rows .row-controls {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.3rem;
 }
 
 /* --- the shelf ------------------------------------------------------------ */
@@ -1180,3 +1274,23 @@
 @media (hover: none) and (pointer: coarse) {
   .crumbs button.crumb { min-block-size: 44px; }
 }
+
+/* The way to the reader's playlists, one press from the shelf (2026-09-24): tonal (§13). */
+.shelf-top { margin: 0 0 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.shelf-top .note { margin: 0; }
+.shelf-top .to-playlists {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.shelf-top .to-playlists:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.shelf-top .to-playlists:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
