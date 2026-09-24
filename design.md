@@ -347,6 +347,43 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The shelf says what a text is at a glance, and has its own door — 2026-09-24
+
+David, looking at the shelf: it should tell the reader, without opening anything, the
+text's name, how long it is to read or to watch, its level, when they added it, how much
+of it they know, whether they have read it, and which playlists it is in, with a picture
+where there is one. "Also we need an easier way for the user to quickly navigate to their
+shelf." The shelf was reachable only from Learn's "All your targums", hidden when Learn had
+no cards, and from ⌘K.
+
+- **The nav is five: Learn · Your targums · Library · Your Progress · Add.** This amends
+  "Add is a place again" (2026-09-13), which made it four. The shelf goes second because
+  it is the second most visited: it is where a reader goes back to what they started. On a
+  phone "Your" drops, as it does for Progress, and the bar takes five columns.
+- **A row carries seven facts, in this order:** the picture; the title with its English
+  under it; one line of facts (length, level, known share, and when it was added for an
+  upload or last opened for a library text); its status; and, on the right, Add to
+  playlist and a ⋯ for the rest (chapters, delete). The playlists a text is in are named
+  on the fact line. On a phone the fact line wraps under the title, and status and
+  playlists fold into it.
+- **Length is what the text takes:** minutes to read, or the recording's own length for a
+  video or a recording ("4 min video"), read from the manifest.
+- **A text has a level, and it is the text's, never the reader's.** It is the ulpan rung,
+  with CEFR beside it, whose vocabulary covers 95% of the text's running words, measured
+  from word frequency. That is the standard comprehension threshold, not the tier count
+  the library's Easier/Harder chips use. "Never tell the reader they are at a level" stands:
+  the label says what the text needs, not where the reader is. A band is still not a CEFR
+  level; a whole text's coverage is.
+- **Known share is a percentage on the shelf**, as it already is on the library's cards
+  ("You know 72%"). The count in ten stays on the press card, where it came from.
+- **Status is three words:** New, a part count while reading ("3 of 6"), and Finished,
+  with the leaf check that "Recently read" already uses.
+- **A video import gets a picture:** one frame from its own cut, kept beside the reader
+  and served like a cover. The letter tile stays for a text with no picture.
+
+What it does not overturn: one row per text in one list; covers as the library draws
+them; no counts of things watched; no level on the reader.
+
 ### Asking to practise a language is how you choose it — 2026-09-23
 
 David, in Claude, on the day the connector went live: *"Bonjour, je veux pratiquer mon
@@ -1440,7 +1477,7 @@ open the conversation, press `+`, choose a file and then find "More options" —
 type ⌘K. Its maker asked for the Add page to be reachable from the main navigation, "in
 a sleek way".
 
-So the nav is four: Learn · Library · Your Progress · Add. Add is last because the order
+So the nav is four: Learn · Library · Your Progress · Add. *(Five since 2026-09-24: Your targums is second. See "The shelf says what a text is at a glance".)* Add is last because the order
 is how often somebody wants each one, and bringing a text is the rarest of the four. It
 is drawn as the other three are — a pill, current in the primary on its own page — and
 is the one place whose glyph, a `+`, stands beside its word at a desk as well as over it
