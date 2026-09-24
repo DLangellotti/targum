@@ -27,6 +27,10 @@
   if (!host || !window.fetch) return;
 
   var button = form ? form.querySelector("button") : null;
+  /* The label alone, never the button: the press carries an arrow beside its
+     words (2026-09-24), and `button.textContent = ...` would take the arrow with
+     it the first time this said anything. */
+  var says = button ? button.querySelector(".go-says") || button : null;
   var job = host.getAttribute("data-job");
   /* What a build of this shape has taken here lately, in **seconds** — `Job.state` says
      so, and this page rendered it as minutes until 2026-09-23, promising "about 420
@@ -143,7 +147,7 @@
   function stop(why) {
     if (button) {
       button.disabled = false;
-      button.textContent = t("press.page.read-this", "Read this");
+      says.textContent = t("press.page.read-this", "Read this");
     }
     say(doing, why);
     say(left, "");
@@ -189,7 +193,7 @@
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       button.disabled = true;
-      button.textContent = t("press.page.making", "We're getting it ready");
+      says.textContent = t("press.page.making", "We're getting it ready");
       working();
       fetch("/build/" + encodeURIComponent(job), {
         method: "POST",

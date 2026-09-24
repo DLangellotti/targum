@@ -65,7 +65,7 @@
 
     <form method="post" action="/oauth/authorize">
       <input type="hidden" name="asked" value="{{ query }}">
-      <button class="go" type="submit" name="press" value="approve">{{ t("connect.page.connect", "Connect") }}</button>
+      <button class="go" type="submit" name="press" value="approve"><span class="go-says">{{ t("connect.page.connect", "Connect") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
       <button class="ghost" type="submit" name="press" value="refuse">{{ t("connect.page.not-now", "Not now") }}</button>
     </form>
 
