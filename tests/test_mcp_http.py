@@ -702,6 +702,16 @@ def test_a_build_already_running_is_watched_and_offers_the_way_out() -> None:
     assert "/texts" in page, "no way off the page while it builds"
 
 
+def test_a_second_visit_to_a_finished_build_opens_its_reader() -> None:
+    """`Job.reader` already ends in `reader/index.html` (serve.py sets it so in every
+    build path), and the ready state once added it again, so the link 404'd."""
+    from targum.render import builder
+
+    page = builder.press_page(_quoted(stage="done", reader="abc123/reader/index.html"))
+    assert 'action="/reader/abc123/reader/index.html"' in page
+    assert "reader/index.html/reader" not in page
+
+
 def test_the_press_page_says_its_script_s_words_in_russian() -> None:
     """`press.js` narrates the build, and said it in English on a Russian page until this
     page was handed a `TargumStrings` (targum-internal#184)."""
