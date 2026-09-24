@@ -2032,5 +2032,7 @@
   "playlist-menu.sign-in": "Sign in to use playlists.",
   "playlist-menu.failed": "Couldn't add it. Try again.",
   "playlist-menu.texts.one": "{n} text",
-  "playlist-menu.texts.other": "{n} texts"
+  "playlist-menu.texts.other": "{n} texts",
+  "nav.targums": "targums",
+  "nav.your-many": "Your"
 }

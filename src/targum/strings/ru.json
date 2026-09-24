@@ -2159,5 +2159,7 @@
   "playlist-menu.texts.one": "{n} текст",
   "playlist-menu.texts.few": "{n} текста",
   "playlist-menu.texts.many": "{n} текстов",
-  "playlist-menu.texts.other": "{n} текстов"
+  "playlist-menu.texts.other": "{n} текстов",
+  "nav.targums": "targum",
+  "nav.your-many": "Ваши"
 }

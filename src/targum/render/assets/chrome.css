@@ -777,7 +777,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
     margin: 0;
     padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.25rem;
     background: var(--glass);
     -webkit-backdrop-filter: blur(12px);

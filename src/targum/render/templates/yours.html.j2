@@ -26,10 +26,11 @@
     Same markup and the same scripts as anywhere else a row is drawn, so a row here and a
     row there cannot drift. -#}
 <body class="words learn yours">
-{#- Your targums is where Learn's Recently read goes on, so the nav says Learn. Your words
-    and phrases are reached from the account, and a nav that lit Learn on them said the
-    reader was somewhere they were not (2026-09-14). -#}
-{% set here = 'learn' if which == 'texts' else 'yours' %}{% set title = heading %}
+{#- Your targums has its own place in the nav since 2026-09-24 (design.md §12, "The shelf
+    says what a text is at a glance"). Your words and phrases are reached from the
+    account, and a nav that lit Learn on them said the reader was somewhere they were not
+    (2026-09-14). -#}
+{% set here = 'texts' if which == 'texts' else 'yours' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
