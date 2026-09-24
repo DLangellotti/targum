@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import mimetypes
 import os
 import re
@@ -1772,6 +1773,12 @@ def press_page(job: dict[str, Any], language: str = "en") -> str:
     )
 
 
+def credits_of(seconds: float) -> int:
+    """The credits a recording of this many seconds uses: a credit is a minute, and any
+    part of a minute is a whole one, so twenty seconds of audio is never "0 credits"."""
+    return math.ceil(max(0.0, float(seconds or 0)) / 60 - 1e-9)
+
+
 def set_page(
     playlist: dict[str, Any],
     jobs: list[dict[str, Any] | None],
@@ -1789,7 +1796,7 @@ def set_page(
     rows = []
     total = 0
     for item, job in zip(playlist.get("items") or [], jobs, strict=False):
-        credits = int(round(float(job.get("seconds") or 0) / 60)) if job and job.get("audio") else 0
+        credits = credits_of(float(job.get("seconds") or 0)) if job and job.get("audio") else 0
         stage = "ready" if job is None and item.get("reader") else (job or {}).get("stage", "")
         if item.get("failed"):
             stage = "failed"
@@ -1797,7 +1804,14 @@ def set_page(
             total += credits
         rows.append({"item": item, "job": job, "credits": credits, "stage": stage})
     waiting = [row for row in rows if row["job"] is not None and row["stage"] == "ready"]
-    making = [row for row in rows if row["stage"] in ("queued", "working", "reading")]
+    # Anything claimed and not yet settled is being made, whatever step it is on.
+    making = [
+        row
+        for row in rows
+        if row["job"] is not None
+        and row["stage"] not in ("ready", "done", "failed", "blocked")
+        and not row["item"].get("reader")
+    ]
     first = next(
         (
             row["item"]

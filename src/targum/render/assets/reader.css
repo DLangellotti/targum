@@ -4181,7 +4181,7 @@ html:fullscreen { background: var(--paper); }
   align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
-  font-family: system-ui, sans-serif;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
@@ -4189,22 +4189,41 @@ html:fullscreen { background: var(--paper); }
 .list-up-next,
 .list-waiting { flex: 1 1 100%; margin: 0; }
 
+/* Clear of the player (2026-09-24: its strip stood over Next, and a press there landed
+   on Hear first). The pages are cut around the strip by `room()`, but the list's keys
+   come after the pages, as the Done line does, so they take the same room under them:
+   the strip's height and where it stands, measured by the script into
+   `--player-tall`, and the old figure where nothing has been measured. */
+body.has-player .list-nav,
+body.has-player.list-ended .list-end {
+  margin-block-end: calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 2rem);
+}
+body.has-player.list-ended .list-nav { margin-block-end: 2rem; }
+
+/* §13's pills: Back is a ghost, Next the one filled press in the primary. */
 .list-key {
-  font: inherit;
-  font-size: 0.9375rem;
-  padding: 0.45rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.5rem;
+  padding: 0 1.1rem;
+  border: 0;
   border-radius: 999px;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-  color: var(--ink);
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
   cursor: pointer;
 }
-.list-key.list-next {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--paper);
-}
+.list-key:hover { background: var(--teal-wash); color: var(--ink); }
+.list-key.list-next { background: var(--teal); color: var(--teal-ink); }
+.list-key.list-next:hover { background: var(--teal); color: var(--teal-ink); filter: brightness(1.08); }
 .list-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-key { min-block-size: 44px; }
+}
 
 /* In the picture's keys it is one of them, not a second style. Shown only while
    watching: docked, the foot of the text has its own. */
@@ -4220,11 +4239,73 @@ html:fullscreen { background: var(--paper); }
 }
 .list-end[hidden] { display: none; }
 
-/* The end card's words and its one door (#367): text, not a button, and nothing that
-   moves. */
+/* The end card (#367): the words met, as words in their own face and direction, and
+   its one door, a tonal pill (§13) — nothing that moves. Chrome, so the chrome's face;
+   the words themselves are content, and keep the reading face. */
+.list-end { font-family: var(--chrome); font-size: 0.9375rem; color: var(--ink); }
 .list-end-words,
-.list-end-lead { margin: 0.5rem 0; }
-.list-end-next { display: inline-block; margin-top: 0.25rem; }
+.list-end-lead,
+.list-end-over { margin: 0.5rem 0; }
+.list-end-lead { color: var(--ink-soft); font-size: 0.8125rem; }
+.list-end-list {
+  list-style: none;
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+}
+.list-end-list li { color: var(--ink-soft); }
+.list-end-list li.new { color: var(--ink); }
+.list-end-next,
+.list-end-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-inline-size: 100%;
+  min-block-size: 2.5rem;
+  margin-block-start: 0.25rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.list-end-next:hover,
+.list-end-home:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.list-end-next:focus-visible,
+.list-end-home:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-end-next,
+  .list-end-home { min-block-size: 44px; }
+}
+
+/* Add to playlist, in the bar's This text group: drawn as the bar's other controls are —
+   a pill with no line until the pointer or the focus finds it, in the bar's ink — and
+   never as a bare link. */
+.bar .group .more-playlist {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bar .group .more-playlist:hover,
+.bar .group .more-playlist:focus-visible { color: var(--ink); border-color: var(--rule); }
+.bar .group .more-playlist[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
+.bar-more.open .group .more-playlist { border-color: var(--rule); }
+@media (hover: none) and (pointer: coarse) {
+  .bar .group .more-playlist { min-block-size: 44px; }
+}
 
 /* Add to a playlist, in place (2026-09-24): a floating panel under the press, on every
    page that has a shelf row or a reader's ⋯ menu. §13: radius 24 for a floating panel,
@@ -4273,9 +4354,9 @@ html:fullscreen { background: var(--paper); }
   min-inline-size: 0;
   min-block-size: 2.5rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--hairline);
+  border: 0;
   border-radius: 12px;
-  background: var(--paper);
+  background: var(--field);
   color: var(--ink);
   font: inherit;
 }
@@ -4292,8 +4373,8 @@ html:fullscreen { background: var(--paper); }
 }
 .playlist-menu .pm-confirm:hover { filter: brightness(1.08); }
 .playlist-menu .pm-choice:focus-visible,
-.playlist-menu .pm-name:focus-visible,
 .playlist-menu .pm-confirm:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.playlist-menu .pm-name:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--teal); }
 .playlist-menu .pm-status { margin: 0.5rem 0.25rem 0; color: var(--ink-soft); }
 .playlist-menu .pm-status.bad { color: var(--clay); }
 @media (pointer: coarse) {

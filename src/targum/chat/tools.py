@@ -908,10 +908,16 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": "Give the texts for the set: a link or a library id each."}
     if len(items) > MOST_IN_SET:
         return {"error": f"A set holds at most {MOST_IN_SET} texts. Send fewer."}
+    from ..render.builder import credits_of
+
     name = " ".join(str(args.get("name") or "").split()) or "Playlist"
     # Each item quoted as the chat quotes one, with no press link of its own: the set's
     # is the only press.
     alone = replace(ctx, press_at="")
+    # A text already on a shelf is kept under its own title, not its folder's name: the
+    # model sends what it was shown, and "במעלית-he" reached /set and /playlists live
+    # (2026-09-24). Read once, and only if some item turns out to be built already.
+    titled: dict[str, str] | None = None
     held: list[dict[str, Any]] = []
     refused: list[dict[str, Any]] = []
     for raw in items:
@@ -923,8 +929,18 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             said = quote_build(alone, {**asked, "catalogue_id": said["in_library"]["id"]})
         title = " ".join(str(item.get("title") or "").split())
         if said.get("already_built"):
-            reader = str(said.get("reader") or "")
-            held.append({"title": title or _folder_of(reader), "reader": _folder_of(reader)})
+            folder = _folder_of(str(said.get("reader") or ""))
+            if titled is None:
+                mine, shared = _shelf(ctx)
+                titled = {
+                    str(row["name"]): str(row.get("title") or "")
+                    for row in [*shared, *mine]
+                    if row.get("title") and row.get("title") != row.get("name")
+                }
+            entry = catalogue_module.by_id(str(asked.get("catalogue_id") or ""))
+            given = "" if title == folder else title
+            real = titled.get(folder) or given or (entry.title if entry else "") or folder
+            held.append({"title": real, "reader": folder})
             continue
         quote = said.get("quote")
         if not quote or quote.get("stage") != "ready":
@@ -933,7 +949,7 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 {"source": asked.get("source") or asked.get("catalogue_id") or "", "why": why}
             )
             continue
-        credits = round(float(quote.get("seconds") or 0) / 60) if quote.get("audio") else 0
+        credits = credits_of(float(quote.get("seconds") or 0)) if quote.get("audio") else 0
         held.append(
             {
                 "title": title or str(quote.get("title") or ""),

@@ -293,3 +293,149 @@ def test_the_end_says_what_the_set_held_and_offers_one_next_set(
         assert "/two/" in page.url
     finally:
         context.close()
+
+
+# --- review fixes, 2026-09-24 -------------------------------------------------------
+
+from test_reader_browser import dialogue  # noqa: E402
+
+
+def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    words = [
+        {"word": "שלום", "language": "he", "new": True},
+        {"word": "בית", "language": "he", "new": False},
+    ]
+    context.route(
+        "**/playlists/7/end.json",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "words": {"met": 2, "new": 1, "list": words},
+                    "next": {"id": 9, "name": "More like Reels", "count": 5, "open": "/set/9"},
+                }
+            ),
+        ),
+    )
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
+        page.wait_for_selector("#list-nav")
+        page.click("#video .video-list-next")
+        page.wait_for_selector("#list-end .list-end-next")
+        got = page.evaluate(
+            """() => {
+              const door = getComputedStyle(document.querySelector('#list-end .list-end-next'));
+              return {
+                words: [...document.querySelectorAll('#list-end .list-end-list bdi')]
+                  .map((w) => [w.textContent, w.getAttribute('lang')]),
+                decoration: door.textDecorationLine,
+                radius: door.borderRadius,
+                dir: document.getElementById('list-end').getAttribute('dir'),
+              };
+            }"""
+        )
+        assert got["words"] == [["שלום", "he"], ["בית", "he"]]
+        assert got["decoration"] == "none" and got["radius"] == "999px"
+        assert got["dir"] == "ltr"
+        assert "More like Reels, 5 texts" in page.inner_text("#list-end")
+    finally:
+        context.close()
+
+
+def test_an_end_with_nothing_to_say_still_says_where_you_are(browser, tmp_path) -> None:  # noqa: F811
+    one, two = two_films(tmp_path)
+    context, _ = listed(browser, playlist(one, two))
+    context.route("**/playlists/7/end.json", lambda route: route.fulfill(status=500, body="{}"))
+    page = context.new_page()
+    try:
+        page.goto(at(two, 1))
+        page.wait_for_selector("#list-nav")
+        page.click("#video .video-list-next")
+        page.wait_for_selector("#list-end .list-end-home")
+        assert "That's the end of Reels." in page.inner_text("#list-end")
+        assert page.get_attribute("#list-end .list-end-home", "href").startswith("/playlists")
+    finally:
+        context.close()
+
+
+def test_a_hebrew_title_keeps_its_punctuation_on_its_own_side(browser, tmp_path) -> None:  # noqa: F811
+    text = chapter(tmp_path / "text" / "reader")
+    one = video_reader(tmp_path / "film")
+    answer = playlist(text, one)
+    answer["items"][1]["title"] = "מה טבעונים אוכלים?"
+    context, _ = listed(browser, answer)
+    page = context.new_page()
+    try:
+        page.goto(at(text, 0))
+        page.wait_for_selector("#list-nav .list-up-next bdi")
+        got = page.evaluate(
+            """() => ({
+              dir: document.getElementById('list-nav').getAttribute('dir'),
+              title: document.querySelector('#list-nav .list-up-next bdi').textContent,
+              isolated: document.querySelector('#list-nav .list-up-next bdi').getAttribute('dir'),
+            })"""
+        )
+        assert got == {"dir": "ltr", "title": "מה טבעונים אוכלים?", "isolated": "auto"}
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("viewport", [None, {"width": 390, "height": 844}])
+def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewport) -> None:  # noqa: F811
+    """On an audio scene the strip stood over Next, and a press there hit Hear first."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    one = dialogue(tmp_path / "dialogues", tmp_path / "one" / "x", turns=3, words=True)
+    two = dialogue(tmp_path / "dialogues", tmp_path / "two" / "x", turns=3, words=True)
+    context, _ = listed(browser, playlist(one, two), viewport=viewport)
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav .list-next")
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+        page.wait_for_timeout(200)
+        hit = page.evaluate(
+            """() => {
+              const box = document.querySelector('#list-nav .list-next').getBoundingClientRect();
+              const x = box.left + box.width / 2;
+              const on = document.elementFromPoint(x, box.top + box.height / 2);
+              const strip = document.getElementById('player').getBoundingClientRect();
+              return [on && on.className, box.bottom <= strip.top || box.right <= strip.left];
+            }"""
+        )
+        assert hit == ["list-key list-next", True]
+    finally:
+        context.close()
+
+
+def test_the_arrow_turns_a_paged_scene_and_then_moves_on(browser, tmp_path, monkeypatch) -> None:  # noqa: F811
+    """A page that fits the window has nothing to scroll, so the arrow turns it; at the
+    foot of the last page it goes on to the next item. Before, it did nothing at all until
+    the last page, and the key to Next looked dead."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    one = dialogue(tmp_path / "dialogues", tmp_path / "one" / "x", turns=40, span=0.05)
+    two = dialogue(tmp_path / "dialogues", tmp_path / "two" / "x", turns=3)
+    context = opened(browser, scrolling=False)
+    answer = json.dumps(playlist(one, two))
+    context.route(
+        "**/playlists/*.json",
+        lambda route: route.fulfill(status=200, content_type="application/json", body=answer),
+    )
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav")
+        page.wait_for_function("() => document.body.classList.contains('paged')")
+        pages = page.evaluate("() => window.TargumReader.onLastPage() ? 1 : 2")
+        assert pages == 2, "the scene is long enough to be cut into pages"
+        for _ in range(60):
+            if "/two/" in page.url:
+                break
+            page.keyboard.press("ArrowDown")
+            page.wait_for_timeout(60)
+        page.wait_for_url("**/two/**go=1")
+    finally:
+        context.close()
