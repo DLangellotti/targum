@@ -2121,7 +2121,6 @@
   "connect.screen.your-app": "your app",
   "connect.screen.connect": "Connect",
   "connect.page.in-your-app": "in",
-  "learn.connect.read-hebrew-in-claude": "Read Hebrew inside Claude or ChatGPT, with your words and your mistakes.",
   "learn.connect.connect": "Connect",
   "learn.connect.not-now": "Not now",
   "connect.page.connect-targum": "Connect targum",
@@ -2192,5 +2191,6 @@
   "you.connections.connected-on": "Connected {made}",
   "you.connections.connected-and-used": "Connected {made}, last used {seen}",
   "you.page.your-prompts": "Your prompts",
-  "you.prompts.could-not-remove": "We couldn't remove that. Try again."
+  "you.prompts.could-not-remove": "We couldn't remove that. Try again.",
+  "learn.connect.practise-hebrew-in-claude": "Practise Hebrew in Claude or ChatGPT, with the words you know."
 }

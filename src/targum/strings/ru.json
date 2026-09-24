@@ -2248,7 +2248,6 @@
   "connect.screen.your-app": "приложение",
   "connect.screen.connect": "Подключить",
   "connect.page.in-your-app": "в",
-  "learn.connect.read-hebrew-in-claude": "Читайте на иврите прямо в Claude или ChatGPT — с вашими словами и вашими ошибками.",
   "learn.connect.connect": "Подключить",
   "learn.connect.not-now": "Не сейчас",
   "connect.page.connect-targum": "Подключить targum",
@@ -2319,5 +2318,6 @@
   "you.connections.connected-on": "Подключено {made}",
   "you.connections.connected-and-used": "Подключено {made}, в последний раз использовалось {seen}",
   "you.page.your-prompts": "Ваши промпты",
-  "you.prompts.could-not-remove": "Мы не смогли это удалить. Попробуйте ещё раз."
+  "you.prompts.could-not-remove": "Мы не смогли это удалить. Попробуйте ещё раз.",
+  "learn.connect.practise-hebrew-in-claude": "Практикуйте иврит в Claude или ChatGPT — со словами, которые вы знаете."
 }
