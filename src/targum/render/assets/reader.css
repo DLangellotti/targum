@@ -4225,3 +4225,79 @@ html:fullscreen { background: var(--paper); }
 .list-end-words,
 .list-end-lead { margin: 0.5rem 0; }
 .list-end-next { display: inline-block; margin-top: 0.25rem; }
+
+/* Add to a playlist, in place (2026-09-24): a floating panel under the press, on every
+   page that has a shelf row or a reader's ⋯ menu. §13: radius 24 for a floating panel,
+   the playlists as tonal presses, Confirm the one filled press in it. */
+.playlist-menu {
+  position: fixed;
+  z-index: 60;
+  inline-size: min(18rem, calc(100vw - 1rem));
+  padding: 0.5rem;
+  border-radius: 24px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--lift, 0 8px 28px rgba(0, 0, 0, 0.16));
+  font-family: var(--chrome, system-ui, sans-serif);
+  font-size: 0.9375rem;
+}
+.playlist-menu .pm-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  max-block-size: 14rem;
+  overflow-y: auto;
+}
+.playlist-menu .pm-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.playlist-menu .pm-choice:hover,
+.playlist-menu .pm-choice:focus-visible { background: var(--teal-wash); }
+.playlist-menu .pm-choice bdi { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.playlist-menu .pm-count { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.playlist-menu .pm-new { display: flex; gap: 0.5rem; }
+.playlist-menu .pm-name {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 2.5rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.playlist-menu .pm-confirm {
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.playlist-menu .pm-confirm:hover { filter: brightness(1.08); }
+.playlist-menu .pm-choice:focus-visible,
+.playlist-menu .pm-name:focus-visible,
+.playlist-menu .pm-confirm:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.playlist-menu .pm-status { margin: 0.5rem 0.25rem 0; color: var(--ink-soft); }
+.playlist-menu .pm-status.bad { color: var(--clay); }
+@media (pointer: coarse) {
+  .playlist-menu .pm-choice,
+  .playlist-menu .pm-name,
+  .playlist-menu .pm-confirm { min-block-size: 2.75rem; }
+}

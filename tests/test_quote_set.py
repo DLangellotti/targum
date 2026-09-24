@@ -303,7 +303,7 @@ def test_a_set_that_does_not_fit_claims_nothing_and_says_how_many_do(door, monke
     held = a_quoted_set(library, store, person, 3)  # 180 seconds against 150
     status, said = call(port, "POST", f"/set/{held['id']}", mine, {"keep": [0, 1, 2]})
     assert status == 402 and said["credits_left"] == 2
-    assert "untick" in said["error"]
+    assert "Untick" in said["error"]
     claimed = store.db.execute("SELECT COUNT(*) AS n FROM job WHERE claimed > 0").fetchone()
     assert int(claimed["n"]) == 0
 

@@ -20,7 +20,7 @@
     after another. This page keeps them; the swipe that goes through them is #366. -#}
 <main>
   <section class="panel" id="stranger" hidden>
-    <p class="note">{{ t("playlists.page.sign-in", "Sign in from the corner and we'll show your playlists here.") }}</p>
+    <p class="note">{{ t("playlists.page.sign-in", "Sign in to see your playlists.") }}</p>
   </section>
 
   {#- Reached from a shelf row or a reader's ⋯ menu with `?add=<name>&title=<title>`: the
@@ -32,9 +32,9 @@
       <label class="field">
         <span>{{ t("playlists.page.new-playlist", "New playlist") }}</span>
         <input type="text" id="new-name" maxlength="80" dir="auto" autocomplete="off"
-               placeholder="{{ t("playlists.page.name-it", "Name it") }}">
+               placeholder="{{ t("playlists.page.name-it", "Name") }}">
       </label>
-      <button type="submit" class="go-quiet">{{ t("playlists.page.make-it", "Make it") }}</button>
+      <button type="submit" class="filled">{{ t("playlists.page.make-it", "Confirm") }}</button>
     </form>
     <p class="said" id="adding-said" role="status" hidden></p>
   </section>
@@ -44,14 +44,14 @@
       one with something built in it. -#}
   <section class="panel" id="from-targum" hidden aria-labelledby="from-targum-head">
     <h2 id="from-targum-head">{{ t("playlists.page.from-targum", "From targum") }}</h2>
-    <p class="note">{{ t("playlists.page.from-targum-note", "Short texts we've made ready for you. Opening one uses none of your credits.") }}</p>
+    <p class="note">{{ t("playlists.page.from-targum-note", "Short videos and texts. Free to open.") }}</p>
     <ul class="choose" id="targum-sets"></ul>
     <p class="said" id="targum-said" role="status" hidden></p>
   </section>
 
   <section class="panel" id="lists" hidden>
     <h2>{{ t("playlists.page.title", "Your playlists") }}</h2>
-    <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "You have no playlists yet. Add a text to one from your shelf or from its ⋯ menu.") }}</p>
+    <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "No playlists yet. Add a text from your shelf, or from the ⋯ menu in any text.") }}</p>
     <div id="playlists"></div>
     <p class="said" id="lists-said" role="status" hidden></p>
   </section>

@@ -281,7 +281,7 @@ def test_the_end_says_what_the_set_held_and_offers_one_next_set(
         page.click("#video .video-list-next")
         page.wait_for_selector("#list-end .list-end-next")
         said = page.inner_text("#list-end")
-        assert "You met 84 words here, 12 of them new to you." in said
+        assert "You met 84 words, 12 of them new." in said
         assert "After Reels, 5 texts" in said
         assert page.get_attribute("#list-end .list-end-next", "href").startswith("/set/9")
         # Another press at the end loads nothing more and asks for nothing more.

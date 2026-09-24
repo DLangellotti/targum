@@ -297,6 +297,10 @@
       "/playlists?add=" + encodeURIComponent(reader.name) + "&title=" + encodeURIComponent(reader.title || reader.name)
     );
     link.textContent = t("shelf.add-to-playlist", "Add to playlist");
+    // A menu in place where the script is here (2026-09-24); the page where it is not.
+    if (window.TargumPlaylistMenu) {
+      window.TargumPlaylistMenu.attach(link, { name: reader.name, title: reader.title || reader.name }, key);
+    }
     return link;
   }
 

@@ -195,7 +195,9 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
         return {}
     # And the word card's own, which `vocab.js` says inside every reader.
     said = {
-        key: text for key, text in catalogue(code).items() if key.startswith(("reader.", "vocab."))
+        key: text
+        for key, text in catalogue(code).items()
+        if key.startswith(("reader.", "vocab.", "playlist-menu."))
     }
     return {"strings": said, "stringsLanguage": code} if said else {}
 
@@ -1190,7 +1192,7 @@ def learn_page(token: str, language: str = "en", connector: bool = False) -> str
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "learn.", "shelf."),
+            strings=script_strings(language, "learn.", "shelf.", "playlist-menu."),
             token=token,
             languages=_language_names(language),
             # Which languages the conversation's "= " lines can be in, for the first
@@ -1257,7 +1259,9 @@ def list_page(token: str, which: str, language: str = "en") -> str:
             token=token,
             which=which,
             languages=_language_names(language),
-            strings=script_strings(language, "yours.", "lists.", "vocab.", "claim.", "shelf."),
+            strings=script_strings(
+                language, "yours.", "lists.", "vocab.", "claim.", "shelf.", "playlist-menu."
+            ),
         )
     )
 
