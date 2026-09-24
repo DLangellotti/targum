@@ -2,7 +2,7 @@
 
    Three things, none of them needed to read the page or to set anything up:
 
-   - the conversation in the hero, which plays three examples in three apps;
+   - the conversation in the hero, which plays three examples in two apps;
    - the tabs of apps, and beside each app's steps a small picture of that app walking
      through them, with a pointer doing the pressing;
    - the Copy buttons.
@@ -228,7 +228,7 @@
       }
     },
     {
-      host: "lechat", name: "Le Chat", length: 10500,
+      host: "claude", name: "Claude", length: 10500,
       play: async function (still) {
         await sleep(400, still);
         await type(you(), t("connect.demo.what-was-i-working-on-this-week", "What was I working on this week?"), still);
@@ -342,13 +342,6 @@
       dialog: { title: "New connector", fields: [["Name", "targum"], ["MCP server URL", ADDRESS], ["Authentication", "OAuth", true]], ok: "Create" },
       client: "ChatGPT",
       frames: [["menu", 0], ["toggle", 1], ["press", 2], ["dialog", 2], ["grant", 3], ["done", 3]]
-    },
-    lechat: {
-      kind: "app", name: "Le Chat", side: ["Libraries", "Agents", "Connectors", "Memories"], pick: 2,
-      title: "Connectors", add: "Add connector",
-      dialog: { title: "Custom MCP connector", fields: [["Name", "targum"], ["Server URL", ADDRESS]], ok: "Connect" },
-      client: "Le Chat",
-      frames: [["menu", 0], ["press", 1], ["dialog", 2], ["grant", 3], ["done", 3]]
     },
     other: {
       kind: "app", name: "", side: ["General", "Integrations", "Privacy"], pick: 1,
