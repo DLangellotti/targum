@@ -104,10 +104,15 @@
     sent
       .then(function (got) {
         if (got.status >= 400) {
-          status(menu, got.answer.error || say("playlist-menu.failed", "Couldn't add it. Try again."), true);
+          // The server's own refusal where it wrote one for a reader ("A playlist holds
+          // up to 20 texts."); a bare "not found" or "bad request" is protocol, not a
+          // sentence, and is said as the plain failure.
+          var why = got.answer && got.answer.error;
+          if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
+          status(menu, why || say("playlist-menu.failed", "Couldn't add it. Try again."), true);
           return;
         }
-        status(menu, say("playlist-menu.added", "Added to {name}", { name: got.answer.name || target.name }));
+        status(menu, say("playlist-menu.added", "Added to {name}.", { name: got.answer.name || target.name }));
         setTimeout(close, 900);
       })
       .catch(function () {
@@ -132,6 +137,7 @@
       choose.className = "pm-choice";
       choose.setAttribute("role", "menuitem");
       var name = document.createElement("bdi");
+      name.setAttribute("dir", "auto");
       name.textContent = one.name;
       choose.appendChild(name);
       var count = document.createElement("span");
@@ -154,7 +160,7 @@
     var menu = document.createElement("div");
     menu.className = "playlist-menu";
     menu.setAttribute("role", "dialog");
-    menu.setAttribute("aria-label", say("playlist-menu.label", "Add to a playlist"));
+    menu.setAttribute("aria-label", say("playlist-menu.label", "Add to playlist"));
 
     var list = document.createElement("ul");
     list.className = "pm-list";
@@ -224,11 +230,15 @@
           menu.querySelector(".pm-new").hidden = true;
           return;
         }
+        if (got.status >= 400) {
+          status(menu, say("playlist-menu.load-failed", "Couldn't load your playlists. Try again."), true);
+          return;
+        }
         status(menu, "");
         draw(menu, text, key, (got.answer && got.answer.playlists) || []);
       })
       .catch(function () {
-        status(menu, say("playlist-menu.failed", "Couldn't add it. Try again."), true);
+        status(menu, say("playlist-menu.load-failed", "Couldn't load your playlists. Try again."), true);
       });
   }
 

@@ -161,7 +161,9 @@ def test_the_description_quotes_counts_and_refuses_to_place() -> None:
         level.Level("he", 1240, 87, 2000.0, level.ULPAN[2], level.ULPAN[3], 12, 3, 9, 31, 4)
     )
     assert "1,240 words marked known" in told
-    assert "12 days read" in told and "streak of 3" in told
+    assert "12 days read" in told and "longest run of days 9" in told
+    # design.md §12: the current streak is refused, here as everywhere.
+    assert "streak" not in told
     assert "'bet'" in told, "the rung is given, for grading"
     assert "not a placement" in told and "Never tell the reader" in told
     assert "!" not in told

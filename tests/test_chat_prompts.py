@@ -35,11 +35,12 @@ def test_the_prompt_speaks_as_we_and_thanks_the_reader() -> None:
 
 def test_the_prompt_keeps_price_language_out_of_the_product() -> None:
     """The reader pays by the month (design.md §6, 2026-09-13): a wait is a time and a
-    cost is hours, and the model is told to say neither as a price nor to price anything."""
+    cost is credits (§12, 2026-09-23), and the model is told to say neither as a price nor
+    to price anything."""
     said = " ".join(prompts.SYSTEM.split())
     assert "No price language" in said
     assert "never say price, cost, quote or sale" in said
-    assert "minutes of your hours" in said
+    assert "uses about 20 credits" in said and "of your hours" not in said
     assert "never in money" in said
     assert "price a" not in said and "You can price" not in said
     assert "we couldn't reach it" in prompts.shut_hosts(["example.org"])

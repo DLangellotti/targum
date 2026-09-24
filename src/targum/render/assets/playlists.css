@@ -9,7 +9,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.playlists .choose .count { color: var(--ink-soft); }
+.playlists .choose .count { color: var(--ink-soft); font-weight: 400; white-space: nowrap; }
 
 .playlists .new-list {
   display: flex;
@@ -29,16 +29,25 @@
   gap: 0.5rem;
 }
 .playlists .playlist-head h3 { margin: 0; margin-inline-end: auto; font-size: 1.0625rem; }
-.playlists .rename input {
+/* Fields are wells (§13): no line, the ground mixed into the card, 12px corners, the
+   primary's ring on focus — the new playlist's name and a rename alike. */
+.playlists .rename input,
+.playlists .new-list .field input {
   flex: 1;
   min-inline-size: 10rem;
-  padding: 0.35rem 0.6rem;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-control);
-  background: var(--paper);
+  max-inline-size: none;
+  min-block-size: 2.5rem;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: var(--field);
   color: var(--ink);
   font: inherit;
+  font-size: 0.9375rem;
 }
+.playlists .rename input:focus-visible,
+.playlists .new-list .field input:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--teal); }
+.playlists .new-list .field { flex: 1 1 14rem; min-inline-size: 0; }
 
 .playlists .items { margin: 0.5rem 0 0; padding-inline-start: 1.5rem; }
 .playlists .item {
@@ -88,8 +97,25 @@
 .playlists .filled:focus-visible,
 .playlists .tonal:focus-visible,
 .playlists .ghost:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+/* After the three kinds, so a named press wraps where `.tonal` would not. */
+/* A playlist's name is the reader's and runs to 80 characters, so a press that carries
+   one wraps inside the pill instead of running off a phone's edge (2026-09-24). */
+.playlists .choose li { max-inline-size: 100%; }
+.playlists .named {
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: start;
+  padding-block: 0.45rem;
+  flex-wrap: wrap;
+  column-gap: 0.5rem;
+  row-gap: 0;
+}
+.playlists .named .name { overflow-wrap: anywhere; min-inline-size: 0; }
+.playlists .playlist-head h3 { overflow-wrap: anywhere; min-inline-size: 0; }
 @media (pointer: coarse) {
   .playlists .filled,
   .playlists .tonal,
-  .playlists .ghost { min-block-size: 2.75rem; }
+  .playlists .ghost,
+  .playlists .rename input,
+  .playlists .new-list .field input { min-block-size: 2.75rem; }
 }

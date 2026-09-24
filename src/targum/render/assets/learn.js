@@ -973,8 +973,8 @@
     if ((who.connections || []).length) return;
     if (shutBanner()) return;
 
-    var says = el("p", "connect-says", t("learn.connect.read-hebrew-in-claude",
-      "Read Hebrew inside Claude or ChatGPT, with your words and your mistakes."));
+    var says = el("p", "connect-says", t("learn.connect.practise-hebrew-in-claude",
+      "Practise Hebrew in Claude or ChatGPT, with the words you know."));
     var way = el("a", "connect-go", t("learn.connect.connect", "Connect"));
     way.href = "/connect";
     way.addEventListener("click", function () {

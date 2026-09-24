@@ -16,6 +16,7 @@ import threading
 import time
 from collections.abc import Callable
 from http.client import HTTPConnection
+from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
@@ -225,7 +226,8 @@ def test_initialize_negotiates_and_says_what_this_is(box: tuple[int, str]) -> No
     assert said["protocolVersion"] == oauth.LATEST_PROTOCOL
     assert said["serverInfo"]["name"] == "targum"
     assert "tools" in said["capabilities"] and "prompts" in said["capabilities"]
-    assert "you cannot press it for them" in said["instructions"]
+    assert "the reader confirms on targum's own page" in said["instructions"]
+    assert "credits, never money" in said["instructions"]
 
 
 def test_a_version_we_do_not_know_is_answered_with_one_we_do(box: tuple[int, str]) -> None:
@@ -460,7 +462,7 @@ def test_how_to_talk_still_refuses_a_language_with_no_contract(box: tuple[int, s
         {"name": "how_to_talk", "arguments": {"language": "arc"}},
     )["result"]
     got = json.loads(said["content"][0]["text"])
-    assert "coming" in got["error"] and "Aramaic" in got["error"]
+    assert "not yet in Aramaic" in got["error"]
 
 
 def test_how_to_talk_without_record_is_the_contract_without_the_words(
@@ -479,7 +481,11 @@ def test_how_to_talk_without_record_is_the_contract_without_the_words(
     assert said["isError"] is False
     contract = json.loads(said["content"][0]["text"])["contract"]
     assert hebrew.contract_for("he") in contract
-    assert "has marked no words known yet" in contract, "their record was not shared"
+    # Not the first-day branch, which would tell a host that a reader with thousands of
+    # words has marked none, and to ask what they have read.
+    assert "has marked no words known yet" not in contract
+    assert "doesn't share the reader's word list" in contract, "their record was not shared"
+    assert "Their ledger" not in contract
 
 
 def test_how_to_talk_never_reads_the_record_it_was_not_granted() -> None:
@@ -515,7 +521,7 @@ def test_how_to_talk_refuses_a_language_that_does_not_talk(box: tuple[int, str])
         "tools/call",
         {"name": "how_to_talk", "arguments": {"language": "yi"}},
     )["result"]
-    assert "coming" in json.loads(said["content"][0]["text"])["error"]
+    assert "not yet in Yiddish" in json.loads(said["content"][0]["text"])["error"]
 
 
 def test_a_prompt_nobody_wrote_is_refused(box: tuple[int, str]) -> None:
@@ -562,9 +568,9 @@ def test_the_only_tool_that_spends_needs_the_scope_that_consented(
     granted = rpc(port, a_token(port, "library record check"), "tools/list")["result"]["tools"]
     spending = [one["name"] for one in granted if by_name[one["name"]].spends]
     assert spending == ["record_turn"]
-    assert "Uses the reader's hours" in next(
-        one["description"] for one in granted if one["name"] == "record_turn"
-    ), "the model is told what it costs the person whose hours they are"
+    told = next(one["description"] for one in granted if one["name"] == "record_turn")
+    # design.md §12, 2026-09-24: chatting is included, and a cost is never hours.
+    assert "Chatting is included" in told and "hours" not in told
 
 
 def test_a_connector_without_the_scope_cannot_call_it_either(box: tuple[int, str]) -> None:
@@ -700,6 +706,16 @@ def test_a_build_already_running_is_watched_and_offers_the_way_out() -> None:
     assert 'data-usually="420"' in page
     assert 'id="press-doing"' in page and 'id="press-left"' in page
     assert "/texts" in page, "no way off the page while it builds"
+
+
+def test_a_second_visit_to_a_finished_build_opens_its_reader() -> None:
+    """`Job.reader` already ends in `reader/index.html` (serve.py sets it so in every
+    build path), and the ready state once added it again, so the link 404'd."""
+    from targum.render import builder
+
+    page = builder.press_page(_quoted(stage="done", reader="abc123/reader/index.html"))
+    assert 'action="/reader/abc123/reader/index.html"' in page
+    assert "reader/index.html/reader" not in page
 
 
 def test_the_press_page_says_its_script_s_words_in_russian() -> None:
@@ -852,7 +868,7 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
     """
     import re
 
-    from targum import oauth, serve
+    from targum import oauth
     from targum.render import builder
 
     def presses(html: str) -> dict[str, bool]:
@@ -871,8 +887,6 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
         client="Claude",
         scopes=oauth.describe_scopes(("library", "chat")),
         spends=True,
-        credits=serve.UPLOAD_CREDITS,
-        hours=serve.UPLOAD_HOURS,
         query="x=1",
         redirect="https://claude.ai/cb",
     )
@@ -884,3 +898,77 @@ def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
 
     for one in _re.finditer(r'<button[^>]*class="go"[^>]*>(.*?)</button>', granted, _re.S):
         assert "brand-mark" not in one.group(1), "the lockup is above the card already"
+
+
+# --- what the host is shown (review, 2026-09-24) ----------------------------------
+
+
+def test_every_listed_tool_carries_a_title_and_its_annotations(box: tuple[int, str]) -> None:
+    """Claude showed readers "Quote build", "Record turn" and "My hours"."""
+    port, _ = box
+    listed = rpc(port, a_token(port, "library record chat"), "tools/list")["result"]["tools"]
+    by_name = {one["name"]: one for one in listed}
+    assert by_name["my_hours"]["title"] == "My credits"
+    assert by_name["record_turn"]["title"] == "Check what I wrote"
+    for one in listed:
+        assert one["title"] and one["annotations"]["destructiveHint"] is False, one["name"]
+    assert by_name["search_library"]["annotations"]["readOnlyHint"] is True
+    assert by_name["quote_set"]["annotations"]["readOnlyHint"] is False
+
+
+def test_a_prompt_is_offered_only_where_its_tools_are(box: tuple[int, str]) -> None:
+    port, _ = box
+    token = a_token(port, "library")
+    names = {one["name"] for one in rpc(port, token, "prompts/list")["result"]["prompts"]}
+    assert {"talk", "read-with-me"} <= names
+    assert "drill" not in names and "what-next" not in names, "they need the record"
+    said = rpc(port, token, "prompts/get", {"name": "drill"})
+    assert said["error"]["code"] == mcp_http.INVALID_PARAMS
+
+
+def test_read_with_me_reads_what_it_was_asked_to() -> None:
+    got = mcp_http._prompt("read-with-me", arguments={"text": "Ruth"})
+    text = got["messages"][0]["content"]["text"]
+    assert 'Find "Ruth"' in text and "{text}" not in text
+    unnamed = mcp_http._prompt("read-with-me")["messages"][0]["content"]["text"]
+    assert "{text}" not in unnamed
+
+
+def test_our_prompts_are_said_in_the_reader_s_voice() -> None:
+    for one in mcp_http.PROMPTS:
+        assert "this reader" not in one["says"] and "the reader" not in one["says"], one["name"]
+
+
+def test_the_contract_carries_no_history_a_host_would_repeat() -> None:
+    from targum.chat import hebrew
+
+    for code in hebrew.CONTRACTS:
+        said = hebrew.contract_for(code)
+        assert "(Until" not in said and "until 2026" not in said.lower(), code
+
+
+def test_a_failed_request_is_not_the_exception(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broke(*_: object, **__: object) -> None:
+        raise ValueError("secret detail")
+
+    monkeypatch.setattr(mcp_http, "handle", broke)
+    said = mcp_http._one({"jsonrpc": "2.0", "id": 1, "method": "ping"}, {})
+    assert said is not None
+    assert "ValueError" not in said["error"]["message"]
+    assert "secret" not in said["error"]["message"]
+
+
+def test_the_stdio_connector_says_what_the_remote_one_says() -> None:
+    from targum import connector
+
+    source = Path(connector.__file__).read_text(encoding="utf-8")
+    assert "instructions=mcp_http.INSTRUCTIONS" in source
+
+
+def test_a_box_that_follows_no_publishers_does_not_offer_the_search(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: object
+) -> None:
+    from targum import connector
+
+    monkeypatch.setenv("TARGUM_SOURCES", str(Path(str(tmp_path)) / "none.json"))
+    assert "search_sources" not in {tool.name for tool in connector.exposed("library")}

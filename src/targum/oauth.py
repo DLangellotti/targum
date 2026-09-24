@@ -48,11 +48,11 @@ from urllib.parse import urlencode, urlparse
 #: `chat` is the one that writes to it and spends their credits doing so.
 SCOPES: tuple[tuple[str, str], ...] = (
     ("library", "Search the library and look up what is at a link"),
-    ("record", "Read your words, your mistakes and how far you have got"),
+    ("record", "Read your words, your mistakes and your progress"),
     (
         "chat",
-        "Read what you write and keep it, mark words, turn on a language you practise, "
-        "and price a text",
+        "Read what you write in the language you're learning, keep the lines we correct, "
+        "get texts and playlists ready for you to confirm, and add a language you practise",
     ),
 )
 
@@ -60,7 +60,9 @@ SCOPES: tuple[tuple[str, str], ...] = (
 #: reader approved**, so a rename that stopped here would quietly strip every connector
 #: already authorised — `granted()` compares strings, and `granted("library check",
 #: "chat")` is False. Read through `current()` instead of migrating the rows: a token is
-#: short-lived and a refresh mints the new spelling, so the table converges on its own,
+#: short-lived and a refresh mints the new spelling (`Handler._oauth_refresh` passes the
+#: stored words through `current()`; it copied them verbatim until 2026-09-24, and the
+#: table never converged), so the table converges on its own,
 #: and a `REPLACE(scopes, 'check', 'chat')` over live rows is a substring edit on a column
 #: whose values are space-joined words. This map is the whole cost of the rename.
 RENAMED: dict[str, str] = {"check": "chat"}

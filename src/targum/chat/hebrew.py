@@ -212,6 +212,12 @@ def contract(gloss: str = "English") -> str:
     reader reads — `gloss_language` picks it from the account — and the rules that are
     about the model thinking in English rather than Hebrew stay as they are.
 
+    The length rule has a history the model is not told, because a host repeats what it
+    is handed: until 2026-09-08 it also said "and give the reader something to answer",
+    and every reply ended in homework built from the bring-back words; until 2026-09-10 it
+    said "a few Hebrew sentences", and a few was five lines, ten with their English, which
+    the notes of that day called too much to read.
+
     Since 2026-09-22 two of them are about the reader's language rather than English:
     the calques to avoid, and what their own sentence says about how to address them
     (targum-internal#286 item 4). Both fall back to what every contract said before,
@@ -303,12 +309,8 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   — a door, a card — is exactly one sentence and the door: the card already says how long
   the text is and how much of it the reader knows, so do not say it again or tell them
   to press it. More only when the reader asks for more, or asks
-  a question whose answer is a list, and then at most {MOST_LISTED} lines. (Until
-  2026-09-08 this line also said "and give the reader something to answer", and every
-  reply ended in homework built from the bring-back words; until 2026-09-10 it said "a
-  few Hebrew sentences", and a few was five lines, ten with their English, which the
-  notes of that day called too much to read.) When you offer texts, one Hebrew line per
-  text with its {gloss}, and the text's door under it.
+  a question whose answer is a list, and then at most {MOST_LISTED} lines. When you offer
+  texts, one Hebrew line per text with its {gloss}, and the text's door under it.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Hebrew lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -794,6 +796,65 @@ def _in_language(text: str, language: str) -> bool:
     return not _PATH.match(text) and any(ch.isalpha() for ch in text)
 
 
+#: The languages written in Cyrillic, told apart from a Latin-script line the same way
+#: Hebrew is: by the letters.
+CYRILLIC_SCRIPT = frozenset({"ru"})
+
+
+def written_in(text: str, language: str) -> bool:
+    """Whether a line the reader wrote is in `language` at all, before anything is spent
+    checking it (design.md §12, "A scope is a press that lasts": a question asked in
+    English spends nothing).
+
+    By the script where the script settles it. French and Italian share English's
+    letters, so there a line is refused only when most of its words are far commoner in
+    English than in the language: "what does this mean" is English, "ciao, come stai" is not.
+    Where wordfreq is not installed nothing can be told apart, and the line is checked.
+    """
+    code = (language or "he").split("-")[0].lower()
+    if code in HEBREW_SCRIPT:
+        return _has_hebrew(text)
+    letters = [ch for ch in text if ch.isalpha()]
+    if not letters:
+        return False
+    if code in CYRILLIC_SCRIPT:
+        return any("\u0400" <= ch <= "\u04ff" for ch in letters)
+    latin = sum(1 for ch in letters if ch.isascii() or "\u00c0" <= ch <= "\u024f")
+    if latin * 2 < len(letters):
+        return False
+    try:
+        from wordfreq import zipf_frequency
+    except ImportError:
+        return True
+    words = _LATIN_WORD.findall(text.lower())
+    if not words:
+        return False
+    english = sum(
+        1 for word in words if zipf_frequency(word, "en") - zipf_frequency(word, code) >= 1.0
+    )
+    return english * 2 <= len(words)
+
+
+def for_host(words: list[str], language: str) -> list[str]:
+    """A word list as a host is handed it: the language's own words, two letters or
+    more. The ledger holds what a reader tapped, and on a Hebrew shelf that includes
+    "and", "the", digits and stray letters, which a host told "these are the words they
+    know" would write with."""
+    code = (language or "he").split("-")[0].lower()
+    pattern = _WORD if code in HEBREW_SCRIPT else _LATIN_WORD
+    out = []
+    for word in words:
+        found = pattern.fullmatch(word.strip())
+        if found is None:
+            continue
+        letters = [ch for ch in word if ch.isalpha()]
+        if code in HEBREW_SCRIPT:
+            letters = [ch for ch in letters if "\u05d0" <= ch <= "\u05ea"]
+        if len(letters) >= 2:
+            out.append(word.strip())
+    return out
+
+
 def length(text: str, language: str = "he") -> int:
     """How many words a reply is, the way a reader meets them: over the model's own lines,
     the "> " recast left out because it is the reader's sentence said back. A Hebrew word
@@ -984,11 +1045,29 @@ def ledger_block(
     common: list[str],
     returning: Returning | None = None,
     rules: list[str] | None = None,
+    shared: bool = True,
 ) -> str:
-    """The per-reader block: the ledger, then the word lists, then what comes back."""
+    """The per-reader block: the ledger, then the word lists, then what comes back.
+
+    `shared` is False for a connector that was not granted the reader's record. Then
+    there is no ledger to describe, and the first-day branch would be false: a reader
+    with thousands of words would be told they had marked none, and asked what they have
+    read. The host is told the plain thing instead — it cannot see the list.
+    """
     from ..translate.prompts import language_name
 
     named = language_name((level.language or "he").split("-")[0].lower())
+    if not shared:
+        parts = [
+            f"The reader is learning {named}. This connection doesn't share the reader's "
+            "word list. Grade to the common words below, and don't ask what they know. "
+            "Never tell the reader they are at a level."
+        ]
+        if common:
+            parts.append(
+                f"Common words any learner meets early ({len(common)}): " + " ".join(common)
+            )
+        return "\n\n".join(parts)
     parts = [describe(level)]
     if known:
         parts.append(f"The reader's known words ({len(known)}): " + " ".join(known))

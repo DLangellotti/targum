@@ -67,6 +67,10 @@
   }
 
   var MARK = (document.querySelector(".kicker .mark") || {}).outerHTML || "";
+  // A count as the page's language writes it: 2,140 in English, 2 140 in Russian.
+  function count(n) {
+    try { return new Intl.NumberFormat(document.documentElement.lang || "en").format(n); } catch (e) { return String(n); }
+  }
   function logoOf(tab) {
     var svg = document.querySelector("#tab-" + tab + " .logo");
     return svg ? svg.outerHTML : "";
@@ -241,9 +245,9 @@
       play: async function (still) {
         await you("השקשוקה שלי היה טעים", still, true);
         await sleep(600, still);
-        var chip = tool(t("connect.demo.checking-your-hebrew", "Checking your Hebrew"));
+        var chip = tool(t("connect.demo.reading-your-hebrew", "Reading your Hebrew"));
         await sleep(1600, still);
-        toolDone(chip, t("connect.demo.checked-with-targum", "Checked with targum"));
+        toolDone(chip, t("connect.demo.read-by-targum", "Read by targum"));
         await sleep(600, still);
         var m = them("<div class=\"recast\"><span class=\"tag\"></span><p class=\"he\">הַשַּׁקְשׁוּקָה שֶׁלִּי <mark>הָיְתָה</mark> <mark>טְעִימָה</mark>.</p></div>");
         m.querySelector(".tag").textContent = t("connect.demo.corrected", "Corrected");
@@ -272,7 +276,7 @@
         await sleep(1600, still);
         toolDone(chip, t("connect.demo.read-your-targum-list", "Read your targum list"));
         await sleep(600, still);
-        var m = them('<div class="stat"><div><b class="tnum">3</b><span></span></div><div><b class="tnum">41</b><span></span></div><div><b class="tnum">2,140</b><span></span></div></div><p></p>');
+        var m = them('<div class="stat"><div><b class="tnum">3</b><span></span></div><div><b class="tnum">41</b><span></span></div><div><b class="tnum">' + count(2140) + '</b><span></span></div></div><p></p>');
         var labels = m.querySelectorAll(".stat span");
         labels[0].textContent = t("connect.demo.texts-finished", "texts finished");
         labels[1].textContent = t("connect.demo.new-words", "new words");
@@ -398,9 +402,12 @@
   // steps beside the picture each frame belongs to.
   var SIGN_IN = "Opening your browser to sign in…";
   var APPS = {
+    // Claude moved its connectors under Customize (seen 2026-09-24): Customize, then
+    // Connectors, then the + button, whose menu holds Add custom connector.
     claude: {
-      kind: "app", name: "Claude", side: ["General", "Account", "Privacy", "Connectors"], pick: 3,
-      title: "Connectors", add: "Add custom connector",
+      kind: "app", name: "Claude", side: ["New chat", "Chats", "Projects", "Customize"], pick: 3,
+      title: "Customize", sub: { items: ["Skills", "Connectors"], pick: 1 },
+      add: "+", menu: "Add custom connector",
       dialog: { title: "Add custom connector", fields: [["Name", "targum"], ["Remote MCP server URL", ADDRESS]], ok: "Add" },
       client: "Claude",
       frames: [["menu", 0], ["press", 1], ["dialog", 2], ["grant", 3], ["done", 3]]
@@ -464,11 +471,21 @@
       return '<span class="' + (n === app.pick && opts.picked ? "on" : "") + '">' + esc(item) + "</span>";
     }).join("");
     var main = '<div class="sc-main"><p class="sc-h">' + esc(opts.picked ? app.title : app.side[0]) + "</p>";
-    if (opts.picked) {
+    // An app whose connectors are a tab inside the place the side opens.
+    if (opts.picked && app.sub) {
+      main += '<div class="sc-tabs">' + app.sub.items.map(function (item, n) {
+        var on = n === app.sub.pick && !opts.beforeSub;
+        return '<span class="' + (on ? "on" : "") + '"' + (n === app.sub.pick ? ' data-sub="1"' : "") + ">" + esc(item) + "</span>";
+      }).join("") + "</div>";
+    }
+    if (opts.picked && !opts.beforeSub) {
       if (app.toggle) main += '<p class="sc-p">Advanced settings</p><div class="sc-row"><span>' + esc(app.toggle) + '</span><span class="sc-switch' + (opts.toggled ? " on" : "") + '" data-hit="toggle"></span></div>';
       if (opts.done) main += '<div class="sc-row in">' + MARK + '<span>targum</span><span class="ok">' + CHECK + esc(t("connect.screen.connected", "Connected")) + "</span></div>";
       else main += '<p class="sc-p">' + esc(t("connect.screen.nothing-added-yet", "Nothing added yet")) + "</p>";
-      if (!opts.done) main += '<span class="sc-btn' + (opts.pressed ? " pressed" : "") + '" data-hit="add">+ ' + esc(app.add) + "</span>";
+      if (!opts.done && app.menu) {
+        main += '<span class="sc-btn icon' + (opts.pressed ? " pressed" : "") + '" data-hit="add">' + esc(app.add) + "</span>";
+        if (opts.menuOpen) main += '<span class="sc-pop"><span data-hit="menu">' + esc(app.menu) + "</span></span>";
+      } else if (!opts.done) main += '<span class="sc-btn' + (opts.pressed ? " pressed" : "") + '" data-hit="add">+ ' + esc(app.add) + "</span>";
       if (opts.done) main += '<div class="sc-chat in"><span class="sc-bubble">' + esc(t("connect.screen.find-me-something-to-read-in-hebrew", "Find me something to read in Hebrew")) + "</span></div>";
     } else {
       main += '<p class="sc-p">' + esc(t("connect.screen.your-settings", "Your settings")) + "</p>";
@@ -486,13 +503,16 @@
   function grant(app) {
     var scopes = [
       t("connect.scope.library", "Search the library and look up what is at a link"),
-      t("connect.scope.record", "Read your words, your mistakes and how far you have got"),
-      t("connect.scope.chat", "Read what you write and keep it, mark words, turn on a language you practise, and price a text")
+      t("connect.scope.record", "Read your words, your mistakes and your progress"),
+      t("connect.scope.chat", "Read what you write in the language you're learning, keep the lines we correct, get texts and playlists ready for you to confirm, and add a language you practise")
     ];
+    // No ticks: the page grants what the app asked for, in one press (design.md §12,
+    // 2026-09-24), so the picture shows the list and the button and nothing to choose.
     return '<div class="sc-grant"><div class="grant"><span class="sc-url">' + esc(ADDRESS.replace(/^https?:\/\//, "").replace(/\/mcp$/, "")) + "/oauth/authorize</span>" +
       '<p class="grant-brand">' + MARK + "<span>targum</span></p>" +
       '<p class="grant-title">' + esc(t("connect.screen.connect-to-targum", "Connect {client} to targum", { client: app.client || t("connect.screen.your-app", "your app") })) + "</p>" +
-      '<ul class="grant-list">' + scopes.map(function (s, n) { return '<li data-scope="' + n + '"><span class="box"></span><span>' + esc(s) + "</span></li>"; }).join("") + "</ul>" +
+      '<p class="grant-said">' + esc(t("connect.page.it-will-be-able-to", "It will be able to:")) + "</p>" +
+      '<ul class="grant-list">' + scopes.map(function (s, n) { return '<li data-scope="' + n + '"><span class="can"></span><span>' + esc(s) + "</span></li>"; }).join("") + "</ul>" +
       '<p class="grant-press"><span class="btn cta small" data-hit="connect">' + esc(t("connect.screen.connect", "Connect")) + "</span></p></div></div>";
   }
   function terminal(app, lines) {
@@ -579,6 +599,12 @@
       var item = this.el.querySelectorAll(".sc-side span")[app.pick];
       item.setAttribute("data-hit", "pick");
       await this.point("pick", still);
+      if (app.sub) {
+        this.draw(settings(app, plat, { picked: true, beforeSub: true }));
+        await sleep(600, still);
+        this.el.querySelector("[data-sub]").setAttribute("data-hit", "sub");
+        await this.point("sub", still);
+      }
       this.draw(settings(app, plat, { picked: true }));
       await sleep(1500, still);
     } else if (kind === "toggle") {
@@ -590,6 +616,11 @@
       this.draw(settings(app, plat, { picked: true, toggled: !!app.toggle }));
       await this.point("add", still);
       this.el.querySelector('[data-hit="add"]').classList.add("pressed");
+      if (app.menu) {
+        this.draw(settings(app, plat, { picked: true, pressed: true, menuOpen: true }));
+        await sleep(500, still);
+        await this.point("menu", still);
+      }
       await sleep(800, still);
     } else if (kind === "dialog") {
       this.draw(settings(app, plat, { picked: true, toggled: !!app.toggle, pressed: true }));
@@ -605,11 +636,7 @@
     } else if (kind === "grant") {
       this.draw(grant(app));
       await sleep(600, still);
-      var rows = this.el.querySelectorAll("[data-scope]");
-      for (var r = 0; r < rows.length; r++) {
-        rows[r].classList.add("on");
-        await sleep(reduced ? 0 : 520, still);
-      }
+      await sleep(1200, still);
       await this.point("connect", still);
       await sleep(400, still);
     } else if (kind === "done") {
@@ -706,7 +733,18 @@
     if (current) { current.pinned = false; current.play(0, reduced); }
   }
   if (tabs.length) {
-    document.getElementById("plats").hidden = false;
+    var strip = document.getElementById("plats");
+    strip.hidden = false;
+    // On a phone the row of apps scrolls sideways. Its edges fade where there is more
+    // to see, so nobody takes the first few for all of them.
+    var edges = function () {
+      var left = Math.abs(strip.scrollLeft);
+      strip.classList.toggle("more-end", left + strip.clientWidth < strip.scrollWidth - 2);
+      strip.classList.toggle("more-start", left > 2);
+    };
+    strip.addEventListener("scroll", edges, { passive: true });
+    window.addEventListener("resize", edges);
+    edges();
     tabs.forEach(function (tab, n) {
       tab.addEventListener("click", function () { choose(tab, false); });
       tab.addEventListener("keydown", function (e) {

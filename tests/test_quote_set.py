@@ -145,6 +145,50 @@ def test_a_set_holds_twenty(world, monkeypatch) -> None:
     assert "at most 20" in got["error"]
 
 
+def test_a_text_already_on_the_shelf_is_kept_under_its_own_title(world, monkeypatch) -> None:
+    """Live on 2026-09-24, /set and /playlists showed "במעלית-he": the folder's name, kept
+    as the title of a text that was already built. It is the text's title that is kept."""
+    from types import SimpleNamespace
+
+    from targum import catalogue
+
+    library, store, person, home = world
+    folder = home / "במעלית-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<!doctype html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps(
+            {"title": "במעלית", "language": "he", "source": "https://example.com/elevator"},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    entry = SimpleNamespace(
+        id="elevator", source="https://example.com/elevator", title="במעלית", language="he"
+    )
+    monkeypatch.setattr(catalogue, "by_id", lambda one: entry if one == "elevator" else None)
+    ctx = context(library, store, person, home)
+    for given in ("במעלית-he", ""):
+        got = tools.quote_set(
+            ctx, {"name": "Lifts", "items": [{"catalogue_id": "elevator", "title": given}]}
+        )
+        assert got["set"]["items"] == [{"title": "במעלית", "reader": "במעלית-he"}]
+        saved = store.playlist(person.id, got["set"]["id"]) or {}
+        assert [item["title"] for item in saved["items"]] == ["במעלית"]
+
+
+def test_a_recording_under_half_a_minute_still_uses_a_credit(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    def short(job: Job) -> None:
+        priced(job)
+        job.seconds = 20.0
+
+    monkeypatch.setattr(library, "prepare", short)
+    got = tools.quote_set(context(library, store, person, home), {"name": "R", "items": REELS[:1]})
+    assert got["set"]["credits"] == 1 and got["set"]["items"][0]["credits"] == 1
+
+
 def test_the_chat_is_offered_it_and_the_connector_needs_the_scope_that_spends() -> None:
     from targum import connector
 
@@ -226,6 +270,39 @@ def test_the_page_lists_every_text_with_a_tick_and_says_the_total_once() -> None
     assert "<script" not in page, "no script at all, so nothing for the CSP to hash"
 
 
+def test_a_set_already_on_the_shelf_lists_its_texts_and_starts_as_a_playlist() -> None:
+    """A next set of texts already built said only "Ready." and a Start (2026-09-24). It
+    lists what it holds, needs no Confirm since nothing in it spends, and Start opens the
+    first as the playlist's first item, so the reader draws Next and the swipe."""
+    playlist = {
+        "id": 9,
+        "name": "More like Reels",
+        "items": [
+            {"position": 0, "reader": "one-he", "job": None, "title": "מה?", "failed": False},
+            {"position": 1, "reader": "two-he", "job": None, "title": "Two", "failed": False},
+        ],
+    }
+    page = set_page(playlist, [None, None])
+    said = prose(page)
+    assert "מה?" in said and "Two" in said and said.count("Already yours") == 2
+    assert 'name="keep"' not in page and "Confirm" not in said
+    assert 'action="/reader/one-he/reader/index.html"' in page
+    assert 'name="list" value="9"' in page and 'name="at" value="0"' in page
+    assert '<bdi class="set-title" dir="auto">מה?</bdi>' in page
+
+
+def test_a_short_recording_is_never_zero_credits() -> None:
+    playlist = {
+        "id": 7,
+        "name": "Reels",
+        "items": [{"position": 0, "reader": None, "job": "j0", "title": "Reel", "failed": False}],
+    }
+    jobs = [{"id": "j0", "stage": "ready", "audio": True, "seconds": 20.0, "known_line": ""}]
+    said = prose(set_page(playlist, jobs))
+    assert "0 credits" not in said and "1 credit" in said
+    assert "Untick what you don't want, then press Confirm." in said
+
+
 # --- the press, through the door --------------------------------------------------
 
 
@@ -303,7 +380,10 @@ def test_a_set_that_does_not_fit_claims_nothing_and_says_how_many_do(door, monke
     held = a_quoted_set(library, store, person, 3)  # 180 seconds against 150
     status, said = call(port, "POST", f"/set/{held['id']}", mine, {"keep": [0, 1, 2]})
     assert status == 402 and said["credits_left"] == 2
-    assert "Untick" in said["error"]
+    # One line: what the set needs, what is left, what to do.
+    assert said["error"] == (
+        "This playlist needs 3 credits and you have 2 left. Untick some texts and try again."
+    )
     claimed = store.db.execute("SELECT COUNT(*) AS n FROM job WHERE claimed > 0").fetchone()
     assert int(claimed["n"]) == 0
 

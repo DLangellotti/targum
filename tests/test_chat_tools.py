@@ -144,7 +144,10 @@ def test_open_library_text_says_how(world) -> None:
         row for row in tools.search_library(ctx, {"limit": 20})["texts"] if not row["on_shelf"]
     )
     told = tools.open_library_text(ctx, {"id": unbuilt["id"]})
-    assert told["reader"] == "" and "cannot start one" in told["how_to_open"]
+    assert told["reader"] == ""
+    # quote_build is offered only with the chat scope, so the way in is conditional.
+    assert "If quote_build is among your tools" in told["how_to_open"]
+    assert f"/library/{unbuilt['id']}" in told["how_to_open"]
     assert "error" in tools.open_library_text(ctx, {"id": "nope"})
 
 
@@ -229,7 +232,10 @@ def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
     assert "ruth" not in ids, "already on the reader's own shelf"
     assert ids[0] == "esther", "measured coverage ranks ahead of a guess"
     assert all(row["because"] for row in got["suggestions"])
-    assert got["suggestions"][0]["because"] == "You know 50% of its words."
+    # Said the way the card says it: a host repeats `because`, and never a percentage.
+    assert got["suggestions"][0]["because"] == got["suggestions"][0]["known_line"]
+    assert "%" not in got["suggestions"][0]["because"]
+    assert got["suggestions"][0]["reason"]["share"] == 50, "the page's own line keeps it"
 
 
 def test_check_job_answers_only_for_the_owner(world) -> None:
@@ -402,7 +408,7 @@ def test_a_quote_that_cannot_be_built_says_why(world, monkeypatch) -> None:
     assert got["quote"]["blocked"].startswith("Too long") and "cannot be made ready" in got["note"]
 
 
-def test_hours_are_hours(world) -> None:
+def test_the_allowance_is_credits(world) -> None:
     library, store, person, home = world
     store.save_job(
         {"id": "r1", "owner": person.id, "home": str(home), "source": "x", "made": now_ms()}
@@ -410,8 +416,12 @@ def test_hours_are_hours(world) -> None:
     store.claim("r1", 0.5, 40.0, 0, owner=person.id, length=2 * 3600.0)
     ctx = context(library, store, person, home)
     got = tools.my_hours(ctx, {})
-    assert got["used_hours"] == 2.0 and got["allowed_hours"] == 8.0 and got["left_hours"] == 6.0
+    assert got["credits_used"] == 120 and got["credits_a_month"] == 480
+    assert got["credits_left"] == 360
+    assert "480 credits a month is 8 hours" in got["note"], "the rate beside the balance"
+    assert "Chatting" in got["note"] and "included" in got["note"]
     assert "$" not in json.dumps(got) and got["month_ends"]
+    assert not [key for key in got if "hours" in key]
 
 
 def now_ms() -> int:
@@ -445,7 +455,7 @@ def test_a_video_is_described_from_metadata_and_never_refused_on_licence(
     got = tools.describe_source(ctx, {"url": "https://www.youtube.com/watch?v=abc123"})
     assert got["kind"] == "video" and got["title"] == "שיעור על הלב"
     assert got["hebrew_subtitles"] is True and got["audio_language"] == "he"
-    assert got["hours"] == 0.42 and got["quote_with"] == "https://www.youtube.com/watch?v=abc123"
+    assert got["credits"] == 25 and got["quote_with"] == "https://www.youtube.com/watch?v=abc123"
     assert got["licence_standing"] == "owed" and got["corpus_exportable"] is True
     assert "never here" in got["licence_note"]
 
@@ -531,7 +541,7 @@ def test_a_recording_and_an_article_are_described(world, monkeypatch) -> None:
         ),
     )
     got = tools.describe_source(ctx, {"url": "https://podcast.example/ep3"})
-    assert got["kind"] == "recording" and got["hours"] == 0.5 and got["has_transcript"] is True
+    assert got["kind"] == "recording" and got["credits"] == 30 and got["has_transcript"] is True
     assert "nothing is transcribed" in got["advice"][0]
 
     monkeypatch.setattr(episode, "find", lambda url: None)
@@ -662,7 +672,7 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert tools.search_sources(ctx, {"kind": "podcast"})["count"] == 1
 
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
-    assert "No publishers" in tools.search_sources(ctx, {})["note"]
+    assert tools.search_sources(ctx, {})["note"] == "We don't follow any publishers yet."
 
 
 def test_the_day_s_stories_are_ordered_by_what_the_reader_would_know(
@@ -1241,7 +1251,7 @@ def test_a_direct_link_to_a_recording_is_named_and_timed_without_being_pulled(
     assert pulled == [], "nothing was read as a page"
     assert opened == ["https://example.com/shows/ep-12.mp3"], "only its front"
     assert found["kind"] == "recording" and found["medium"] == "audio"
-    assert found["seconds"] == 3600 and found["hours"] == 1.0
+    assert found["seconds"] == 3600 and found["credits"] == 60
     assert found["megabytes"] == 54.9
     assert found["title"] == "ep-12"
     assert any("transcribed" in line for line in found["advice"])
@@ -1279,7 +1289,7 @@ def test_a_recording_whose_length_could_not_be_read_says_so(world, monkeypatch) 
     found = tools.describe_source(
         context(library, store, person, home), {"url": "https://example.com/a/talk.mp3"}
     )
-    assert found["seconds"] == 0 and found["hours"] is None and found["megabytes"] is None
+    assert found["seconds"] == 0 and found["credits"] is None and found["megabytes"] is None
     assert any("could not be read" in line for line in found["advice"])
 
 
@@ -1315,3 +1325,185 @@ def test_a_conversation_is_written_in_the_language_the_reader_reads(tmp_path: Pa
     assert ctx_for({"en"}, {"en"}).language == "en"
     assert ctx_for({"en", "ru"}, everything).language == "ru", "the common Russian account"
     assert ctx_for({"ru"}, {"ru"}).language == "ru"
+
+
+# -- what a host is handed (review, 2026-09-24) -------------------------------------
+
+
+def test_every_tool_has_a_title_a_person_can_read() -> None:
+    """Claude prints a tool's name in its own interface; the title is what it shows
+    instead, and a title in the registry's vocabulary would be the same leak."""
+    for tool in tools.REGISTRY:
+        assert tool.title, tool.name
+        for jargon in ("quote", "build", "ledger", "hours", "slip", "record"):
+            assert jargon not in tool.title.lower(), (tool.name, tool.title)
+    assert tools.BY_NAME["my_hours"].title == "My credits"
+    assert tools.BY_NAME["quote_build"].title == "Get a text ready"
+
+
+def test_what_writes_says_so_and_nothing_destroys() -> None:
+    for tool in tools.REGISTRY:
+        hints = tool.hints()
+        assert hints["destructiveHint"] is False
+        assert hints["readOnlyHint"] is (not tool.writes), tool.name
+    assert tools.BY_NAME["record_turn"].writes and tools.BY_NAME["add_to_playlist"].writes
+    assert tools.BY_NAME["add_to_playlist"].hints()["idempotentHint"] is True
+    assert tools.BY_NAME["describe_source"].hints()["openWorldHint"] is True
+    assert not tools.BY_NAME["my_vocabulary"].writes
+
+
+def test_no_tool_description_says_hours_or_money() -> None:
+    for tool in tools.REGISTRY:
+        said = tool.description.lower()
+        assert "hours" not in said and "$" not in said, tool.name
+        assert "ledger" not in said or tool.name == "quote_conversation", tool.name
+
+
+def test_a_quote_over_the_connector_carries_credits_and_no_dollars(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    def audio(job) -> None:  # type: ignore[no-untyped-def]
+        priced(job)
+        job.audio = True
+        job.seconds = 125.0
+        job.transcription = 0.4
+
+    monkeypatch.setattr(library, "prepare", audio)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    ctx.press_at = "https://targum.test"
+    got = tools.quote_build(ctx, {"source": "https://example.com/episode"})
+    quote = got["quote"]
+    for dollars in tools.DOLLAR_FIELDS:
+        assert dollars not in quote, dollars
+    assert quote["credits"] == 2 and quote["open"].startswith("https://targum.test/build/")
+    assert "quote" in got["note"] and "don't call this a quote" in got["note"]
+    # And the in-app card still has what it draws from.
+    ctx.press_at = ""
+    assert "estimate" in tools.quote_build(ctx, {"source": "https://example.com/e2"})["quote"]
+
+
+def test_check_job_says_no_dollars_and_quotes_its_link(world) -> None:
+    library, store, person, home = world
+    job = Job(
+        id="j-space", source="x", owner=person.id, stage="done", reader="שיר חדש/reader/index.html"
+    )
+    job.estimate = 0.3
+    library.jobs[job.id] = job
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    got = tools.check_job(ctx, {"id": "j-space"})
+    assert "estimate" not in got and "translation" not in got
+    assert got["open"].startswith("https://targum.test/reader/%D7%A9")
+    assert " " not in got["open"]
+
+
+def test_my_progress_hands_over_no_streak_and_no_rung(world) -> None:
+    """design.md §12: the current streak is refused, and a rung is a level."""
+    library, store, person, home = world
+    got = tools.my_progress(context(library, store, person, home), {})
+    assert "streak" not in got and "longest_run_of_days" in got
+    assert "reach" not in got["ladder"] and "cefr" not in got["ladder"]
+    assert got["ladder"]["note"] == "A guide, not a placement."
+    assert "never say a level" in tools.BY_NAME["my_progress"].description
+
+
+def test_my_vocabulary_says_a_status_in_words(world) -> None:
+    library, store, person, home = world
+    got = tools.my_vocabulary(context(library, store, person, home), {})
+    assert {row["status"] for row in got["recent"]} == {"known", "learning"}
+
+
+def test_search_library_holds_to_the_conversation_s_language(world) -> None:
+    """An Italian talk came back for a Hebrew reader (2026-09-24)."""
+    from targum import catalogue
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.search_library(ctx, {"limit": 20, "max_looked_up_percent": 100})
+    languages = {
+        catalogue.by_id(row["id"]).language.split("-")[0]  # type: ignore[union-attr]
+        for row in got["texts"]
+    }
+    assert languages <= {"he", "arc"} and got["language"] == "he"
+    everything = tools.search_library(ctx, {"language": "all", "max_looked_up_percent": 100})
+    assert everything["count"] >= got["count"] and everything["language"] == "all"
+
+
+def test_open_library_text_gives_a_library_link_when_it_cannot_be_quoted(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    unbuilt = next(
+        row for row in tools.search_library(ctx, {"limit": 20})["texts"] if not row["on_shelf"]
+    )
+    told = tools.open_library_text(ctx, {"id": unbuilt["id"]})["how_to_open"]
+    assert f"https://targum.test/library/{unbuilt['id']}" in told
+
+
+def test_playlists_come_back_with_absolute_links(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    added = tools.add_to_playlist(ctx, {"playlist": "Morning", "text": "ruth-he"})
+    assert added["open"].startswith("https://targum.test/reader/ruth-he/reader/index.html?list=")
+    got = tools.my_playlists(ctx, {})["playlists"][0]
+    assert got["open"] == added["open"]
+    assert got["texts"][0]["reader"] == "https://targum.test/reader/ruth-he/reader/index.html"
+    missing = tools.add_to_playlist(ctx, {"playlist": "Morning", "text": "not-there"})
+    assert "quote_set" in missing["error"]
+
+
+def test_a_tool_that_raises_is_not_its_exception(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    from dataclasses import replace
+
+    def broken(ctx, args):  # type: ignore[no-untyped-def]
+        raise KeyError("reader")
+
+    monkeypatch.setitem(
+        tools.BY_NAME, "my_progress", replace(tools.BY_NAME["my_progress"], run=broken)
+    )
+    text, failed = tools.run("my_progress", {}, context(library, store, person, home))
+    assert failed and "KeyError" not in text and "reader" not in text
+
+
+def test_how_to_talk_hands_a_host_only_real_words(world) -> None:
+    library, store, person, home = world
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": 9, "seen": 1}
+                for w in ("and", "the", "7", "ב", "ספר")
+            ]
+        },
+    )
+    ctx = context(library, store, person, home)
+    contract = tools.how_to_talk(ctx, {"language": "he"})["contract"]
+    known = next(line for line in contract.splitlines() if line.startswith("The reader's known"))
+    assert "ספר" in known
+    for junk in (" and", " the", " 7", " ב "):
+        assert junk not in known + " ", junk
+
+
+def test_the_host_is_told_the_contract_s_own_rule_in_its_own_language(world) -> None:
+    from targum.chat import hebrew
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    italian = tools.how_to_talk(ctx, {"language": "it"})["contract"]
+    head = tools.elsewhere("it", "English")
+    assert italian.startswith(head)
+    assert "Italian" in head and "Hebrew" not in head
+    assert "Never an Italian line without its English line." in head
+    assert "Never an Italian line without its English line." in hebrew.contract_for("it")
+    assert "kept on their record" not in head
+
+
+def test_suggest_next_says_what_it_does() -> None:
+    """It leaves out the reader's own texts and keeps the shared shelf's, which open
+    straight away; the description said "not built yet" and hosts were handed on_shelf."""
+    said = tools.BY_NAME["suggest_next"].description
+    assert "not built" not in said and "on_shelf" in said

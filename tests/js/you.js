@@ -52,6 +52,8 @@ global.fetch = (url, options) => {
   if (options && options.method === "POST") {
     posted.push({ path: at, body: JSON.parse(options.body || "{}") });
   }
+  // An answer of "fail" is a request that never came back.
+  if (answers[at] === "fail") return Promise.reject(new Error("offline"));
   return Promise.resolve({ json: () => Promise.resolve(answers[at] || {}) });
 };
 
@@ -130,6 +132,7 @@ setTimeout(() => {
           name: row.children[0].textContent,
           says: row.children[1].textContent,
           press: row.children[2].textContent,
+          when: row.children[3] ? row.children[3].textContent : "",
         })),
         promptsPanel: at("prompts").hidden,
         prompts: Array.from(at("prompt-rows").children).map((row) => ({

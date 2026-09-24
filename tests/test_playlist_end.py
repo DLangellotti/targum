@@ -112,7 +112,14 @@ def test_the_end_counts_the_words_the_set_held(door, monkeypatch) -> None:
     )
     assert status == 200
     # Four distinct words across two texts (ילד in both), one of them already theirs.
-    assert said["words"] == {"met": 4, "new": 3}
+    assert {key: said["words"][key] for key in ("met", "new")} == {"met": 4, "new": 3}
+    # And the words themselves (design.md §12, "the words met across the set"): the new
+    # ones first, then the one already theirs.
+    listed = said["words"]["list"]
+    assert {one["word"] for one in listed if one["new"]} == {"ספר", "ילד", "ים"}
+    assert [one["new"] for one in listed] == [True, True, True, False]
+    assert [one["word"] for one in listed if not one["new"]] == ["בית"]
+    assert all(one["language"] == "he" for one in listed)
     assert said["next"] is None, "nothing to suggest, so nothing is offered"
 
 
@@ -147,8 +154,53 @@ def test_the_next_set_is_quoted_once_and_the_same_one_comes_back(door, monkeypat
     assert quoted[0]["items"] == [{"catalogue_id": "ruth", "title": "Ruth"}]
     assert first["next"] == second["next"]
     assert first["next"]["open"] == f"/set/{first['next']['id']}"
-    assert first["next"]["count"] == 1 and first["next"]["name"] == "After Reels"
+    assert first["next"]["count"] == 1 and first["next"]["name"] == "More like Reels"
     assert store.next_set(person.id, playlist) == first["next"]["id"]
+
+
+def test_the_next_set_never_offers_back_what_was_just_read(door, monkeypatch) -> None:
+    """Found live on 2026-09-24: the next set after a finished playlist held the three
+    texts just finished. Every text in the playlist is left out, whatever the suggestion
+    brings back — by the skip it is handed, and again after it."""
+    from types import SimpleNamespace
+
+    from targum import catalogue
+
+    port, library, store, person, mine, _ = door
+    playlist = finished_playlist(library, store, person)
+    monkeypatch.setattr(
+        catalogue,
+        "everything",
+        lambda: [
+            SimpleNamespace(id="one-row", source="https://example.com/one"),
+            SimpleNamespace(id="two-row", source="https://example.com/two/"),
+            SimpleNamespace(id="ruth", source="https://example.com/ruth"),
+        ],
+    )
+    skipped: list[list[str]] = []
+
+    def suggest(ctx: tools.Ctx, args: dict[str, Any]) -> dict[str, Any]:
+        skipped.append(sorted(args.get("skip") or []))
+        # A suggestion that ignores its skip, so the second guard is the one tested.
+        return {
+            "suggestions": [
+                {"id": "one-row", "title": "One"},
+                {"id": "ruth", "title": "Ruth"},
+                {"id": "two-row", "title": "Two"},
+            ]
+        }
+
+    quoted: list[dict[str, Any]] = []
+
+    def quote(ctx: tools.Ctx, args: dict[str, Any]) -> dict[str, Any]:
+        quoted.append(args)
+        return {}
+
+    monkeypatch.setattr(tools, "suggest_next", suggest)
+    monkeypatch.setattr(tools, "quote_set", quote)
+    get(port, f"/playlists/{playlist}/end.json", mine)
+    assert skipped == [["one-row", "two-row"]]
+    assert quoted[0]["items"] == [{"catalogue_id": "ruth", "title": "Ruth"}]
 
 
 def test_a_set_that_could_not_be_quoted_is_not_tried_again(door, monkeypatch) -> None:

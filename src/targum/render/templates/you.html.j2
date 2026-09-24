@@ -131,7 +131,7 @@
       Shown only once something is connected — a box for writing prompts, to somebody who
       has no connector to show them in, is a control without a job (§6). -#}
   <section class="panel" id="prompts" hidden>
-    <h2>{{ t("you.page.your-own-asks", "Your own asks") }}</h2>
+    <h2>{{ t("you.page.your-prompts", "Your prompts") }}</h2>
     <p class="note">{{ t("you.page.prompts-says", "Things you ask for often. Write one here and it appears in Claude or ChatGPT by name, next to ours.") }}</p>
     <ul class="series" id="prompt-rows"></ul>
     <label class="field">
@@ -143,7 +143,7 @@
       <input type="text" id="prompt-says" maxlength="2000">
     </label>
     <p class="ending-row">
-      <button type="button" class="go-quiet" id="prompt-save">{{ t("you.page.prompt-save", "Save it") }}</button>
+      <button type="button" class="tonal" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
     </p>
     <p class="said" id="prompts-said" hidden></p>
   </section>
