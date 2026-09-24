@@ -209,8 +209,11 @@ body.signin {
   align-items: baseline;
   gap: 0.5rem;
   padding: 0.75rem 0.875rem;
-  background: var(--page);
+  /* The card's own tone, so the 1px gaps over the rule read as hairlines. It named
+     --page, which nothing defines, and the rows ran together as one block. */
+  background: var(--card);
 }
+.gate .scopes + .said { margin-block-start: 1rem; }
 .gate .scope-says { flex: 1 1 12rem; min-width: 0; }
 /* Where Connect sends the reader, in bold at body size beside the press: the heading is
    the app's claim about its own name, and the host is the fact that checks it. */

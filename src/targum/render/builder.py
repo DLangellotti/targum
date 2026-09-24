@@ -1824,7 +1824,7 @@ def set_page(
     )
 
 
-def connect_page(language: str = "en", address: str = "") -> str:
+def connect_page(language: str = "en", address: str = "", signed_in: bool = False) -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 
     A public page, so §6's selling register applies and the feature names we use inside
@@ -1834,6 +1834,10 @@ def connect_page(language: str = "en", address: str = "") -> str:
     Note 2 of 2026-09-22 is the design: assume this is their first connector of any kind.
     One block a host, each with its own steps, and nothing detected — a reader in the
     wrong block can see that they are, which is not true of a page that chose for them.
+
+    `signed_in` only decides whether the hero says that connecting needs an account:
+    accounts come off the waitlist, and a stranger sent to the steps would otherwise
+    meet a sign-in door they cannot get through.
     """
     said = page_words(language)
     # Its own address per language, like every other public page (#188): a crawler
@@ -1849,8 +1853,9 @@ def connect_page(language: str = "en", address: str = "") -> str:
             description=said(
                 "connect.head.description",
                 "Learn Hebrew in Claude, ChatGPT and the AI you already use. It talks to "
-                "you at your level, and every new word goes on your list.",
+                "you at your level and shows you how to fix each mistake.",
             ),
+            signed_in=signed_in,
             canonical=here,
             alternates=alternates,
             address=address,

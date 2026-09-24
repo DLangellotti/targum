@@ -536,6 +536,23 @@ def test_connect_names_mcp_once_and_leads_with_what_they_get(
     assert "connector" not in page.split("<main")[0], "not a word a stranger decodes"
 
 
+def test_connect_promises_no_tick_and_tells_a_stranger_they_need_an_account(
+    connected: tuple[int, str, Path],
+) -> None:
+    """design.md §12, 2026-09-24: the grant is one press, so nothing on /connect says
+    "tick" or "choose what it can see"; and connecting needs an account, which a stranger
+    has not got, so the hero says so and a signed-in reader is not told it."""
+    port, session, _ = connected
+    stranger = get(port, "/connect")[1].decode()
+    said = stranger.split("<main", 1)[1]
+    assert "Tick what you want" not in said and "choose what it can see" not in said
+    assert "Open Customize, then Connectors." in said, "where Claude keeps them now"
+    assert 'class="need-account"' in said and 'href="#join"' in said
+    assert 'id="join"' in said
+    reader = get(port, "/connect", session=session)[1].decode()
+    assert 'class="need-account"' not in reader
+
+
 def test_connect_guesses_nothing_about_which_app(connected: tuple[int, str, Path]) -> None:
     """A reader in the wrong block can see that they are; a page that chose cannot."""
     port, _, _ = connected

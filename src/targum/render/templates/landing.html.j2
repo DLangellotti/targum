@@ -464,6 +464,9 @@
         <details><summary>{{ t("landing.page.can-i-bring-a-youtube-video", "Can I bring a YouTube video?") }}</summary><p>{{ t("landing.page.yes-paste-the-link-into-the-box-if", "Yes. Paste the link into the box. If the video has Hebrew subtitles we use them, and if not we write out what’s said.") }}</p></details>
         <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.page.both-on-one-list-a-word-you-learn", "Both, on one list. A word you learn in Genesis is already yours when it turns up in the news.") }}</p></details>
         <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us. Everyone on the waitlist hears what it costs before anybody else.") }}</p></details>
+        {%- if connector_is_open() %}
+        <details><summary>{{ t("landing.page.can-i-use-it-in-claude-or-chatgpt", "Can I use it in Claude or ChatGPT?") }}</summary><p>{{ t("landing.page.yes-connect-targum-and-your-ai-talks", "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p></details>
+        {%- endif %}
         <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring is yours, and we never train a model on it.") }}</p></details>
       </div>
     </div>

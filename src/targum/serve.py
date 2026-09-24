@@ -5222,7 +5222,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/connect":
             if not connector_is_open():
                 return self._send(404, b"not found", "text/plain")
-            page = connect_page(self._public_language(), self.address)
+            page = connect_page(
+                self._public_language(), self.address, signed_in=self._person() is not None
+            )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
             if not connector_is_open():
