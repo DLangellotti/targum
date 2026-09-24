@@ -313,6 +313,12 @@ THUMBED = (
     ".week-part",
     # And Hear first, in the player strip (2026-09-15, targum-internal#265).
     ".player-first",
+    # The connect page's own (2026-09-24): an app's tab, the Copy beside an address,
+    # the examples under the conversation, and a step, which shows its picture.
+    ".plat",
+    ".copy",
+    ".scene",
+    ".steps > li",
 )
 
 

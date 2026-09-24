@@ -1837,6 +1837,9 @@ def connect_page(language: str = "en", address: str = "") -> str:
             canonical=here,
             alternates=alternates,
             address=address,
+            # The conversation and the set-up screens say their words through
+            # `strings.js`; the template's own `.page.` keys are said already.
+            strings=script_strings(language, "connect."),
         )
     )
 
