@@ -149,7 +149,7 @@ def test_a_playlist_lists_its_texts_in_order_with_its_keys(browser, tmp_path: Pa
         "titles": ["Cheese swirls", "Raiba"],
         "upFirst": True,
         "downLast": True,
-        "failed": "We couldn't make this one.",
+        "failed": "Couldn't prepare this text.",
     }
     assert sent == [["/playlists/1", {"do": "move", "position": 0, "by": 1}]]
 
@@ -170,3 +170,73 @@ def test_a_shelf_row_opens_the_sheet_for_its_text(browser, tmp_path: Path) -> No
     href = page.locator(".add-to-list").first.get_attribute("href")
     context.close()
     assert href == "/playlists?add=jonah&title=%D7%99%D7%95%D7%A0%D7%94&k=test-key"
+
+
+def shelf_with_fake(browser, tmp_path: Path):
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(list_page(TOKEN, "texts"), encoding="utf-8")
+    readers = [{"name": "jonah", "document": "jonah", "title": "יונה", "language": "he"}]
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    page.add_init_script(
+        f"const KITCHEN = {json.dumps(KITCHEN)}; const readers = {json.dumps(readers)};"
+        + FAKE
+        + "const playlistsFetch = window.fetch;"
+        "window.fetch = (url, opts) => String(url).split('?')[0].endsWith('/readers')"
+        " ? Promise.resolve(new Response(JSON.stringify({readers, trash: []})))"
+        " : playlistsFetch(url, opts);"
+    )
+    page.goto(page_file.as_uri())
+    page.wait_for_selector(".add-to-list")
+    return context, page, thrown
+
+
+def test_add_to_playlist_is_a_menu_in_place(browser, tmp_path: Path) -> None:
+    """2026-09-24: "why do I need to go to an entire new page to add a targum to a
+    playlist, it should be doable in a single dropdown." One press opens the reader's
+    playlists under the row, a second adds the text, and the page never changes."""
+    context, page, thrown = shelf_with_fake(browser, tmp_path)
+    before = page.url
+    page.locator(".add-to-list").first.click()
+    page.wait_for_selector(".playlist-menu .pm-choice")
+    assert page.locator(".add-to-list").first.get_attribute("aria-expanded") == "true"
+    page.locator(".playlist-menu .pm-choice").first.click()
+    page.wait_for_selector(".playlist-menu .pm-status:not([hidden])")
+    said = page.locator(".playlist-menu .pm-status").inner_text()
+    sent = posted(page)
+    after = page.url
+    context.close()
+    assert after == before, "it stayed on the shelf"
+    assert sent == [["/playlists/1", {"do": "add", "reader": "jonah", "title": "יונה"}]]
+    assert said == "Added to Kitchen"
+    assert not thrown
+
+
+def test_the_menu_makes_a_new_playlist_with_the_text_in_it(browser, tmp_path: Path) -> None:
+    context, page, thrown = shelf_with_fake(browser, tmp_path)
+    page.locator(".add-to-list").first.click()
+    page.wait_for_selector(".playlist-menu .pm-choice")
+    page.fill(".playlist-menu .pm-name", "Morning")
+    confirm = page.locator(".playlist-menu .pm-confirm").inner_text()
+    page.locator(".playlist-menu .pm-confirm").click()
+    page.wait_for_selector(".playlist-menu .pm-status:not([hidden])")
+    sent = posted(page)
+    context.close()
+    assert confirm == "Confirm"
+    assert sent == [["/playlists", {"name": "Morning", "reader": "jonah", "title": "יונה"}]]
+    assert not thrown
+
+
+def test_escape_closes_the_menu_and_gives_focus_back(browser, tmp_path: Path) -> None:
+    context, page, thrown = shelf_with_fake(browser, tmp_path)
+    page.locator(".add-to-list").first.click()
+    page.wait_for_selector(".playlist-menu .pm-choice")
+    page.keyboard.press("Escape")
+    gone = page.locator(".playlist-menu").count()
+    focused = page.evaluate("() => document.activeElement.className")
+    context.close()
+    assert gone == 0
+    assert "add-to-list" in focused
+    assert not thrown

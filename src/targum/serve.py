@@ -6660,7 +6660,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.playlists-kept",
-                        "You keep {most} playlists already. Delete one to open this one.",
+                        "You already have {most} playlists. Delete one first.",
                         most=MOST_PLAYLISTS,
                     )
                 },
@@ -6821,7 +6821,7 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "error": self._say(
                             "serve.playlist-name-it",
-                            "Give it a name. You can keep up to {most} playlists.",
+                            "Enter a name. You can have up to {most} playlists.",
                             most=MOST_PLAYLISTS,
                         )
                     },
@@ -7699,7 +7699,7 @@ class Handler(BaseHTTPRequestHandler):
                 said = said_in(
                     self._page_language(),
                     "set.page.only-this-many-fit",
-                    "{refused} {n} credits are left, so untick what doesn't fit and press again.",
+                    "{refused} You have {n} credits left. Untick some texts and try again.",
                     refused=blocked,
                     n=fits,
                 )

@@ -144,15 +144,15 @@
         ? tn(
             "reader.list.end-words-new",
             words.met,
-            "You met {n} word here, {new} of them new to you.",
-            "You met {n} words here, {new} of them new to you.",
+            "You met {n} word, {new} of them new.",
+            "You met {n} words, {new} of them new.",
             { new: words.new }
           )
         : tn(
             "reader.list.end-words",
             words.met,
-            "You met {n} word here.",
-            "You met {n} words here."
+            "You met {n} word.",
+            "You met {n} words."
           );
       end.appendChild(met);
     }
@@ -160,7 +160,7 @@
     if (next && next.open) {
       var lead = document.createElement("p");
       lead.className = "list-end-lead";
-      lead.textContent = t("reader.list.end-next", "We put together a next set for you.");
+      lead.textContent = t("reader.list.end-next", "Next playlist");
       end.appendChild(lead);
       var door = document.createElement("a");
       door.className = "list-end-next";
@@ -242,7 +242,7 @@
       );
     }
     var nextLabel =
-      near.next !== null ? t("reader.list.next", "Next") : t("reader.list.done", "Finish the playlist");
+      near.next !== null ? t("reader.list.next", "Next") : t("reader.list.done", "Finish");
     nav.appendChild(
       control("list-next", nextLabel, function () {
         forward("list-next");

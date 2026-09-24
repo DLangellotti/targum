@@ -51,7 +51,7 @@
           {%- if row.credits %}<span class="scope-cost">{{ tn("set.page.uses-credits", row.credits, "{n} credit", "{n} credits") }}</span>{% endif %}
           {%- elif row.stage == 'failed' %}
           <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
-          <span class="scope-cost">{{ t("set.page.we-can-t-make-this-one", "We can't make this one") }}</span>
+          <span class="scope-cost">{{ t("set.page.we-can-t-make-this-one", "Can't be added") }}</span>
           {%- else %}
           <span class="scope-says"><bdi dir="auto">{{ row.item.title }}</bdi></span>
           <span class="scope-cost">{{ t("set.page.on-your-shelf", "On your shelf") }}</span>
@@ -62,32 +62,32 @@
       {%- if total %}
       <p class="said">{{ tn("set.page.uses-credits-in-all", total, "Uses {n} credit in all", "Uses {n} credits in all") }}</p>
       {%- endif %}
-      <button class="go" type="submit">{{ t("set.page.read-these", "Read these") }}</button>
+      <button class="go" type="submit">{{ t("set.page.read-these", "Confirm") }}</button>
     </form>
-    <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "You asked for these somewhere else. Nothing has been made yet, and untick anything you don't want.") }}</p>
+    <p class="aside">{{ t("set.page.you-asked-for-these-somewhere-else", "Untick anything you don't want, then confirm. Nothing is prepared until you do.") }}</p>
 
     {%- elif making %}
-    <p class="said" role="status">{{ tn("set.page.we-re-making-them", making|length, "We're making {n} text. The first is ready first.", "We're making {n} texts. The first is ready first.") }}</p>
+    <p class="said" role="status">{{ tn("set.page.we-re-making-them", making|length, "Preparing {n} text.", "Preparing {n} texts. You can start as soon as the first is ready.") }}</p>
     {%- if first %}
     <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
-      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start with the first") }}</button>
+      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start") }}</button>
     </form>
     {%- else %}
     <form method="get" action="/set/{{ playlist.id }}">
-      <button class="go" type="submit">{{ t("set.page.see-how-it-s-going", "See how it's going") }}</button>
+      <button class="go" type="submit">{{ t("set.page.see-how-it-s-going", "Check progress") }}</button>
     </form>
     {%- endif %}
-    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Go to your playlists") }}</a></p>
+    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Your playlists") }}</a></p>
 
     {%- elif first %}
-    <p class="said">{{ t("set.page.they-re-ready", "They're ready.") }}</p>
+    <p class="said">{{ t("set.page.they-re-ready", "Ready.") }}</p>
     <form method="get" action="/reader/{{ first.reader }}/reader/index.html">
-      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start with the first") }}</button>
+      <button class="go" type="submit">{{ t("set.page.start-with-the-first", "Start") }}</button>
     </form>
-    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Go to your playlists") }}</a></p>
+    <p class="aside"><a href="/playlists">{{ t("set.page.go-to-your-playlists", "Your playlists") }}</a></p>
 
     {%- else %}
-    <p class="said">{{ t("set.page.nothing-here-can-be-made", "Nothing in this set can be made now. Ask again where you asked before.") }}</p>
+    <p class="said">{{ t("set.page.nothing-here-can-be-made", "None of these texts can be added right now.") }}</p>
     <p class="aside"><a href="/">{{ t("press.page.go-to-your-texts", "Go to your texts") }}</a></p>
     {%- endif %}
   </div>

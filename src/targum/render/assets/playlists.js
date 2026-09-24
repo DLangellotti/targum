@@ -62,10 +62,12 @@
     node.classList.toggle("bad", !!bad);
   }
 
-  function button(label, onPress, extra) {
+  // §13's three kinds: tonal for the ordinary press, ghost for moving and taking away.
+  // The page's one filled press is Confirm, in the template.
+  function button(label, onPress, kind) {
     var press = document.createElement("button");
     press.type = "button";
-    press.className = "go-quiet" + (extra ? " " + extra : "");
+    press.className = kind || "tonal";
     press.textContent = label;
     press.onclick = onPress;
     return press;
@@ -200,7 +202,7 @@
       var state = document.createElement("span");
       state.className = "item-state";
       state.textContent = item.failed
-        ? t("playlists.could-not", "We couldn't make this one.")
+        ? t("playlists.could-not", "Couldn't prepare this text.")
         : t("playlists.getting-ready", "Getting ready");
       row.appendChild(state);
     }
@@ -208,18 +210,18 @@
     keys.className = "item-keys";
     var up = button("↑", function () {
       change(one.id, { do: "move", position: item.position, by: -1 });
-    });
+    }, "ghost");
     up.setAttribute("aria-label", t("playlists.move-up", "Move {title} up", { title: item.title }));
     up.disabled = item.position === 0;
     var down = button("↓", function () {
       change(one.id, { do: "move", position: item.position, by: 1 });
-    });
+    }, "ghost");
     down.setAttribute("aria-label", t("playlists.move-down", "Move {title} down", { title: item.title }));
     down.disabled = last;
-    var out = button(t("playlists.take-out", "Take out"), function () {
+    var out = button(t("playlists.take-out", "Remove"), function () {
       change(one.id, { do: "drop", position: item.position });
-    });
-    out.setAttribute("aria-label", t("playlists.take-out-named", "Take {title} out", { title: item.title }));
+    }, "ghost");
+    out.setAttribute("aria-label", t("playlists.take-out-named", "Remove {title}", { title: item.title }));
     keys.appendChild(up);
     keys.appendChild(down);
     keys.appendChild(out);
@@ -243,7 +245,7 @@
     })[0];
     if (start) {
       var go = document.createElement("a");
-      go.className = "go-quiet start";
+      go.className = "tonal start";
       go.href = keyed(listed(start.open, one.id, start.position));
       go.textContent = t("playlists.start", "Start");
       head.appendChild(go);
@@ -255,7 +257,7 @@
     );
     var away = button(t("playlists.delete", "Delete"), function () {
       change(one.id, { do: "gone" });
-    }, "danger");
+    }, "ghost danger");
     away.setAttribute("aria-label", t("playlists.delete-named", "Delete {name}", { name: one.name }));
     head.appendChild(away);
     box.appendChild(head);
@@ -279,7 +281,7 @@
     form.appendChild(field);
     var save = document.createElement("button");
     save.type = "submit";
-    save.className = "go-quiet";
+    save.className = "tonal";
     save.textContent = t("playlists.save", "Save");
     form.appendChild(save);
     form.addEventListener("submit", function (event) {

@@ -10909,5 +10909,13 @@ else targumReader();
   var key = new URLSearchParams(location.search).get("k");
   if (key) address += "&k=" + encodeURIComponent(key);
   link.href = address;
+  // A menu in place (2026-09-24); the address above is where a middle-click still goes.
+  if (window.TargumPlaylistMenu) {
+    window.TargumPlaylistMenu.attach(
+      link,
+      { name: name, title: link.getAttribute("data-title") || name },
+      key
+    );
+  }
   group.hidden = false;
 })();
