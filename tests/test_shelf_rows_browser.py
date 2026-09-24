@@ -20,7 +20,13 @@ playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
 )
 
-NOW = int(time.time())
+#: How long ago each row was built, in seconds, rather than a moment frozen at import.
+#: `NOW` was `int(time.time())` read once when this module loaded, and a row built "7
+#: hours ago" is 7 h 38 m old by the time a 38-minute suite reaches this file — which the
+#: page rounds to 8. So the test passed on a short run and failed on a long one, and did
+#: it deterministically rather than at random (2026-09-24). `_readers()` resolves these
+#: against the clock at the moment the page is handed them.
+AGES = {"vlog": 7 * 3600, "weekly": 86400, "mishna": 2 * 86400}
 
 READERS = [
     {
@@ -29,7 +35,7 @@ READERS = [
         "title": "A day in Tel Aviv",
         "language": "he",
         "entry": "",
-        "built": NOW - 7 * 3600,
+        "built": -AGES["vlog"],
         "minutes": 9,
         "seconds": 612,
         "video": True,
@@ -46,7 +52,7 @@ READERS = [
         "title": "מבט שבועי",
         "language": "he",
         "entry": "",
-        "built": NOW - 86400,
+        "built": -AGES["weekly"],
         "minutes": 22,
         "seconds": 0,
         "sections": 6,
@@ -63,7 +69,7 @@ READERS = [
         "english": "News",
         "language": "he",
         "entry": "news-1",
-        "built": NOW - 2 * 86400,
+        "built": -AGES["mishna"],
         "minutes": 3,
         "seconds": 0,
         "sections": 1,
@@ -89,6 +95,12 @@ def browser():
     driver.stop()
 
 
+def _readers() -> list[dict]:
+    """The rows, aged from the clock as it is now and not as it was at import."""
+    now = int(time.time())
+    return [{**row, "built": now + int(row["built"])} for row in READERS]
+
+
 def shelf(browser, tmp_path: Path, width: int):
     page_file = tmp_path / "texts.html"
     page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
@@ -98,7 +110,7 @@ def shelf(browser, tmp_path: Path, width: int):
     page.on("pageerror", lambda error: thrown.append(str(error)))
     page.add_init_script(
         f"localStorage.setItem('targum:docs', {json.dumps(json.dumps(DOCS))});"
-        f"const readers = {json.dumps(READERS)};"
+        f"const readers = {json.dumps(_readers())};"
         "window.fetch = (url, opts) => {"
         "  const path = String(url).split('?')[0];"
         "  if (opts && opts.method === 'POST') {"
@@ -221,7 +233,7 @@ def test_a_video_with_a_poster_shows_its_picture(browser, tmp_path: Path) -> Non
     page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     page = context.new_page()
-    drawn = [{**READERS[0], "drawn": True}]
+    drawn = [{**_readers()[0], "drawn": True}]
     page.add_init_script(
         f"const readers = {json.dumps(drawn)};"
         "window.fetch = () => Promise.resolve(new Response(JSON.stringify({readers, trash: []})));"

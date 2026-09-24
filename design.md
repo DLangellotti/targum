@@ -384,6 +384,40 @@ no cards, and from ⌘K.
 What it does not overturn: one row per text in one list; covers as the library draws
 them; no counts of things watched; no level on the reader.
 
+### The connector is a banner and a line in the foot — 2026-09-24
+
+**This retires "A door that is not a text — 2026-09-22"**, below, which put targum in Claude
+and ChatGPT into Learn's row of doors, styled exactly like the reading doors. It shipped,
+David looked at it on the live page, and said: *"advertise the mcp in some other way, maybe
+a separate button or a banner"* — and, asked where, *"Banner and it should be in footer"*.
+
+The objection was written down the day the decision was taken, under Risks: *"a third door
+where two carry texts. Learn's first job is getting somebody into something to read, and a
+door styled identically but carrying a way in instead competes with the two that carry
+one."* It was right, and what settled it was looking at the page.
+
+- **A banner, above the row.** It announces something once, where a door goes on asking for
+  ever. It is not in the row, so the row is things that carry texts again.
+- **A line in the foot**, which is the permanent home: the foot is already where the things
+  that are always true and rarely wanted live, and this is one of them.
+- **It goes when it has been taken up.** Not a dismissal anybody has to remember — the
+  banner is drawn only for a reader with no connection, which the account already knows. A
+  reader who has connected is never asked again, on any device, with nothing stored to make
+  that so. The cross is for somebody who does not want it *now*, and that one is
+  per-browser, because it is a convenience and not a fact.
+
+**And the doors are counted, which they never were.** The 2026-09-22 entry asked for "a look
+at whether the reading doors' press rate moves after it ships". That look was impossible:
+`learn.html.j2` never loaded `events.js`, so no door on this page has ever been counted and
+the question could not be answered even in principle. It is wired now — the reading doors
+and the banner alike, as `control` events, which carry a name and a window width and nothing
+else. So this change is measurable and the one it replaces was not.
+
+What it does not overturn: the row still decides on the reading doors alone whether it is
+worth drawing at all; nothing on Learn pushes; and §6 still governs the words, so the banner
+says what a reader gets rather than selling it.
+
+
 ### Asking to practise a language is how you choose it — 2026-09-23
 
 David, in Claude, on the day the connector went live: *"Bonjour, je veux pratiquer mon
@@ -677,6 +711,10 @@ credits, and a credit is a minute. The rest of this line stands, and so does the
 being renamed from `check` to `chat` by that entry.)*
 
 ### A door that is not a text — 2026-09-22
+
+*Retired 2026-09-24 — see "The connector is a banner and a line in the foot" above. The
+door came out of the row; the reasoning below is kept because the alternatives it weighed
+are the ones the replacement had to answer.*
 
 Learn's row of doors has been two since 2026-09-06, and they are registers: Modern and
 Biblical, each carrying its own next text, its own progress and its own share of words

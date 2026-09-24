@@ -92,8 +92,24 @@ body.signin {
   box-shadow: inset 0 0 0 2px var(--teal);
 }
 
-/* The one call to action on the page, so it is ink (§9): the max-contrast pair. */
+/* The one call to action on the page, so it is ink (§9): the max-contrast pair.
+
+   Drawn from the pill in the 2026-09-24 sneak peek, which showed targum appearing inside
+   ChatGPT — David, seeing it: "let's also use that button in the app". Two of its three
+   parts travel and one does not.
+
+   The lift is here, so the press sits a little off the card at rest and not only when a
+   pointer finds it, which a phone has not got. The arrow is *not* here: it says "this
+   takes you somewhere", which is true of Read this and of Connect and false of Send a
+   link, so it is written into the buttons that mean it rather than given to all three.
+   And the mark stays in the mockup — two bars inside a button say "targum, over here",
+   which is worth saying inside somebody else's app and not on a page already carrying
+   the lockup above it. */
 .gate .go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   width: 100%;
   min-block-size: 2.75rem;
   padding: 0.6rem 1.25rem;
@@ -105,7 +121,15 @@ body.signin {
   font-size: 1.0625rem;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--shadow-rest);
   transition: box-shadow 200ms ease;
+}
+/* Dimmed, because it hints where the press goes and is not a second thing to read. */
+.gate .go .go-arrow {
+  flex: none;
+  inline-size: 0.8em;
+  block-size: 0.8em;
+  opacity: 0.7;
 }
 .gate .go:hover { box-shadow: var(--lift); }
 .gate .go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

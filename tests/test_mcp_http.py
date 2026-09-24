@@ -838,3 +838,49 @@ def test_the_press_page_sends_the_reader_where_the_reader_actually_is() -> None:
     assert '"/reader/index.html"' not in built, "the suffix is already on job.reader"
     assert "encodeURIComponent(reader)" not in built, "that escapes the separators"
     assert ".split(" in built and "encodeURIComponent" in built, "each segment, not the path"
+
+
+def test_an_arrow_marks_a_press_that_hands_the_reader_on() -> None:
+    """The pill from the 2026-09-24 sneak peek, brought into the app.
+
+    Its lift travels to every `.gate .go`; its arrow does not. An arrow says "this takes
+    you somewhere", which is true of Read this, Open it and Connect and false of Send a
+    link — so it is written into the buttons that mean it, and a shared rule cannot give
+    it to the ones that do not. Its mark travels nowhere: two bars inside a button say
+    "targum, over here", which is worth saying inside somebody else's app and not on a
+    page that already carries the lockup.
+    """
+    import re
+
+    from targum import oauth, serve
+    from targum.render import builder
+
+    def presses(html: str) -> dict[str, bool]:
+        found = {}
+        for one in re.finditer(r'<button[^>]*class="go"[^>]*>(.*?)</button>', html, re.S):
+            inner = one.group(1)
+            found[" ".join(re.sub(r"<[^>]+>", " ", inner).split())] = "go-arrow" in inner
+        return found
+
+    job = _quoted(audio=True, seconds=62.0, usually=420.0)
+    assert presses(builder.press_page(job)) == {"Read this": True}
+    assert presses(builder.press_page({**job, "stage": "working"})) == {
+        "See how it's going": False
+    }, "looking again keeps you here"
+    granted = builder.approve_page(
+        client="Claude",
+        scopes=oauth.describe_scopes(("library", "chat")),
+        spends=True,
+        credits=serve.UPLOAD_CREDITS,
+        hours=serve.UPLOAD_HOURS,
+        query="x=1",
+        redirect="https://claude.ai/cb",
+    )
+    assert presses(granted)["Connect"] is True, "it hands the reader back to the client"
+    assert presses(builder.signin_page()) == {"Send a link": False}, "which acts in place"
+    # And the mark stayed behind. Checked on the button and not the page: these templates
+    # inline `reader.css`, so the stylesheet mentions plenty this is not asking about.
+    import re as _re
+
+    for one in _re.finditer(r'<button[^>]*class="go"[^>]*>(.*?)</button>', granted, _re.S):
+        assert "brand-mark" not in one.group(1), "the lockup is above the card already"

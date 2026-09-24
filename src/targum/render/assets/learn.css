@@ -768,6 +768,51 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   align-self: flex-end;
 }
 .ways[hidden] { display: none; }
+
+/* targum in Claude and ChatGPT, announced once (design.md §12, 2026-09-24).
+
+   Deliberately not a door: it was one, in the row above, and a fourth pill styled like
+   the reading doors competed with the two whose job is getting somebody reading. A quiet
+   band instead — the accent wash the page already uses for a note, a hairline, and no
+   shadow, because a raised layer here would be the second on a view that allows one. */
+.connect-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.85rem;
+  margin-block-start: 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.connect-banner[hidden] { display: none; }
+.connect-says { margin: 0; flex: 1 1 16rem; min-inline-size: 0; color: var(--ink); }
+/* A link that asks somebody to act, so it takes the accent (§9) and reads as a press. */
+.connect-go {
+  flex: none;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+  text-decoration: none;
+  font-weight: 600;
+}
+.connect-go:hover { text-decoration: none; }
+/* Not now. Quiet, because refusing must be easy and must not be the loud thing. */
+.connect-shut {
+  flex: none;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.0625rem;
+  line-height: 1;
+  padding: 0.25rem 0.35rem;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.connect-shut:hover { color: var(--ink); }
 /* The subscriptions door: one pill however many there are, a menu under it. */
 .ways-menu-host { position: relative; }
 .way-menu::after {

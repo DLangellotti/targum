@@ -41,7 +41,7 @@
     <h1>{{ t("press.page.this-one-is-ready", "This one is ready") }}</h1>
     <p class="said">{{ job.title }}</p>
     <form method="get" action="/reader/{{ job.reader }}/reader/index.html">
-      <button class="go" type="submit">{{ t("press.page.open-it", "Open it") }}</button>
+      <button class="go" type="submit"><span class="go-says">{{ t("press.page.open-it", "Open it") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
     </form>
 
   {% elif job.stage in ('working', 'reading') %}
@@ -95,7 +95,7 @@
     </ul>
     <form method="post" action="/build/{{ job.id }}" id="press" data-job="{{ job.id }}"
           data-usually="{{ job.usually|round|int }}">
-      <button class="go" type="submit">{{ t("press.page.read-this", "Read this") }}</button>
+      <button class="go" type="submit"><span class="go-says">{{ t("press.page.read-this", "Read this") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
     </form>
     <p class="said" id="press-doing" role="status" hidden></p>
     <p class="said" id="press-left" role="status" hidden></p>

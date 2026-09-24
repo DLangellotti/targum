@@ -23,13 +23,11 @@ import pytest
 
 HARNESS = Path(__file__).resolve().parent / "js" / "learn.js"
 
-#: The doors, in order. The last is not a text (design.md §12, 2026-09-22): it is the
-#: way into Claude and ChatGPT, drawn identically and always last, and it never decides
-#: whether the row is worth drawing at all — the reading doors do that.
-ROW = ["Continue reading", "Suggested", "Recently opened", "Claude and ChatGPT"]
-#: The same door as a (label, on) pair. It is never `on`: it leads off the page
-#: rather than swapping the sheet, so there is no state for it to be in.
-CONNECT = ("Claude and ChatGPT", False)
+#: The doors, in order. Every one of them carries a text. The way into Claude and ChatGPT
+#: was a fourth here from 2026-09-22 until 2026-09-24, when design.md §12 took it out —
+#: "a third door where two carry texts" competed with the two whose job is getting
+#: somebody reading. It is a banner above the row now, and a line in the foot.
+ROW = ["Continue reading", "Suggested", "Recently opened"]
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
@@ -158,7 +156,6 @@ def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> 
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
         ("Recently opened", False),
-        CONNECT,
     ]
     recent = drawn["recent"]
     assert [i["label"] for i in recent["items"]] == [f"ספר {n}" for n in range(5)], (
@@ -175,7 +172,6 @@ def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> 
     assert [(d["label"], d["on"]) for d in pressed["doors"]] == [
         ("Continue reading", False),
         ("Recently opened", True),
-        CONNECT,
     ], "the door says which way the sheet was reached"
     assert [i["on"] for i in pressed["recent"]["items"]] == [False, False, True, False, False]
     assert not pressed["recent"]["open"], "a press closes the menu"
@@ -802,7 +798,6 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Continue reading", True),
         ("Recently opened", False),
         ("Subscriptions", False),
-        CONNECT,
     ]
     assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
     assert [(i["id"], i["label"], i["fresh"]) for i in drawn["menu"]["items"]] == [
@@ -821,7 +816,6 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Continue reading", False),
         ("Recently opened", False),
         ("The weekly portion", True),
-        CONNECT,
     ], "the door says which subscription is in the sheet"
     both = dict(stored, **{"targum:follows": json.dumps({"parasha": 1, "weekly": 1})})
     unseen = draw([mine], dict(both, **{"targum:series-seen": "{}"}), series=[portion, digest])
@@ -833,7 +827,6 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     assert [d["label"] for d in alone["doors"]] == [
         "Continue reading",
         "Recently opened",
-        CONNECT[0],
     ], "nothing followed: no subscriptions door"
     nothing = draw([], {})
     assert nothing["doors"] == [], "no text in the sheet, no row"
@@ -942,7 +935,6 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
     assert [d["label"] for d in none["doors"]] == [
         "Continue reading",
         "Recently opened",
-        CONNECT[0],
     ], "nothing suggested and nothing followed: no Suggested door"
 
 
@@ -1015,7 +1007,6 @@ def test_a_box_with_no_connector_draws_no_door_to_one() -> None:
     stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(8)})}
     drawn = draw(shelf, stamps, connector=False)
     assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Recently opened"]
-    assert CONNECT[0] not in [d["label"] for d in drawn["doors"]]
 
 
 def test_the_date_follows_the_language_the_page_is_in() -> None:
@@ -1495,3 +1486,39 @@ def test_the_arrival_opens_a_book_at_its_first_chapter_not_its_contents() -> Non
         ],
     )["went"]
     assert "/reader/holon/reader/index.html" in went, went
+
+
+# --- the connector's banner, above the row (design.md §12, 2026-09-24) ----------------
+
+
+def a_shelf() -> list[dict[str, Any]]:
+    return [reader(f"r{n}", f"ספר {n}", built=100 - n, opened=50 - n) for n in range(8)]
+
+
+def test_a_reader_with_no_connection_is_told_once_about_claude() -> None:
+    """The way in was a fourth door in the row until 2026-09-24, where it competed with
+    the two whose job is getting somebody reading. It is a banner above the row now."""
+    drawn = draw(a_shelf(), {}, me={"signedIn": True, "connections": []})
+    assert drawn["banner"], "a reader who has not connected is told"
+    assert "Claude" in drawn["banner"]["says"]
+    assert drawn["banner"]["goes"] == "/connect"
+    assert "Claude and ChatGPT" not in [d["label"] for d in drawn["doors"]], "and not a door"
+
+
+def test_a_reader_who_has_connected_is_never_asked_again() -> None:
+    """It stops by itself, from what the account already knows — so nothing is stored to
+    remember it, and it is true on every device the reader opens."""
+    drawn = draw(a_shelf(), {}, me={"signedIn": True, "connections": [{"client": "c"}]})
+    assert drawn["banner"] is None
+
+
+def test_a_box_with_no_connector_offers_none() -> None:
+    """It ships dark behind `TARGUM_CONNECTOR` (#80), and an invitation to a 404 is worse
+    than no invitation."""
+    drawn = draw(a_shelf(), {}, connector=False, me={"signedIn": True, "connections": []})
+    assert drawn["banner"] is None
+
+
+def test_nobody_signed_out_is_asked() -> None:
+    """There is no account to connect, so there is nothing to offer."""
+    assert draw(a_shelf(), {}, me={"signedIn": False})["banner"] is None

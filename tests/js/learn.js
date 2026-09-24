@@ -311,6 +311,15 @@ function report() {
       // The greeting and today, and the row of doors (2026-09-11).
       greeting: at("greeting").textContent,
       today: at("today").textContent,
+      /* The connector's banner, above the row (design.md §12, 2026-09-24): whether it is
+         drawn, what it says, and where its press goes. Drawn only for a signed-in reader
+         with no connection yet, so most payloads see nothing here. */
+      banner: at("connect-banner").hidden || !(at("connect-banner").children || []).length
+        ? null
+        : {
+            says: (at("connect-banner").children[0] || {}).textContent || "",
+            goes: (at("connect-banner").children[1] || {}).href || "",
+          },
       doors: at("doors").hidden
         ? []
         : withDoors(at("doors"))
