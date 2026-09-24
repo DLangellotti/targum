@@ -238,9 +238,10 @@ def test_each_connector_says_what_it_may_do_in_the_reader_s_words() -> None:
     assert page["connections"][1]["says"] == "the library"
 
 
-def test_the_scope_that_uses_credits_says_so_here_too() -> None:
-    """design.md §12: this is the page they come to when they want to know what they
-    agreed to, so it says what the standing grant costs.
+def test_the_chat_scope_says_chatting_is_included() -> None:
+    """design.md §12, 2026-09-24: this is the page they come to when they want to know
+    what they agreed to, and what it says is what the approval page said — chatting is
+    included, with no credits or hours in the line.
 
     Both spellings, because a grant stores the words the reader approved and those
     outlive a rename: `check` became `chat` on 2026-09-23, and every connector authorised
@@ -255,8 +256,33 @@ def test_the_scope_that_uses_credits_says_so_here_too() -> None:
             }
         )
         says = page["connections"][0]["says"]
-        assert "uses your credits" in says, f"{held!r} lost its spending scope"
-        assert "hours" not in says
+        assert "which is included" in says, f"{held!r} lost its spending scope"
+        assert "credits" not in says and "hours" not in says
+
+
+def test_two_rows_of_one_app_are_told_apart_by_their_dates() -> None:
+    """Claude registers itself afresh on every reconnect, and removing it in Claude does
+    not reach us, so two "Claude" rows are ordinary. Their dates tell them apart."""
+    made = 1758700800000  # 2025-09-24, noon or so anywhere
+    page = run(
+        who={
+            **SIGNED_IN,
+            "connections": [
+                {"client": "a", "name": "Claude", "scopes": "library", "made": made, "seen": 0},
+                {
+                    "client": "b",
+                    "name": "Claude",
+                    "scopes": "library",
+                    "made": made,
+                    "seen": made + 86400000,
+                },
+            ],
+        }
+    )
+    first, second = (one["when"] for one in page["connections"])
+    assert first.startswith("Connected ") and "last used" not in first
+    assert second.startswith("Connected ") and ", last used " in second
+    assert "2025" in first
 
 
 def test_a_connector_with_no_name_is_still_a_row() -> None:
@@ -278,6 +304,20 @@ def test_disconnecting_posts_the_client_and_redraws() -> None:
     posted = [one for one in page["posted"] if one["path"] == "/account/disconnect"]
     assert posted and posted[0]["body"] == {"client": "c-claude"}
     assert [one["name"] for one in page["connections"]] == ["ChatGPT"], "redrawn from the answer"
+    assert page["connectionsSaid"] == {"text": "Disconnected.", "hidden": False}
+
+
+def test_disconnecting_the_last_app_keeps_saying_so() -> None:
+    """The panel is drawn only while something is connected, and the last Disconnect
+    used to take the panel, and its "Disconnected.", away with it."""
+    one = {**SIGNED_IN, "connections": CONNECTED["connections"][:1]}
+    page = run(
+        who=one,
+        do=[{"type": "press", "id": "connection-rows:0:2"}],
+        answers={"/account/disconnect": {"disconnected": 2, "connections": []}},
+    )
+    assert page["connections"] == []
+    assert page["connectionsPanel"] is False, "still drawn"
     assert page["connectionsSaid"] == {"text": "Disconnected.", "hidden": False}
 
 
@@ -348,3 +388,15 @@ def test_removing_one_posts_its_name_and_redraws() -> None:
     assert posted[0]["body"] == {"name": "my-verbs", "gone": True}
     assert page["prompts"] == []
     assert page["promptsSaid"]["text"] == "Removed."
+
+
+def test_a_remove_that_fails_says_remove() -> None:
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
+        },
+        do=[{"type": "press", "id": "prompt-rows:0:2"}],
+        answers={"/account/prompts": "fail"},
+    )
+    assert page["promptsSaid"]["text"] == "We couldn't remove that. Try again."

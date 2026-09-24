@@ -1899,11 +1899,10 @@
   "you.connections.could-not": "We couldn't disconnect that. Try again.",
   "you.connections.library": "the library",
   "you.connections.record": "your words and mistakes",
-  "you.page.your-own-asks": "Your own asks",
   "you.page.prompts-says": "Things you ask for often. Write one here and it appears in Claude or ChatGPT by name, next to ours.",
   "you.page.prompt-name": "What to call it",
   "you.page.prompt-says": "What it should do",
-  "you.page.prompt-save": "Save it",
+  "you.page.prompt-save": "Save",
   "you.prompts.remove": "Remove",
   "you.prompts.removed": "Removed.",
   "you.prompts.could-not": "We couldn't save that. Try again.",
@@ -1932,7 +1931,6 @@
   "building.credits.rate": "That's about {clock} of audio.",
   "building.credits.left.one": "{n} credit left this month.",
   "building.credits.left.other": "{n} credits left this month.",
-  "you.connections.chat": "reading the Hebrew you write, which uses your credits",
   "job.out-of.credits": "You've used your {credits} credits for this month, and a credit is a minute of audio. They come back on {date}. Text uploads still work, and the library is always free.",
   "job.out-of.talk-credits": "You've used your {credits} credits of audio and conversation for this month, and a credit is a minute. They come back on {date}. Everything you have stays open, and the library is always free.",
   "connect.scope.library": "Search the library and look up what is at a link",
@@ -2189,5 +2187,10 @@
   "foot.targum-in-your-ai": "targum in your AI",
   "landing.page.can-i-use-it-in-claude-or-chatgpt": "Can I use it in Claude or ChatGPT?",
   "landing.page.yes-connect-targum-and-your-ai-talks": "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.",
-  "landing.page.see-how-to-connect": "See how to connect"
+  "landing.page.see-how-to-connect": "See how to connect",
+  "you.connections.chatting": "chatting in the language you're learning, which is included",
+  "you.connections.connected-on": "Connected {made}",
+  "you.connections.connected-and-used": "Connected {made}, last used {seen}",
+  "you.page.your-prompts": "Your prompts",
+  "you.prompts.could-not-remove": "We couldn't remove that. Try again."
 }

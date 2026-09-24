@@ -251,9 +251,39 @@
       said.hidden = !text;
     }
 
-    function paint(connections) {
+    /* A day as the page's language writes it. */
+    function day(stamp) {
+      var root = document.documentElement;
+      try {
+        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        });
+      } catch (e) {
+        return "";
+      }
+    }
+
+    /* When it was connected, and when it was last used. Claude registers itself afresh
+       each time it is reconnected, and removing it in Claude does not tell us, so two
+       rows both called "Claude" is ordinary; the dates are what tell them apart. */
+    function whenSaid(one) {
+      if (!one.made) return "";
+      if (one.seen) {
+        return t("you.connections.connected-and-used", "Connected {made}, last used {seen}", {
+          made: day(one.made),
+          seen: day(one.seen)
+        });
+      }
+      return t("you.connections.connected-on", "Connected {made}", { made: day(one.made) });
+    }
+
+    function paint(connections, keep) {
       rows.textContent = "";
-      panel.hidden = !(connections && connections.length);
+      /* Kept open by a press on it, so the last Disconnect still shows that it worked;
+         the next visit, with nothing connected, draws no panel. */
+      panel.hidden = !(connections && connections.length) && !keep;
       (connections || []).forEach(function (one) {
         var row = document.createElement("li");
         var name = document.createElement("span");
@@ -264,13 +294,13 @@
         says.textContent = scopesSaid(one.scopes);
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "go-quiet danger";
+        press.className = "ghost";
         press.textContent = t("you.connections.disconnect", "Disconnect");
         press.onclick = function () {
           press.disabled = true;
           ask("/account/disconnect", { client: one.client })
             .then(function (answer) {
-              paint(answer && answer.connections);
+              paint(answer && answer.connections, true);
               tell(t("you.connections.disconnected", "Disconnected."));
             })
             .catch(function () {
@@ -278,16 +308,21 @@
               tell(t("you.connections.could-not", "We couldn't disconnect that. Try again."));
             });
         };
+        var when = document.createElement("span");
+        when.className = "note when";
+        when.textContent = whenSaid(one);
         row.appendChild(name);
         row.appendChild(says);
         row.appendChild(press);
+        row.appendChild(when);
         rows.appendChild(row);
       });
     }
 
     /* The scopes in the reader's words, in the order the approval page listed them.
-       The one that uses their credits says so here too, because this is the page they
-       come to when they want to know what they agreed to. */
+       Chatting is said to be included, as the approval page says it (design.md §12,
+       2026-09-24), because this is the page they come to when they want to know what
+       they agreed to. */
     function scopesSaid(scopes) {
       var held = (scopes || "").split(" ");
       var words = [];
@@ -304,7 +339,10 @@
          they agreed to. */
       if (held.indexOf("chat") >= 0 || held.indexOf("check") >= 0) {
         words.push(
-          t("you.connections.chat", "reading the Hebrew you write, which uses your credits")
+          t(
+            "you.connections.chatting",
+            "chatting in the language you're learning, which is included"
+          )
         );
       }
       return words.join(", ");
@@ -351,7 +389,7 @@
         what.textContent = one.says;
         var press = document.createElement("button");
         press.type = "button";
-        press.className = "go-quiet danger";
+        press.className = "ghost";
         press.textContent = t("you.prompts.remove", "Remove");
         press.onclick = function () {
           press.disabled = true;
@@ -362,7 +400,7 @@
             })
             .catch(function () {
               press.disabled = false;
-              tell(t("you.prompts.could-not", "We couldn't save that. Try again."));
+              tell(t("you.prompts.could-not-remove", "We couldn't remove that. Try again."));
             });
         };
         row.appendChild(called);
