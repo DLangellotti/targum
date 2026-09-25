@@ -2172,65 +2172,53 @@ body.has-player .foot:has(+ .next-up:not([hidden])),
 body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
 
 /* Finished. The strip inverts to ink — §9's wake-up move, one block per screen, spent
-   on the one block that earned it — and brags the brand's way: a real count in the
-   reading face, tabular, leaf-bright on ink. Celebration in type, nothing moves. */
+   on the one block that earned it — and says what the section came to in three figures
+   (§12, 2026-09-25): "Finished · #14" with the Undo on its line, and three figures of
+   equal weight under it, each over its label. Figures in the reading face, tabular,
+   paper-white, with leaf for the one that is words known. Nothing moves. */
 .finished.is-done {
-  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  padding: 1rem 1.25rem 1.1rem;
   border-radius: 8px;
   background: var(--ink-max);
   color: var(--page-max);
   font-family: var(--reading);
   font-size: 1.0625rem;
 }
-.finished.is-done .cheer { display: block; font-weight: 600; }
-.finished.is-done .tally {
+.finished.is-done > span { grid-column: 1 / -1; grid-row: 1; }
+.finished.is-done > button.undo { grid-column: 2; grid-row: 1; margin-block-start: -0.35rem; }
+.finished.is-done .finished-head {
   display: block;
-  margin-block-start: 0.2rem;
-  color: color-mix(in srgb, var(--page-max) 72%, transparent);
-  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.finished.is-done .tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-block-start: 0.85rem;
+}
+.finished.is-done .tile,
+.list-end-tiles .tile { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.finished.is-done .tile b {
+  color: var(--page-max);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 /* `.ledger` names the inverted block — the one surface the bright set is legal on. */
-.finished.ledger .tally b { color: var(--leaf-bright); font-size: 1.5rem; font-weight: 600; }
-/* What moved while this section was read (targum-internal#175): one line per count that
-   did, the delta then the standing, in the ledger's own treatment — real counts in the
-   reading face, tabular, one functional hue per line and paper-white where none is
-   earned. In the flow, under the tally, nothing to dismiss, and nothing moves. */
-.finished.is-done .move {
-  display: block;
-  margin-block-start: 0.15rem;
+.finished.ledger .tile:first-child b { color: var(--leaf-bright); }
+.finished.is-done .tile span {
   color: color-mix(in srgb, var(--page-max) 72%, transparent);
-  font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.3;
 }
-.finished.is-done .move b { color: var(--page-max); font-weight: 600; }
-.finished.ledger .move.leaf b { color: var(--leaf-bright); }
-.finished.ledger .move.iris b { color: var(--iris-bright); }
-.finished.ledger .move.sun b { color: var(--sun); }
-/* The words (targum-internal#174): what was looked up here and how often before, what
-   was read here without a look-up having been looked up before, and the two or three
-   offered to the list. Each word in the reading face and bold, the sentence around it
-   quiet; never clay, never a percentage — counting look-ups is counting what is there,
-   and the tone is "looked up six times", not a verdict. The offer is a press, drawn as
-   the Undo beside it is: paper on ink, an outline, nothing lit. */
-.finished.is-done .move.cost,
-.finished.is-done .move.stopped,
-.finished.is-done .move.offer { margin-block-start: 0.5rem; line-height: 1.6; }
-.finished.is-done .move b[lang] { font-weight: 600; font-size: 1.0625rem; }
-.finished.is-done .move.offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
-.finished.is-done button.offer {
-  padding: 0.25rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--page-max) 30%, transparent);
-  border-radius: 4px;
-  background: none;
-  color: var(--page-max);
-  font: inherit;
-  font-weight: 600;
-  box-shadow: none;
-}
-.finished.is-done button.offer:hover { border-color: var(--page-max); }
 @media (hover: none) and (pointer: coarse) {
-  /* §8: a control a thumb presses answers a tap over 44px. Done, Undo and the offer. */
+  /* §8: a control a thumb presses answers a tap over 44px. Done and Undo. */
   .finished button { min-height: 44px; }
 }
 .finished.is-done button.undo {
@@ -4303,6 +4291,26 @@ body.has-player.list-ended .list-end {
    its one door, a tonal pill (§13) — nothing that moves. Chrome, so the chrome's face;
    the words themselves are content, and keep the reading face. */
 .list-end { font-family: var(--chrome); font-size: 0.9375rem; color: var(--ink); }
+/* The playlist added up (§12, "The finished box is three figures"): the same figures
+   as the box, on paper here — the box above is the page's one ink block. */
+.list-end-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.list-end-tiles .tile b {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.list-end-tiles .tile:nth-child(2) b { color: var(--leaf); }
+.list-end-tiles .tile span { color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.3; }
 .list-end-words,
 .list-end-lead,
 .list-end-over { margin: 0.5rem 0; }

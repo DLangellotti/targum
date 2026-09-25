@@ -566,6 +566,8 @@ def test_the_streak_is_the_longest_one_and_the_foot_moves_nothing() -> None:
     for currency in ("score", "point", "level", "xp"):
         assert currency not in foot.lower(), f"the foot invents a currency: {currency!r}"
     # And the words that cost (targum-internal#174): no percentage, no grade, no clay.
+    # The finished box's one share, "N% known here", is the header's own figure and is
+    # drawn in `renderFinished`, outside this span (§12, 2026-09-25).
     for verdict in ("%", "accuracy", "grade", "clay"):
         assert verdict not in foot.lower(), f"the foot passes a verdict: {verdict!r}"
 

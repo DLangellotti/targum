@@ -70,7 +70,27 @@
     return base + join + "list=" + encodeURIComponent(list) + "&at=" + at + (go ? "&go=1" : "");
   }
 
-  window.TargumList = { neighbours: neighbours, addressOf: addressOf };
+  /* The playlist, added up: how many of its texts were finished, the words that became
+   * known across them, the share known across all of their words (weighted by words, so
+   * a long text counts for more than a short one), and the words looked up. Null where
+   * no item has figures. Pure, for the harness. */
+  function addUp(kept) {
+    var places = Object.keys(kept || {});
+    if (!places.length) return null;
+    var sum = { texts: 0, known: 0, here: 0, of: 0, looked: 0 };
+    places.forEach(function (place) {
+      var one = kept[place] || {};
+      sum.texts += 1;
+      sum.known += Number(one.known || 0);
+      sum.here += Number(one.here || 0);
+      sum.of += Number(one.of || 0);
+      sum.looked += Number(one.looked || 0);
+    });
+    sum.share = sum.of ? Math.round((sum.here / sum.of) * 100) : 0;
+    return sum;
+  }
+
+  window.TargumList = { neighbours: neighbours, addressOf: addressOf, addUp: addUp };
 
   if (typeof location === "undefined" || !/^https?:$/.test(location.protocol)) return;
   var asked;
@@ -156,11 +176,69 @@
     if (near.next !== null) {
       note(how);
       if (reader && reader.leave) reader.leave(!!marking, title);
+      keepFigures(reader);
       location.href = keyed(addressOf(items[near.next], list, near.next, true));
       return true;
     }
     if (reader && reader.press) reader.press(!!marking);
+    keepFigures(reader);
     return showEnd();
+  }
+
+  /* What each item came to, kept by its place in the playlist so the end card can add
+   * them up (design.md §12, "The finished box is three figures", 2026-09-25). By place,
+   * so an item finished twice is counted once, with what it came to the last time. In
+   * this browser, as the figures themselves are. */
+  var TALLY = "targum:list-tally";
+  function tallies() {
+    try {
+      var all = JSON.parse(localStorage.getItem(TALLY) || "{}");
+      return all && typeof all === "object" ? all : {};
+    } catch (e) {
+      return {};
+    }
+  }
+  function keepFigures(reader) {
+    var figures = reader && reader.figures ? reader.figures() : null;
+    if (!figures) return;
+    try {
+      var all = tallies();
+      var mine = all[list] || {};
+      mine[String(at)] = figures;
+      all[list] = mine;
+      localStorage.setItem(TALLY, JSON.stringify(all));
+    } catch (e) {}
+  }
+
+
+  function tile(figure, label) {
+    var box = document.createElement("span");
+    box.className = "tile";
+    var b = document.createElement("b");
+    b.textContent = figure;
+    box.appendChild(b);
+    var under = document.createElement("span");
+    under.textContent = label;
+    box.appendChild(under);
+    return box;
+  }
+
+  function drawFigures(end) {
+    var sum = addUp(tallies()[list]);
+    if (!sum) return;
+    var row = document.createElement("p");
+    row.className = "list-end-tiles";
+    row.appendChild(
+      tile(String(sum.texts), tn("reader.list.end-texts", sum.texts, "text finished", "texts finished"))
+    );
+    row.appendChild(
+      tile("+" + sum.known, tn("reader.finish.known", sum.known, "word known", "words known"))
+    );
+    row.appendChild(tile(sum.share + "%", t("reader.finish.known-here", "known here")));
+    row.appendChild(
+      tile(String(sum.looked), tn("reader.finish.looked", sum.looked, "word looked up", "words looked up"))
+    );
+    end.appendChild(row);
   }
 
   function backward(how) {
@@ -177,6 +255,7 @@
   function drawEnd(end, said) {
     var words = said && said.words;
     var next = said && said.next;
+    drawFigures(end);
     if (!(words && words.met) && !(next && next.open)) {
       var over = withTitle(
         document.createElement("p"),

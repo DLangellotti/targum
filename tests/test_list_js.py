@@ -65,3 +65,30 @@ def test_the_last_one_leads_to_the_end() -> None:
     [got] = run({"items": [item(0), item(1), item(2, open_=False)], "at": 1})
     assert got["near"]["last"] is True and got["next"] is None
     assert got["near"]["waiting"] == 1, "what is still getting ready is said at the end"
+
+
+def added(*kept: dict[str, Any]) -> list[dict[str, Any] | None]:
+    with tempfile.TemporaryDirectory() as where:
+        path = Path(where) / "payload.json"
+        path.write_text(json.dumps({"addUp": list(kept)}), encoding="utf-8")
+        done = subprocess.run(
+            ["node", str(HARNESS), str(path)], capture_output=True, text=True, timeout=60
+        )
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)
+
+
+def test_the_end_card_adds_the_playlist_up() -> None:
+    """design.md §12, "The finished box is three figures" (2026-09-25): the end card
+    adds the three figures up across the texts finished, the share weighted by words."""
+    [sum_] = added(
+        {
+            "0": {"known": 12, "here": 90, "of": 100, "looked": 3},
+            "1": {"known": 0, "here": 10, "of": 50, "looked": 5},
+        }
+    )
+    assert sum_ == {"texts": 2, "known": 12, "here": 100, "of": 150, "looked": 8, "share": 67}
+
+
+def test_an_end_with_nothing_kept_adds_up_to_nothing() -> None:
+    assert added({}) == [None]
