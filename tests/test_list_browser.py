@@ -12,6 +12,7 @@ is `GET /playlists/<id>.json`, answered here by a route with the shape `serve` a
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -87,14 +88,14 @@ def test_arriving_plays_nothing_and_next_plays_the_next(browser, tmp_path) -> No
     page = context.new_page()
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav .list-next")
+        page.wait_for_selector("#list-nav", state="attached")
         assert page.evaluate(PAUSED), "opening an item from its playlist plays nothing"
         assert page.evaluate("() => document.body.classList.contains('watching')"), (
             "inside a playlist a video opens watching"
         )
         page.click("#video .video-list-next")
         page.wait_for_url("**/two/**go=1")
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.wait_for_function(
             "() => Array.from(document.querySelectorAll('video, audio')).some((m) => !m.paused)",
             timeout=5000,
@@ -113,7 +114,7 @@ def test_back_plays_nothing_new(browser, tmp_path) -> None:  # noqa: F811
         page.click("#video .video-list-back")
         page.wait_for_url("**/one/**at=0")
         assert "go=1" not in page.url
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         assert page.evaluate(PAUSED)
     finally:
         context.close()
@@ -137,10 +138,10 @@ def test_a_swipe_up_moves_on_and_a_swipe_down_goes_back(browser, tmp_path) -> No
     """
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.evaluate(swipe, -200)
         page.wait_for_url("**/two/**go=1")
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.evaluate(swipe, 200)
         page.wait_for_url("**/one/**at=0")
     finally:
@@ -156,7 +157,7 @@ def test_an_article_is_read_before_it_is_left(browser, tmp_path) -> None:  # noq
     page = context.new_page()
     try:
         page.goto(at(text, 0))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.evaluate("() => window.scrollTo(0, 0)")
         page.keyboard.press("ArrowDown")
         page.wait_for_timeout(200)
@@ -165,10 +166,10 @@ def test_an_article_is_read_before_it_is_left(browser, tmp_path) -> None:  # noq
         page.wait_for_timeout(200)
         page.keyboard.press("ArrowDown")
         page.wait_for_url("**/film/**go=1")
-        page.wait_for_selector("#list-nav")
-        # And Tab reaches Next, which Enter presses.
-        page.focus("#list-nav .list-next")
-        assert page.evaluate("() => document.activeElement.classList.contains('list-next')")
+        page.wait_for_selector("#list-nav", state="attached")
+        # And Tab reaches the press, which Enter presses.
+        page.focus("#done-mark")
+        assert page.evaluate("() => document.activeElement.id === 'done-mark'")
     finally:
         context.close()
 
@@ -180,9 +181,9 @@ def test_nothing_moves_under_reduced_motion(browser, tmp_path) -> None:  # noqa:
     page = context.new_page()
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         moving = page.evaluate(
-            """() => [...document.querySelectorAll('#list-nav, #list-nav *, .video-list-next')]
+            """() => [...document.querySelectorAll('#foot, #foot *, .video-list-next')]
                 .map((el) => getComputedStyle(el))
                 .filter((s) => parseFloat(s.transitionDuration) > 0 || s.animationName !== 'none')
                 .length"""
@@ -199,7 +200,7 @@ def test_the_text_alone_still_opens_as_its_transcript(browser, tmp_path) -> None
     page = context.new_page()
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.goto(address(one))
         page.wait_for_selector("#video:not([hidden])")
         page.wait_for_timeout(200)
@@ -236,11 +237,11 @@ def test_the_ones_not_ready_are_passed_and_the_last_leads_to_the_end(
     page = context.new_page()
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav")
-        assert "1 more is getting ready" in page.inner_text("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
+        assert "1 more is getting ready" in page.inner_text("#foot-next")
         page.click("#video .video-list-next")
         page.wait_for_url("**/two/**at=2**")
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         assert page.get_attribute("#list-end", "hidden") is not None
         page.click("#video .video-list-next")
         # Empty until #367 fills it, so waited on as a state rather than as something seen.
@@ -277,7 +278,7 @@ def test_the_end_says_what_the_set_held_and_offers_one_next_set(
     page = context.new_page()
     try:
         page.goto(at(two, 1))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
         page.wait_for_selector("#list-end .list-end-next")
         said = page.inner_text("#list-end")
@@ -323,7 +324,7 @@ def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> No
     page = context.new_page()
     try:
         page.goto(at(two, 1))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
         page.wait_for_selector("#list-end .list-end-next")
         got = page.evaluate(
@@ -353,7 +354,7 @@ def test_an_end_with_nothing_to_say_still_says_where_you_are(browser, tmp_path) 
     page = context.new_page()
     try:
         page.goto(at(two, 1))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.click("#video .video-list-next")
         page.wait_for_selector("#list-end .list-end-home")
         assert "That's the end of Reels." in page.inner_text("#list-end")
@@ -371,12 +372,12 @@ def test_a_hebrew_title_keeps_its_punctuation_on_its_own_side(browser, tmp_path)
     page = context.new_page()
     try:
         page.goto(at(text, 0))
-        page.wait_for_selector("#list-nav .list-up-next bdi")
+        page.wait_for_selector("#foot-next .list-up-next bdi")
         got = page.evaluate(
             """() => ({
-              dir: document.getElementById('list-nav').getAttribute('dir'),
-              title: document.querySelector('#list-nav .list-up-next bdi').textContent,
-              isolated: document.querySelector('#list-nav .list-up-next bdi').getAttribute('dir'),
+              dir: document.querySelector('#foot-next .list-ahead').getAttribute('dir'),
+              title: document.querySelector('#foot-next .list-up-next bdi').textContent,
+              isolated: document.querySelector('#foot-next .list-up-next bdi').getAttribute('dir'),
             })"""
         )
         assert got == {"dir": "ltr", "title": "מה טבעונים אוכלים?", "isolated": "auto"}
@@ -394,19 +395,19 @@ def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewpor
     page = context.new_page()
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav .list-next")
+        page.wait_for_selector("#list-nav", state="attached")
         page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
         page.wait_for_timeout(200)
         hit = page.evaluate(
             """() => {
-              const box = document.querySelector('#list-nav .list-next').getBoundingClientRect();
+              const box = document.getElementById('done-mark').getBoundingClientRect();
               const x = box.left + box.width / 2;
               const on = document.elementFromPoint(x, box.top + box.height / 2);
               const strip = document.getElementById('player').getBoundingClientRect();
               return [on && on.className, box.bottom <= strip.top || box.right <= strip.left];
             }"""
         )
-        assert hit == ["list-key list-next", True]
+        assert hit == ["foot-go", True]
     finally:
         context.close()
 
@@ -427,7 +428,7 @@ def test_the_arrow_turns_a_paged_scene_and_then_moves_on(browser, tmp_path, monk
     page = context.new_page()
     try:
         page.goto(at(one, 0))
-        page.wait_for_selector("#list-nav")
+        page.wait_for_selector("#list-nav", state="attached")
         page.wait_for_function("() => document.body.classList.contains('paged')")
         pages = page.evaluate("() => window.TargumReader.onLastPage() ? 1 : 2")
         assert pages == 2, "the scene is long enough to be cut into pages"
@@ -437,5 +438,86 @@ def test_the_arrow_turns_a_paged_scene_and_then_moves_on(browser, tmp_path, monk
             page.keyboard.press("ArrowDown")
             page.wait_for_timeout(60)
         page.wait_for_url("**/two/**go=1")
+    finally:
+        context.close()
+
+
+# What a page says about a text: its document, whether a section of it is finished, and
+# how many words are on the Hebrew list.
+DOCUMENT = "() => JSON.parse(document.getElementById('targum-data').textContent).document"
+RECORD = """(doc) => {
+  const docs = JSON.parse(localStorage.getItem('targum:docs') || '{}');
+  const words = JSON.parse(localStorage.getItem('targum:vocab:he') || '{}');
+  return { sections: (docs[doc] || {}).sections || {}, known: Object.keys(words).length };
+}"""
+
+
+def other_text(out: Path) -> Path:
+    """A second text. `chapter` builds the same words every time, and two readers of one
+    text are one document: a press on the first would be news on nothing."""
+    reader = chapter(out)
+    page = reader.read_text(encoding="utf-8")
+    found = re.search(r'"document": "([^"]+)"', page)
+    assert found, "the page names its document"
+    reader.write_text(page.replace(found.group(0), '"document": "another"', 1), encoding="utf-8")
+    return reader
+
+
+def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_path) -> None:  # noqa: F811
+    """design.md §12, "The foot is one block" (2026-09-25). In a playlist the press is
+    Next and says both halves; it finishes the item, marks the words never marked, and
+    the page it leads to says so once, with one Undo that takes back both."""
+    one = chapter(tmp_path / "one" / "reader")
+    two = other_text(tmp_path / "two" / "reader")
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        said = page.inner_text("#done-mark")
+        assert said.startswith("Next, and mark ") and said.endswith(" words known")
+        assert page.inner_text("#done-plain") == "Next without marking"
+        assert page.inner_text("#list-nav") == "Reels, 1 of 2", "no Back on the first"
+        document = page.evaluate(DOCUMENT)
+        page.evaluate("() => document.getElementById('done-mark').click()")
+        page.wait_for_url("**/two/**go=1")
+        page.wait_for_selector("#arrived:not([hidden])")
+        line = page.inner_text("#arrived")
+        assert line.startswith("Finished Item 1 · ") and "words marked known" in line
+        state = page.evaluate(RECORD, document)
+        assert state["sections"], "the item is finished"
+        assert state["known"] > 0, "and its words are marked"
+        page.click("#arrived-undo")
+        state = page.evaluate(RECORD, document)
+        assert state == {"sections": {}, "known": 0}, "one Undo takes back both"
+        assert page.inner_text("#arrived") == "Taken back."
+        # And a reload says nothing: the line is said once.
+        page.reload()
+        page.wait_for_selector("#list-nav", state="attached")
+        assert page.is_hidden("#arrived")
+    finally:
+        context.close()
+
+
+def test_a_swipe_finishes_without_marking(browser, tmp_path) -> None:  # noqa: F811
+    """A swipe is a press, and marking words is never done by a gesture."""
+    one = chapter(tmp_path / "one" / "reader")
+    two = other_text(tmp_path / "two" / "reader")
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        document = page.evaluate(DOCUMENT)
+        page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
+        page.wait_for_timeout(200)
+        page.keyboard.press("ArrowDown")
+        page.wait_for_url("**/two/**go=1")
+        page.wait_for_selector("#arrived:not([hidden])")
+        assert page.inner_text("#arrived").startswith("Finished Item 1")
+        assert "marked known" not in page.inner_text("#arrived")
+        state = page.evaluate(RECORD, document)
+        assert state["known"] == 0, "nothing was marked"
+        assert state["sections"], "and the item is finished"
     finally:
         context.close()

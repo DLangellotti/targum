@@ -144,12 +144,22 @@
     }
   }
 
-  function forward(how) {
+  /* Moving on finishes the item (design.md §12, "The foot is one block", 2026-09-25):
+   * "Next" finished nothing, so a reader who went Next, Next, Next through a set had
+   * finished nothing on Your Progress. The press at the foot marks the words never marked
+   * when it says so; a swipe, the arrow and the Next among a video's keys finish without
+   * marking, because marking words is never done by a gesture. The reader does the
+   * finishing — it owns the record — and says where the reader lands what it did. */
+  function forward(how, marking) {
+    var reader = window.TargumReader;
+    var title = items[at] ? String(items[at].title || "") : "";
     if (near.next !== null) {
       note(how);
+      if (reader && reader.leave) reader.leave(!!marking, title);
       location.href = keyed(addressOf(items[near.next], list, near.next, true));
       return true;
     }
+    if (reader && reader.press) reader.press(!!marking);
     return showEnd();
   }
 
@@ -288,34 +298,39 @@
     near = neighbours(items, at);
     setName = String((set && set.name) || "");
 
-    // At the foot of the text: where an article is left, after it has been read.
+    // Where you are, at the head of the foot's one block (design.md §12, "The foot is one
+    // block", 2026-09-25): "← Back · Couples and everyday life, 2 of 3". Back is a small
+    // link on this line and not a second button beside the press — it is the rare way,
+    // and a pill beside Next made the two one decision.
     var nav = document.createElement("nav");
     nav.id = "list-nav";
     nav.className = "list-nav";
     nav.setAttribute("aria-label", t("reader.list.label", "Your playlist"));
     nav.setAttribute("dir", uiDir);
+    if (near.back !== null) {
+      var back = document.createElement("button");
+      back.type = "button";
+      back.className = "list-back";
+      back.textContent = t("reader.list.back-link", "← Back");
+      back.addEventListener("click", function () {
+        backward("list-back");
+      });
+      nav.appendChild(back);
+      nav.appendChild(document.createTextNode(" · "));
+    }
     var where = withTitle(
-      document.createElement("p"),
+      document.createElement("span"),
       t("reader.list.where", "{name}, {at} of {count}", { at: at + 1, count: items.length }),
       "name",
       setName
     );
     where.className = "list-where";
     nav.appendChild(where);
-    if (near.back !== null) {
-      nav.appendChild(
-        control("list-back", t("reader.list.back", "Back"), function () {
-          backward("list-back");
-        })
-      );
-    }
-    var nextLabel =
-      near.next !== null ? t("reader.list.next", "Next") : t("reader.list.done", "Finish");
-    nav.appendChild(
-      control("list-next", nextLabel, function () {
-        forward("list-next");
-      })
-    );
+
+    // What comes next, small, under the press: the press says Next and this says where.
+    var ahead = document.createElement("div");
+    ahead.className = "list-ahead";
+    ahead.setAttribute("dir", uiDir);
     if (near.next !== null) {
       var upNext = withTitle(
         document.createElement("p"),
@@ -324,7 +339,7 @@
         String(items[near.next].title || "")
       );
       upNext.className = "list-up-next";
-      nav.appendChild(upNext);
+      ahead.appendChild(upNext);
     }
     if (near.waiting) {
       var waiting = document.createElement("p");
@@ -335,17 +350,43 @@
         "{n} more is getting ready.",
         "{n} more are getting ready."
       );
-      nav.appendChild(waiting);
+      ahead.appendChild(waiting);
     }
+    var nextLabel =
+      near.next !== null ? t("reader.list.next", "Next") : t("reader.list.done", "Finish");
     var end = document.createElement("aside");
     end.id = "list-end";
     end.className = "list-end";
     end.setAttribute("dir", uiDir);
     end.hidden = true;
 
+    // Into the foot the reader drew, whose press becomes Next.
+    var foot = document.getElementById("foot");
     var main = document.querySelector("main") || document.body;
-    main.appendChild(nav);
-    main.appendChild(end);
+    if (foot) {
+      foot.insertBefore(nav, foot.firstChild);
+      var under = document.getElementById("foot-next");
+      if (under && ahead.firstChild) {
+        under.appendChild(ahead);
+        under.hidden = false;
+      }
+      foot.parentNode.insertBefore(end, foot.nextSibling);
+    } else {
+      main.appendChild(nav);
+      main.appendChild(ahead);
+      main.appendChild(end);
+    }
+    /* The reader may not have finished drawing when the list arrives — it hangs itself
+       off the window last — so the way on is left where it will look for it, as well as
+       handed over when it is already there. */
+    var way = {
+      verb: near.next !== null ? "next" : "finish",
+      go: function (marking) {
+        forward("list-next", marking);
+      },
+    };
+    window.TargumFootWay = way;
+    if (window.TargumReader && window.TargumReader.foot) window.TargumReader.foot(way);
 
     // And in the watching frame, where the foot of the text cannot be seen: the same
     // Next among the picture's own keys.

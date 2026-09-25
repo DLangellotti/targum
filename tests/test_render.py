@@ -4273,7 +4273,7 @@ def test_printing_a_paged_chapter_prints_the_whole_chapter() -> None:
 def test_the_pager_and_the_offer_belong_to_the_last_page() -> None:
     css = _reader_css()
     assert "body.paged:not(.last-page) .pager" in css
-    assert "body.paged:not(.last-page) .rest" in css
+    assert "body.paged:not(.last-page) .foot" in css
 
 
 def test_the_foot_of_a_narrow_window_is_one_band() -> None:

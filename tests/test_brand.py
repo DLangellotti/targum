@@ -307,7 +307,10 @@ THUMBED = (
     ".gloss-card .look-up",
     ".vocab-editor .note-save",
     ".waiting-note button",
-    '.rest [id="rest-undo"]',
+    # The foot's quiet press, Back on its line, and Undo where a press landed (2026-09-25).
+    ".foot-plain",
+    ".list-nav .list-back",
+    ".arrived button",
     ".rows > li > .row-go",
     # And a part of this week's reading on the parasha page (2026-09-15, #203).
     ".week-part",
