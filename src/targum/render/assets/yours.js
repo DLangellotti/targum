@@ -100,40 +100,109 @@
 
   /* --- the shelf ------------------------------------------------------------- */
 
+  /* Everything of yours (design.md §12, "Yours and everyone's", 2026-09-25): what you
+     built, what you brought, what is being built right now, and the shared texts this
+     browser has opened. The builds come from `/jobs`, the same answer the bell reads. */
+  function gather(data, opened) {
+    var readers = ((data && data.readers) || []).slice();
+    var have = {};
+    readers.forEach(function (reader) {
+      reader.opened = opened[reader.document] || 0;
+      have[reader.document] = true;
+      if (reader.entry) have["entry:" + reader.entry] = true;
+    });
+    /* The shared shelf is the Library's until you open one of it. After that it is
+       something you started, and this is where a reader goes back to what they started.
+       "Opened" is this browser's record (`targum:opened`), the same one every "last
+       read" on the site reads. A shared row offers nothing to delete: `shelf.js` knows
+       it by `shared`. */
+    ((data && data.shared) || []).forEach(function (reader) {
+      var when = opened[reader.document] || 0;
+      if (!when || have[reader.document] || (reader.entry && have["entry:" + reader.entry])) return;
+      reader.opened = when;
+      readers.push(reader);
+    });
+    readers.sort(function (a, b) {
+      return b.opened - a.opened || b.built * 1000 - a.built * 1000;
+    });
+    return readers;
+  }
+
   function drawTexts() {
     var opened = stored("targum:opened");
-    return ask("/readers").then(function (data) {
-      var readers = (data && data.readers) || [];
-      var trash = (data && data.trash) || [];
-      readers.forEach(function (reader) {
-        reader.opened = opened[reader.document] || 0;
+    var jobs = function () {
+      return ask("/jobs").catch(function () {
+        return {};
       });
-      readers.sort(function (a, b) {
-        return b.opened - a.opened || b.built * 1000 - a.built * 1000;
-      });
+    };
+    return Promise.all([ask("/readers"), jobs()]).then(function (both) {
+      var readers = gather(both[0], opened);
+      var trash = (both[0] && both[0].trash) || [];
+      var building = shelf.building((both[1] && both[1].jobs) || []);
 
       var codes = [lang.HOME];
-      readers.forEach(function (reader) {
-        var code = shelf.base(reader.language);
+      readers.concat(building).forEach(function (thing) {
+        var code = shelf.base(thing.language);
         if (code && codes.indexOf(code) < 0) codes.push(code);
       });
       codes = lang.order(codes, names);
 
-      if (!readers.length) {
+      if (!readers.length && !building.length) {
         document.getElementById("nothing").hidden = false;
         return;
       }
       document.getElementById("page").hidden = false;
+      var shown = "";
 
       function show(code) {
+        shown = code;
         lang.set(code);
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
-        shelf.draw(code, readers, { note: t("yours.last-read-first", "Last read first.") });
+        shelf.draw(code, readers, {
+          note: t("yours.last-read-first", "Last read first."),
+          building: building,
+        });
         shelf.trash(code, trash);
       }
 
       show(lang.current(codes));
+
+      /* While anything is building, ask again every three seconds, and only while: a page
+         left open overnight should not ask a question every three seconds until morning.
+         When a build finishes, `/readers` has the text it became, so both are asked for
+         and the build's row turns into the ordinary one in the same draw. */
+      function follow() {
+        if (!building.length) return;
+        setTimeout(function () {
+          jobs().then(function (answer) {
+            var now = shelf.building((answer && answer.jobs) || []);
+            var still = {};
+            now.forEach(function (job) {
+              still[job.id] = true;
+            });
+            // By id rather than by count: a build started while another finished is the
+            // same count and a different shelf.
+            var finished = building.some(function (job) {
+              return !still[job.id];
+            });
+            building = now;
+            if (!finished) {
+              show(shown);
+              return follow();
+            }
+            return ask("/readers").then(function (data) {
+              readers = gather(data, stored("targum:opened"));
+              trash = (data && data.trash) || trash;
+              show(shown);
+              follow();
+            });
+          })
+          // A dropped poll is a dropped poll: the build carries on without this page.
+          .catch(follow);
+        }, 3000);
+      }
+      follow();
     });
   }
 

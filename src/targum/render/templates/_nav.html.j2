@@ -1,9 +1,11 @@
-{#- The same header on every page: the name on the left, the four places you can be,
+{#- The same header on every page: the name on the left, the five places you can be,
     and the light switch. It is one file because copies of a navigation bar drift apart —
     they had already drifted into three different orders once.
 
-    The order is how often somebody wants each one. Learn is most visits; Library is
-    finding the next thing; Your Progress is deliberate study; Add, bringing a text of
+    The order is how often somebody wants each one. Learn is most visits; Your targums is
+    going back to what you started (2026-09-24), and holds everything of yours, builds
+    included (design.md §12, "Yours and everyone's", 2026-09-25); Library is finding the
+    next thing, from what targum offers everybody; Your Progress is deliberate study; Add, bringing a text of
     your own, is the rarest.
 
     Two things left this row on 2026-09-06 (design.md §12, "The front door is a
@@ -22,7 +24,8 @@
     rather than a list of what they had kept. It is the only two-word label here, which
     is why the row wraps rather than scrolls under a narrow window.
 
-    Set `here` to "learn", "chat", "library", "progress" or "add" before including this. -#}
+    Set `here` to "learn", "chat", "texts", "library", "progress" or "add" before
+    including this. -#}
 {{ chrome_face() }}
 <header class="site-head">
   <div class="site-head-row">
@@ -38,11 +41,11 @@
       <span>targum</span>
     </a>
     <nav class="site-nav" aria-label="{{ t("nav.pages", "Pages") }}">
-      {#- On a phone the four places are a bar at the foot of the window, a glyph over
+      {#- On a phone the five places are a bar at the foot of the window, a glyph over
           each word (phase 4, 2026-09-11); at a desk only Add draws its glyph. §7: sixteen
           pixels, a stroke at 1.4, round caps. -#}
       <a href="/" data-nav="learn"{% if here in ('learn', 'chat') %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 3.5h4a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 0-1.5-1.5h-4zM13.5 3.5h-4A1.5 1.5 0 0 0 8 5v8a1.5 1.5 0 0 1 1.5-1.5h4z"/></svg><span>{{ t("nav.learn", "Learn") }}</span></a>
-      <a href="/texts" data-nav="texts"{% if here == 'texts' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 13.5V4h2.5v9.5M7 13.5V2.5h2.5v11M10.8 13.5l-.3-8.2 2.4-.2.3 8.4"/></svg><span class="nav-long"><span class="nav-your">{{ t("nav.your-many", "Your") }} </span>{{ t("nav.targums", "targums") }}</span><span class="nav-short">{{ t("nav.texts", "Texts") }}</span></a>
+      <a href="/texts" data-nav="texts"{% if here == 'texts' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 13.5V4h2.5v9.5M7 13.5V2.5h2.5v11M10.8 13.5l-.3-8.2 2.4-.2.3 8.4"/></svg><span><span class="nav-your">{{ t("nav.your-many", "Your") }} </span>{{ t("nav.targums", "targums") }}</span></a>
       <a href="/library" data-nav="library"{% if here == 'library' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 2.5h2.5v11H2.5zM6.5 2.5H9v11H6.5zM10.2 3.2l2.4-.6 2.6 10.6-2.4.6z"/></svg><span>{{ t("nav.library", "Library") }}</span></a>
       <a href="/progress" data-nav="progress"{% if here == 'progress' %} class="on" aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 13.5h11M3.5 11l3-3.5 2.5 2 3.5-4.5"/></svg><span><span class="nav-your">{{ t("nav.your", "Your") }} </span>{{ t("nav.progress", "Progress") }}</span></a>
       <a href="/add" data-nav="add" class="nav-add{% if here == 'add' %} on{% endif %}"{% if here == 'add' %} aria-current="page"{% endif %}><svg class="nav-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg><span>{{ t("nav.add", "Add") }}</span></a>
