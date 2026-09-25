@@ -2328,5 +2328,6 @@
   "playlists.delete-confirm-named": "Подтвердить удаление «{name}»",
   "playlist-menu.load-failed": "Не удалось загрузить плейлисты. Попробуйте ещё раз.",
   "reader.list.end-of": "Плейлист «{name}» закончился.",
-  "reader.list.your-playlists": "Ваши плейлисты"
+  "reader.list.your-playlists": "Ваши плейлисты",
+  "connect.page.chatgpt-turn-it-on-in-each-chat": "В каждом новом чате нажмите кнопку + и включите targum."
 }
