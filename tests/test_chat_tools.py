@@ -1347,7 +1347,9 @@ def test_what_writes_says_so_and_nothing_destroys() -> None:
         assert hints["destructiveHint"] is False
         assert hints["readOnlyHint"] is (not tool.writes), tool.name
     assert tools.BY_NAME["record_turn"].writes and tools.BY_NAME["add_to_playlist"].writes
-    assert tools.BY_NAME["add_to_playlist"].hints()["idempotentHint"] is True
+    # A link is quoted afresh on every call, so adding one twice is two items.
+    assert tools.BY_NAME["add_to_playlist"].hints()["idempotentHint"] is False
+    assert tools.BY_NAME["add_to_playlist"].hints()["openWorldHint"] is True
     assert tools.BY_NAME["describe_source"].hints()["openWorldHint"] is True
     assert not tools.BY_NAME["my_vocabulary"].writes
 
@@ -1451,7 +1453,7 @@ def test_playlists_come_back_with_absolute_links(world) -> None:
     assert got["open"] == added["open"]
     assert got["texts"][0]["reader"] == "https://targum.test/reader/ruth-he/reader/index.html"
     missing = tools.add_to_playlist(ctx, {"playlist": "Morning", "text": "not-there"})
-    assert "quote_set" in missing["error"]
+    assert "source or catalogue_id" in missing["error"]
 
 
 def test_a_tool_that_raises_is_not_its_exception(world, monkeypatch) -> None:
