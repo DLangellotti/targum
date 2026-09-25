@@ -458,6 +458,15 @@
 .fact-status svg { inline-size: 0.85rem; block-size: 0.85rem; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .book-facts .fact-status.is-finished { color: var(--leaf); }
 
+/* A text being built (design.md §12, "Yours and everyone's", 2026-09-25). A row that is
+   not a press: there is nothing to open yet, so no hover wash and no pointer. Teal, not
+   leaf: it is the product working, and §4 keeps green for what the reader has done. */
+.books.shelf-rows li > .building { display: contents; }
+.books.shelf-rows li.is-building { cursor: default; }
+.books.shelf-rows li.is-building:hover { background: none; }
+.row-status.is-building { color: var(--teal); background: var(--teal-wash); }
+.book-facts .fact-status.is-building { color: var(--teal); }
+
 /* The row's keys: Add to playlist, tonal, and ⋯, ghost (§13). Never wrapped. */
 .shelf-rows .row-controls {
   display: flex;
@@ -706,9 +715,9 @@
   border-radius: var(--radius-row);
 }
 
-/* --- the two lists ---------------------------------------------------------
-   Not a filter: the catalogue is everybody's and an upload is yours, and those are two
-   lists rather than two settings of one. Underlined rather than pilled, because the page
+/* --- the tabs ---------------------------------------------------------------
+   All texts and the Beit Midrash, Hebrew's. There were two lists here until 2026-09-25,
+   the catalogue and Your uploads; yours are on Your targums now. Underlined rather than pilled, because the page
    already wears pills for the language above and chips for the filters below. */
 
 .tabs {
@@ -717,6 +726,8 @@
   margin-block-end: 0.9rem;
   border-block-end: 1px solid var(--hairline);
 }
+/* Drawn only beside the Beit Midrash (2026-09-25); `display: flex` would beat `hidden`. */
+.tabs[hidden] { display: none; }
 .tab {
   padding: 0.35rem 0;
   border: 0;
@@ -1222,16 +1233,6 @@
    a numbered scene is never new; leaf, because §4 gives green to progress and what is new
    on a shelf is the shelf's own progress. Not a badge: no fill, no count, no reward. */
 .card-new { color: var(--leaf); }
-
-/* A text being built (design.md §12, 2026-09-17). A card that is not a press: there is
-   nothing to open yet and nothing to buy again, so it has no hover lift and no pointer.
-   Quieter than its neighbours, because it is not offering itself — it is reporting. */
-.card-building { cursor: default; background: color-mix(in srgb, var(--card) 70%, var(--ground)); }
-.card-building:hover { box-shadow: var(--shadow-rest); }
-.card-making { color: var(--teal); }
-/* Teal, not leaf: this is a control's colour because it is the product working, and §4
-   keeps green for what the reader has achieved. Nothing here is theirs yet. */
-.card-going .card-known-track > span { background: var(--teal); }
 
 /* --- the Beit Midrash (targum-internal#340) ------------------------------------------ */
 

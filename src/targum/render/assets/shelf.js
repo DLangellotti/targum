@@ -99,6 +99,16 @@
     var mine = readers.filter(function (reader) {
       return base(reader.language) === code;
     });
+    var going = building(settings.building).filter(function (job) {
+      return base(job.language) === code;
+    });
+    going.forEach(function (job) {
+      list.appendChild(buildingRow(job));
+    });
+    if (!mine.length && going.length) {
+      note.textContent = settings.note || "";
+      return;
+    }
     if (!mine.length) {
       note.textContent = readers.length
         ? t("shelf.empty.language", "Nothing in {language} yet.", { language: named(code) })
@@ -122,6 +132,100 @@
     if (head) head.hidden = false;
   }
 
+
+  /* --- what is being built (design.md §12, "Yours and everyone's", 2026-09-25) --------
+   *
+   * A build is a row at the top of Your targums from the moment it starts. It was a card
+   * under the Library's Your uploads, which made the Library the one place that could
+   * say "everything of yours is here" while Your targums said the same thing and lacked
+   * it; and the wait page sent a reader to Your targums to find it.
+   *
+   * Neither a link nor a button: there is nothing to open yet and nothing to buy again.
+   * It says the title, how far the build has got, and Building, and it is replaced by
+   * the ordinary row when the build is done. `/jobs` is what the bell polls, so the two
+   * cannot disagree about what is happening. */
+  function building(jobs) {
+    return (jobs || []).filter(function (job) {
+      return job.stage !== "done" && !job.error && job.title;
+    });
+  }
+
+  /* The pipeline narrates itself in its own words; these three are the reader's, the
+     same keys the Library's row uses for its own build. Anything else it says — "Fetching
+     the recording…" — is already a sentence and is said as it came. */
+  function plain(message) {
+    var words = {
+      "Finding each word's dictionary form…": t("library.build.words", "We're reading the words…"),
+      "Adding vowel points…": t("library.build.points", "We're adding vowel points…"),
+      "Building the reader…": t("library.build.page", "We're setting the page…"),
+    };
+    return words[message] || message;
+  }
+
+  function buildingRow(job) {
+    var item = document.createElement("li");
+    item.className = "is-building";
+    // Said aloud when it changes, because a reader watching this is waiting on it.
+    item.setAttribute("role", "status");
+    var box = document.createElement("span");
+    box.className = "building";
+    box.appendChild(
+      window.TargumCovers.tile("", { title: job.title, language: job.language, drawn: false })
+    );
+
+    var what = document.createElement("span");
+    what.className = "book-what";
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", job.language || "und");
+    title.className = "book-title";
+    title.textContent = job.title;
+    what.appendChild(title);
+    if (job.english) {
+      var english = document.createElement("span");
+      english.className = "book-english";
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      english.textContent = job.english;
+      what.appendChild(english);
+    }
+    var line = document.createElement("span");
+    line.className = "book-facts";
+    var said = [];
+    if (job.behind) {
+      said.push(
+        tn("shelf.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+      );
+    } else if (job.message) {
+      said.push(plain(job.message));
+    }
+    if (job.total > 1) {
+      said.push(t("shelf.building.share", "{n}% done", { n: Math.floor((job.done / job.total) * 100) }));
+    }
+    said.forEach(function (fact) {
+      var bit = document.createElement("span");
+      bit.className = "fact";
+      bit.textContent = fact;
+      line.appendChild(bit);
+    });
+    // The status again, for a phone, where the pill beside the row folds away.
+    var folded = document.createElement("span");
+    folded.className = "fact fact-status is-building";
+    folded.textContent = t("shelf.status.building", "Building");
+    line.appendChild(folded);
+    what.appendChild(line);
+    box.appendChild(what);
+
+    var pill = document.createElement("span");
+    pill.className = "row-status is-building";
+    pill.textContent = t("shelf.status.building", "Building");
+    box.appendChild(pill);
+    item.appendChild(box);
+    // The controls' column, empty: nothing on a build can be pressed.
+    var controls = document.createElement("span");
+    controls.className = "row-controls";
+    item.appendChild(controls);
+    return item;
+  }
 
   function stored(name) {
     try {
@@ -620,6 +724,7 @@
 
   window.TargumShelf = {
     draw: drawShelf,
+    building: building,
     trash: drawTrash,
     ago: ago,
     base: base,

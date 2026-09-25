@@ -236,6 +236,90 @@ def test_a_shelf_with_some_chapters_still_to_come_says_so() -> None:
     assert "2 of 4 translated" in row["facts"]
 
 
+def building(**extra: Any) -> dict[str, Any]:
+    """One build in progress, as `/jobs` describes it."""
+    row = {
+        "id": "j1",
+        "title": "ספר חדש",
+        "english": "A new book",
+        "language": "he",
+        "stage": "working",
+        "done": 3,
+        "total": 10,
+        "message": "Adding vowel points…",
+        "error": "",
+        "reader": "",
+        "behind": 0,
+    }
+    row.update(extra)
+    return row
+
+
+def test_a_text_being_built_is_the_first_row_of_your_targums() -> None:
+    """design.md §12, "Yours and everyone's" (2026-09-25). It was a card under the
+    Library's Your uploads, and the wait page sent the reader here to find it."""
+    drawn = draw(which="texts", readers=[reader("article-he", "כתבה")], jobs=[building()])
+    first, second = drawn["shelf"]
+    assert first["title"] == "ספר חדש"
+    assert first["english"] == "A new book"
+    assert "We're adding vowel points…" in first["facts"]
+    assert "30% done" in first["facts"]
+    assert first["status"] == "Building"
+    assert first["controls"] == [], "nothing on a build can be pressed"
+    assert second["title"] == "כתבה"
+
+
+def test_a_build_waiting_its_turn_says_so_rather_than_looking_stuck() -> None:
+    queued = building(stage="queued", behind=2, message="", total=0, done=0)
+    (row,) = draw(which="texts", jobs=[queued])["shelf"]
+    assert row["facts"].startswith("Waiting behind 2 builds"), row["facts"]
+
+
+def test_a_build_alone_is_a_shelf_and_not_an_empty_page() -> None:
+    """The first thing a new reader builds is also the only thing they have."""
+    drawn = draw(which="texts", jobs=[building()])
+    assert drawn["shown"] and not drawn["nothing"]
+    assert [row["title"] for row in drawn["shelf"]] == ["ספר חדש"]
+
+
+def test_a_finished_or_failed_build_is_not_a_building_row() -> None:
+    drawn = draw(
+        which="texts",
+        readers=[reader("article-he", "כתבה")],
+        jobs=[building(stage="done"), building(id="j2", error="We lost that build.")],
+    )
+    assert [row["title"] for row in drawn["shelf"]] == ["כתבה"]
+
+
+def test_a_shared_text_is_yours_once_you_have_opened_it() -> None:
+    """The shared shelf is the Library's until you open one of it (design.md §12,
+    2026-09-25). After that it is something you started, with nothing to delete."""
+    opened = {"targum:opened": json.dumps({"scene-1": 1000})}
+    drawn = draw(
+        opened,
+        which="texts",
+        readers=[reader("article-he", "כתבה")],
+        shared=[
+            reader("scene-1", "סצנה ראשונה", shared=True),
+            reader("scene-2", "סצנה שנייה", shared=True),
+        ],
+    )
+    titles = [row["title"] for row in drawn["shelf"]]
+    assert titles == ["סצנה ראשונה", "כתבה"], "opened, and last read first"
+    assert drawn["shelf"][0]["controls"] == ["⋯"], "no playlist key and no Delete"
+
+
+def test_a_shared_text_you_also_built_is_one_row() -> None:
+    opened = {"targum:opened": json.dumps({"scene-1": 1000})}
+    drawn = draw(
+        opened,
+        which="texts",
+        readers=[reader("scene-1", "סצנה ראשונה")],
+        shared=[reader("scene-1", "סצנה ראשונה", shared=True)],
+    )
+    assert [row["title"] for row in drawn["shelf"]] == ["סצנה ראשונה"]
+
+
 def test_a_text_the_catalogue_never_heard_of_still_gets_a_row() -> None:
     """Covers are drawn on the project's budget, for the library's own texts. Most of a
     reader's shelf is their own, has no cover and never will, and a shelf of empty frames

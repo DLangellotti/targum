@@ -2063,7 +2063,9 @@ def test_the_command_palette_finds_a_text_and_goes_there(browser) -> None:
     at_rest = page.evaluate(
         "() => [...document.querySelectorAll('.palette-title')].map((t) => t.textContent)"
     )
-    assert at_rest[:3] == ["Learn", "Library", "Your Progress"], "the places, with nothing typed"
+    assert at_rest[:4] == ["Learn", "Your targums", "Library", "Your Progress"], (
+        "the places, with nothing typed, in the nav's order"
+    )
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.getElementById('palette').hidden"), "Escape closes it"
     page.click("#palette-open")
