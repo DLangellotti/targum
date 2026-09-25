@@ -347,6 +347,51 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The foot is one block — 2026-09-25
+
+David, on a phone at the end of the second text of a playlist: "This positioning of buttons
+at end of Playlist lesson does not feel intuitive to me." The foot of a section was three
+things written on three different days: the playlist's line with Back and a teal Next
+(#366), a strip offering the words never marked (the first alpha reader), and a leaf Done
+that finishes the section (#173). They stacked in the order the code happened to append
+them, so moving on came first and finishing came last, with two primary colours a screen
+apart and a gap the player's margin opened between them. And Next finished nothing: a
+reader who went Next, Next, Next through a set had finished nothing on Your Progress.
+Asked, David chose each of the following; outside a playlist, "I never liked the two
+button positioning (done + mark words) find a sleeker design for it".
+
+- **One block at the foot, in reading order:** where you are, one press, one quiet way to
+  press it differently, and what comes next. One primary colour, §13's pill.
+- **The press says both halves.** "Done, and mark 12 words known" finishes the section and
+  marks the words never marked, in one press; "Done without marking" under it, as a text
+  link, finishes it alone. With nothing left to mark the button is "Done" and there is no
+  link. Names and numbers are still cleared by the press and still never called words.
+  "Offered, never done for you" stands: the press is the reader's, and it says what it
+  does before it is pressed.
+- **In a playlist the press is Next.** "Next, and mark 12 words known" / "Next" / "Next
+  without marking", and on the last item "Finish" in the same three forms, followed by the
+  end card. **Moving on finishes the section**, which amends #173's one Done per section:
+  a section is still finished once however often it is pressed, but leaving forward is the
+  press. A swipe forward, the arrow and the Next among a video's keys finish too, without
+  marking: a swipe is a press (2026-09-23), and marking words is never done by a gesture.
+- **Back is a small link on the line that says where you are**: "← Back · Couples and
+  everyday life, 2 of 3". "Up next: <title>" is a small line under the press, not a second
+  button naming the same place.
+- **Undo is where the reader lands.** A press that leaves the page takes the reader to the
+  next item, so the next page says, once and briefly, at its top: "Finished <title> · 12
+  words marked known · Undo". Undo there takes back both, the finish and the words. Coming
+  back to a finished section still offers Undo on its ink block, as it always did.
+- **The ledger's increment is not drawn when a press leaves the page.** It is drawn at the
+  foot of a section finished in place, as before (2026-09-03); a reader who has pressed
+  Next is already reading the next thing, and the counts are on Your Progress.
+
+What it amends: the separate Done at every section's foot (#173) and the separate offer
+under the text become the one press. "Up next" shown only once finished (#173) stands
+outside a playlist, where the door to the next section still appears after the press. What
+it does not overturn: a section is finished once however often it is pressed, the finish
+travels to the account, and the words a press marks are one Undo away.
+
+
 ### The grant is one press, and chatting is included — 2026-09-24
 
 A design and QA pass over the connector and playlists found that the approval page and the
