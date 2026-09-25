@@ -1692,13 +1692,15 @@ body[data-case="Loc"] .w.case-Loc {
      would unplace them; the rest are given one. */
   :is(
     .copy, .hear, .pick-card button, .pager a, .bar .levels .level,
-    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
+    .list-nav .list-back, .arrived button
   ) {
     position: relative;
   }
   :is(
     .copy, .hear, .grab, .list-tab, .pick-card button, .pager a, .bar .levels .level,
-    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
+    .list-nav .list-back, .arrived button
   )::after {
     content: "";
     position: absolute;
@@ -1855,7 +1857,7 @@ body[data-case="Loc"] .w.case-Loc {
    page of it. */
 body.paged:not(.last-page) .pager,
 body.paged:not(.last-page) .credits,
-body.paged:not(.last-page) .rest { display: none; }
+body.paged:not(.last-page) .foot { display: none; }
 
 /* Turning the page. Two round buttons in the two bottom corners — back at the start
    edge, forward at the end edge, so each arrow points outward, toward the edge you
@@ -1918,7 +1920,7 @@ body.first-page .turn button[data-turn="-1"]:hover { background: var(--paper-rai
 /* Room under the last pair for the control to sit over. */
 body.paged main { padding-block-end: 1rem; }
 /* And on the last page, what sits under the text clears the arrows too. */
-body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
+body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
 
 @media print {
   .bar, .pager, .turn { display: none; }
@@ -1977,12 +1979,76 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 .waiting-note button:disabled { opacity: 0.6; cursor: default; }
 .waiting-note button[hidden] { display: none; }
 
-/* The offer at the foot of a part: the words never marked, known in one press. The
-   button carries ink; Undo is quieter. Same shape as the waiting note above the text. */
-.rest {
+/* The foot of a section is one block (design.md §12, "The foot is one block",
+   2026-09-25): where you are, one press, one quiet way to press it differently, and what
+   comes next, top to bottom and all at one edge. It was three strips — the playlist's
+   Next, the offer of the words never marked in leaf, and a leaf Done flush to the other
+   edge — and two primary colours a screen apart. Now one filled pill in the primary, the
+   one per view §13 allows, and everything else quiet. */
+.foot {
   max-width: calc(var(--measure) * 2 + var(--gap));
-  margin: 1.5rem auto 0;
-  padding: 0.25rem 1rem;
+  margin: 1.5rem auto 2rem;
+  padding: 1rem 1rem 0;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.foot-press {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.foot-press[hidden] { display: none; }
+.foot-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.75rem;
+  padding: 0 1.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--teal);
+  color: var(--teal-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.foot-go:hover { filter: brightness(1.08); }
+.foot-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The same press without the marking: a text link under it, never a second button. */
+.foot-plain {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.foot-plain:hover { color: var(--ink); }
+.foot-plain:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.foot-plain[hidden],
+.foot-next[hidden] { display: none; }
+.foot-next p { margin: 0; }
+/* On a phone the press takes the width, where a thumb finds it. */
+@media (max-width: 40rem) {
+  .foot-press { align-self: stretch; }
+  .foot-go { inline-size: 100%; }
+}
+
+/* Finished: the ink block, in the foot. Undo is the one press on it. */
+.finished {
+  box-sizing: border-box;
+  inline-size: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1991,49 +2057,45 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-.rest[hidden] { display: none; }
-.rest span { flex: 1; }
-/* Both buttons are about "known" and "done", which §4 gives to leaf — and they carry
-   the §9 gloss recipe a primary button is allowed: one sheen, light on glass, at 14%.
-   Undo is quieter. */
-.rest button,
+.finished[hidden] { display: none; }
+.finished > span { flex: 1; }
 .finished button {
   padding: 0.4rem 1rem;
   border: 0;
-  border-radius: 6px;
-  background: linear-gradient(var(--gloss), transparent) var(--leaf);
-  color: var(--paper);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--lift);
-}
-.rest button:hover,
-.finished button:hover { filter: brightness(1.06); }
-.rest button[hidden] { display: none; }
-.rest #rest-undo,
-.finished button.undo {
+  border-radius: 999px;
   background: none;
   color: var(--ink);
-  border: 1px solid var(--rule);
-  font-weight: 400;
-  box-shadow: none;
+  font: inherit;
+  cursor: pointer;
 }
+.finished button:hover { filter: brightness(1.06); }
 
-/* Finished: the same strip, under the offer. Leaf for what has been done. */
-.finished {
+/* What the press before did, at the top of the page it led to: once, briefly, with the
+   Undo that takes it back. The first-time line's place and voice, and nothing moves. */
+.arrived {
   max-width: calc(var(--measure) * 2 + var(--gap));
-  margin: 1rem auto 0;
-  padding: 0.75rem 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
-  font-family: system-ui, sans-serif;
+  margin: 0 auto;
+  padding: 0.5rem 1.25rem 0;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
+  text-align: center;
 }
-.finished > span { flex: 1; }
+.arrived[hidden] { display: none; }
+.arrived button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.arrived button[hidden] { display: none; }
+.arrived button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Where to go next, at the foot of a finished text.
  *
@@ -2094,7 +2156,7 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 /* Both of them belong to the end of the text, so neither appears until the reader is at
    it. The suggestion was left out of this when it was added and turned up under page one
    of five, offering somewhere else to go to somebody who had just arrived. */
-body.paged:not(.last-page) .finished,
+body.paged:not(.last-page) .foot,
 body.paged:not(.last-page) .practice-step,
 body.paged:not(.last-page) .next-up { display: none; }
 
@@ -2102,8 +2164,12 @@ body.paged:not(.last-page) .next-up { display: none; }
    `room` takes its band out of every page — but the Done line and the suggestion come
    after the pairs and are not pairs, so without this they land underneath it. The last
    page is the one page allowed to scroll, and this is what it scrolls to. */
-body.has-player .finished,
+body.has-player .foot,
 body.has-player .next-up { margin-block-end: 9rem; }
+/* Only under whichever of them is last: the room under the foot, when the next section's
+   door stands under it, opened a gap between the press and the door (2026-09-25). */
+body.has-player .foot:has(+ .next-up:not([hidden])),
+body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
 
 /* Finished. The strip inverts to ink — §9's wake-up move, one block per screen, spent
    on the one block that earned it — and brags the brand's way: a real count in the
@@ -2369,7 +2435,7 @@ body.practice-hebrew .src { max-width: none; }
 /* A section kept by the practice is finished once the practice has read it through —
    the third reading of the aliyah, or the last verse — unless it is finished already,
    in which case its record and its Undo stay where they are. */
-body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.is-done) {
+body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-press {
   display: none;
 }
 
@@ -4172,35 +4238,29 @@ html:fullscreen { background: var(--paper); }
    there is nothing for reduced motion to stop — the next item replaces this one. */
 .in-list .next-up:not(.here) { display: none; }
 
-.list-nav {
-  max-width: calc(var(--measure) * 2 + var(--gap));
-  margin: 0 auto 2rem;
-  padding: 0.75rem 1rem 0;
-  border-block-start: 1px solid var(--rule);
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
+/* Where you are, at the head of the foot: "← Back · Couples and everyday life, 2 of 3".
+   Back is a link on the line, not a pill beside the press (2026-09-25). */
+.list-nav { margin: 0; color: var(--ink-soft); }
+.list-nav .list-back {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
 }
-.list-where { flex: 1 1 100%; margin: 0; }
+.list-nav .list-back:hover { text-decoration: underline; }
+.list-nav .list-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .list-up-next,
-.list-waiting { flex: 1 1 100%; margin: 0; }
-
-/* Clear of the player (2026-09-24: its strip stood over Next, and a press there landed
-   on Hear first). The pages are cut around the strip by `room()`, but the list's keys
-   come after the pages, as the Done line does, so they take the same room under them:
-   the strip's height and where it stands, measured by the script into
-   `--player-tall`, and the old figure where nothing has been measured. */
-body.has-player .list-nav,
+.list-waiting { margin: 0; }
+/* Past the last item the end card is the way on, so the press that led to it goes. */
+.list-ended .foot-press { display: none; }
 body.has-player.list-ended .list-end {
   margin-block-end: calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 2rem);
 }
-body.has-player.list-ended .list-nav { margin-block-end: 2rem; }
 
-/* §13's pills: Back is a ghost, Next the one filled press in the primary. */
+/* In the picture's keys, Back and Next are pills among its own keys. */
 .list-key {
   display: inline-flex;
   align-items: center;

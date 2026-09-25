@@ -369,6 +369,10 @@
     direction, and on an RTL page the bidi algorithm carried its full stop to the
     other end — ".Tap a word to say how well you know it". -#}
 {% if words %}<p class="first" id="first" dir="ltr" hidden>{{ t("reader.page.tap-a-word-to-say-how-well", "Tap a word to say how well you know it.") }}</p>{% endif %}
+{#- Where a press at the foot of the item before landed the reader (design.md §12, "The foot
+    is one block", 2026-09-25): once and briefly, what that press did, with the one Undo
+    that takes all of it back. The press left the page, so this is where the Undo can be. -#}
+<p class="arrived" id="arrived" dir="ltr" role="status" hidden><span id="arrived-said"></span> <button type="button" id="arrived-undo">{{ t("reader.finish.undo", "Undo") }}</button></p>
 
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the
@@ -656,28 +660,6 @@
   <button type="button" class="forward" data-turn="1" aria-label="{{ t("reader.page.next-page", "Next page") }}"></button>
 </div>
 
-{#- At the foot, where a part ends: the words you never marked, offered as known in one
-    press, with one Undo. Offered, never done for you — and never a name, which does not
-    count. "Words should be marked as known automatically when I'm done with the
-    article", said the first alpha reader; this is the honest version of that. -#}
-{#- Both strips are English chrome inside a page that may run right to left: without
-    their own direction the "?" wandered to the front and "2 of 4" read "of 4 2". -#}
-{% if words %}
-<div class="rest" id="rest" dir="ltr" hidden>
-  <span id="rest-text"></span>
-  <button type="button" id="rest-mark"></button>
-  <button type="button" id="rest-undo" hidden>{{ t("reader.page.undo", "Undo") }}</button>
-</div>
-{% endif %}
-{#- Finished with the section: one press at its foot, and a line that says when. Pressing
-    again takes it back, so however often it is pressed the section is finished once.
-    Counted on the progress page.
-
-    At the foot of every section rather than only the last. Genesis is one document, so
-    this used to stand fifty chapters in: a reader who read three chapters had finished
-    nothing, and the ledger agreed with them. That is most of what "feels like work"
-    means (targum-internal#173, and #167–#171). A chapter is a chapter however short —
-    the structure decides and there is no floor. -#}
 {#- Where the practice stands, at the foot of the section: which reading of it this is,
     and the press to the next. Filled in and shown by the script, and only while the
     practice is kept by section — or, kept by verse, once every verse is read. -#}
@@ -687,9 +669,34 @@
   <button type="button" id="practice-next"></button>
 </div>
 {% endif %}
-<div class="finished" id="finished" dir="ltr">
-  <span id="done-said" hidden></span>
-  <button type="button" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
+{#- The foot of a section is one block (design.md §12, "The foot is one block",
+    2026-09-25): where you are, one press, one quiet way to press it differently, and what
+    comes next. It was three things written on three different days — the playlist's Next,
+    the offer of the words never marked, and Done — stacked in the order the code happened
+    to append them, so moving on came first and finishing came last.
+
+    The press finishes the section and, where words were never marked, marks them known:
+    "Done, and mark 12 words known". Offered, never done for you — the press says what it
+    does before it is pressed, and "Done without marking" under it finishes the section
+    alone. "Words should be marked as known automatically when I'm done with the article",
+    said the first alpha reader; this is still the honest version of that.
+
+    At the foot of every section rather than only the last (targum-internal#173): a
+    chapter is a chapter however short, the structure decides and there is no floor.
+    Finished, the block inverts to ink with an Undo, as it always did. Inside a playlist
+    `list.js` puts where you are above the press and what is next under it, and the press
+    becomes Next. English chrome in a page that may run right to left, so it carries its own
+    direction. -#}
+<div class="foot" id="foot" dir="ltr">
+  <div class="finished" id="finished" hidden>
+    <span id="done-said" hidden></span>
+    <button type="button" class="undo" id="done-undo">{{ t("reader.finish.undo", "Undo") }}</button>
+  </div>
+  <div class="foot-press" id="foot-press">
+    <button type="button" class="foot-go" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
+    {% if words %}<button type="button" class="foot-plain" id="done-plain" hidden></button>{% endif %}
+  </div>
+  <p class="foot-next" id="foot-next" hidden></p>
 </div>
 {#- And where to go next. The next section first, by name and by how long it is: a reader
     who has just finished something should not have to shop, and the library is a shop.

@@ -446,17 +446,18 @@ def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
 # -- the offer at the foot of a part ---------------------------------------------
 
 
-def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
-    """ "Words should be marked as known automatically when I'm done with the article."
-    Offered, never done for you: the words you never marked, in one press, with the
-    number said. The ones you are working on are left alone."""
+def test_the_press_says_both_halves_and_does_both() -> None:
+    """design.md §12, "The foot is one block" (2026-09-25). The words you never marked are
+    offered with the finish, in one press that says both halves before it is pressed —
+    offered, never done for you — and a quiet link under it that finishes alone. The ones
+    you are working on are left alone."""
     words, lemmas = chapter(["a", "b", "c"])
     before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
-    assert before["rest"] == {
-        "hidden": False,
-        "text": "",
-        "button": "Mark 2 words as known",
-        "undo": False,
+    assert before["foot"] == {
+        "press": "Done, and mark 2 words known",
+        "pressHidden": False,
+        "plain": "Done without marking",
+        "finished": False,
     }
     after = run(
         [],
@@ -464,35 +465,62 @@ def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
         lemmas=lemmas,
         vocab={},
         levels=[{"word": "a", "status": 2}],
-        markRest=True,
+        presses=[True],
     )
     assert [item["lemma"] for item in after["queue"]] == ["a"], "still learning a; b and c known"
-    assert after["rest"]["text"] == "2 words marked known"
-    assert after["rest"]["undo"] is True
+    assert after["finished"]["at"] > 0, "and the section is finished by the same press"
+    assert after["foot"]["finished"] is True and after["foot"]["pressHidden"] is True
 
 
-def test_one_undo_takes_the_whole_batch_back() -> None:
+def test_the_quiet_link_finishes_without_marking() -> None:
+    words, lemmas = chapter(["a", "b"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[False])
+    assert done["finished"]["at"] > 0
+    assert [item["lemma"] for item in done["queue"]] == ["a", "b"], "nothing was marked"
+
+
+def test_one_undo_takes_back_the_finish_and_the_words() -> None:
+    words, lemmas = chapter(["a", "b", "c", "d"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[True, "undo"])
+    assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
+    assert done["finished"]["at"] == 0
+    assert done["foot"]["press"] == "Done, and mark 4 words known"
+
+
+def test_the_batch_still_has_its_own_undo() -> None:
     words, lemmas = chapter(["a", "b", "c", "d"])
     done = run([], chapter=words, lemmas=lemmas, vocab={}, markRest=True, undoAfter=True)
     assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
-    assert done["rest"]["button"] == "Mark 4 words as known"
 
 
-def test_marking_the_rest_takes_the_names_with_it_but_never_counts_them() -> None:
+def test_the_press_takes_the_names_with_it_but_never_counts_them() -> None:
     """The whole point is a clean page, so a name is marked with the rest — and it still
-    counts for nothing, because its record keeps "name" as its band, which is what every
-    count reads."""
+    counts for nothing, so the press does not call it a word."""
     rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
-    done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, markRest=True)
-    assert done["rest"]["text"] == "3 words marked known"
+    before = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={})
+    assert before["foot"]["press"] == "Done, and mark 2 words known"
+    done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, presses=[True])
     assert done["queue"] == [], "nothing left lit"
     assert done["list"] == [], "and nothing on the list"
 
 
-def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
+def test_nothing_left_to_mark_is_plain_done() -> None:
     words, lemmas = chapter(["a"])
     done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
-    assert done["rest"]["hidden"] is True
+    assert done["foot"]["plain"] == ""
+
+
+def test_in_a_playlist_the_press_is_next_and_on_the_last_item_finish() -> None:
+    words, lemmas = chapter(["a", "b"])
+    middle = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next")["foot"]
+    assert middle["press"] == "Next, and mark 2 words known"
+    assert middle["plain"] == "Next without marking"
+    last = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="finish")["foot"]
+    assert last["press"] == "Finish, and mark 2 words known"
+    assert last["plain"] == "Finish without marking"
+    # Finished, the press is still the way on in a playlist, and marks nothing.
+    finished = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[False])
+    assert finished["foot"]["press"] == "Next" and finished["foot"]["pressHidden"] is False
 
 
 # -- pages, not a scroll ----------------------------------------------------------
@@ -592,16 +620,18 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     count on the progress page can only ever move by one."""
     words, lemmas = chapter(["a"])
     fresh = run([], chapter=words, lemmas=lemmas)["finished"]
-    assert fresh["at"] == 0 and fresh["button"] == "Done" and fresh["said"] == ""
+    assert fresh["at"] == 0 and fresh["said"] == ""
+    assert fresh["button"] == "Done, and mark 1 word known"
+    assert fresh["shown"] is False, "the ink block waits for the finish"
 
     done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
     assert done["at"] > 0 and done["record"] == done["at"], "written where the sync reads it"
-    assert done["button"] == "Undo"
+    assert done["shown"] is True, "the ink block, with its Undo"
     assert done["said"].startswith("You finished a targum.")
     assert "1st" in done["said"], "and how many so far"
 
     back = run([], chapter=words, lemmas=lemmas, finish=[True, False])["finished"]
-    assert back["at"] == 0 and back["button"] == "Done"
+    assert back["at"] == 0 and back["shown"] is False
 
 
 def test_a_chapter_of_a_book_is_finished_on_its_own() -> None:
@@ -1049,7 +1079,7 @@ def test_taking_the_finish_back_takes_the_movement_with_it() -> None:
         levels=[{"word": "a", "status": 9}],
         finish=[True, False],
     )["finished"]
-    assert back["said"] == "" and back["button"] == "Done"
+    assert back["said"] == "" and back["shown"] is False
 
 
 # --- which words cost the most ---------------------------------------------------------

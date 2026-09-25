@@ -4999,7 +4999,8 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
 FOOT = """
 () => {
   const step = document.getElementById('practice-step');
-  const done = document.getElementById('finished');
+  // The press at the foot (design.md §12, "The foot is one block"): what finishes.
+  const done = document.getElementById('foot-press');
   const cell = document.querySelector('.pair.verse:not([hidden]) .tr');
   return {
     said: step && !step.hidden ? document.getElementById('practice-said').textContent : null,

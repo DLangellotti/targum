@@ -1004,6 +1004,11 @@ var targumReader = function () {
       // here the reader said outright.
       done: was.done || 0,
     };
+    /* And the sections finished, for the same reason (2026-09-25). This rewrite predates
+       them (#173), so every word marked after a finish wrote the record back without its
+       sections — and the one press at the foot marks the words and finishes the section
+       together, which is the order that made it matter. */
+    if (was.sections && typeof was.sections === "object") all[documentId].sections = was.sections;
     try {
       targumKeep(DOCS, JSON.stringify(all));
     } catch (e) {}
@@ -1015,6 +1020,22 @@ var targumReader = function () {
   var finishedBox = document.getElementById("finished");
   var finishedMark = document.getElementById("done-mark");
   var finishedSaid = document.getElementById("done-said");
+  var finishedUndo = document.getElementById("done-undo");
+  // The rest of the foot (design.md §12, "The foot is one block", 2026-09-25): the press
+  // and the quiet way to press it without marking, and the block they stand in.
+  var footPress = document.getElementById("foot-press");
+  var footPlain = document.getElementById("done-plain");
+  /* Inside a playlist the press moves on. `list.js` says so through `TargumReader.foot`
+     once it has the list: which word the press says ("next", or "finish" on the last
+     item) and what moving on is. Null on a text read on its own, where the press is Done. */
+  var footWay = null;
+  /* What this visit's press did, so the Undo on the ink block takes back the words it
+     marked as well as the finish. Null when the section was finished on another visit:
+     the words marked then are not this page's to take back. */
+  var footPressed = null;
+  /* Drawn first by the counts, not by the finish: the finish is drawn before the names and
+     the counts it needs exist, and the counts draw the foot every time they change. */
+  var footDrawn = false;
 
   /* When this section was finished.
    *
@@ -1043,7 +1064,7 @@ var targumReader = function () {
      hook in the markup, so a new control is counted the day it is drawn. */
   var PRESSABLE =
     ".bar button, .bar select, .bar a, #player button, #player [role=slider], .video button, " +
-    ".turn button, #list-tab, #list button, #done-mark, #rest-mark, #rest-undo, " +
+    ".turn button, #list-tab, #list button, #done-mark, #done-plain, #done-undo, #arrived-undo, " +
     "#practice-next, #next-up-else, .say";
   function nameOf(control) {
     var attributes = control.attributes || [];
@@ -1545,7 +1566,7 @@ var targumReader = function () {
   // that earned it — and brags the brand's way: a real count, in serif tabular figures,
   // leaf-bright on ink. Type, not motion.
   function renderFinished() {
-    if (!finishedBox || !finishedMark || !finishedSaid) return;
+    if (!finishedBox || !finishedSaid) return;
     var when = finishedAt();
     finishedSaid.textContent = "";
     if (when) {
@@ -1571,13 +1592,12 @@ var targumReader = function () {
       finishedSaid.appendChild(tally);
       drawMoved(finishedSaid);
       finishedSaid.hidden = false;
-      finishedMark.textContent = t("reader.finish.undo", "Undo");
-      finishedMark.classList.add("undo");
     } else {
       finishedSaid.hidden = true;
-      finishedMark.textContent = t("reader.finish.done", "Done");
-      finishedMark.classList.remove("undo");
     }
+    // The ink block is the finish, and it is only there once there is one: before it,
+    // the foot is the press.
+    finishedBox.hidden = !when;
     finishedBox.classList.toggle("is-done", !!when);
     // The inverted block is a ledger, and `.ledger` is what licenses the bright set.
     finishedBox.classList.toggle("ledger", !!when);
@@ -1589,6 +1609,54 @@ var targumReader = function () {
        different element with a different rule; this only ever touches the near one. */
     var onward = document.getElementById("next-up");
     if (onward && onward.classList.contains("here")) onward.hidden = !when;
+    renderFoot();
+  }
+
+  /* How many words the press would mark: vocabulary only, never names and numbers, which
+     the press still clears without calling them words (the same count the header gives,
+     because two counts disagreeing on one screen read as a bug). */
+  function leftToMark() {
+    return lemmasHere(false).filter(function (lemma) {
+      return statusOf(lemma) === undefined;
+    }).length;
+  }
+
+  /* The press and the line under it, as they stand. One press, saying both halves of
+     what it does — "Done, and mark 12 words known" — and a text link under it that does
+     the first half alone. Nothing left to mark: "Done", and no link. Finished, the press
+     goes: the ink block says so and holds the Undo — except in a playlist, where the
+     press is still the way on, and moving on from a finished item marks nothing. */
+  function renderFoot() {
+    if (!footDrawn || !footPress || !finishedMark) return;
+    var when = finishedAt();
+    var verb = footWay ? footWay.verb : "done";
+    var left = when ? 0 : leftToMark();
+    footPress.hidden = !!when && !footWay;
+    finishedMark.textContent = pressSays(verb, left);
+    if (footPlain) {
+      footPlain.hidden = !left;
+      footPlain.textContent = left ? plainSays(verb) : "";
+    }
+  }
+  function pressSays(verb, left) {
+    if (verb === "next") {
+      return left
+        ? tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known")
+        : t("reader.list.next", "Next");
+    }
+    if (verb === "finish") {
+      return left
+        ? tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known")
+        : t("reader.list.done", "Finish");
+    }
+    return left
+      ? tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known")
+      : t("reader.page.done", "Done");
+  }
+  function plainSays(verb) {
+    if (verb === "next") return t("reader.foot.next-plain", "Next without marking");
+    if (verb === "finish") return t("reader.foot.finish-plain", "Finish without marking");
+    return t("reader.foot.done-plain", "Done without marking");
   }
   renderFinished();
 
@@ -1989,7 +2057,6 @@ var targumReader = function () {
   // undo list and most of it would be unreachable. Names and numbers go too — the
   // whole point is a clean page — and stay out of every count, because the record
   // keeps "name" as its band.
-  var restSaid = 0;
 
   // What is still unmarked on this page, names included: what the offer counts.
   function unmarkedHere() {
@@ -2019,7 +2086,6 @@ var targumReader = function () {
     if (!batch.length) return 0;
     undoable.push({ bulk: batch, surface: "", where: null });
     if (undoable.length > UNDO_DEPTH) undoable.shift();
-    restSaid = batch.length;
     remember();
     redraw();
     say(
@@ -2031,6 +2097,244 @@ var targumReader = function () {
       )
     );
     return batch.length;
+  }
+
+  /* --- the press at the foot ------------------------------------------------ */
+
+  /* What the one press does (design.md §12, "The foot is one block", 2026-09-25): marks
+     the words never marked, when the reader chose the press that says so, and finishes
+     the section. Words first, because the finish is what the ledger counts and the words
+     are part of what it counts. A section already finished is left as it is: pressing
+     again is moving on, not a second finish. */
+  function pressFoot(marking) {
+    var already = !!finishedAt();
+    var taken = [];
+    var counted = 0;
+    if (marking && !already) {
+      counted = leftToMark();
+      if (markRest()) {
+        var last = undoable[undoable.length - 1];
+        taken = last && last.bulk
+          ? last.bulk.map(function (item) {
+              return item.lemma;
+            })
+          : [];
+      }
+    }
+    if (!already) {
+      setFinished(true);
+      footPressed = { lemmas: taken, counted: taken.length ? counted : 0 };
+    }
+    return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
+  }
+
+  /* The press, from the button or the link under it. Inside a playlist `list.js` has said
+     what moving on is, and does it after the press; on its own the press is the whole of
+     it, and the ink block and the next section appear. */
+  function footGo(marking) {
+    if (footWay && footWay.go) {
+      footWay.go(marking);
+      return;
+    }
+    if (finishedAt()) return;
+    pressFoot(marking);
+  }
+
+  /* The Undo on the ink block: the finish, and the words this visit's press marked. A
+     word the reader has said something else about since is theirs and is left alone. */
+  function takeBack(taken) {
+    for (var n = undoable.length - 1; n >= 0; n--) {
+      var bulk = undoable[n].bulk;
+      if (bulk && bulk.length && taken.indexOf(bulk[0].lemma) >= 0) {
+        undoable.splice(n, 1);
+        break;
+      }
+    }
+    taken.forEach(function (lemma) {
+      var record = vocab[lemma];
+      if (record && record.status === KNOWN && !record.learned) forgetWord(lemma);
+    });
+    remember();
+    redraw();
+  }
+  function unpress() {
+    var pressed = footPressed;
+    footPressed = null;
+    if (pressed && pressed.lemmas.length) takeBack(pressed.lemmas);
+    setFinished(false);
+  }
+
+  /* Leaving by the press, for the next item of a playlist. What the press did goes with
+     the reader, so the page they land on can say it and take it back: the press left this
+     page, and an Undo nobody can reach is not an Undo. The tab's own store, because it is
+     about this sitting and nothing else — a second tab or tomorrow's visit is told
+     nothing. Only a press that did something is carried; moving on from an item already
+     finished says nothing where it lands. */
+  var LEFT = "targum:foot:left";
+  function leave(marking, title) {
+    var pressed = pressFoot(marking);
+    if (pressed.already) return pressed;
+    try {
+      sessionStorage.setItem(
+        LEFT,
+        JSON.stringify({
+          document: documentId,
+          section: sectionId,
+          sections: sectionCount,
+          title: String(title || documentTitle || ""),
+          counted: pressed.counted,
+          words: pressed.lemmas.map(function (lemma) {
+            return [tongueOf(lemma), wordOf(lemma)];
+          }),
+          at: Date.now(),
+        })
+      );
+    } catch (e) {}
+    return pressed;
+  }
+
+  /* Where that press landed the reader: once and briefly, at the top, "Finished <title> ·
+     12 words marked known · Undo". Read once and taken out of the store at once, so a
+     reload does not say it twice. Twenty seconds, then it goes, unless the reader is on
+     it; nothing about it moves. */
+  var arrived = document.getElementById("arrived");
+  var arrivedSaid = document.getElementById("arrived-said");
+  var arrivedUndo = document.getElementById("arrived-undo");
+  var landed = null;
+  var ARRIVED_FOR = 20000;
+  function hideArrived(after) {
+    setTimeout(function () {
+      if (!arrived) return;
+      var active = document.activeElement;
+      if (active && arrived.contains && arrived.contains(active)) return hideArrived(after);
+      arrived.hidden = true;
+    }, after);
+  }
+  function sayLanded(said) {
+    arrivedSaid.textContent = "";
+    var line = t("reader.arrived.finished", "Finished {title}");
+    var cut = line.indexOf("{title}");
+    if (cut < 0) arrivedSaid.appendChild(document.createTextNode(line));
+    else {
+      arrivedSaid.appendChild(document.createTextNode(line.slice(0, cut)));
+      var name = document.createElement("bdi");
+      name.setAttribute("dir", "auto");
+      name.textContent = String(said.title || "");
+      arrivedSaid.appendChild(name);
+      arrivedSaid.appendChild(document.createTextNode(line.slice(cut + 7)));
+    }
+    if (said.counted) {
+      arrivedSaid.appendChild(
+        document.createTextNode(
+          " · " + tn("reader.rest.done", said.counted, "{n} word marked known", "{n} words marked known")
+        )
+      );
+    }
+  }
+  function landHere() {
+    var said = null;
+    try {
+      said = JSON.parse(sessionStorage.getItem(LEFT) || "null");
+      sessionStorage.removeItem(LEFT);
+    } catch (e) {
+      said = null;
+    }
+    if (!said || !arrived || !arrivedSaid) return;
+    // A press is news on the page it led to, not on a page opened ten minutes later.
+    if (Date.now() - Number(said.at || 0) > 10 * 60 * 1000) return;
+    if (said.document === documentId && String(said.section) === sectionId) return;
+    landed = said;
+    sayLanded(said);
+    if (arrivedUndo) arrivedUndo.hidden = false;
+    arrived.hidden = false;
+    hideArrived(ARRIVED_FOR);
+  }
+
+  /* Undo, from where the reader landed: the section that press finished, and the words
+     it marked, in whichever language's list they went to. The page that marked them is
+     gone, so this goes to the stores directly, the way `sync.js` sweeps them, and leaves
+     a tombstone as a dropped word does so another device does not push them back. A word
+     said something else about since the press is left alone. */
+  function undoLanding() {
+    var said = landed;
+    landed = null;
+    if (!said) return;
+    // Grouped by language, so each list and each store of meanings is read and written
+    // once rather than once a word: a long chapter marks a few thousand.
+    var byTongue = {};
+    (said.words || []).forEach(function (pair) {
+      var tongue = String((pair && pair[0]) || "");
+      var word = String((pair && pair[1]) || "");
+      if (tongue && word) (byTongue[tongue] = byTongue[tongue] || []).push(word);
+    });
+    Object.keys(byTongue).forEach(function (tongue) {
+      var name = "targum:vocab:" + tongue;
+      var theirs = read(name, "{}");
+      var gone = byTongue[tongue].filter(function (word) {
+        var record = theirs[word];
+        if (!record || record.status !== KNOWN || record.learned) return false;
+        delete theirs[word];
+        return true;
+      });
+      if (!gone.length) return;
+      try {
+        targumKeep(name, JSON.stringify(theirs));
+      } catch (e) {}
+      // Their meanings, in the browser's stores and in this page's own copies, which it
+      // would otherwise write back.
+      var head = "targum:meanings:" + tongue + ":";
+      var names = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i) || "";
+          if (key.indexOf(head) === 0) names.push(key);
+        }
+      } catch (e) {}
+      names.forEach(function (key) {
+        var records = read(key, "{}");
+        gone.forEach(function (word) {
+          delete records[word];
+        });
+        try {
+          targumKeep(key, JSON.stringify(records));
+        } catch (e) {}
+      });
+      Object.keys(meaningStores).forEach(function (store) {
+        var mine = tongue === language ? store.indexOf(":") < 0 : store.indexOf(tongue + ":") === 0;
+        var records = mine && meaningStores[store].records;
+        if (records) {
+          gone.forEach(function (word) {
+            delete records[word];
+          });
+        }
+      });
+      if (window.TargumSync) {
+        gone.forEach(function (word) {
+          window.TargumSync.forgetWord(tongue, word);
+        });
+      }
+    });
+    var all = read(DOCS, "{}");
+    var record = all[said.document];
+    if (record) {
+      if (record.sections && typeof record.sections === "object") delete record.sections[String(said.section)];
+      if (Number(said.sections) === 1) record.done = 0;
+      record.updated = Date.now();
+      all[said.document] = record;
+      try {
+        targumKeep(DOCS, JSON.stringify(all));
+      } catch (e) {}
+    }
+    if (window.TargumSync) {
+      if (window.TargumSync.forgetSection) window.TargumSync.forgetSection(said.document, String(said.section));
+      window.TargumSync.touched();
+    }
+    vocab = readVocab();
+    redraw();
+    if (arrivedSaid) arrivedSaid.textContent = t("reader.arrived.took-back", "Taken back.");
+    if (arrivedUndo) arrivedUndo.hidden = true;
+    say(t("reader.finish.undone", "Not finished."));
+    hideArrived(4000);
   }
 
   function bandOfLemma(index) {
@@ -2052,7 +2356,6 @@ var targumReader = function () {
         if (item.before) vocab[item.lemma] = item.before;
         else forgetWord(item.lemma);
       });
-      restSaid = 0;
       remember();
       redraw();
       say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} words.", "Took back {n} words."));
@@ -2662,52 +2965,10 @@ var targumReader = function () {
   //: automatic one on the next redraw would take it back.
   var finishedBySelf = false;
 
-  var restBox = document.getElementById("rest");
-  var restText = document.getElementById("rest-text");
-  var restMark = document.getElementById("rest-mark");
-  var restUndo = document.getElementById("rest-undo");
-
-  function renderRest(counts) {
-    if (!restBox || !restText || !restMark || !restUndo) return;
-    if (restSaid) {
-      restText.textContent = tn(
-        "reader.rest.done",
-        restSaid,
-        "{n} word marked known",
-        "{n} words marked known"
-      );
-      restMark.hidden = true;
-      restUndo.hidden = false;
-      restBox.hidden = false;
-    } else if (unmarkedHere().length) {
-      // One button that says the whole thing, rather than a question and a number.
-      // The number is the header's number: vocabulary only, because a count that
-      // included names and numerals sat beside a header that did not, and the two
-      // disagreeing on one screen read as a bug. Names and numerals are still
-      // cleared by the press — the offer is a clean page — they are just not called
-      // words to your face.
-      var left = lemmasHere(false).filter(function (lemma) {
-        return statusOf(lemma) === undefined;
-      }).length;
-      restText.textContent = "";
-      restMark.textContent = left
-        ? tn("reader.rest.mark", left, "Mark {n} word as known", "Mark {n} words as known")
-        : t("reader.rest.clear-names", "Clear names and numbers");
-      restMark.setAttribute(
-        "title",
-        left ? t("reader.rest.names-too", "We clear names and numbers too, without counting them.") : ""
-      );
-      restMark.hidden = false;
-      restUndo.hidden = true;
-      restBox.hidden = false;
-    } else {
-      restBox.hidden = true;
-    }
-  }
-
   function renderStats() {
     var counts = coverage();
-    renderRest(counts);
+    footDrawn = true;
+    renderFoot();
     // What the arrows still have to walk: everything neither known nor ignored. The
     // queue is built from the same rule, so this is its length without building it.
     var left = counts.fresh + counts.learning;
@@ -7891,16 +8152,20 @@ var targumReader = function () {
         showList(!!(listBox && listBox.hidden));
         return;
       }
-      if (button.id === "rest-mark") {
-        markRest();
-        return;
-      }
-      if (button.id === "rest-undo") {
-        undo();
-        return;
-      }
       if (button.id === "done-mark") {
-        setFinished(!finishedAt());
+        footGo(true);
+        return;
+      }
+      if (button.id === "done-plain") {
+        footGo(false);
+        return;
+      }
+      if (button.id === "done-undo") {
+        unpress();
+        return;
+      }
+      if (button.id === "arrived-undo") {
+        undoLanding();
         return;
       }
       if (button.getAttribute("data-export") === "csv") {
@@ -8904,6 +9169,14 @@ var targumReader = function () {
     }
   });
 
+  // Said once the page is drawn, so the Undo it offers has a page to redraw.
+  landHere();
+  // A playlist that arrived before this line left its way on where it could be found.
+  if (window.TargumFootWay) {
+    footWay = window.TargumFootWay;
+    renderFoot();
+  }
+
   window.TargumReader = {
     // Whether the reader is on its last page and its first, for a playlist deciding
     // whether a swipe leaves the item or turns within it (targum-internal#366). A text
@@ -8946,6 +9219,26 @@ var targumReader = function () {
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // The press at the foot, as a playlist asks for it (design.md §12, "The foot is one
+    // block"): what the press says and what moving on is, and the press itself made
+    // before the playlist moves on. `press` and `unpress` are the same press and its
+    // Undo, for tests with no button to click.
+    foot: function (way) {
+      footWay = way || null;
+      renderFoot();
+    },
+    leave: leave,
+    press: pressFoot,
+    unpress: unpress,
+    undoLanding: undoLanding,
+    footSays: function () {
+      return {
+        press: finishedMark ? finishedMark.textContent : "",
+        pressHidden: footPress ? Boolean(footPress.hidden) : true,
+        plain: footPlain && !footPlain.hidden ? footPlain.textContent : "",
+        finished: finishedBox ? !finishedBox.hidden : false,
+      };
+    },
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,

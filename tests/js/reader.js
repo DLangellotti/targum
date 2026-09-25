@@ -193,6 +193,12 @@ const said = [];
 if (payload.markRest) reader.markRest();
 if (payload.undoAfter) reader.undo();
 
+/* The press at the foot, and its Undo: [true] is the press that marks, [false] the one
+ * that does not, and "undo" the Undo on the ink block. A playlist's way on is set first,
+ * as `list.js` sets it. */
+if (payload.footWay) reader.foot({ verb: payload.footWay, go: function () {} });
+(payload.presses || []).forEach((press) => (press === "undo" ? reader.unpress() : reader.press(press)));
+
 /* The rendering on show, before and after a switch: what every cell says and claims to
  * be, which pairs wear the coarse mark, and what the switch's own buttons say. */
 function rendering() {
@@ -262,6 +268,8 @@ process.stdout.write(
       language:
         (JSON.parse(localStorage.getItem("targum:docs") || "{}")["a-chapter"] || {}).language || "",
       button: byId["done-mark"].textContent,
+      // Whether the ink block of a finish is up, which holds the Undo.
+      shown: !byId.finished.hidden,
       said: byId["done-said"].hidden ? "" : byId["done-said"].textContent,
       // Whether the next section is being offered, which happens on finishing and not
       // before: the pager already names it, and twice is once.
@@ -313,12 +321,9 @@ process.stdout.write(
       : null,
     // The first-time line under the bar, after everything above.
     first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
-    rest: {
-      hidden: Boolean(byId.rest.hidden),
-      text: byId["rest-text"].textContent,
-      button: byId["rest-mark"].textContent,
-      undo: !byId["rest-undo"].hidden,
-    },
+    // The foot's one block (design.md §12, "The foot is one block"): what the press says,
+    // the quiet way under it, and whether the ink block of a finish is up.
+    foot: reader.footSays(),
     // Every word list in the browser, by language, after every level above was said.
     stores: Object.fromEntries(
       ["he", "arc", "yi"].map((code) => [
