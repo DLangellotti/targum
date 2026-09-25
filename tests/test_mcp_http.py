@@ -725,7 +725,7 @@ def test_the_press_page_says_its_script_s_words_in_russian() -> None:
 
     page = builder.press_page(_quoted(audio=True, seconds=62.0, usually=420.0), "ru")
     assert "TARGUM_STRINGS" in page
-    assert "press.page.opening" in page, "the script's own words were never sent"
+    assert "press.page.open-now" in page, "the script's own words were never sent"
     assert "Займёт 1 кредит" in page
 
 

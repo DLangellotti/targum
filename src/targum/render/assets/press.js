@@ -47,6 +47,11 @@
   var note = document.getElementById("press-note");
   var away = document.getElementById("press-away");
   var quoted = document.getElementById("press-quoted");
+  /* Where the finished reader is, once there is one. From then the press is the way in:
+     it reads "Open now" and goes there (2026-09-25). The page still opens the reader by
+     itself, but a status line saying "Opening it now" over a grey button was the whole
+     page for a reader whose open stalled, with nothing left to press. */
+  var ready = "";
 
   function say(node, words) {
     if (!node) return;
@@ -126,8 +131,16 @@
      better served than one sent to a 404, and better than one left on this page forever. */
   function open(reader, tries) {
     var where = readerUrl(reader);
-    say(doing, t("press.page.opening", "It's ready. Opening it now."));
-    say(left, "");
+    if (!ready) {
+      ready = where;
+      if (button) {
+        button.disabled = false;
+        says.textContent = t("press.page.open-now", "Open now");
+      }
+      say(doing, t("press.page.it-s-ready", "It's ready."));
+      say(left, "");
+      if (away) away.hidden = true;
+    }
     var togo = tries === undefined ? 3 : tries;
     fetch(where, { method: "HEAD", credentials: "same-origin" })
       .then(function (answer) {
@@ -192,8 +205,12 @@
   if (form) {
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      if (ready) {
+        window.location.href = ready;
+        return;
+      }
       button.disabled = true;
-      says.textContent = t("press.page.making", "We're getting it ready");
+      says.textContent = t("press.page.getting-it-ready", "Getting it ready…");
       working();
       fetch("/build/" + encodeURIComponent(job), {
         method: "POST",
