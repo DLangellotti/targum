@@ -88,8 +88,9 @@
           which is the whole reason the vocabulary changed; the rate lives beside the
           balance, so a cost point says the figure alone. -#}
       <li>
-        <span class="scope-says">{{ t("press.page.it-has-audio", "It has audio") }}</span>
-        <span class="scope-cost">{{ tn("press.page.uses-credits", (job.seconds / 60)|round|int, "Uses {n} credit", "Uses {n} credits") }}</span>
+        {#- The cost alone: "It has audio" beside it said what the reader already asked
+            for, and was dropped on 2026-09-25. -#}
+        <span class="scope-says">{{ tn("press.page.uses-credits", (job.seconds / 60)|round|int, "Uses {n} credit", "Uses {n} credits") }}</span>
       </li>
       {%- endif %}
     </ul>
