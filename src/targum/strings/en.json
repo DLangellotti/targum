@@ -2201,5 +2201,6 @@
   "playlists.delete-confirm-named": "Confirm delete {name}",
   "playlist-menu.load-failed": "Couldn't load your playlists. Try again.",
   "reader.list.end-of": "That's the end of {name}.",
-  "reader.list.your-playlists": "Your playlists"
+  "reader.list.your-playlists": "Your playlists",
+  "connect.page.chatgpt-turn-it-on-in-each-chat": "In each new chat, choose the + button and turn on targum."
 }
