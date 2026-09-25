@@ -588,6 +588,17 @@ What it does not overturn: a quote is information and the model cannot press it;
 that spends happens on a model's decision; engagement yes, arcade no — no counts of reels
 watched, no streak for swiping, and the words met are the only number at the end.
 
+**Amended 2026-09-25: a text joins a playlist whether or not it is made.** David asked
+Claude, over the connector, to add a weather forecast to the news playlist it had just
+quoted. The model could not: `add_to_playlist` took only texts already on the shelf, so
+it quoted the forecast alone and offered to add it "once it's on your shelf" — a second
+press, a second page, and a promise the model had to remember to keep. Now
+`add_to_playlist` takes a link or a library id too. The text is quoted the way an item of
+a set is, and its job joins the named playlist unclaimed. The press is still the set's
+page, `/set/<id>`, and it claims only what is still waiting, so a text already made or
+already being made is not charged again. Nothing here spends on the model's word: adding
+is a quote, and the reader's press is the only claim.
+
 ### The connector talks by the contract — 2026-09-23
 
 The connector shipped with one sentence for the host at `initialize`, and it said what the

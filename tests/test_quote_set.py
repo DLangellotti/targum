@@ -177,6 +177,106 @@ def test_a_text_already_on_the_shelf_is_kept_under_its_own_title(world, monkeypa
         assert [item["title"] for item in saved["items"]] == ["במעלית"]
 
 
+# --- adding one to a playlist that exists (design.md §12, amended 2026-09-25) ------
+
+
+def test_a_link_joins_a_playlist_that_exists_unclaimed(world, monkeypatch) -> None:
+    """Live on 2026-09-25: asked to add the weather forecast to the news set it had just
+    quoted, the model could only quote the forecast on its own and promise to add it
+    "once it's on your shelf". A link now joins the list as an unclaimed quote."""
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+
+    def forbidden(*_: object) -> Any:
+        raise AssertionError("adding must not spend")
+
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.page"
+    held = tools.quote_set(ctx, {"name": "News", "items": REELS[:2]})["set"]
+    for name in ("claim", "claim_set", "enqueue"):
+        monkeypatch.setattr(library, name, forbidden)
+    got = tools.add_to_playlist(
+        ctx, {"playlist": "news", "source": REELS[2]["source"], "title": "Forecast"}
+    )
+    assert got["playlist"] == "News", "found by name, whatever its case"
+    assert got["added"] == "Forecast" and got["credits"] == 1
+    assert got["open"] == f"https://targum.page/set/{held['id']}"
+    assert "cannot press" in got["note"]
+    saved = (store.playlist(person.id, held["id"]) or {})["items"]
+    assert [item["title"] for item in saved] == ["Reel 0", "Reel 1", "Forecast"]
+    assert library.jobs[saved[2]["job"]].stage == "ready"
+    assert len(store.playlists(person.id)) == 1
+
+
+def test_a_link_to_a_playlist_not_there_makes_it(world, monkeypatch) -> None:
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    got = tools.add_to_playlist(
+        context(library, store, person, home), {"playlist": "Weather", "source": REELS[0]["source"]}
+    )
+    made = store.playlists(person.id)
+    assert [one["name"] for one in made] == ["Weather"]
+    assert got["open"] == f"/set/{made[0]['id']}"
+
+
+def test_a_link_that_cannot_be_made_is_refused_with_its_reason(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    def refused(job: Job) -> None:
+        job.stage = "failed"
+        job.error = "We can take one video at a time."
+
+    monkeypatch.setattr(library, "prepare", refused)
+    got = tools.add_to_playlist(
+        context(library, store, person, home), {"playlist": "News", "source": "https://x.test/"}
+    )
+    assert got == {"error": "We can take one video at a time."}
+    assert store.playlists(person.id) == []
+
+
+def test_a_library_text_already_built_joins_as_itself(world, monkeypatch) -> None:
+    from types import SimpleNamespace
+
+    from targum import catalogue
+
+    library, store, person, home = world
+    folder = home / "במעלית-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<!doctype html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps(
+            {"title": "במעלית", "language": "he", "source": "https://example.com/elevator"},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    entry = SimpleNamespace(
+        id="elevator", source="https://example.com/elevator", title="במעלית", language="he"
+    )
+    monkeypatch.setattr(catalogue, "by_id", lambda one: entry if one == "elevator" else None)
+    got = tools.add_to_playlist(
+        context(library, store, person, home), {"playlist": "Lifts", "catalogue_id": "elevator"}
+    )
+    assert got["added"] == "במעלית" and "/reader/" in got["open"] and "note" not in got
+    saved = store.playlists(person.id)[0]
+    item = (store.playlist(person.id, saved["id"]) or {})["items"][0]
+    assert item["reader"] == "במעלית-he" and not item["job"]
+
+
+@pytest.mark.parametrize(
+    "given",
+    [
+        {},
+        {"text": "ruth-he", "source": "https://x.test/"},
+        {"source": "https://x.test/", "catalogue_id": "elevator"},
+    ],
+)
+def test_add_to_playlist_takes_exactly_one_text(world, given) -> None:
+    library, store, person, home = world
+    got = tools.add_to_playlist(context(library, store, person, home), {"playlist": "P", **given})
+    assert "exactly one" in got["error"] and store.playlists(person.id) == []
+
+
 def test_a_recording_under_half_a_minute_still_uses_a_credit(world, monkeypatch) -> None:
     library, store, person, home = world
 
@@ -408,3 +508,32 @@ def test_another_account_cannot_see_or_press_it(door, monkeypatch) -> None:
     held = a_quoted_set(library, store, person, 1)
     assert call(port, "GET", f"/set/{held['id']}", theirs)[0] == 404
     assert call(port, "POST", f"/set/{held['id']}", theirs, {"keep": [0]})[0] == 404
+
+
+def test_a_second_press_claims_only_the_text_added_since(door, monkeypatch) -> None:
+    """A text added to a set already pressed is the only thing its next press claims:
+    the texts being made are not ticked, not counted and not charged again."""
+    port, library, store, person, mine, _ = door
+    monkeypatch.setattr(library, "prepare", priced)
+    started: list[str] = []
+
+    def enqueue(job: Job) -> None:
+        job.stage = "queued"
+        started.append(job.id)
+
+    monkeypatch.setattr(library, "enqueue", enqueue)
+    held = a_quoted_set(library, store, person, 1)
+    assert call(port, "POST", f"/set/{held['id']}", mine, {"keep": [0]})[0] == 200
+    ctx = context(library, store, person, library.home(person))
+    added = tools.add_to_playlist(ctx, {"playlist": "Reels", "source": REELS[2]["source"]})
+    status, page = call(port, "GET", f"/set/{held['id']}", mine)
+    assert status == 200
+    assert page.count('name="keep"') == 1, "only the new text is tickable"
+    assert "Uses 1 credit in all" in prose(page)
+    status, said = call(port, "POST", f"/set/{held['id']}", mine, {"keep": [1]})
+    assert status == 200, said
+    job = (store.playlist(person.id, held["id"]) or {})["items"][1]["job"]
+    assert started == [*(one["job"] for one in held["items"]), job]
+    assert added["credits"] == 1
+    kept = (store.playlist(person.id, held["id"]) or {})["items"]
+    assert len(kept) == 2, "a press that names only the new text drops nothing made"

@@ -892,6 +892,61 @@ def _folder_of(reader: str) -> str:
     return unquote(reader.removeprefix("/reader/").split("/")[0])
 
 
+def _quote_item(
+    ctx: Ctx, alone: Ctx, item: dict[str, Any], titles: dict[str, str]
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Quote one text for a playlist, the way `quote_set` quotes each of its items and
+    `add_to_playlist` quotes one that is not made yet: an item to hold, or a refusal
+    with its reason. `alone` is `ctx` with no press link, because the set's page is the
+    only press. Nothing is claimed.
+
+    A text already on a shelf is kept under its own title, not its folder's name: the
+    model sends what it was shown, and "במעלית-he" reached /set and /playlists live
+    (2026-09-24). `titles` is the shelf's, read once per call and only if some item turns
+    out to be built already."""
+    from ..render.builder import credits_of
+
+    asked = {key: item[key] for key in ("source", "catalogue_id", "to") if item.get(key)}
+    said = quote_build(alone, asked)
+    if "in_library" in said:
+        # A published translation beats a machine one; quote that instead.
+        said = quote_build(alone, {**asked, "catalogue_id": said["in_library"]["id"]})
+    title = " ".join(str(item.get("title") or "").split())
+    if said.get("already_built"):
+        folder = _folder_of(str(said.get("reader") or ""))
+        if not titles:
+            mine, shared = _shelf(ctx)
+            titles.update(
+                {
+                    str(row["name"]): str(row.get("title") or "")
+                    for row in [*shared, *mine]
+                    if row.get("title") and row.get("title") != row.get("name")
+                }
+            )
+            # Marks the shelf as read, so a shelf with no titles is not read again.
+            titles.setdefault("", "")
+        entry = catalogue_module.by_id(str(asked.get("catalogue_id") or ""))
+        given = "" if title == folder else title
+        real = titles.get(folder) or given or (entry.title if entry else "") or folder
+        return {"title": real, "reader": folder}, {}
+    quote = said.get("quote")
+    if not quote or quote.get("stage") != "ready":
+        why = said.get("error") or (quote or {}).get("error") or (quote or {}).get("blocked")
+        return None, {"source": asked.get("source") or asked.get("catalogue_id") or "", "why": why}
+    credits = credits_of(float(quote.get("seconds") or 0)) if quote.get("audio") else 0
+    return (
+        {
+            "title": title or str(quote.get("title") or ""),
+            "job": str(quote["id"]),
+            "known_line": quote.get("known_line") or "",
+            "seconds": quote.get("seconds") or 0,
+            "audio": bool(quote.get("audio")),
+            "credits": credits,
+        },
+        {},
+    )
+
+
 def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Price a named set of texts as one, and leave one press for all of them (#365).
 
@@ -908,58 +963,20 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {"error": "Give the texts for the set: a link or a library id each."}
     if len(items) > MOST_IN_SET:
         return {"error": f"A set holds at most {MOST_IN_SET} texts. Send fewer."}
-    from ..render.builder import credits_of
-
     name = " ".join(str(args.get("name") or "").split()) or "Playlist"
     # Each item quoted as the chat quotes one, with no press link of its own: the set's
     # is the only press.
     alone = replace(ctx, press_at="")
-    # A text already on a shelf is kept under its own title, not its folder's name: the
-    # model sends what it was shown, and "במעלית-he" reached /set and /playlists live
-    # (2026-09-24). Read once, and only if some item turns out to be built already.
-    titled: dict[str, str] | None = None
+    titles: dict[str, str] = {}
     held: list[dict[str, Any]] = []
     refused: list[dict[str, Any]] = []
     for raw in items:
         item = raw if isinstance(raw, dict) else {"source": str(raw)}
-        asked = {key: item[key] for key in ("source", "catalogue_id", "to") if item.get(key)}
-        said = quote_build(alone, asked)
-        if "in_library" in said:
-            # A published translation beats a machine one; quote that instead.
-            said = quote_build(alone, {**asked, "catalogue_id": said["in_library"]["id"]})
-        title = " ".join(str(item.get("title") or "").split())
-        if said.get("already_built"):
-            folder = _folder_of(str(said.get("reader") or ""))
-            if titled is None:
-                mine, shared = _shelf(ctx)
-                titled = {
-                    str(row["name"]): str(row.get("title") or "")
-                    for row in [*shared, *mine]
-                    if row.get("title") and row.get("title") != row.get("name")
-                }
-            entry = catalogue_module.by_id(str(asked.get("catalogue_id") or ""))
-            given = "" if title == folder else title
-            real = titled.get(folder) or given or (entry.title if entry else "") or folder
-            held.append({"title": real, "reader": folder})
-            continue
-        quote = said.get("quote")
-        if not quote or quote.get("stage") != "ready":
-            why = said.get("error") or (quote or {}).get("error") or (quote or {}).get("blocked")
-            refused.append(
-                {"source": asked.get("source") or asked.get("catalogue_id") or "", "why": why}
-            )
-            continue
-        credits = credits_of(float(quote.get("seconds") or 0)) if quote.get("audio") else 0
-        held.append(
-            {
-                "title": title or str(quote.get("title") or ""),
-                "job": str(quote["id"]),
-                "known_line": quote.get("known_line") or "",
-                "seconds": quote.get("seconds") or 0,
-                "audio": bool(quote.get("audio")),
-                "credits": credits,
-            }
-        )
+        one, why = _quote_item(ctx, alone, item, titles)
+        if one is not None:
+            held.append(one)
+        else:
+            refused.append(why)
     if not held:
         return {"error": "Nothing in that set can be made now.", "refused": refused}
     made = ctx.store.make_playlist(
@@ -1142,27 +1159,51 @@ def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """Put a text already on the reader's shelf into one of their playlists, making the
-    playlist if there is none by that name. Nothing is got ready or spent, and a text
-    that is not on the shelf is refused: `quote_set` is the door for one that isn't."""
+    """Put a text into one of the reader's playlists, making the playlist if there is
+    none by that name.
+
+    The text is one of three things: `text`, a name from the reader's shelf, which costs
+    nothing; or `source` / `catalogue_id`, a text that may not be made yet, quoted the way
+    an item of a set is (design.md §12, amended 2026-09-25). A quoted text joins the list
+    unclaimed, and the set's page, `/set/<id>`, is where the reader presses it — the press
+    there claims only what is still waiting, so nothing already made is charged again.
+    Nothing here claims or spends."""
     if ctx.store is None or ctx.person is None:
         return {"error": "This needs an account."}
     wanted = " ".join(str(args.get("playlist") or "").split())
     text = str(args.get("text") or "").strip()
-    if not wanted or not text:
-        return {"error": "Name the playlist and the text."}
-    mine, shared = _shelf(ctx)
-    # Only what is on this reader's shelf, by the name search_my_shelf gave it: the
-    # model cannot put an address or somebody else's text into a list by naming it.
-    row = next((one for one in [*mine, *shared] if str(one["name"]) == text), None)
-    if row is None:
+    source = str(args.get("source") or "").strip()
+    catalogue_id = str(args.get("catalogue_id") or "").strip()
+    if not wanted:
+        return {"error": "Name the playlist."}
+    if sum(1 for one in (text, source, catalogue_id) if one) != 1:
         return {
-            "error": "That text isn't on the reader's shelf. Find it with search_my_shelf, "
-            "or use quote_set for one that isn't ready yet."
+            "error": "Give exactly one of: text (a name from search_my_shelf), source (a "
+            "link) or catalogue_id."
         }
+    one: dict[str, Any]
+    if text:
+        mine, shared = _shelf(ctx)
+        # Only what is on this reader's shelf, by the name search_my_shelf gave it: the
+        # model cannot put somebody else's text into a list by naming it.
+        row = next((found for found in [*mine, *shared] if str(found["name"]) == text), None)
+        if row is None:
+            return {
+                "error": "That text isn't on the reader's shelf. Find it with "
+                "search_my_shelf, or pass it as source or catalogue_id."
+            }
+        one = {"title": str(row.get("title") or text), "reader": text}
+    else:
+        item = {
+            key: args[key] for key in ("source", "catalogue_id", "title", "to") if args.get(key)
+        }
+        held, refused = _quote_item(ctx, replace(ctx, press_at=""), item, {})
+        if held is None:
+            return {"error": refused.get("why") or "That text can't be added now."}
+        one = held
     person = ctx.person.id
     existing = next(
-        (one for one in ctx.store.playlists(person) if one["name"].lower() == wanted.lower()),
+        (found for found in ctx.store.playlists(person) if found["name"].lower() == wanted.lower()),
         None,
     )
     if existing is None:
@@ -1172,7 +1213,7 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if existing is None:
             return {"error": _too_many_playlists(ctx)}
     added = ctx.store.add_to_playlist(
-        person, int(existing["id"]), str(row.get("title") or text), reader=text
+        person, int(existing["id"]), one["title"], reader=one.get("reader"), job=one.get("job")
     )
     if added is None:
         from ..accounts import MOST_IN_PLAYLIST
@@ -1181,10 +1222,24 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "error": f"That playlist holds {MOST_IN_PLAYLIST} texts, the most it can. "
             "Start another."
         }
+    if one.get("job"):
+        return {
+            "playlist": existing["name"],
+            "added": one["title"],
+            "known_line": one.get("known_line") or "",
+            "credits": one.get("credits") or 0,
+            "open": f"{ctx.press_at}/set/{existing['id']}",
+            "note": (
+                "Give the reader the link in `open`, on a line of its own, and say in ONE "
+                "sentence that it's in the playlist and that pressing Confirm there gets "
+                "only this text ready; what is already made is not charged again. You "
+                "cannot press it."
+            ),
+        }
     found = ctx.store.playlist(person, int(existing["id"])) or {}
     return {
         "playlist": existing["name"],
-        "added": str(row.get("title") or text),
+        "added": one["title"],
         "open": _playlist_link(ctx, int(existing["id"]), list(found.get("items") or [])),
     }
 
@@ -2153,10 +2208,11 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "quote_set",
-        "For two or more texts at once, as one playlist the reader swipes through: give "
+        "For two or more texts at once, as a new playlist the reader swipes through: give "
         "it a name and up to 20 items, each a link or a library id. Free. Use it whenever "
         'the reader wants several texts ("find me some reels", "make me a playlist"); use '
-        "quote_build for one. Returns every text with the credits it uses, the total, "
+        "quote_build for one, and add_to_playlist to add to a playlist that exists. "
+        "Returns every text with the credits it uses, the total, "
         "what could not be got ready and why, and one link the reader opens to confirm "
         "them all together; you cannot confirm it.",
         _schema(
@@ -2197,18 +2253,25 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "add_to_playlist",
-        "Add a text that is already on the reader's shelf (its name from search_my_shelf) "
-        "to one of their playlists, making the playlist if needed. Free. For a link that "
-        "isn't ready yet, use quote_set.",
+        "Add a text to one of the reader's playlists, making the playlist if needed. Use it "
+        'whenever the reader says "add this to my playlist", whether or not the text is '
+        "made yet: pass text (its name from search_my_shelf) for one on their shelf, or "
+        "source (a link) or catalogue_id for one that isn't. Free: a text that isn't made "
+        "yet comes back with its credits and a link where the reader confirms it; you "
+        "cannot confirm it. For a new playlist of several texts, use quote_set.",
         _schema(
             {
                 "playlist": {"type": "string", "description": "The playlist's name."},
                 "text": {
                     "type": "string",
-                    "description": "The text's name, exactly as search_my_shelf gave it.",
+                    "description": "A text on the shelf, exactly as search_my_shelf named it.",
                 },
+                "source": {"type": "string", "description": "A link or fetcher id."},
+                "catalogue_id": {"type": "string"},
+                "title": {"type": "string", "description": "A short title."},
+                "to": _TRANSLATE_INTO,
             },
-            ("playlist", "text"),
+            ("playlist",),
         ),
         add_to_playlist,
         needs_account=True,
@@ -2217,7 +2280,10 @@ REGISTRY: tuple[Tool, ...] = (
         scope="chat",
         title="Add to a playlist",
         writes=True,
-        idempotent=True,
+        # Not idempotent since 2026-09-25: a link is quoted afresh on every call, so the
+        # same link sent twice is two unclaimed items on the list. And it reaches out to
+        # fetch that link, as quote_set does.
+        open_world=True,
     ),
     Tool(
         "my_hours",
