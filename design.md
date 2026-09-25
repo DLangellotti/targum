@@ -347,7 +347,7 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
-### The finished box is a scoreboard — 2026-09-25
+### The finished box is three figures — 2026-09-25
 
 David, looking at the ink block a finished section inverts to: "let's review what info we
 give at the end of each lesson". It held a sentence ("You finished a targum."), an ordinal

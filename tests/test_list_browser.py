@@ -296,6 +296,34 @@ def test_the_end_says_what_the_set_held_and_offers_one_next_set(
         context.close()
 
 
+def test_the_end_card_adds_up_what_each_item_came_to(browser, tmp_path) -> None:  # noqa: F811
+    """design.md §12, "The finished box is three figures" (2026-09-25): each press keeps
+    what its item came to, and the end card adds them up across the playlist."""
+    one = chapter(tmp_path / "one" / "reader")
+    two = other_text(tmp_path / "two" / "reader")
+    context, _ = listed(browser, playlist(one, two))
+    context.route(
+        "**/playlists/7/end.json",
+        lambda route: route.fulfill(status=200, content_type="application/json", body="{}"),
+    )
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        page.evaluate("() => document.getElementById('done-mark').click()")
+        page.wait_for_url("**/two/**go=1")
+        page.wait_for_selector("#list-nav", state="attached")
+        page.evaluate("() => document.getElementById('done-mark').click()")
+        page.wait_for_selector("#list-end .list-end-tiles")
+        tiles = page.inner_text("#list-end .list-end-tiles")
+        assert "2\ntexts finished" in tiles, tiles
+        assert re.search(r"\+[1-9]\d*\nwords known", tiles), tiles
+        assert "100%\nknown here" in tiles, "every word marked, across both"
+        assert "0\nwords looked up" in tiles
+    finally:
+        context.close()
+
+
 # --- review fixes, 2026-09-24 -------------------------------------------------------
 
 from test_reader_browser import dialogue  # noqa: E402
@@ -483,7 +511,9 @@ def test_the_press_finishes_marks_and_is_taken_back_where_it_lands(browser, tmp_
         page.wait_for_url("**/two/**go=1")
         page.wait_for_selector("#arrived:not([hidden])")
         line = page.inner_text("#arrived")
-        assert line.startswith("Finished Item 1 · ") and "words marked known" in line
+        assert line.startswith("Finished Item 1 · ")
+        # The finished box's three figures, on one line (§12, 2026-09-25).
+        assert re.search(r"· \+[1-9]\d* known · \d+% · \d+ looked up", line), line
         state = page.evaluate(RECORD, document)
         assert state["sections"], "the item is finished"
         assert state["known"] > 0, "and its words are marked"
