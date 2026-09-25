@@ -347,6 +347,46 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Yours and everyone's — 2026-09-25
+
+David, on a phone, reading "It's on your texts too" under a build: *"there is some
+redundancy with Library and with the Your uploads tab within that. Further, I don't know
+if the user will understand intuitively the difference between library and texts."*
+
+He was right on both counts, and §12 was the cause. "A build is on the shelf while it is
+building" (2026-09-17) called the Library "the one page that can honestly say
+'everything of yours is here'", and put a build under Your uploads. "The shelf says what
+a text is at a glance" (2026-09-24) made Your targums a place in the nav, "where a reader
+goes back to what they started". Both were true, so both pages listed an upload, drawn
+two different ways, and one place went by three names: Your targums at a desk, Texts on a
+phone, Your texts on Learn. And the wait page sent a reader to Texts to find a build that
+was only in Your uploads.
+
+- **Your targums is yours; the Library is everyone's.** Your targums holds everything of
+  yours: what you built from the library, what you brought, what is being built right
+  now, and the trash. The Library holds the texts targum offers everybody, and nothing
+  else. **Your uploads is gone as a tab.** The Library's tabs are All texts, and the Beit
+  Midrash for Hebrew.
+- **A text you built from the Library is still marked in the Library.** Its row says so
+  and opens your copy. That is the catalogue telling you which of its books you already
+  have, not a second shelf.
+- **A build is a row at the top of Your targums from the moment it starts**, with its
+  title and how far it has got, and becomes the ordinary row when it is done. This
+  replaces the same rule's home under Your uploads. The wait page, Add and the Library's
+  own row still narrate it where the reader pressed.
+- **One name: Your targums.** At a desk it is "Your targums"; on a phone and in a
+  narrow window "Your" drops, as it does for Progress, and it is "targums". This
+  retires "Texts": the 2026-09-24 worry that "targums" alone read as a typo is outweighed
+  by a place with two names. Learn's cards and ⌘K say Your targums too.
+- **The shared shelf stays in the Library.** The texts targum builds for everybody are
+  targum's until you open one. Once this browser has opened one, it is on Your targums
+  beside your own, with nothing on it to delete, because it is not yours to delete.
+
+What it does not overturn: one row per text in each list; a build narrated where it was
+pressed; the Library's filters and its band, which are for choosing and now have only
+choosing to do.
+
+
 ### The grant is one press, and chatting is included — 2026-09-24
 
 A design and QA pass over the connector and playlists found that the approval page and the
@@ -991,7 +1031,7 @@ Two things it does that the rest of the library does not, each on purpose:
 - **The level band does not apply.** All texts opens on what a reader can read now. A
   tree that hid the Writings from a beginner because they are hard would be a tree with
   branches missing; the reader came to see where things stand, and each row still says
-  how much of it they know. The same reasoning took the band off Your uploads.
+  how much of it they know. The same reasoning took the band off Your uploads *(a tab until 2026-09-25)*.
 - **It crosses a language line, at one door.** The Targums are Aramaic rows and have a
   door here (David, 2026-09-19: Sefaria files Targum under Tanakh, and a Torah student
   looks for Onkelos beside the Torah). They open as Aramaic readers, their words still go
@@ -1183,7 +1223,8 @@ opposite of ambient.
   ordinary row when it is done. That is where the reader was going anyway; the library is
   the one page that can honestly say "everything of yours is here", and a text that only
   existed in a notification until it finished made that false for the ten minutes it
-  mattered.
+  mattered. *(Since 2026-09-25 that page is Your targums, and a build is a row at the top
+  of it. See "Yours and everyone's".)*
 
 - **The page that started it still narrates it.** `/add` already did and keeps doing it.
   The two are not a duplicate: one is where you are, the other is where you go.
@@ -1403,7 +1444,8 @@ These are the ones that change or add a rule, so they are recorded.
   in the bell and in Learn's sheet, whatever this browser has seen.
 - **Names on the Library.** The difficulty column is "Hard words", because it counts
   words rare in the language rather than words new to the reader; the register column
-  and filter are "Which Hebrew"; the tabs are All texts and Your uploads. The weekly's
+  and filter are "Which Hebrew"; the tabs are All texts and Your uploads *(All texts alone since 2026-09-25, with the
+  Beit Midrash for Hebrew: see "Yours and everyone's")*. The weekly's
   top edition is "Native": the other two are real Hebrew too.
 - **Delete account stands on its own row, in clay, and its second press offers Keep
   my account.** A deleted account signs the browser out and empties its store.
