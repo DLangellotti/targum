@@ -970,13 +970,19 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     titles: dict[str, str] = {}
     held: list[dict[str, Any]] = []
     refused: list[dict[str, Any]] = []
+    # The same text named twice in one set is held once, and priced once (2026-09-25).
+    seen: set[object] = set()
     for raw in items:
         item = raw if isinstance(raw, dict) else {"source": str(raw)}
         one, why = _quote_item(ctx, alone, item, titles)
-        if one is not None:
-            held.append(one)
-        else:
+        if one is None:
             refused.append(why)
+            continue
+        key = one.get("reader") or (_text_of(ctx, str(one["job"])) or ("", "", one["job"]))[:2]
+        if key in seen:
+            continue
+        seen.add(key)
+        held.append(one)
     if not held:
         return {"error": "Nothing in that set can be made now.", "refused": refused}
     made = ctx.store.make_playlist(
@@ -1158,6 +1164,54 @@ def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"count": len(out), "playlists": out}
 
 
+def _text_of(ctx: Ctx, job_id: str) -> tuple[str, str, str] | None:
+    """What a quoted job is a job *for*: its source's key, the language it goes into, and
+    the folder it was built into if it has been. None for a job this box no longer
+    holds, which cannot then be compared and is left alone."""
+    job = ctx.library.jobs.get(job_id)
+    if job is None:
+        return None
+    into = str((job.options or {}).get("to") or "")
+    return catalogue_module._key(job.source), into, _folder_of(job.reader or "")
+
+
+def _already_in(ctx: Ctx, playlist_id: int, one: dict[str, Any]) -> dict[str, Any] | None:
+    """The answer when the text is in that playlist already, or None when it is not.
+
+    Asked twice for the same link, a model quoted it twice and the playlist held it twice
+    (2026-09-25): each quote is a new job, so the store's own check — which knows readers,
+    not jobs — let both in. A text is the same text when it is the same folder, or the same
+    source going into the same language, whether the one already there is still waiting,
+    being made, or made. Nothing is added and nothing is quoted again."""
+    assert ctx.store is not None and ctx.person is not None
+    found = ctx.store.playlist(ctx.person.id, playlist_id) or {}
+    items = list(found.get("items") or [])
+    new = _text_of(ctx, str(one["job"])) if one.get("job") else None
+    for item in items:
+        same = bool(one.get("reader")) and item.get("reader") == one["reader"]
+        if not same and item.get("job") and not item.get("failed"):
+            old = _text_of(ctx, str(item["job"]))
+            if old is not None:
+                if new is not None:
+                    same = old[:2] == new[:2]
+                elif one.get("reader"):
+                    same = bool(old[2]) and old[2] == one["reader"]
+        if same:
+            waiting = bool(item.get("job")) and not item.get("reader")
+            return {
+                "playlist": found.get("name") or "",
+                "already_in": item.get("title") or one.get("title") or "",
+                "open": (
+                    f"{ctx.press_at}/set/{playlist_id}"
+                    if waiting
+                    else _playlist_link(ctx, playlist_id, items)
+                ),
+                "note": "It is in that playlist already, so nothing was added. Say so in "
+                "one sentence and give the link in `open`.",
+            }
+    return None
+
+
 def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Put a text into one of the reader's playlists, making the playlist if there is
     none by that name.
@@ -1206,6 +1260,10 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         (found for found in ctx.store.playlists(person) if found["name"].lower() == wanted.lower()),
         None,
     )
+    if existing is not None:
+        there = _already_in(ctx, int(existing["id"]), one)
+        if there is not None:
+            return there
     if existing is None:
         existing = ctx.store.make_playlist(
             person, wanted, made_by="connector" if ctx.press_at else "chat"

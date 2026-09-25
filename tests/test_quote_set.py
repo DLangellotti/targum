@@ -263,6 +263,63 @@ def test_a_library_text_already_built_joins_as_itself(world, monkeypatch) -> Non
     assert item["reader"] == "במעלית-he" and not item["job"]
 
 
+def test_the_same_link_twice_is_added_once(world, monkeypatch) -> None:
+    """Asked twice for one link, a model quoted it twice and the playlist held it twice
+    (2026-09-25): each quote is a new job, and the store's check knows readers, not jobs."""
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.page"
+    asked = {"playlist": "News", "source": REELS[0]["source"], "title": "Forecast"}
+    first = tools.add_to_playlist(ctx, asked)
+    again = tools.add_to_playlist(ctx, {**asked, "playlist": "news"})
+    held = store.playlists(person.id)[0]
+    assert "added" in first and again["already_in"] == "Forecast"
+    assert again["open"] == f"https://targum.page/set/{held['id']}", "still waiting to be pressed"
+    assert len((store.playlist(person.id, held["id"]) or {})["items"]) == 1
+
+
+def test_the_same_link_into_another_language_is_another_text(world, monkeypatch) -> None:
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en", "ru"}
+    tools.add_to_playlist(ctx, {"playlist": "News", "source": REELS[0]["source"], "to": "en"})
+    tools.add_to_playlist(ctx, {"playlist": "News", "source": REELS[0]["source"], "to": "ru"})
+    held = store.playlists(person.id)[0]
+    assert len((store.playlist(person.id, held["id"]) or {})["items"]) == 2
+
+
+def test_a_link_already_made_from_a_waiting_item_is_not_added_again(world, monkeypatch) -> None:
+    """The first press made it; the model, asked again, is told it is on the shelf."""
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    ctx = context(library, store, person, home)
+    tools.add_to_playlist(ctx, {"playlist": "News", "source": REELS[0]["source"]})
+    held = store.playlists(person.id)[0]
+    job = library.jobs[(store.playlist(person.id, held["id"]) or {})["items"][0]["job"]]
+    job.reader = "reel-he/reader/index.html"
+    monkeypatch.setattr(
+        tools,
+        "_quote_item",
+        lambda *_: ({"title": "Reel", "reader": "reel-he"}, {}),
+    )
+    again = tools.add_to_playlist(ctx, {"playlist": "News", "source": REELS[0]["source"]})
+    assert "already_in" in again
+    assert len((store.playlist(person.id, held["id"]) or {})["items"]) == 1
+
+
+def test_a_set_that_names_one_text_twice_holds_and_prices_it_once(world, monkeypatch) -> None:
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    got = tools.quote_set(
+        context(library, store, person, home),
+        {"name": "R", "items": [REELS[0], REELS[0], REELS[1]]},
+    )
+    assert [one["title"] for one in got["set"]["items"]] == ["Reel 0", "Reel 1"]
+    assert got["set"]["credits"] == 2
+
+
 @pytest.mark.parametrize(
     "given",
     [
