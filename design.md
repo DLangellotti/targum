@@ -347,6 +347,53 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The finished box is a scoreboard — 2026-09-25
+
+David, looking at the ink block a finished section inverts to: "let's review what info we
+give at the end of each lesson". It held a sentence ("You finished a targum."), an ordinal
+and a date ("Your 1st · Sep 25"), the ledger's increment as delta and standing for known
+and saved ("12 newly known · 2800 known"), a reading-day or longest-run line, and three
+lines of words — looked up here and how often before, read here without a look-up, and an
+offer to keep two or three. Each was argued for on its day (#173–#175). Together they were
+a paragraph to read at the moment a reader wants to move on. Asked, David chose: "literally
+just a count, more mathematical, statistical, quick to scan"; this text only; lead with
+the win "but keep it very clear — just scan with eyes and get the info"; and four equal
+tiles over a single big number.
+
+- **One line and three tiles.** "Finished · #14" on the first line, Undo on the same
+  line. Under it three figures of equal weight, each with a two- or three-word label under
+  it: **+N words known** (what became known while this section was read, the words the
+  press marked included), **N% known here** (the header's own figure, taken after the
+  press), and **N words looked up** (distinct words tapped for a meaning here). Serif
+  tabular figures on the ink, as the ledger's figures always were.
+- **A zero is shown as 0**, never hidden, so the three always stand in the same places and
+  a reader learns where to look. "Lead with the win" is kept by the figures being wins or
+  plain facts — nothing in the box is a verdict — and when nothing was won the count leads:
+  finishing is the win.
+- **This text only.** Standings — 2800 known, 140 saved, the longest run — live on Your
+  Progress, which is where a reader goes to see a standing. A delta beside a standing is
+  two numbers to reconcile; a delta alone is one to read.
+- **Dropped:** the date (Your Progress keeps it), the sentence (the line says "Finished"),
+  the saved count, the reading-day and longest-run line, and the three lines of words.
+  The longest run is now said only on Your Progress, which amends 2026-09-03's "announced
+  only in the delivered increment". The words a reader looked up are still counted, still
+  kept under `targum:cards:<language>`, and still what Words draws from; they are no longer
+  listed here.
+- **A percentage is allowed here**, which amends #174's "never print a percentage": the
+  figure is the header's "N% known here", already on screen, counted from real marks, and
+  it is about the text, not a grade of the reader. "Score", "points" and "level" stay
+  banned, and nothing on the block moves.
+- **In a playlist it is said twice, briefly.** The line the reader lands on says the same
+  three after the title: "Finished <title> · +12 known · 96% · 3 looked up · Undo". And the
+  playlist's end card adds them up across the texts finished in it: texts finished, +N
+  words known, the share known across all of them weighted by words, and words looked up,
+  in the same tiles.
+
+What it does not overturn: a section is finished once, the press is the reader's, Undo
+takes back the finish and the words, and the increment is still drawn only where the
+section is finished in place.
+
+
 ### The foot is one block — 2026-09-25
 
 David, on a phone at the end of the second text of a playlist: "This positioning of buttons
