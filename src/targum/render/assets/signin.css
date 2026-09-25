@@ -134,6 +134,8 @@ body.signin {
 .gate .go:hover { box-shadow: var(--lift); }
 .gate .go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .gate .go[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
+/* An arrow on a button that cannot be pressed promises a way on that is not there yet. */
+.gate .go[disabled] .go-arrow { display: none; }
 
 .gate .aside {
   margin: 1.25rem 0 0;
@@ -213,6 +215,10 @@ body.signin {
      --page, which nothing defines, and the rows ran together as one block. */
   background: var(--card);
 }
+/* `display: flex` above beats the `hidden` attribute, so the quote's "Ready in about 3
+   minutes" stayed on the card after the press, beside the measured "about 3 minutes
+   left" that was meant to replace it (2026-09-25). */
+.gate .scopes li[hidden] { display: none; }
 .gate .scopes + .said { margin-block-start: 1rem; }
 .gate .scope-says { flex: 1 1 12rem; min-width: 0; }
 /* Where Connect sends the reader, in bold at body size beside the press: the heading is
