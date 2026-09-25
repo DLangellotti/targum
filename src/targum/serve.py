@@ -7787,13 +7787,16 @@ class Handler(BaseHTTPRequestHandler):
         transaction, and enqueue them in the set's order so the first is ready first. The
         same three steps as `_press`, over a list: `Library.claim_set` is the set's one
         road to the rails, and nothing here spends on anybody's word but the reader's."""
+        # The body is read before anything can turn the request away: a 404 sent over an
+        # unread body resets the connection, and the asker sees a reset, not the 404
+        # (seen as a one-in-ten test failure, 2026-09-25).
+        wants_json = bool(self.headers.get("X-Targum-Press"))
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(length, 64 * 1024)) if length > 0 else b""
         owned = self._own_set(playlist_id)
         if owned is None:
             return self._not_found()
         found, jobs = owned
-        wants_json = bool(self.headers.get("X-Targum-Press"))
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(min(length, 64 * 1024)) if length > 0 else b""
         keep: set[int] | None = None
         if wants_json:
             with contextlib.suppress(ValueError, TypeError):

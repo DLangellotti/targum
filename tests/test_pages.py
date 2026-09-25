@@ -676,18 +676,17 @@ def test_the_library_is_browsed_as_cards_and_sifted_as_a_list() -> None:
     assert 'id="said"' in library, "and the line that says how far it is narrowed"
 
 
-def test_the_catalogue_and_your_uploads_are_tabs_rather_than_a_filter() -> None:
-    """What is there to read and what have I put here are two questions, not one setting.
-    As a select called "Access" the second list was a thing nobody found."""
+def test_the_library_is_everyone_s_and_your_targums_is_yours() -> None:
+    """design.md §12, "Yours and everyone's" (2026-09-25). The Library had a Your
+    uploads tab, which listed what Your targums already listed. It is gone; the tab strip
+    stays for the Beit Midrash."""
     library = PAGES["library"]
     assert 'id="where"' in library and 'role="tablist"' in library
-    assert 'id="access"' not in library, "and the filter it replaces is gone"
+    assert 'id="access"' not in library, "the Access filter stays gone too"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert '["library", t("library.where.library", "All texts")]' in source
-    assert '["mine", t("library.where.mine", "Your uploads")]' in source
-    # The cell is still there — a build narrates itself in it — but it no longer carries
-    # a Public/Private word, because the tab above the list says that once.
+    assert "library.where.mine" not in source
     assert '"row-state", row.entry ? "Public" : "Private"' not in source
 
 

@@ -346,33 +346,27 @@ def test_shortest_first_is_shortest_first(tmp_path: Path) -> None:
     assert shortest.title not in titles, "it is inside a collection"
 
 
-def test_the_catalogue_and_your_own_texts_are_two_lists(tmp_path: Path) -> None:
-    """They were one list with a Public/Private word on every row and a filter called
-    Access. They are two different questions — what is there to read, and what have I put
-    here — so they are two tabs, and neither list has to say which it is on every row."""
+def test_the_library_is_the_catalogue_and_nothing_else(tmp_path: Path) -> None:
+    """Yours are on Your targums (design.md §12, "Yours and everyone's", 2026-09-25).
+    The Library had a second tab, Your uploads, and the same texts were in both places,
+    drawn two ways. A text you built from the catalogue is still its catalogue row."""
     both = [shelf("psalms", "תהילים-he"), shelf("", "my-article-he")]
 
     catalogue = {row["title"] for row in draw(tmp_path, readers=both, unfolded=True)["rows"]}
     assert "תהילים" in catalogue
     assert "my-article-he" not in catalogue, "an upload is not in the catalogue"
 
-    mine = draw(tmp_path, readers=both, view={"where": "mine"}, unfolded=True)["rows"]
-    assert {row["title"] for row in mine} == {"my-article-he"}
+    # A view stored on the tab that is gone is on All texts.
+    old = draw(tmp_path, readers=both, view={"where": "mine"}, unfolded=True)["rows"]
+    assert "my-article-he" not in {row["title"] for row in old}
+    assert "תהילים" in {row["title"] for row in old}
 
 
-def test_your_uploads_are_never_narrowed_to_a_band(tmp_path: Path) -> None:
-    """Your uploads are everything of yours (design.md §12). A band saved on All texts
-    hid a video David had just opened from Learn, because it was 65% known (2026-09-18)."""
-    uploads = [
-        shelf("", "easy-he", known=0.95),
-        shelf("", "stretch-he", known=0.65),
-        shelf("", "hard-he", known=0.2),
-    ]
-    drawn = draw(tmp_path, readers=uploads, view={"where": "mine", "fit": "now"})
-    assert {row["title"] for row in drawn["rows"]} == {"easy-he", "stretch-he", "hard-he"}
-    assert drawn["fitOn"] == "", "no band offered on a tab it cannot narrow"
-    library = draw(tmp_path, readers=uploads, view={"fit": "now"})
-    assert library["fitOn"] == "you can read now", "All texts keeps its band"
+def test_a_view_stored_on_your_uploads_keeps_its_band_on_all_texts(tmp_path: Path) -> None:
+    """Your uploads never had a band. The tab is gone, and the view it left behind is
+    All texts, which does (2026-09-25)."""
+    drawn = draw(tmp_path, view={"where": "mine", "fit": "now"})
+    assert drawn["fitOn"] == "you can read now"
 
 
 def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) -> None:
@@ -384,12 +378,7 @@ def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) ->
     assert rows["איוב"]["opens"] == "button"
 
 
-def test_an_empty_tab_says_which_kind_of_empty_it_is(tmp_path: Path) -> None:
-    """ "Nothing here matches that" is what a filter says. A reader who has uploaded
-    nothing has not filtered anything out."""
-    drawn = draw(tmp_path, view={"where": "mine"})
-    assert drawn["empty"] == "You haven't added anything yet. Use Add to bring your own."
-
+def test_an_empty_filter_says_so(tmp_path: Path) -> None:
     filtered = draw(tmp_path, view={"find": "zzzzz"})
     assert filtered["empty"] == "Nothing here matches that."
 
@@ -591,13 +580,6 @@ def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None
     assert "—" not in {row["cells"][3] for row in plain["rows"]}
     assert "not measured" not in plain["note"]
 
-    unmeasured = draw(
-        tmp_path, readers=[shelf("", "my-upload-he", difficulty=0)], view={"where": "mine"}
-    )
-    (row,) = unmeasured["rows"]
-    assert row["cells"][3] == "—"
-    assert unmeasured["note"].endswith("— means we haven't measured it yet.")
-
 
 def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:
     """The share is a fact about the text — how much of its vocabulary is hard, in the
@@ -668,7 +650,7 @@ def test_under_the_scenes_chip_the_list_is_in_scene_order(tmp_path: Path) -> Non
 
 def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> None:
     """Under the Hebrew, in ink, with the byline after it. For the reader who cannot yet
-    read the line above, this is the title. An upload has none and shows none."""
+    read the line above, this is the title."""
     drawn = draw(tmp_path, readers=[shelf("", "my-upload-he")], unfolded=True)
     by_title = {row["title"]: row for row in drawn["rows"]}
     assert by_title["רות"]["english"] == "Ruth · Ketuvim · Ruth" or by_title["רות"][
@@ -676,9 +658,6 @@ def test_every_catalogue_row_carries_its_title_in_english(tmp_path: Path) -> Non
     ].startswith("Ruth")
     assert by_title["נעים מאוד"]["english"].startswith("Nice to meet you")
     assert all(row["english"] for row in drawn["rows"]), "every catalogue row"
-
-    mine = draw(tmp_path, readers=[shelf("", "my-upload-he")], view={"where": "mine"})["rows"]
-    assert mine[0]["english"] == ""
 
 
 def test_search_reaches_a_text_through_its_english_title(tmp_path: Path) -> None:
@@ -750,18 +729,27 @@ def test_your_own_copy_wins_over_the_shared_one(tmp_path: Path) -> None:
     assert first["draws"] == "Draw cover", "theirs, so a cover can be drawn"
 
 
-def test_a_video_import_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
+def media_shelf() -> list[dict[str, Any]]:
+    """A lecture, a podcast and an essay, as catalogue rows (the Khan Academy videos are
+    catalogue rows). They were uploads here until 2026-09-25, when the Library stopped
+    listing a reader's own texts."""
+    from targum.catalogue import CATALOGUE
+
+    first = next(entry.state() for entry in CATALOGUE if entry.language == "he")
+    return [
+        {**first, "id": "lecture", "title": "lecture-he", "spoken": True, "video": True},
+        {**first, "id": "podcast", "title": "podcast-he", "spoken": True, "video": False},
+        {**first, "id": "essay", "title": "essay-he", "spoken": False, "video": False},
+    ]
+
+
+def test_a_video_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
     """A lecture with its slides and a podcast episode were the same row. One word
     beside the title now says which — and only one word, since a video can be
     listened to as well and "audio video" says less than "video" does."""
-    mine = [
-        shelf("", "lecture-he", spoken=True, video=True),
-        shelf("", "podcast-he", spoken=True),
-        shelf("", "essay-he"),
-    ]
     rows = {
         row["title"]: row["media"]
-        for row in draw(tmp_path, readers=mine, view={"where": "mine"})["rows"]
+        for row in draw(tmp_path, catalogue=media_shelf(), collections=[], view={"fit": ""})["rows"]
     }
     assert rows == {"lecture-he": "Video", "podcast-he": "Audio", "essay-he": ""}
 
@@ -769,15 +757,11 @@ def test_a_video_import_is_told_apart_from_an_audio_one(tmp_path: Path) -> None:
 def test_with_video_finds_the_video_and_with_audio_still_finds_both(tmp_path: Path) -> None:
     """One direction each, like the audio filter: "With video" is worth offering,
     "without video" is not — and a video is still something to listen to."""
-    mine = [
-        shelf("", "lecture-he", spoken=True, video=True),
-        shelf("", "podcast-he", spoken=True),
-        shelf("", "essay-he"),
-    ]
-    videos = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "video"})
+    shelf_of = media_shelf()
+    videos = draw(tmp_path, catalogue=shelf_of, collections=[], view={"fit": "", "spoken": "video"})
     assert {row["title"] for row in videos["rows"]} == {"lecture-he"}
     assert videos["note"].startswith("With video — ")
-    heard = draw(tmp_path, readers=mine, view={"where": "mine", "spoken": "yes"})
+    heard = draw(tmp_path, catalogue=shelf_of, collections=[], view={"fit": "", "spoken": "yes"})
     assert {row["title"] for row in heard["rows"]} == {"lecture-he", "podcast-he"}
 
 
@@ -1342,50 +1326,13 @@ def job(**extra):
     return row
 
 
-def test_a_text_being_built_is_on_the_shelf_already(tmp_path: Path) -> None:
-    """ "I need a more obvious place to see the progress — the notifications tab is too
-    easy to miss." The bell follows the reader everywhere, which is what makes it
-    ambient; the shelf is where they were going."""
-    drawn = browse(tmp_path, jobs=[job()], view={"where": "mine"})
-    row = next(row for row in drawn["rows"] if row["title"] == "ספר חדש")
-    assert row["making"] == "Building"
-    assert row["meta"] == "We're adding vowel points…", row["meta"]
-    assert row["opens"] == "span", "not a link and not a button: nothing to press yet"
-
-
-def test_a_build_is_filed_under_your_uploads_and_not_the_catalogue(tmp_path: Path) -> None:
-    """That tab is "texts of mine", and a build is exactly that until it exists."""
-    mine = browse(tmp_path, jobs=[job()], view={"where": "mine"})
-    assert any(row["title"] == "ספר חדש" for row in mine["rows"])
-    everybody = browse(tmp_path, jobs=[job()], view={"where": "library"})
-    assert not any(row["title"] == "ספר חדש" for row in everybody["rows"])
-
-
-def test_no_filter_can_hide_the_text_you_are_waiting_on(tmp_path: Path) -> None:
-    """Nothing about a build is measured yet — no kind, no register, no hard-word share —
-    so every narrowing control would hide it, and the one row the reader is actually
-    waiting on would be the one they could not find."""
-    narrow = {"where": "mine", "kind": "poetry", "register": "biblical", "fit": "now"}
-    drawn = browse(tmp_path, jobs=[job()], view=narrow)
-    assert [row["title"] for row in drawn["rows"]] == ["ספר חדש"], drawn["rows"]
-
-
-def test_a_finished_or_failed_build_is_not_a_row(tmp_path: Path) -> None:
-    """It became a text, or it did not happen. Either way the shelf has the truth about
-    it and this row would be a second, older copy of that truth."""
-    made = job(stage="done", reader="mine-he/reader")
-    done = browse(tmp_path, jobs=[made], view={"where": "mine"})
-    assert not any(row["title"] == "ספר חדש" for row in done["rows"])
-    broke = browse(tmp_path, jobs=[job(error="it broke")], view={"where": "mine"})
-    assert not any(row["title"] == "ספר חדש" for row in broke["rows"])
-
-
-def test_a_build_waiting_its_turn_says_so_rather_than_looking_stuck(tmp_path: Path) -> None:
-    """A second build behind a first one showed no progress at all and read as broken."""
-    queued = job(stage="queued", behind=2, message="")
-    drawn = browse(tmp_path, jobs=[queued], view={"where": "mine"})
-    row = next(row for row in drawn["rows"] if row["title"] == "ספר חדש")
-    assert row["meta"] == "Waiting behind 2 builds", row["meta"]
+def test_a_text_being_built_is_not_a_library_row(tmp_path: Path) -> None:
+    """It is the first row of Your targums (design.md §12, 2026-09-25). It was a card
+    under Your uploads, which made the Library and Your targums two places for one thing,
+    and the wait page pointed at the one that did not have it."""
+    for where in ("library", "mine"):
+        drawn = browse(tmp_path, jobs=[job()], view={"where": where})
+        assert not any(row["title"] == "ספר חדש" for row in drawn["rows"]), where
 
 
 def test_a_text_inside_a_shut_shelf_that_a_filter_also_hides_is_still_reached(
@@ -1424,19 +1371,17 @@ def test_a_text_inside_a_shut_shelf_that_a_filter_also_hides_is_still_reached(
 TREE = {"he": {"where": "midrash", "shape": "cards"}}
 
 
-def test_the_beit_midrash_is_a_third_tab_and_hebrew_s_alone(tmp_path: Path) -> None:
+def test_the_beit_midrash_is_a_second_tab_and_hebrew_s_alone(tmp_path: Path) -> None:
     drawn = draw(tmp_path)
-    assert drawn["tabs"] == ["All texts", "Your uploads", "Beit Midrash"]
+    assert drawn["tabs"] == ["All texts", "Beit Midrash"]
 
-    # No catalogue says which door anything stands behind: no tab over an empty tree.
+    # No catalogue says which door anything stands behind: no tab over an empty tree,
+    # and one tab alone is not drawn (2026-09-25).
     from targum.catalogue import CATALOGUE, collections
 
     bare = [{**group.state(), "door": ""} for group in collections()]
     plain = [{**entry.state(), "door": ""} for entry in CATALOGUE]
-    assert draw(tmp_path, collections=bare, catalogue=plain)["tabs"] == [
-        "All texts",
-        "Your uploads",
-    ]
+    assert draw(tmp_path, collections=bare, catalogue=plain)["tabs"] == []
 
 
 def test_the_tab_opens_on_its_doors_with_what_stands_behind_each(tmp_path: Path) -> None:

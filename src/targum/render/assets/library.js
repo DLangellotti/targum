@@ -252,16 +252,17 @@
     note.textContent = lead ? "" : text;
   }
 
-  /* The two halves of the page. The catalogue is everybody's; an upload is yours and
-     nobody else can reach it. Tabs rather than a filter: they are not two settings of one
-     list, they are two lists, and as a select called "Access" the second one was a thing
-     nobody found. */
+  /* The page is the catalogue, which is everybody's (design.md §12, "Yours and
+     everyone's", 2026-09-25). It had a second tab, Your uploads, for the texts that are
+     yours alone, and Your targums listed the same texts again in another shape, so a
+     reader had two places for one thing and no way to tell which was meant. Yours are
+     on Your targums now, builds included. A text you built from here is still marked
+     here, and opens your copy.
+     So there is one tab, drawn only when the Beit Midrash stands beside it: a single tab
+     over a list is a heading that looks pressable. */
   // "All texts", not "Library": under a page headed Library a first tab of the same name
   // said nothing (2026-09-14). Sentence case, like every other label on the page.
-  var WHERE = [
-    ["library", t("library.where.library", "All texts")],
-    ["mine", t("library.where.mine", "Your uploads")],
-  ];
+  var WHERE = [["library", t("library.where.library", "All texts")]];
 
   /* --- the Beit Midrash (targum-internal#340, 2026-09-19) ---------------------------
    *
@@ -505,50 +506,10 @@
     return (entry && entry.blurbs && entry.blurbs[uiLanguage]) || (entry && entry.blurb) || "";
   }
 
-  /* Builds that have not finished, as rows on the shelf (design.md §12, 2026-09-17).
-   *
-   * "I need a more obvious place to see the progress — the notifications tab is too easy
-   * to miss." The bell follows the reader from page to page, which is what it is for and
-   * also why it is ambient; a text being built belongs where the reader was going, which
-   * is here. It carries its title and how far it has got, and becomes the ordinary row
-   * the moment it is done.
-   *
-   * Filed under Your uploads whatever it was built from, because that tab is "texts of
-   * mine" and a build is exactly that until it exists. Nothing on one can be pressed: it
-   * is not a link yet and it is certainly not a button that would buy it again.
-   */
+  // The reader's texts that are not in the catalogue, which `rows()` leaves out.
+  var yoursAlone = [];
+  // What `/jobs` said was building, last time it was asked.
   var buildingNow = [];
-
-  function buildingRows() {
-    return buildingNow
-      .filter(function (job) {
-        return job.stage !== "done" && !job.error && job.title;
-      })
-      .map(function (job) {
-        return {
-          id: "building:" + job.id,
-          entry: null,
-          building: job,
-          title: job.title,
-          english: job.english || "",
-          author: "",
-          language: job.language || lang.HOME,
-          kind: "",
-          register: "",
-          difficulty: 0,
-          // Nothing measured yet, and a zero here would be a claim. The row says what it
-          // is doing instead of pretending to be a text with facts.
-          minutes: 0,
-          spoken: false,
-          video: false,
-          tags: [],
-          built: null,
-          opened: 0,
-          // Newest of everything: it is the most recently arrived thing there is.
-          place: 1e9,
-        };
-      });
-  }
 
   function rows(readers, shared) {
     var mine = {};
@@ -594,31 +555,16 @@
         opened: built ? built.opened || 0 : 0,
       });
     });
-    // What is building, above what is built: it is the thing the reader is waiting on.
-    buildingRows().forEach(function (row) {
-      out.push(row);
+    // Only the catalogue. A reader's own texts, and what is building, are rows on Your
+    // targums (design.md §12, 2026-09-25); a catalogue text they built is the row above,
+    // marked as theirs. The rest are kept only to be counted, for a language whose
+    // catalogue is empty (see the empty line in `redraw`).
+    var listed = {};
+    catalogue.forEach(function (entry) {
+      listed[entry.id] = true;
     });
-    readers.forEach(function (reader) {
-      if (reader.entry && mine[reader.entry]) return;
-      out.push({
-        id: reader.name,
-        entry: null,
-        title: reader.title,
-        english: "",
-        author: "",
-        language: reader.language,
-        kind: reader.kind,
-        register: reader.register,
-        difficulty: reader.difficulty,
-        minutes: reader.minutes,
-        spoken: !!reader.spoken,
-        video: !!reader.video,
-        // A reader's own text is filed under no subject: nothing has read it to say what
-        // it is about, and `serve.py` sends an empty list rather than a guess.
-        tags: reader.tags || [],
-        built: reader,
-        opened: reader.opened || 0,
-      });
+    yoursAlone = readers.filter(function (reader) {
+      return !(reader.entry && listed[reader.entry]);
     });
     return out;
   }
@@ -848,7 +794,6 @@
    * cheaper way to do that.
    */
   function card(row) {
-    if (row.building) return buildingCard(row);
     var item = el("li", "card-item");
     item.setAttribute("data-row", row.id);
 
@@ -955,65 +900,6 @@
 
     open.appendChild(what);
     item.appendChild(open);
-    return item;
-  }
-
-  /* A text being built, as a card that says so.
-   *
-   * Neither a link nor a button: there is nothing to open yet and nothing to buy again.
-   * A span, so nothing about it invites a press and a keyboard passes straight over it.
-   * It carries what is known — the title, and how far the build has got — and the moment
-   * the build finishes it is replaced by the ordinary row for the text it became.
-   */
-  function buildingCard(row) {
-    var job = row.building;
-    var item = el("li", "card-item");
-    item.setAttribute("data-row", row.id);
-
-    var box = el("span", "card card-building");
-    // Said aloud when it changes, because a reader watching this is waiting on it.
-    box.setAttribute("role", "status");
-
-    var cover = el("span", "card-cover");
-    cover.setAttribute("aria-hidden", "true");
-    cover.appendChild(
-      window.TargumCovers.tile("", { title: row.title, language: row.language, drawn: false })
-    );
-    box.appendChild(cover);
-
-    var what = el("span", "card-what");
-    var mark = el("span", "card-scene card-making", t("library.building", "Building"));
-    mark.setAttribute("lang", saidIn);
-    what.appendChild(mark);
-    var title = el("bdi", "card-title", row.title);
-    title.setAttribute("lang", row.language);
-    title.setAttribute("dir", "auto");
-    what.appendChild(title);
-    if (row.english) {
-      var english = el("span", "card-english", row.english);
-      english.setAttribute("lang", "en");
-      english.setAttribute("dir", "ltr");
-      what.appendChild(english);
-    }
-
-    // The pipeline narrates itself in its own vocabulary; this is the reader's, from the
-    // same table the row's own build sentence uses.
-    var said = job.behind
-      ? tn("library.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
-      : say(job.message) || t("library.build.almost", "Almost there…");
-    what.appendChild(el("span", "card-meta", said));
-
-    var share = job.total ? job.done / job.total : 0;
-    var track = el("span", "card-known-track");
-    var fill = el("span");
-    fill.style.inlineSize = Math.max(2, Math.min(100, Math.round(share * 100))) + "%";
-    track.appendChild(fill);
-    var going = el("span", "card-known card-going");
-    going.appendChild(track);
-    what.appendChild(going);
-
-    box.appendChild(what);
-    item.appendChild(box);
     return item;
   }
 
@@ -1512,7 +1398,8 @@
     if (!one.dir) one.dir = DESCENDING[one.sort] ? -1 : 1;
     if (!one.kind) one.kind = "";
     if (!one.register) one.register = "";
-    if (!one.where) one.where = "library";
+    // "mine" was the Your uploads tab until 2026-09-25; a view stored on it is on All texts.
+    if (!one.where || one.where === "mine") one.where = "library";
     if (!one.subject) one.subject = "";
     if (!one.door) one.door = "";
     // `fit` is deliberately left unset here. What it defaults to depends on whether this
@@ -1677,13 +1564,6 @@
     if (!inLanguage(row, code) && !(tree && code === lang.HOME && inLanguage(row, BESIDE_HEBREW))) {
       return false;
     }
-    /* A build in progress is on the shelf whatever the filters say (design.md §12,
-       2026-09-17). Nothing about it is measured yet — no kind, no register, no hard-word
-       share — so every narrowing control would hide it, and the one row the reader is
-       actually waiting on would be the one row they could not find. It answers to the
-       tab and to the language, which are the two questions about *where* it is rather
-       than about what it is like. */
-    if (row.building) return state.where === "mine";
     if (state.kind && row.kind !== state.kind) return false;
     if (code === lang.HOME && state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
@@ -1694,15 +1574,11 @@
     // among them rather than whether it is the value — a match report is journalism and
     // sport at once, and belongs under both chips.
     if (state.subject && !holdsSubject(row, state.subject)) return false;
-    /* The band is for choosing from the catalogue, never for your own (2026-09-18). An
-       upload is a text you already chose; the tab is where "everything of yours is here"
-       (design.md §12), and a band saved on All texts was hiding 39 of 43 of David's. */
-    /* Nor for the Beit Midrash: a tree that hid the Writings from a beginner because
+    /* The band is for choosing from the catalogue. It is not for the Beit Midrash: a tree that hid the Writings from a beginner because
        they are hard would be a tree with branches missing, and the reader came to see
        where things stand. Each row still says how much of it they know. */
-    if (state.where !== "mine" && !tree && !fits(row, fitWanted(state))) return false;
-    if (state.where === "mine" && row.entry) return false;
-    if (state.where !== "mine" && !row.entry) return false;
+    if (!tree && !fits(row, fitWanted(state))) return false;
+    if (!row.entry) return false;
     if (tree) {
       var behind = doorOf(row);
       if (!behind) return false;
@@ -1920,8 +1796,6 @@
     host.appendChild(
       el("span", "count", tn("library.tally.all", count, "{n} text", "{n} texts", { n: count }))
     );
-    // Your uploads are never narrowed (see `matches`), so there is no band to offer.
-    if (view.where === "mine") return;
     host.appendChild(document.createTextNode(" · "));
     var lead = el("label", "fit");
     lead.appendChild(
@@ -2294,9 +2168,11 @@
     return found;
   }
 
-  /* The shelf and what is building on it, asked for together (design.md §12,
-     2026-09-17). `/jobs` is what the bell polls; the library reads the same answer, so
-     the two can never disagree about what is happening. */
+  /* The shelf and what is building, asked for together (design.md §12, 2026-09-17).
+     `/jobs` is what the bell polls; the library reads the same answer, so the two can
+     never disagree about what is happening. A build is no longer a row here (2026-09-25:
+     it is on Your targums), but a catalogue text being built somewhere else still turns
+     into a built row here when it finishes, which is what `follow()` watches for. */
   Promise.all([ask("/readers"), ask("/jobs").catch(function () { return {}; })]).then(function (both) {
     var data = both[0] || {};
     buildingNow = (both[1] && both[1].jobs) || [];
@@ -2391,7 +2267,10 @@
           return !!doorOf(row);
         });
       if (view.where === "midrash" && !treed) view.where = "library";
-      tabs(document.getElementById("where"), treed ? WHERE.concat([MIDRASH]) : WHERE, "where", redraw);
+      // One tab alone is not drawn (see `WHERE`).
+      var strip = document.getElementById("where");
+      if (strip) strip.hidden = !treed;
+      tabs(strip, treed ? WHERE.concat([MIDRASH]) : [], "where", redraw);
       heading(redraw);
       var tree = view.where === "midrash";
       if (!tree) view.door = "";
@@ -2473,35 +2352,35 @@
       if (head) head.hidden = browsing;
       placeNote(noteFor(showing));
       pointAt();
-      // Counted within the list being looked at, not across both: "2 of 116" under Your
-      // Uploads would be counting somebody's two texts against everybody's catalogue.
       var here = everything.filter(function (row) {
         // Behind a door, counted against that door: "5 of 499" under the Torah would be
         // counting five books against the whole library.
         if (tree) return doorOf(row) && (!view.door || view.find || doorOf(row) === view.door);
-        return inLanguage(row, chosen) && (view.where === "mine" ? !row.entry : row.entry);
+        return inLanguage(row, chosen) && row.entry;
       });
       empty.hidden = showing.length > 0;
       if (!showing.length) {
-        // An empty tab and an empty filter are different things to be told.
+        // An empty list and an empty filter are different things to be told.
         // A language with no catalogue yet says so, and points at what the reader has in
         // it already, if anything (2026-09-14): "Nothing here yet" under Italian hid the
-        // two Italian texts one tab away.
-        var uploaded = everything.filter(function (row) {
-          return inLanguage(row, chosen) && !row.entry;
+        // two Italian texts the reader had brought. They are on Your targums since
+        // 2026-09-25, so that is where it points.
+        var uploaded = yoursAlone.filter(function (reader) {
+          return inLanguage(reader, chosen);
         }).length;
         empty.textContent = here.length
           ? t("library.empty.no-match", "Nothing here matches that.")
-          : view.where === "mine"
-            ? t("library.empty.mine", "You haven't added anything yet. Use Add to bring your own.")
-            : uploaded
-              ? t("library.empty.language-uploads", "No {language} texts in the library yet. You have {n} in Your uploads.", {
-                  language: names[chosen] || chosen,
-                  n: uploaded,
-                })
-              : t("library.empty.language", "No {language} texts in the library yet.", {
-                  language: names[chosen] || chosen,
-                });
+          : uploaded
+            ? tn(
+                "library.empty.language-yours",
+                uploaded,
+                "No {language} texts in the library yet. You have {n} in Your targums.",
+                "No {language} texts in the library yet. You have {n} in Your targums.",
+                { language: names[chosen] || chosen }
+              )
+            : t("library.empty.language", "No {language} texts in the library yet.", {
+                language: names[chosen] || chosen,
+              });
       }
       var total = here.length;
       // Texts, not rows. A folded list is thirty-six rows over three hundred and
@@ -2606,7 +2485,7 @@
       // stronger claim than any setting made earlier, and the one text somebody was sent
       // for is exactly the one a "what you can read now" list is entitled to hide.
       view.fit = "";
-      view.where = target.entry ? "library" : "mine";
+      view.where = "library";
       find.value = "";
       // show() redraws, and redraw() comes back through here with the row in the list.
       if (code && code !== chosen) return show(code);
@@ -2617,9 +2496,9 @@
      *
      * Only while: a shelf with nothing on the way polls nothing, the same rule the bell
      * follows, and for the same reason — a page left open overnight should not be a page
-     * asking a question every three seconds until morning. When a build finishes, its row
-     * stops being a build and `/readers` has the text it became, so both are asked for
-     * again and the card turns into the real one in the same draw.
+     * asking a question every three seconds until morning. When a build finishes,
+     * `/readers` has the text it became, so both are asked for again and a catalogue
+     * row it came from is marked as built in the same draw.
      */
     var following = null;
     function follow() {

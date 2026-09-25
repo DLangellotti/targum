@@ -50,6 +50,9 @@
   function places() {
     return [
       { kind: "place", title: t("nav.learn", "Learn"), href: "/" },
+      // Second, as in the nav. It had no row here, so ⌘K could find every text of yours
+      // by name and not the page that holds them (design.md §12, 2026-09-25).
+      { kind: "place", title: t("yours.page.your-targums", "Your targums"), href: "/texts" },
       { kind: "place", title: t("nav.library", "Library"), href: "/library" },
       { kind: "place", title: t("palette.progress", "Your Progress"), href: "/progress" },
       { kind: "place", title: t("nav.your-words-and-phrases", "Your words and phrases"), href: "/words" },

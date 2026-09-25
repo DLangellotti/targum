@@ -120,8 +120,10 @@ global.fetch = (url, options) => {
   // Your targums (2026-09-11): the shelf rows moved here from Learn, and so did the
   // answer the shelf is drawn from.
   if (clean.indexOf("/readers") === 0) {
-    answer = { readers: payload.readers || [], shared: [], trash: [], covers: true };
+    answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   }
+  // What is building (design.md §12, 2026-09-25): a row at the top of Your targums.
+  if (clean.indexOf("/jobs") === 0) answer = { jobs: payload.jobs || [] };
   // Lines that came back changed (targum-internal#290).
   if (clean.indexOf("/slips") === 0) answer = { slips: payload.slips || [] };
   return Promise.resolve({ ok: true, json: () => Promise.resolve(answer) });
@@ -356,4 +358,7 @@ function phrases() {
       shelf: shelf(),
     }),
   );
+  // A build on the shelf is followed every three seconds for as long as it runs, and a
+  // fixture's build runs for ever.
+  process.exit(0);
 })();
