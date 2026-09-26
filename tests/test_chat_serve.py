@@ -515,6 +515,7 @@ def test_an_answer_is_read_aloud_once_and_kept(chatting, monkeypatch: Any, tmp_p
     assert len(rendered) == 1, "kept, not made again"
 
     monkeypatch.delenv(speech.KEY, raising=False)
+    monkeypatch.delenv(speech.VERTEX_KEY, raising=False)
     _, asked2, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": asked["chat"], "text": "more"})
     chats.answer(chats.queue.get())
     status, body, _ = call(port, "GET", f"/chat/audio/{asked['chat']}/{asked2['turn']}?k={key}")

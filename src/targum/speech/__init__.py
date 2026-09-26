@@ -48,6 +48,16 @@ VOICE = "Leda"
 #: Where the key comes from. Its own variable rather than the weekly's key file, because
 #: a box has an environment file and no laptop's filing.
 KEY = "TARGUM_TTS_KEY"
+#: The same model through Vertex, which is the door the box uses when it has the key.
+#: The Gemini API caps this preview model at **100 requests a day** on the paid tier as on
+#: the free one (measured 2026-09-26), and that is every reader's Hear presses together,
+#: shared with any voicing run on the same project. Vertex serves the same model and the
+#: same voices with no daily cap and takes the same body. Its key must be bound to a
+#: service account holding Agent Platform User, because Vertex runs a model only for a
+#: principal, and a bare API key is nobody.
+VERTEX_KEY = "TARGUM_VERTEX_TTS_KEY"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+VERTEX_URL = "https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:generateContent"
 
 ASK = "Read this Hebrew aloud, unhurried, as a teacher would to a learner. Say only this:\n\n"
 
@@ -83,9 +93,20 @@ BYTES_PER_SECOND = RATE * 2
 
 
 def available() -> tuple[bool, str]:
-    if not os.environ.get(KEY):
-        return False, f"set {KEY} in the environment"
+    if not (os.environ.get(VERTEX_KEY) or os.environ.get(KEY)):
+        return False, f"set {VERTEX_KEY} (or {KEY}) in the environment"
     return True, MODEL
+
+
+def _door(key: str | None) -> tuple[str, str]:
+    """The endpoint and the token. A key handed in is a Gemini API key — the weekly's
+    file — and goes where it always went; otherwise Vertex when the box has its key, and
+    the Gemini API when that is all there is."""
+    if key:
+        return GEMINI_URL.format(model=MODEL), key
+    if os.environ.get(VERTEX_KEY):
+        return VERTEX_URL.format(model=MODEL), os.environ[VERTEX_KEY]
+    return GEMINI_URL.format(model=MODEL), os.environ.get(KEY, "")
 
 
 def priced() -> bool:
@@ -115,12 +136,13 @@ def say(text: str, voice: str = VOICE, key: str | None = None, language: str = "
 
     if not speaks(language):
         raise TargumError("We can't read that language aloud yet.")
-    token = key or os.environ.get(KEY, "")
+    endpoint, token = _door(key)
     if not token:
         raise TargumError("We can't make a voice here.", available()[1])
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={token}"
+    url = f"{endpoint}?key={token}"
     body = {
-        "contents": [{"parts": [{"text": ask(language) + text}]}],
+        # Vertex requires the role; the Gemini API accepts it.
+        "contents": [{"role": "user", "parts": [{"text": ask(language) + text}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},

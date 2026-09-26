@@ -60,7 +60,7 @@ SERVICES: tuple[Service, ...] = (
         "gemini",
         "Google Gemini",
         "spoken audio",
-        ("TARGUM_TTS_KEY",),
+        ("TARGUM_VERTEX_TTS_KEY", "TARGUM_TTS_KEY"),
         "https://aistudio.google.com/billing",
     ),
     Service(
