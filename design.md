@@ -347,6 +347,49 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Your targums has tabs, says what a targum is, and folds a series — 2026-09-26
+
+David, on Your targums at a desk: "I want this page to be designed more delightfully, and
+easier to navigate. It should include tabs with 'all targums' 'your uploads' and
+'playlists' also it should define a targum more clearly and prettily." Asked, he chose
+each of the following.
+
+- **Three tabs: All targums · Your uploads · Playlists.** All targums is everything
+  "Yours and everyone's" (2026-09-25) put here. **Your uploads is only what you brought**
+  — pasted, uploaded, photographed or linked — and not a Library text you built or a
+  shared one you opened. A build in progress is in both. This does not bring back the
+  Library's Your uploads tab: the Library is still everyone's, and this is a view of
+  yours. Playlists is a link to /playlists, which carries the same three tabs with
+  Playlists chosen and lights Your targums in the nav, so the three read as one place.
+  Underlined tabs, as the Library's are.
+- **A targum is shown, not only said.** The line "an interactive bilingual text,
+  optimised for language learning" gives way to one sentence and a drawn example: a
+  Hebrew line, its translation under it, and one word tapped, with its card. Drawn in
+  type and the palette, never a picture file, so it costs the page nothing to fetch. The
+  example is Hebrew whatever the shelf's language: Hebrew is the product's first language
+  and the word it is named for.
+- **The shelf can be sifted.** Chips for All · New · Reading · Finished, each with its
+  count and absent at nought; a search over the title and its English; and an order —
+  last read (the default, as before), recently added, easiest first, or most known. They
+  are drawn only on a shelf of six or more: on a short shelf they are questions nobody
+  asked.
+- **At a desk the shelf is cards; on a phone it stays rows.** The same row, laid out as a
+  card from 64rem up, with the picture as its head. A text with no picture wears its
+  letter large. Nothing a row says is dropped from the card.
+- **A series is one row until you open it.** This amends "one row per text in each list"
+  (2026-09-25). Two or more texts whose titles share a stem before an episode marker
+  (*פרק 63*, *Part 2*, *глава 3*, *#4*) fold into one row with the stem as its title, how
+  many there are and how many are finished, and a stack drawn behind its picture. Pressing
+  it shows those texts alone, in episode order, with a way back. It is read off the title
+  because nothing else says what a series is; a title that does not follow the pattern is
+  its own row, which is what it was before. A search or a chip looks inside a series, and
+  a series left with one text is that text's row.
+
+What it does not overturn: a row still says the seven facts of 2026-09-24, a build is
+still a row from the moment it starts, the trash is still at the foot, and Learn's cards
+draw the same rows without any of this.
+
+
 ### The finished box is three figures — 2026-09-25
 
 David, looking at the ink block a finished section inverts to: "let's review what info we
