@@ -60,11 +60,35 @@
     if (showing && !signedOut.hidden && field) field.focus();
   }
 
+  /* The initials this browser was last signed in with, so the corner says who you are
+     from the first paint rather than "Sign in" until sync has asked, which read as being
+     signed out on every page of the live site (2026-09-27). Initials only; forgotten the
+     moment sync says nobody is here. */
+  var HELD = "targum:initials";
+
+  function avatar(initials) {
+    open.className = "avatar";
+    open.setAttribute("aria-label", t("account.yours", "Your account"));
+    open.appendChild(document.createTextNode(initials || "?"));
+  }
+
+  try {
+    var held = localStorage.getItem(HELD);
+    if (held) {
+      open.textContent = "";
+      avatar(held);
+    }
+  } catch (e) {
+    // Nowhere to read it from: "Sign in" until sync answers, as before.
+  }
+
   function draw(who) {
     signedOut.hidden = !!who;
     signedIn.hidden = !who;
     open.textContent = "";
     if (!who) {
+      if (window.targumForget) window.targumForget(HELD);
+      open.removeAttribute("aria-label");
       open.className = "";
       open.textContent = t("account.sign-in", "Sign in");
       open.title = t("account.sign-in", "Sign in");
@@ -74,11 +98,10 @@
 
     // The address is nobody else's business on a shared screen, and it never fitted the
     // corner anyway. Two letters do, and they are the same two whatever the window.
-    open.className = "avatar";
     open.title = who.name ? who.name + " — " + who.email : who.email;
     // Named for what it opens: its text is two initials, and "D" is not a name for a
     // button to a screen reader (2026-09-14).
-    open.setAttribute("aria-label", t("account.yours", "Your account"));
+    if (window.targumKeep) window.targumKeep(HELD, who.initials || "?");
     if (who.picture) {
       var image = new Image();
       image.alt = "";
@@ -88,7 +111,7 @@
       };
       image.src = who.picture;
     }
-    open.appendChild(document.createTextNode(who.initials || "?"));
+    avatar(who.initials);
     whom.textContent = who.name ? who.name + " · " + who.email : who.email;
     drawHours(who.hours);
   }
@@ -186,8 +209,7 @@
   });
 
   // The panel says nothing until sync has been able to ask, which is a moment after
-  // load. Until then the button reads "Sign in", which is the right thing to show to
-  // the majority of visits and is not a lie during the ones where it is wrong.
+  // load. Until then the button says what this browser last knew (`HELD`, above).
   window.TargumSync.onChange(function () {
     draw(window.TargumSync.who);
   });

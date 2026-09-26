@@ -54,3 +54,17 @@ def test_your_progress_says_nothing_about_hours_without_an_allowance() -> None:
         seen = drawn(who=who)
         assert seen["ledger"] == {"hidden": True, "text": ""}, who
         assert seen["panel"]["hidden"] is True, who
+
+
+def test_the_corner_says_who_you_are_from_the_first_paint() -> None:
+    """It read "Sign in" on every page until sync had asked, which on the live site looked
+    like being signed out (2026-09-27). The initials this browser last saw are drawn at
+    once; sync confirms them, and forgets them when nobody is signed in."""
+    back = drawn(who=READER, stored={"targum:initials": "RE"})
+    assert back["first"] == "RE" and back["corner"] == "RE" and back["held"] == "RE"
+
+    new = drawn(who=READER)
+    assert new["corner"] == "RE" and new["held"] == "RE", "kept for the next page"
+
+    gone = drawn(who=None, stored={"targum:initials": "RE"})
+    assert gone["corner"] == "Sign in" and gone["held"] is None

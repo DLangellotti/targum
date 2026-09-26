@@ -322,6 +322,14 @@ THUMBED = (
     ".copy",
     ".scene",
     ".steps > li",
+    ".yours-tabs .tab",
+    ".sift-shelf .chip",
+    ".sift-shelf .find",
+    ".sift-shelf .pick select",
+    ".series-back",
+    ".filters > summary",
+    ".claim-table label",
+    ".chat-claim label",
 )
 
 

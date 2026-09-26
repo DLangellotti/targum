@@ -739,7 +739,7 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
    it grows is a number you stop trusting. Still a sentence and still not a score: the
    floor under it in `drawKnown` is what keeps "You know 0 words" off the page. */
 @media (min-width: 72rem) {
-  .hello .known-line:not(:empty) {
+  .hello .known-line.is-count:not(:empty) {
     display: inline-block;
     margin-inline-start: 0.4rem;
     padding: 0.3rem 0.7rem;
@@ -749,7 +749,7 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
     font-variant-numeric: tabular-nums;
   }
   /* The middle dot belonged to a line the count has left. */
-  .hello .today:not(:empty):has(+ .known-line:not(:empty))::after { content: ""; }
+  .hello .today:not(:empty):has(+ .known-line.is-count:not(:empty))::after { content: ""; }
 }
 /* The dot stays with the date, so a count that wraps on a phone starts its own line clean. */
 .hello .today:not(:empty):has(+ .known-line:not(:empty))::after { content: " ·"; }

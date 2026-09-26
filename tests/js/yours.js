@@ -165,17 +165,29 @@ function tile(node) {
  *  and its line of facts, the status, and the row's keys. */
 function shelf() {
   return at("library-list").children.map((row) => {
-    const link = row.children[0];
-    const controls = row.children[1];
-    const cells = (link.children || []).map((child) => child.textContent);
-    const what = link.children[1] || { children: [] };
-    const part = (name) => (what.children.find((c) => c.className === name) || {}).textContent || "";
+    // A build keeps its cells in one box; a text's and a series' are the row's own
+    // children, with the title as the press (2026-09-27).
+    const first = row.children[0] || { children: [] };
+    const cells = String(first.className).includes("building") ? first : row;
+    const kids = cells.children || [];
+    const named = (name) => kids.find((c) => String(c.className).split(" ").includes(name));
+    const what = named("book-what") || { children: [] };
+    const deep = (node, name) => {
+      for (const child of node.children || []) {
+        if (String(child.className).split(" ").includes(name)) return child;
+        const found = deep(child, name);
+        if (found) return found;
+      }
+      return null;
+    };
+    const part = (name) => (deep(what, name) || {}).textContent || "";
+    const controls = (row.children || []).find((c) => c.className === "row-controls");
     return {
-      cover: tile(link),
-      title: part("book-title") || cells[1] || "",
+      cover: tile(cells),
+      title: part("book-title"),
       english: part("book-english"),
       facts: part("book-facts"),
-      status: cells[2] || "",
+      status: (named("row-status") || {}).textContent || "",
       controls: controls ? controls.children.map((c) => c.textContent) : [],
     };
   });

@@ -681,3 +681,11 @@ table.rows th, .list-controls .section-sub { text-transform: none; letter-spacin
 @media (hover: none) and (pointer: coarse) {
   .list-card-close { inline-size: 44px; block-size: 44px; }
 }
+
+/* §8 under a thumb (2026-09-27): the box is 17px, so its word is the 44px press, as its
+   label, and the box itself grows a little. */
+@media (hover: none) and (pointer: coarse) {
+  .claim-table label { display: flex; align-items: center; min-block-size: 44px; }
+  .claim-table label.claim-all-reach { justify-content: center; min-inline-size: 44px; }
+  .claim-check { inline-size: 1.5rem; block-size: 1.5rem; }
+}

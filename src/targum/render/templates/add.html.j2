@@ -26,8 +26,7 @@
   <h1 class="lede">{{ t("add.page.add", "Add") }}</h1>
   {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
       few hundred texts, not most of what anybody wants. -#}
-  <p class="hint">{{ t("add.page.it-may-already-be-in-the", "It may already be in the") }}
-    <a class="to-library" href="/library">{{ t("add.page.library", "Library") }}</a>.</p>
+  <p class="hint"><a class="to-library" href="/library">{{ t("add.page.it-may-already-be-in-the-library", "It may already be in the Library.") }}</a></p>
 
   {% if no_key %}
   <p class="notice" role="status">{{ no_key }}</p>

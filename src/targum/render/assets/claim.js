@@ -101,7 +101,10 @@
     var all = el("input", "claim-check claim-all");
     all.type = "checkbox";
     all.setAttribute("aria-label", t("claim.check-all", "Check all"));
-    tick.appendChild(all);
+    // In a label of its own, so under a thumb the press can be larger than the box.
+    var reach = el("label", "claim-all-reach");
+    reach.appendChild(all);
+    tick.appendChild(reach);
     headRow.appendChild(tick);
     [t("yours.page.word", "Word"), t("yours.page.meaning", "Meaning"), t("yours.page.how-common", "How common")].forEach(function (name) {
       var th = el("th", "", name);
@@ -119,7 +122,7 @@
     var yes = el("button", "claim-yes", t("claim.mark-known", "Mark known"));
     yes.type = "button";
     yes.disabled = true;
-    var no = el("button", "claim-no", t("claim.none", "None"));
+    var no = el("button", "claim-no", t("claim.none", "Skip"));
     no.type = "button";
     var said = el("span", "claim-said", "");
     actions.appendChild(yes);

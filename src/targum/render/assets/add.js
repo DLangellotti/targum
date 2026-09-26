@@ -758,7 +758,7 @@
     if (row.seconds) facts.push(clock(row.seconds));
     if (row.known_share !== null && row.known_share !== undefined) {
       facts.push(
-        tn("add.found.known", Math.round(row.known_share * 10), "{n} word in ten you know", "{n} words in ten you know", {
+        tn("add.found.known", Math.round(row.known_share * 10), "You know {n} word in ten", "You know {n} words in ten", {
           n: Math.round(row.known_share * 10),
         })
       );
@@ -1211,6 +1211,17 @@
   // that lands here first still claims what it has been keeping.
   if (window.TargumSync) window.TargumSync.start();
 
+  /* A paste's title: its first sentence where that is short enough to be one, and
+     otherwise the words that fit, never half of one. "…ולחם טר" was the first sixty
+     characters of a paste, cut through טרי (2026-09-27). */
+  var PASTE_TITLE = 60;
+  function pasteTitle(line) {
+    var sentence = line.split(/[.!?׃]\s/)[0].replace(/[.!?׃]+$/, "");
+    if (sentence.length <= PASTE_TITLE) return sentence;
+    var head = line.slice(0, PASTE_TITLE + 1);
+    return /\s/.test(head) ? head.replace(/\s+\S*$/, "") : head.slice(0, PASTE_TITLE);
+  }
+
   /* Pasted text is a file like any other; the server has one door for a text and this
      is how something on a clipboard walks through it. Named for its first line, because
      a title is the one thing a paste has no way of carrying. */
@@ -1218,7 +1229,7 @@
     var first = text.split("\n").find(function (line) {
       return line.trim();
     });
-    var name = (first || "pasted").trim().slice(0, 60).replace(/[\\/:*?"<>|]+/g, " ");
+    var name = pasteTitle((first || "pasted").trim()).replace(/[\\/:*?"<>|]+/g, " ");
     return {
       name: name + ".txt",
       // The escape rather than the character: a browser's own base64 refuses anything
@@ -1568,7 +1579,7 @@
     var go = document.createElement("button");
     go.type = "button";
     go.className = "filled";
-    go.textContent = t("add.open-it", "Open it");
+    go.textContent = t("add.open-it", "Open");
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
       // has its own page now, so the button can go where it says it goes.
@@ -1694,7 +1705,7 @@
     var confirm = document.createElement("button");
     confirm.type = "button";
     confirm.className = "filled";
-    confirm.textContent = t("add.start-reading", "Open it");
+    confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
       ask("/build", { id: job.id }).then(function (state) {
         if (state.blocked) return refuse(state);

@@ -399,8 +399,8 @@
     if (talk) {
       talk.textContent =
         workTab === "phrases"
-          ? t("lists.work.talk-phrases", "Generate sentences with these phrases")
-          : t("lists.work.talk-words", "Generate sentences with these words");
+          ? t("lists.work.talk-phrases", "Practise these phrases")
+          : t("lists.work.talk-words", "Practise these words");
     }
     // The press that turns the fold over, only where there is another screenful to turn to.
     var more = at("work-more");

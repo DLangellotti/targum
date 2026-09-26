@@ -1476,7 +1476,7 @@ def test_the_front_page_holds_at_every_width(browser, width: int) -> None:
     # has no sheet (2026-09-14); its cards are the press.
     if width <= 640:
         return
-    assert foot["open"] == "Open it", foot
+    assert foot["open"] == "Open", foot
     assert foot["hint"] == "Read here, or go full screen.", foot
     for part in ("openBox", "hintBox"):
         box = foot[part]

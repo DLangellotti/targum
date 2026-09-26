@@ -583,7 +583,7 @@ def test_the_fold_has_a_words_tab_and_a_phrases_tab() -> None:
     drawn = draw(stored, slips=[SLIP])
     assert drawn["workOn"]["tabs"] == "words"
     assert not drawn["workOn"]["wordsHidden"] and drawn["workOn"]["phrasesHidden"]
-    assert drawn["workOn"]["button"] == "Generate sentences with these words"
+    assert drawn["workOn"]["button"] == "Practise these words"
 
 
 def test_the_phrases_tab_holds_kept_phrases_and_corrected_lines_oldest_first() -> None:
@@ -602,7 +602,7 @@ def test_the_phrases_tab_holds_kept_phrases_and_corrected_lines_oldest_first() -
     ]
     assert all(row["keys"] == ["I know this", "Still learning"] for row in fold["phrases"])
     assert fold["phrases"][1]["meaning"] == "a good heart"
-    assert fold["button"] == "Generate sentences with these phrases"
+    assert fold["button"] == "Practise these phrases"
 
 
 def test_a_known_or_unmarked_phrase_is_not_there_to_work_on() -> None:
@@ -621,7 +621,7 @@ def test_with_only_one_half_there_are_no_tabs() -> None:
     assert fold["wordsHidden"] and not fold["phrasesHidden"]
     assert [row["term"] for row in fold["phrases"]] == [SLIP["recast"]]
     assert drawn["talk"]["foot"] is False, "the door is offered for the phrases"
-    assert fold["button"] == "Generate sentences with these phrases"
+    assert fold["button"] == "Practise these phrases"
 
 
 def test_knowing_a_kept_phrase_writes_it_where_the_reader_keeps_it() -> None:

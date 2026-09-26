@@ -358,9 +358,15 @@
   /* Whether a row's share means anything. Zero is a measurement on a catalogue text — a
      twenty-word scene with no uncommon word in it — and "not measured" on an upload
      built without word-level annotation. The two are different claims, and only the
-     second is drawn as a dash. */
+     second is drawn as a dash. The longest scene is 67 words. */
+  var MEASURED_ZERO = 200;
+
   function measured(row) {
-    return row.difficulty > 0 || !!row.entry;
+    if (row.difficulty > 0) return true;
+    // A zero is believable only on a text short enough to have no uncommon word in it.
+    // Forty-seven catalogue rows — Rashi, the Aramaic targumim, a novel — carry 0 because
+    // nobody measured them, and read "0% hard words" at the top of Easiest (2026-09-27).
+    return !!row.entry && (row.entry.words || 0) <= MEASURED_ZERO;
   }
 
   function level(row) {
@@ -1240,8 +1246,10 @@
     minutes: function (row) {
       return row.minutes || 0;
     },
+    // Null where nothing was measured: last in either direction, because it is not 0%
+    // hard and not 100% either (2026-09-27).
     difficulty: function (row) {
-      return row.difficulty || 0;
+      return measured(row) ? row.difficulty || 0 : null;
     },
     // Most of it known first, which is the way somebody choosing what to read wants it
     // — so this column alone sorts descending by default (`DESCENDING` below). A row
@@ -1632,6 +1640,7 @@
       var left = pick(a);
       var right = pick(b);
       var order;
+      if ((left === null) !== (right === null)) return left === null ? 1 : -1;
       if (typeof left === "number") order = left - right;
       else order = String(left).localeCompare(String(right));
       // A tie falls back to the title, so the list never shuffles under a reader who
@@ -2030,7 +2039,7 @@
         if (job.blocked) throw new Error(job.blocked);
         // A price with no build in it — the server pointing at a catalogue row instead —
         // is not something to press Build on: an empty id came back as a lost build.
-        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one."));
+        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one. Try again."));
         // Said, and then pressed (2026-09-14). The first press used to go straight on to
         // the build, while the conversation and the Add page both say how long a thing
         // takes and wait for the reader's own press before anything is spent. The same
