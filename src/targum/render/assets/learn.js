@@ -2159,6 +2159,9 @@
     // only ever about the one the switcher is on.
     // A count under ten is true and deflating on the first line a new reader sees
     // (2026-09-11): until then the line says what to do, which is what makes the count.
+    // The leaf pill is for the count alone: green is progress (§4), and under the floor
+    // this line is an instruction, which wore it too (2026-09-27).
+    line.className = known >= KNOWN_FLOOR ? "known-line is-count" : "known-line";
     line.textContent = known >= KNOWN_FLOOR
       ? tn("learn.known-words", known, "You know {n} {language} words.", "You know {n} {language} words.", {
           language: named(code),
