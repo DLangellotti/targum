@@ -573,12 +573,34 @@ def test_the_line_under_the_controls_says_what_the_active_one_means(tmp_path: Pa
 
 
 def test_a_dash_is_explained_only_while_one_is_on_screen(tmp_path: Path) -> None:
-    """Zero on a catalogue text is a measurement and reads 0%. An upload built without
-    word-level annotation is not measured, reads "—", and the line says so — but only
-    then."""
-    plain = draw(tmp_path)
-    assert "—" not in {row["cells"][3] for row in plain["rows"]}
-    assert "not measured" not in plain["note"]
+    """Zero on a short catalogue text is a measurement and reads 0%. A text nobody
+    measured reads "—", and the line says so — but only then."""
+    scenes = draw(tmp_path, view={"kind": "dialogue", "shape": "list"})
+    assert "—" not in {row["cells"][3] for row in scenes["rows"]}
+    assert "measured" not in scenes["note"]
+    assert "0%" in {row["cells"][3] for row in scenes["rows"]}, "a scene's 0 is real"
+
+
+def test_a_long_text_nobody_measured_is_not_the_easiest(tmp_path: Path) -> None:
+    """Rashi on Genesis is forty thousand words of medieval commentary and its row carries
+    difficulty 0 because nobody measured it. It read "0% hard words" and stood first
+    under Easiest (found 2026-09-27). It reads "—" and sorts last, in either direction."""
+    from targum.catalogue import CATALOGUE
+
+    catalogue = [entry.state() for entry in CATALOGUE]
+    rashi = dict(next(row for row in catalogue if row["language"] == "he"))
+    rashi.update(id="rashi-genesis", title='רש"י על בראשית', english="Rashi on Genesis")
+    rashi.update(words=41636, difficulty=0, register="medieval", kind="prose", tags=["tanakh"])
+    catalogue.append(rashi)
+    easiest = draw(tmp_path, view={"sort": "difficulty", "dir": 1}, catalogue=catalogue)
+    hardest = draw(tmp_path, view={"sort": "difficulty", "dir": -1}, catalogue=catalogue)
+    for drawn in (easiest, hardest):
+        titles = [row["title"] for row in drawn["rows"]]
+        rashi = titles.index('רש"י על בראשית')
+        dashed = [row["title"] for row in drawn["rows"] if row["cells"][3] == "—"]
+        assert 'רש"י על בראשית' in dashed
+        assert rashi >= len(titles) - len(dashed), "unmeasured rows are at the end"
+        assert "measured" in drawn["note"]
 
 
 def test_the_gauge_stops_promising_what_is_new_to_you(tmp_path: Path) -> None:
