@@ -803,7 +803,10 @@ def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     every text and every reader, and a public text is built once for everybody, so most
     reading is opening something already made rather than making it."""
     page = PAGES["texts"]
-    assert "A targum is an interactive bilingual text" in page
+    # Shown, not only said, since 2026-09-26 (design.md §12, "Your targums has tabs").
+    assert "What&#39;s a targum?" in page or "What's a targum?" in page
+    assert "with its translation held line by line" in page
+    assert 'class="defined-example"' in page
     assert "A targum is a text you have built" not in page
 
 
