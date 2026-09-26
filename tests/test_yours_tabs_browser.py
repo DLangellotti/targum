@@ -95,7 +95,7 @@ def test_a_series_is_one_row_until_it_is_opened(browser, tmp_path: Path) -> None
     folded = titles(page)
     facts = page.locator("#library-list li.is-series .book-facts").inner_text()
     status = page.locator("#library-list li.is-series .row-status").inner_text()
-    page.click("#library-list .series-open")
+    page.click("#library-list .series-press")
     opened = titles(page)
     named = page.locator("#series-name").inner_text()
     page.click("#series-back")
@@ -208,10 +208,10 @@ def test_every_row_can_be_reached_and_pressed_from_a_keyboard(
         page.keyboard.press("Tab")
         page.evaluate("document.activeElement.dataset.reached = '1'")
     opens = page.locator("#library-list .book-open").count()
-    series = page.locator("#library-list .series-open[data-reached]").count()
+    series = page.locator("#library-list .series-press[data-reached]").count()
     texts = page.locator("#library-list .book-open[data-reached]").count()
     reached = [series, texts, opens]
-    page.locator("#library-list .series-open").focus()
+    page.locator("#library-list .series-press").focus()
     page.keyboard.press("Enter")
     inside = page.locator("#series-name").inner_text()
     # A press on the picture, not the title, still lands on the link.

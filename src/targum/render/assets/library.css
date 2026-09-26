@@ -403,7 +403,7 @@
    which no browser will focus). The keys stand above the stretch as their own targets. */
 .books.shelf-rows li { position: relative; }
 .books.shelf-rows .book-open,
-.books.shelf-rows .series-open {
+.books.shelf-rows .series-press {
   display: block;
   min-inline-size: 0;
   padding: 0;
@@ -416,15 +416,15 @@
   cursor: pointer;
 }
 .books.shelf-rows .book-open::after,
-.books.shelf-rows .series-open::after {
+.books.shelf-rows .series-press::after {
   content: "";
   position: absolute;
   inset: 0;
 }
 .books.shelf-rows .book-open:focus-visible,
-.books.shelf-rows .series-open:focus-visible { outline: none; }
+.books.shelf-rows .series-press:focus-visible { outline: none; }
 .books.shelf-rows li:has(.book-open:focus-visible),
-.books.shelf-rows li:has(.series-open:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.books.shelf-rows li:has(.series-press:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .books.shelf-rows .row-controls { position: relative; z-index: 1; }
 .books.shelf-rows li:hover .book-title { color: var(--ink); }
 .shelf-rows .thumb { inline-size: 3.5rem; block-size: 3.5rem; }
@@ -1411,6 +1411,18 @@
 @media (max-width: 40rem) { .sift-shelf .find { max-inline-size: none; } }
 .sift-shelf .pick select { min-block-size: 2.25rem; font-size: 0.8125rem; }
 
+/* §8 under a thumb (2026-09-27): the tabs, the chips, the search, the order and the way
+   back out of a series were 30-36px, and none was in the registry. The Library's Filters
+   too. */
+@media (hover: none) and (pointer: coarse) {
+  .yours-tabs .tab,
+  .sift-shelf .chip,
+  .series-back,
+  .filters > summary { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .sift-shelf .find,
+  .sift-shelf .pick select { min-block-size: 44px; }
+}
+
 /* Inside a series: the way back, and its name. */
 .in-series { display: flex; align-items: baseline; gap: 0.75rem; margin: 0 0 0.75rem; }
 .in-series[hidden] { display: none; }
@@ -1429,7 +1441,8 @@
 .series-back:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .in-series .series-name { font-family: var(--reading-hebrew); font-size: 1.25rem; }
 
-/* A series row: its title is one press over the row, like a text's link (above). */
+/* A series row: its title is one press over the row, like a text's link (above). Not
+   `.series-open`, which is the followed series' Open in `follow.js`. */
 .books.shelf-rows li.is-series { cursor: pointer; }
 /* Two sheets drawn behind the picture, so a series reads as a stack before its line of
    facts is read. */

@@ -308,7 +308,7 @@
     // The title is the press and stretches over the row, as a text's link does (`row`).
     var press = document.createElement("button");
     press.type = "button";
-    press.className = "series-open";
+    press.className = "series-press";
     var newest = group.members.reduce(function (best, one) {
       return (one.built || 0) > (best.built || 0) ? one : best;
     }, group.members[0]);

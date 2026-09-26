@@ -574,3 +574,11 @@ body.embed > .chat-main > .composer {
 }
 .chat-reading-ask:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 @media (hover: none) and (pointer: coarse) { .chat-reading-ask { min-height: 44px; } }
+
+/* §8 under a thumb (2026-09-27): the box is 17px, so its word is the 44px press, as its
+   label, and the box itself grows a little. */
+@media (hover: none) and (pointer: coarse) {
+  .chat-claim label { display: flex; align-items: center; min-block-size: 44px; }
+  .chat-claim label.claim-all-reach { justify-content: center; min-inline-size: 44px; }
+  .chat-claim .claim-check { inline-size: 1.5rem; block-size: 1.5rem; }
+}
