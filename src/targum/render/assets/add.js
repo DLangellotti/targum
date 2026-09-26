@@ -1211,6 +1211,17 @@
   // that lands here first still claims what it has been keeping.
   if (window.TargumSync) window.TargumSync.start();
 
+  /* A paste's title: its first sentence where that is short enough to be one, and
+     otherwise the words that fit, never half of one. "…ולחם טר" was the first sixty
+     characters of a paste, cut through טרי (2026-09-27). */
+  var PASTE_TITLE = 60;
+  function pasteTitle(line) {
+    var sentence = line.split(/[.!?׃]\s/)[0].replace(/[.!?׃]+$/, "");
+    if (sentence.length <= PASTE_TITLE) return sentence;
+    var head = line.slice(0, PASTE_TITLE + 1);
+    return /\s/.test(head) ? head.replace(/\s+\S*$/, "") : head.slice(0, PASTE_TITLE);
+  }
+
   /* Pasted text is a file like any other; the server has one door for a text and this
      is how something on a clipboard walks through it. Named for its first line, because
      a title is the one thing a paste has no way of carrying. */
@@ -1218,7 +1229,7 @@
     var first = text.split("\n").find(function (line) {
       return line.trim();
     });
-    var name = (first || "pasted").trim().slice(0, 60).replace(/[\\/:*?"<>|]+/g, " ");
+    var name = pasteTitle((first || "pasted").trim()).replace(/[\\/:*?"<>|]+/g, " ");
     return {
       name: name + ".txt",
       // The escape rather than the character: a browser's own base64 refuses anything

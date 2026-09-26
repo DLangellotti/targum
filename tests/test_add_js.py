@@ -149,3 +149,24 @@ def test_a_turn_that_fails_says_so_rather_than_drawing_an_empty_block() -> None:
     )
     assert any("not reachable" in line for line in said["status"])
     assert said["cards"] == []
+
+
+def test_a_paste_is_titled_by_its_first_sentence_or_whole_words() -> None:
+    """A paste was titled by its first sixty characters, cut through a word: "…ולחם טר"
+    for "…ולחם טרי" (2026-09-27)."""
+    source = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")
+    start = source.index("  var PASTE_TITLE")
+    end = source.index("\n  }\n", start) + 4
+    lines = [
+        "בבוקר הלכתי לשוק עם אמא שלי. קנינו עגבניות, מלפפונים ולחם טרי.",
+        "קנינו עגבניות מלפפונים ולחם טרי והמוכר חייך ואמר שהיום יש מבצע על תפוזים",
+        "x" * 80,
+    ]
+    said = f"\nconsole.log(JSON.stringify({json.dumps(lines)}.map(pasteTitle)));"
+    script = source[start:end] + said
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0, done.stderr
+    first, words, long = json.loads(done.stdout)
+    assert first == "בבוקר הלכתי לשוק עם אמא שלי"
+    assert len(words) <= 60 and lines[1].startswith(words) and lines[1][len(words)] == " "
+    assert long == "x" * 60
