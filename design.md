@@ -368,8 +368,8 @@ each of the following.
   type and the palette, never a picture file, so it costs the page nothing to fetch. The
   example is Hebrew whatever the shelf's language: Hebrew is the product's first language
   and the word it is named for.
-- **The shelf can be sifted.** Chips for All · New · Reading · Finished, each with its
-  count and absent at nought; a search over the title and its English; and an order —
+- **The shelf can be sifted.** Chips for All · New · Started · Finished, each with its
+  count and absent at nought (a pressed chip stays, at nought, while it filters); a search over the title and its English; and an order —
   last read (the default, as before), recently added, easiest first, or most known. They
   are drawn only on a shelf of six or more: on a short shelf they are questions nobody
   asked.
@@ -388,6 +388,13 @@ each of the following.
 What it does not overturn: a row still says the seven facts of 2026-09-24, a build is
 still a row from the moment it starts, the trash is still at the foot, and Learn's cards
 draw the same rows without any of this.
+
+Amended 2026-09-27 (targum#435), from a design and QA pass: the chip says **Started**, the
+word the row's own status uses, rather than Reading, so one state has one name. The tabs
+stand under the heading and **above** the definition, so they are in the same place on all
+three tabs (Playlists draws no definition), and a reader with nothing on the shelf still
+sees the definition and the tabs. A row's press is its title, stretched over the row, so a
+keyboard can reach it.
 
 
 ### The finished box is three figures — 2026-09-25
