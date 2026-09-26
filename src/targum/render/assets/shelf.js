@@ -245,9 +245,15 @@
    * wraps the facts under them, folds the status into the facts and keeps two keys. */
   function row(reader, docs) {
     var item = document.createElement("li");
+    /* The link is the title, and its `::after` stretches over the row, so the whole row
+       is still the press. It wrapped the picture, the words and the status with
+       `display: contents`, which let the row's grid lay them out and left the link with
+       no box: Tab went past every text on the shelf and none could be opened from a
+       keyboard (2026-09-27). */
     var link = document.createElement("a");
+    link.className = "book-open";
     link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
-    link.appendChild(
+    item.appendChild(
       window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
         title: reader.title,
         language: reader.language,
@@ -262,7 +268,8 @@
     title.className = "book-title";
     // Inside a series its name is said once, above the rows, and each row says the rest.
     title.textContent = reader.shownTitle || reader.title;
-    what.appendChild(title);
+    link.appendChild(title);
+    what.appendChild(link);
     if (reader.english) {
       var english = document.createElement("span");
       english.className = "book-english";
@@ -273,14 +280,13 @@
     }
     var state = status(reader, docs);
     what.appendChild(facts(reader, state));
-    link.appendChild(what);
+    item.appendChild(what);
 
     var pill = document.createElement("span");
     pill.className = "row-status is-" + state.kind;
     if (state.kind === "finished") pill.appendChild(checkMark());
     pill.appendChild(document.createTextNode(state.said));
-    link.appendChild(pill);
-    item.appendChild(link);
+    item.appendChild(pill);
 
     var controls = document.createElement("span");
     controls.className = "row-controls";
@@ -299,6 +305,7 @@
   function seriesRow(group, docs, onOpen) {
     var item = document.createElement("li");
     item.className = "is-series";
+    // The title is the press and stretches over the row, as a text's link does (`row`).
     var press = document.createElement("button");
     press.type = "button";
     press.className = "series-open";
@@ -314,7 +321,7 @@
         drawn: newest.drawn,
       })
     );
-    press.appendChild(stack);
+    item.appendChild(stack);
 
     var what = document.createElement("span");
     what.className = "book-what";
@@ -322,7 +329,8 @@
     title.setAttribute("lang", group.language || "und");
     title.className = "book-title";
     title.textContent = group.title;
-    what.appendChild(title);
+    press.appendChild(title);
+    what.appendChild(press);
 
     var finished = 0;
     var begun = 0;
@@ -335,9 +343,11 @@
     var state =
       finished === total
         ? { kind: "finished", said: t("shelf.status.finished", "Finished") }
-        : finished || begun
+        : finished
           ? { kind: "reading", said: t("shelf.status.parts", "{done} of {total}", { done: finished, total: total }) }
-          : { kind: "new", said: t("shelf.status.new", "New") };
+          : begun
+            ? { kind: "reading", said: t("shelf.status.started", "Started") }
+            : { kind: "new", said: t("shelf.status.new", "New") };
 
     var line = document.createElement("span");
     line.className = "book-facts";
@@ -357,17 +367,16 @@
     folded.textContent = state.said;
     line.appendChild(folded);
     what.appendChild(line);
-    press.appendChild(what);
+    item.appendChild(what);
 
     var pill = document.createElement("span");
     pill.className = "row-status is-" + state.kind;
     if (state.kind === "finished") pill.appendChild(checkMark());
     pill.appendChild(document.createTextNode(state.said));
-    press.appendChild(pill);
+    item.appendChild(pill);
     press.onclick = function () {
       if (onOpen) onOpen(group);
     };
-    item.appendChild(press);
 
     // The controls' column holds the way in, so the row reads as something that opens.
     var controls = document.createElement("span");

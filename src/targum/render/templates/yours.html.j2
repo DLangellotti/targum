@@ -36,6 +36,11 @@
 
 <main id="page" hidden>
   {%- if which == 'texts' %}
+  {#- The tabs first, so they stand where they stand on /playlists, which has no
+      definition: under the heading, as the Library's do. Below the definition they
+      jumped a screen up the page the moment Playlists was pressed (2026-09-27). -#}
+  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
+
   {#- What a targum is, shown rather than only said (design.md §12, 2026-09-26): one
       sentence, and a line of Hebrew with its translation under it and one word tapped.
       Type and the palette, no picture file. Hebrew whatever the shelf's language: it is
@@ -56,7 +61,6 @@
     </figure>
   </section>
 
-  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
 
   <section class="panel" id="shelf-panel">
     {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
@@ -208,7 +212,11 @@
   </section>
   {%- endif %}
 
+  {#- Your targums is a place in the nav since 2026-09-24; a way back to Learn at its foot
+      was left from when it hung off Learn. The lists behind the account keep theirs. -#}
+  {%- if which != 'texts' %}
   <p><a class="back" href="/" data-back>{{ t("yours.page.learn", "Learn") }}</a></p>
+  {%- endif %}
 </main>
 
 <section class="nothing" id="nothing" hidden>

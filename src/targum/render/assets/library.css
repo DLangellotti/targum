@@ -398,14 +398,35 @@
 /* §8: a row hover is a 7–10% accent wash. */
 .books.shelf-rows li:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 
-/* `display: contents` so the cells inside the link are laid out by the row's own grid.
-   The link still covers them; the keys beside it stay their own targets. */
-.books.shelf-rows li > a {
-  display: contents;
+/* The title is the link, and its `::after` covers the row, so the row is one press and
+   the link a real box a keyboard can reach (2026-09-27; it was `display: contents`,
+   which no browser will focus). The keys stand above the stretch as their own targets. */
+.books.shelf-rows li { position: relative; }
+.books.shelf-rows .book-open,
+.books.shelf-rows .series-open {
+  display: block;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
   color: inherit;
+  font: inherit;
+  text-align: start;
   text-decoration: none;
+  cursor: pointer;
 }
-.books.shelf-rows li > a:hover .book-title { color: var(--ink); }
+.books.shelf-rows .book-open::after,
+.books.shelf-rows .series-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.books.shelf-rows .book-open:focus-visible,
+.books.shelf-rows .series-open:focus-visible { outline: none; }
+.books.shelf-rows li:has(.book-open:focus-visible),
+.books.shelf-rows li:has(.series-open:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.books.shelf-rows .row-controls { position: relative; z-index: 1; }
+.books.shelf-rows li:hover .book-title { color: var(--ink); }
 .shelf-rows .thumb { inline-size: 3.5rem; block-size: 3.5rem; }
 
 .book-what { min-inline-size: 0; display: grid; gap: 0.1rem; }
@@ -1356,7 +1377,10 @@
   /* Learn's phone rule takes the page's gutter away for its edge-to-edge panels; these
      two stand on the ground and need it back. */
   .defined { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; padding: 1rem 1rem 0; }
-  .yours-tabs { margin-inline: 1rem; }
+  body.learn .yours-tabs { margin-inline: 1rem; }
+  /* And the strip at the same height on all three tabs: Learn's phone main has no top
+     padding, so /playlists drops its own. */
+  body.playlists main { padding-block-start: 0; }
   .defined-example { margin-block-start: 0.6rem; }
   .defined-line { font-size: 1.25rem; }
 }
@@ -1405,17 +1429,8 @@
 .series-back:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 .in-series .series-name { font-family: var(--reading-hebrew); font-size: 1.25rem; }
 
-/* A series row: one press, laid out by the row's own grid like a text's link. */
-.books.shelf-rows li > .series-open {
-  display: contents;
-  font: inherit;
-  color: inherit;
-  text-align: start;
-  cursor: pointer;
-}
+/* A series row: its title is one press over the row, like a text's link (above). */
 .books.shelf-rows li.is-series { cursor: pointer; }
-.books.shelf-rows li.is-series:hover .book-title { color: var(--ink); }
-.series-open:focus-visible .book-title { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* Two sheets drawn behind the picture, so a series reads as a stack before its line of
    facts is read. */
 .series-stack { position: relative; display: block; isolation: isolate; justify-self: start; }
@@ -1495,8 +1510,19 @@
     white-space: normal;
     line-height: 1.35;
   }
-  /* The facts wrap on a card: it is narrow, and a cut line would lose the level. */
-  .shelf-cards .book-facts { white-space: normal; }
+  /* The facts wrap on a card: it is narrow, and a cut line would lose the level. Spaced
+     rather than dotted, as on a phone. `white-space` alone did nothing: each fact is
+     unbreakable and the spans sit with no space between them, so "Added 9 days ago" was
+     cut to "Adde…" (2026-09-27). */
+  .shelf-cards .book-facts {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 0.75em;
+    row-gap: 0.1rem;
+    overflow: visible;
+    white-space: normal;
+  }
+  .shelf-cards .book-facts .fact + .fact::before { content: none; }
   .shelf-cards .row-status { align-self: center; margin-inline-start: 0.25rem; }
   .shelf-cards .row-controls { align-self: center; }
   .shelf-cards .add-to-list { padding: 0; inline-size: 2.5rem; }

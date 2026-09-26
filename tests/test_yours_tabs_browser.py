@@ -145,7 +145,7 @@ def test_a_chip_and_a_search_sift_the_shelf(browser, tmp_path: Path) -> None:
     assert [" ".join(chip.split()) for chip in chips] == [
         "All 7",
         "New 4",
-        "Reading 1",
+        "Started 1",
         "Finished 2",
     ]
     # Two finished episodes of one series are still that series, folded.
@@ -193,3 +193,108 @@ def test_playlists_wears_the_same_tabs_and_lights_your_targums(browser, tmp_path
     context.close()
     assert tabs == ["all", "uploads", "playlists"]
     assert current == "playlists" and here == "texts"
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_every_row_can_be_reached_and_pressed_from_a_keyboard(
+    browser, tmp_path: Path, width: int
+) -> None:
+    """The row's link wrapped its cells with `display: contents`, which no browser will
+    focus: Tab went from the order to the first row's keys and no text or series could be
+    opened without a pointer (2026-09-27). The title is the press now, stretched over the
+    row, and a pointer anywhere on the row still opens it."""
+    context, page, thrown = shelf(browser, tmp_path, width=width)
+    for _ in range(60):
+        page.keyboard.press("Tab")
+        page.evaluate("document.activeElement.dataset.reached = '1'")
+    opens = page.locator("#library-list .book-open").count()
+    series = page.locator("#library-list .series-open[data-reached]").count()
+    texts = page.locator("#library-list .book-open[data-reached]").count()
+    reached = [series, texts, opens]
+    page.locator("#library-list .series-open").focus()
+    page.keyboard.press("Enter")
+    inside = page.locator("#series-name").inner_text()
+    # A press on the picture, not the title, still lands on the link.
+    box = page.locator("#library-list li:not(.is-series) .thumb").first.bounding_box()
+    target = page.evaluate(
+        "([x, y]) => document.elementFromPoint(x, y).className",
+        [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+    )
+    context.close()
+    assert series == 1, reached
+    assert texts == opens and opens >= 4, reached
+    assert inside == "עברית אנפלאגד"
+    assert target == "book-open", "the stretch covers the picture"
+    assert not thrown
+
+
+def test_a_search_does_not_follow_the_reader_to_a_tab_with_no_search_box(
+    browser, tmp_path: Path
+) -> None:
+    """Typed on All targums, a search went on filtering Your uploads, which is too short to
+    draw the box it could be cleared from: "Nothing here matches that." and no way out
+    (2026-09-27). A chip pressed there did the same."""
+    context, page, thrown = shelf(browser, tmp_path)
+    page.locator("#status-chips .chip", has_text="Finished").click()
+    page.fill("#shelf-find", "zzz")
+    page.click("#yours-tabs [data-tab='uploads']")
+    uploads = titles(page)
+    page.click("#yours-tabs [data-tab='all']")
+    everything = titles(page)
+    typed = page.input_value("#shelf-find")
+    context.close()
+    assert "כתבה שהבאתי" in uploads and "עברית אנפלאגד" in uploads
+    assert len(everything) == 5 and typed == ""
+    assert not thrown
+
+
+def test_a_chip_shows_a_series_whole_and_stays_while_it_filters(browser, tmp_path: Path) -> None:
+    """Pressed, Finished showed the series as "2 episodes · Finished" when it has three and
+    one unread; and a search that left nothing finished took the pressed chip away while
+    it still filtered (2026-09-27)."""
+    context, page, thrown = shelf(browser, tmp_path)
+    page.locator("#status-chips .chip", has_text="Finished").click()
+    facts = page.locator("#library-list li.is-series .book-facts").inner_text()
+    status = page.locator("#library-list li.is-series .row-status").inner_text()
+    page.fill("#shelf-find", "brought")
+    pressed = page.locator("#status-chips .chip[aria-pressed='true']").inner_text()
+    context.close()
+    assert "3 episodes" in facts and status.strip() == "2 of 3"
+    assert " ".join(pressed.split()) == "Finished 0"
+    assert not thrown
+
+
+def test_a_series_begun_and_not_finished_says_started(browser, tmp_path: Path) -> None:
+    """One episode opened and none finished said "0 of 3"."""
+    global DOCS, OPENED
+    kept = DOCS, OPENED
+    DOCS, OPENED = {}, {"e63": 1000}
+    try:
+        context, page, _ = shelf(browser, tmp_path)
+        status = page.locator("#library-list li.is-series .row-status").inner_text()
+        context.close()
+    finally:
+        DOCS, OPENED = kept
+    assert status.strip() == "Started"
+
+
+def test_a_reader_with_nothing_still_sees_what_a_targum_is_and_the_tabs(
+    browser, tmp_path: Path
+) -> None:
+    """The definition and the tabs were inside the part of the page an empty shelf kept
+    hidden, so the reader who most needed them saw one line (2026-09-27)."""
+    page_file = tmp_path / "texts.html"
+    page_file.write_text(list_page("test-key", "texts"), encoding="utf-8")
+    context = browser.new_context(viewport={"width": 390, "height": 900})
+    page = context.new_page()
+    page.add_init_script(
+        "window.fetch = () => Promise.resolve(new Response(JSON.stringify("
+        "{readers: [], shared: [], trash: []})));"
+    )
+    page.goto(page_file.as_uri())
+    page.wait_for_selector("#nothing:not([hidden])")
+    defined = page.locator(".defined").is_visible()
+    tabs = page.locator("#yours-tabs").is_visible()
+    shelf_shown = page.locator("#shelf-panel").is_visible()
+    context.close()
+    assert defined and tabs and not shelf_shown

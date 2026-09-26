@@ -162,9 +162,11 @@
     return found ? shelf.base(reader.language) + "\n" + found.stem.toLowerCase() : "";
   }
 
-  // Pointing and cantillation left out, so "הספר" finds "הַסֵּפֶר".
+  // Pointing and cantillation left out, so "הספר" finds "הַסֵּפֶר"; the maqaf is a space,
+  // so "בית הספר" finds "בית־הספר".
   function plainText(text) {
     return String(text || "")
+      .replace(/\u05be/g, " ")
       .replace(/[֑-ׇ]/g, "")
       .toLowerCase();
   }
@@ -182,12 +184,20 @@
     return !query || plainText(reader.title + " " + (reader.english || "")).indexOf(query) >= 0;
   }
 
-  /* Texts of one series become one row; a series left with one text is that text. */
-  function fold(readers) {
+  /* Texts of one series become one row; a series left with one text is that text. A
+     chip or a search decides which series show; the row still counts every episode of
+     it on this tab, from `whole`, or pressing Finished said "2 episodes, Finished" of a
+     series of five (2026-09-27). */
+  function fold(readers, whole) {
     var by = {};
     readers.forEach(function (reader) {
       var at = seriesKey(reader);
       if (at) (by[at] = by[at] || []).push(reader);
+    });
+    var all = {};
+    (whole || readers).forEach(function (reader) {
+      var at = seriesKey(reader);
+      if (at) (all[at] = all[at] || []).push(reader);
     });
     var placed = {};
     var out = [];
@@ -200,7 +210,7 @@
         key: at,
         title: episode(reader.title).stem,
         language: reader.language,
-        members: by[at],
+        members: all[at] || by[at],
       });
     });
     return out;
@@ -279,8 +289,17 @@
       });
       codes = lang.order(codes, names);
 
+      // Nothing yet: the page still says what a targum is and where the tabs go, which is
+      // what the reader with nothing needs most; only the shelf's panel stays shut.
       if (!readers.length && !building.length) {
+        document.getElementById("page").hidden = false;
+        document.getElementById("shelf-panel").hidden = true;
         document.getElementById("nothing").hidden = false;
+        Array.prototype.forEach.call(document.querySelectorAll("#yours-tabs [data-tab]"), function (link) {
+          var here = link.getAttribute("data-tab");
+          if (here === view.tab) link.setAttribute("aria-current", "page");
+          else if (here !== "playlists") link.removeAttribute("aria-current");
+        });
         return;
       }
       document.getElementById("page").hidden = false;
@@ -305,7 +324,8 @@
           ["reading", t("yours.sift.reading", "Started")],
           ["finished", t("yours.sift.finished", "Finished")],
         ].forEach(function (pair) {
-          if (pair[0] !== "all" && !counts[pair[0]]) return;
+          // The pressed chip stays, at nought, so what is filtering the list is on screen.
+          if (pair[0] !== "all" && !counts[pair[0]] && view.status !== pair[0]) return;
           var press = chip(pair[1], pair[0], counts[pair[0]]);
           press.onclick = function () {
             view.status = view.status === pair[0] ? "all" : pair[0];
@@ -319,11 +339,20 @@
         var mine = readers.filter(function (reader) {
           return shelf.base(reader.language) === shown && onTab(reader);
         });
+        sift.hidden = mine.length < SIFT_FROM;
+        // Nothing sifts what cannot be seen: a search typed on All targums went on
+        // emptying Your uploads, which draws no box to clear it from (2026-09-27).
+        if (sift.hidden) {
+          view.query = "";
+          view.status = "all";
+          view.order = "read";
+          find.value = "";
+          order.value = "read";
+        }
         var searched = mine.filter(matches);
         var sifted = searched.filter(function (reader) {
           return view.status === "all" || shelf.status(reader).kind === view.status;
         });
-        sift.hidden = mine.length < SIFT_FROM;
         if (!sift.hidden) drawChips(searched);
 
         var rows;
@@ -348,7 +377,7 @@
             view.series = "";
           }
         }
-        if (!group) rows = fold(sifted).sort(ORDERS[view.order]);
+        if (!group) rows = fold(sifted, mine).sort(ORDERS[view.order]);
 
         inSeries.hidden = !group;
         if (group) {
