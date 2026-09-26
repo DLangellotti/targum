@@ -399,7 +399,11 @@
           empty = t("shelf.empty.language", "Nothing in {language} yet.", { language: names[shown] || shown });
         }
         shelf.draw(shown, rows, {
-          note: sift.hidden && !group && view.order === "read" ? t("yours.last-read-first", "Last read first.") : "",
+          // An order is only news where there are two things to put in one.
+          note:
+            sift.hidden && !group && view.order === "read" && rows.length > 1
+              ? t("yours.last-read-first", "Last read first.")
+              : "",
           building: plain ? building : [],
           empty: empty,
           onSeries: function (folded) {
