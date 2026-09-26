@@ -76,6 +76,8 @@ GAP = 0.45
 #: probe run beside this will make *this* fail, not the probe.
 SPACING = 21.0
 WAIT = 30
+#: The 21 seconds is the free key's ceiling. A paid key is not held to it, and --spacing
+#: sets the pace for one.
 
 #: Kept short on purpose, and the length is not a style preference. Measured on
 #: 2026-09-22 against one turn of 81-the-army-friend: a 497-character prompt was
@@ -200,7 +202,9 @@ def encode(raw: Path, into: Path) -> None:
     )
 
 
-def voice(scene: dict[str, Any], key: str, into: Path) -> tuple[list[list[float]], float]:
+def voice(
+    scene: dict[str, Any], key: str, into: Path, spacing: float = SPACING
+) -> tuple[list[list[float]], float]:
     """The whole scene, one turn at a time. Returns the spans and the seconds spoken."""
     quiet = b"\0" * int(RATE * GAP) * 2
     pieces: list[bytes] = []
@@ -217,7 +221,7 @@ def voice(scene: dict[str, Any], key: str, into: Path) -> tuple[list[list[float]
             pieces.append(quiet)
             at += GAP
         print(f"    t{n} {seconds:5.2f}s  {turn['who']}", flush=True)
-        time.sleep(SPACING)
+        time.sleep(spacing)
     joined = b"".join(pieces)
     raw = into / f"{scene['id']}.wav"
     raw.write_bytes(wav(joined))
@@ -232,6 +236,7 @@ def main() -> None:
     parser.add_argument("--only", action="append", default=[], help="one scene id; repeatable")
     parser.add_argument("--key", type=Path, help="file holding the key; or TARGUM_TTS_KEY")
     parser.add_argument("--again", action="store_true", help="re-voice scenes already in --into")
+    parser.add_argument("--spacing", type=float, default=SPACING, help="seconds between requests")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -294,7 +299,7 @@ def main() -> None:
     for scene in scenes:
         print(f"\n{scene['id']}:", flush=True)
         try:
-            spans, seconds = voice(scene, key, into)
+            spans, seconds = voice(scene, key, into, args.spacing)
         except Daily as gone:
             print(f"\n  the day's quota is gone: {gone}", file=sys.stderr)
             print(
