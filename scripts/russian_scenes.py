@@ -22,7 +22,7 @@ with the scene, and going back to the Hebrew would re-decide all of it in a seco
 language and disagree with the first.
 
     .venv/bin/python scripts/russian_scenes.py --from ~/…/dialogues --dry-run
-    set -a && . ./.env && set +a && .venv/bin/python scripts/russian_scenes.py \\
+    op run --env-file op.env -- .venv/bin/python scripts/russian_scenes.py \\
         --from ~/…/dialogues --into ./russian-scenes
 """
 

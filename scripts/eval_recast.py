@@ -52,9 +52,9 @@ this measures what a Russian reader gets today.
 **What it costs.** N chat turns and N judge calls at the chat's model. Nothing is cached
 by design: the question is what the model does today.
 
-    set -a && . ./.env && set +a && \\
+    op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_recast.py --pool ~/.targum/exemplars.jsonl --pairs 200
-    set -a && . ./.env && set +a && \\
+    op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_recast.py --reference flores --pairs 200 --save out.jsonl
 """
 

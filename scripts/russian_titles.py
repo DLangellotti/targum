@@ -20,7 +20,7 @@ the private file, so the review and the commit happen in `targum-internal`.
 `--sample N` drafts only the first N and is what to run before the whole thing: the sample
 is worth more before the money than after.
 
-    set -a && . ./.env && set +a && .venv/bin/python scripts/russian_titles.py --sample 15
+    op run --env-file op.env -- .venv/bin/python scripts/russian_titles.py --sample 15
 """
 
 from __future__ import annotations

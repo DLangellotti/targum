@@ -18,7 +18,7 @@ A dry run prints what it would write, one line per entry, with the rule that pro
 rows the model drafted — those are the ones a person has to read. The file it edits is
 the private catalogue, so the review and the commit happen in `targum-internal`.
 
-    set -a && . ./.env && set +a && .venv/bin/python scripts/english_titles.py [--write]
+    op run --env-file op.env -- .venv/bin/python scripts/english_titles.py [--write]
 """
 
 from __future__ import annotations

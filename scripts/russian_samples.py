@@ -20,7 +20,7 @@ licence and credit in its provenance section, which is what `owed` owes.
 catalogue in place, which is the private file.
 
     .venv/bin/python scripts/russian_samples.py --sample 6
-    set -a && . ./.env && set +a && .venv/bin/python scripts/russian_samples.py --write
+    op run --env-file op.env -- .venv/bin/python scripts/russian_samples.py --write
 """
 
 from __future__ import annotations

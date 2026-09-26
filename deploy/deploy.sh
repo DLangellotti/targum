@@ -53,6 +53,22 @@ else
 fi
 echo "   clean"
 
+echo "== secrets, from 1Password =="
+# The box's keys come from the vault on every deploy, so rotating one is: change it in
+# 1Password, deploy (targum-internal#326). Resolved here, before anything is built,
+# because a key the vault cannot give is a deploy that should not start — and op names
+# the item it could not read. Before this the box's file was edited by hand, and
+# TARGUM_TTS_KEY was missing from all five versions of it without anything saying so.
+command -v op >/dev/null || { echo "   no op here: brew install 1password-cli" >&2; exit 1; }
+SECRETS="$(op inject -i deploy/box.env.op | grep -E '^[A-Z_]+=')"
+while IFS= read -r line; do
+  if [ -z "${line#*=}" ]; then
+    echo "   ${line%%=*} is empty in the vault" >&2
+    exit 1
+  fi
+done <<<"$SECRETS"
+echo "   $(grep -c . <<<"$SECRETS") keys"
+
 echo "== build =="
 rm -rf dist
 # The about page reads `git log`, and a wheel has no repository to read. The counts are
@@ -94,6 +110,19 @@ fi
 # The unit too. provision.sh installs it once, on a fresh box, and nothing carried it
 # after that: a limit raised here stayed raised here.
 scp -q deploy/targum.service "$HOST:/tmp/targum.service"
+
+# The keys, over the connection's own stdin rather than scp: nothing holding them is
+# written anywhere on either machine but the file itself. No single quotes inside MERGE:
+# it travels inside a pair of them. Each name's old line goes and the vault's comes in;
+# every other line of the file stays as it was, and so do its owner and mode, because the
+# file is rewritten in place rather than replaced. Before the restart below, which is
+# what makes the service read it.
+MERGE='new=$(cat)
+names=$(printf "%s\n" "$new" | cut -d= -f1 | paste -sd"|" -)
+kept=$(grep -vE "^($names)=" /etc/targum/targum.env || true)
+printf "%s\n%s\n" "$kept" "$new" > /etc/targum/targum.env'
+printf '%s\n' "$SECRETS" | ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -c '$MERGE'"
+unset SECRETS
 
 ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # Installed as the service account so the tool and its virtualenv are owned by the

@@ -17,7 +17,7 @@ model or the next prompt can be compared with this one.
 **What it costs.** K model calls at the chat's own model and effort, and one DICTA load.
 Nothing is cached by design: the question is what the model does today.
 
-    set -a && . ./.env && set +a && .venv/bin/python scripts/eval_grading.py --turns 20
+    op run --env-file op.env -- .venv/bin/python scripts/eval_grading.py --turns 20
 """
 
 from __future__ import annotations

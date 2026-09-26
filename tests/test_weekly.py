@@ -635,6 +635,7 @@ def test_the_scheduled_run_needs_the_private_half_and_says_so_before_it_spends()
     assert script.index("weekly/write.py") < script.index("weekly draft"), (
         "and checks before it drafts, which is the step that spends"
     )
-    # And loads the key itself: nothing else does, and the failure without it blames the
-    # key rather than the loading of it.
-    assert ". ./.env" in script
+    # And loads the keys itself, from the vault: nothing else does, and the failure without
+    # them blames the key rather than the loading of it.
+    assert 'op run --env-file "$ROOT/op.env"' in script
+    assert script.index("op run") < script.index("weekly draft")

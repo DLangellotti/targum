@@ -5,7 +5,7 @@ would let a line light word by word where there is no recording, only a voice â€
 behind a number nobody had taken. This takes it.
 
     .venv/bin/python scripts/eval_align.py --languages he,fr,ru,it --words 40 --dry-run
-    set -a && . ./.env && set +a && .venv/bin/python scripts/eval_align.py --languages he
+    op run --env-file op.env -- .venv/bin/python scripts/eval_align.py --languages he
 
 **It spends.** The voice is $0.03 a minute, so forty words a language across four is a
 few cents â€” but `--dry-run` prices it first and calls nothing, which is the only honest
