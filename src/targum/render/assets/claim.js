@@ -122,7 +122,7 @@
     var yes = el("button", "claim-yes", t("claim.mark-known", "Mark known"));
     yes.type = "button";
     yes.disabled = true;
-    var no = el("button", "claim-no", t("claim.none", "None"));
+    var no = el("button", "claim-no", t("claim.none", "Skip"));
     no.type = "button";
     var said = el("span", "claim-said", "");
     actions.appendChild(yes);

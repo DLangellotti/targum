@@ -846,7 +846,7 @@
   "lists.show-more": "Show {n} more",
   "claim.check-all": "Check all",
   "claim.mark-known": "Mark known",
-  "claim.none": "None",
+  "claim.none": "Skip",
   "claim.whole-list": "That's the whole list.",
   "claim.marked.one": "We've marked {n} as known.",
   "claim.marked.other": "We've marked {n} as known.",

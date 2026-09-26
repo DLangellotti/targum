@@ -906,7 +906,7 @@
   "lists.show-more": "Показать ещё {n}",
   "claim.check-all": "Отметить все",
   "claim.mark-known": "Знаю эти",
-  "claim.none": "Ни одного",
+  "claim.none": "Пропустить",
   "claim.whole-list": "Это весь список.",
   "claim.marked.one": "Мы отметили {n} слово как знакомое.",
   "claim.marked.other": "Мы отметили {n} слова как знакомые.",
