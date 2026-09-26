@@ -103,13 +103,29 @@ def wav(pcm: bytes) -> bytes:
     return head + struct.pack("<I", len(pcm)) + pcm
 
 
-def say(text: str, voice: str, key: str, prompt: str) -> bytes:
+#: Two doors to the same model. The Gemini API is AI Studio's, and caps this preview model
+#: at 100 requests a day on the paid tier as on the free one — measured 2026-09-26, and
+#: the shelf is 2,023 requests. Vertex serves the same model and voices with no daily cap,
+#: and takes the same body; its key must be bound to a service account holding Vertex AI
+#: User, because Vertex will not run a model for a key that is nobody.
+DOORS = {
+    "gemini": (
+        "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        "TARGUM_TTS_KEY",
+    ),
+    "vertex": (
+        "https://aiplatform.googleapis.com/v1/publishers/google/models/{model}:generateContent",
+        "TARGUM_VERTEX_TTS_KEY",
+    ),
+}
+
+
+def say(text: str, voice: str, key: str, prompt: str, via: str = "gemini") -> bytes:
     """One turn. Returns raw PCM, not a WAV: these get joined before they get a header."""
-    url = (
-        f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={key}"
-    )
+    url = DOORS[via][0].format(model=MODEL) + f"?key={key}"
     body = {
-        "contents": [{"parts": [{"text": prompt + "\n\n" + text}]}],
+        # Vertex requires the role; the Gemini API takes it and does not need it.
+        "contents": [{"role": "user", "parts": [{"text": prompt + "\n\n" + text}]}],
         "generationConfig": {
             "responseModalities": ["AUDIO"],
             "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
@@ -203,7 +219,7 @@ def encode(raw: Path, into: Path) -> None:
 
 
 def voice(
-    scene: dict[str, Any], key: str, into: Path, spacing: float = SPACING
+    scene: dict[str, Any], key: str, into: Path, spacing: float = SPACING, via: str = "gemini"
 ) -> tuple[list[list[float]], float]:
     """The whole scene, one turn at a time. Returns the spans and the seconds spoken."""
     quiet = b"\0" * int(RATE * GAP) * 2
@@ -212,7 +228,7 @@ def voice(
     at = 0.0
     for n in range(len(scene["turns"])):
         turn = scene["turns"][n]
-        pcm = say(turn["text"], scene["cast"][turn["who"]]["voice"], key, prompt_for(scene, n))
+        pcm = say(turn["text"], scene["cast"][turn["who"]]["voice"], key, prompt_for(scene, n), via)
         seconds = len(pcm) / (RATE * 2)
         spans.append([round(at, 2), round(at + seconds, 2)])
         pieces.append(pcm)
@@ -236,6 +252,9 @@ def main() -> None:
     parser.add_argument("--only", action="append", default=[], help="one scene id; repeatable")
     parser.add_argument("--key", type=Path, help="file holding the key; or TARGUM_TTS_KEY")
     parser.add_argument("--again", action="store_true", help="re-voice scenes already in --into")
+    parser.add_argument(
+        "--via", choices=sorted(DOORS), default="gemini", help="which door to the model"
+    )
     parser.add_argument("--spacing", type=float, default=SPACING, help="seconds between requests")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -290,16 +309,17 @@ def main() -> None:
         print("Nothing was called. Drop --dry-run to run it.")
         return
 
-    key = (args.key.read_text().strip() if args.key else "") or os.environ.get("TARGUM_TTS_KEY", "")
+    named = DOORS[args.via][1]
+    key = (args.key.read_text().strip() if args.key else "") or os.environ.get(named, "")
     if not key:
-        sys.exit("no key: set TARGUM_TTS_KEY or pass --key <file>")
+        sys.exit(f"no key: set {named} or pass --key <file>")
 
     into.mkdir(parents=True, exist_ok=True)
     spent = 0.0
     for scene in scenes:
         print(f"\n{scene['id']}:", flush=True)
         try:
-            spans, seconds = voice(scene, key, into, args.spacing)
+            spans, seconds = voice(scene, key, into, args.spacing, args.via)
         except Daily as gone:
             print(f"\n  the day's quota is gone: {gone}", file=sys.stderr)
             print(
