@@ -20,7 +20,7 @@ lines is parsing, `eval_grading.py` is where the lemma question lives, and keepi
 apart is what lets this run on a laptop.
 
     .venv/bin/python scripts/eval_why.py --dry-run
-    set -a && . ./.env && set +a && .venv/bin/python scripts/eval_why.py --turns 10
+    op run --env-file op.env -- .venv/bin/python scripts/eval_why.py --turns 10
 """
 
 from __future__ import annotations

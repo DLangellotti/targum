@@ -24,7 +24,9 @@ It runs the checks, builds a wheel, installs it, restarts, and fails loudly if
 `/health` does not come back. `targum preflight` is the same gate on the box, and
 systemd runs it before every start.
 
-Secrets live in `/etc/targum/targum.env` and nowhere else.
+Secrets live in the `targum` vault in 1Password. `deploy.sh` writes the lines named in
+`box.env.op` into `/etc/targum/targum.env` on every deploy; everything else in that file
+is a setting, and is edited on the box as before.
 
 Daily learning is not indexed until `TARGUM_INDEX_DAILY=1` is set on the box, and that
 is a separate switch from `TARGUM_INDEX_PARASHA`. Sharing one would mean that inviting

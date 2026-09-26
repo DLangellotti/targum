@@ -20,7 +20,7 @@ not the answer. Both are appended to `evals/ledger.jsonl` as stage `ask`, corpus
 design: the question is what the model does today.
 
     targum models fetch heq
-    set -a && . ./.env && set +a && \\
+    op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_ask.py --questions 200 --save out.jsonl
 """
 

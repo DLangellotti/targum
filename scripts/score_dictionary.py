@@ -1,7 +1,7 @@
 """Score the dictionary itself against the hand tagging (targum-internal#116).
 
-    set -a && . ./.env && set +a
-    python scripts/score_dictionary.py --verbs 400 --participles 250
+    op run --env-file op.env -- \\
+      .venv/bin/python scripts/score_dictionary.py --verbs 400 --participles 250
 
 `score_annotation.py` scores the annotator as a whole. This scores the one stage that
 costs money, on its own and before it is believed, which is the gate the plan puts in

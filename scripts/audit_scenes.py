@@ -19,7 +19,7 @@ was invented; both are dropped here rather than passed on.
 It spends. `--dry-run` prices it and calls nothing.
 
     .venv/bin/python scripts/audit_scenes.py --from ~/…/dialogues --dry-run
-    set -a && . ./.env && set +a && .venv/bin/python scripts/audit_scenes.py \\
+    op run --env-file op.env -- .venv/bin/python scripts/audit_scenes.py \\
         --from ~/…/dialogues --out findings.json
 """
 

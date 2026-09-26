@@ -29,15 +29,25 @@ cd "$ROOT" || exit 1
 say() { printf '== %s\n' "$*"; }
 die() { printf '!! %s\n' "$*" >&2; exit 1; }
 
-# The key lives in .env and nothing loads it for you — not `uv run`, not the venv's own
-# python. Without it the failure reads "Could not resolve authentication method", which
-# sounds like a missing key rather than an unloaded one (CLAUDE.md).
-[ -f .env ] || die "no .env here, so there is no API key and draft would fail on a sentence that blames the key"
-set -a
-# shellcheck disable=SC1091
-. ./.env
-set +a
-[ -n "${ANTHROPIC_API_KEY:-}" ] || die ".env has no ANTHROPIC_API_KEY"
+# The keys live in 1Password and nothing loads them for you — not `uv run`, not the venv's
+# own python. Without them the failure reads "Could not resolve authentication method",
+# which sounds like a missing key rather than an unloaded one (CLAUDE.md). So the run
+# starts itself again under `op run`, which puts op.env's keys in its environment.
+#
+# At 07:00 on a Monday nobody is there to touch the fingerprint reader, so the scheduled
+# run reads the vault as the targum-box service account, whose token is kept in the login
+# keychain (the plist says how it gets there). Read-only, and the targum vault only. A
+# run by hand with no such token falls back to the app's own unlock.
+if [ -z "${TARGUM_UNDER_OP:-}" ]; then
+  command -v op >/dev/null || die "no op on PATH ($PATH): brew install 1password-cli, and put /opt/homebrew/bin in the plist's PATH"
+  if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] &&
+    token="$(security find-generic-password -s targum-op-service-account -w 2>/dev/null)"; then
+    export OP_SERVICE_ACCOUNT_TOKEN="$token"
+  fi
+  export TARGUM_UNDER_OP=1
+  exec op run --env-file "$ROOT/op.env" -- bash "$ROOT/deploy/weekly-run.sh" "$@"
+fi
+[ -n "${ANTHROPIC_API_KEY:-}" ] || die "op run gave no ANTHROPIC_API_KEY: is it in op.env and the vault?"
 
 TARGUM="${TARGUM_BIN:-$ROOT/.venv/bin/targum}"
 [ -x "$TARGUM" ] || die "no targum at $TARGUM — run: uv sync --all-extras"
