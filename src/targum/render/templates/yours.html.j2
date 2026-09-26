@@ -36,14 +36,50 @@
 
 <main id="page" hidden>
   {%- if which == 'texts' %}
-  <section class="panel" id="shelf-panel">
-    <div class="shelf-top">
-      <p class="note what-is">{{ t("yours.page.a-targum-is-an-interactive-bilingual-text", "A targum is an interactive bilingual text, optimised for
-      language learning.") }}</p>
-      <a class="to-playlists" href="/playlists{% if token %}?k={{ token }}{% endif %}">{{ t("yours.page.playlists", "Playlists") }}</a>
+  {#- What a targum is, shown rather than only said (design.md §12, 2026-09-26): one
+      sentence, and a line of Hebrew with its translation under it and one word tapped.
+      Type and the palette, no picture file. Hebrew whatever the shelf's language: it is
+      the word the product is named for. -#}
+  <section class="defined" aria-labelledby="defined-head">
+    <div class="defined-words">
+      <h2 id="defined-head">{{ t("yours.defined.head", "What's a targum?") }}</h2>
+      <p>{{ t("yours.defined.body", "A text you read in the language you're learning, with its translation held line by line under it. Tap any word for what it means.") }}</p>
     </div>
+    <figure class="defined-example" aria-label="{{ t("yours.defined.example", "An example of a targum") }}">
+      <p class="defined-line" lang="he" dir="rtl">הַסֵּפֶר עַל <mark class="defined-word">הַשֻּׁלְחָן</mark></p>
+      <p class="defined-under">{{ t("yours.defined.translation", "The book is on the table") }}</p>
+      <span class="defined-card" aria-hidden="true">
+        <bdi class="defined-card-word" lang="he">שֻׁלְחָן</bdi>
+        <span class="defined-card-means">{{ t("yours.defined.meaning", "table") }}</span>
+        <span class="defined-card-what">{{ t("yours.defined.part", "noun") }}</span>
+      </span>
+    </figure>
+  </section>
+
+  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
+
+  <section class="panel" id="shelf-panel">
+    {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
+    <div class="sift-shelf" id="sift-shelf" hidden>
+      <div class="chips" id="status-chips" role="group" aria-label="{{ t("yours.sift.status", "Show") }}"></div>
+      <input type="search" class="find" id="shelf-find" dir="auto" autocomplete="off" spellcheck="false"
+        placeholder="{{ t("yours.sift.search", "Search your targums") }}" aria-label="{{ t("yours.sift.search", "Search your targums") }}">
+      <label class="pick"><span>{{ t("yours.sift.order", "Order") }}</span>
+        <select id="shelf-order">
+          <option value="read">{{ t("yours.sift.by-read", "Last read") }}</option>
+          <option value="added">{{ t("yours.sift.by-added", "Recently added") }}</option>
+          <option value="easy">{{ t("yours.sift.by-easy", "Easiest first") }}</option>
+          <option value="known">{{ t("yours.sift.by-known", "Most known") }}</option>
+        </select>
+      </label>
+    </div>
+    {#- Inside a series (2026-09-26): its name and the way back to the whole shelf. -#}
+    <p class="in-series" id="in-series" hidden>
+      <button type="button" class="series-back" id="series-back">{{ t("yours.series.back", "← All") }}</button>
+      <bdi class="series-name" id="series-name"></bdi>
+    </p>
     <p class="note" id="shelf-note"></p>
-    <ul class="books shelf-rows" id="library-list"></ul>
+    <ul class="books shelf-rows shelf-cards" id="library-list"></ul>
     <p class="empty" id="shelf-empty" hidden></p>
   </section>
 

@@ -110,7 +110,9 @@
       return;
     }
     if (!mine.length) {
-      note.textContent = readers.length
+      note.textContent = settings.empty
+        ? settings.empty
+        : readers.length
         ? t("shelf.empty.language", "Nothing in {language} yet.", { language: named(code) })
         : t("shelf.empty", "Nothing here yet. We'll keep the texts you open here.");
       return;
@@ -127,7 +129,7 @@
 
     var docs = stored("targum:docs");
     shown.forEach(function (reader) {
-      list.appendChild(row(reader, docs));
+      list.appendChild(reader.members ? seriesRow(reader, docs, settings.onSeries) : row(reader, docs));
     });
     if (head) head.hidden = false;
   }
@@ -258,7 +260,8 @@
     var title = document.createElement("bdi");
     title.setAttribute("lang", reader.language || "und");
     title.className = "book-title";
-    title.textContent = reader.title;
+    // Inside a series its name is said once, above the rows, and each row says the rest.
+    title.textContent = reader.shownTitle || reader.title;
     what.appendChild(title);
     if (reader.english) {
       var english = document.createElement("span");
@@ -283,6 +286,97 @@
     controls.className = "row-controls";
     if (!reader.shared) controls.appendChild(listLink(reader));
     controls.appendChild(more(reader, item));
+    item.appendChild(controls);
+    return item;
+  }
+
+  /* --- a series, folded (design.md §12, "Your targums has tabs", 2026-09-26) ----------
+   *
+   * Two or more texts whose titles share a stem before an episode marker are one row: the
+   * stem, how many there are and how many are finished, over a picture with a stack drawn
+   * behind it. Not a link: pressing it shows those texts alone, which `yours.js` does,
+   * because only the page knows what else it is showing. */
+  function seriesRow(group, docs, onOpen) {
+    var item = document.createElement("li");
+    item.className = "is-series";
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = "series-open";
+    var newest = group.members.reduce(function (best, one) {
+      return (one.built || 0) > (best.built || 0) ? one : best;
+    }, group.members[0]);
+    var stack = document.createElement("span");
+    stack.className = "series-stack";
+    stack.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(newest.entry || newest.name)), {
+        title: group.title,
+        language: group.language,
+        drawn: newest.drawn,
+      })
+    );
+    press.appendChild(stack);
+
+    var what = document.createElement("span");
+    what.className = "book-what";
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", group.language || "und");
+    title.className = "book-title";
+    title.textContent = group.title;
+    what.appendChild(title);
+
+    var finished = 0;
+    var begun = 0;
+    group.members.forEach(function (one) {
+      var state = status(one, docs);
+      if (state.kind === "finished") finished += 1;
+      else if (state.kind === "reading") begun += 1;
+    });
+    var total = group.members.length;
+    var state =
+      finished === total
+        ? { kind: "finished", said: t("shelf.status.finished", "Finished") }
+        : finished || begun
+          ? { kind: "reading", said: t("shelf.status.parts", "{done} of {total}", { done: finished, total: total }) }
+          : { kind: "new", said: t("shelf.status.new", "New") };
+
+    var line = document.createElement("span");
+    line.className = "book-facts";
+    var said = [tn("shelf.series.count", total, "{n} episode", "{n} episodes")];
+    var opened = group.members.reduce(function (most, one) {
+      return Math.max(most, one.opened || 0);
+    }, 0);
+    if (opened) said.push(t("shelf.opened", "Opened {when}", { when: ago(opened) }));
+    said.forEach(function (fact) {
+      var bit = document.createElement("span");
+      bit.className = "fact";
+      bit.textContent = fact;
+      line.appendChild(bit);
+    });
+    var folded = document.createElement("span");
+    folded.className = "fact fact-status is-" + state.kind;
+    folded.textContent = state.said;
+    line.appendChild(folded);
+    what.appendChild(line);
+    press.appendChild(what);
+
+    var pill = document.createElement("span");
+    pill.className = "row-status is-" + state.kind;
+    if (state.kind === "finished") pill.appendChild(checkMark());
+    pill.appendChild(document.createTextNode(state.said));
+    press.appendChild(pill);
+    press.onclick = function () {
+      if (onOpen) onOpen(group);
+    };
+    item.appendChild(press);
+
+    // The controls' column holds the way in, so the row reads as something that opens.
+    var controls = document.createElement("span");
+    controls.className = "row-controls";
+    var chevron = document.createElement("span");
+    chevron.className = "series-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = "›";
+    controls.appendChild(chevron);
     item.appendChild(controls);
     return item;
   }
@@ -725,6 +819,9 @@
   window.TargumShelf = {
     draw: drawShelf,
     building: building,
+    status: function (reader) {
+      return status(reader, stored("targum:docs"));
+    },
     trash: drawTrash,
     ago: ago,
     base: base,

@@ -1,0 +1,12 @@
+{#- Your targums' three tabs (design.md §12, "Your targums has tabs", 2026-09-26): All
+    targums and Your uploads, which are two views of one shelf, and Playlists, which is its
+    own page wearing the same strip. Links rather than buttons, because the third is a page
+    and a tab strip that is half buttons and half a link is two controls pretending to be
+    one; `yours.js` answers the first two in place. Set `tab` to "all", "uploads" or
+    "playlists" before including. -#}
+{%- set keyed = ('k=' ~ token) if token else '' %}
+<nav class="tabs yours-tabs" id="yours-tabs" aria-label="{{ t("yours.tabs.label", "Your targums") }}">
+  <a class="tab" data-tab="all" href="/texts{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'all' %} aria-current="page"{% endif %}>{{ t("yours.tabs.all", "All targums") }}</a>
+  <a class="tab" data-tab="uploads" href="/texts?show=uploads{% if keyed %}&amp;{{ keyed }}{% endif %}"{% if tab == 'uploads' %} aria-current="page"{% endif %}>{{ t("yours.tabs.uploads", "Your uploads") }}</a>
+  <a class="tab" data-tab="playlists" href="/playlists{% if keyed %}?{{ keyed }}{% endif %}"{% if tab == 'playlists' %} aria-current="page"{% endif %}>{{ t("yours.tabs.playlists", "Playlists") }}</a>
+</nav>
