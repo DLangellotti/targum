@@ -240,7 +240,7 @@
       var state = document.createElement("span");
       state.className = "item-state";
       state.textContent = item.failed
-        ? t("playlists.could-not", "Couldn't prepare this text.")
+        ? t("playlists.could-not", "We couldn't get this text ready.")
         : t("playlists.getting-ready", "Getting ready");
       row.appendChild(state);
     }

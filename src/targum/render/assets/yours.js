@@ -302,7 +302,7 @@
         [
           ["all", t("yours.sift.all", "All")],
           ["new", t("yours.sift.new", "New")],
-          ["reading", t("yours.sift.reading", "Reading")],
+          ["reading", t("yours.sift.reading", "Started")],
           ["finished", t("yours.sift.finished", "Finished")],
         ].forEach(function (pair) {
           if (pair[0] !== "all" && !counts[pair[0]]) return;

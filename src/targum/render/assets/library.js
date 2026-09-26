@@ -2039,7 +2039,7 @@
         if (job.blocked) throw new Error(job.blocked);
         // A price with no build in it — the server pointing at a catalogue row instead —
         // is not something to press Build on: an empty id came back as a lost build.
-        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one."));
+        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one. Try again."));
         // Said, and then pressed (2026-09-14). The first press used to go straight on to
         // the build, while the conversation and the Add page both say how long a thing
         // takes and wait for the reader's own press before anything is spent. The same

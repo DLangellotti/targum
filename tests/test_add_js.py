@@ -98,7 +98,7 @@ def test_the_results_carry_more_than_one_medium() -> None:
     # And each says what it is worth knowing before choosing: how long, and how much of
     # it this reader already knows.
     assert "15:00" in drawn
-    assert "7 words in ten you know" in drawn
+    assert "You know 7 words in ten" in drawn
 
 
 def test_what_the_turn_cost_is_said_after_it_is_over() -> None:

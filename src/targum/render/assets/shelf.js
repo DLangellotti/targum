@@ -798,7 +798,7 @@
       var back = document.createElement("button");
       back.type = "button";
       back.className = "restore";
-      back.textContent = t("shelf.put-back", "Put back");
+      back.textContent = t("shelf.put-back", "Restore");
       back.onclick = function () {
         back.disabled = true;
         post("/restore", { name: reader.name }).then(reload, function () {

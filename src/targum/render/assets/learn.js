@@ -273,21 +273,21 @@
       if (door.state === "carry" && typeof reader.fresh === "number" && reader.fresh > 0) {
         out.push(tn("learn.words-left", reader.fresh, "{n} word left", "{n} words left"));
       } else if (reader.words) {
-        out.push(tn("learn.words", reader.words, "{n} words", "{n} words"));
+        out.push(tn("learn.words", reader.words, "{n} word", "{n} words"));
       }
     } else if (reader.chapters && reader.chapters.length > 1) {
       // "4 of 4" is a fraction with nothing left to say; "2 of 4 translated" says what
       // the fraction is a fraction of.
       out.push(
         reader.readyChapters === reader.chapters.length
-          ? tn("learn.chapters", reader.chapters.length, "{n} chapters", "{n} chapters")
+          ? tn("learn.chapters", reader.chapters.length, "{n} chapter", "{n} chapters")
           : t("learn.chapters-translated", "{done} of {total} translated", {
               done: reader.readyChapters,
               total: reader.chapters.length,
             })
       );
     } else if (reader.sections > 1) {
-      out.push(tn("learn.parts", reader.sections, "{n} parts", "{n} parts"));
+      out.push(tn("learn.parts", reader.sections, "{n} part", "{n} parts"));
     } else if (reader.minutes && door.state !== "carry") {
       out.push(t("learn.minutes", "{n} min", { n: reader.minutes }));
     }
@@ -1433,8 +1433,8 @@
       aleph: t("learn.level.aleph", "Just starting"),
       "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
       bet: t("learn.level.bet", "Simple conversations"),
-      "bet-plus": t("learn.level.bet-plus", "I follow slow Hebrew, with help"),
-      gimel: t("learn.level.gimel", "I follow the news, with a dictionary"),
+      "bet-plus": t("learn.level.bet-plus", "I follow slow Hebrew with help"),
+      gimel: t("learn.level.gimel", "I follow the news with a dictionary"),
       dalet: t("learn.level.dalet", "I follow most things comfortably"),
       hey: t("learn.level.hey", "I follow almost anything"),
       vav: t("learn.level.vav", "Hebrew is a language I live in"),

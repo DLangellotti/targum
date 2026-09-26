@@ -758,7 +758,7 @@
     if (row.seconds) facts.push(clock(row.seconds));
     if (row.known_share !== null && row.known_share !== undefined) {
       facts.push(
-        tn("add.found.known", Math.round(row.known_share * 10), "{n} word in ten you know", "{n} words in ten you know", {
+        tn("add.found.known", Math.round(row.known_share * 10), "You know {n} word in ten", "You know {n} words in ten", {
           n: Math.round(row.known_share * 10),
         })
       );
@@ -1568,7 +1568,7 @@
     var go = document.createElement("button");
     go.type = "button";
     go.className = "filled";
-    go.textContent = t("add.open-it", "Open it");
+    go.textContent = t("add.open-it", "Open");
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
       // has its own page now, so the button can go where it says it goes.
@@ -1694,7 +1694,7 @@
     var confirm = document.createElement("button");
     confirm.type = "button";
     confirm.className = "filled";
-    confirm.textContent = t("add.start-reading", "Open it");
+    confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
       ask("/build", { id: job.id }).then(function (state) {
         if (state.blocked) return refuse(state);
