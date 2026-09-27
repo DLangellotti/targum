@@ -152,15 +152,31 @@ def test_a_tombstone_or_an_empty_answer_is_no_post() -> None:
 # -- a thread --------------------------------------------------------------------------
 
 
-def served(monkeypatch: pytest.MonkeyPatch, answers: dict[str, dict]) -> list[str]:
+def served(
+    monkeypatch: pytest.MonkeyPatch,
+    answers: dict[str, dict],
+    shown: list[dict] | None = None,
+) -> list[str]:
+    """The endpoint's answers by id, and the author's timeline as the widget would show it.
+    Every ask is written down; the timeline's as `timeline:<handle>`."""
     asked: list[str] = []
 
     def fetch(ident: str) -> dict:
         asked.append(ident)
         return answers.get(ident, {})
 
+    def timeline(handle: str) -> list[dict]:
+        asked.append(f"timeline:{handle}")
+        return list(shown or [])
+
     monkeypatch.setattr(x, "fetch", fetch)
+    monkeypatch.setattr(x, "timeline", timeline)
     return asked
+
+
+def shown_as(data: dict) -> dict:
+    """A post as a timeline entry carries it: the same keys the widget reads."""
+    return {key: data[key] for key in data if key != "parent"}
 
 
 def test_a_thread_is_walked_back_to_its_start_and_stops_at_anybody_else(
@@ -176,15 +192,98 @@ def test_a_thread_is_walked_back_to_its_start_and_stops_at_anybody_else(
             FIRST: a_reply(FIRST, "אחת", ELSEWHERE, handle="kan_news"),
         },
     )
-    posts = x.thread(f"https://x.com/aviv_bahar/status/{THIRD}")
-    assert [one.text for one in posts] == ["אחת", "שתיים", "שלוש"]
-    assert asked == [THIRD, SECOND, FIRST], "the foreign post is never asked for"
+    found = x.thread(f"https://x.com/aviv_bahar/status/{THIRD}")
+    assert [one.text for one in found.posts] == ["אחת", "שתיים", "שלוש"]
+    assert asked[:3] == [THIRD, SECOND, FIRST], "the foreign post is never asked for"
+
+
+FOURTH, FIFTH, SIXTH = "1837201000000000004", "1837201000000000005", "1837201000000000006"
+
+
+def test_then_on_through_the_authors_own_replies_as_far_as_the_timeline_shows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pasted in the middle: back to the start, then on through each reply of the author's
+    whose parent is the last post kept. A reply by somebody else breaks the chain by
+    itself, and the author's answer to it is not the thread's."""
+    posts = {
+        FIRST: answer(FIRST, "אחת"),
+        SECOND: a_reply(SECOND, "שתיים", FIRST),
+        THIRD: a_reply(THIRD, "שלוש", SECOND),
+        FOURTH: a_reply(FOURTH, "ארבע", THIRD, conversation_count=0),
+    }
+    somebody = a_reply(FIFTH, "תגובה", FOURTH, handle="aviv_bahar")
+    somebody["user"] = {**somebody["user"], "screen_name": "kan_news"}
+    answering = a_reply(SIXTH, "תשובה לתגובה", FIFTH, handle="kan_news")
+    asked = served(
+        monkeypatch,
+        posts,
+        # Newest first and in no particular order, as the widget shows them, with a post
+        # that is not a reply and a reply in another thread among them.
+        [
+            shown_as(answering),
+            shown_as(posts[FOURTH]),
+            answer("1837201000000000009", "משהו אחר"),
+            shown_as(posts[THIRD]),
+            shown_as(a_reply("1837201000000000010", "שרשור אחר", "1837100000000000000")),
+        ],
+    )
+    found = x.thread(f"https://x.com/aviv_bahar/status/{SECOND}")
+    assert [one.text for one in found.posts] == ["אחת", "שתיים", "שלוש", "ארבע"]
+    assert asked == [SECOND, FIRST, "timeline:aviv_bahar", THIRD, FOURTH]
+    assert not found.more, "the last post has no reply at all: the thread ends there"
+
+
+def test_a_last_post_with_replies_says_the_thread_may_go_on(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The timeline showed nothing after it, and somebody answered it: whether the
+    author did is not something the widget will say, so the card says it may go on."""
+    served(monkeypatch, {FIRST: answer(FIRST, "אחת", conversation_count=4)}, [])
+    found = x.thread(f"https://x.com/aviv_bahar/status/{FIRST}")
+    assert [one.id for one in found.posts] == [FIRST] and found.more
+
+
+def test_a_post_nobody_answered_asks_for_no_timeline(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The timeline is counted (thirty a quarter hour from one address); a post with no
+    reply at all is proof the thread ends, and it is not asked."""
+    asked = served(monkeypatch, {FIRST: answer(FIRST, "אחת", conversation_count=0)})
+    found = x.thread(f"https://x.com/aviv_bahar/status/{FIRST}")
+    assert asked == [FIRST] and not found.more
+
+
+def test_a_timeline_page_is_read_off_its_data() -> None:
+    """The shape the widget's page had on 2026-09-27, with this file's own values."""
+    import json
+
+    data = {
+        "props": {
+            "pageProps": {
+                "timeline": {
+                    "entries": [
+                        {"type": "tweet", "content": {"tweet": answer(FIRST, "אחת")}},
+                        {"type": "notice", "content": {}},
+                    ]
+                },
+                "latest_tweet_id": FIRST,
+            }
+        }
+    }
+    page = (
+        '<html><script id="__NEXT_DATA__" type="application/json">'
+        + json.dumps(data, ensure_ascii=False)
+        + "</script></html>"
+    )
+    assert [entry["id_str"] for entry in x.timeline_entries(page)] == [FIRST]
+    assert x.timeline_entries("<html>Rate limit exceeded</html>") == []
+    assert x.timeline("not a handle/../x") == [], "only a handle goes into the path"
 
 
 def test_a_thread_is_walked_no_further_than_the_most(monkeypatch: pytest.MonkeyPatch) -> None:
     chain = {str(n): a_reply(str(n), f"פוסט {n}", str(n - 1)) for n in range(2, 100)}
     served(monkeypatch, chain)
-    assert len(x.thread("https://x.com/aviv_bahar/status/99")) == x.MOST
+    found = x.thread("https://x.com/aviv_bahar/status/99")
+    assert len(found.posts) == x.MOST and found.more
 
 
 def test_an_address_that_names_no_post_or_a_post_x_will_not_show_is_refused(
@@ -242,6 +341,7 @@ def test_armed_a_thread_arrives_as_a_post(tmp_path: Path, monkeypatch: pytest.Mo
             ),
             FIRST: answer(FIRST, "שבת שלום\nלכולם"),
         },
+        [],
     )
     job = serve.Job(id="a", source=f"https://twitter.com/aviv_bahar/status/{SECOND}?s=20")
     serve.Library(tmp_path).prepare(job)
@@ -249,6 +349,7 @@ def test_armed_a_thread_arrives_as_a_post(tmp_path: Path, monkeypatch: pytest.Mo
     said = job.options["post"]
     assert said["platform"] == "x" and said["url"] == f"https://x.com/i/status/{SECOND}"
     assert (said["handle"], said["name"]) == ("aviv_bahar", "אביב בהר")
+    assert said["more"] is True, "its last post has replies the timeline did not show"
     assert said["items"] == [
         {"lines": 2, "pictures": []},
         {"lines": 1, "pictures": ["https://pbs.twimg.com/media/b.jpg"]},

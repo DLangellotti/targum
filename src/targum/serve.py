@@ -2838,11 +2838,12 @@ class Library:
             job.stage = "failed"
             return True
         try:
-            posts = x_module.thread(job.source)
+            found = x_module.thread(job.source)
         except TargumError as refusal:
             job.error = refused_in(job.ui, refusal)
             job.stage = "failed"
             return True
+        posts = found.posts
         if not any(lines_of(post.text) for post in posts):
             job.error = said_in(
                 job.ui,
@@ -2862,6 +2863,8 @@ class Library:
             "posted_at": first.posted,
             "avatar": first.avatar,
             "pictures": [],
+            # Whether some of the thread may not be here, which the card says.
+            "more": found.more,
             # A post a thread holds, in order: how many of the text's paragraphs are its
             # lines, and its photos, so each item keeps its own.
             "items": [
@@ -3352,6 +3355,7 @@ class Library:
                 ),
                 items=items,
                 fetched_by="paste",
+                more=bool(said.get("more")),
                 url=str(said.get("url") or "") or None,
                 posted_at=str(said.get("posted_at") or ""),
             )

@@ -482,6 +482,7 @@ def test_a_post_from_x_says_on_x_and_goes_home_to_the_one_prefix(tmp_path: Path)
             author=post_module.Author("aviv_bahar", "אביב בהר"),
             items=[post_module.Item(block_ids=["b0001"])],
             url="https://twitter.com/aviv_bahar/status/1837201000000000001?s=20",
+            more=True,
         ),
     )
     segmented = make_segmented([paragraph(1)])
@@ -500,6 +501,8 @@ def test_a_post_from_x_says_on_x_and_goes_home_to_the_one_prefix(tmp_path: Path)
     html = page.read_text(encoding="utf-8")
     assert f'class="post-home" href="{X_POST}1837201000000000001"' in html
     assert ">On X</a>" in html
+    # X showed the thread in part, and the card says so rather than passing it off whole.
+    assert "Some of this thread may be missing. The rest is on X." in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 

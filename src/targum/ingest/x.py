@@ -13,17 +13,24 @@ credential but a number the widget derives from the post's id.
 **What it reads.** `cdn.syndication.twimg.com/tweet-result?id=<id>&token=<t>` answers a
 post as JSON: its text and where the displayed part of it runs, the author's handle, name
 and picture, the moment it was posted, its photos, and — for a reply — which post it
-answers and whose. `token(id)` is the widget's own derivation, taken from Vercel's
-`react-tweet` (`packages/react-tweet/src/api/fetch-tweet.ts`, `getToken`, read
-2026-09-27): `((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\\.)/g, '')`.
-The endpoint answered without one on 2026-09-27; it is sent anyway, as the widget does.
+answers and whose, and how many replies it has. `token(id)` is the widget's own
+derivation: `((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\\.)/g, '')`, as
+X's own embed bundle writes it (`platform.twitter.com/embed/embed.Tweet.*.js`:
+`toString(Math.pow(6,2))` and `replace(/(0+|\\.)/g,"")`, read 2026-09-27) and as Vercel's
+`react-tweet` does (`fetch-tweet.ts`, `getToken`). The endpoint answered without one on
+2026-09-27; it is sent anyway, as the widget does.
 
-**A thread is walked upward.** The endpoint says which post a post replies to and never
-what replies to it, so a thread is read from the post pasted back to its start: each post
-whose parent is by the same author is followed to that parent, and the walk stops at the
-first post by anyone else, which is not kept (#158: "other accounts' replies are out of
-scope"). So the thread a reader gets is the one ending at the post they pasted; the
-author's replies after it cannot be seen without signing in.
+**A thread is walked back, then on.** The endpoint says which post a post answers and
+never what answers it. So the walk goes back first, from the post pasted through each
+parent by the same author to where the thread starts, and stops at the first post by
+anyone else, which is not kept (#158: "other accounts' replies are out of scope"). Then
+on: the author's timeline as X's embedded-timeline widget shows it (`TIMELINE`) is read
+once for the author's own replies, and each whose parent is the last post kept is kept
+after it. That timeline is not the whole of anybody's: about twenty of the latest posts
+for one account, a hundred of the most-engaged for another (measured 2026-09-27), so a
+thread's later posts are found only where they are among those. Whether anything may be
+missing is said, not guessed (`Thread.more`): only a last post with no reply at all is
+proof the thread ends there. The timeline is not asked when it is.
 
 **Photos are kept, a video is not.** Photos come from `pbs.twimg.com`, and only from
 there; they are kept as webp by `ingest.post` like any post's pictures. A post's video is
@@ -175,6 +182,8 @@ class Post:
     #: The post this one answers, and its author's handle; "" where it answers none.
     parent: str = ""
     parent_handle: str = ""
+    #: How many replies the post has, anybody's; -1 where the answer did not say.
+    replies: int = -1
 
 
 def on_media_host(address: str) -> bool:
@@ -216,7 +225,16 @@ def read(data: dict[str, Any]) -> Post | None:
             or (parent.get("user") or {}).get("screen_name")
             or ""
         ),
+        replies=_count(data.get("conversation_count")),
     )
+
+
+def _count(said: object) -> int:
+    try:
+        count: int = int(said)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return -1
+    return max(-1, count)
 
 
 def _displayed(data: dict[str, Any]) -> str:
@@ -263,10 +281,22 @@ def fetch(post: str) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def thread(url: str) -> list[Post]:
-    """The post this address names, and the posts its author wrote before it in the same
-    thread, oldest first. Raises `TargumError` for an address that names no post and for
-    a post X will not show."""
+@dataclass(frozen=True)
+class Thread:
+    """A thread as far as X would show it, oldest first."""
+
+    posts: list[Post]
+    #: Whether some of it may not be here: the walk hit `MOST`, or the last post kept has
+    #: replies and the author's timeline showed none of theirs. False only where the last
+    #: post kept has no reply at all, which is the one proof a thread ends there.
+    more: bool = False
+
+
+def thread(url: str) -> Thread:
+    """The post this address names and the rest of its author's thread around it: back to
+    where the thread starts, then on through the author's own replies as far as their
+    timeline shows. Raises `TargumError` for an address that names no post and for a post
+    X will not show."""
     first = status_id(url)
     if not first:
         raise TargumError(
@@ -281,17 +311,91 @@ def thread(url: str) -> list[Post]:
             "It may be deleted, private or age-restricted. Copy its words and paste them here.",
             key="x.not-shown",
         )
-    posts = [found]
-    while len(posts) < MOST and found.parent and _same(found.parent_handle, found.handle):
+    earlier = [found]
+    while len(earlier) < MOST and found.parent and _same(found.parent_handle, found.handle):
         try:
             parent = read(fetch(found.parent))
         except TargumError:
             break
         if parent is None or not _same(parent.handle, found.handle):
             break
-        posts.append(parent)
+        earlier.append(parent)
         found = parent
-    return list(reversed(posts))
+    posts = list(reversed(earlier))
+    capped = len(posts) >= MOST
+    if not capped and posts[-1].replies != 0:
+        posts = _onward(posts)
+        capped = len(posts) >= MOST
+    return Thread(posts, more=capped or posts[-1].replies != 0)
+
+
+def _onward(posts: list[Post]) -> list[Post]:
+    """The author's own replies after the last post, one after another, as far as their
+    timeline shows them. A reply by anybody else breaks the chain by itself: the author's
+    next post would answer that one, not theirs."""
+    author = posts[0].handle
+    after: dict[str, str] = {}
+    for entry in timeline(author):
+        user = (entry.get("user") or {}).get("screen_name") or ""
+        answers = str(entry.get("in_reply_to_status_id_str") or "")
+        replying_to = str(entry.get("in_reply_to_screen_name") or "")
+        ident = str(entry.get("id_str") or "")
+        if _same(user, author) and _same(replying_to, author) and answers and _ID.match(ident):
+            after.setdefault(answers, ident)
+    kept = list(posts)
+    while len(kept) < MOST and (following := after.get(kept[-1].id)):
+        try:
+            found = read(fetch(following))
+        except TargumError:
+            break
+        if found is None or not _same(found.handle, author) or found.parent != kept[-1].id:
+            break
+        kept.append(found)
+    return kept
+
+
+#: The author's timeline as X's embedded-timeline widget reads it, logged out. Measured on
+#: 2026-09-27: a page whose `__NEXT_DATA__` carries `props.pageProps.timeline.entries`, each
+#: a post with `in_reply_to_status_id_str` and `conversation_id_str`. What it holds is not
+#: the whole timeline: about twenty of the latest posts for one account, a hundred of the
+#: most-engaged for another, replies among them only as those happen to be. And it is
+#: counted: thirty requests a quarter of an hour from one address.
+TIMELINE = "https://syndication.twitter.com/srv/timeline-profile/screen-name/{handle}"
+
+#: A handle as X allows one, and so the only thing put into `TIMELINE`'s path.
+_HANDLE = re.compile(r"^[A-Za-z0-9_]{1,15}$")
+_NEXT = re.compile(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', re.S)
+
+
+def timeline(handle: str) -> list[dict[str, Any]]:
+    """The posts X's timeline widget shows for this account, or [] — quietly, because a
+    timeline that will not answer only means the thread stops at what was already found."""
+    from .url import fetch as fetch_page
+
+    if not _HANDLE.match(handle):
+        return []
+    try:
+        page = fetch_page(TIMELINE.format(handle=handle)).text
+    except TargumError:
+        return []
+    return timeline_entries(page)
+
+
+def timeline_entries(page: str) -> list[dict[str, Any]]:
+    """The posts in a timeline page, read off its data."""
+    found = _NEXT.search(page)
+    if not found:
+        return []
+    try:
+        data = json.loads(found.group(1))
+        entries = data["props"]["pageProps"]["timeline"]["entries"]
+    except (ValueError, KeyError, TypeError):
+        return []
+    return [
+        dict((entry.get("content") or {}).get("tweet") or {})
+        for entry in entries or []
+        if isinstance(entry, dict) and entry.get("type") == "tweet"
+    ]
 
 
 def _same(one: str, other: str) -> bool:
@@ -317,6 +421,8 @@ __all__ = [
     "SYNDICATION",
     "Picture",
     "Post",
+    "TIMELINE",
+    "Thread",
     "fetch",
     "home_url",
     "is_open",
@@ -325,5 +431,7 @@ __all__ = [
     "status_id",
     "text_of",
     "thread",
+    "timeline",
+    "timeline_entries",
     "token",
 ]

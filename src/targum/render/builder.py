@@ -2628,6 +2628,7 @@ def post_card(
         "home": home,
         "home_named": "X" if platform == "x" else (video_hosts.named(home) or platform.title()),
         "caption_from": caption_from,
+        "more": bool(manifest.get("more")),
     }
     # The rows the head stands in for: the title and the byline the front matter put at
     # the top, and only while they are at the top — a heading further down is the

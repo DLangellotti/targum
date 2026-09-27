@@ -858,6 +858,13 @@ html[dir="rtl"] #reader > .english { text-align: end; }
 @media (prefers-reduced-motion: no-preference) {
   .post-pictures { scroll-behavior: smooth; }
 }
+/* A thread X showed only in part says so, muted, under the head. */
+.post-more {
+  margin-block: -0.5rem 1rem;
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+}
 /* Under a film, where what its author typed starts: named once, muted, with the rule a
    section break takes above it, so the caption is not read as more of what was said. */
 .post-caption {

@@ -2264,5 +2264,6 @@
   "x.one-post": "We can take one post at a time.",
   "x.one-post.hint": "Paste the address of a single post.",
   "x.not-shown": "X wouldn't show us that post.",
-  "x.not-shown.hint": "It may be deleted, private or age-restricted. Copy its words and paste them here."
+  "x.not-shown.hint": "It may be deleted, private or age-restricted. Copy its words and paste them here.",
+  "reader.post.thread-in-part": "Some of this thread may be missing. The rest is on {service}."
 }

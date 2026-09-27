@@ -95,6 +95,9 @@ class Manifest:
     author: Author
     items: list[Item]
     fetched_by: str = "paste"
+    #: Whether some of a thread may not be here: X shows a thread only in part to
+    #: somebody signed out (`ingest.x.Thread.more`), and the card says so.
+    more: bool = False
     #: The post's own address, or None where the reader brought it without one.
     url: str | None = None
     #: ISO 8601, or "" where the platform's page did not say.

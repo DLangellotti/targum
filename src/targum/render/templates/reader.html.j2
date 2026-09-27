@@ -407,6 +407,9 @@
     <a class="post-home" href="{{ post.home }}" target="_blank" rel="noreferrer noopener">{{ t("reader.post.on-service", "On {service}", service=post.home_named) }}</a>
     {% endif %}
   </header>
+  {#- Where X showed only part of a thread: said once, plainly, with the way to the rest
+      already in the head. Never a guess that it is whole. -#}
+  {% if post.more %}<p class="post-more">{{ t("reader.post.thread-in-part", "Some of this thread may be missing. The rest is on {service}.", service=post.home_named) }}</p>{% endif %}
   {% if post.pictures %}
   <div class="post-pictures{% if post.pictures|length > 1 %} several{% endif %}" tabindex="0" role="group" aria-label="{{ tn("reader.post.pictures", post.pictures|length, "{n} picture", "{n} pictures") }}">
     {%- for picture in post.pictures %}
