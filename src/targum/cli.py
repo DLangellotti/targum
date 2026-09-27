@@ -1742,6 +1742,13 @@ def seed(
         str,
         typer.Option("--to", help="Which language to read them in. Default: en"),
     ] = "en",
+    kind: Annotated[
+        str,
+        typer.Option(
+            "--kind",
+            help="Only the seeded texts of this kind, such as dialogue. Default: every one.",
+        ),
+    ] = "",
 ) -> None:
     """Build the shared texts every new reader starts with.
 
@@ -1757,6 +1764,10 @@ def seed(
     **English is free and another language is not**, for most of these: a row with a
     published English carries it, and nothing else. Run it with `--to` and it buys, so
     the run is quoted by what the catalogue says each row already has.
+
+    `--kind` narrows the run to one kind (2026-09-27). The scenes carry their Russian with
+    them, written with the scene, so `--to ru --kind dialogue` buys nothing — where a
+    plain `--to ru` would also buy the head of every ordered collection, Genesis first.
     """
     from . import catalogue as catalogue_module
     from .annotate import lemma, model_lemma
@@ -1774,10 +1785,19 @@ def seed(
     #: Rows this machine could not build, said again at the end so a long run's skips
     #: are not lost in the scroll.
     unbuilt: list[tuple[str, str]] = []
+    if kind and kind not in {one.value for one in catalogue_module.Kind}:
+        fail(
+            TargumError(
+                f"No kind is called {kind!r}.",
+                "One of: " + ", ".join(one.value for one in catalogue_module.Kind),
+            )
+        )
     for entry_id in seeds():
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
             fail(TargumError(f"The catalogue has no {entry_id!r}.", ""))
+            continue
+        if kind and entry.kind.value != kind:
             continue
         scripture = is_biblical(entry.source)
         shared_lemmatizer: LemmatizerProtocol | None = None
