@@ -1,0 +1,39 @@
+# /etc/systemd/system/targum-backup.service — installed by deploy.sh, started by
+# targum-backup.timer at 04:00 UTC.
+#
+# The nightly copy of the two things that cannot be rebuilt (targum-internal#16). It was
+# a line in /etc/cron.d written once by provision.sh, which no deploy carried after; as a
+# unit it travels with every deploy like targum.service does, and deploy.sh removes the
+# cron line once this timer is enabled, so it never runs twice.
+#
+# The same command the cron ran, with the same flags. Off the box only when
+# TARGUM_BACKUP_TO and TARGUM_BACKUP_AGE_RECIPIENT are both set in targum.env: unset, it
+# keeps its fourteen copies beside the database, says "not configured" and exits 0.
+# A failed night mails TARGUM_ALERT_TO when that is set.
+#
+#   systemctl start targum-backup      # one now, by hand
+#   journalctl -u targum-backup -n 40
+
+[Unit]
+Description=targum nightly backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=targum
+Group=targum
+# --store, named. Without it `targum backup` falls back to ~/.targum/targum.db, an empty
+# leftover on this box, and copied that faithfully every night until 2026-09-04.
+# EnvironmentFile, so it sees TARGUM_CACHE_DIR and copies the cache, and so the remote's
+# credentials (RCLONE_CONFIG_*) and the settings above reach rclone and targum both.
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum backup --keep 14 \
+  --store /var/lib/targum/targum.db --out /var/lib/targum/backups
+# Out of the way of readers: a copy can take its time, a page cannot.
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=1h
+NoNewPrivileges=true
+PrivateTmp=true

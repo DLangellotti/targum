@@ -61,3 +61,82 @@ Caddy needs no change: chunked uploads stay 8 MiB under the 48 MB body ceiling, 
 responses stream, so the reader's Range requests pass through. Hosted video transcodes
 on the box at roughly real-time ÷ 4 per part. The box never fetches from YouTube —
 that import is CLI-only, on purpose.
+
+## Backups off the box
+
+`targum-backup.timer` runs `targum backup` at 04:00 UTC (it replaced the cron line in
+`/etc/cron.d/targum-backup`, which `deploy.sh` removes). It takes a consistent SQLite
+snapshot through the backup API, runs `PRAGMA integrity_check` on it, archives the
+cache and the weekly, and keeps fourteen of each beside the database. That much is what
+it always did.
+
+With `TARGUM_BACKUP_TO` **and** `TARGUM_BACKUP_AGE_RECIPIENT` set in `targum.env` it
+also gzips the database, encrypts each file with [age](https://age-encryption.org) to
+that public key, and sends the three to `<remote>/daily` — and on Sundays to
+`<remote>/weekly` as well — through rclone, then lists the folder back and compares
+sizes. The box holds only the public key, so it can write a copy and cannot read one.
+Neither set: it says "not configured" and exits 0. One set: it fails, because the other
+reading is sending plaintext. A failed night mails `TARGUM_ALERT_TO`.
+
+Retention is the bucket's, not the box's: two lifecycle rules expire `daily/` and
+`weekly/`, so the box's key needs no right to delete.
+
+Switching it on:
+
+1. **Bucket** (Backblaze, a different company from the box on purpose). Private, default
+   encryption (SSE-B2) on. Lifecycle rules, custom:
+   `daily/` — hide after 30 days, delete 1 day after hiding;
+   `weekly/` — hide after 182 days, delete 1 day after hiding.
+2. **Key**, restricted to that bucket and with no delete. The web console's "Read and
+   Write" includes `deleteFiles`, so make it with the b2 CLI:
+   `b2 key create --bucket <bucket> targum-box listBuckets,listFiles,readFiles,writeFiles`.
+   The applicationKey is shown once: into 1Password, item `Backblaze` in the `targum`
+   vault, fields `keyID` and `applicationKey`.
+3. **age keypair, on the laptop**: `age-keygen -o backup-age.key`. It prints the public
+   key (`age1...`). The file is the private key: put it in 1Password (same vault, its own
+   item), keep a paper copy somewhere that is not the laptop, then `rm backup-age.key`.
+   It never goes on the box.
+4. **Secrets**, in `deploy/box.env.op`, using the item from step 2:
+   `RCLONE_CONFIG_BACKBLAZE_ACCOUNT` and `RCLONE_CONFIG_BACKBLAZE_KEY`, each a reference
+   to that item's field.
+5. **Settings**, in `/etc/targum/targum.env` on the box:
+   ```
+   RCLONE_CONFIG_BACKBLAZE_TYPE=b2
+   TARGUM_BACKUP_TO=backblaze:<bucket>
+   TARGUM_BACKUP_AGE_RECIPIENT=age1...
+   ```
+6. Deploy (it installs `age` and `rclone` if missing), then take one by hand rather than
+   waiting for 04:00: `systemctl start targum-backup && journalctl -u targum-backup -n 30`.
+   It should end "Sealed and sent to backblaze:<bucket>/daily".
+7. **The drill** (targum-internal#1), from this checkout on the laptop:
+   ```
+   brew install age rclone
+   op run --env-file deploy/box.env.op -- env TARGUM_BACKUP_TO=backblaze:<bucket> \
+     TARGUM_AGE_IDENTITY_REF='op://targum/<age item>/<field>' ./deploy/restore-drill.sh
+   ```
+   It downloads the newest `daily/targum-*.db.gz.age`, decrypts, integrity-checks and
+   counts rows. Then the rest of [`RESTORE.md`](RESTORE.md) runs against that file.
+
+## Alerts
+
+`targum-health.timer` runs `targum watch-health` every five minutes. It knocks on
+`TARGUM_PUBLIC_ADDRESS/health` (or `TARGUM_HEALTH_URL`) and mails `TARGUM_ALERT_TO`
+through the same SMTP settings as a sign-in link: once after two failed checks in a row,
+again every six hours while it stays down, and once when it answers. State lives in
+`/var/lib/targum/health-watch.json`. Without `TARGUM_ALERT_TO` it logs "not configured".
+
+Switching it on is one line in `/etc/targum/targum.env` — `TARGUM_ALERT_TO=<address>` —
+and nothing else; the timer is already running. To see both mails arrive without
+breaking anything, knock twice on a path that is not `/health`, then once on the real
+one, against a scratch state file:
+
+```
+drill() { systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+  --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+  /usr/local/bin/targum watch-health --state /var/lib/targum/health-drill.json "$@"; }
+drill --url https://targum.page/no-such-page; drill --url https://targum.page/no-such-page
+drill && rm /var/lib/targum/health-drill.json
+```
+
+It watches from the box, so a box that is off or unreachable sends nothing. An outside
+monitor (UptimeRobot, the other half of targum-internal#20) is what hears that silence.

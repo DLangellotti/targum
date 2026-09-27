@@ -60,7 +60,9 @@ echo "== secrets, from 1Password =="
 # the item it could not read. Before this the box's file was edited by hand, and
 # TARGUM_TTS_KEY was missing from all five versions of it without anything saying so.
 command -v op >/dev/null || { echo "   no op here: brew install 1password-cli" >&2; exit 1; }
-SECRETS="$(op inject -i deploy/box.env.op | grep -E '^[A-Z_]+=')"
+# Digits allowed after the first letter: rclone reads a remote from RCLONE_CONFIG_<NAME>_*,
+# and a filter of [A-Z_] alone dropped any such line whose name held one, silently.
+SECRETS="$(op inject -i deploy/box.env.op | grep -E '^[A-Z_][A-Z0-9_]*=')"
 while IFS= read -r line; do
   if [ -z "${line#*=}" ]; then
     echo "   ${line%%=*} is empty in the vault" >&2
@@ -120,6 +122,11 @@ fi
 # The unit too. provision.sh installs it once, on a fresh box, and nothing carried it
 # after that: a limit raised here stayed raised here.
 scp -q deploy/targum.service "$HOST:/tmp/targum.service"
+# And the two timers beside it: the nightly backup (targum-internal#16) and the health
+# watch (#20). Both inert until targum.env names somebody to tell and somewhere to send.
+ssh "${SSH_OPTS[@]}" "$HOST" "rm -rf /tmp/targum-units && mkdir -p /tmp/targum-units"
+scp -q deploy/targum-backup.service deploy/targum-backup.timer \
+  deploy/targum-health.service deploy/targum-health.timer "$HOST:/tmp/targum-units/"
 
 # The keys, over the connection's own stdin rather than scp: nothing holding them is
 # written anywhere on either machine but the file itself. No single quotes inside MERGE:
@@ -190,6 +197,27 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   install -o root -g root -m 0644 /tmp/targum.service /etc/systemd/system/targum.service
   rm -f /tmp/targum.service
   systemctl daemon-reload
+
+  # The nightly backup and the health watch, as timers that travel with every deploy.
+  # Neither does anything new until targum.env is filled in: the backup keeps its copies
+  # on this disk as the cron line did, and the watch says it is not configured. The cron
+  # line goes only after the timer that replaces it is enabled, so there is no night
+  # with neither and no night with both. The .bak copy beside it is ignored by cron,
+  # which skips any name with a dot in it.
+  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer; do
+    install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
+  done
+  rm -rf /tmp/targum-units
+  systemctl daemon-reload
+  systemctl enable --now --quiet targum-backup.timer targum-health.timer
+  rm -f /etc/cron.d/targum-backup
+  # The two tools the off-box copy needs, from Ubuntu's own archive: age seals a copy to
+  # a public key, rclone carries it. Installed when missing and never fatal here, because
+  # the backup names whichever is absent the first night it is switched on.
+  if ! command -v age >/dev/null || ! command -v rclone >/dev/null; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends age rclone \
+      >/dev/null 2>&1 || echo "   could not install age and rclone; the backup will say so" >&2
+  fi
 
   # Every reader carries the stylesheet and the script it was written with, baked in, so
   # the ones already on the shelves keep the old ones until they are written again. This

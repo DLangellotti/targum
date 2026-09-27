@@ -1,0 +1,11 @@
+# /etc/systemd/system/targum-health.timer — installed and enabled by deploy.sh.
+
+[Unit]
+Description=targum health watch, every five minutes
+
+[Timer]
+OnCalendar=*:0/5
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

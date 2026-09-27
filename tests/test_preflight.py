@@ -231,21 +231,67 @@ def test_a_destination_with_no_rclone_is_not_reported_as_working(
     from targum import preflight as flight
 
     monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:targum/backups")
+    monkeypatch.setenv("TARGUM_BACKUP_AGE_RECIPIENT", AGE_KEY)
     monkeypatch.setattr(flight.shutil, "which", lambda name: None)
     check = flight.check_backups_leave()
 
     assert check.ok is False
     assert "nothing has left" in check.detail
+    assert check.fix == "apt-get install rclone age"
+
+
+def test_a_destination_without_a_key_is_not_reported_as_working(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Copies leave sealed or not at all (targum-internal#16)."""
+    from targum import preflight as flight
+
+    monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:targum/backups")
+    monkeypatch.delenv("TARGUM_BACKUP_AGE_RECIPIENT", raising=False)
+    monkeypatch.setattr(flight.shutil, "which", lambda name: f"/usr/bin/{name}")
+    check = flight.check_backups_leave()
+
+    assert check.ok is False and check.fatal is False
+    assert "TARGUM_BACKUP_AGE_RECIPIENT" in check.detail
+
+
+def test_a_private_key_on_the_box_is_flagged_and_never_fatal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Flagged by name, and never the reason the service does not start."""
+    from targum import preflight as flight
+
+    monkeypatch.setenv("TARGUM_BACKUP_AGE_RECIPIENT", "AGE-SECRET-KEY-1QQQQ")
+    check = flight.check_backups_leave()
+
+    assert check.ok is False and check.fatal is False
+    assert "private key" in check.detail
 
 
 def test_backups_leaving_says_where(monkeypatch: pytest.MonkeyPatch) -> None:
     from targum import preflight as flight
 
     monkeypatch.setenv("TARGUM_BACKUP_TO", "b2:targum/backups")
-    monkeypatch.setattr(flight.shutil, "which", lambda name: "/usr/bin/rclone")
+    monkeypatch.setenv("TARGUM_BACKUP_AGE_RECIPIENT", AGE_KEY)
+    monkeypatch.setattr(flight.shutil, "which", lambda name: f"/usr/bin/{name}")
     check = flight.check_backups_leave()
 
     assert check.ok is True and check.detail == "b2:targum/backups"
+
+
+def test_nobody_to_alert_is_a_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    from targum import preflight as flight
+
+    monkeypatch.delenv("TARGUM_ALERT_TO", raising=False)
+    check = flight.check_alerts()
+    assert check.ok is False and check.fatal is False
+    assert "TARGUM_ALERT_TO" in check.fix
+
+    monkeypatch.setenv("TARGUM_ALERT_TO", "ops@example.com")
+    assert flight.check_alerts().ok is True
+
+
+AGE_KEY = "age1ql3z7hjy54pw3hyww5ayyfg7zqgvc7w3j2elw8zmrj2kg5sfn9aqmcac8p"
 
 
 # --- the deploy itself ------------------------------------------------------------

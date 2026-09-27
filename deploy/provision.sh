@@ -157,38 +157,25 @@ caddy validate --config /etc/caddy/Caddyfile >/dev/null
 chown -R caddy:caddy /var/log/caddy
 systemctl reload caddy || systemctl restart caddy
 
-echo "== nightly backup =="
-# Where the copies go is still a decision, but it is now one line rather than a project:
-# fill in TARGUM_BACKUP_TO with an rclone remote and tonight's copy leaves the box.
+echo "== nightly backup and health watch =="
+# Two timers, carried by every deploy after this one as well (targum-internal#16, #20).
+# The backup was a line in /etc/cron.d until 2026-09-27, written here once and carried by
+# nothing after; its history — the empty database it copied for a month, the failures
+# cron threw away — is in the comments of deploy/targum-backup.service, which is the
+# same command with the same flags.
 #
-# Here rather than in targum.env because that file is 0600 root and this runs as targum,
-# which cannot read it — and a destination is not a secret. The credentials are rclone's,
-# in ~targum/.config/rclone/rclone.conf, where only targum can read them.
-#
-# stderr is deliberately not swallowed. A copy that did not leave is exactly the night
-# somebody needs to hear about, and `>/dev/null 2>&1` is how a backup quietly stops
-# working for four months.
-# --store, named. Without it `targum backup` falls back to ~/.targum/targum.db, the
-# HOME default, which on this box is an empty leftover: from the day the box went up
-# until 2026-09-04 every nightly copy was a database holding 0 accounts and 0 words
-# while the real one at /var/lib/targum held 3,069. It said "checked" and exited 0 each
-# time, because it had faithfully copied the wrong file.
-#
-# Through systemd-run with the service's own EnvironmentFile, so the copy sees
-# TARGUM_CACHE_DIR and the cache is copied too — the paid inventory this module calls
-# the second thing that cannot be rebuilt. Run directly as targum it saw an empty cache
-# and archived nothing, silently, the same way.
-#
-# Hence root rather than targum: only root may systemd-run --uid. And no redirect at
-# all — there is no MTA, so cron discards whatever it is handed and two failed nights
-# left no trace anywhere on the box. systemd-run puts it in the journal instead:
-# `journalctl -u targum-backup`.
-cat > /etc/cron.d/targum-backup <<'CRON'
-MAILTO=root
-TARGUM_BACKUP_TO=
-0 4 * * * root systemd-run --quiet --wait --collect --unit=targum-backup --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum backup --keep 14 --store /var/lib/targum/targum.db --out /var/lib/targum/backups
-CRON
-chmod 0644 /etc/cron.d/targum-backup
+# Both do nothing new until targum.env is filled in. The backup keeps fourteen copies
+# beside the database; with TARGUM_BACKUP_TO and TARGUM_BACKUP_AGE_RECIPIENT it seals
+# them with age and sends them off the box. The watch knocks on /health and mails
+# TARGUM_ALERT_TO when it stops answering. `journalctl -u targum-backup`,
+# `journalctl -u targum-health`.
+apt-get install -y -q --no-install-recommends age rclone
+for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer; do
+  install -o root -g root -m 0644 "$HERE/$unit" "/etc/systemd/system/$unit"
+done
+systemctl daemon-reload
+systemctl enable --now targum-backup.timer targum-health.timer
+rm -f /etc/cron.d/targum-backup
 
 # yt-dlp, kept current. Instagram and YouTube change their pages without notice and
 # yt-dlp follows within days; a box that only ever installed it once is a box whose video
@@ -213,16 +200,6 @@ Provisioned. Three things left, none of them this script's to do:
   3. From your laptop:  TARGUM_HOST=root@$DOMAIN ./deploy/deploy.sh
 
 And to get the backups off this disk, which is the one failure the nightly copy
-does not cover:
-
-  apt-get install -y rclone
-  sudo -u targum -H rclone config          # add a remote; put a crypt in front of it
-  sudo -u targum -H rclone lsd <remote>:   # prove it answers
-  editor /etc/cron.d/targum-backup         # set TARGUM_BACKUP_TO=<remote>:targum/backups
-
-A backup holds addresses and every word somebody has kept, so the remote wants to be
-an rclone crypt remote — encryption belongs there and not in targum. Check it worked with:
-
-  sudo -u targum -H targum backup --to <remote>:targum/backups \
-    --store /var/lib/targum/targum.db --out /var/lib/targum/backups
+does not cover, and to be told when /health stops answering: the switch-on steps
+in deploy/README.md, under "Backups off the box" and "Alerts".
 EOF
