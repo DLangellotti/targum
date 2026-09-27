@@ -26,10 +26,13 @@ building on targum is entitled to know about.
   language, which this document said were clean and were not, until 2026-09-13 — see
   "Stanza's other languages" below.
 - A model trained on NonCommercial **or ShareAlike** data is not used (2026-09-13).
+- **Except for Russian** (2026-09-27): a Russian model may be used whatever it was trained
+  on, provided its own licence permits commercial use. Hebrew and every other language
+  keep the rule. See "Russian" below.
 - **The Hebrew annotator does not meet that rule, and has not since it arrived.**
   `dictabert-joint`'s weights are CC BY 4.0, but DICTA's own paper says it was trained
   on UD_Hebrew-HTB, CC BY-NC-SA 4.0 — the treebank Stanza was dropped for. Found
-  2026-09-27 and not yet resolved; see "DICTA's annotator" below. "Nothing in targum
+  2026-09-27; DICTA and IAHLT asked, awaiting answer — see "DICTA's annotator" below. "Nothing in targum
   is NonCommercial" is true of every licence targum was handed, and not of what one of
   those models was trained on.
 
@@ -178,15 +181,51 @@ Open Scriptures morphology, which had them all along: 97.9% and 99.9% of verbs, 
 verbs and the root for 99.1%, at 94.3% and 98.1% accuracy, where the spelling rules
 answered for 8.9%. Neither depends on anything NonCommercial and neither moves a lemma.
 
-### DICTA's annotator — CC BY 4.0 weights, trained on the treebank Stanza was dropped for (open, 2026-09-27)
+### Russian, where what a model was trained on is not held against it — 2026-09-27
+
+**For Russian, and only Russian, a model trained on NonCommercial or ShareAlike data may
+be used.** David decided this on 2026-09-27: "in the case of Russian we should not worry
+too much". It supersedes, for Russian alone, the rule of 2026-09-13 in the section above,
+and with it the reading that a model trained on ShareAlike data counts as NonCommercial.
+Hebrew keeps the rule in full, and David decided the same day to keep it so; every other
+language keeps it too.
+
+What the rule had cost Russian, so the trade is on the page: every Russian treebank is
+NonCommercial or ShareAlike (SynTagRus CC BY-NC-SA 4.0; GSD, Taiga and Poetry CC BY-SA
+4.0), so no Russian tagger passed, and Russian words have been read by the model one
+sentence at a time and paid for (`annotate/model_lemma.py`). A rebuild buys nothing, so
+the box cannot re-read a Russian text whose words were bought on the laptop, and four
+shared Russian texts are frozen on the annotator that built them (targum-internal#310).
+
+**What it does not cover**, so that the carve-out stays the size it was given:
+
+- **A file whose own licence is NonCommercial.** That term is on the thing targum would
+  run, not on what it learned from. So UDPipe 2's Russian models (the models themselves
+  are CC BY-NC-SA), Omogre (CC BY-NC-SA), Zaliznyak's dictionary (CC BY-NC) and every
+  tool that ships a copy of it, such as StressRNN's exception dictionary, stay out. So
+  do the `conll17` word vectors, which LINDAT distributes under CC BY-NC-SA 4.0 and
+  which every Stanza Russian tagger and parser loads (its lemmatizer and tokenizer do
+  not). Any of these would be a further decision, not this one.
+- **Training anything ourselves.** The SynTagRus dev set stays what the section on the
+  Universal Dependencies dev sets says it is: evaluation only, on a developer's machine.
+- **Content.** A Russian text, translation or recording still meets the content bar
+  below, and a list derived from a ShareAlike source still goes out under that licence,
+  as with wordfreq and OpenRussian.
+
+A Russian tool taken under this carve-out is named at the foot of the readers it read,
+as DICTA is, with its training data written here. A Stanza Russian build is still added
+to `AUDITED` by name, after its downloads are checked against the first point above. And
+RUAccent, which the silero section records as refused for having been trained on the
+Russian National Corpus and Wikipedia, is no longer refused on that ground.
+
+### DICTA's annotator — CC BY 4.0 weights, trained on the treebank Stanza was dropped for (asked, awaiting answer — 2026-09-27)
 
 **The section on Stanza's Hebrew models says the NonCommercial model "was replaced
 rather than reasoned around". It was replaced by a model trained on the same treebank.**
 Nobody read DICTA's paper for its training data on 2026-09-02; the licence on the model
 card was taken as the whole answer — the mistake this document records about Stanza's
 other languages, made eleven days before that one was found. It surfaced while
-building targum#456 and was checked against the primary sources on 2026-09-27. David
-decided the same day that it is written down first and nothing is changed yet.
+building targum#456 and was checked against the primary sources on 2026-09-27.
 
 **What the weights carry.** Every DICTA card involved says `license: cc-by-4.0` in its
 front matter and "This work is licensed under a Creative Commons Attribution 4.0
@@ -293,10 +332,22 @@ No single free model covers the morphology and the lemma cleanly. Segmentation a
 have clean replacements today; the morphology has none; the lemma's cleanest source is
 the model, already asked for verbs, or a question to DICTA about `-lex`.
 
-**Open, for David.** Whether the rule holds for DICTA as it held for Stanza, or is
-narrowed with a reason written here; and, if it holds, which of the rows above, in what
-order, and whether DICTA and IAHLT are asked first. Until then the credit at the foot of
-a reader stays as it is, because it is true: DICTA read those words, under CC BY 4.0.
+**Status: asked, awaiting answer (2026-09-27).** David decided that day that the rule
+holds for Hebrew, and that DICTA is asked before anything is replaced. Two letters went
+onto targum-internal#381, where the date each is sent and each answer are recorded:
+
+- **to DICTA:** what `dictabert-lex` and the joint model's lemma head were trained on;
+  whether a joint, morph or lex model trained without HTB and NEMO exists or could; and
+  how DICTA reads HTB's NC-SA term against its CC BY 4.0 weights and their output used
+  commercially;
+- **to IAHLT:** the commercial terms, if any, for its member Hebrew treebank and for
+  HeSpaCy.
+
+Until they answer, `dictabert-joint` keeps reading, nothing is re-annotated, and nothing
+is decided about which row above replaces which head. This is a known exposure being
+asked about, not a narrowing of the rule: if the answers do not clear it, the heads are
+replaced. The credit at the foot of a reader stays as it is, because it is true: DICTA
+read those words, under CC BY 4.0.
 
 ### DICTA's menaked — CC BY 4.0, confirmed 2026-09-07
 
