@@ -1017,3 +1017,105 @@ def gloss_for(lexeme: str | None, form: str) -> str:
             if number in table:
                 return table[number]
     return BY_FORM.get(form, "")
+
+
+#: The commonest words of modern Hebrew, by spelling, as "Words you may already know"
+#: lists them (targum-internal#378). The glossary answers a spelling with whatever sense
+#: it met first, and at the top of a frequency list that is the wrong one as often as not:
+#: `עם` came back "people; nation" where it is almost always "with", `מי` "who; water",
+#: `שלו` "calm". And the commonest words of all — `היא`, `הם`, `להיות` — had no entry,
+#: so a beginner was asked whether they knew them with nothing beside them.
+#:
+#: **The sense a learner meets first**, which is the sense the list is ranked by: a
+#: spelling's rarer readings are left to the reader's card, where the sentence decides.
+#: Unpointed, as the frequency list is. Only the forms that list reaches in its first two
+#: hundred and that the glossary gets wrong or leaves bare; the rest it already has right.
+#: Russian beside English, since a Russian reader is shown the same list.
+MODERN: dict[str, tuple[str, str]] = {
+    "את": ("[marks the direct object]; you [f.]", "[показатель прямого дополнения]; ты [ж.]"),
+    "עם": ("with", "с"),
+    "היה": ("was", "был"),
+    "יש": ("there is; have", "есть; имеется"),
+    "אבל": ("but", "но"),
+    "היא": ("she; it", "она"),
+    "רק": ("only; just", "только"),
+    "ב": ("in; at; with [prefix]", "в; на; с [приставка]"),
+    "הם": ("they [m.]", "они [м.]"),
+    "לו": ("to him; if only", "ему; если бы"),
+    "לך": ("to you; you have", "тебе; у тебя"),
+    "שם": ("there; name", "там; имя"),
+    "זו": ("this [f.]", "эта"),
+    "מי": ("who", "кто"),
+    "להיות": ("to be", "быть"),
+    "שלו": ("his", "его"),
+    "שאני": ("that I", "что я"),
+    "זאת": ("this [f.]", "это; эта"),
+    "היו": ("were", "были"),
+    "לנו": ("to us; we have", "нам; у нас"),
+    "ידי": ("by [על ידי]; my hands", "посредством [על ידי]; мои руки"),
+    "להם": ("to them; they have", "им; у них"),
+    "יהיה": ("will be", "будет"),
+    "שני": ("second; two [of]", "второй; два"),
+    "לאחר": ("after", "после"),
+    "לעשות": ("to do; to make", "делать"),
+    "שיש": ("that there is", "что есть"),
+    "אנחנו": ("we", "мы"),
+    "ל": ("to; for [prefix]", "к; для [приставка]"),
+    "אותם": ("them", "их"),
+    "בבית": ("at home; in the house", "дома; в доме"),
+    "ו": ("and [prefix]", "и [приставка]"),
+    "הייתה": ("was [f.]", "была"),
+    "שנים": ("years", "годы; лет"),
+    "אנשים": ("people", "люди"),
+    "ממש": ("really; actually", "действительно; прямо"),
+    "אומר": ("says", "говорит"),
+    "זמן": ("time", "время"),
+    "שלנו": ("our; ours", "наш"),
+    "נראה": ("seems; looks", "кажется; выглядит"),
+    "מ": ("from [prefix]", "из; от [приставка]"),
+    "שזה": ("that this; that it", "что это"),
+    "שלה": ("her; hers", "её"),
+    "אמר": ("said", "сказал"),
+    "פה": ("here; mouth", "здесь; рот"),
+    "שהם": ("that they", "что они"),
+    "הייתי": ("I was", "я был"),
+    "יודע": ("knows", "знает"),
+    "בני": ("sons of; my son", "сыновья; мой сын"),
+    "העולם": ("the world", "мир"),
+    "פי": ("according to [לפי, על פי]; mouth of", "по [לפי, על פי]; уста"),
+    "לכם": ("to you [pl.]; you have [pl.]", "вам; у вас"),
+    "שאתה": ("that you", "что ты"),
+    "דברים": ("things; words", "вещи; слова"),
+    "לראות": ("to see", "видеть"),
+    "אביב": ("spring; Tel Aviv [תל אביב]", "весна; Тель-Авив [תל אביב]"),
+    "בישראל": ("in Israel", "в Израиле"),
+    "הזאת": ("this [f.]", "эта"),
+    "הן": ("they [f.]", "они [ж.]"),
+    "רבים": ("many", "многие"),
+    "אלו": ("these", "эти"),
+    "הראשון": ("the first", "первый"),
+    "באופן": ("in a way [באופן כללי: in general]", "образом [באופן כללי: в общем]"),
+    "מן": ("from", "из; от"),
+    "הזמן": ("the time", "время"),
+    "המדינה": ("the state; the country", "государство; страна"),
+    "הדבר": ("the thing", "вещь; дело"),
+    "בדרך": ("on the way; usually [בדרך כלל]", "по пути; обычно [בדרך כלל]"),
+    "היתה": ("was [f.]", "была"),
+    "אנו": ("we", "мы"),
+    "בעולם": ("in the world", "в мире"),
+    "הספר": ("the book", "книга"),
+    "וזה": ("and this", "и это"),
+    "שהיה": ("that was", "который был"),
+    "שום": ("no; any [שום דבר: nothing]", "никакой [שום דבר: ничего]"),
+    "אחרים": ("others", "другие"),
+    "אי": ("un- [אי אפשר: impossible]; island", "не- [אי אפשר: невозможно]; остров"),
+}
+
+
+def common_gloss(form: str, into: str = "en") -> str:
+    """The hand-written meaning of one of modern Hebrew's commonest words, or "" where
+    this table does not hold it and the glossary should be asked. English, or Russian."""
+    held = MODERN.get(form)
+    if held is None:
+        return ""
+    return held[1] if into == "ru" else held[0] if into == "en" else ""

@@ -2986,6 +2986,9 @@ def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     )
     status, end = get(port, f"/words/common?offset=2990&k={token}")
     assert end["next"] is None, "the list stops at the commonest few thousand"
+    # The hand table answers before the glossary for the commonest words (#378).
+    said = {row["form"]: row["meaning"] for row in payload["words"]}
+    assert said.get("עם") == "with" and said.get("היא") == "she; it"
 
 
 # -- hear a silent text (targum-internal#246) ----------------------------------------

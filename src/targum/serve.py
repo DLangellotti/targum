@@ -6585,6 +6585,7 @@ class Handler(BaseHTTPRequestHandler):
         they know, fifty at a time, and the count rises because the count did. The
         page leaves out what is on the ledger; nothing here is bought — a word the
         glossary does not hold is shown bare."""
+        from .annotate import closed
         from .annotate.base import BAND_NAMES
         from .annotate.frequency import FrequencyBands
         from .annotate.gloss import cached_gloss, gloss_provider_name
@@ -6610,12 +6611,17 @@ class Handler(BaseHTTPRequestHandler):
         provider = gloss_provider_name()
         rows = []
         for form in page:
-            held = cached_gloss(form, spoken, target, provider)
+            # The hand table first: the glossary answers a spelling with whatever sense it
+            # met first, and at the top of this list that was "people" for עם (#378).
+            meaning = closed.common_gloss(form, target) if spoken == "he" else ""
+            if not meaning:
+                held = cached_gloss(form, spoken, target, provider)
+                meaning = held.gloss if held else ""
             rows.append(
                 {
                     "form": form,
                     "band": BAND_NAMES.get(bands.band(form, spoken), ""),
-                    "meaning": held.gloss if held else "",
+                    "meaning": meaning,
                 }
             )
         self._json(
