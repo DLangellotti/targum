@@ -1003,10 +1003,10 @@ SHELF = [
     text("league", "ליגה", kind="article", tags=["sport"]),
     text("physics", "פיזיקה", kind="talk", tags=["science"], spoken=True, video=True),
     text("chemistry", "כימיה", kind="talk", tags=["science"], spoken=True),
-    text("story-one", "סיפור"),
-    text("story-two", "סיפור שני"),
-    text("story-three", "סיפור שלישי"),
-    text("story-four", "סיפור רביעי"),
+    text("story-one", "סיפור", kind="essay"),
+    text("story-two", "סיפור שני", kind="essay"),
+    text("story-three", "סיפור שלישי", kind="essay"),
+    text("story-four", "סיפור רביעי", kind="essay"),
 ]
 
 
@@ -1135,7 +1135,7 @@ def test_a_card_carries_the_facts_a_reader_chooses_by(tmp_path: Path) -> None:
     known = {"story-one": {"known": 0.72}}
     rows = browse(tmp_path, catalogueKnown=known)["rows"]
     one = next(row for row in rows if row["title"] == "סיפור")
-    assert one["meta"] == "Stories · 7 min · 18% hard words"
+    assert one["meta"] == "Essays · 7 min · 18% hard words"
     assert "72%" in one["known"]
     two = next(row for row in rows if row["title"] == "סיפור שני")
     assert two["known"] == "New to you", "never 0%, which is a claim about the reader"
@@ -1474,3 +1474,24 @@ def test_the_way_back_is_the_trail_and_an_address_lands_inside(tmp_path: Path) -
     assert "רות" in [row["title"] for row in landed["rows"]]
     # A row's own address is still a row's: `#ruth` is not read as a door.
     assert draw(tmp_path, hash="#ruth")["doors"] == []
+
+
+def test_stories_are_a_subject_by_their_kind(tmp_path: Path) -> None:
+    """targum-internal#311, decided 2026-09-27: a Stories door. Most of the untagged shelf
+    is revival-era fiction, and the arrival already answered "Stories and novels" from the
+    kinds; this page had no chip for it. Read from the kind, so nothing is tagged twice."""
+    shelf = [
+        *SHELF[:6],
+        text("tale", "מעשה", kind="story"),
+        text("book", "רומן", kind="novel"),
+        text("drama", "מחזה", kind="play"),
+        text("verse", "שיר", kind="poetry"),
+    ]
+    drawn = browse(tmp_path, catalogue=shelf)
+    assert drawn["subjects"] == ["All", "Stories", "News", "Sport", "Science"], drawn["subjects"]
+    assert drawn["subjectCounts"][1] == 3
+    titles = {
+        row["title"]
+        for row in browse(tmp_path, catalogue=shelf, view={"subject": "stories"})["rows"]
+    }
+    assert titles == {"מעשה", "רומן", "מחזה"}, titles
