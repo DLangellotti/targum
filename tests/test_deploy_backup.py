@@ -137,3 +137,15 @@ def test_the_box_reads_russian_itself() -> None:
     assert (
         script.index("uv tool install --force") < fetch < script.index("targum rebuild --words")
     ), "fetched after the wheel is in and before the rebuild re-reads Russian"
+
+
+def test_a_deploy_reads_the_vault_as_the_service_account_when_it_can() -> None:
+    """David, 2026-09-27: a deploy need not wait for somebody at the fingerprint reader.
+    Like weekly-run.sh, it takes the targum-box service account's token from the login
+    keychain before op resolves anything, and never replaces a token already set."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    lookup = script.index("security find-generic-password -s targum-op-service-account -w")
+    assert script.index('[ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ]') < lookup
+    assert lookup < script.index("op inject -i deploy/box.env.op"), "before the vault is read"
+    weekly = (DEPLOY / "weekly-run.sh").read_text(encoding="utf-8")
+    assert "targum-op-service-account" in weekly, "the same item the weekly reads"
