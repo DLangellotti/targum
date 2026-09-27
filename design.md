@@ -347,6 +347,52 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### What we guessed says "probably" — 2026-09-27
+
+Everywhere targum has an answer it is not sure of, it has picked between two things: say
+it flatly, or say nothing. `pronounce.sayable` refuses a word with no vowels because "a
+wrong one is a lie told with confidence"; the roots, the Onkelos senses (a hand table and
+a verse name, because spelling alone was 42–70% right) and the cast oracle stay silent
+for the same reason. The stress on a word card goes the other way: where the text carries
+no mark for it, phonikud puts it on the last syllable, the card prints that as fact, and
+it is right about two words in three. There is now a third option: **the answer, shown,
+with "probably" beside it.** David, 2026-09-27, targum-internal#323.
+
+- **The first use is the stress.** On a word card's pronunciation line, when the stressed
+  syllable was guessed rather than read off a mark, the reading is followed by the word
+  "probably" («вероятно» in Russian; the interface's own word in each language it
+  speaks). The IPA itself is unchanged. The word's label says what it qualifies: "We
+  guessed where the stress falls."
+- **What it looks like.** One word, in muted ink (§4), at the card's own size, after the
+  thing it qualifies and outside it. Never a number, a percentage, a bar or a scale;
+  never clay, sun or any hue that reads as a warning; no icon, no question mark, no
+  italic. It is a word in a sentence, not a state.
+- **What decides it.** Where a stage has a calibrated confidence — measured in
+  `evals/ledger.jsonl`, precision rising as the confidence does, as Jev's did on stress
+  in #318 — a line is drawn at a measured precision and recorded beside that ledger row.
+  An answer above the line is shown plainly; an answer under it says "probably". Where no
+  calibrated confidence exists, the only distinction is whether we guessed it or read it
+  from the text, and every guess says "probably". The line lives in the code, never on
+  the page.
+- **What never gets it.** Anything read off the text's own marks: a stress from
+  phonikud's mark (U+05AB) or a placed Masoretic accent, the vowels a source carried, a
+  qamats qatan marked as one (U+05C7). Counts, which are not guesses: known share, words,
+  time, days. And public pages: the landing says what the product does (§6), and
+  "probably" belongs beside the answer it qualifies, inside the product.
+- **It only replaces silence or a flat assertion.** It may not be added where the answer
+  is already certain, and it is not a softener for copy. A guess shown flatly today moves
+  to "probably" when its use is added here. Silence keeps a stricter rule: a guess that
+  today shows nothing may come out only with a calibrated confidence and its own line
+  behind it. For anything with no number under it, `sayable`'s rule stands.
+- **Each new use is an amendment to this entry.** A sense, a root, a cast, the vowels a
+  diacritizer supplied, a guessed qamats qatan: each names its confidence and where its
+  line was drawn before a card says "probably" about it.
+
+This fits the positioning, which shows the machinery to readers who want it, better than
+silence did, and it keeps the voice: we say what we did, in one word, and do not
+apologise for it.
+
+
 ### A figure on Your Progress that can fall — 2026-09-27
 
 Every figure on Your Progress only rises, because every one counts marks; §12's entry on
