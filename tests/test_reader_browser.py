@@ -2172,32 +2172,36 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
 ) -> None:
     """targum-internal#335: being remembered. At the foot of the first section finished,
     the offer under it says how many of the next one's words the reader already knows —
-    in answer to the press, never on load, once in a browser, and in the offer's own row
-    so nothing above it moves."""
-    import json as _json
-
+    a number targum's own server works out (David on targum#476), asked for in answer to
+    the press, never on load, once in a browser, and said in the offer's own row so
+    nothing above it moves."""
     first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
     context = opened(browser, viewport)
     page = context.new_page()
-    page.goto(address(first))
-    page.wait_for_selector(".pair")
-    ahead = _json.loads(page.get_attribute("#next-up", "data-known-of") or "[]")
-    assert len(ahead) > 3, "the next part's words ride on the offer"
-    # Three of the next part's words, known before this one is opened.
-    known = {w: {"surface": w, "status": 9, "at": 1} for w in ahead[:3]}
-    page.evaluate("(v) => localStorage.setItem('targum:vocab:he', JSON.stringify(v))", known)
-    page.reload()
+    asked: list[dict] = []
+
+    def answer(route, request):
+        asked.append(json.loads(request.post_data or "{}"))
+        return route.fulfill(
+            status=200, content_type="application/json", body=json.dumps({"known": 3})
+        )
+
+    page.route("**/known-ahead*", answer)
+    # With a key, as a page served by targum is: it is what lets a page ask anything.
+    page.goto(address(first) + "?k=test")
     page.wait_for_selector(".pair")
     line = page.locator("#next-up-known")
-    assert line.is_hidden(), "never on load"
-    assert page.evaluate("() => localStorage.getItem('targum:taught-the-share')") is None
+    page.wait_for_timeout(300)
+    assert line.is_hidden() and not asked, "never on load, and nothing asked"
+    assert page.get_attribute("#next-up", "data-known-of") is None, "no words on the page"
 
     page.locator("#done-mark").scroll_into_view_if_needed()
     page.click("#done-mark")
     page.wait_for_function("() => !document.getElementById('next-up-known').hidden")
-    assert line.inner_text() == "You already know 3 words in this one.", (
-        "the three known before, and none of this part's, which the press just marked"
-    )
+    assert line.inner_text() == "You already know 3 words in this one."
+    (question,) = asked
+    assert question["section"] == 1 and question["next"] == 2
+    assert question["known"], "the words the press just marked go with the question"
     assert page.evaluate("() => localStorage.getItem('targum:taught-the-share')")
     # Moves nothing: the offer's own row is where it is with the line or without it.
     moved = page.evaluate(
@@ -2221,7 +2225,8 @@ def test_the_third_moment_is_the_next_ones_known_words_said_once(
     page.wait_for_function("() => document.getElementById('next-up-known').hidden")
     page.click("#done-mark")
     page.wait_for_function("() => !document.getElementById('finished').hidden")
-    assert line.is_hidden()
+    page.wait_for_timeout(300)
+    assert line.is_hidden() and len(asked) == 1
     page.reload()
     page.wait_for_selector(".pair")
     assert line.is_hidden()

@@ -116,9 +116,8 @@ byId["next-up"] = element("aside");
 byId["next-up"].classList.add("next-up");
 byId["next-up"].classList.add("here");
 byId["next-up"].hidden = true;
-// The next one's words, where the builder could write them (targum-internal#335), and
-// the line that says how many of them are known, hidden as the template ships it.
-if (payload.knownOf) byId["next-up"].setAttribute("data-known-of", JSON.stringify(payload.knownOf));
+// The line that says how many of the next one's words are known (targum-internal#335),
+// hidden as the template ships it.
 byId["next-up-known"] = element("span");
 byId["next-up-known"].hidden = true;
 
@@ -135,6 +134,25 @@ byId.first = Object.assign(element("p"), {
 // finished section counts the longest run of days through `TargumCharts`.
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "vocab.js"));
+/* targum's own server, where a test gives it an answer (`ask`): the page is then one
+ * served with a key, and `/known-ahead` answers with what the test said — a JSON body, or
+ * "fail" for a request that never reached anybody. Every other call is left in the air.
+ * What the page sent is kept, so a test can read the question as well as the answer. */
+const asked = [];
+if (payload.ask !== undefined) {
+  location.protocol = "http:";
+  location.search = "?k=test";
+  global.fetch = window.fetch = (url, options) => {
+    const body = options && options.body ? JSON.parse(options.body) : null;
+    asked.push({ url: String(url), body });
+    if (String(url).indexOf("/known-ahead") !== 0) return new Promise(() => {});
+    if (payload.ask === "fail") return Promise.reject(new Error("offline"));
+    return Promise.resolve({
+      ok: !(payload.ask && payload.ask.status >= 400),
+      json: () => Promise.resolve(payload.ask),
+    });
+  };
+}
 require(path.join(assets, "reader.js"));
 const reader = window.TargumReader;
 
@@ -251,8 +269,10 @@ const practiced = {
   prefs: (JSON.parse(localStorage.getItem("targum:prefs") || "{}") || {}).practice,
 };
 
+function report() {
 process.stdout.write(
   JSON.stringify({
+    asked,
     placed: (payload.words || []).map((word) => ({ word, card: place(word, payload.card) })),
     hover,
     rendering: { opened, switched },
@@ -351,3 +371,7 @@ process.stdout.write(
     })),
   })
 );
+}
+// An answer from the server lands after the script has run, as it does on a page.
+if (payload.ask !== undefined) setTimeout(report, 20);
+else report();

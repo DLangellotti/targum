@@ -1971,51 +1971,84 @@ var targumReader = function () {
      marks are for, said about the next thing rather than this one: this text's own
      figures are the ink block's.
 
-     Said once in a browser, in answer to the press and never on load, in the offer's own
-     row, so nothing above it moves. Nothing where the offer's words are not on the page
-     (a page written before this, or a text the catalogue's index has not measured), and
-     nothing where the count is nought: "none of these" is not a thing worth being told
-     first, and the moment waits for a finish that has something to say. A count, never a
-     share, and never of what is waiting. */
-  var TOLD_SHARE = "targum:taught-the-share";
+     The number is targum's to work out, not the page's (David on targum#476, "count on
+     the server"): a page on the shared shelf is built once for everybody, so it can carry
+     neither a count nor the offer's words. It asks once, naming this page and the offer,
+     and sends the words of this page it holds as known, so the press's own words count
+     before the sync has carried them. Only a number comes back.
 
-  function knownAhead(offer) {
-    var words = [];
+     Said once in a browser, in answer to the press and never on load, in the offer's own
+     row, so nothing above it moves. Nothing off a disk, signed out, where the server
+     cannot measure the offer, or where the count is nought: "none of these" is not a thing
+     worth being told first, and the moment waits for a finish that has something to say.
+     A count, never a share, and never of what is waiting. */
+  var TOLD_SHARE = "targum:taught-the-share";
+  // Asked once a page: the press that clears the last word finishes the section twice
+  // over (the cleared page, then the press), and one question is enough.
+  var askedShare = false;
+
+  function toldShare() {
     try {
-      words = JSON.parse((offer && offer.getAttribute("data-known-of")) || "[]");
+      return !!localStorage.getItem(TOLD_SHARE);
     } catch (e) {
-      return 0;
+      return true;
     }
-    var known = 0;
-    (Array.isArray(words) ? words : []).forEach(function (lemma) {
-      var word = vocab[lemma];
-      if (word && word.status === KNOWN) known += 1;
-    });
-    return known;
+  }
+
+  // What the foot is offering, as the server names it: the next section of this text,
+  // or a catalogue text by its id off the `/open/<id>` link. Null for anything else.
+  function offerNamed(offer) {
+    if (offer.classList.contains("here")) return { next: Number(sectionId) + 1 };
+    var link = offer.querySelector(".next-up-link");
+    var href = (link && link.getAttribute("href")) || "";
+    var id = /^\/open\/([^?#]+)/.exec(href);
+    return id ? { entry: decodeURIComponent(id[1]) } : null;
   }
 
   function sayKnownAhead() {
     var offer = document.getElementById("next-up");
     var line = document.getElementById("next-up-known");
-    if (!offer || !line || PREVIEW) return;
-    try {
-      if (localStorage.getItem(TOLD_SHARE)) return;
-    } catch (e) {
-      return;
-    }
-    var known = knownAhead(offer);
-    if (!known) return;
-    line.textContent = tn(
-      "reader.next.known-ahead",
-      known,
-      "You already know {n} word in this one.",
-      "You already know {n} words in this one.",
-      { n: known }
-    );
-    line.hidden = false;
-    try {
-      targumKeep(TOLD_SHARE, String(Date.now()));
-    } catch (e) {}
+    if (!offer || !line || PREVIEW || !canAsk() || typeof fetch !== "function") return;
+    if (askedShare || toldShare()) return;
+    var named = offerNamed(offer);
+    if (!named) return;
+    askedShare = true;
+    var held = lemmasHere(false).filter(function (lemma) {
+      return statusOf(lemma) === KNOWN;
+    });
+    fetch(keyed("/known-ahead"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        document: documentId,
+        section: Number(sectionId),
+        next: named.next || 0,
+        entry: named.entry || "",
+        known: held,
+      }),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        var known = answer && typeof answer.known === "number" ? answer.known : 0;
+        // Taken back while the question was out, or said by an earlier answer.
+        if (!known || !finishedAt() || toldShare()) return;
+        line.textContent = tn(
+          "reader.next.known-ahead",
+          known,
+          "You already know {n} word in this one.",
+          "You already know {n} words in this one.",
+          { n: known }
+        );
+        line.hidden = false;
+        try {
+          targumKeep(TOLD_SHARE, String(Date.now()));
+        } catch (e) {}
+      })
+      .catch(function () {
+        /* offline, or the server could not say: the moment waits */
+      });
   }
 
   // Taken back with the finish: the count it said had the press's words in it.

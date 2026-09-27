@@ -1391,10 +1391,13 @@ leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration
    says how many of its words the reader already knows, the words the press just marked
    among them: "You already know 14 words in this one." A count of words, never a share;
    in the offer's own row, under its name, so nothing above it moves; said in answer to
-   the press and never on load; once in a browser (`targum:taught-the-share`). Nothing is
-   said where the count is nought or the offer's words are not on the page, and the
-   moment waits for a finish that has something to say. Not in a playlist, where the
-   press leaves the page. The ink block's figures stay this text's own.
+   the press and never on load; once in a browser (`targum:taught-the-share`). The number
+   is counted by targum's own server and only the number comes back (David on
+   targum#476): a page on the shared shelf is built once for everybody, and no list of an
+   offer's words reaches the browser. Nothing is said signed out, off a disk, where the
+   offer cannot be measured or the count is nought, and the moment waits for a finish
+   that has something to say. Not in a playlist, where the press leaves the page. The ink
+   block's figures stay this text's own.
 
 What is not here yet, and is the rest of the list David settled the same day: bringing your
 own, talking to targum, and "targum remembers what you're having trouble with", which
