@@ -45,8 +45,12 @@ jobs:
 
   # Its own job, and not in the matrix above: the reader in a browser is the same reader
   # on both Pythons, and Chromium is ~100 MB that neither leg should pay for twice. The
-  # checks job installs no browser, so `tests/test_reader_browser.py` skips itself there
-  # — which is also what a working copy without the extra does.
+  # checks job installs no browser, so every `tests/*_browser.py` skips itself there —
+  # which is also what a working copy without the extra does.
+  #
+  # All of them, not only the reader's. Until 2026-09-27 this ran one file of the
+  # eleven, so the rest were checked only on a laptop that had Chromium, and a copy
+  # change to the playlist page broke one of them with CI green.
   browser:
     runs-on: ubuntu-latest
     steps:
@@ -57,4 +61,4 @@ jobs:
       # links against, and the failure without it is a loader error rather than a
       # missing browser.
       - run: uv run playwright install --with-deps chromium
-      - run: uv run pytest tests/test_reader_browser.py -q
+      - run: uv run pytest tests/*_browser.py -q

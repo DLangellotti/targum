@@ -149,7 +149,7 @@ def test_a_playlist_lists_its_texts_in_order_with_its_keys(browser, tmp_path: Pa
         "titles": ["Cheese swirls", "Raiba"],
         "upFirst": True,
         "downLast": True,
-        "failed": "Couldn't prepare this text.",
+        "failed": "We couldn't get this text ready.",
     }
     assert sent == [["/playlists/1", {"do": "move", "position": 0, "by": 1}]]
 
