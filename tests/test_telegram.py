@@ -1,4 +1,4 @@
-"""The Telegram door (targum-internal#328, slice 1), driven by recorded updates.
+"""The Telegram door (targum-internal#328, slices 1 and 2), driven by recorded updates.
 
 The updates below are the shapes the Bot API posts to a webhook — a voice note, a
 forwarded text, a photo, a document, a command — trimmed to the fields that matter and
@@ -37,12 +37,27 @@ class Stand:
 
     def __init__(self, files: dict[str, bytes] | None = None) -> None:
         self.sent: list[tuple[int, str]] = []
+        #: Messages sent with a button: chat, text, the button's label and its data.
+        self.offered: list[tuple[int, str, str, str]] = []
+        #: Presses answered: the query's id and any toast.
+        self.answered: list[tuple[str, str]] = []
+        #: Messages said again: chat, message id, the new text.
+        self.edited: list[tuple[int, int, str]] = []
         self.typed: list[int] = []
         self.fetched: list[str] = []
         self.files = files or {}
 
     def send(self, chat_id: int, text: str) -> None:
         self.sent.append((chat_id, text))
+
+    def offer(self, chat_id: int, text: str, button: str, data: str) -> None:
+        self.offered.append((chat_id, text, button, data))
+
+    def answer(self, query_id: str, text: str = "") -> None:
+        self.answered.append((query_id, text))
+
+    def edit(self, chat_id: int, message_id: int, text: str) -> None:
+        self.edited.append((chat_id, message_id, text))
 
     def typing(self, chat_id: int) -> None:
         self.typed.append(chat_id)
@@ -134,6 +149,35 @@ def document(update_id: int, name: str, size: int, file_id: str = "DOC1") -> dic
     )
 
 
+def link(update_id: int, url: str, chat: int = CHAT) -> dict[str, Any]:
+    return _message(
+        update_id, chat, text=url, entities=[{"offset": 0, "length": len(url), "type": "url"}]
+    )
+
+
+def pressed(update_id: int, data: str, chat: int = CHAT, message_id: int = 77) -> dict[str, Any]:
+    """A press on a Build button, as the Bot API posts a `callback_query`."""
+    return {
+        "update_id": update_id,
+        "callback_query": {
+            "id": f"q{update_id}",
+            "from": {"id": chat, "is_bot": False, "first_name": "Dana", "language_code": "en"},
+            "message": {
+                "message_id": message_id,
+                "from": {"id": 1, "is_bot": True, "first_name": "targum"},
+                "chat": {"id": chat, "first_name": "Dana", "type": "private"},
+                "date": 1790000000,
+                "text": "the quote",
+            },
+            "chat_instance": "-8123",
+            "data": data,
+        },
+    }
+
+
+ARTICLE = "https://www.haaretz.co.il/news/politics/2026-09-27/ty-article/abc"
+
+
 def photo(update_id: int) -> dict[str, Any]:
     return _message(
         update_id,
@@ -175,6 +219,9 @@ class World:
         )
         #: How long `prepare` says a recording is, in seconds.
         self.seconds = 300.0
+        #: The title `prepare` finds for a link, and whether the link is a recording.
+        self.title = "מה קרה השבוע בכנסת"
+        self.link_audio = False
 
     def link(self, chat: int = CHAT) -> None:
         token = self.store.start_telegram_link(self.person.id)
@@ -190,12 +237,13 @@ def world(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> World:
 
     def priced(job: serve.Job) -> None:
         """What `Library.prepare` leaves on a job it could price, without the pipeline."""
-        job.title = Path(job.source).stem
+        linked = job.source.startswith("https://")
+        job.title = here.title if linked else Path(job.source).stem
         job.language = "he"
         job.segments = 4
         job.total = 4
         job.estimate = 0.0
-        if Path(job.source).suffix in {".ogg", ".mp3", ".mp4"}:
+        if (linked and here.link_audio) or Path(job.source).suffix in {".ogg", ".mp3", ".mp4"}:
             job.audio = True
             job.seconds = here.seconds
         job.stage = "ready"
@@ -347,8 +395,15 @@ def test_a_recording_over_ten_minutes_asks_before_it_builds(world: World) -> Non
     assert world.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()[
         "length"
     ] in (None, 0, 0.0)
-    press = f"{PUBLIC}/build/{job.id}"
-    assert world.said() == [f"Thanks. This one uses 12 credits. Confirm it here: {press}"]
+    # The same button a link gets, and its press is what starts it.
+    assert world.said() == []
+    [(chat, text, button, data)] = world.telegram.offered
+    assert (chat, text, button) == (CHAT, "Voice note. It uses 12 credits.", "Build")
+    world.door.handle(pressed(2, data))
+    assert job.stage == "queued"
+    assert world.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()[
+        "length"
+    ] == pytest.approx(11 * 60 + 5)
 
 
 def test_a_refusal_comes_back_in_the_claims_own_words(world: World) -> None:
@@ -416,17 +471,263 @@ def test_a_file_that_turns_out_too_big_is_refused_the_same_way(world: World) -> 
     assert not world.library.jobs and not uploads(world)
 
 
-def test_a_link_points_at_the_add_page_for_now(world: World) -> None:
+# --- a link, and its Build button (slice 2) ----------------------------------------
+
+
+def _claims(world: World, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Every `Library.claim`, by job id, still doing what it does."""
+    claimed: list[str] = []
+    real = world.library.claim
+
+    def counting(job: serve.Job) -> str:
+        claimed.append(job.id)
+        return real(job)
+
+    monkeypatch.setattr(world.library, "claim", counting)
+    return claimed
+
+
+def test_a_link_is_quoted_with_a_build_button_and_nothing_is_spent(world: World) -> None:
     world.link()
-    world.door.handle(
-        _message(
-            1,
-            text="https://www.ynet.co.il/news/article/abc",
-            entities=[{"offset": 0, "length": 39, "type": "url"}],
-        )
-    )
-    assert world.said() == [f"We can't take links here yet. Paste it on {PUBLIC}/add."]
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    assert job.source == ARTICLE and job.options["source"] == ARTICLE
+    assert job.owner == world.person.id and job.stage == "ready", "priced, not pressed"
+    assert world.library.queue.empty() and world.said() == []
+    row = world.store.db.execute("SELECT claimed, length FROM job WHERE id = ?", (job.id,))
+    assert tuple(row.fetchone()) in {(None, None), (0, 0), (0.0, 0.0)}
+    [(chat, text, button, data)] = world.telegram.offered
+    assert chat == CHAT and button == "Build"
+    assert text == "מה קרה השבוע בכנסת. It's a text, so it uses none of your credits."
+    # Telegram's limit, and nothing in it a stranger could make for themselves.
+    assert data.startswith("b:") and len(data.encode()) <= 64
+
+
+def test_a_recording_behind_a_link_is_quoted_in_credits(world: World) -> None:
+    world.link()
+    world.link_audio = True
+    world.seconds = 61.0
+    world.door.handle(link(1, "https://example.org/episode.mp3"))
+    [(_, text, _, _)] = world.telegram.offered
+    assert text == "מה קרה השבוע בכנסת. It uses 2 credits."
+    assert "$" not in text
+
+
+def test_a_link_without_its_scheme_is_still_a_link(world: World) -> None:
+    world.link()
+    world.door.handle(_message(1, text="www.ynet.co.il/news/article/abc"))
+    [job] = world.library.jobs.values()
+    assert job.source == "https://www.ynet.co.il/news/article/abc"
+    assert len(world.telegram.offered) == 1
+
+
+def test_the_press_claims_once_through_library_press(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The press is `Library.press` — the road `/build` takes — and so one claim."""
+    world.link()
+    world.link_audio = True
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    [(_, quote, _, data)] = world.telegram.offered
+    claimed = _claims(world, monkeypatch)
+    presses: list[str] = []
+    real_press = world.library.press
+
+    def spying(pressed_job: serve.Job) -> str:
+        presses.append(pressed_job.id)
+        return real_press(pressed_job)
+
+    monkeypatch.setattr(world.library, "press", spying)
+    world.door.handle(pressed(2, data))
+    assert presses == [job.id] and claimed == [job.id]
+    assert job.stage == "queued" and world.library.queue.qsize() == 1
+    row = world.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()
+    assert row["length"] == pytest.approx(300.0), "counted against the month, as /build counts"
+    assert world.telegram.answered == [("q2", "")]
+    # The quote is said again with the way to it, and its button is gone.
+    started = f"Thanks. We're getting it ready, and it'll be on your shelf: {PUBLIC}/build/{job.id}"
+    assert world.telegram.edited == [(CHAT, 77, f"{quote}\n{started}")]
+
+
+def test_a_second_press_is_heard_and_changes_nothing(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    world.link()
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    [(_, _, _, data)] = world.telegram.offered
+    claimed = _claims(world, monkeypatch)
+    world.door.handle(pressed(2, data))
+    world.door.handle(pressed(3, data))
+    assert claimed == [job.id] and world.library.queue.qsize() == 1
+    assert world.telegram.answered == [("q2", ""), ("q3", "It's on its way.")]
+    assert len(world.telegram.edited) == 1 and world.said() == []
+
+
+def test_two_presses_at_once_claim_once(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    world.link()
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    [(_, _, _, data)] = world.telegram.offered
+    claimed = _claims(world, monkeypatch)
+    threads = [
+        threading.Thread(target=world.door.handle, args=(pressed(10 + n, data),)) for n in range(4)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert claimed == [job.id] and world.library.queue.qsize() == 1
+
+
+def test_a_stranger_cannot_press_somebody_elses_button(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    world.link()
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    [(_, _, _, data)] = world.telegram.offered
+    claimed = _claims(world, monkeypatch)
+    # Another reader's chat, holding the very same data.
+    other = signed_in(world.store, "other@example.com")
+    token = world.store.start_telegram_link(other.id)
+    assert world.store.finish_telegram_link(token, CHAT + 1) is not None
+    world.door.handle(pressed(2, data, chat=CHAT + 1))
+    # A chat with no account behind it.
+    world.door.handle(pressed(3, data, chat=CHAT + 2))
+    # The job id alone, or with a seal made up.
+    world.door.handle(pressed(4, f"b:{job.id}"))
+    world.door.handle(pressed(5, f"b:{job.id}:AAAAAAAAAAAAAAAAAAAAAA"))
+    assert claimed == [] and job.stage == "ready" and world.library.queue.empty()
+    stale = "That button doesn't work any more. Send the link again."
+    assert world.telegram.sent == [
+        (CHAT + 1, stale),
+        (CHAT + 2, f"Link your targum account first, from {PUBLIC}/you."),
+        (CHAT, stale),
+        (CHAT, stale),
+    ]
+    assert [query for query, _ in world.telegram.answered] == ["q2", "q3", "q4", "q5"]
+
+
+def test_a_chat_linked_to_somebody_else_since_cannot_press_its_old_quotes(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    world.link()
+    world.door.handle(link(1, ARTICLE))
+    [(_, _, _, data)] = world.telegram.offered
+    world.door.handle(command(2, "/stop"))
+    other = signed_in(world.store, "other@example.com")
+    token = world.store.start_telegram_link(other.id)
+    assert world.store.finish_telegram_link(token, CHAT) is not None
+    claimed = _claims(world, monkeypatch)
+    world.door.handle(pressed(3, data))
+    assert claimed == []
+    assert world.said()[-1] == "That button doesn't work any more. Send the link again."
+
+
+def test_a_press_on_a_quote_that_is_gone_is_refused_politely(world: World) -> None:
+    world.link()
+    world.door.handle(link(1, ARTICLE))
+    [(_, _, _, data)] = world.telegram.offered
+    world.library.jobs = {}
+    world.door.handle(pressed(2, data))
+    assert world.said() == ["That button doesn't work any more. Send the link again."]
+    assert world.telegram.answered == [("q2", "")]
+
+
+def test_a_press_the_rails_refuse_says_so_and_keeps_its_button(world: World) -> None:
+    world.link()
+    world.link_audio = True
+    world.library.upload_seconds = 60.0
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    [(_, _, _, data)] = world.telegram.offered
+    world.door.handle(pressed(2, data))
+    assert job.stage == "blocked" and job.blocked
+    assert world.said() == [f"{job.blocked} {PUBLIC}/you"]
+    assert world.telegram.edited == [] and world.library.queue.empty()
+
+
+def _add_says(world: World, url: str) -> str:
+    """What the Add page's `/prepare` hands back for a pasted link: `Library.prepare`
+    on a job of its own."""
+    job = serve.Job(id="addpage0addpage0", source=url, options={"source": url})
+    Library.prepare(world.library, job)
+    assert job.stage == "failed"
+    return job.error
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://vimeo.com/76979871",
+        "https://x.com/someone/status/1790000000000000000",
+    ],
+)
+def test_a_link_the_add_page_refuses_is_refused_in_the_same_words(
+    world: World, monkeypatch: pytest.MonkeyPatch, url: str
+) -> None:
+    monkeypatch.delenv("TARGUM_X", raising=False)
+    monkeypatch.delattr(world.library, "prepare")
+    world.link()
+    world.door.handle(link(1, url))
+    expected = _add_says(world, url)
+    assert expected and world.said() == [expected]
+    assert world.telegram.offered == []
+    assert all(job.stage == "failed" for job in world.library.jobs.values())
+
+
+def test_a_link_with_no_address_is_not_fetched(world: World) -> None:
+    world.link()
+    world.door.handle(_message(1, text="https://"))
+    assert world.said() == [f"We can't fetch that link. Check it, or paste it on {PUBLIC}/add."]
     assert not world.library.jobs
+
+
+def test_a_link_is_quoted_in_the_accounts_language(world: World) -> None:
+    world.store.choose(world.person, "reading", ["ru"])
+    world.link()
+    world.link_audio = True
+    world.seconds = 5 * 60
+    world.door.handle(link(1, ARTICLE))
+    [(_, text, button, _)] = world.telegram.offered
+    assert text.endswith("Займёт 5 кредитов.") and button == "Подготовить"
+
+
+def test_the_bot_api_sends_the_button_as_telegram_reads_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import httpx
+
+    posted: list[tuple[str, dict[str, Any]]] = []
+
+    class Answer:
+        def json(self) -> dict[str, Any]:
+            return {"ok": True, "result": True}
+
+    def post(url: str, json: dict[str, Any], timeout: float) -> Answer:
+        posted.append((url.rsplit("/", 1)[1], json))
+        return Answer()
+
+    monkeypatch.setattr(httpx, "post", post)
+    api = telegram_module.BotApi("1:not-a-real-token")
+    api.offer(CHAT, "A quote.", "Build", "b:0123456789abcdef:seal")
+    api.answer("q1")
+    api.edit(CHAT, 77, "Said again.")
+    assert posted[0] == (
+        "sendMessage",
+        {
+            "chat_id": CHAT,
+            "text": "A quote.",
+            "link_preview_options": {"is_disabled": True},
+            "reply_markup": {
+                "inline_keyboard": [[{"text": "Build", "callback_data": "b:0123456789abcdef:seal"}]]
+            },
+        },
+    )
+    assert posted[1] == ("answerCallbackQuery", {"callback_query_id": "q1"})
+    assert posted[2][0] == "editMessageText" and "reply_markup" not in posted[2][1]
 
 
 def test_a_file_targum_cannot_read_is_said_so(world: World) -> None:
@@ -632,3 +933,26 @@ def test_without_a_bot_every_door_is_shut(
     _, body = request(port, "GET", "/account/me", session=session)
     assert "telegram" not in json.loads(body)
     assert request(port, "POST", "/account/telegram", b"{}", session=session)[0] == 404
+
+
+def test_a_press_through_the_webhook_is_answered(armed: tuple[int, str, Stand]) -> None:
+    port, _, stand = armed
+    right = {telegram_module.SECRET_HEADER: SECRET}
+    before = len(stand.sent)
+    update = pressed(92, "b:0123456789abcdef:seal", chat=6160)
+    status, _ = request(port, "POST", telegram_module.HOOK, json.dumps(update).encode(), right)
+    assert status == 200
+    _wait_for(stand, before + 1)
+    assert "Link your targum account first" in stand.sent[before][1]
+    assert ("q92", "") in stand.answered
+
+
+def test_library_press_never_puts_a_job_in_line_twice(world: World) -> None:
+    """The road every button shares: `/build`, `/build/<id>` and the Build button. A job
+    already in line is left there, where a second `enqueue` would have built it twice."""
+    world.link()
+    world.door.handle(link(1, ARTICLE))
+    [job] = world.library.jobs.values()
+    assert world.library.press(job) == ""
+    assert world.library.press(job) == ""
+    assert job.stage == "queued" and world.library.queue.qsize() == 1
