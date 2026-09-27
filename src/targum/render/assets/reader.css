@@ -1767,7 +1767,10 @@ body[data-case="Loc"] .w.case-Loc {
     /* The grip and the size key, on a wide touch screen (2026-09-13). */
     .video-grip, .video-size,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
-    .player-first
+    .player-first,
+    /* "probably" after a reading (design.md §12, 2026-09-27): a word-sized button whose
+       reach grows and whose look and line do not. */
+    .gloss-card .probably
   ) {
     position: relative;
   }
@@ -1784,7 +1787,10 @@ body[data-case="Loc"] .w.case-Loc {
     /* The grip and the size key, on a wide touch screen (2026-09-13). */
     .video-grip, .video-size,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
-    .player-first
+    .player-first,
+    /* "probably" after a reading (design.md §12, 2026-09-27): a word-sized button whose
+       reach grows and whose look and line do not. */
+    .gloss-card .probably
   )::after {
     content: "";
     position: absolute;

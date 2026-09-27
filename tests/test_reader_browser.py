@@ -7383,3 +7383,39 @@ def test_a_guessed_reading_says_probably_and_what_was_guessed(
     card = page.evaluate(PROBABLY)
     assert card == {"word": None}, "a stress read off its mark is never qualified"
     context.close()
+
+
+def test_probably_answers_a_thumb_over_44px(browser, guessed_reader: Path) -> None:
+    """§8 on a touch screen: the word keeps its size and its line, and its reach is 44px.
+
+    Measured where a thumb lands rather than read off the stylesheet: a point 20px above
+    the word's middle and one 20px below are still the button."""
+    context = browser.new_context(
+        viewport=PHONE, has_touch=True, is_mobile=True, reduced_motion="reduce"
+    )
+    context.add_init_script(SCROLLING)
+    page = context.new_page()
+    page.goto(address(guessed_reader))
+    page.wait_for_selector(".pair")
+    assert page.evaluate("() => matchMedia('(hover: none) and (pointer: coarse)').matches")
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(200)
+    reach = page.evaluate(
+        """() => {
+      const word = document.querySelector('#gloss-card .probably');
+      const box = word.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const hits = (dy) => word.contains(document.elementFromPoint(x, y + dy));
+      return {
+        reach: parseFloat(getComputedStyle(word, '::after').height),
+        above: hits(-20),
+        below: hits(20),
+        drawn: box.height,
+      };
+    }"""
+    )
+    assert reach["reach"] >= 44, reach
+    assert reach["above"] and reach["below"], reach
+    assert reach["drawn"] < 30, "the word itself is drawn at its own size"
+    context.close()
