@@ -182,7 +182,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
   # extras for x86_64 Linux both ways and diffing (targum-internal#93).
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring,stress]" \
+    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring,stress,russian]" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
       >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
@@ -319,6 +319,15 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum models fetch openrussian
+
+      # The Russian reader'"'"'s lemmatizer, 4 MB (targum-internal#310, switched on by David
+      # on 2026-09-27): spaCy'"'"'s model came with the russian extra above, and this is the
+      # one file it fetches for itself. Here rather than at the first Russian build, so a
+      # reader never waits on it. With it, Russian is read on the box for nothing instead
+      # of bought per sentence, and the rebuild below re-reads every Russian text once.
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum models fetch ru
 
       # LaBSE, for a catalogue row whose published translation is matched to the source
       # sentence by sentence. The box never had it, so every such row failed at the press

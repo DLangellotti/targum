@@ -124,3 +124,16 @@ def test_a_deploy_installs_the_extras_ci_checks_with_before_it_checks() -> None:
     assert {"difficulty", "covers", "bring", "mcp"} <= extras, extras
     sync = script.index("check uv sync --frozen --inexact $EXTRAS")
     assert sync < script.index("check uv run mypy"), "synced before anything is checked"
+
+
+def test_the_box_reads_russian_itself() -> None:
+    """targum-internal#310, switched on 2026-09-27: the box installs the russian extra and
+    fetches its lemmatizer at deploy, so Russian is read there for nothing rather than
+    bought per sentence, and never waits on a download at a reader's first build."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    install = next(line for line in script.splitlines() if "uv tool install --force" in line)
+    assert "russian" in install.split("[", 1)[1].split("]", 1)[0].split(",")
+    fetch = script.index("targum models fetch ru\n")
+    assert (
+        script.index("uv tool install --force") < fetch < script.index("targum rebuild --words")
+    ), "fetched after the wheel is in and before the rebuild re-reads Russian"
