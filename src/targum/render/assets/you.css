@@ -157,8 +157,10 @@
    press; Disconnect and Remove are ghosts, which is what a removing press is. The
    bordered word-button (`go-quiet`) is retired, and these were the last new uses. */
 #connections .ghost,
+#telegram .ghost,
 #prompts .ghost,
-#prompts .tonal {
+#prompts .tonal,
+#telegram .tonal {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -173,25 +175,35 @@
   white-space: nowrap;
   cursor: pointer;
 }
-#prompts .tonal { background: var(--teal-wash); color: var(--teal); }
-#prompts .tonal:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+#prompts .tonal,
+#telegram .tonal { background: var(--teal-wash); color: var(--teal); }
+#prompts .tonal:hover,
+#telegram .tonal:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
 #connections .ghost,
+#telegram .ghost,
 #prompts .ghost { background: transparent; color: var(--ink-soft); }
 #connections .ghost:hover,
+#telegram .ghost:hover,
 #prompts .ghost:hover { background: var(--teal-wash); color: var(--ink); }
 #connections .ghost[disabled],
+#telegram .ghost[disabled],
 #prompts .ghost[disabled] { opacity: 0.4; cursor: default; }
 #connections .ghost:focus-visible,
+#telegram .ghost:focus-visible,
 #prompts .ghost:focus-visible,
-#prompts .tonal:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+#prompts .tonal:focus-visible,
+#telegram .tonal:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 @media (pointer: coarse) {
   #connections .ghost,
+  #telegram .ghost,
   #prompts .ghost,
-  #prompts .tonal { min-block-size: 2.75rem; }
+  #prompts .tonal,
+  #telegram .tonal { min-block-size: 2.75rem; }
 }
 
 /* A row: its name and what it may do, the dates under them, the press at the end. */
 #connection-rows li,
+#telegram-rows li,
 #prompt-rows li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -200,10 +212,14 @@
   padding-block: 0.6rem;
 }
 #connection-rows li > :not(button),
+#telegram-rows li > :not(button),
 #prompt-rows li > :not(button) { grid-column: 1; }
 #connection-rows li > button,
+#telegram-rows li > button,
 #prompt-rows li > button { grid-column: 2; grid-row: 1 / span 3; }
 #connection-rows .note,
+#telegram-rows .note,
 #prompt-rows .note { margin: 0.1rem 0 0; }
-#connection-rows .when { font-size: 0.8125rem; color: var(--ink-soft); }
+#connection-rows .when,
+#telegram-rows .when { font-size: 0.8125rem; color: var(--ink-soft); }
 #connection-rows .when:empty { display: none; }

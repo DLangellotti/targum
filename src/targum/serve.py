@@ -39,6 +39,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from . import incidents as incidents_module
 from . import level as level_module
 from . import mcp_http, oauth
+from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
     MOST_IN_PLAYLIST,
@@ -3752,6 +3753,9 @@ class Handler(BaseHTTPRequestHandler):
     chatting: str = ""
     embedded: str = ""
     chats: Any = None
+    #: The Telegram door (targum-internal#328), or None where the deployment has given
+    #: it no bot — and then its webhook is a 404 and /account draws no row for it.
+    telegram: telegram_module.Door | None = None
     #: The three list pages, by route name: everything Learn shows the top of. Empty by
     #: default so a handler built with only the pages it needs — which is what the tests
     #: build — serves no list pages rather than failing on the way past them.
@@ -5693,6 +5697,10 @@ class Handler(BaseHTTPRequestHandler):
         # to an address the asker typed themselves.
         if route == "/account/enter":
             return self._enter(self._form().get("t", ""))
+        # Telegram's webhook (targum-internal#328). Before the account check: what
+        # authorises it is the secret Telegram was given, never a cookie.
+        if route == telegram_module.HOOK:
+            return self._telegram_hook()
         # The back office's one action, a form post from the page an admin is on.
         if route == BACK_OFFICE_ROUTE + "/promote":
             return self._promote(self._form())
@@ -5801,6 +5809,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._follows(payload)
         if route == "/account/disconnect":
             return self._disconnect(payload)
+        if route == "/account/telegram":
+            return self._telegram_account(payload)
         if route == "/account/prompts":
             return self._prompts(payload)
         if route == "/playlists":
@@ -6781,6 +6791,11 @@ class Handler(BaseHTTPRequestHandler):
             # the page that writes them is the page that shows them.
             "prompts": self.store.prompts(person.id),
         }
+        # The chats bound to Telegram (targum-internal#328), only where there is a bot:
+        # the page draws the row from this key being here, so a dark deployment shows
+        # nothing.
+        if self.telegram is not None:
+            answer["telegram"] = {"chats": self.store.telegram_chats(person.id)}
         answer.update(self.store.profile(person))
         self._json(answer)
 
@@ -7123,6 +7138,51 @@ class Handler(BaseHTTPRequestHandler):
         client = str(payload.get("client") or "")
         gone = self.store.disconnect(person.id, client) if client else 0
         self._json({"disconnected": gone, "connections": self.store.connections(person.id)})
+
+    def _telegram_hook(self) -> None:
+        """An update from Telegram, answered at once and handled after (#328).
+
+        The body is read before anything can turn the request away, for the reason
+        `_set_press` gives: a 404 over an unread body resets the connection. Without a
+        bot, or without the secret `setWebhook` was given, it is a 404 like any address
+        that is not there. With them it is a 200 whatever the update holds, because a
+        non-2xx makes Telegram send the same update again.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(length, telegram_module.MOST_UPDATE_BYTES)) if length > 0 else b""
+        door = self.telegram
+        if door is None or not telegram_module.authentic(
+            self.headers.get(telegram_module.SECRET_HEADER), door.secret
+        ):
+            return self._json({"error": "not found"}, 404)
+        if length > telegram_module.MOST_UPDATE_BYTES:
+            return self._json({})
+        try:
+            update = json.loads(raw or b"{}")
+        except json.JSONDecodeError:
+            return self._json({})
+        if isinstance(update, dict):
+            door.accept(update)
+        self._json({})
+
+    def _telegram_account(self, payload: dict[str, Any]) -> None:
+        """The Telegram row on /account: a fresh one-time link, or a chat unbound."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        door = self.telegram
+        if door is None:
+            return self._json({"error": "not found"}, 404)
+        if "unlink" in payload:
+            try:
+                chat = int(payload.get("unlink"))  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                return self._json({"error": "bad request"}, 400)
+            gone = self.store.unlink_telegram(person.id, chat)
+            return self._json({"unlinked": gone, "chats": self.store.telegram_chats(person.id)})
+        self._json(
+            {"link": door.link_for(person.id), "chats": self.store.telegram_chats(person.id)}
+        )
 
     def _events(self, payload: dict[str, Any]) -> None:
         """What a reader did in a text, appended (targum-internal#127). Signed in only, and
@@ -9526,6 +9586,8 @@ def start(
             "chatting": chat_page(token),
             "embedded": chat_page(token, embed=True),
             "chats": chats,
+            # A Telegram door, where the deployment has given it a bot (#328).
+            "telegram": telegram_module.from_environment(library, keeping, public),
             "progress": progress_page(token),
             # The desk pages said in another language, rendered once each at start-up
             # like the English ones, and chosen per request (targum-internal#184).

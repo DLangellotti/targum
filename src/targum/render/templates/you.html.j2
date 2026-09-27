@@ -123,6 +123,20 @@
     <p class="said" id="connections-said" hidden></p>
   </section>
 
+  {#- Telegram (targum-internal#328): a chat bound to this account, so what is sent to the
+      bot lands on the shelf. Hidden unless the deployment has a bot — `/account/me`
+      carries `telegram` only then — so a dark box draws nothing here. One press for a
+      fresh one-time link, and one row a chat with the press that ends it. -#}
+  <section class="panel" id="telegram" hidden>
+    <h2>{{ t("you.telegram.heading", "Telegram") }}</h2>
+    <p class="note">{{ t("you.telegram.says", "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll put it on your shelf. We keep what you send, never who sent it first.") }}</p>
+    <ul class="series" id="telegram-rows"></ul>
+    <p class="ending-row">
+      <button type="button" class="tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
+    </p>
+    <p class="said" id="telegram-said" hidden></p>
+  </section>
+
   {#- What a reader wrote for their connector to offer (targum-internal#80, note 17:
       "enable users to use targum their way"). Two fields and no jargon: what to call it,
       and what it should do. What they write appears in Claude or ChatGPT beside ours the

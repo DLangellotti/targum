@@ -208,10 +208,22 @@ REGISTRATIONS_PER_HOUR = 60
 #    refills itself). Remembered so a second visit to the end shows the same set rather
 #    than quoting another. 0 means one was looked for and none could be made.
 #
+# 33→34: the telegram table, and link.purpose (targum-internal#328). A chat on Telegram
+#    bound to the person who opened a one-time link from /account. The table is new, so
+#    `CREATE TABLE IF NOT EXISTS` is its whole migration; the column is on a table every
+#    box has, so it is in MIGRATIONS, and every row written before it is a sign-in link,
+#    which is what its default says.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 33
+SCHEMA_VERSION = 34
+
+#: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
+#: link binds a chat to an account, and neither can do the other's job: the lookups name
+#: the purpose they spend (targum-internal#328).
+SIGN_IN = "sign-in"
+TELEGRAM = "telegram"
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
@@ -445,6 +457,9 @@ MIGRATIONS: tuple[str, ...] = (
     # the end is reached, then the playlist it quoted, or 0 when none could be made. A
     # column on a table that exists on the box since #364, so it is added here.
     "ALTER TABLE playlist ADD COLUMN next_set INTEGER",
+    # What a link is for (targum-internal#328): 'sign-in', which every row written before
+    # this was, or 'telegram', which binds a chat and signs nobody in.
+    "ALTER TABLE link ADD COLUMN purpose TEXT NOT NULL DEFAULT 'sign-in'",
 )
 
 SCHEMA = """
@@ -475,11 +490,24 @@ CREATE TABLE IF NOT EXISTS asked (
 CREATE INDEX IF NOT EXISTS asked_when ON asked (who, made);
 
 CREATE TABLE IF NOT EXISTS link (
-  hash   TEXT    PRIMARY KEY,
-  person INTEGER NOT NULL REFERENCES person(id),
-  made   INTEGER NOT NULL,
-  used   INTEGER
+  hash    TEXT    PRIMARY KEY,
+  person  INTEGER NOT NULL REFERENCES person(id),
+  made    INTEGER NOT NULL,
+  used    INTEGER,
+  purpose TEXT    NOT NULL DEFAULT 'sign-in'
 );
+
+-- A Telegram chat, bound to the person who opened a one-time link from /account
+-- (targum-internal#328). One chat is one person; a person may bind more than one, a
+-- phone and a desktop. Only the binding: no message is kept, and what a chat sends
+-- becomes an ordinary job and an ordinary private import. `/stop` in the chat, or the
+-- row on /account, deletes it, and the chat is a stranger again.
+CREATE TABLE IF NOT EXISTS telegram (
+  chat_id INTEGER PRIMARY KEY,
+  person  INTEGER NOT NULL REFERENCES person(id),
+  linked  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS telegram_person ON telegram (person);
 
 CREATE TABLE IF NOT EXISTS session (
   hash   TEXT    PRIMARY KEY,
@@ -2453,10 +2481,10 @@ class Store:
             row = db.execute("SELECT id FROM person WHERE email = ?", (address,)).fetchone()
             # Any link minted earlier is void: asking for a new one is what someone does
             # when the first did not arrive, and two live links is one more than needed.
-            db.execute("DELETE FROM link WHERE person = ?", (row["id"],))
+            db.execute("DELETE FROM link WHERE person = ? AND purpose = ?", (row["id"], SIGN_IN))
             db.execute(
-                "INSERT INTO link (hash, person, made, used) VALUES (?, ?, ?, NULL)",
-                (digest(token), row["id"], now()),
+                "INSERT INTO link (hash, person, made, used, purpose) VALUES (?, ?, ?, NULL, ?)",
+                (digest(token), row["id"], now(), SIGN_IN),
             )
         return token
 
@@ -2508,8 +2536,8 @@ class Store:
             "SELECT person.id AS id, person.email AS email FROM link "
             "JOIN person ON person.id = link.person "
             "WHERE link.hash = ? AND link.used IS NULL AND link.made >= ? "
-            "AND person.leaving IS NULL",
-            (digest(token), cutoff),
+            "AND link.purpose = ? AND person.leaving IS NULL",
+            (digest(token), cutoff, SIGN_IN),
         ).fetchone()
         return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
 
@@ -2517,8 +2545,11 @@ class Store:
         """Spend a link and hand back a session. None if it is spent, stale or wrong."""
         cutoff = now() - LINK_MINUTES * 60 * 1000
         with self.write() as db:
+            # By purpose: a Telegram link is a bearer token too, and it must never be
+            # a way to sign in (targum-internal#328).
             row = db.execute(
-                "SELECT person, made, used FROM link WHERE hash = ?", (digest(token),)
+                "SELECT person, made, used FROM link WHERE hash = ? AND purpose = ?",
+                (digest(token), SIGN_IN),
             ).fetchone()
             if row is None or row["used"] is not None or row["made"] < cutoff:
                 return None
@@ -2579,6 +2610,9 @@ class Store:
             db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
+            # And every Telegram chat, for the same reason: a bound chat is a way to
+            # build on the account, from a phone somewhere else.
+            db.execute("DELETE FROM telegram WHERE person = ?", (person.id,))
             # And every connector. Signed out of everywhere has to mean everywhere, and
             # a token left live would be a way into an account that has asked to end —
             # from a client on somebody else's machine, which is worse than a cookie.
@@ -2635,6 +2669,7 @@ class Store:
                     "chosen",
                     "session",
                     "link",
+                    "telegram",
                     # What they got wrong is theirs too (targum-internal#290), and it is
                     # the most personal row in the database: a record of a learner's own
                     # mistakes, in their own sentences.
@@ -2836,6 +2871,8 @@ class Store:
         # And what they wrote for those clients to offer. Theirs in the plainest sense:
         # they typed it.
         out["prompts"] = self.prompts(person.id)
+        # And the Telegram chats they bound (targum-internal#328): which, and since when.
+        out["telegram"] = self.telegram_chats(person.id)
         # And the lists they kept, each with what is in it.
         out["playlists"] = [
             self.playlist(person.id, int(one["id"])) for one in self.playlists(person.id)
@@ -4002,6 +4039,95 @@ class Store:
             (person_id,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    # -- telegram (targum-internal#328) ----------------------------------------
+
+    def start_telegram_link(self, person_id: int) -> str:
+        """Mint the one-time token a `t.me/<bot>?start=<token>` link carries.
+
+        The `link` table's rules — hashed, single use, `LINK_MINUTES` long — with its
+        own purpose, so it can bind a chat and cannot sign anybody in, and a sign-in
+        link cannot bind a chat. Minting one voids any earlier one of the same purpose,
+        as a sign-in link does; a sign-in link on its way through the mail is left be.
+        """
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute("DELETE FROM link WHERE person = ? AND purpose = ?", (person_id, TELEGRAM))
+            db.execute(
+                "INSERT INTO link (hash, person, made, used, purpose) VALUES (?, ?, ?, NULL, ?)",
+                (digest(token), person_id, now(), TELEGRAM),
+            )
+        return token
+
+    def finish_telegram_link(self, token: str, chat_id: int) -> Person | None:
+        """Spend a Telegram link on this chat, and say whose it now is.
+
+        None where the token is spent, stale, wrong, a sign-in link, or belongs to
+        somebody on their way out. A chat bound to somebody else before is bound to
+        this person now: whoever holds the phone opened the link.
+        """
+        cutoff = now() - LINK_MINUTES * 60 * 1000
+        with self.write() as db:
+            row = db.execute(
+                "SELECT person, made, used FROM link WHERE hash = ? AND purpose = ?",
+                (digest(token), TELEGRAM),
+            ).fetchone()
+            if row is None or row["used"] is not None or row["made"] < cutoff:
+                return None
+            who = db.execute(
+                "SELECT id, email, leaving FROM person WHERE id = ?", (row["person"],)
+            ).fetchone()
+            if who is None or who["leaving"] is not None:
+                return None
+            db.execute("UPDATE link SET used = ? WHERE hash = ?", (now(), digest(token)))
+            db.execute(
+                "INSERT INTO telegram (chat_id, person, linked) VALUES (?, ?, ?)"
+                " ON CONFLICT(chat_id) DO UPDATE SET person = excluded.person,"
+                " linked = excluded.linked",
+                (int(chat_id), who["id"], now()),
+            )
+        return Person(int(who["id"]), str(who["email"]), self.is_admin(str(who["email"])))
+
+    def telegram_person(self, chat_id: int) -> Person | None:
+        """Whose this chat is, or nobody's. Nobody's for an account on its way out."""
+        row = self.db.execute(
+            "SELECT person.id AS id, person.email AS email FROM telegram"
+            " JOIN person ON person.id = telegram.person"
+            " WHERE telegram.chat_id = ? AND person.leaving IS NULL",
+            (int(chat_id),),
+        ).fetchone()
+        if row is None:
+            return None
+        return Person(int(row["id"]), str(row["email"]), self.is_admin(row["email"]))
+
+    def telegram_chats(self, person_id: int | None) -> list[dict[str, Any]]:
+        """The chats bound to this person, newest first."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT chat_id, linked FROM telegram WHERE person = ? ORDER BY linked DESC",
+            (person_id,),
+        ).fetchall()
+        return [{"chat": int(row["chat_id"]), "linked": int(row["linked"])} for row in rows]
+
+    def unlink_telegram(self, person_id: int, chat_id: int | None = None) -> int:
+        """Unbind one of this person's chats, or all of them. How many went."""
+        with self.write() as db:
+            if chat_id is None:
+                gone = db.execute("DELETE FROM telegram WHERE person = ?", (person_id,))
+            else:
+                gone = db.execute(
+                    "DELETE FROM telegram WHERE person = ? AND chat_id = ?",
+                    (person_id, int(chat_id)),
+                )
+            return int(gone.rowcount)
+
+    def stop_telegram(self, chat_id: int) -> Person | None:
+        """`/stop` in the chat: unbind it, and say whose it was."""
+        was = self.telegram_person(chat_id)
+        with self.write() as db:
+            db.execute("DELETE FROM telegram WHERE chat_id = ?", (int(chat_id),))
+        return was
 
     def sweep_tokens(self, days: int = TOKEN_SWEEP_DAYS) -> int:
         """Drop rows nothing can use any more: spent grants and long-dead tokens.
