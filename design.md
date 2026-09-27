@@ -368,6 +368,8 @@ author's does. David, 2026-09-27, targum-internal#354.
   named is the author's, as it always was.
 
 What it does not change: a reader still cannot settle, and a model is never a judge.
+
+
 ### A haser word counts as the male word the reader knows — 2026-09-27
 
 The press card's "You know about 6 words in 10 here", and the number the chat ranks
