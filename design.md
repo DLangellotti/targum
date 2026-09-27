@@ -347,6 +347,35 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A post keeps its shape — 2026-09-27
+
+A post pasted from Instagram arrives as a post, not as three paragraphs with a title
+(targum-internal#157–#159). David chose Instagram first on 2026-09-27; X and TikTok follow
+the same rules when their doors open. The shape is redrawn in targum's own type and
+palette. The platform's chrome is not.
+
+- **What is kept.** The author's handle, and their name and the day it was posted where
+  the post gives them; the pictures in the post's own order, or its film; the caption. The
+  caption is the text: segmented, tappable and translated like any other reader text,
+  with its line breaks kept, because a caption's lines are how it was written.
+- **What is not.** No platform logo, no platform colour, no like, comment or share button,
+  no counts. A button that cannot act on the platform is a lie, and a count is a number
+  about a moment that has passed. Hashtags and mentions stay where the author put them and
+  are not glossed or counted as vocabulary: they are names, not words.
+- **Where it sits.** The post's head (the author's picture, their handle, the day)
+  takes the title's place at the top of the reader, and the pictures follow as a row the
+  reader swipes, each 1:1 or 4:5 as posted, never cropped to a card. A reel is the film
+  panel "A reader that carries moving pictures" (2026-08-31) already draws, at 9:16. The
+  bar, the tap, the card and the audio are the reader's own and unchanged.
+- **Nothing is fetched.** The pictures are carried in the page as webp data, as covers
+  are, and so is the author's own picture, small, in a disc. Where the post gives none the
+  disc is their first letter, as a text with no picture wears its letter on the shelf
+  (David chose the picture over the letter on 2026-09-27). One link home, "On Instagram",
+  is the one outbound address the post adds to the allowlist `test_render.py` pins.
+- **Always private.** A post is its author's, with no licence granted: it lives on the
+  reader's own shelf and nowhere else, never the catalogue and never the shared shelf.
+
+
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
 
 A design and QA pass (targum#435) measured four things on the live shelf and put them to
