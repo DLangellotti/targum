@@ -2303,6 +2303,70 @@ def test_the_readings_ride_in_a_table_of_their_own(tmp_path: Path) -> None:
     assert said == [1, 2, 0]
 
 
+def test_what_we_guessed_rides_beside_the_sounds(tmp_path: Path) -> None:
+    """design.md §12, "What we guessed says 'probably'": one number per distinct sound.
+
+    The source pointed the first word and left the second bare, so the menaked supplied
+    its vowels; neither carries a stress mark, so phonikud guessed both stresses. The
+    third carries phonikud's own mark and says nothing. The same reading guessed one way
+    and read another is two rows, because what was guessed belongs to the occurrence.
+    """
+    from targum.annotate.pronounce import HATAMA
+    from targum.models import Annotation, Token
+
+    marked = "מֶ" + HATAMA + "לֶךְ"
+    text = f"בָּצָל בצל {marked} מֶלֶךְ"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    segmented = make_segmented([segment])
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "tr"},
+    )
+    at = text.index(marked)
+    last = text.rindex(" ") + 1
+
+    def token(start: int, end: int, ipa: str) -> Token:
+        return Token(start=start, end=end, surface=text[start:end], lemma="x", band=2, ipa=ipa)
+
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segment.id: [
+                token(0, 6, "batsˈal"),
+                token(7, 10, "batsˈal"),
+                token(at, at + len(marked), "mˈeleχ"),
+                token(last, len(text), "mˈeleχ"),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert data["sounds"] == ["", "batsˈal", "batsˈal", "mˈeleχ", "mˈeleχ"]
+    assert data["guessed"] == [0, 1, 3, 0, 1]
+    assert [row[5] for row in data["words"][segment.id]] == [1, 2, 3, 4]
+
+
+def test_a_page_that_guessed_nothing_ships_no_guesses(rendered: Path) -> None:
+    data = json.loads(
+        re.search(
+            r'id="targum-data"[^>]*>(.*?)</script>', rendered.read_text(encoding="utf-8"), re.S
+        ).group(1)
+    )
+    assert "guessed" not in data
+
+
 def test_a_reader_with_nothing_to_say_ships_no_table(tmp_path: Path) -> None:
     """An empty table in every English reader is a cost with no reader behind it."""
     from targum.models import Annotation, Token

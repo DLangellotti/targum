@@ -273,6 +273,9 @@ var targumReader = function () {
   // Absent in every reader with no Hebrew in it, and in one built before there was
   // anything to read the vowels with.
   var sounds = data.sounds || [];
+  // Beside each sound, what of it we guessed: 1 the stress, 2 the vowels, 3 both
+  // (design.md §12, "What we guessed says 'probably'"). Absent where nothing was.
+  var guesses = data.guessed || [];
   // How split words are put together and how each occurrence is conjugated or declined
   // — tables of distinct strings, like the sounds, with an index on each token. Absent
   // on annotations written before they existed, and the card then simply says less.
@@ -4283,6 +4286,23 @@ var targumReader = function () {
     return out;
   }
 
+  // What of this occurrence's reading was guessed rather than read off the text's own
+  // marks, as the bits above; 0 where nothing was, or where the page cannot say.
+  function guessOf(word) {
+    if (!guesses.length) return 0;
+    var row = rowOf(word);
+    return row ? guesses[row[5]] || 0 : 0;
+  }
+
+  // The sentence "probably" stands for: said on the line under the reading when it is
+  // tapped, and its accessible name, so a screen reader hears it without the tap.
+  function whyGuessed(guess) {
+    if ((guess & 3) === 3)
+      return t("reader.card.guessed-both", "We guessed the vowels and where the stress falls.");
+    if (guess & 2) return t("reader.card.guessed-vowels", "We guessed the vowels.");
+    return t("reader.card.guessed-stress", "We guessed where the stress falls.");
+  }
+
   function readingOf(word) {
     if (!sounds.length) return "";
     var row = rowOf(word);
@@ -4854,9 +4874,33 @@ var targumReader = function () {
         heard.textContent = syllableStress(said);
         notation.appendChild(heard);
         saying.appendChild(notation);
+        // One word after the reading and outside it, where we guessed part of it — the
+        // stress phonikud defaulted, or vowels the menaked supplied. Never a number, a
+        // hue or an icon: a word in a sentence, not a state (design.md §12).
+        var guess = guessOf(word);
+        if (guess) {
+          var why = whyGuessed(guess);
+          var probably = document.createElement("button");
+          probably.type = "button";
+          probably.className = "probably";
+          probably.textContent = t("reader.card.probably", "probably");
+          probably.setAttribute("aria-label", why);
+          probably.setAttribute("aria-expanded", "false");
+          var guessedLine = document.createElement("span");
+          guessedLine.className = "guessed";
+          guessedLine.textContent = why;
+          guessedLine.hidden = true;
+          probably.onclick = function (event) {
+            event.stopPropagation();
+            guessedLine.hidden = !guessedLine.hidden;
+            probably.setAttribute("aria-expanded", guessedLine.hidden ? "false" : "true");
+          };
+          saying.appendChild(probably);
+        }
       }
       if (hear) saying.appendChild(hear);
       card.appendChild(saying);
+      if (guessedLine) card.appendChild(guessedLine);
     }
 
     // How the string is put together. A split token names its pieces — that is the

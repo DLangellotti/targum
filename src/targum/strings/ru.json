@@ -2470,5 +2470,9 @@
   "weekly.note.you-are-on": "Спасибо. Новости недели будут приходить каждый понедельник.",
   "weekly.note.stop-it": "Больше не присылать вам новости недели?",
   "weekly.note.stop-it.button": "Да, отписаться",
-  "weekly.note.stopped": "Мы больше не будем присылать вам новости недели."
+  "weekly.note.stopped": "Мы больше не будем присылать вам новости недели.",
+  "reader.card.probably": "вероятно",
+  "reader.card.guessed-stress": "Мы предположили, куда падает ударение.",
+  "reader.card.guessed-vowels": "Мы предположили огласовки.",
+  "reader.card.guessed-both": "Мы предположили огласовки и то, куда падает ударение."
 }

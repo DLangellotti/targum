@@ -2307,5 +2307,9 @@
   "weekly.note.you-are-on": "Thanks. You'll get the weekly every Monday.",
   "weekly.note.stop-it": "Should we stop sending you the weekly?",
   "weekly.note.stop-it.button": "Yes, stop",
-  "weekly.note.stopped": "We won't send you the weekly again."
+  "weekly.note.stopped": "We won't send you the weekly again.",
+  "reader.card.probably": "probably",
+  "reader.card.guessed-stress": "We guessed where the stress falls.",
+  "reader.card.guessed-vowels": "We guessed the vowels.",
+  "reader.card.guessed-both": "We guessed the vowels and where the stress falls."
 }

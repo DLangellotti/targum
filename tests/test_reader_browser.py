@@ -7249,3 +7249,137 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
     card = page.evaluate(SAYS)
     assert card["meaning"] == "day" and card["use"].startswith("date"), card
     context.close()
+
+
+# -- "probably" ---------------------------------------------------------------------
+#
+# design.md §12, "What we guessed says 'probably'" (2026-09-27): after a reading we
+# guessed part of, one muted word; tapped, the sentence it stands for, under the reading.
+
+
+def guessing(out: Path) -> Path:
+    """Three words: the source pointed the first and left the second bare, so the
+    menaked supplied its vowels; the third carries phonikud's own stress mark."""
+    marked = "מֶ\u05ab" + "לֶךְ"
+    text = f"בָּצָל בצל {marked}"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    at = text.index(marked)
+    readings = [(0, 6, "batsˈal"), (7, 10, "batsˈal"), (at, at + len(marked), "mˈeleχ")]
+    tokens = [
+        Token(start=a, end=b, surface=text[a:b], lemma=text[a:b], band=2, ipa=ipa)
+        for a, b, ipa in readings
+    ]
+    pages = render(
+        Document(
+            source="memory",
+            title="A chapter",
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
+            content_hash="h",
+        ),
+        SegmentedDocument(document_hash="h", language="he", segmenter="test/1", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="h",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "An onion, an onion, a king."},
+            )
+        ],
+        out,
+        annotation=Annotation(
+            document_hash="h",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+        vocalization=Vocalization(
+            document_hash="h",
+            language="he",
+            vocalizer="test/1",
+            segments={segment.id: f"בָּצָל בְּצֵל {marked}"},
+            machine=[segment.id],
+        ),
+    )
+    return pages[0]
+
+
+@pytest.fixture(scope="module")
+def guessed_reader(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return guessing(tmp_path_factory.mktemp("probably") / "reader")
+
+
+TAP_NTH = """
+(n) => document.querySelectorAll('.pair:not([hidden]) .src .w')[n].click()
+"""
+
+PROBABLY = """
+() => {
+  const card = document.getElementById('gloss-card');
+  if (!card || card.hidden) return null;
+  const word = card.querySelector('.copy-line .probably');
+  const line = card.querySelector('.guessed');
+  if (!word) return { word: null };
+  const style = getComputedStyle(word);
+  const reading = card.querySelector('.said bdi');
+  return {
+    word: word.textContent,
+    width: card.getBoundingClientRect().width,
+    name: word.getAttribute('aria-label'),
+    expanded: word.getAttribute('aria-expanded'),
+    outside: !reading.contains(word),
+    after: !!(reading.compareDocumentPosition(word) & Node.DOCUMENT_POSITION_FOLLOWING),
+    color: style.color,
+    italic: style.fontStyle,
+    size: style.fontSize,
+    readingSize: getComputedStyle(reading).fontSize,
+    line: line ? line.textContent : null,
+    lineShown: !!line && !line.hidden && line.offsetHeight > 0,
+    lineBelow:
+      !!line && line.getBoundingClientRect().top >= reading.getBoundingClientRect().bottom - 1,
+  };
+}
+"""
+
+
+@pytest.mark.parametrize("size", [WINDOW, PHONE], ids=["desk", "phone"])
+def test_a_guessed_reading_says_probably_and_what_was_guessed(
+    browser, guessed_reader: Path, size: dict[str, int]
+) -> None:
+    context, page = open_reader(browser, guessed_reader, viewport=size)
+
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    card = page.evaluate(PROBABLY)
+    assert card["word"] == "probably", card
+    assert card["name"] == "We guessed where the stress falls."
+    assert card["outside"] and card["after"], "after the reading, and outside it"
+    assert card["color"] == "rgb(107, 100, 92)", "muted ink, and no hue"
+    assert card["italic"] == "normal"
+    assert card["size"] == card["readingSize"], "at the line's own size"
+    assert not card["lineShown"] and card["expanded"] == "false"
+    width = card["width"]
+
+    page.click("#gloss-card .probably")
+    page.wait_for_timeout(100)
+    card = page.evaluate(PROBABLY)
+    assert card is not None, "the tap stayed on the card"
+    assert card["lineShown"] and card["lineBelow"], card
+    assert card["line"] == "We guessed where the stress falls."
+    assert card["expanded"] == "true"
+    assert abs(card["width"] - width) < 1, "the line wraps to the card; it does not widen it"
+
+    page.evaluate(TAP_NTH, 1)
+    page.wait_for_timeout(150)
+    card = page.evaluate(PROBABLY)
+    assert card["name"] == "We guessed the vowels and where the stress falls.", card
+
+    page.evaluate(TAP_NTH, 2)
+    page.wait_for_timeout(150)
+    card = page.evaluate(PROBABLY)
+    assert card == {"word": None}, "a stress read off its mark is never qualified"
+    context.close()
