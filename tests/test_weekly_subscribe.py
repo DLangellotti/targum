@@ -51,7 +51,9 @@ class Refusing:
 
     def send(self, to: str, link: str, language: str = "en") -> None: ...
 
-    def notify(self, to: str, subject: str, body: str, headers: object = None) -> None:
+    def notify(
+        self, to: str, subject: str, body: str, headers: object = None, html: object = None
+    ) -> None:
         if to in self.refuse:
             raise OSError("mailbox unavailable")
         self.sent.append(to)
@@ -176,7 +178,7 @@ def test_a_stop_token_that_is_not_one_does_nothing(store: Store) -> None:
 
 
 def test_every_letter_carries_the_way_out(store: Store, issue: Issue) -> None:
-    _, body = letter(issue, "https://targum.page", "abc123")
+    body = letter(issue, "https://targum.page", "abc123").text
     assert "/weekly/stop?t=abc123" in body
     assert "/weekly/2026-w36" in body
     # The letter said "compiled by a model … and curated by the targum team" until
@@ -414,12 +416,12 @@ def test_last_week_does_not_stop_this_week(store: Store) -> None:
 def test_each_letter_names_its_own_issue(store: Store) -> None:
     """Two weeks running, and the second must not link to the first."""
     last, this = _issue("2026-w35", "2026-08-24"), _issue("2026-w36", "2026-08-31")
-    _, older = letter(last, "https://targum.page", "abc")
-    _, newer = letter(this, "https://targum.page", "abc")
+    older = letter(last, "https://targum.page", "abc").text
+    newer = letter(this, "https://targum.page", "abc").text
 
     assert "/weekly/2026-w35" in older and "/weekly/2026-w36" not in older
     assert "/weekly/2026-w36" in newer and "/weekly/2026-w35" not in newer
-    assert "2026-08-24" in older and "2026-08-31" in newer
+    assert "August 24, 2026" in older and "August 31, 2026" in newer
 
 
 def test_somebody_who_joined_between_issues_gets_the_new_one(store: Store) -> None:

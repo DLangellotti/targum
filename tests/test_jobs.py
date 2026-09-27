@@ -21,7 +21,9 @@ class Postbox:
     def send(self, to: str, link: str, language: str = "en") -> None:
         raise AssertionError("a finished build is not a sign-in")
 
-    def notify(self, to: str, subject: str, body: str) -> None:
+    def notify(
+        self, to: str, subject: str, body: str, headers: object = None, html: object = None
+    ) -> None:
         self.sent.append((to, subject, body))
 
 
@@ -96,7 +98,7 @@ def test_a_failed_email_never_fails_the_build(tmp_path: Path) -> None:
         def send(self, to: str, link: str, language: str = "en") -> None:
             raise RuntimeError
 
-        def notify(self, to: str, subject: str, body: str) -> None:
+        def notify(self, to: str, subject: str, body: str, *rest: object) -> None:
             raise RuntimeError("smtp is down")
 
     store = Store(tmp_path / "db")

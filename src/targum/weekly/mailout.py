@@ -17,10 +17,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ..mail import Mailer, SmtpMailer
-from .models import Issue, Level, label_in
+from .models import Issue
 
 if TYPE_CHECKING:
     from ..accounts import Store
+    from ..letters import Letter
 
 #: How many go out before the run pauses. Not a provider limit — a courtesy, so a run
 #: that turns out to be wrong can be stopped after twenty-five rather than after all of
@@ -28,9 +29,8 @@ if TYPE_CHECKING:
 BATCH = 25
 PAUSE = 2.0
 
-#: The subject and body are `mail.weekly.subject` and `mail.weekly.body` in the strings
-#: catalogue, in the language the subscriber asked in (targum-internal#288). They were
-#: constants here, in English, for everybody.
+#: The words are `mail.weekly.*` in the strings catalogue, in the language the subscriber
+#: asked in (targum-internal#288), drawn by `letters.weekly_issue`.
 
 
 @dataclass
@@ -57,8 +57,8 @@ class Report:
         return line
 
 
-def letter(issue: Issue, address: str, stop_token: str, language: str = "en") -> tuple[str, str]:
-    """One subscriber's mail, in the language they asked in.
+def letter(issue: Issue, address: str, stop_token: str, language: str = "en") -> Letter:
+    """One subscriber's mail, in the language they asked in (`letters.weekly_issue`).
 
     A language the issue was built into links to its own edition: the addresses carry
     `?lang=`, which is what the weekly's pages answer in, and a page in Russian frames the
@@ -68,28 +68,9 @@ def letter(issue: Issue, address: str, stop_token: str, language: str = "en") ->
     The stop link carries it too, because the stop page must not read it off the token:
     that page answers the same for a real token and a made-up one.
     """
-    from ..strings import text
+    from ..letters import weekly_issue
 
-    code = (language or "en").split("-")[0].lower()
-    base = address.rstrip("/")
-    asked = "" if code == "en" else f"?lang={code}"
-    where = f"{base}/weekly/{issue.id}"
-    levels = "\n".join(
-        f"  {label_in(level, code)} — {where}/{level.value}{asked}"
-        for level in Level
-        if issue.edition(level) is not None
-    )
-    stop = f"{base}/weekly/stop?t={stop_token}" + (f"&lang={code}" if asked else "")
-    body = text(
-        "mail.weekly.body",
-        code,
-        title=issue.title,
-        dated=issue.dated,
-        levels=levels,
-        where=where + asked,
-        stop=stop,
-    )
-    return text("mail.weekly.subject", code, dated=issue.dated), body
+    return weekly_issue(issue, address, stop_token, language)
 
 
 def announce(
@@ -121,18 +102,10 @@ def announce(
     try:
         with holding:
             for index, (email, stop_token, language) in enumerate(waiting):
-                subject, body = letter(issue, address, stop_token, language)
-                unsubscribe = f"<{address.rstrip('/')}/weekly/stop?t={stop_token}>"
+                mail = letter(issue, address, stop_token, language)
                 try:
-                    mailer.notify(
-                        email,
-                        subject,
-                        body,
-                        {
-                            "List-Unsubscribe": unsubscribe,
-                            "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                        },
-                    )
+                    # The headers carry RFC 8058's one-click stop and a List-Id.
+                    mailer.notify(email, mail.subject, mail.text, mail.headers, mail.html)
                 except Exception as error:  # noqa: BLE001 - one bad address, not the run
                     report.failed.append((email, str(error)))
                     store.bounced(email)

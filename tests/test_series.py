@@ -275,14 +275,15 @@ def test_the_letter_is_written_in_the_language_its_reader_follows_in() -> None:
     blurb the same reader already had in Russian."""
     from targum import series
 
-    subject, body = series.letter(PORTION_RU, "https://targum.page", "tok", "ru")
+    mail = series.letter(PORTION_RU, "https://targum.page", "tok", "ru")
+    subject, body = mail.subject, mail.text
     assert "Недельная глава" in subject and "Bereshit" in subject
-    assert "Уже на targum: https://targum.page/parasha" in body
+    assert "Новый выпуск готов." in body and "https://targum.page/parasha" in body
     assert "https://targum.page/series/stop?t=tok" in body
-    assert "You are getting this" not in body
+    assert "You're getting this" not in body
 
-    english = series.letter(PORTION_RU, "https://targum.page", "tok")[1]
-    assert "You are getting this because you follow The weekly portion" in english
+    english = series.letter(PORTION_RU, "https://targum.page", "tok").text
+    assert "You're getting this because you follow The weekly portion" in english
 
 
 def test_one_russian_follower_does_not_make_everyone_elses_letter_russian() -> None:
@@ -294,5 +295,6 @@ def test_one_russian_follower_does_not_make_everyone_elses_letter_russian() -> N
 
     already = series.said_in(PORTION_RU, "ru")
     assert already["name"] == "Недельная глава"
-    subject, body = series.letter(already, "https://targum.page", "tok", "en")
+    mail = series.letter(already, "https://targum.page", "tok", "en")
+    subject, body = mail.subject, mail.text
     assert "The weekly portion" in subject and "Недельная глава" not in body
