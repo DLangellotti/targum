@@ -34,6 +34,32 @@ neither was trained on.
   1880-1940, not a newspaper's: harder for both models, and the second opinion the first
   corpus needs, since that one is DICTA's own house style.
 
+**A third set, marked by a person**, is `scene-corrections` (targum-internal#351): the
+hundred scenes' lines as David settled them on 2026-09-22, built by
+`scripts/scene_nikkud_gold.py` from the correction store and kept on this machine only,
+since the scenes are targum's own. `dicta-modern` was pointed by a linguist, but by
+DICTA's conventions, and the source does not say how Ben-Yehuda's volunteers' editions
+were pointed; this one is pointed the way targum's scenes are, and every line in it
+holds at least one word a person decided. Those words are scored on their own as well as
+in the line:
+
+- `settled_word_exact`: of the words a person settled, the share the model points
+  exactly as settled; `settled_points_word_exact`, `settled_letters_word_exact` and
+  `settled_kept_word_exact` split it by the kind of correction — the points changed, the
+  letters changed too (the model is given the new letters), or a correction was turned
+  down and the word stands as written.
+- `settled_points_repeated`: of the point-only corrections, the share where the model
+  wrote exactly the pointing the person rejected. Lower is better.
+- `word_exact_folded` and `settled_word_exact_folded`: the same count with the two ways
+  of writing a holam or shuruk beside a vav made one, and the qatan read as qamats (see
+  `_fold_word`). The scenes put the vowel on the vav and the menaked on the letter
+  before it; a reader reads both the same, so the strict count alone would charge the
+  menaked for a convention.
+
+The rest of each scene line passed two independent model readings and was not marked
+word by word, so the whole-line metrics on this corpus are a weaker claim than the
+`settled_*` ones, and the notes say so.
+
 **What each model is given** is the bare text: marks removed, letters as the edition
 spells them. In the DICTA corpus a mater lectionis is marked in angle brackets
 (`דִּ<י>בֵּר`) and the brackets go too; the reference keeps the letter carrying nothing,
@@ -87,6 +113,7 @@ import argparse
 import dataclasses
 import gc
 import importlib.metadata
+import json
 import re
 import sys
 import time
@@ -116,14 +143,27 @@ SHIN_DOTS = frozenset({0x05C1, 0x05C2})
 #: Everything a word is scored on. Meteg (U+05BD) and rafe (U+05BF) are outside it.
 SCORED = VOWELS | {DAGESH} | SHIN_DOTS
 QAMATS, QAMATS_QATAN = 0x05B8, 0x05C7
+HOLAM, HOLAM_FOR_VAV, QUBUTS = 0x05B9, 0x05BA, 0x05BB
 STRESS = 0x05AB
 
 
+class Settled(NamedTuple):
+    """A word in a gold line that a person settled: where it stands in `Line.gold`, what
+    kind of correction it was (`points`, `letters` or `kept`), and the word it replaced."""
+
+    start: int
+    end: int
+    kind: str
+    was: str
+
+
 class Line(NamedTuple):
-    """One line of a corpus: the reference pointing, and what the models see."""
+    """One line of a corpus: the reference pointing, and what the models see. `settled`
+    is empty except in `scene-corrections`, where it marks the words settled by hand."""
 
     gold: str
     bare: str
+    settled: tuple[Settled, ...] = ()
 
 
 # --- the DICTA test corpus ------------------------------------------------------------
@@ -253,7 +293,38 @@ def fetch_ben_yehuda(say: Callable[[str], None]) -> list[Line]:
     return lines
 
 
-# --- both -----------------------------------------------------------------------------
+# --- the scene corrections --------------------------------------------------------------
+
+#: Written by `scripts/scene_nikkud_gold.py` from the correction store. Private: the
+#: scenes are targum's own content, so the file is on this machine and nowhere else.
+SCENE_GOLD = "scene-nikkud.jsonl"
+
+
+def parse_scene_gold(text: str) -> list[Line]:
+    lines: list[Line] = []
+    for raw in text.splitlines():
+        if not raw.strip():
+            continue
+        row = json.loads(raw)
+        settled = tuple(
+            Settled(one["start"], one["end"], one["kind"], one["was"]) for one in row["settled"]
+        )
+        lines.append(Line(row["line"], bare_of(row["line"]), settled))
+    return lines
+
+
+def fetch_scene_corrections(say: Callable[[str], None]) -> list[Line]:
+    path = gold_dir() / SCENE_GOLD
+    if not path.is_file():
+        raise TargumError(
+            f"No {SCENE_GOLD} in {gold_dir()}.",
+            "It is built from the correction store, not fetched: "
+            "run scripts/scene_nikkud_gold.py first.",
+        )
+    return parse_scene_gold(path.read_text(encoding="utf-8"))
+
+
+# --- all three --------------------------------------------------------------------------
 
 
 class Corpus(NamedTuple):
@@ -273,6 +344,13 @@ CORPORA: dict[str, Corpus] = {
         f"({len(BEN_YEHUDA_WORKS)} works, {len({a for a, _, _ in BEN_YEHUDA_WORKS})} authors)",
         "public domain, per the dump's LICENSE",
         fetch_ben_yehuda,
+    ),
+    "scene-corrections": Corpus(
+        "targum's hundred scenes, as settled by a person on 2026-09-22 (targum#396); "
+        "the settled_* rows are the hand-marked words, the rest of each line passed two "
+        "model readings",
+        "targum's own content: private, never committed, never shipped",
+        fetch_scene_corrections,
     ),
 }
 
@@ -353,7 +431,13 @@ class Tally:
     qatan_emitted: int = 0
     words: int = 0
     word_ok: int = 0
+    word_folded_ok: int = 0
     stress_emitted: int = 0
+    #: Per kind of settled word (`points`, `letters`, `kept`): [words, exactly right,
+    #: right once folded].
+    settled: dict[str, list[int]] = dataclasses.field(default_factory=dict)
+    #: Point-only settled words the model pointed exactly as the rejected form.
+    repeated: int = 0
     seconds: float = 0.0
     misses: list[tuple[str, str]] = dataclasses.field(default_factory=list)
     #: Lines the skeleton check refused: the bare input beside what came back, stripped,
@@ -378,7 +462,28 @@ class Tally:
                 self.qatan_emitted,
             ),
             "word_exact": (rate(self.word_ok, self.words), self.words),
+            "word_exact_folded": (rate(self.word_folded_ok, self.words), self.words),
+            **self.settled_rates(),
         }
+
+    def settled_rates(self) -> dict[str, tuple[float | None, int]]:
+        """The hand-marked words on their own, by kind, where there are any."""
+        if not self.settled:
+            return {}
+        words = sum(counts[0] for counts in self.settled.values())
+        right = sum(counts[1] for counts in self.settled.values())
+        folded = sum(counts[2] for counts in self.settled.values())
+        out: dict[str, tuple[float | None, int]] = {
+            "settled_word_exact": (right / words if words else None, words),
+            "settled_word_exact_folded": (folded / words if words else None, words),
+        }
+        for kind in ("points", "letters", "kept"):
+            n, ok, _ = self.settled.get(kind, [0, 0, 0])
+            out[f"settled_{kind}_word_exact"] = (ok / n if n else None, n)
+        n, _, ok = self.settled.get("points", [0, 0, 0])
+        out["settled_points_word_exact_folded"] = (ok / n if n else None, n)
+        out["settled_points_repeated"] = (self.repeated / n if n else None, n)
+        return out
 
 
 def score(line: Line, output: str | None, tally: Tally, keep: int = 0) -> None:
@@ -428,10 +533,11 @@ def score(line: Line, output: str | None, tally: Tally, keep: int = 0) -> None:
             tally.qatan_emitted += 1
     for start, end in word_spans(bases):
         tally.words += 1
-        if all(
-            want & SCORED == have & _scored(want)
-            for (_, want), (_, have) in zip(gold[start:end], got[start:end], strict=True)
-        ):
+        right = _same(gold[start:end], got[start:end])
+        folded = _same(_fold_word(gold[start:end]), _fold_word(got[start:end]))
+        tally.word_folded_ok += folded
+        _score_settled(line, gold, got, start, end, (right, folded), tally)
+        if right:
             tally.word_ok += 1
         elif len(tally.misses) < keep:
             tally.misses.append(
@@ -440,6 +546,76 @@ def score(line: Line, output: str | None, tally: Tally, keep: int = 0) -> None:
                     merged[_at(got, start) : _at(got, end)],
                 )
             )
+
+
+def _score_settled(
+    line: Line,
+    gold: list[tuple[str, frozenset[int]]],
+    got: list[tuple[str, frozenset[int]]],
+    start: int,
+    end: int,
+    right: tuple[bool, bool],
+    tally: Tally,
+) -> None:
+    """Count a word a person settled, if this is one.
+
+    A settled correction may cover a phrase, so each word inside it counts on its own.
+    For a point-only correction the rejected form has the same letters, and a model that
+    points the word exactly that way has repeated the error a person removed: counted in
+    `repeated`, because a pointer and a writer making the same mistake is worth knowing.
+    """
+    first, last = _at(gold, start), _at(gold, end)
+    for one in line.settled:
+        if one.end <= first or one.start >= last:
+            continue
+        counts = tally.settled.setdefault(one.kind, [0, 0, 0])
+        counts[0] += 1
+        counts[1] += right[0]
+        counts[2] += right[1]
+        if one.kind == "points":
+            offset = start - len(units(line.gold[: one.start]))
+            was = units(one.was)[offset : offset + end - start]
+            if len(was) == end - start and _same(was, got[start:end]):
+                tally.repeated += 1
+        return
+
+
+def _same(
+    want: Sequence[tuple[str, frozenset[int]]], have: Sequence[tuple[str, frozenset[int]]]
+) -> bool:
+    """One word, every scored mark on every letter, the shin dot only where the
+    reference took a position."""
+    return all(w & SCORED == h & _scored(w) for (_, w), (_, h) in zip(want, have, strict=True))
+
+
+def _fold_word(word: Sequence[tuple[str, frozenset[int]]]) -> list[tuple[str, frozenset[int]]]:
+    """A word with the two ways of writing a vowel letter made one, and the qatan folded.
+
+    The scenes write full spelling the way a reader of ktiv male expects: the holam on
+    the vav (`בּוֹקֶר`) and the shuruk in it (`חוּקִּי`). The menaked, asked to keep the
+    letters, puts the vowel on the consonant before and leaves the vav bare (`בֹּוקֶר`,
+    `חֻוקִּי`). Both read the same word the same way. Folded, a holam on a letter followed
+    by a bare vav moves onto the vav, a qubuts there becomes the vav's shuruk, U+05BA is
+    a holam, and the qamats qatan is a qamats — so `word_exact_folded` counts a word
+    right when a reader would read it the same, and `word_exact` stays the strict count.
+    """
+    marks = [set(have) for _, have in word]
+    for here in marks:
+        if HOLAM_FOR_VAV in here:
+            here.discard(HOLAM_FOR_VAV)
+            here.add(HOLAM)
+        if QAMATS_QATAN in here:
+            here.discard(QAMATS_QATAN)
+            here.add(QAMATS)
+    for i in range(len(word) - 1):
+        vav = word[i + 1][0] == "ו" and not marks[i + 1] & SCORED
+        if vav and HOLAM in marks[i]:
+            marks[i].discard(HOLAM)
+            marks[i + 1].add(HOLAM)
+        elif vav and QUBUTS in marks[i]:
+            marks[i].discard(QUBUTS)
+            marks[i + 1].add(DAGESH)
+    return [(base, frozenset(here)) for (base, _), here in zip(word, marks, strict=True)]
 
 
 def _scored(want: frozenset[int]) -> frozenset[int]:
@@ -594,6 +770,13 @@ def main() -> None:
     for system_at, tally in results.values():
         system, _, version = system_at.partition(" @ ")
         note = f"limit={args.limit or 'all'} lines={tally.lines} failed={tally.failed}"
+        if tally.settled:
+            note += (
+                " settled="
+                + ",".join(f"{k}:{n}" for k, (n, *_) in sorted(tally.settled.items()))
+                + "; settled_* are the words a person settled, the rest of each line passed"
+                " two model readings"
+            )
         for metric, (score_, n) in tally.rates().items():
             if score_ is None:
                 continue
