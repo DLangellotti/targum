@@ -52,7 +52,7 @@ from .accounts import (
 from .audio.manifest import POSTER
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
-from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
+from .models import Document, Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
 from .remembered import Remembered
 from .render.builder import (
@@ -3077,7 +3077,6 @@ class Library:
                 # Looking up word meanings carries on in this thread afterwards, into a
                 # reader that is already open.
                 job.reader = f"{result.out_dir.name}/reader/index.html"
-                self.keep_post(job, result)
                 job.stage = "done"
                 job.message = ""
                 self.remember(job)
@@ -3115,7 +3114,7 @@ class Library:
                 "Something went wrong on our side. The Terminal has the detail.",
             )
 
-    def keep_post(self, job: Job, result: Result) -> None:
+    def keep_post(self, job: Job, folder: Path, document: Document) -> None:
         """Write `post.json` beside a post's reader, with its pictures kept as webp
         (targum-internal#158; design.md §12, "A post keeps its shape").
 
@@ -3132,7 +3131,6 @@ class Library:
         from .video import instagram as instagram_module
 
         try:
-            folder = result.out_dir
             media: list[post_module.Media] = []
             if said.get("pictures"):
                 with tempfile.TemporaryDirectory() as raw:
@@ -3149,9 +3147,7 @@ class Library:
                     handle=str(said.get("handle") or ""), name=str(said.get("name") or "")
                 ),
                 items=[
-                    post_module.Item(
-                        block_ids=[block.id for block in result.document.blocks], media=media
-                    )
+                    post_module.Item(block_ids=[block.id for block in document.blocks], media=media)
                 ],
                 fetched_by="paste",
                 url=str(said.get("url") or "") or None,
@@ -3650,6 +3646,8 @@ class Library:
 
         if urlparse(job.source).scheme not in ("http", "https"):
             build.home = hosts_module.home_url(str(options.get("came_from") or ""))
+        if isinstance(job.options.get("post"), dict):
+            build.beside = lambda folder, document: self.keep_post(job, folder, document)
         return build
 
 

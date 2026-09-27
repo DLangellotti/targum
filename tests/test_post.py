@@ -100,8 +100,8 @@ def test_a_finished_post_build_writes_its_manifest_beside_the_reader(
         "pictures": ["https://a.fna.fbcdn.net/one.jpg", "https://a.fna.fbcdn.net/two.jpg"],
     }
     blocks = [SimpleNamespace(id="b0000000"), SimpleNamespace(id="b0000001")]
-    result = SimpleNamespace(out_dir=folder, document=SimpleNamespace(blocks=blocks))
-    serve.Library.keep_post(SimpleNamespace(incidents=None), job, result)  # type: ignore[arg-type]
+    document = SimpleNamespace(blocks=blocks)
+    serve.Library.keep_post(SimpleNamespace(incidents=None), job, folder, document)  # type: ignore[arg-type]
     got = post.read(folder)
     assert got is not None
     assert got["author"]["handle"] == "aviv.bahar"
@@ -117,6 +117,7 @@ def test_a_build_that_is_not_a_post_writes_nothing(tmp_path: Path) -> None:
     from targum import serve
 
     job = serve.Job(id="j", source="x", options={})
-    result = SimpleNamespace(out_dir=tmp_path, document=SimpleNamespace(blocks=[]))
-    serve.Library.keep_post(SimpleNamespace(incidents=None), job, result)  # type: ignore[arg-type]
+    serve.Library.keep_post(
+        SimpleNamespace(incidents=None), job, tmp_path, SimpleNamespace(blocks=[])
+    )  # type: ignore[arg-type]
     assert post.read(tmp_path) is None

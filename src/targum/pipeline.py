@@ -203,6 +203,10 @@ class Build:
         #: its home rather than a file: `_adopt_audio` sets it for a YouTube address
         #: and the manifest carries it, so the reader can hand the video back.
         self.home = ""
+        #: Called with the reader's folder and the document just before the first page is
+        #: written, for whatever the source keeps beside the reader (a post's `post.json`).
+        #: Set by the server; None for every other build.
+        self.beside: Callable[[Path, Document], None] | None = None
         self.target_language = target_language
         self.source_language = source_language
         self.style = style
@@ -2271,6 +2275,13 @@ class Build:
                 folder=self.resolved_out,
                 moves=self.moves,
             )
+
+        # Anything a source keeps beside the reader for the page to draw, before the
+        # first page is written for the same reason as the audio manifest above: a post's
+        # `post.json` (targum-internal#158) written after it would be missing from the
+        # reader somebody opens first.
+        if self.beside is not None:
+            self.beside(self.resolved_out, plan.document)
 
         result = Result(
             out_dir=self.resolved_out,
