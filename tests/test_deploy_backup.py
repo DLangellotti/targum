@@ -1,13 +1,14 @@
-"""The nightly backup, read off `provision.sh` rather than run.
+"""The nightly backup and the health watch, read off the files that install them.
 
-There is no way to test a cron line without a box, and the failure this pins needed no
-box to find: it was visible in the text of the command all along. From the day the box
-went up until 2026-09-04, every nightly copy was a database holding 0 accounts and 0
-words, because the line named no `--store` and `targum backup` falls back to the HOME
+There is no way to test a timer without a box, and the failure this pins needed no box
+to find: it was visible in the text of the command all along. From the day the box went
+up until 2026-09-04, every nightly copy was a database holding 0 accounts and 0 words,
+because the cron line named no `--store` and `targum backup` falls back to the HOME
 default. It said "checked" and exited 0 each time. It had faithfully copied the wrong
 file.
 
-So this reads the line and asserts the two things whose absence made it lie.
+The cron line became `deploy/targum-backup.service` on 2026-09-27 (targum-internal#16),
+so a deploy carries it; the assertions moved with it.
 """
 
 from __future__ import annotations
@@ -17,49 +18,86 @@ from pathlib import Path
 
 import pytest
 
-PROVISION = Path(__file__).resolve().parent.parent / "deploy" / "provision.sh"
+DEPLOY = Path(__file__).resolve().parent.parent / "deploy"
+
+
+def unit(name: str) -> dict[str, list[str]]:
+    """A unit file's keys, continuation lines joined, comments dropped."""
+    text = re.sub(r"\\\n\s*", " ", (DEPLOY / name).read_text(encoding="utf-8"))
+    found: dict[str, list[str]] = {}
+    for line in text.splitlines():
+        if not line.strip() or line.lstrip().startswith(("#", "[")):
+            continue
+        key, _, value = line.partition("=")
+        found.setdefault(key.strip(), []).append(value.strip())
+    return found
 
 
 @pytest.fixture(scope="module")
-def cron() -> str:
-    """The `targum backup` line `provision.sh` writes into /etc/cron.d."""
-    text = PROVISION.read_text(encoding="utf-8")
-    lines = [
-        line
-        for line in text.splitlines()
-        if "targum backup" in line and not line.lstrip().startswith("#")
-    ]
-    assert lines, "provision.sh writes no nightly backup line"
-    schedule = [line for line in lines if re.match(r"^[\d*]", line.strip())]
-    assert len(schedule) == 1, f"expected one scheduled backup, found {len(schedule)}"
-    return schedule[0]
+def nightly() -> dict[str, list[str]]:
+    return unit("targum-backup.service")
 
 
-def test_the_nightly_backup_names_the_database_it_copies(cron: str) -> None:
+def test_the_nightly_backup_names_the_database_it_copies(nightly: dict[str, list[str]]) -> None:
     """The whole bug, in one assertion.
 
     `targum backup` defaults `--store` to `~/.targum/targum.db`. On the box that path is
     an empty leftover and the live database is at /var/lib/targum/targum.db, so a line
     without `--store` copies nothing anybody would want and reports success.
     """
-    assert "--store" in cron, "the nightly backup does not say which database to copy"
-    assert "/var/lib/targum/targum.db" in cron, "it copies a database that is not the live one"
+    (command,) = nightly["ExecStart"]
+    assert "targum backup" in command
+    assert "--store /var/lib/targum/targum.db" in command, "it copies the live database"
 
 
-def test_the_nightly_backup_can_see_the_cache(cron: str) -> None:
-    """The cache is the second thing that cannot be rebuilt: it is what makes a public
-    text free for the second reader and every reader after. Its location comes from
-    TARGUM_CACHE_DIR in the service's EnvironmentFile, and a copy run without that file
-    looks in an empty directory and archives nothing — silently, the same way."""
-    assert "EnvironmentFile=/etc/targum/targum.env" in cron, (
-        "the nightly backup runs without the service's environment, so it cannot find the cache"
-    )
+def test_the_nightly_backup_can_see_the_cache(nightly: dict[str, list[str]]) -> None:
+    """The cache is the second thing that cannot be rebuilt. Its location comes from
+    TARGUM_CACHE_DIR in the service's EnvironmentFile, and so do the off-box settings
+    and the remote's credentials; a run without that file archives nothing, silently."""
+    assert nightly["EnvironmentFile"] == ["/etc/targum/targum.env"]
+    assert nightly["User"] == ["targum"]
 
 
-def test_a_failed_night_leaves_a_trace(cron: str) -> None:
-    """There is no MTA on the box, so cron discards whatever a job prints — two failed
-    nights left nothing anywhere. Going through `systemd-run` puts it in the journal
-    instead, which is the only reason anybody can find out tomorrow what happened last
-    night."""
-    assert "systemd-run" in cron, "output goes nowhere a person can read it"
-    assert not re.search(r">\s*/dev/null", cron), "the nightly backup throws its own output away"
+def test_a_failed_night_leaves_a_trace(nightly: dict[str, list[str]]) -> None:
+    """A unit's output goes to the journal. Nothing may throw it away first."""
+    assert not re.search(r">\s*/dev/null", nightly["ExecStart"][0])
+    assert "StandardOutput" not in nightly and "StandardError" not in nightly
+
+
+def test_the_timers_keep_their_hours() -> None:
+    assert unit("targum-backup.timer")["OnCalendar"] == ["*-*-* 04:00:00 UTC"]
+    assert unit("targum-backup.timer")["Persistent"] == ["true"]
+    assert unit("targum-health.timer")["OnCalendar"] == ["*:0/5"]
+    health = unit("targum-health.service")
+    assert "targum watch-health" in health["ExecStart"][0]
+    assert health["EnvironmentFile"] == ["/etc/targum/targum.env"], "it mails through SMTP"
+
+
+def test_every_deploy_carries_the_units_and_retires_the_cron_line() -> None:
+    """Enabled before the cron line goes, so there is no night with neither."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    for name in (
+        "targum-backup.service",
+        "targum-backup.timer",
+        "targum-health.service",
+        "targum-health.timer",
+    ):
+        assert f"deploy/{name}" in script, f"deploy.sh does not ship {name}"
+    enabled = script.index("systemctl enable --now --quiet targum-backup.timer")
+    retired = script.index("rm -f /etc/cron.d/targum-backup")
+    assert enabled < retired
+
+
+def test_provision_writes_no_cron_backup_either() -> None:
+    """A fresh box and a deployed one run the backup the same way."""
+    text = (DEPLOY / "provision.sh").read_text(encoding="utf-8")
+    assert "cat > /etc/cron.d/targum-backup" not in text
+    assert "targum-backup.timer" in text
+
+
+def test_the_vault_filter_keeps_names_with_digits() -> None:
+    """rclone's remote settings are RCLONE_CONFIG_<NAME>_*; a filter of [A-Z_] alone
+    dropped every such line whose name held a digit, with nothing said."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    (pattern,) = re.findall(r"grep -E '(\^\[A-Z_\][^']*)'", script)
+    assert re.match(pattern, "RCLONE_CONFIG_B2_KEY=x")

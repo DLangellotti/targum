@@ -27,6 +27,7 @@ directory, which is gigabytes of things that can simply be downloaded again.
 
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import shutil
@@ -298,10 +299,9 @@ def ship(
 
     Through `rclone`, and only `rclone`, because it is one binary that speaks S3, B2,
     R2, SFTP and a dozen others — so the destination is a decision that can be changed
-    without changing this, and none of it is written down here. **Encryption belongs in
-    the remote, not here.** A backup holds addresses and every word somebody has kept;
-    an rclone `crypt` remote in front of the bucket is where that is handled, and this
-    passes the files to whatever it is pointed at without opinion.
+    without changing this, and none of it is written down here. What it is handed has
+    already been sealed by `seal` below: a backup holds addresses and every word somebody
+    has kept, and this passes the files to whatever it is pointed at without opinion.
 
     Verified rather than assumed: it asks the destination what it now holds and checks
     the size against what was sent. A copy command that exits zero having written
@@ -342,6 +342,115 @@ def ship(
 def destination(given: str = "") -> str:
     """Where copies go, from the flag or the environment. Empty means nowhere."""
     return (given or os.environ.get("TARGUM_BACKUP_TO", "")).strip()
+
+
+# -- sealing: what leaves the box can be read only off it ------------------------------
+#
+# The copy that leaves is encrypted here, to a public key, before rclone ever sees it
+# (targum-internal#16). This replaces the card's first plan, an rclone `crypt` remote,
+# for one reason: a crypt remote's password has to live on the box to write, so the
+# box — the disk the backups exist to survive, and the machine an intruder would be on —
+# could also read every copy it ever sent. With age the box holds only the recipient.
+# The identity that opens a copy lives in 1Password and on the laptop, and a leaked
+# bucket key reads ciphertext.
+
+#: The age public key (or keys, separated by spaces or commas) a copy is sealed to.
+RECIPIENT_ENV = "TARGUM_BACKUP_AGE_RECIPIENT"
+
+#: What every age file starts with. Checked after sealing, because a zero-exit encrypt
+#: that wrote something else is the same shape of failure `ship` checks for.
+AGE_HEADER = b"age-encryption.org/v1"
+
+#: How long age gets for one file. The cache archive is tens of megabytes.
+SEAL_TIMEOUT = 300.0
+
+#: Weekly copies are the nightly one, sent a second time on a Sunday (UTC) to a folder
+#: with a longer life. The bucket forgets each folder on its own schedule: the retention
+#: is a lifecycle rule on the bucket, not a delete from here, so the box's key needs no
+#: right to delete anything.
+WEEKLY_ON = 6
+
+
+class NotSealed(RuntimeError):
+    """A copy could not be encrypted, so it did not leave."""
+
+
+def recipients(given: str | None = None) -> list[str]:
+    """The age public keys a copy is sealed to, from the environment. Empty means unset.
+
+    A private key here is refused by name rather than used. It would work — age can
+    derive the recipient from it — and it would put the one thing that opens every copy
+    on the one disk those copies exist to outlive.
+    """
+    raw = os.environ.get(RECIPIENT_ENV, "") if given is None else given
+    found = raw.replace(",", " ").split()
+    for one in found:
+        if one.upper().startswith("AGE-SECRET-KEY-"):
+            raise NotSealed(
+                f"{RECIPIENT_ENV} holds a private key, which must never be on the box. "
+                "Remove it, and make a new pair: this one has been on a server."
+            )
+        if not one.startswith("age1"):
+            raise NotSealed(f"{RECIPIENT_ENV} holds {one[:10]}..., which is not an age public key.")
+    return found
+
+
+def _age(*args: str, timeout: float = SEAL_TIMEOUT) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["age", *args], capture_output=True, text=True, timeout=timeout, check=False
+    )
+
+
+def seal(path: Path, keys: Sequence[str], into: Path, *, run: object = None) -> Path:
+    """Compress and encrypt one copy for leaving. Returns the sealed file, in `into`.
+
+    The database is gzipped first — SQLite pages compress to about a quarter, and age
+    does not compress. The archives are zips already and are sealed as they are. Nothing
+    here can open the result, which is the point: the check is that it is an age file,
+    and the drill in `deploy/restore-drill.sh` is what proves it opens.
+    """
+    if not keys:
+        raise NotSealed("No recipient to seal to.")
+    runner = run or _age
+    if run is None and shutil.which("age") is None:
+        raise NotSealed("age is not installed. `apt-get install age`.")
+    into.mkdir(parents=True, exist_ok=True)
+
+    plain = path
+    if path.suffix == ".db":
+        plain = into / f"{path.name}.gz"
+        with path.open("rb") as source, gzip.open(plain, "wb", compresslevel=6) as squeezed:
+            shutil.copyfileobj(source, squeezed)
+    target = into / f"{plain.name}.age"
+    try:
+        flags: list[str] = []
+        for key in keys:
+            flags += ["-r", key]
+        done = runner("--encrypt", *flags, "-o", str(target), str(plain))  # type: ignore[operator]
+    finally:
+        if plain != path:
+            plain.unlink(missing_ok=True)
+    if done.returncode != 0:
+        target.unlink(missing_ok=True)
+        raise NotSealed(f"{path.name} could not be sealed: {(done.stderr or '').strip()[:200]}")
+    if not target.is_file():
+        raise NotSealed(f"age said it sealed {path.name} and wrote nothing.")
+    with target.open("rb") as sealed:
+        if not sealed.read(len(AGE_HEADER)) == AGE_HEADER:
+            target.unlink(missing_ok=True)
+            raise NotSealed(f"{path.name} came out of age as something that is not an age file.")
+    return target
+
+
+def folders(to: str, now: datetime | None = None) -> list[str]:
+    """Where tonight's sealed copies go under the destination: `daily`, and on a Sunday
+    `weekly` as well. Each is a prefix the bucket expires on its own clock."""
+    base = to.rstrip("/")
+    moment = now or datetime.now()
+    found = [f"{base}/daily"]
+    if moment.weekday() == WEEKLY_ON:
+        found.append(f"{base}/weekly")
+    return found
 
 
 def sweep(into: Path, keep: int = KEEP) -> list[Path]:

@@ -1,0 +1,14 @@
+# /etc/systemd/system/targum-backup.timer — installed and enabled by deploy.sh.
+#
+# 04:00 UTC, the hour the cron line always used. Persistent, so a night the box was down
+# for is taken when it comes back rather than skipped.
+
+[Unit]
+Description=targum nightly backup, 04:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

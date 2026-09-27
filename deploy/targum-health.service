@@ -1,0 +1,30 @@
+# /etc/systemd/system/targum-health.service — installed by deploy.sh, started every
+# five minutes by targum-health.timer (targum-internal#20).
+#
+# Knocks on /health through the public address and mails TARGUM_ALERT_TO, through
+# targum's own mailer, after two failed checks in a row; a reminder every six hours
+# while it stays down; one mail when it answers again. Without TARGUM_ALERT_TO it logs
+# "not configured" and exits 0. From the box, so a box that is off sends nothing: that
+# half is an outside monitor's.
+#
+#   journalctl -u targum-health -n 20
+#   cat /var/lib/targum/health-watch.json
+
+[Unit]
+Description=targum health watch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum watch-health --state /var/lib/targum/health-watch.json
+TimeoutStartSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum

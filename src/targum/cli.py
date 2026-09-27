@@ -694,17 +694,52 @@ def backup(
 
     `--to` is what gets them off this disk, through rclone — an S3 or B2 or R2 bucket, or
     SFTP to another machine. A copy written beside the database it copies survives every
-    mistake and none of the disasters. Encryption belongs in the remote: a backup holds
-    addresses and every word somebody has kept, so put an rclone `crypt` remote in front
-    of the bucket rather than trusting the bucket.
+    mistake and none of the disasters. What leaves is sealed first with age, to the
+    public key in TARGUM_BACKUP_AGE_RECIPIENT, so the box can write a copy and cannot
+    read one back; both must be set or nothing leaves. A failed night mails
+    TARGUM_ALERT_TO when it is set.
     """
+    try:
+        _backup(out, store, keep, to)
+    except typer.Exit:
+        raise
+    except Exception as error:
+        # Anything this did not see coming is a failed night all the same.
+        _backup_alarm("The backup stopped on something unexpected.", repr(error))
+        raise
+
+
+def _backup_alarm(message: str, detail: str) -> None:
+    """Mail the operator about a failed night. Never the reason the run fails: a mail
+    that cannot go is said in the journal beside the failure it was about."""
+    from .alerts import tell
+
+    try:
+        tell("targum: the nightly backup failed", f"{message}\n\n{detail}\n")
+    except Exception as error:  # noqa: BLE001 — the failure being reported comes first
+        err.print(f"[yellow]Could not mail about it either:[/yellow] [dim]{error}[/dim]")
+
+
+def _backup_failed(error: TargumError) -> NoReturn:
+    _backup_alarm(error.message, error.hint or "")
+    fail(error)
+
+
+def _backup(out: Path | None, store: Path | None, keep: int, to: str) -> None:
+    import shutil
+    from datetime import datetime
+
     from .backup import (
+        NotSealed,
         NotShipped,
         archive_cache,
         archive_weekly,
         check,
         check_archive,
         destination,
+        folders,
+        recipients,
+        seal,
         ship,
         snapshot,
         sweep,
@@ -718,14 +753,14 @@ def backup(
     try:
         made = snapshot(where, into)
     except FileNotFoundError:
-        fail(TargumError(f"No database at {where}.", "Nothing has been saved yet."))
+        _backup_failed(TargumError(f"No database at {where}.", "Nothing has been saved yet."))
     except sqlite3.Error as error:
-        fail(TargumError("Could not copy the database.", str(error)))
+        _backup_failed(TargumError("Could not copy the database.", str(error)))
 
     problem = check(made)
     if problem:
         made.unlink(missing_ok=True)
-        fail(TargumError("The copy came out unusable, so it was thrown away.", problem))
+        _backup_failed(TargumError("The copy came out unusable, so it was thrown away.", problem))
 
     size = made.stat().st_size / 1024
     console.print(f"[green]Copied to {made}[/green] [dim]({size:.0f} KB, checked)[/dim]")
@@ -776,22 +811,98 @@ def backup(
     # Last, and only what this run produced: the point is that tonight's copy left, not
     # that the directory was synced. A failure here is a real failure — the copies on
     # disk are fine and the disaster they do not cover is the one this addresses — so it
-    # exits non-zero and cron mails somebody.
+    # exits non-zero and the operator is mailed.
+    #
+    # Neither half set is the state of a box nobody has switched this on for, and says so
+    # and stops cleanly: no mail, no failure (targum-internal#16). One half set is a
+    # switch half-thrown, and that is a failure, because the other reading of it — send
+    # the copies unencrypted — is the one thing this must never do.
     sending = destination(to)
-    if not sending:
+    try:
+        keys = recipients()
+    except NotSealed as error:
+        _backup_failed(TargumError("Nothing left the box.", str(error)))
+    if not sending and not keys:
         console.print(
-            "[yellow]These are on the same disk as the database.[/yellow] "
-            "[dim]Set --to, or TARGUM_BACKUP_TO, to send them somewhere else.[/dim]"
+            "[yellow]Off-box copy not configured: these are on the same disk as the "
+            "database.[/yellow] [dim]Set TARGUM_BACKUP_TO and TARGUM_BACKUP_AGE_RECIPIENT "
+            "to send them somewhere else (deploy/README.md).[/dim]"
         )
         return
+    if not keys:
+        _backup_failed(
+            TargumError(
+                "Nothing left the box: TARGUM_BACKUP_TO is set and "
+                "TARGUM_BACKUP_AGE_RECIPIENT is not.",
+                "Copies leave encrypted or not at all. Add the age public key.",
+            )
+        )
+    if not sending:
+        _backup_failed(
+            TargumError(
+                "Nothing left the box: TARGUM_BACKUP_AGE_RECIPIENT is set and "
+                "TARGUM_BACKUP_TO is not.",
+                "Name the rclone remote and bucket, e.g. backblaze:targum-backups.",
+            )
+        )
+
     leaving = [path for path in (made, bundle, issues) if path is not None and path.is_file()]
+    # Sealed copies are made for the trip and not kept: the plain ones beside them are
+    # what a restore on this box would use, and an encrypted copy here is one nobody
+    # here can open.
+    outgoing = into / "outgoing"
+    shutil.rmtree(outgoing, ignore_errors=True)
+    sent: list[str] = []
     try:
-        arrived = ship(leaving, sending)
-    except NotShipped as error:
-        fail(TargumError("The copies did not leave the box.", str(error)))
+        sealed = [seal(path, keys, outgoing) for path in leaving]
+        for folder in folders(sending, datetime.now()):
+            arrived = ship(sealed, folder)
+            sent.append(f"{folder} ({', '.join(arrived)})")
+    except (NotSealed, NotShipped) as error:
+        _backup_failed(TargumError("The copies did not leave the box.", str(error)))
     except (OSError, subprocess.SubprocessError) as error:
-        fail(TargumError("The copies did not leave the box.", str(error)))
-    console.print(f"[green]Sent to {sending}[/green] [dim]({', '.join(arrived)}, checked)[/dim]")
+        _backup_failed(TargumError("The copies did not leave the box.", str(error)))
+    finally:
+        shutil.rmtree(outgoing, ignore_errors=True)
+    for line in sent:
+        console.print(f"[green]Sealed and sent to {line}[/green] [dim](checked)[/dim]")
+
+
+@app.command("watch-health")
+def watch_health(
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps count between runs."),
+    ] = None,
+    url: Annotated[
+        str, typer.Option("--url", help="Default: TARGUM_HEALTH_URL, or the public address.")
+    ] = "",
+) -> None:
+    """Knock on /health once, and mail TARGUM_ALERT_TO when it has stopped answering.
+
+    Run every five minutes by targum-health.timer on the box (targum-internal#20). One
+    mail after two failed checks in a row, a reminder every six hours while it stays
+    down, and one when it answers again. Without TARGUM_ALERT_TO it says so and does
+    nothing else.
+    """
+    from .alerts import health_url, recipient, watch
+    from .serve import default_store
+
+    if not recipient():
+        console.print("[dim]Health alerts not configured: TARGUM_ALERT_TO is not set.[/dim]")
+        return
+    where = url or health_url()
+    if not where:
+        console.print(
+            "[dim]Health alerts not configured: no TARGUM_HEALTH_URL or "
+            "TARGUM_PUBLIC_ADDRESS to knock on.[/dim]"
+        )
+        return
+    try:
+        said = watch(state or default_store().parent / "health-watch.json", where)
+    except Exception as error:
+        fail(TargumError("/health is down and the mail about it did not go.", str(error)))
+    console.print(said)
 
 
 @app.command()

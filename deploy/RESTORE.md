@@ -27,6 +27,12 @@ Readers are not copied either. They are rendered from artifacts on disk, and
 
 ## The drill
 
+**From the bucket, once the off-box copy is switched on:** the copies there are sealed
+with age, so step 2 starts with `deploy/restore-drill.sh` on the laptop, which downloads
+the newest one, decrypts it with the identity from 1Password, and checks it
+(`deploy/README.md`, "Backups off the box"). The cache and weekly archives decrypt the
+same way: `age -d -i <identity> cache-<stamp>.zip.age > cache-<stamp>.zip`.
+
 Everything below ran on a laptop, against a scratch directory and a spare port. It never
 touched the live box.
 

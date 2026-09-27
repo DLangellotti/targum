@@ -739,27 +739,78 @@ def check_backups_leave() -> Check:
     library offline to protect against a disk that has not died yet. But it is the one
     thing on this list that is invisible until it matters, and the day it matters there
     is nothing to be done about it.
-    """
-    from .backup import destination
 
+    Two settings and two tools, since the copy is sealed before it leaves
+    (targum-internal#16): the destination and the age public key, rclone and age. Any
+    one of them missing is nothing leaving, and says which.
+    """
+    from .backup import RECIPIENT_ENV, NotSealed, destination, recipients
+
+    name = "backups leave the box"
     where = destination()
-    if not where:
+    try:
+        keys = recipients()
+    except NotSealed as error:
         return Check(
-            "backups leave the box",
+            name, False, str(error), f"Fix {RECIPIENT_ENV} in /etc/targum/targum.env.", fatal=False
+        )
+    if not where and not keys:
+        return Check(
+            name,
             False,
             "TARGUM_BACKUP_TO is not set, so copies sit beside the database.",
-            "Set it in /etc/cron.d/targum-backup to an rclone remote.",
+            "Set it in /etc/targum/targum.env to an rclone remote, with "
+            f"{RECIPIENT_ENV} beside it (deploy/README.md).",
             fatal=False,
         )
-    if shutil.which("rclone") is None:
+    if not keys:
         return Check(
-            "backups leave the box",
+            name,
             False,
-            f"{where} is set but rclone is not installed, so nothing has left.",
-            "apt-get install rclone",
+            f"{where} is set but {RECIPIENT_ENV} is not, so nothing leaves: copies go "
+            "encrypted or not at all.",
+            f"Add the age public key as {RECIPIENT_ENV} in /etc/targum/targum.env.",
             fatal=False,
         )
-    return Check("backups leave the box", True, where)
+    if not where:
+        return Check(
+            name,
+            False,
+            f"{RECIPIENT_ENV} is set but TARGUM_BACKUP_TO is not, so nothing leaves.",
+            "Set TARGUM_BACKUP_TO in /etc/targum/targum.env to an rclone remote.",
+            fatal=False,
+        )
+    absent = [tool for tool in ("rclone", "age") if shutil.which(tool) is None]
+    if absent:
+        return Check(
+            name,
+            False,
+            f"{where} is set but {' and '.join(absent)} is not installed, so nothing has left.",
+            f"apt-get install {' '.join(absent)}",
+            fatal=False,
+        )
+    return Check(name, True, where)
+
+
+def check_alerts() -> Check:
+    """Whether anybody is told when /health or the nightly backup fails.
+
+    A warning, like the backups: the service is fine without it. It is the difference
+    between hearing about an outage from the box and hearing about it from a reader
+    (targum-internal#20).
+    """
+    from .alerts import ALERT_ENV, recipient
+
+    who = recipient()
+    if not who:
+        return Check(
+            "alerts",
+            False,
+            f"{ALERT_ENV} is not set, so nobody is mailed when /health or the backup fails.",
+            f"Set {ALERT_ENV} in /etc/targum/targum.env to the operator's address.",
+            fatal=False,
+        )
+    return Check("alerts", True, who)
 
 
 def check_invitations(store: Path) -> Check:
@@ -862,6 +913,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_parasha(out))
     checks.append(check_daily(out))
     checks.append(check_backups_leave())
+    checks.append(check_alerts())
     checks.append(check_invitations(store))
     checks += check_paths(store, out)
     checks += [check_disk(store.parent), check_port(port)]
