@@ -268,3 +268,9 @@ def test_the_name_is_reserved_where_the_licence_is_not() -> None:
     assert "derived product or service" in notice
     assert "`NOTICE`" in (root / "LICENSING.md").read_text(encoding="utf-8")
     assert '"NOTICE"' in (root / "pyproject.toml").read_text(encoding="utf-8")
+
+
+def test_the_about_page_names_its_own_address() -> None:
+    """Indexed and in the sitemap, so it says which address is the one to index."""
+    assert f'<link rel="canonical" href="{ADDRESS}/about">' in about_page(address=ADDRESS)
+    assert 'rel="canonical"' not in about_page(), "no address, no claim to one"

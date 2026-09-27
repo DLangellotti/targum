@@ -5899,7 +5899,8 @@ class Handler(BaseHTTPRequestHandler):
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.
         if route == "/about":
-            return self._send(200, about_page(language=self._page_language()).encode("utf-8"), HTML)
+            page = about_page(language=self._page_language(), address=self.address)
+            return self._send(200, page.encode("utf-8"), HTML)
         if route == "/series/stop":
             # Followed out of an email, with no account and no key.
             return self._series_stop(None)
