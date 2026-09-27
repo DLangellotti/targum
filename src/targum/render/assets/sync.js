@@ -160,6 +160,9 @@
           status: word.status === undefined ? null : word.status,
           band: word.band || "",
           learned: word.learned ? 1 : 0,
+          // How the word got here: "claimed" for one ticked off on "Words you may
+          // already know", "" for one met in a text (targum-internal#245).
+          source: word.source || "",
           at: word.at || 0,
           seen: touchedAt(word),
         });
@@ -430,6 +433,7 @@
         band: row.band || "",
         // Rebuilt from a named list, so anything not named here is dropped on every sync.
         learned: row.learned ? 1 : 0,
+        source: row.source || "",
         at: row.at || 0,
         seen: row.seen || 0,
       };
@@ -680,11 +684,11 @@
    * of things to delete goes stale every time a key is added; a list of things to keep
    * fails safe instead.
    *
-   * The theme is the only survivor. It is a display preference rather than anything
-   * about the reader, and resetting somebody's dark mode when they sign out is a small
-   * hostility with nothing to show for it.
+   * Nothing survives today. The theme was the one survivor until there was one look
+   * (2026-09-19, design.md §12); the list stays, empty, because the next display
+   * preference belongs in it and a drop-list is still the wrong shape.
    */
-  var KEEP = ["targum:theme"];
+  var KEEP = [];
 
   function clearLocal() {
     var doomed = [];
@@ -758,7 +762,7 @@
     who: null,
 
     /* Which room they read in. On the account rather than in this browser, and for a
-       blunt reason: `clearLocal()` below deletes every `targum:*` key but the theme on
+       blunt reason: `clearLocal()` below deletes every `targum:*` key on
        sign-out, on purpose, so a local preference would be forgotten every time somebody
        signed out on their own machine. */
 
@@ -770,6 +774,14 @@
           if (!api.who) return false;
           write(READS, me.reads || []);
           write(LEARNING, me.learning || []);
+          // The rung they named on arrival, a plain string, for the Library's first band
+          // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
+          // Adopted and never cleared from here, as Learn does with the subjects.
+          if (me.declared) {
+            try {
+              targumKeep("targum:declared", String(me.declared));
+            } catch (e) {}
+          }
           // The language chosen on another device, for the next page this one opens. Not
           // the page already drawn: redrawing under somebody's hand is worse than one
           // page in the language they last saw here.

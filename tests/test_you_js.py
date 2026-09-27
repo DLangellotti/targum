@@ -204,3 +204,199 @@ def test_the_page_says_its_words_in_the_readers_language() -> None:
         }
     )
     assert page["kept"] == "512 слов и 24 фразы во всех ваших языках."
+
+
+# --- what's connected, and taking it back (targum-internal#80) --------------------
+
+CONNECTED = {
+    **SIGNED_IN,
+    "connections": [
+        {
+            "client": "c-claude",
+            "name": "Claude",
+            "scopes": "library record",
+            "made": 1,
+            "seen": 2,
+        },
+        {"client": "c-gpt", "name": "ChatGPT", "scopes": "library", "made": 1, "seen": 2},
+    ],
+}
+
+
+def test_nothing_connected_draws_no_panel() -> None:
+    """A panel saying "nothing is connected" would be a panel advertising connecting."""
+    page = run()
+    assert page["connectionsPanel"] is True, "hidden"
+    assert page["connections"] == []
+
+
+def test_each_connector_says_what_it_may_do_in_the_reader_s_words() -> None:
+    page = run(who=CONNECTED)
+    assert page["connectionsPanel"] is False
+    assert [one["name"] for one in page["connections"]] == ["Claude", "ChatGPT"]
+    assert page["connections"][0]["says"] == "the library, your words and mistakes"
+    assert page["connections"][1]["says"] == "the library"
+
+
+def test_the_chat_scope_says_chatting_is_included() -> None:
+    """design.md §12, 2026-09-24: this is the page they come to when they want to know
+    what they agreed to, and what it says is what the approval page said — chatting is
+    included, with no credits or hours in the line.
+
+    Both spellings, because a grant stores the words the reader approved and those
+    outlive a rename: `check` became `chat` on 2026-09-23, and every connector authorised
+    before then still holds the old one. A reader shown one fewer scope here than they
+    actually agreed to is the failure this guards.
+    """
+    for held in ("library record chat", "library record check"):
+        page = run(
+            who={
+                **SIGNED_IN,
+                "connections": [{"client": "c", "name": "Claude", "scopes": held}],
+            }
+        )
+        says = page["connections"][0]["says"]
+        assert "which is included" in says, f"{held!r} lost its spending scope"
+        assert "credits" not in says and "hours" not in says
+
+
+def test_two_rows_of_one_app_are_told_apart_by_their_dates() -> None:
+    """Claude registers itself afresh on every reconnect, and removing it in Claude does
+    not reach us, so two "Claude" rows are ordinary. Their dates tell them apart."""
+    made = 1758700800000  # 2025-09-24, noon or so anywhere
+    page = run(
+        who={
+            **SIGNED_IN,
+            "connections": [
+                {"client": "a", "name": "Claude", "scopes": "library", "made": made, "seen": 0},
+                {
+                    "client": "b",
+                    "name": "Claude",
+                    "scopes": "library",
+                    "made": made,
+                    "seen": made + 86400000,
+                },
+            ],
+        }
+    )
+    first, second = (one["when"] for one in page["connections"])
+    assert first.startswith("Connected ") and "last used" not in first
+    assert second.startswith("Connected ") and ", last used " in second
+    assert "2025" in first
+
+
+def test_a_connector_with_no_name_is_still_a_row() -> None:
+    page = run(who={**SIGNED_IN, "connections": [{"client": "c", "name": "", "scopes": "library"}]})
+    assert page["connections"][0]["name"] == "An app"
+
+
+def test_disconnecting_posts_the_client_and_redraws() -> None:
+    page = run(
+        who=CONNECTED,
+        do=[{"type": "press", "id": "connection-rows:0:2"}],
+        answers={
+            "/account/disconnect": {
+                "disconnected": 2,
+                "connections": [CONNECTED["connections"][1]],
+            }
+        },
+    )
+    posted = [one for one in page["posted"] if one["path"] == "/account/disconnect"]
+    assert posted and posted[0]["body"] == {"client": "c-claude"}
+    assert [one["name"] for one in page["connections"]] == ["ChatGPT"], "redrawn from the answer"
+    assert page["connectionsSaid"] == {"text": "Disconnected.", "hidden": False}
+
+
+def test_disconnecting_the_last_app_keeps_saying_so() -> None:
+    """The panel is drawn only while something is connected, and the last Disconnect
+    used to take the panel, and its "Disconnected.", away with it."""
+    one = {**SIGNED_IN, "connections": CONNECTED["connections"][:1]}
+    page = run(
+        who=one,
+        do=[{"type": "press", "id": "connection-rows:0:2"}],
+        answers={"/account/disconnect": {"disconnected": 2, "connections": []}},
+    )
+    assert page["connections"] == []
+    assert page["connectionsPanel"] is False, "still drawn"
+    assert page["connectionsSaid"] == {"text": "Disconnected.", "hidden": False}
+
+
+# --- a reader's own asks (targum-internal#80, note 17) ----------------------------
+
+
+def test_no_connector_no_box_to_write_one() -> None:
+    """A control for writing prompts, shown to somebody with nothing to show them in,
+    is a control without a job."""
+    page = run(who={**SIGNED_IN, "prompts": []})
+    assert page["promptsPanel"] is True, "hidden"
+
+
+def test_what_a_reader_wrote_is_listed_with_a_way_to_remove_it() -> None:
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs.", "made": 1}],
+        }
+    )
+    assert page["promptsPanel"] is False
+    assert page["prompts"] == [{"name": "my-verbs", "says": "Drill my verbs."}]
+
+
+def test_saving_one_posts_both_fields_and_says_what_it_was_called() -> None:
+    """The server narrows the name; the page says what it actually saved rather than
+    what was typed."""
+    page = run(
+        who=CONNECTED,
+        do=[
+            {"type": "write", "id": "prompt-name", "value": "My Verbs"},
+            {"type": "write", "id": "prompt-says", "value": "Drill my verbs."},
+            {"type": "press", "id": "prompt-save"},
+        ],
+        answers={
+            "/account/prompts": {
+                "written": {"id": 1, "name": "my-verbs", "says": "Drill my verbs."},
+                "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
+            }
+        },
+    )
+    posted = [one for one in page["posted"] if one["path"] == "/account/prompts"]
+    assert posted and posted[0]["body"] == {"name": "My Verbs", "says": "Drill my verbs."}
+    assert page["prompts"] == [{"name": "my-verbs", "says": "Drill my verbs."}]
+    assert page["promptsSaid"]["text"] == "Saved as my-verbs. It's in your apps now."
+
+
+def test_a_refusal_is_said_rather_than_claiming_it_saved() -> None:
+    page = run(
+        who=CONNECTED,
+        do=[{"type": "press", "id": "prompt-save"}],
+        answers={"/account/prompts": {"error": "Give it a name.", "prompts": []}},
+    )
+    assert page["promptsSaid"] == {"text": "Give it a name.", "hidden": False}
+    assert page["prompts"] == []
+
+
+def test_removing_one_posts_its_name_and_redraws() -> None:
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
+        },
+        do=[{"type": "press", "id": "prompt-rows:0:2"}],
+        answers={"/account/prompts": {"prompts": []}},
+    )
+    posted = [one for one in page["posted"] if one["path"] == "/account/prompts"]
+    assert posted[0]["body"] == {"name": "my-verbs", "gone": True}
+    assert page["prompts"] == []
+    assert page["promptsSaid"]["text"] == "Removed."
+
+
+def test_a_remove_that_fails_says_remove() -> None:
+    page = run(
+        who={
+            **CONNECTED,
+            "prompts": [{"id": 1, "name": "my-verbs", "says": "Drill my verbs."}],
+        },
+        do=[{"type": "press", "id": "prompt-rows:0:2"}],
+        answers={"/account/prompts": "fail"},
+    )
+    assert page["promptsSaid"]["text"] == "We couldn't remove that. Try again."

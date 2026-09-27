@@ -60,6 +60,16 @@
   //: is a real thing, and four thousand rows is a page nobody can scroll.
   var PAGE = 200;
 
+  //: How many words the fold at the top offers at once (targum-internal#103). Twenty is
+  //: a sitting, not a syllabus: enough that arriving is worth it, few enough that the
+  //: list is a thing somebody finishes rather than a backlog that grows while they look
+  //: at it. It is a cap and never a target — nothing counts what is behind it.
+  //: How many words the fold offers at once where the whole list is on the same page.
+  //: A cap and never a target: nothing counts what is behind it, because "12 words due"
+  //: is the sentence this card exists not to say. `limits.workOn` takes it lower where
+  //: the fold is a guest — Learn shows five and says where the rest are (2026-09-18).
+  var WORK_ON = 20;
+
   function read(name, fallback) {
     try {
       return JSON.parse(localStorage.getItem(name) || fallback);
@@ -84,8 +94,6 @@
   //: How many rows each list may draw here, if the page asked for a ceiling. Learn does;
   //: the pages that are only a list do not, and page through with More instead.
   var limits = {};
-  // Which row is open for editing, keyed by the thing it is about. One at a time.
-  var openKey = null;
 
   //: Called after a word's status changes, so the page above can redraw what depends on
   //: it — the known count on Learn is the same number this list edits.
@@ -180,6 +188,849 @@
     });
   }
 
+  /* --- what to work on ------------------------------------------------------- */
+
+  /* The fold at the top of Your Words: the words this reader flagged and never came back
+   * to (targum-internal#103).
+   *
+   * Dmitry Z, 2026-09-16, on the one thing in an hour he called genuinely useful: "anki
+   * requires bookkeeping and discipline that I lack", and "anki srs is kinda dumb in the
+   * sense it doesnt really know what you get wrong beyond what you tell it". A per-session
+   * answer is a commodity a chat window already gives him for free; what a chat window
+   * structurally cannot do is remember him between sessions. The list that maintains
+   * itself is the thing worth paying for.
+   *
+   * And the constraint, three minutes later in the same conversation: "if smth gonna ping
+   * me or bother me like duolingo I'll fucking delete it". So it is pull and never push.
+   * Nothing here is scheduled, nothing is due, nothing is counted, nothing is sent. It is
+   * a view of rows that already exist, waiting when he arrives and silent when he does
+   * not.
+   *
+   * The order is the plainest rule that is true of the data. `at` is when a word was
+   * marked and there is nothing else: no record that a word was met again, no count of
+   * times seen, no interval. So: still learning, oldest mark first — the ones that have
+   * been sitting there longest. Any cleverer order would be a claim the ledger cannot
+   * support.
+   */
+  /* Words the reader has said "still learning" to during this visit. In memory and
+     nowhere else: it is not a snooze and not an interval, it is the difference between
+     one sitting and the next. Cleared by `draw`, so coming back to the page brings them
+     back — which is correct, because they are still words being learned. */
+  var passed = {};
+
+  /* The fold turns over (targum-internal#336, 2026-09-19).
+   *
+   * "Show different words each time I come to the page." Oldest first and a cap of five
+   * meant the same five on every visit until one of them was marked known: `at` is
+   * written once, so nothing about the order ever moved. The order is still the only
+   * honest one, and it stays. What moves is *where in it the fold opens*: each visit
+   * starts where the last one ended, the press at the foot turns to the next
+   * screenful, and off the end it comes round to the oldest again.
+   *
+   * A place in the list, not a shuffle and not a ranking — it makes no claim about which
+   * words matter more, which is the claim the ledger cannot support. The place is kept
+   * by the row it points at (its key and its stamp), not by a position, so a word that
+   * leaves the list — marked known, or passed over for the sitting — does not slide
+   * everything after it. Kept in this browser only: it is where a reader was standing,
+   * and the account has no use for it.
+   */
+  var TURNED = "targum:work-at:";
+  //: This sitting's first row in each half, by key and stamp. Settled on the first draw
+  //: and moved only by the press: marking a word must not turn the page under the hand.
+  var standing = {};
+  //: Whether each half has more than a screenful, which is when the press is drawn.
+  var turns = {};
+
+  function whereLeft() {
+    try {
+      return JSON.parse(localStorage.getItem(TURNED + code) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function leaveAt(which, mark) {
+    var all = whereLeft();
+    all[which] = mark;
+    try {
+      var text = JSON.stringify(all);
+      if (window.targumKeep) window.targumKeep(TURNED + code, text);
+      else localStorage.setItem(TURNED + code, text);
+    } catch (e) {
+      /* nowhere to keep it: the next visit opens at the oldest, as it always did */
+    }
+  }
+
+  //: Where a mark points in the rows as they are now: the row itself where it is still
+  //: there, else the first row stamped no earlier, else the top.
+  function placeOf(rows, mark, keyOf) {
+    if (!mark) return 0;
+    for (var i = 0; i < rows.length; i++) if (keyOf(rows[i]) === mark.key) return i;
+    for (var j = 0; j < rows.length; j++) if ((rows[j].at || 0) >= (mark.at || 0)) return j;
+    return 0;
+  }
+
+  function markOf(row, keyOf) {
+    return { key: keyOf(row), at: row.at || 0 };
+  }
+
+  function turned(rows, which, keyOf) {
+    var size = limits.workOn || WORK_ON;
+    turns[which] = rows.length > size;
+    if (!turns[which]) return rows;
+    var first = !standing[which];
+    if (first) standing[which] = whereLeft()[which] || markOf(rows[0], keyOf);
+    var from = placeOf(rows, standing[which], keyOf);
+    var shown = [];
+    for (var n = 0; n < size; n++) shown.push(rows[(from + n) % rows.length]);
+    // The next visit starts on the row after this screenful.
+    if (first) leaveAt(which, markOf(rows[(from + size) % rows.length], keyOf));
+    return shown;
+  }
+
+  /** The press at the foot: on to the next screenful of the open half. */
+  function turnOver(which, rows, keyOf) {
+    var size = limits.workOn || WORK_ON;
+    if (rows.length <= size) return;
+    var from = placeOf(rows, standing[which], keyOf);
+    standing[which] = markOf(rows[(from + size) % rows.length], keyOf);
+    leaveAt(which, markOf(rows[(from + size + size) % rows.length], keyOf));
+  }
+
+  function wordKey(word) {
+    return "word:" + (word.lemma || word.term);
+  }
+
+  function wordsStillLearning() {
+    return entry.words
+      .filter(function (word) {
+        if (passed[word.lemma || word.term]) return false;
+        return word.status >= 1 && word.status <= 3;
+      })
+      .slice()
+      .sort(function (a, b) {
+        // Oldest mark first. A word with no stamp sorts as oldest, which is right: it was
+        // marked before anything started stamping.
+        return (a.at || 0) - (b.at || 0);
+      });
+  }
+
+  function workOn() {
+    return turned(wordsStillLearning(), "words", wordKey);
+  }
+
+  /* Phrases, the fold's second tab (2026-09-18). Two kinds of row answer the same
+   * question, so they are one list: a phrase the reader kept from a text and has not
+   * marked known, and a line they wrote in the conversation that came back changed.
+   * Oldest first across both, for the reason the words are: the thing worth coming back
+   * to is what has been sitting there longest.
+   *
+   * A kept phrase is on the same ladder as a word and moves on it the same way. A line
+   * that came back changed has no ladder — it is a sentence the reader got wrong once —
+   * so "I know this" takes it off the list on the account and "Still learning" only
+   * moves it out of the sitting. The slip itself is never touched: it is the record,
+   * and the record is not the queue.
+   */
+  function phraseKey(phrase) {
+    return "phrase:" + phrase.store + ":" + phrase.segmentId + ":" + phrase.index;
+  }
+
+  function phrasesToWorkOn() {
+    var rows = [];
+    (entry.phrases || []).forEach(function (phrase) {
+      if (passed[phraseKey(phrase)]) return;
+      if (!(phrase.status >= 1 && phrase.status <= 3)) return;
+      rows.push({ kind: "phrase", at: phrase.at || 0, phrase: phrase });
+    });
+    rewrote.forEach(function (slip) {
+      if (passed["slip:" + slip.id]) return;
+      // The queue from the server is every language's; the fold is one language's.
+      if ((slip.language || code) !== code) return;
+      rows.push({ kind: "slip", at: slip.at || 0, slip: slip });
+    });
+    return rows.sort(function (a, b) {
+      return a.at - b.at;
+    });
+  }
+
+  function rowKey(row) {
+    return row.kind === "slip" ? "slip:" + row.slip.id : phraseKey(row.phrase);
+  }
+
+  /* Which tab is open. In memory: a sitting's choice, and the next visit opens on
+     whichever half has something in it, words first. */
+  var workTab = null;
+
+  function renderWorkOn() {
+    var panel = at("work-on");
+    var wordHost = at("work-rows");
+    if (!panel || !wordHost) return;
+    var phraseHost = at("work-phrase-rows");
+    var words = workOn();
+    var phrases = phraseHost ? turned(phrasesToWorkOn(), "phrases", rowKey) : [];
+    // Nothing to work on is nothing on the page. Not an empty state and not an
+    // invitation: a reader who has flagged nothing is not being told they are behind.
+    panel.hidden = words.length === 0 && phrases.length === 0;
+
+    // The open tab stays open while it has rows, and a tab that has just been worked
+    // through hands over to the other rather than showing an empty list.
+    if (workTab !== "phrases" || !phrases.length) workTab = words.length ? "words" : "phrases";
+    if (workTab === "words" && !words.length) workTab = "phrases";
+
+    /* The tabs only where both halves have something. A tab with nothing under it is an
+       empty state with a label on it, and the fold does not have those: a reader with
+       only words sees the words, as before. */
+    var tabs = at("work-tabs");
+    if (tabs) tabs.hidden = !(words.length && phrases.length);
+    WORK_TABS.forEach(function (which) {
+      var tab = at("work-tab-" + which);
+      if (!tab) return;
+      var on = which === workTab;
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.tabIndex = on ? 0 : -1;
+    });
+    wordHost.hidden = workTab !== "words";
+    if (phraseHost) phraseHost.hidden = workTab !== "phrases";
+
+    // The door and the way to the rest are about whichever half is open.
+    var foot = at("work-foot");
+    if (foot) foot.hidden = panel.hidden;
+    var talk = at("work-talk");
+    if (talk) {
+      talk.textContent =
+        workTab === "phrases"
+          ? t("lists.work.talk-phrases", "Practise these phrases")
+          : t("lists.work.talk-words", "Practise these words");
+    }
+    // The press that turns the fold over, only where there is another screenful to turn to.
+    var more = at("work-more");
+    if (more) {
+      more.hidden = !turns[workTab];
+      more.onclick = function () {
+        if (workTab === "phrases") turnOver("phrases", phrasesToWorkOn(), rowKey);
+        else turnOver("words", wordsStillLearning(), wordKey);
+        renderWorkOn();
+      };
+    }
+    var all = at("work-all");
+    if (all) {
+      var path = workTab === "phrases" ? "/phrases" : "/words";
+      var key = window.TARGUM_KEY || "";
+      all.href = path + (key ? "?k=" + encodeURIComponent(key) : "");
+      all.textContent =
+        workTab === "phrases"
+          ? t("learn.page.all-your-phrases", "All your phrases")
+          : t("learn.page.all-your-words", "All your words");
+    }
+
+    drawWordRows(wordHost, words);
+    if (phraseHost) drawPhraseRows(phraseHost, phrases);
+  }
+
+  var WORK_TABS = ["words", "phrases"];
+
+  /** Switch the fold to one half. Arrow keys move between the tabs, as tabs do. */
+  function mountWorkTabs() {
+    WORK_TABS.forEach(function (which, n) {
+      var tab = at("work-tab-" + which);
+      if (!tab) return;
+      tab.onclick = function () {
+        workTab = which;
+        renderWorkOn();
+      };
+      tab.onkeydown = function (event) {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        workTab = WORK_TABS[(n + 1) % WORK_TABS.length];
+        renderWorkOn();
+        at("work-tab-" + workTab).focus();
+      };
+    });
+  }
+
+  /* The two questions, and nothing else.
+   *
+   * "I know this" takes it off the list through the ordinary path — the same
+   * `updateWord` the table's editor calls — so the known count rises once, from one
+   * store, and no second ledger exists to disagree with the first.
+   *
+   * "Still learning" steps it back down the ladder it is already on — nearly there
+   * to getting there, getting there to just met — and moves it out of this sitting.
+   * The step down is the honest opposite of the button beside it: both say what the
+   * reader knows about this word, and both say it in the one place the product keeps
+   * that. A press that changed nothing would have been a control with no job
+   * (design.md §13), and this card frames the fold as a queue worked through.
+   *
+   * At "just met" there is nowhere lower, so the press only moves the word out of
+   * the sitting and writes nothing. Saying "still learning" about a word marked met
+   * once is agreement, and agreement is not news.
+   *
+   * It does not restamp `at`: that field is when a word was kept, it is what the
+   * table's Kept column shows, and it is written once and preserved for life
+   * (`vocab.js:161`) — so re-stamping it to reorder a queue would have quietly aged
+   * every word in the product to today. The order of the fold is therefore
+   * unchanged by a press, and a word stepped down today is where it was tomorrow.
+   *
+   * The sitting half is still in memory and nowhere else: a stored skip is an
+   * interval wearing a different coat, and the whole of this card is that nothing is
+   * scheduled. Come back tomorrow and the word is here again, one level lower, which
+   * is true: it is still a word being learned.
+   */
+  function answers(onKnown, onStill) {
+    var keys = el("span", "work-keys");
+    var knew = el("button", "work-known", t("lists.work.known", "I know this"));
+    knew.type = "button";
+    knew.addEventListener("click", onKnown);
+    var still = el("button", "work-still", t("lists.work.still", "Still learning"));
+    still.type = "button";
+    still.addEventListener("click", onStill);
+    keys.appendChild(knew);
+    keys.appendChild(still);
+    return keys;
+  }
+
+  function drawWordRows(host, rows) {
+    host.textContent = "";
+    rows.forEach(function (word) {
+      var item = el("li", "work-row");
+      item.setAttribute("data-word", word.lemma || word.term);
+      opens(item, wordCard(word));
+
+      var said = el("span", "work-said");
+      var term = el("bdi", "term", word.term);
+      term.setAttribute("lang", code);
+      said.appendChild(term);
+      // The dictionary form only where it differs, the way the table does it: repeating
+      // a word under itself says the reader got something wrong.
+      if (word.lemma && word.lemma !== word.term) {
+        var form = el("bdi", "work-lemma", word.lemma);
+        form.setAttribute("lang", code);
+        said.appendChild(form);
+      }
+      item.appendChild(said);
+
+      // What they kept, in the language they kept it in. Their own note wins over the
+      // bought meaning, which is the rule everywhere else a meaning is shown.
+      var meaning = word.note || word.meaning;
+      if (meaning) {
+        item.appendChild(inTarget(el("span", "work-meaning" + (word.note ? " mine" : ""), meaning), word.into));
+      }
+
+      item.appendChild(
+        answers(
+          function () {
+            updateWord(word, { status: KNOWN });
+            renderWorkOn();
+            renderWords();
+            if (onChanged) onChanged();
+          },
+          function () {
+            passed[word.lemma || word.term] = true;
+            if (word.status > 1) {
+              updateWord(word, { status: word.status - 1 });
+              renderWords();
+              if (onChanged) onChanged();
+            }
+            renderWorkOn();
+          }
+        )
+      );
+      host.appendChild(item);
+    });
+  }
+
+  function drawPhraseRows(host, rows) {
+    host.textContent = "";
+    rows.forEach(function (row) {
+      if (row.kind === "slip") {
+        host.appendChild(slipRow(row.slip));
+        return;
+      }
+      var phrase = row.phrase;
+      var item = el("li", "work-row");
+      item.setAttribute("data-phrase", phraseKey(phrase));
+      opens(item, phraseCard(phrase));
+      var said = el("span", "work-said");
+      var term = el("bdi", "term", phrase.term);
+      term.setAttribute("lang", code);
+      said.appendChild(term);
+      item.appendChild(said);
+      var meaning = phrase.note || phrase.meaning;
+      if (meaning) {
+        item.appendChild(
+          inTarget(el("span", "work-meaning" + (phrase.note ? " mine" : ""), meaning), phrase.into)
+        );
+      }
+      // The same ladder as a word, written the way the reader and the list below write
+      // a phrase's level: into the text's own store, so the text shows it too.
+      item.appendChild(
+        answers(
+          function () {
+            updatePhrase(phrase, { status: KNOWN });
+            renderWorkOn();
+            renderPhrases();
+            if (onChanged) onChanged();
+          },
+          function () {
+            passed[phraseKey(phrase)] = true;
+            if (phrase.status > 1) {
+              updatePhrase(phrase, { status: phrase.status - 1 });
+              renderPhrases();
+              if (onChanged) onChanged();
+            }
+            renderWorkOn();
+          }
+        )
+      );
+      host.appendChild(item);
+    });
+  }
+
+  /* A line that came back changed, as a row to work on. "I know this" is said to the
+     account, since that is where the slip lives; it leaves the list at once and comes
+     back only if the account could not be told. */
+  function slipRow(slip) {
+    var item = el("li", "work-row work-slip");
+    item.setAttribute("data-slip", String(slip.id));
+    opens(item, slipCard(slip));
+    item.appendChild(slipSaid(slip));
+    item.appendChild(
+      answers(
+        function () {
+          var was = rewrote.slice();
+          rewrote = rewrote.filter(function (other) {
+            return other.id !== slip.id;
+          });
+          renderWorkOn();
+          knowSlip(slip.id).then(function (ok) {
+            if (ok) return;
+            rewrote = was;
+            renderWorkOn();
+          });
+        },
+        function () {
+          passed["slip:" + slip.id] = true;
+          renderWorkOn();
+        }
+      )
+    );
+    return item;
+  }
+
+  function knowSlip(id) {
+    var key = window.TARGUM_KEY || "";
+    var head = { "Content-Type": "application/json" };
+    if (key) head["X-Targum-Key"] = key;
+    if (typeof fetch !== "function") return Promise.resolve(false);
+    return fetch("/slips/" + encodeURIComponent(String(id)) + (key ? "?k=" + encodeURIComponent(key) : ""), {
+        method: "POST",
+        headers: head,
+        body: JSON.stringify({ known: true }),
+      })
+      .then(function (response) {
+        return response.ok;
+      })
+      .catch(function () {
+        return false;
+      });
+  }
+
+  /* --- taking them into a conversation ---------------------------------------
+   *
+   * The fold's one door out (targum-internal#103). A list of words is a list of words;
+   * the thing a reader stuck on six of them actually wants is to meet them in a
+   * sentence, and the conversation is already the place this product does that.
+   *
+   * It writes the line and opens the chat with it in the box, unsent. That is the whole
+   * of the mechanism, and the reason it is the whole of it: **nothing here spends.** A
+   * control that started a turn would be a model's decision to bill somebody, which is
+   * the one thing the rails exist to prevent. The reader reads the line, edits it or
+   * does not, and presses Send with their own hand — the same press every other door in
+   * the product waits for.
+   *
+   * The conversation needs no telling which words these are. `bring_back` already
+   * carries the reader's whole ledger into every turn, and `recurring` already carries
+   * what they keep getting wrong. What the line adds is *this sitting's* six, and a
+   * sentence saying what the reader came for. Everything else was already there, which
+   * is why the AI half of this feature is four lines of JavaScript.
+   *
+   * It carries whichever tab is open: the words, or the phrases.
+   */
+
+  /* The handoff is a stored line, not an address. A word belongs to the reader, and a
+     reader's own vocabulary in a query string is their vocabulary in a server log, in
+     their history, and in whatever sits between them and the site. Read once by the
+     chat and deleted there, so a back button does not refill the box. */
+  var SAY = "targum:say";
+
+  //: How many words the line names. Six, because the line is a sentence a person reads
+  //: before pressing Send, and twenty Hebrew words is not a sentence. The fold may hold
+  //: twenty; this takes the ones nearest the top, which are the oldest marks.
+  var TAKEN = 6;
+  //: And how many phrases: fewer, because a phrase is several words and a corrected
+  //: line is a whole sentence.
+  var TAKEN_PHRASES = 3;
+
+  function talkAbout() {
+    var line;
+    if (workTab === "phrases") {
+      var phrases = phrasesToWorkOn()
+        .slice(0, TAKEN_PHRASES)
+        .map(function (row) {
+          return String((row.kind === "slip" ? row.slip.recast : row.phrase.term) || "").trim();
+        })
+        // The same words kept twice — from two places in one text, or two texts — are
+        // one phrase to practise, not two in a row.
+        .filter(function (phrase, index, all) {
+          return phrase && all.indexOf(phrase) === index;
+        });
+      if (!phrases.length) return;
+      line = t("lists.work.phrase-line", "Use these phrases in new sentences: ") + phrases.join("; ");
+    } else {
+      var words = workOn()
+        .slice(0, TAKEN)
+        .map(function (word) {
+          return word.term;
+        });
+      if (!words.length) return;
+      line = t("lists.work.line", "Use these in a sentence each: ") + words.join(", ");
+    }
+    try {
+      localStorage.setItem(SAY, line);
+    } catch (whatever) {
+      // A browser refusing storage is a browser that gets a plain conversation. The
+      // words come back through the ledger anyway; only the line is lost.
+    }
+    var key = window.TARGUM_KEY || "";
+    window.location.href = "/chat" + (key ? "?k=" + encodeURIComponent(key) : "");
+  }
+
+  /* Lines that came back changed (targum-internal#290).
+   *
+   * Their line above the recast, with the words that changed marked. In the fold they
+   * are rows of the Phrases tab; on the phrases list they are the record, every one of
+   * them, newest first, with no control on a row.
+   *
+   * "anki srs is kinda dumb in the sense it doesnt really know what you get wrong beyond
+   * what you tell it." This is what it did not know.
+   */
+  var rewrote = [];
+  var corrected = [];
+
+  function slipSaid(slip) {
+    var said = el("span", "rewrote-said");
+    /* The whole group takes the text's own direction, so the three lines stack against
+       the same edge. Without it the reason — English, left to right — sat at the far
+       left of a wide row while the Hebrew it is about sat at the right, and a sentence
+       about a sentence has to be next to it. The English still reads the way English
+       reads; only where it begins moves. */
+    said.setAttribute("dir", DIRECTION[slip.language || code] || "ltr");
+
+    var mine = el("bdi", "rewrote-wrote", slip.wrote || "");
+    mine.setAttribute("lang", slip.language || code);
+    said.appendChild(mine);
+
+    // The recast, with the words the reader did not write marked. Marked rather than
+    // coloured alone: a colour is not a difference to somebody who cannot see it.
+    var back = el("bdi", "rewrote-recast");
+    back.setAttribute("lang", slip.language || code);
+    var changed = {};
+    (slip.changed || []).forEach(function (word) {
+      changed[word] = true;
+    });
+    String(slip.recast || "")
+      .split(" ")
+      .forEach(function (word, index) {
+        if (index) back.appendChild(document.createTextNode(" "));
+        if (changed[word]) {
+          var mark = el("mark", "rewrote-changed", word);
+          back.appendChild(mark);
+          return;
+        }
+        back.appendChild(document.createTextNode(word));
+      });
+    said.appendChild(back);
+
+    /* The model's own one sentence, where it gave one. Never more than the one.
+       A `bdi` with its own direction: the reason is English with Hebrew words in it,
+       and inside a right-to-left block the punctuation at its edges migrates — "Past
+       tense: הלכתי, not הלך." came out with the colon on the wrong side of the
+       sentence. Isolated, it reads the way it was written, and only where it begins
+       follows the block. */
+    if (slip.why) {
+      var reason = el("bdi", "rewrote-why", slip.why);
+      reason.setAttribute("dir", "auto");
+      said.appendChild(reason);
+    }
+    return said;
+  }
+
+  /* The record on the phrases list: every line in this language, newest first. */
+  function renderRecord() {
+    var heading = at("rewrote-heading");
+    var host = at("rewrote-rows");
+    if (!host || !heading) return;
+    var mine = corrected.filter(function (slip) {
+      return (slip.language || code) === code;
+    });
+    heading.hidden = mine.length === 0;
+    host.textContent = "";
+    mine.forEach(function (slip) {
+      var item = el("li", "work-row rewrote-row");
+      opens(item, slipCard(slip));
+      item.appendChild(slipSaid(slip));
+      host.appendChild(item);
+    });
+  }
+
+  /* --- a row's card (2026-09-18) ---------------------------------------------
+   *
+   * "When I click on a word or phrase on any list, I want to be able to open up its
+   * card, and interact with it." One card for every list on these pages — the fold on
+   * Learn and on Your Words, the word table, Your Phrases and the lines the
+   * conversation corrected — so a word opened from a list is the same thing as a word
+   * tapped in a text.
+   *
+   * The reader's card, as far as a list can honestly draw it. It wears the reader's
+   * classes (`reader.css` is on every one of these pages) and its one control, the
+   * level scale and the note from `TargumVocab.editor`, so the questions are asked the
+   * same way in both places. What it cannot draw is what only a text has: the grammar,
+   * the root, the sentence it sat in. A ledger row does not carry those, and a card that
+   * invented them would be a card that lies.
+   *
+   * It replaces the editor row that opened under a table row: two ways of opening a
+   * word, one of them on some lists and not on others, was the inconsistency this
+   * removes.
+   */
+  var card = null;
+  //: The row the card was opened from, so focus goes back to it on the way out.
+  var cardFrom = null;
+
+  function ensureCard() {
+    if (card) return card;
+    card = at("list-card");
+    if (!card) {
+      card = el("div");
+      card.id = "list-card";
+      document.body.appendChild(card);
+    }
+    card.className = "gloss-card list-card";
+    card.setAttribute("role", "dialog");
+    card.hidden = true;
+    // Escape and a press anywhere else put it away, as they do in the reader.
+    document.addEventListener("keydown", function (event) {
+      if (event && event.key === "Escape" && !card.hidden) closeCard();
+    });
+    document.addEventListener("click", function (event) {
+      if (card.hidden) return;
+      var target = event && event.target;
+      if (!target) return;
+      if (card.contains && card.contains(target)) return;
+      // The press that opened it reaches the document too, after the row has had it.
+      if (cardFrom && cardFrom.contains && cardFrom.contains(target)) return;
+      closeCard();
+    });
+    return card;
+  }
+
+  function closeCard() {
+    if (!card || card.hidden) return;
+    card.hidden = true;
+    card.textContent = "";
+    var back = cardFrom;
+    cardFrom = null;
+    if (back && back.focus && back.isConnected !== false) back.focus();
+  }
+
+  /* Beside the row on a desk; a sheet at the foot on a phone, where a panel beside a
+     row has nowhere to stand. 40rem is Learn's own line between the two. */
+  function place(row) {
+    var narrow = window.matchMedia && window.matchMedia("(max-width: 40rem)").matches;
+    card.classList.toggle("sheet", !!narrow);
+    if (narrow || !row.getBoundingClientRect) {
+      card.style.top = "";
+      card.style.left = "";
+      return;
+    }
+    var box = row.getBoundingClientRect();
+    var gutter = 16;
+    var width = card.offsetWidth || 0;
+    var left = Math.max(
+      gutter,
+      Math.min(box.left, (window.innerWidth || 0) - width - gutter)
+    );
+    card.style.top = box.bottom + (window.scrollY || 0) + 6 + "px";
+    card.style.left = left + (window.scrollX || 0) + "px";
+  }
+
+  function openCard(row, fill) {
+    ensureCard();
+    card.textContent = "";
+    cardFrom = row;
+    var shut = el("button", "list-card-close", "×");
+    shut.type = "button";
+    shut.setAttribute("aria-label", t("lists.card.close", "Close"));
+    shut.addEventListener("click", function (event) {
+      if (event && event.stopPropagation) event.stopPropagation();
+      closeCard();
+    });
+    card.appendChild(shut);
+    fill(card);
+    card.hidden = false;
+    place(row);
+    shut.focus();
+  }
+
+  /** A row that opens a card: by a press anywhere on it but its own controls, or by
+   *  Enter or Space when it is the stop the keyboard is on. */
+  function opens(row, fill) {
+    row.setAttribute("tabindex", "0");
+    row.setAttribute("aria-haspopup", "dialog");
+    row.classList.add("opens");
+    row.addEventListener("click", function (event) {
+      var target = event && event.target;
+      if (target && target.closest && target.closest("button, input, a")) return;
+      openCard(row, fill);
+    });
+    row.addEventListener("keydown", function (event) {
+      if (!event || (event.key !== "Enter" && event.key !== " ")) return;
+      if (event.target && event.target !== row) return;
+      if (event.preventDefault) event.preventDefault();
+      openCard(row, fill);
+    });
+  }
+
+  /* The lines of a card. Each says one thing and carries its own copy, as the reader's
+     do: "copy the word" means three different strings to three readers. */
+  function headline(text, language) {
+    var line = el("span", "copy-line");
+    var head = el("bdi", "lemma", text);
+    head.setAttribute("lang", language);
+    line.appendChild(head);
+    line.appendChild(window.TargumVocab.copyButton(text, {}));
+    return line;
+  }
+
+  function meaningLine(own, bought, into) {
+    return paintMeaning(inTarget(el("span"), into), own, bought);
+  }
+
+  /* Drawn into the node it is given, so a note typed on the card can repaint the line
+     above it without the line being swapped out. */
+  function paintMeaning(line, own, bought) {
+    var sense = own || bought || "";
+    line.textContent = "";
+    line.className = "meaning" + (own ? " mine" : "");
+    if (sense) {
+      line.appendChild(document.createTextNode(sense));
+      line.classList.add("copy-line");
+      line.appendChild(window.TargumVocab.copyButton(sense, {}));
+    } else {
+      line.textContent = t("lists.card.no-meaning", "No meaning yet. Write your own below.");
+    }
+    return line;
+  }
+
+  /* After a level is said the card has done its job and goes, as the reader's does, and
+     every list on the page is drawn again from the one store it was said into. */
+  function said() {
+    closeCard();
+    renderWorkOn();
+    renderWords();
+    renderPhrases();
+    if (onChanged) onChanged();
+  }
+
+  function wordCard(word) {
+    return function (host) {
+      host.appendChild(headline(word.term, code));
+      if (word.lemma && word.lemma !== word.term) {
+        var form = el("span", "form copy-line");
+        form.appendChild(document.createTextNode(t("reader.card.from", "from ")));
+        var lemma = el("bdi", "", word.lemma);
+        lemma.setAttribute("lang", code);
+        form.appendChild(lemma);
+        form.appendChild(window.TargumVocab.copyButton(word.lemma, {}));
+        host.appendChild(form);
+      }
+      var meaning = meaningLine(word.note, word.meaning, word.into);
+      host.appendChild(meaning);
+      host.appendChild(
+        window.TargumVocab.editor({
+          status: word.status,
+          note: word.note,
+          legend: true,
+          placeholder: t("vocab.own-meaning", "Your own meaning"),
+          onStatus: function (value) {
+            updateWord(word, { status: value === null ? word.status : value });
+            said();
+          },
+          onNote: function (text) {
+            if (text === word.note) return;
+            noteMeaning(code, word.into, word.lemma, text);
+            word.note = text;
+            // Patched rather than redrawn: the press that ended the typing — usually a
+            // level — has not landed yet, and a redraw would take it out from under it.
+            paintMeaning(meaning, text, word.meaning);
+            renderWords();
+          },
+        })
+      );
+    };
+  }
+
+  function phraseCard(phrase) {
+    return function (host) {
+      host.appendChild(headline(phrase.term, code));
+      var meaning = meaningLine(phrase.note, phrase.meaning, phrase.into);
+      host.appendChild(meaning);
+      host.appendChild(
+        window.TargumVocab.editor({
+          status: phrase.status,
+          note: phrase.note,
+          legend: true,
+          placeholder: t("vocab.own-meaning", "Your own meaning"),
+          onStatus: function (value) {
+            updatePhrase(phrase, { status: value === null ? phrase.status : value });
+            said();
+          },
+          onNote: function (text) {
+            if (text === phrase.note) return;
+            noteMeaning(code, phrase.into, phrase.id && "phrase:" + phrase.id, text);
+            phrase.note = text;
+            paintMeaning(meaning, text, phrase.meaning);
+            renderPhrases();
+          },
+        })
+      );
+      // Phrases stay with their text, and the card says which.
+      if (phrase.title) {
+        host.appendChild(el("span", "form", t("lists.card.kept-from", "Kept from {title}", { title: phrase.title })));
+      }
+    };
+  }
+
+  /* A corrected line: what it should have been, first and largest, since that is the
+     thing to learn; what the reader wrote under it, and the model's reason. No scale —
+     a sentence has no level — and the row's own answers stay on the row. */
+  function slipCard(slip) {
+    return function (host) {
+      var language = slip.language || code;
+      host.appendChild(headline(slip.recast || "", language));
+      var wrote = el("span", "form");
+      wrote.appendChild(document.createTextNode(t("lists.card.you-wrote", "You wrote ")));
+      var mine = el("bdi", "", slip.wrote || "");
+      mine.setAttribute("lang", language);
+      wrote.appendChild(mine);
+      host.appendChild(wrote);
+      if (slip.why) {
+        var reason = el("bdi", "form", slip.why);
+        reason.setAttribute("dir", "auto");
+        host.appendChild(reason);
+      }
+    };
+  }
+
   /* --- the word table ------------------------------------------------------- */
 
   function visibleWords() {
@@ -257,54 +1108,10 @@
       tr.appendChild(el("td", "when", word.at > EARLIEST ? shortDate(word.at) : "—"));
 
       // The same two questions the reader asks, asked here too: a list you can only
-      // look at is not where anyone wants to correct a definition. Reachable by key
-      // as well as pointer: the row is a stop, Enter or Space is the tap.
-      tr.setAttribute("tabindex", "0");
-      tr.setAttribute("aria-expanded", openKey === word.lemma ? "true" : "false");
-      tr.addEventListener("click", function (event) {
-        if (event.target.closest("button, input")) return;
-        openKey = openKey === word.lemma ? null : word.lemma;
-        renderWords();
-      });
-      tr.addEventListener("keydown", function (event) {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        if (event.target !== tr) return;
-        event.preventDefault();
-        openKey = openKey === word.lemma ? null : word.lemma;
-        renderWords();
-      });
-      if (openKey === word.lemma) tr.classList.add("open");
+      // look at is not where anyone wants to correct a definition. The row opens the
+      // word's card, as every list on these pages does (2026-09-18).
+      opens(tr, wordCard(word));
       rowsBody.appendChild(tr);
-
-      if (openKey === word.lemma) {
-        var holder = el("tr", "editor-row");
-        var cell = document.createElement("td");
-        cell.colSpan = 6;
-        cell.appendChild(
-          window.TargumVocab.editor({
-            status: word.status,
-            note: word.note,
-            placeholder: t("vocab.own-meaning", "Your own meaning"),
-            onStatus: function (value) {
-              updateWord(word, { status: value === null ? word.status : value });
-              renderWords();
-              if (onChanged) onChanged();
-            },
-            onNote: function (text) {
-              if (text === word.note) return;
-              noteMeaning(code, word.into, word.lemma, text);
-              word.note = text;
-              // Patched rather than re-rendered. Committing on blur means the click
-              // that caused the blur — usually a level button — has not landed yet,
-              // and rebuilding the row here would take that button out from under it.
-              meaning.textContent = text || word.meaning;
-              meaning.className = "meaning" + (text ? " mine" : "");
-            },
-          })
-        );
-        holder.appendChild(cell);
-        rowsBody.appendChild(holder);
-      }
     });
 
     at("words-title").textContent =
@@ -318,7 +1125,7 @@
           ? t("lists.no-stage", "Nothing at that stage yet.")
           // Nothing at all, which is every new account: say what fills the list and
           // where, rather than naming a stage the reader has not met.
-          : t("lists.no-words", "Nothing yet. Tap a word while you read and tell us how well you know it.");
+          : t("lists.no-words", "Nothing yet. Tap a word as you go and tell us how well you know it.");
     // Capped, there is no paging: the rest of the list is a page away, not a press away.
     moreButton.hidden = cap ? true : rows.length <= shown;
     moreButton.textContent = t("lists.show-more", "Show {n} more", { n: Math.min(PAGE, rows.length - shown) });
@@ -368,7 +1175,6 @@
       var list = el("ol");
       byText[title].forEach(function (phrase) {
         var item = el("li");
-        var key = phrase.store + ":" + phrase.segmentId + ":" + phrase.index;
         var bdi = el("bdi", "term", phrase.term);
         bdi.setAttribute("lang", code);
         item.appendChild(bdi);
@@ -383,43 +1189,7 @@
           if (phrase.note && phrase.meaning) line.title = "targum: " + phrase.meaning;
           item.appendChild(line);
         }
-        item.setAttribute("tabindex", "0");
-        item.setAttribute("aria-expanded", openKey === key ? "true" : "false");
-        item.addEventListener("click", function (event) {
-          if (event.target.closest("button, input")) return;
-          openKey = openKey === key ? null : key;
-          renderPhrases();
-        });
-        item.addEventListener("keydown", function (event) {
-          if (event.key !== "Enter" && event.key !== " ") return;
-          if (event.target !== item) return;
-          event.preventDefault();
-          openKey = openKey === key ? null : key;
-          renderPhrases();
-        });
-        if (openKey === key) {
-          item.classList.add("open");
-          item.appendChild(
-            window.TargumVocab.editor({
-              status: phrase.status,
-              note: phrase.note,
-              placeholder: t("vocab.own-meaning", "Your own meaning"),
-              onStatus: function (value) {
-                updatePhrase(phrase, { status: value === null ? phrase.status : value });
-                renderPhrases();
-              },
-              onNote: function (text) {
-                if (text === phrase.note) return;
-                noteMeaning(code, phrase.into, phrase.id && "phrase:" + phrase.id, text);
-                phrase.note = text;
-                if (line) {
-                  line.textContent = text || phrase.meaning;
-                  line.className = "reading" + (text ? " mine" : "");
-                }
-              },
-            })
-          );
-        }
+        opens(item, phraseCard(phrase));
         list.appendChild(item);
       });
       group.appendChild(list);
@@ -445,6 +1215,20 @@
     return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
   }
 
+  function saveFile(name, text, mime) {
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var link = el("a");
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
+
   function download(name, header, rows) {
     // A byte order mark, so a spreadsheet opens Hebrew and Russian as UTF-8. Spelled
     // as an escape rather than typed: the character itself is invisible in the source,
@@ -457,17 +1241,74 @@
           return row.map(csvCell).join(",");
         })
         .join("\n");
-    var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var link = el("a");
-    link.href = url;
-    link.download = name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    setTimeout(function () {
-      URL.revokeObjectURL(url);
-    }, 1000);
+    saveFile(name, csv, "text/csv;charset=utf-8");
+  }
+
+  /* --- anki --------------------------------------------------------------------
+   *
+   * A deck of the words on screen, in the tab-separated shape Anki imports natively
+   * (targum-internal#103). Not an .apkg: that is a zipped SQLite database, it would be
+   * the only binary this page has ever written, and it buys nothing a reader can see —
+   * Anki reads this file with the deck already named and the notetype already chosen.
+   *
+   * Why offer it at all, when the card it sits on exists because "anki requires
+   * bookkeeping and discipline that I lack". Because the objection is to *running* an
+   * SRS, not to owning the rows. A reader who keeps their vocabulary here should be able
+   * to walk out with it in the format the rest of the world uses, and a list you cannot
+   * leave with is a list you are being held by. The fold above is the argument for
+   * staying; this is the door, and the door being open is part of the argument.
+   *
+   * The header lines are Anki 2.1.55 and later. An older Anki shows them as a first card
+   * to delete, which is a worse first run than it could be and better than a file it
+   * refuses.
+   */
+
+  /* Tabs and newlines are the format, so a cell carrying either would silently become
+     two cells or two notes. They are collapsed to spaces rather than escaped: a reader's
+     own note is prose, and prose that lost a line break is still readable where a note
+     split across two cards is not. A leading quote is the one thing Anki reads as
+     structure, so a cell that starts with one is quoted properly.
+
+     No `csvCell` guard here, deliberately: Anki runs no formulas, and an apostrophe
+     glued to the front of a Hebrew word would sit on the face of the card for good. */
+  function ankiCell(value) {
+    var text = value === undefined || value === null ? "" : String(value);
+    text = text.replace(/[\t\r\n]+/g, " ");
+    return text.charAt(0) === '"' ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+
+  function exportAnki() {
+    var deck = "targum " + named(languages, code);
+    /* Three fields, and the third declared as tags so Anki's own Basic notetype takes
+       the file without the reader configuring anything. `html:false` because every one
+       of these strings is the reader's, and a meaning they wrote containing < should
+       read as < on the card. */
+    var lines = [
+      "#separator:tab",
+      "#html:false",
+      "#notetype:Basic",
+      "#deck:" + deck,
+      "#tags column:3",
+    ];
+    visibleWords().forEach(function (word) {
+      /* The back is the meaning, then what the reader wrote themselves, then the
+         dictionary form when it is not already the face of the card. Their own note
+         comes before the dictionary form because it is the part they will recognise. */
+      var back = [word.meaning, word.note, word.lemma !== word.term ? word.lemma : ""]
+        .filter(function (part) {
+          return !!part;
+        })
+        .join(" \u00b7 ");
+      /* Hierarchical, so the whole import is one collapsible branch in Anki's sidebar
+         and a reader who exports twice can tell the halves apart. The level is the
+         number, not its name: the names are translated and a tag that changes with the
+         interface language would split one deck across five tags. */
+      var tags = ["targum", "targum::" + code, "targum::level-" + word.status];
+      lines.push([word.term, back, tags.join(" ")].map(ankiCell).join("\t"));
+    });
+    // No byte order mark: Anki reads UTF-8, and a BOM would land inside the first
+    // field of the first note rather than being eaten as encoding.
+    saveFile(deck + " words.txt", lines.join("\n") + "\n", "text/plain;charset=utf-8");
   }
 
   var languages = {};
@@ -522,9 +1363,9 @@
     );
   }
 
-  /** Show the two export buttons, or do not. Called again whenever sync resolves. */
+  /** Show the export buttons, or do not. Called again whenever sync resolves. */
   function offerExports(signedIn) {
-    ["export-words", "export-phrases"].forEach(function (id) {
+    ["export-words", "export-anki", "export-phrases"].forEach(function (id) {
       var button = at(id);
       if (button) button.hidden = !signedIn;
     });
@@ -563,6 +1404,9 @@
       };
     }
     if (at("export-words")) at("export-words").onclick = exportWords;
+    if (at("work-talk")) at("work-talk").onclick = talkAbout;
+    mountWorkTabs();
+    if (at("export-anki")) at("export-anki").onclick = exportAnki;
     if (at("export-phrases")) at("export-phrases").onclick = exportPhrases;
     offerExports(false);
   }
@@ -593,15 +1437,30 @@
   }
 
   function draw(which, store, ceilings) {
+    var was = code;
     code = which;
     entry = store || { words: [], phrases: [] };
     limits = ceilings || {};
     shown = PAGE;
-    openKey = null;
+    /* A sitting ends when the page does, or when the reader changes language. It does
+       not end because a word was marked: marking one calls back to the page, which
+       redraws the whole list through here, and clearing the skips there took a word the
+       reader had just passed over and put it back in front of them mid-sitting. Found on
+       the running page. `passed` is module state, so a reload empties it by existing. */
+    if (code !== was) {
+      passed = {};
+      // And where the fold stands is one language's: another opens where it was left.
+      standing = {};
+      turns = {};
+      // A card is about a word in one language; another language's lists close it.
+      closeCard();
+    }
     offerMeaningLanguages(which, meaningIn(), function (into) {
       lang.into(into);
       if (redrawing) redrawing(into);
     });
+    renderWorkOn();
+    renderRecord();
     renderWords();
     renderPhrases();
   }
@@ -619,6 +1478,19 @@
   var redrawing = null;
 
   window.TargumLists = {
+    /* The lines that came back changed, handed in by the page that fetched them
+       (targum-internal#290): the queue, oldest first, without the lines already known.
+       Here rather than fetched in this file, because each page asks on its own terms
+       and one of them asks for more than this. */
+    rewrote: function (rows) {
+      rewrote = rows || [];
+      renderWorkOn();
+    },
+    /* Every line, known ones too, for the record on the phrases list. */
+    record: function (rows) {
+      corrected = rows || [];
+      renderRecord();
+    },
     mount: mount,
     draw: draw,
     // The ledger changed under this list — a page of common words marked known

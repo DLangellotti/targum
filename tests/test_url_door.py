@@ -133,6 +133,41 @@ def test_a_bot_check_is_named_as_one_and_is_a_shut_door(monkeypatch: Any) -> Non
     assert "bot check" in (error.hint or "")
 
 
+def test_a_sign_in_wall_is_named_and_says_to_paste_the_text(monkeypatch: Any) -> None:
+    """targum-internal#252: a refusal says what to do instead. A 401 means exactly one
+    thing — the page wants an account — and the way in is the reader's own hands, so here
+    the hint is a sentence rather than a status code.
+
+    `site` rather than `host` in the blanks: `Unreachable` takes `host` as a field of its
+    own, so it never reaches `fill`, and a translation naming `{host}` would fall back to
+    English without saying so.
+    """
+    doors = Doors([Answer(401, {"www-authenticate": "Basic"})])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://paywall.example/a")
+    error = caught.value
+    assert error.key == "fetch.needs-a-sign-in"
+    assert error.fill == {"site": "paywall.example"}
+    assert "sign in" in error.message
+    assert "paste the text" in (error.hint or "")
+    # What Unreachable is for is untouched: still a shut door, with its status.
+    assert error.status == 401 and error.host == "paywall.example" and door.shut(error)
+
+
+def test_a_403_is_not_called_a_sign_in_wall(monkeypatch: Any) -> None:
+    """403 is what a geo-block, a permissions rule and a bot check all answer with — and
+    what an Israeli site returns to any address outside Israel (measured 2026-09-07). So
+    only 401 is named as a sign-in wall: telling a blocked reader to sign in would send
+    them after a door that is not there."""
+    doors = Doors([Answer(403)])
+    monkeypatch.setattr(door, "_session", doors)
+    with pytest.raises(Unreachable) as caught:
+        door.fetch("https://blocked.example/a")
+    assert caught.value.key == "fetch.would-not-open"
+    assert caught.value.hint == "HTTP 403"
+
+
 def test_a_refused_knock_is_retried_once_through_the_proxy(monkeypatch: Any) -> None:
     monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://u:p@exit.example:823")
     doors = Doors(
@@ -328,3 +363,131 @@ def test_preflight_is_silent_with_no_exit_and_never_prints_a_credential(monkeypa
     assert not loud.ok, "set and not listening is the loud case"
     assert "s3cret" not in str(vars(loud)) and "user:" not in str(vars(loud))
     assert "127.0.0.1:9" in str(vars(loud))
+
+
+# -- the front of a file, without the file (targum-internal#256) ----------------------
+
+
+class Streamed(Answer):
+    """A response whose body arrives in pieces, so a test can see where reading stopped."""
+
+    def __init__(self, headers: dict[str, str], chunks: list[bytes]) -> None:
+        super().__init__(200, headers, b"".join(chunks))
+        self.chunks = chunks
+        self.given = 0
+
+    def iter_content(self, chunk_size: int | None = None) -> Any:
+        for chunk in self.chunks:
+            self.given += len(chunk)
+            yield chunk
+
+
+def test_the_front_of_a_file_is_read_and_the_rest_is_never_pulled(monkeypatch: Any) -> None:
+    """A reader pastes a direct link to an hour of audio; the page should be able to say
+    what it is without a gigabyte moving. The connection is closed as soon as enough has
+    been read, so a server that would have streamed the rest never does."""
+    answer = Streamed(
+        {"content-type": "audio/mpeg", "content-length": "60000000"},
+        [b"x" * 512, b"y" * 512, b"z" * 512],
+    )
+    doors = Doors([answer])
+    monkeypatch.setattr(door, "_session", doors)
+
+    front = door.opening("https://example.com/talk.mp3", most=1024)
+
+    assert front.content_type == "audio/mpeg"
+    assert front.length == 60_000_000, "what the whole file weighs, from the header"
+    assert len(front.head) == 1024, "no more than was asked for"
+    assert answer.given == 1024, "and the third piece was never taken"
+    assert answer.closed, "the connection is let go"
+
+
+def test_a_host_that_will_not_say_how_big_a_file_is_is_still_opened(monkeypatch: Any) -> None:
+    doors = Doors([Answer(200, {"content-type": "audio/mpeg"}, b"short")])
+    monkeypatch.setattr(door, "_session", doors)
+
+    front = door.opening("https://example.com/talk.mp3")
+    assert front.length == 0 and front.head == b"short"
+
+
+def test_opening_a_file_goes_through_the_proxy_when_the_direct_knock_is_refused(
+    monkeypatch: Any,
+) -> None:
+    """The same fallback every fetch has: direct first, and the proxy only after a
+    refusal — so a link that works direct never leaves through a metered exit."""
+    doors = Doors(
+        [Unreachable("refused", "")],
+        [Answer(200, {"content-type": "audio/mpeg", "content-length": "9"}, b"123456789")],
+    )
+    monkeypatch.setattr(door, "_session", doors)
+    monkeypatch.setenv(door.FETCH_PROXY_ENV, "http://proxy.example:8080")
+
+    front = door.opening("https://example.com/talk.mp3")
+    assert front.length == 9 and doors.made == ["", "http://proxy.example:8080"]
+
+
+def test_a_truncated_file_s_own_duration_is_never_taken(monkeypatch: Any) -> None:
+    """The trap this is built around. ffprobe hands back the length of whatever it was
+    given, so the front of an hour-long recording reads as four seconds — confidently,
+    with nothing to say anything is missing. The bit rate against the declared size is
+    the honest answer instead (targum-internal#256)."""
+    from targum.audio import probe
+    from targum.audio import tools as audio_tools
+
+    # 128 kbit/s, and a front that is 4 seconds of a 60-minute file.
+    monkeypatch.setattr(
+        audio_tools,
+        "ffprobe_json",
+        lambda path: {"format": {"duration": "4.0", "bit_rate": "128000", "size": "64000"}},
+    )
+    whole = 128_000 // 8 * 3600
+    assert round(probe.timed(b"front", whole)) == 3600, "the whole file, not the front"
+
+
+def test_a_front_that_held_the_whole_file_is_read_as_it_is(monkeypatch: Any) -> None:
+    """Where the container puts its index first and the file is small enough to have
+    arrived entire, ffprobe's own duration is the answer."""
+    from targum.audio import probe
+    from targum.audio import tools as audio_tools
+
+    monkeypatch.setattr(
+        audio_tools,
+        "ffprobe_json",
+        lambda path: {"format": {"duration": "12.5", "bit_rate": "64000", "size": "100000"}},
+    )
+    assert probe.timed(b"front", 100_000) == 12.5
+
+
+def test_a_length_that_cannot_be_had_is_nothing_rather_than_a_guess(monkeypatch: Any) -> None:
+    """No ffprobe, an unreadable front, or a host that would not say how big the file is:
+    a recording of unknown length is still a recording, and 0 says so."""
+    from targum.audio import probe
+    from targum.audio import tools as audio_tools
+    from targum.errors import TargumError
+
+    monkeypatch.setattr(
+        audio_tools, "ffprobe_json", lambda path: {"format": {"bit_rate": "128000"}}
+    )
+    assert probe.timed(b"front", 0) == 0.0, "nothing said how big it is"
+
+    def unreadable(path: object) -> dict[str, Any]:
+        raise TargumError("unreadable")
+
+    monkeypatch.setattr(audio_tools, "ffprobe_json", unreadable)
+    assert probe.timed(b"front", 5_000_000) == 0.0
+    assert probe.timed(b"", 5_000_000) == 0.0, "nothing was read"
+
+
+def test_a_bit_rate_on_the_stream_rather_than_the_format_is_still_a_bit_rate(
+    monkeypatch: Any,
+) -> None:
+    """Some containers declare it per stream and not for the file."""
+    from targum.audio import probe
+    from targum.audio import tools as audio_tools
+
+    monkeypatch.setattr(
+        audio_tools,
+        "ffprobe_json",
+        lambda path: {"format": {"size": "1000"}, "streams": [{"bit_rate": "8000"}]},
+    )
+    assert probe.timed(b"front", 8_000) == 8.0

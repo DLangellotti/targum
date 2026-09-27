@@ -50,8 +50,14 @@ class Report:
     #: connection — as against one address that would not take it. The difference
     #: decides whether the rest of the list is still worth trying.
     stopped: str = ""
+    #: True where this database has nobody to mail at all, as against everybody having
+    #: had the issue already (targum-internal#346). Both end with an empty list and one
+    #: of them is a run that can never work.
+    nobody: bool = False
 
     def __str__(self) -> str:
+        if self.nobody:
+            return "nobody to tell: this database has no subscribers"
         line = f"{len(self.sent)} sent"
         if self.failed:
             line += f", {len(self.failed)} failed"
@@ -95,6 +101,11 @@ def announce(
     report = Report()
     waiting = store.subscribers(not_sent=issue.id)
     if not waiting:
+        # An empty list is two different facts. Everybody has had it already — which is
+        # the idempotence working, and is what a re-run looks like. Or there is nobody
+        # here to mail, which is a mailout that cannot work and used to read as a
+        # finished one (targum-internal#346).
+        report.nobody = store.subscribed() == 0
         return report
 
     holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()

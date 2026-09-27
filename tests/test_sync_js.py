@@ -279,3 +279,73 @@ def test_a_language_pressed_while_the_account_answers_is_not_put_back() -> None:
     seen = json.loads(done.stdout)
     assert seen["language"] == "arc", "the press stands over the account's older answer"
     assert seen["pressed"] and all(row["keepalive"] for row in seen["pressed"])
+
+
+def test_a_claimed_word_keeps_its_source_across_a_sync() -> None:
+    """targum-internal#245. `sync.js` rebuilds a word from a named list on the way in and
+    writes a named list on the way out, so a field nobody named is dropped on every
+    sync. `source` is named at both ends, or a word ticked off on "Words you may already
+    know" would come back from the account as an ordinary one."""
+    stored = {
+        "targum:sync": json.dumps({"email": "r@example.com", "revision": 3, "pushed": 250}),
+        "targum:vocab:he": json.dumps(
+            {"שולחן": {"status": 9, "surface": "שולחן", "source": "claimed", "at": 1, "seen": 400}},
+            ensure_ascii=False,
+        ),
+    }
+    answers = {
+        "/account/me": {"signedIn": True, "email": "r@example.com", "reads": [], "learning": []},
+        "/sync": {
+            "revision": 4,
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "כיסא",
+                    "status": 9,
+                    "surface": "כיסא",
+                    "band": 1,
+                    "learned": 0,
+                    "source": "claimed",
+                    "at": 90,
+                    "seen": 500,
+                    "gone": 0,
+                },
+            ],
+            "meanings": [],
+            "phrases": [],
+            "docs": [],
+            "days": [],
+            "sections": [],
+        },
+    }
+    program = """
+      const {{ install }} = require({dom});
+      const stored = {stored};
+      install({{ TARGUM_KEY: "k", stored }});
+      const answers = {answers};
+      const sent = [];
+      global.fetch = window.fetch = function (url, options) {{
+        const path = String(url).split("?")[0];
+        if (options && options.body) sent.push(JSON.parse(options.body));
+        const json = () => Promise.resolve(answers[path]);
+        return Promise.resolve({{ ok: true, status: 200, json }});
+      }};
+      require({where});
+      window.TargumSync.start().then(function () {{
+        console.log(JSON.stringify({{
+          words: JSON.parse(stored["targum:vocab:he"]),
+          pushed: sent[0].words.map((w) => [w.lemma, w.source || ""]).sort(),
+        }}));
+      }});
+    """.format(
+        dom=json.dumps(str(DOM)),
+        stored=json.dumps(stored, ensure_ascii=False),
+        answers=json.dumps(answers, ensure_ascii=False),
+        where=json.dumps(str(ASSETS / "sync.js")),
+    )
+    done = subprocess.run(["node", "-e", program], capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    answer = json.loads(done.stdout)
+    assert answer["pushed"] == [["שולחן", "claimed"]], "it goes up as what it is"
+    assert answer["words"]["כיסא"]["source"] == "claimed", "and comes back down as it"
+    assert answer["words"]["שולחן"]["source"] == "claimed", "and the one already here keeps it"

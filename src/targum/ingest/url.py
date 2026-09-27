@@ -81,17 +81,24 @@ def _reachable(url: str) -> None:
         raise TargumError(
             f"We only read web pages, and {url} isn't one.",
             "Paste an http:// or https:// address, or drop in a file.",
+            key="fetch.not-a-web-page",
+            url=url,
         )
     host = parsed.hostname
     if not host:
         raise TargumError(
-            f"We couldn't find a site name in {url}.", "Check the address and try again."
+            f"We couldn't find a site name in {url}.",
+            "Check the address and try again.",
+            key="fetch.no-site-name",
+            url=url,
         )
     try:
         port = parsed.port or (443 if parsed.scheme == "https" else 80)
         found = socket.getaddrinfo(host, port)
     except socket.gaierror as exc:
-        raise TargumError(f"We couldn't find {host}.", str(exc)) from exc
+        raise TargumError(
+            f"We couldn't find {host}.", str(exc), key="fetch.no-such-site", host=host
+        ) from exc
     for info in found:
         address = ipaddress.ip_address(info[4][0])
         # is_global is false for loopback, private, link-local, reserved and
@@ -100,6 +107,8 @@ def _reachable(url: str) -> None:
             raise TargumError(
                 f"{host} is on a private network, so we won't fetch it.",
                 "Paste a public web address, or save the page and drop in the file.",
+                key="fetch.private-network",
+                host=host,
             )
 
 
@@ -208,7 +217,14 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         except Exception as exc:
             # Never got an answer at all: a timeout, a refused connection, a name that
             # does not resolve. No status, so `shut()` reads it as a shut door.
-            raise Unreachable(f"We couldn't open {url}.", str(exc), host=host, via=via) from exc
+            raise Unreachable(
+                f"We couldn't open {url}.",
+                str(exc),
+                host=host,
+                via=via,
+                key="fetch.would-not-open",
+                url=url,
+            ) from exc
         status = int(response.status_code)
         if 300 <= status < 400:
             location = response.headers.get("location")
@@ -222,6 +238,30 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         if status >= 400:
             challenge = (response.headers.get("cf-mitigated") or "").lower() == "challenge"
             response.close()
+            if status == 401 and not challenge:
+                # A sign-in wall, named rather than counted (targum-internal#252). Only
+                # 401, which means exactly this. 403 is left where it was: it is what a
+                # geo-block, a bot check and a permissions rule all answer with, and an
+                # Israeli site returns it to any address outside Israel (2026-09-07), so
+                # telling that reader to sign in would send them after a door that is not
+                # there. Here the hint is a sentence and does travel: the way in is to
+                # paste the text, which is the whole point of naming the refusal.
+                raise Unreachable(
+                    f"{host} asks you to sign in, so we can't open it.",
+                    "Open it yourself and paste the text into the box instead.",
+                    status=status,
+                    host=host,
+                    challenge=challenge,
+                    via=via,
+                    key="fetch.needs-a-sign-in",
+                    # `site`, not `host`: `Unreachable` takes `host` as a field of its
+                    # own, so it never reaches `fill` and a translation naming `{host}`
+                    # would quietly fall back to English — the failure is silent, which
+                    # is why a test pins the Russian interpolating rather than the key
+                    # merely existing. The same reason `fetch.would-not-open` passes
+                    # `url=` beside the `host=` it also takes.
+                    site=host,
+                )
             raise Unreachable(
                 f"We couldn't open {url}.",
                 "a bot check, not a page" if challenge else f"HTTP {status}",
@@ -229,6 +269,10 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
                 host=host,
                 challenge=challenge,
                 via=via,
+                # The hint is the status or the bot check, which is not a sentence to
+                # translate — so the key says the sentence and the hint rides as it is.
+                key="fetch.would-not-open",
+                url=url,
             )
         return response, target
     raise Unreachable(
@@ -236,6 +280,8 @@ def _open(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
         f"More than {MAX_REDIRECTS} redirects",
         host=urlparse(target).hostname or "",
         via=via,
+        key="fetch.would-not-open",
+        url=url,
     )
 
 
@@ -273,7 +319,12 @@ def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
     try:
         declared = response.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > MAX_BYTES:
-            raise TargumError(f"{url} is too big for us to read.", "Try a single article.")
+            raise TargumError(
+                f"{url} is too big for us to read.",
+                "Try a single article.",
+                key="fetch.too-big-to-read",
+                url=url,
+            )
         body = bytearray()
         for chunk in response.iter_content():
             body += chunk
@@ -281,6 +332,8 @@ def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
                 raise TargumError(
                     f"{url} is too big for us to read.",
                     "We stop at 8 MB. Try a single article.",
+                    key="fetch.over-the-page-cap",
+                    url=url,
                 )
         encoding = response.charset or response.encoding or "utf-8"
         return Fetched(
@@ -288,6 +341,57 @@ def _read(url: str, params: dict[str, str] | None, *, via: str, proxy: str = "")
             response.headers.get("content-type", ""),
             bytes(body),
             via=via,
+        )
+    finally:
+        response.close()
+
+
+@dataclass(frozen=True)
+class Opening:
+    """The first bytes of a file, and what the wire said about the whole of it."""
+
+    head: bytes
+    content_type: str
+    #: What `content-length` declared, or 0 where the host would not say.
+    length: int
+
+
+#: How much of a media file's front is read to find out what it is. A container puts its
+#: header first — enough for ffprobe to name the codec and the bit rate — and a megabyte
+#: is generous for that while being nothing beside the file itself.
+OPENING_BYTES = 1024 * 1024
+
+
+def opening(url: str, most: int = OPENING_BYTES) -> Opening:
+    """The front of a file, through the same door and past the same checks as any fetch.
+
+    For saying what a link *is* without pulling what it holds (targum-internal#256): a
+    reader pastes a direct link to an hour of audio and the page should be able to say
+    so without a gigabyte moving. The connection is closed as soon as enough has been
+    read, so a server that would have streamed the rest never does.
+    """
+    try:
+        return _opened(url, most, via="direct")
+    except Unreachable as error:
+        proxy = _retry_through_proxy(url, error)
+        if not proxy:
+            raise
+        return _opened(url, most, via="proxy", proxy=proxy)
+
+
+def _opened(url: str, most: int, *, via: str, proxy: str = "") -> Opening:
+    response, _ = _open(url, None, via=via, proxy=proxy)
+    try:
+        declared = response.headers.get("content-length")
+        body = bytearray()
+        for chunk in response.iter_content():
+            body += chunk
+            if len(body) >= most:
+                break
+        return Opening(
+            bytes(body[:most]),
+            response.headers.get("content-type", ""),
+            int(declared) if declared and declared.isdigit() else 0,
         )
     finally:
         response.close()
@@ -335,7 +439,9 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
     try:
         declared = response.headers.get("content-length")
         if declared and declared.isdigit() and int(declared) > max_bytes:
-            raise TargumError(f"{url} is too big for us to fetch.")
+            raise TargumError(
+                f"{url} is too big for us to fetch.", key="fetch.too-big-to-fetch", url=url
+            )
         written = 0
         with into.open("wb") as out:
             for chunk in response.iter_content():

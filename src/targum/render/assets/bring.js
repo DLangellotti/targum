@@ -187,11 +187,16 @@
      `tell(share)` hears the upload. */
   function bring(files, choices, tell) {
     var payload = options(choices && choices.to, choices && choices.from);
+    // The link that was refused before this file was dropped, where there was one: the
+    // film's own home, so the reader page still says whose it is. The server keeps it
+    // only in the host table's canonical shape (targum-internal#331).
+    var from = (choices && choices.cameFrom) || "";
     return upload(files, tell).then(function (sent) {
       if (sent.reader) return { reader: sent.reader };
       Object.keys(sent).forEach(function (name) {
         payload[name] = sent[name];
       });
+      if (from) payload.came_from = from;
       return ask("/prepare", payload);
     });
   }
@@ -266,14 +271,23 @@
   //: (2026-09-10, targum-internal#237).
   var HOURS_WARN = 0.75;
 
-  // The line above the box when the month's hours are nearly gone, or nothing.
+  // The line above the box when the month's credits are nearly gone, or nothing.
   function hoursWarning(got) {
     if (!got || got.allowed === null || got.allowed === undefined) return "";
     if (!(got.used >= got.allowed * HOURS_WARN)) return "";
-    var line = t("bring.hours.used", "You've used {used} of your {allowed} this month.", {
-      used: said(got.used),
-      allowed: said(got.allowed),
-    });
+    /* Credits with the rate beside them, and what is left rather than what is gone
+       (design.md §12, 2026-09-23). The same two strings the inbox warning uses, because
+       it is the same warning in a different place and two wordings would drift. */
+    var spare = Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0));
+    var line =
+      tn(
+        "building.credits.left",
+        Math.round(spare * 60),
+        "{n} credit left this month.",
+        "{n} credits left this month."
+      ) +
+      " " +
+      t("building.credits.rate", "That's about {clock} of audio.", { clock: said(spare) });
     if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
     return line;
   }
@@ -438,6 +452,15 @@
       known.textContent = line || job.known_line;
       card.appendChild(known);
     }
+    // A silent text can be read aloud once it is built (targum-internal#246). One line
+    // under the facts, no button: the press is in the reader, beside the section it
+    // would read, and this card is quoting a build that has not happened yet.
+    if (job.voice_later) {
+      var voice = document.createElement("p");
+      voice.className = "quote-voice";
+      voice.textContent = t("add.job.voice-later", "Audio can be added in the reader.");
+      card.appendChild(voice);
+    }
     // A text that arrived as pages shows its first lines as read: for a picture the
     // filename says nothing, and what will be built should be seen before it is.
     if (job.excerpt && job.excerpt.length) {
@@ -465,7 +488,7 @@
       var go = document.createElement("button");
       go.type = "button";
       go.className = "quote-go";
-      go.textContent = t("bring.read-this", "Read this");
+      go.textContent = t("bring.read-this", "Open this");
       go.onclick = function () {
         go.disabled = true;
         start(job).then(function (state) {
@@ -552,6 +575,7 @@
     hoursWarning: hoursWarning,
     HOURS_WARN: HOURS_WARN,
     plain: plain,
+    knownLine: knownLine,
     quoteCard: quoteCard,
   };
 })();

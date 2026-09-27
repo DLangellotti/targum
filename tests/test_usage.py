@@ -414,7 +414,8 @@ def test_recordings_spend_the_hours_and_then_are_refused(tmp_path: Path) -> None
     assert library.claim(recording(library, 1, 3 * HOUR, "b")) == ""
     refused = library.claim(recording(library, 1, 2 * HOUR, "c"))
     assert refused, "eleven hours does not fit in ten"
-    assert "10 hours" in refused
+    # Said in credits since 2026-09-23 (design.md §12): ten hours is 600 of them.
+    assert "600 credits" in refused
 
 
 def test_the_hours_are_counted_per_reader(tmp_path: Path) -> None:
@@ -451,7 +452,8 @@ def test_the_hours_refusal_names_the_number_and_what_still_works(tmp_path: Path)
     library.claim(recording(library, 1, 10 * HOUR, "a"))
     refused = library.claim(recording(library, 1, 1 * HOUR, "b"))
 
-    assert "10 hours" in refused, "the number the page named"
+    assert "600 credits" in refused, "the number the page named, in the unit it names it"
+    assert "a credit is a minute" in refused, "§12: the rate goes beside the balance"
     assert "library" in refused, "and what is still free"
     assert "Text uploads" in refused, "and that text is not affected"
     assert "$" not in refused, "never in money"
@@ -465,10 +467,10 @@ def test_the_hours_refusal_names_this_library_s_allowance(tmp_path: Path) -> Non
     library.claim(recording(library, 1, 3 * HOUR, "a"))
     refused = library.claim(recording(library, 1, 1 * HOUR, "b"))
 
-    assert "3 hours" in refused, "the allowance this library was built with"
-    from targum.serve import UPLOAD_HOURS
+    assert "180 credits" in refused, "the allowance this library was built with"
+    from targum.serve import UPLOAD_CREDITS
 
-    assert f"{UPLOAD_HOURS} hours" not in refused, "never the constant it was not given"
+    assert f"{UPLOAD_CREDITS} credits" not in refused, "never the constant it was not given"
 
 
 def test_an_admin_is_not_held_to_the_hours(tmp_path: Path) -> None:
@@ -669,7 +671,9 @@ def test_a_refusal_is_said_in_the_language_of_whoever_asked(
     real = strings.catalogue
     said = {
         "job.too-long": "Слишком длинно.",
-        "job.out-of.hours": "Часы закончились, вернутся {date}.",
+        # `hours` is still the name of the ceiling inside `_out_of`; what it *says* is
+        # credits since 2026-09-23 (design.md §12), so the key moved and the rail did not.
+        "job.out-of.credits": "Кредиты закончились, вернутся {date}.",
         "date.month-day": "{day} {month}",
         "date.month.10": "октября",
     }
@@ -679,5 +683,5 @@ def test_a_refusal_is_said_in_the_language_of_whoever_asked(
     assert library.why_blocked(1.0).startswith("That's too long")
     assert library.claim(Job(id="j", source="s", estimate=1.0, ui="ru")) == "Слишком длинно."
     refusal = library._out_of("hours", "ru")
-    assert refusal.startswith("Часы закончились, вернутся 1 ")
+    assert refusal.startswith("Кредиты закончились, вернутся 1 ")
     assert library._out_of("hours").startswith("You've used your")

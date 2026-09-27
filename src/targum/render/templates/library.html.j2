@@ -7,7 +7,13 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
+{#- The key, before anything that reads it (targum-internal#343). `building.js`, and
+    the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
+    once as they load; it was set in a script at the foot of the body, so on a local serve
+    they held an empty key for the life of the page and the bell, the followed series and
+    the chat list were refused. The hosted box has no key and was never affected. -#}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="words shelf">
 {% set here = 'library' %}{% set title = t("nav.library", "Library") %}
@@ -18,9 +24,10 @@
   {#- One list, not two. What the reader has built and what is waiting to be built are
       the same question — what shall I read — and splitting them into a shelf and a
       catalogue meant answering it twice, in two different shapes. -#}
-  {#- Two halves of one question, and they are not a filter: the catalogue is everybody's
-      and the uploads are yours alone. As a select called "Access" among five other
-      controls, the reader's own texts were a setting nobody found. -#}
+  {#- The catalogue, which is everybody's. The reader's own texts were a second tab here,
+      Your uploads, until 2026-09-25, and are on Your targums now (design.md §12, "Yours
+      and everyone's"). The tab strip stays for the Beit Midrash, and is hidden where it
+      would hold one tab. -#}
   {#- The one line that says what the list is, for the reader who cannot yet read a
       title on it. It lives under the controls as `#picked-note`; on the first visit of
       an account that knows no words, when the page opens on the Scenes, it is drawn
@@ -31,13 +38,15 @@
   <div class="tabs" id="where" role="tablist" aria-label="{{ t("library.page.which-texts", "Which texts") }}"></div>
 
   <section class="panel" id="picked">
-    <p class="note" id="picked-note">{{ t("library.page.tap-a-text-to-read-it", "Tap a text to read it.") }}</p>
+    <p class="note" id="picked-note">{{ t("library.page.tap-a-text-to-read-it", "Tap one to open it.") }}</p>
 
     {#- How many texts there are, and how much of them is being shown — with the second
         half of that sentence as the control (design.md §12, 2026-09-17). "I want to be
         able to immediately choose a reading AT MY LEVEL" is answered by the list opening
         already narrowed and saying so, rather than by a filter that could be found. -#}
     <p class="said" id="said"></p>
+    {#- Where you are in the Beit Midrash, once inside a door (targum-internal#340). -#}
+    <nav class="crumbs" id="crumbs" aria-label="{{ t("library.page.where-you-are", "Where you are") }}" hidden></nav>
 
     {#- What the texts are about. The row a reader browses by, above everything that
         narrows: drawn from the subjects that have rows behind them, never from the
@@ -51,7 +60,7 @@
     <div class="sift">
       <input
         id="find" class="find" type="search" dir="auto" autocomplete="off" spellcheck="false"
-        placeholder="{{ t("library.page.search-a-title-hebrew-or-english", "Search a title, Hebrew or English") }}" aria-label="{{ t("library.page.search-the-library", "Search the library") }}">
+        placeholder="{{ t("library.page.search-a-title-hebrew-or-english", "Search titles in Hebrew or English") }}" aria-label="{{ t("library.page.search-the-library", "Search the library") }}">
       {#- The Hebrew of the Mishnah, of Maimonides, of Mendele and of this morning's paper
           are not four genres, they are close to four languages, and which one somebody is
           learning is the first question this page asks. A switch with its own label rather

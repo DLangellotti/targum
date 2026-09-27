@@ -144,7 +144,10 @@ def test_open_library_text_says_how(world) -> None:
         row for row in tools.search_library(ctx, {"limit": 20})["texts"] if not row["on_shelf"]
     )
     told = tools.open_library_text(ctx, {"id": unbuilt["id"]})
-    assert told["reader"] == "" and "cannot start one" in told["how_to_open"]
+    assert told["reader"] == ""
+    # quote_build is offered only with the chat scope, so the way in is conditional.
+    assert "If quote_build is among your tools" in told["how_to_open"]
+    assert f"/library/{unbuilt['id']}" in told["how_to_open"]
     assert "error" in tools.open_library_text(ctx, {"id": "nope"})
 
 
@@ -229,7 +232,10 @@ def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
     assert "ruth" not in ids, "already on the reader's own shelf"
     assert ids[0] == "esther", "measured coverage ranks ahead of a guess"
     assert all(row["because"] for row in got["suggestions"])
-    assert got["suggestions"][0]["because"] == "You know 50% of its words."
+    # Said the way the card says it: a host repeats `because`, and never a percentage.
+    assert got["suggestions"][0]["because"] == got["suggestions"][0]["known_line"]
+    assert "%" not in got["suggestions"][0]["because"]
+    assert got["suggestions"][0]["reason"]["share"] == 50, "the page's own line keeps it"
 
 
 def test_check_job_answers_only_for_the_owner(world) -> None:
@@ -300,7 +306,17 @@ def test_a_quote_never_claims_or_enqueues(world, monkeypatch) -> None:
         "and nothing says so: the job reports done"
     )
     assert store.committed(0) == 0.0, "nothing was claimed"
-    assert not [tool for tool in tools.REGISTRY if tool.spends or tool.needs_consent]
+    # The chat is offered nothing that spends. `record_turn` is in the registry since
+    # 2026-09-22 but never in this list: in *this* conversation targum recasts every
+    # line itself, so offering it would record the same mistake twice and charge twice.
+    offered = {one["name"] for one in tools.anthropic_tools()}
+    by_name = {one.name: one for one in tools.REGISTRY}
+    assert not [name for name in offered if by_name[name].spends or by_name[name].needs_consent]
+    assert "record_turn" not in offered
+    # Nor what exists for a conversation held somewhere else: this one already holds
+    # the contract `how_to_talk` would hand over.
+    assert not [name for name in offered if by_name[name].elsewhere]
+    assert "how_to_talk" not in offered
 
 
 def test_a_library_text_is_quoted_with_its_published_translation(world, monkeypatch) -> None:
@@ -392,7 +408,7 @@ def test_a_quote_that_cannot_be_built_says_why(world, monkeypatch) -> None:
     assert got["quote"]["blocked"].startswith("Too long") and "cannot be made ready" in got["note"]
 
 
-def test_hours_are_hours(world) -> None:
+def test_the_allowance_is_credits(world) -> None:
     library, store, person, home = world
     store.save_job(
         {"id": "r1", "owner": person.id, "home": str(home), "source": "x", "made": now_ms()}
@@ -400,8 +416,12 @@ def test_hours_are_hours(world) -> None:
     store.claim("r1", 0.5, 40.0, 0, owner=person.id, length=2 * 3600.0)
     ctx = context(library, store, person, home)
     got = tools.my_hours(ctx, {})
-    assert got["used_hours"] == 2.0 and got["allowed_hours"] == 8.0 and got["left_hours"] == 6.0
+    assert got["credits_used"] == 120 and got["credits_a_month"] == 480
+    assert got["credits_left"] == 360
+    assert "480 credits a month is 8 hours" in got["note"], "the rate beside the balance"
+    assert "Chatting" in got["note"] and "included" in got["note"]
     assert "$" not in json.dumps(got) and got["month_ends"]
+    assert not [key for key in got if "hours" in key]
 
 
 def now_ms() -> int:
@@ -435,9 +455,53 @@ def test_a_video_is_described_from_metadata_and_never_refused_on_licence(
     got = tools.describe_source(ctx, {"url": "https://www.youtube.com/watch?v=abc123"})
     assert got["kind"] == "video" and got["title"] == "שיעור על הלב"
     assert got["hebrew_subtitles"] is True and got["audio_language"] == "he"
-    assert got["hours"] == 0.42 and got["quote_with"] == "https://www.youtube.com/watch?v=abc123"
+    assert got["credits"] == 25 and got["quote_with"] == "https://www.youtube.com/watch?v=abc123"
     assert got["licence_standing"] == "owed" and got["corpus_exportable"] is True
     assert "never here" in got["licence_note"]
+
+
+def test_a_reel_is_described_and_quoted_by_its_one_address(world, monkeypatch) -> None:
+    """targum-internal#255: the chat can quote a reel the way it quotes a YouTube video,
+    and a host it cannot fetch from is named with the way in that works."""
+    from targum.video import instagram
+
+    monkeypatch.setattr(
+        instagram,
+        "describe",
+        lambda url: {"title": "המיתוג החדש ", "duration": 57.6, "webpage_url": url},
+    )
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.describe_source(
+        ctx, {"url": "https://www.instagram.com/kan_news/reel/DQGn1BljOyO/?igsh=x"}
+    )
+    assert got["kind"] == "video" and got["title"] == "המיתוג החדש"
+    assert got["seconds"] == 58 and got["hebrew_subtitles"] is False
+    assert got["quote_with"] == "https://www.instagram.com/reel/DQGn1BljOyO"
+
+    shut = tools.describe_source(ctx, {"url": "https://vimeo.com/76979871"})
+    assert shut["kind"] == "video" and shut["error"].startswith("Vimeo doesn't let us fetch")
+
+
+def test_a_post_of_pictures_is_described_and_its_pictures_left_to_the_reader(
+    world, monkeypatch
+) -> None:
+    from targum.video import instagram
+
+    monkeypatch.setattr(
+        instagram,
+        "backup",
+        lambda url: instagram.Post(
+            "DdCARhLDF-P", "aviv.bahar", "הופעות הקיץ\nעוד מילים", pictures=("a", "b")
+        ),
+    )
+    monkeypatch.setattr(instagram, "describe", lambda url: pytest.fail("a post is not a film"))
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.describe_source(ctx, {"url": "https://www.instagram.com/p/DdCARhLDF-P/"})
+    assert got["kind"] == "post" and got["title"] == "הופעות הקיץ"
+    assert got["author"] == "@aviv.bahar" and got["pictures"] == 2
+    assert "only if the reader presses" in got["advice"][0]
 
 
 def test_a_video_without_hebrew_subtitles_is_advised_not_refused(world, monkeypatch) -> None:
@@ -477,7 +541,7 @@ def test_a_recording_and_an_article_are_described(world, monkeypatch) -> None:
         ),
     )
     got = tools.describe_source(ctx, {"url": "https://podcast.example/ep3"})
-    assert got["kind"] == "recording" and got["hours"] == 0.5 and got["has_transcript"] is True
+    assert got["kind"] == "recording" and got["credits"] == 30 and got["has_transcript"] is True
     assert "nothing is transcribed" in got["advice"][0]
 
     monkeypatch.setattr(episode, "find", lambda url: None)
@@ -608,7 +672,122 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert tools.search_sources(ctx, {"kind": "podcast"})["count"] == 1
 
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
-    assert "No publishers" in tools.search_sources(ctx, {})["note"]
+    assert tools.search_sources(ctx, {})["note"] == "We don't follow any publishers yet."
+
+
+def test_the_day_s_stories_are_ordered_by_what_the_reader_would_know(
+    world, monkeypatch, tmp_path
+) -> None:
+    """targum-internal#244, change 4b. Two stories published the same day: the one this
+    reader would get furthest into comes first. The day stays the window — news is worth
+    reading because it is today's, so a familiar story never climbs over a fresher one."""
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {"publishers": [{"key": "kan", "name": "כאן", "feed": "https://kan.example/rss"}]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+
+    # Twenty tokens each, which is `level.MEASURABLE`: below it the estimate answers
+    # None rather than guessing, and a headline alone is below it.
+    plain = " ".join(["הילד", "אמר", "שלום", "לאבא"] * 5)
+    strange = " ".join(["פוליטיקאים", "התכנסו", "בירושלים", "לדיון"] * 5)
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        return [
+            feeds.Item(
+                title="הכתבה הקשה",
+                summary=strange,
+                link="https://kan.example/hard",
+                published=datetime(2026, 9, 5, 6, tzinfo=UTC),
+            ),
+            feeds.Item(
+                title="הכתבה הקלה",
+                summary=plain,
+                link="https://kan.example/easy",
+                published=datetime(2026, 9, 5, 20, tzinfo=UTC),
+            ),
+            feeds.Item(
+                title="של אתמול",
+                summary=plain,
+                link="https://kan.example/yesterday",
+                published=datetime(2026, 9, 4, tzinfo=UTC),
+            ),
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "surface": w, "status": 9, "at": 1, "seen": 1}
+                for w in ("הילד", "אמר", "שלום", "לאבא")
+            ]
+        },
+    )
+    ctx = context(library, store, person, home)
+
+    got = tools.search_sources(ctx, {})
+
+    shares = {row["link"]: row["known_share"] for row in got["items"]}
+    # Not 1.0: the title counts too, and its words are not in the ledger. The hook is
+    # what is measured, headline and all, because the hook is all the feed gives.
+    assert shares["https://kan.example/easy"] > 0.8
+    # Not 0 either: the commonest words of the language count as known for everybody,
+    # and two of these reduce to one once a prefix comes off.
+    assert shares["https://kan.example/hard"] < 0.5
+    assert shares["https://kan.example/hard"] < shares["https://kan.example/easy"]
+    assert [row["link"] for row in got["items"]] == [
+        "https://kan.example/easy",
+        "https://kan.example/hard",
+        "https://kan.example/yesterday",
+    ], "the day's easier one first, and yesterday's still last"
+
+
+def test_a_story_too_short_to_measure_is_not_treated_as_hard(world, monkeypatch, tmp_path) -> None:
+    """`known_share` answers None below twenty tokens, and a headline is below it. A hook
+    that says little about its Hebrew is not evidence of hard Hebrew, so it sorts as if
+    it were average rather than sinking under everything that was measured."""
+    from datetime import UTC, datetime
+
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {"publishers": [{"key": "kan", "name": "כאן", "feed": "https://kan.example/rss"}]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    unknown = " ".join(["פוליטיקאים", "התכנסו", "בירושלים", "לדיון"] * 5)
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        when = datetime(2026, 9, 5, tzinfo=UTC)
+        return [
+            feeds.Item(title="קשה", summary=unknown, link="https://k/hard", published=when),
+            feeds.Item(title="כותרת בלבד", link="https://k/short", published=when),
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    library, store, person, home = world
+    got = tools.search_sources(context(library, store, person, home), {})
+
+    by_link = {row["link"]: row for row in got["items"]}
+    assert by_link["https://k/short"]["known_share"] is None, "not measured, not zero"
+    assert [row["link"] for row in got["items"]][0] == "https://k/short"
 
 
 def test_search_sources_pulls_the_feeds_side_by_side_and_keeps_them(
@@ -857,6 +1036,59 @@ def test_a_measured_suggestion_says_the_share_in_words(world) -> None:
     assert top["id"] == "esther" and top["known_line"] == "You know about 5 words in 10 here."
 
 
+def test_a_bigger_ledger_is_offered_a_text_it_knows_more_of(world) -> None:
+    """targum-internal#244, acceptance criterion 1: over three nested ledgers the top
+    suggestion's `known_share` is monotone non-decreasing in the size of the ledger.
+
+    It is the whole claim of the card in one line — that what is offered follows what the
+    reader has, and not a number fixed to the text — and nothing pinned it.
+
+    That the *ranking* reads the share, rather than only reporting it, is pinned next
+    door by the register test, which sets two texts against each other. Here there is one
+    text to measure: `ruth` is the reader's own and `suggest_next` leaves out what is
+    already theirs, so `esther` is the shelf. What this asks is the criterion as written
+    — that the number the top card carries never falls as the reader learns more.
+    """
+    library, store, person, home = world
+
+    def mark(lemmas: list[str], at: int) -> None:
+        store.push(
+            person,
+            {
+                "words": [
+                    {
+                        "language": "he",
+                        "lemma": lemma,
+                        "surface": lemma,
+                        "status": 9,
+                        "at": at + n,
+                        "seen": at + n,
+                    }
+                    for n, lemma in enumerate(lemmas)
+                ]
+            },
+        )
+
+    def top() -> tuple[str, float]:
+        got = tools.suggest_next(context(library, store, person, home), {"limit": 5})
+        measured = [row for row in got["suggestions"] if row.get("known_share") is not None]
+        assert measured, "the shelf holds a text that was built and measured"
+        return str(measured[0]["id"]), float(measured[0]["known_share"])
+
+    # Nested, the way a reader's own ledger grows: nothing is ever taken back.
+    first, nothing = top()
+    mark(["מלך", "ספר"], 200)  # words of the other text: this one is unchanged
+    _, same = top()
+    mark(["רעב"], 300)  # and now the shelf's text is whole
+    last, more = top()
+
+    assert nothing <= same <= more, (
+        f"the top suggestion's share fell as the ledger grew: {nothing} → {same} → {more}"
+    )
+    assert first == last == "esther"
+    assert (nothing, more) == (0.5, 1.0), "half its words known, then all of them"
+
+
 def test_a_suggestion_leans_towards_the_registers_the_reader_reads(world, monkeypatch) -> None:
     """2026-09-11: "a text that fits your level and interests". Two texts the reader
     knows equally well: the one in a register they brought in themselves ranks first."""
@@ -980,3 +1212,300 @@ def test_sentences_with_finds_a_word_in_every_form_on_the_shelf(world) -> None:
     assert got["sentences"][0]["title"] == "Рассказ"
     assert tools.sentences_with(ctx, {"lemma": "читать"})["count"] == 0
     assert "error" in tools.sentences_with(ctx, {"lemma": ""})
+
+
+# -- a direct link to a recording or a video (targum-internal#256) --------------------
+
+
+def test_a_direct_link_to_a_recording_is_named_and_timed_without_being_pulled(
+    world, monkeypatch
+) -> None:
+    """`episode.find` fetches an address it cannot name from its suffix, and `.mp4` is
+    one — so a reader's link to a video was pulled whole, twice, and then described as
+    "file". Named from the address now, timed from its front, and never pulled."""
+    from targum.audio import probe
+    from targum.ingest import url as url_module
+
+    pulled: list[str] = []
+    opened: list[str] = []
+
+    def never(url: str, *args: object, **kw: object) -> object:
+        pulled.append(url)
+        raise AssertionError("a media link must not be fetched as a page")
+
+    monkeypatch.setattr(url_module, "fetch", never)
+    monkeypatch.setattr(
+        url_module,
+        "opening",
+        lambda url, most=0: (
+            opened.append(url),
+            url_module.Opening(b"front", "audio/mpeg", 57_600_000),
+        )[1],
+    )
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 3600.0)
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    found = tools.describe_source(ctx, {"url": "https://example.com/shows/ep-12.mp3"})
+
+    assert pulled == [], "nothing was read as a page"
+    assert opened == ["https://example.com/shows/ep-12.mp3"], "only its front"
+    assert found["kind"] == "recording" and found["medium"] == "audio"
+    assert found["seconds"] == 3600 and found["credits"] == 60
+    assert found["megabytes"] == 54.9
+    assert found["title"] == "ep-12"
+    assert any("transcribed" in line for line in found["advice"])
+
+
+def test_a_direct_link_to_a_video_says_it_is_one(world, monkeypatch) -> None:
+    from targum.audio import probe
+    from targum.ingest import url as url_module
+
+    monkeypatch.setattr(
+        url_module, "opening", lambda url, most=0: url_module.Opening(b"f", "video/mp4", 1024)
+    )
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 90.0)
+
+    library, store, person, home = world
+    found = tools.describe_source(
+        context(library, store, person, home), {"url": "https://example.com/a/talk.mp4"}
+    )
+    assert found["kind"] == "recording" and found["medium"] == "video"
+    assert any("only its sound" in line for line in found["advice"])
+
+
+def test_a_recording_whose_length_could_not_be_read_says_so(world, monkeypatch) -> None:
+    """Said rather than guessed: the length is read for certain when the file is
+    fetched, and the quote is made from that."""
+    from targum.audio import probe
+    from targum.ingest import url as url_module
+
+    monkeypatch.setattr(
+        url_module, "opening", lambda url, most=0: url_module.Opening(b"f", "audio/mpeg", 0)
+    )
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 0.0)
+
+    library, store, person, home = world
+    found = tools.describe_source(
+        context(library, store, person, home), {"url": "https://example.com/a/talk.mp3"}
+    )
+    assert found["seconds"] == 0 and found["credits"] is None and found["megabytes"] is None
+    assert any("could not be read" in line for line in found["advice"])
+
+
+def test_a_conversation_is_written_in_the_language_the_reader_reads(tmp_path: Path) -> None:
+    """targum-internal#286, item 1. `Ctx.language` is the one rule the chrome answers to,
+    and this is it against a real `Ctx` rather than a stand-in.
+
+    `said_reads` and `reads` are deliberately different things. `reads` is a permission —
+    which languages may be offered — and it is *everything* for a visitor, so a rule that
+    picks one language out of it made a signed-out conversation Russian, `INTO` holding
+    exactly English and Russian.
+    """
+    from targum.translate.prompts import INTO
+
+    store = Store(tmp_path / "words.db")
+
+    def ctx_for(said: set[str] | None, reads: set[str]) -> tools.Ctx:
+        return tools.Ctx(
+            person=None,
+            home=tmp_path,
+            library=None,
+            store=store,
+            chat_id="c",
+            level=level.EMPTY,
+            reads=reads,
+            said_reads=said,
+        )
+
+    everything = {code for code, _ in INTO}
+    assert everything == {"en", "ru"}, "which is why the two must not be confused"
+
+    assert ctx_for(None, everything).language == "en", "nobody signed in"
+    assert ctx_for({"en"}, {"en"}).language == "en"
+    assert ctx_for({"en", "ru"}, everything).language == "ru", "the common Russian account"
+    assert ctx_for({"ru"}, {"ru"}).language == "ru"
+
+
+# -- what a host is handed (review, 2026-09-24) -------------------------------------
+
+
+def test_every_tool_has_a_title_a_person_can_read() -> None:
+    """Claude prints a tool's name in its own interface; the title is what it shows
+    instead, and a title in the registry's vocabulary would be the same leak."""
+    for tool in tools.REGISTRY:
+        assert tool.title, tool.name
+        for jargon in ("quote", "build", "ledger", "hours", "slip", "record"):
+            assert jargon not in tool.title.lower(), (tool.name, tool.title)
+    assert tools.BY_NAME["my_hours"].title == "My credits"
+    assert tools.BY_NAME["quote_build"].title == "Get a text ready"
+
+
+def test_what_writes_says_so_and_nothing_destroys() -> None:
+    for tool in tools.REGISTRY:
+        hints = tool.hints()
+        assert hints["destructiveHint"] is False
+        assert hints["readOnlyHint"] is (not tool.writes), tool.name
+    assert tools.BY_NAME["record_turn"].writes and tools.BY_NAME["add_to_playlist"].writes
+    # A link is quoted afresh on every call, so adding one twice is two items.
+    assert tools.BY_NAME["add_to_playlist"].hints()["idempotentHint"] is False
+    assert tools.BY_NAME["add_to_playlist"].hints()["openWorldHint"] is True
+    assert tools.BY_NAME["describe_source"].hints()["openWorldHint"] is True
+    assert not tools.BY_NAME["my_vocabulary"].writes
+
+
+def test_no_tool_description_says_hours_or_money() -> None:
+    for tool in tools.REGISTRY:
+        said = tool.description.lower()
+        assert "hours" not in said and "$" not in said, tool.name
+        assert "ledger" not in said or tool.name == "quote_conversation", tool.name
+
+
+def test_a_quote_over_the_connector_carries_credits_and_no_dollars(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    def audio(job) -> None:  # type: ignore[no-untyped-def]
+        priced(job)
+        job.audio = True
+        job.seconds = 125.0
+        job.transcription = 0.4
+
+    monkeypatch.setattr(library, "prepare", audio)
+    ctx = context(library, store, person, home)
+    ctx.reads = {"en"}
+    ctx.press_at = "https://targum.test"
+    got = tools.quote_build(ctx, {"source": "https://example.com/episode"})
+    quote = got["quote"]
+    for dollars in tools.DOLLAR_FIELDS:
+        assert dollars not in quote, dollars
+    assert quote["credits"] == 2 and quote["open"].startswith("https://targum.test/build/")
+    assert "quote" in got["note"] and "don't call this a quote" in got["note"]
+    # And the in-app card still has what it draws from.
+    ctx.press_at = ""
+    assert "estimate" in tools.quote_build(ctx, {"source": "https://example.com/e2"})["quote"]
+
+
+def test_check_job_says_no_dollars_and_quotes_its_link(world) -> None:
+    library, store, person, home = world
+    job = Job(
+        id="j-space", source="x", owner=person.id, stage="done", reader="שיר חדש/reader/index.html"
+    )
+    job.estimate = 0.3
+    library.jobs[job.id] = job
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    got = tools.check_job(ctx, {"id": "j-space"})
+    assert "estimate" not in got and "translation" not in got
+    assert got["open"].startswith("https://targum.test/reader/%D7%A9")
+    assert " " not in got["open"]
+
+
+def test_my_progress_hands_over_no_streak_and_no_rung(world) -> None:
+    """design.md §12: the current streak is refused, and a rung is a level."""
+    library, store, person, home = world
+    got = tools.my_progress(context(library, store, person, home), {})
+    assert "streak" not in got and "longest_run_of_days" in got
+    assert "reach" not in got["ladder"] and "cefr" not in got["ladder"]
+    assert got["ladder"]["note"] == "A guide, not a placement."
+    assert "never say a level" in tools.BY_NAME["my_progress"].description
+
+
+def test_my_vocabulary_says_a_status_in_words(world) -> None:
+    library, store, person, home = world
+    got = tools.my_vocabulary(context(library, store, person, home), {})
+    assert {row["status"] for row in got["recent"]} == {"known", "learning"}
+
+
+def test_search_library_holds_to_the_conversation_s_language(world) -> None:
+    """An Italian talk came back for a Hebrew reader (2026-09-24)."""
+    from targum import catalogue
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    got = tools.search_library(ctx, {"limit": 20, "max_looked_up_percent": 100})
+    languages = {
+        catalogue.by_id(row["id"]).language.split("-")[0]  # type: ignore[union-attr]
+        for row in got["texts"]
+    }
+    assert languages <= {"he", "arc"} and got["language"] == "he"
+    everything = tools.search_library(ctx, {"language": "all", "max_looked_up_percent": 100})
+    assert everything["count"] >= got["count"] and everything["language"] == "all"
+
+
+def test_open_library_text_gives_a_library_link_when_it_cannot_be_quoted(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    unbuilt = next(
+        row for row in tools.search_library(ctx, {"limit": 20})["texts"] if not row["on_shelf"]
+    )
+    told = tools.open_library_text(ctx, {"id": unbuilt["id"]})["how_to_open"]
+    assert f"https://targum.test/library/{unbuilt['id']}" in told
+
+
+def test_playlists_come_back_with_absolute_links(world) -> None:
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.test"
+    added = tools.add_to_playlist(ctx, {"playlist": "Morning", "text": "ruth-he"})
+    assert added["open"].startswith("https://targum.test/reader/ruth-he/reader/index.html?list=")
+    got = tools.my_playlists(ctx, {})["playlists"][0]
+    assert got["open"] == added["open"]
+    assert got["texts"][0]["reader"] == "https://targum.test/reader/ruth-he/reader/index.html"
+    missing = tools.add_to_playlist(ctx, {"playlist": "Morning", "text": "not-there"})
+    assert "source or catalogue_id" in missing["error"]
+
+
+def test_a_tool_that_raises_is_not_its_exception(world, monkeypatch) -> None:
+    library, store, person, home = world
+
+    from dataclasses import replace
+
+    def broken(ctx, args):  # type: ignore[no-untyped-def]
+        raise KeyError("reader")
+
+    monkeypatch.setitem(
+        tools.BY_NAME, "my_progress", replace(tools.BY_NAME["my_progress"], run=broken)
+    )
+    text, failed = tools.run("my_progress", {}, context(library, store, person, home))
+    assert failed and "KeyError" not in text and "reader" not in text
+
+
+def test_how_to_talk_hands_a_host_only_real_words(world) -> None:
+    library, store, person, home = world
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": w, "status": 9, "band": "easy", "at": 9, "seen": 1}
+                for w in ("and", "the", "7", "ב", "ספר")
+            ]
+        },
+    )
+    ctx = context(library, store, person, home)
+    contract = tools.how_to_talk(ctx, {"language": "he"})["contract"]
+    known = next(line for line in contract.splitlines() if line.startswith("The reader's known"))
+    assert "ספר" in known
+    for junk in (" and", " the", " 7", " ב "):
+        assert junk not in known + " ", junk
+
+
+def test_the_host_is_told_the_contract_s_own_rule_in_its_own_language(world) -> None:
+    from targum.chat import hebrew
+
+    library, store, person, home = world
+    ctx = context(library, store, person, home)
+    italian = tools.how_to_talk(ctx, {"language": "it"})["contract"]
+    head = tools.elsewhere("it", "English")
+    assert italian.startswith(head)
+    assert "Italian" in head and "Hebrew" not in head
+    assert "Never an Italian line without its English line." in head
+    assert "Never an Italian line without its English line." in hebrew.contract_for("it")
+    assert "kept on their record" not in head
+
+
+def test_suggest_next_says_what_it_does() -> None:
+    """It leaves out the reader's own texts and keeps the shared shelf's, which open
+    straight away; the description said "not built yet" and hosts were handed on_shelf."""
+    said = tools.BY_NAME["suggest_next"].description
+    assert "not built" not in said and "on_shelf" in said

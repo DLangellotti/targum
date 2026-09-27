@@ -20,6 +20,7 @@ def test_the_seconds_are_read_off_the_clip() -> None:
 
 def test_no_key_means_no_voice_and_says_where_the_key_goes(monkeypatch: Any) -> None:
     monkeypatch.delenv(speech.KEY, raising=False)
+    monkeypatch.delenv(speech.VERTEX_KEY, raising=False)
     usable, why = speech.available()
     assert usable is False and speech.KEY in why
     with pytest.raises(TargumError, match="can't make a voice"):
@@ -118,3 +119,36 @@ def test_the_voice_is_told_which_language_it_is_reading() -> None:
     assert speech.speaks("it") and not speech.speaks("yi") and not speech.speaks("arc")
     with pytest.raises(TargumError, match="can't read that language aloud"):
         speech.say("װאָס", language="yi")
+
+
+def test_the_box_speaks_through_vertex_when_it_has_that_key(monkeypatch: Any) -> None:
+    """The Gemini API allows this model 100 requests a day on a paid key, for every reader
+    together; Vertex serves the same model uncapped. With both keys set, Vertex is used,
+    and a key handed in (the weekly's file) still goes to the Gemini API."""
+    import base64
+    import io
+    import json
+    import urllib.request
+
+    asked: list[str] = []
+
+    def answer(request: Any, timeout: float = 0) -> Any:
+        asked.append(request.full_url)
+        body = json.loads(request.data)
+        assert body["contents"][0]["role"] == "user", "Vertex refuses a turn with no role"
+        audio = base64.b64encode(b"\x00\x00" * 10).decode()
+        clip = {"candidates": [{"content": {"parts": [{"inlineData": {"data": audio}}]}}]}
+        return io.BytesIO(json.dumps(clip).encode())
+
+    monkeypatch.setattr(urllib.request, "urlopen", answer)
+    monkeypatch.setenv(speech.KEY, "gemini-key")
+    monkeypatch.setenv(speech.VERTEX_KEY, "vertex-key")
+    speech.say("שָׁלוֹם")
+    speech.say("שָׁלוֹם", key="handed-in")
+    monkeypatch.delenv(speech.VERTEX_KEY)
+    speech.say("שָׁלוֹם")
+    assert (
+        asked[0].startswith("https://aiplatform.googleapis.com/") and "key=vertex-key" in asked[0]
+    )
+    assert asked[1].startswith("https://generativelanguage.") and "key=handed-in" in asked[1]
+    assert asked[2].startswith("https://generativelanguage.") and "key=gemini-key" in asked[2]

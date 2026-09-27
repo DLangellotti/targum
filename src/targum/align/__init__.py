@@ -19,7 +19,7 @@ from .base import (
     length_ratio,
     to_links,
 )
-from .embedding import DEFAULT_MODEL, SentenceTransformerEncoder
+from .embedding import DEFAULT_MODEL, MappedEncoder
 from .score import Score, as_indices, load_gold, score
 
 __all__ = [
@@ -27,7 +27,7 @@ __all__ = [
     "DEFAULT_MODEL",
     "Aligner",
     "Encoder",
-    "SentenceTransformerEncoder",
+    "MappedEncoder",
     "Score",
     "align",
     "as_indices",
@@ -51,7 +51,7 @@ class Aligner:
         *,
         confidence_floor: float = CONFIDENCE_FLOOR,
     ) -> None:
-        self.encoder: Encoder = encoder or SentenceTransformerEncoder()
+        self.encoder: Encoder = encoder or MappedEncoder()
         self.confidence_floor = confidence_floor
 
     @property

@@ -4,6 +4,7 @@ name never reaches a reader (targum-internal#184)."""
 from __future__ import annotations
 
 import json
+import re
 import string
 from pathlib import Path
 
@@ -137,7 +138,6 @@ def test_every_sentence_the_reader_says_is_in_the_english_catalogue() -> None:
         "claim.js",
         "yours.js",
         "palette.js",
-        "theme.js",
         "chat.js",
         "speak.js",
         "signin.js",
@@ -228,3 +228,379 @@ def test_a_suggestions_reason_is_said_in_the_readers_language(
     looked = {"reason": {"key": "suggest.looked-up", "share": 12, "register": "modern"}}
     assert because_in(looked, "en") == "A learner looks up 12% of its words. Modern Hebrew."
     assert because_in({"because": "old"}, "ru") == "old"
+
+
+def test_a_translation_is_not_left_behind_when_its_english_changes() -> None:
+    """targum-internal#337. `text()` says a key in English only where a language has not
+    filled it; a key it *has* filled is said in that language whatever the English has
+    since become. So an English sentence that changed while its Russian stayed was served
+    stale, and nothing said so — found while changing sixty strings that assumed a reader
+    was there to read.
+
+    `strings/from/<code>.json` records, for every translated key, a fingerprint of the
+    English it was made from. When the English moves, this fails until somebody has
+    looked at the translation and stamped it again.
+    """
+    import hashlib
+
+    here = Path(strings.__file__).resolve().parent
+    english = json.loads((here / "en.json").read_text(encoding="utf-8"))
+    for code in strings.languages():
+        if code == strings.SOURCE:
+            continue
+        said = json.loads((here / f"{code}.json").read_text(encoding="utf-8"))
+        stamps_file = here / "from" / f"{code}.json"
+        assert stamps_file.is_file(), f"{code}: run scripts/stamp_strings.py"
+        stamps = json.loads(stamps_file.read_text(encoding="utf-8"))
+        stale = []
+        for key in said:
+            source = key if key in english else key.rsplit(".", 1)[0] + ".other"
+            if source not in english:
+                continue
+            now = hashlib.sha256(english[source].encode("utf-8")).hexdigest()[:10]
+            if stamps.get(key) != now:
+                stale.append(key)
+        assert not stale, (
+            f"{code}: the English of {len(stale)} translated keys has changed since they were "
+            f"translated ({', '.join(stale[:5])}…). Bring the translation up to date, then run "
+            "`uv run python scripts/stamp_strings.py`."
+        )
+
+
+# -- a refusal in the reader's language (targum-internal#348) -------------------------
+
+
+def test_a_refusal_with_a_key_is_said_in_the_readers_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A `TargumError` is raised where the trouble is — the fetch door, an ingester, a
+    video host — and none of those know who is reading. So it travels in English with a
+    key, and the language is chosen where it reaches a reader."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(
+        json.dumps(
+            {
+                "fetch.private-network": "{host} is on a private network.",
+                "fetch.private-network.hint": "Paste a public address.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "ru.json").write_text(
+        json.dumps(
+            {
+                "fetch.private-network": "{host} — частная сеть.",
+                "fetch.private-network.hint": "Вставьте публичный адрес.",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        refusal = TargumError(
+            "10.0.0.1 is on a private network.",
+            "Paste a public address.",
+            key="fetch.private-network",
+            host="10.0.0.1",
+        )
+        assert refused_in("ru", refusal) == "10.0.0.1 — частная сеть. Вставьте публичный адрес."
+        assert (
+            refused_in("en", refusal) == "10.0.0.1 is on a private network. Paste a public address."
+        )
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_a_refusal_with_no_key_is_said_as_it_always_was() -> None:
+    """Most refusals have none, and every one only an operator meets. The command line
+    is English by design."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    plain = TargumError("We couldn't open that PDF.", "Try another file.")
+    assert refused_in("ru", plain) == "We couldn't open that PDF. Try another file."
+    assert refused_in("ru", TargumError("No hint here.")) == "No hint here."
+
+
+def test_the_english_is_never_formatted_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The English is interpolated already — it was an f-string where the trouble was.
+    Formatting it a second time takes the whole refusal down on an address with a brace
+    in it, which is a legal thing for a URL to contain."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(json.dumps({"a.key": "x"}), encoding="utf-8")
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        awkward = "https://example.com/a{b}c"
+        refusal = TargumError(
+            f"We only read web pages, and {awkward} isn't one.",
+            key="fetch.not-a-web-page",
+            url=awkward,
+        )
+        assert awkward in refused_in("ru", refusal), "no catalogue entry, so the English stands"
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_a_translation_whose_blanks_do_not_match_falls_back(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A translated sentence naming something the refusal does not carry would raise on
+    formatting. The English still says the true thing, which is what matters."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(json.dumps({"a.key": "x"}), encoding="utf-8")
+    (tmp_path / "ru.json").write_text(
+        json.dumps({"fetch.no-such-site": "Не нашли {site}."}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        refusal = TargumError("We couldn't find x.com.", key="fetch.no-such-site", host="x.com")
+        assert refused_in("ru", refusal) == "We couldn't find x.com."
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_every_refusal_that_names_a_key_has_one_in_the_catalogue() -> None:
+    """A `TargumError` with a key nothing answers is a refusal that silently stays
+    English — which is the bug this whole mechanism exists to fix, reintroduced
+    (targum-internal#348).
+
+    Asked of the tree rather than of a list, so the 104 refusals still to be converted
+    are covered the day each one is.
+    """
+    english = strings.catalogue("en")
+    here = Path(strings.__file__).resolve().parent.parent
+    missing = []
+    for path in sorted(here.rglob("*.py")):
+        for key in re.findall(r'key="([a-z0-9.\-]+)"', path.read_text(encoding="utf-8")):
+            if key not in english:
+                missing.append(f"{path.relative_to(here)}: {key}")
+    assert not missing, "keys with nothing to say them:\n  " + "\n  ".join(missing)
+
+
+def test_every_refusal_that_names_a_key_is_answered_in_every_language() -> None:
+    """A key is what makes a refusal reader-facing: the ones only an operator meets carry
+    none, and are said in English for ever by design. So a refusal that has earned a key
+    and has no translation is half-converted — it reaches a Russian reader on a page that
+    is otherwise entirely in Russian, and says nothing in Russian.
+
+    That state was invisible and real. On 2026-09-22 all 31 keyed refusals were in
+    `en.json` and none was in `ru.json`, with this file green: the mechanism test proves
+    the machinery on a fixture catalogue of its own, so it cannot see that the real one is
+    empty. This asks the real catalogue.
+
+    Asked of the tree rather than of a list, so the refusals still to be converted are
+    covered the day each one is — and converting one now means translating it, which is
+    the whole of what a key promises.
+    """
+    here = Path(strings.__file__).resolve().parent.parent
+    keyed = {
+        key
+        for path in sorted(here.rglob("*.py"))
+        for key in re.findall(r'key="([a-z0-9.\-]+)"', path.read_text(encoding="utf-8"))
+    }
+    english = strings.catalogue("en")
+    wanted = sorted(key for key in keyed | {f"{key}.hint" for key in keyed} if key in english)
+    for code in strings.languages():
+        if code == strings.SOURCE:
+            continue
+        said = strings.catalogue(code)
+        silent = [key for key in wanted if key not in said]
+        assert not silent, (
+            f"{code}: {len(silent)} keyed refusals fall back to English "
+            f"({', '.join(silent[:5])}…). A refusal with a key is one a reader meets."
+        )
+
+
+def test_a_refusals_hint_is_said_where_it_has_one() -> None:
+    """The hint rides at `<key>.hint` by convention. A key whose English carries a hint
+    and whose catalogue does not would say the sentence and drop the way out of it."""
+    english = strings.catalogue("en")
+    here = Path(strings.__file__).resolve().parent.parent
+    for path in sorted(here.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"TargumError\(\s*\n?\s*(.{0,400}?)\)\s*(?:from|\n)", text, re.S):
+            body = match.group(1)
+            key = re.search(r'key="([a-z0-9.\-]+)"', body)
+            if not key:
+                continue
+            # Two strings before the key means a message and a hint.
+            strings_in = re.findall(r'"[^"]*"|f"[^"]*"', body.split("key=")[0])
+            if len(strings_in) >= 2:
+                assert f"{key.group(1)}.hint" in english, (
+                    f"{path.name}: {key.group(1)} has a hint and the catalogue has no "
+                    f"{key.group(1)}.hint"
+                )
+
+
+def test_a_host_that_would_not_answer_can_be_said_in_the_readers_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Unreachable` dropped `key` and `fill` on the floor, so the commonest refusal the
+    fetch door raises — a 4xx, a bot check, a timeout, too many redirects — was the one
+    the mechanism could not reach (targum-internal#348)."""
+    from targum.errors import Unreachable
+    from targum.serve import refused_in
+
+    (tmp_path / "en.json").write_text(
+        json.dumps({"fetch.would-not-open": "We couldn't open {url}."}), encoding="utf-8"
+    )
+    (tmp_path / "ru.json").write_text(
+        json.dumps({"fetch.would-not-open": "Не удалось открыть {url}."}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(strings, "_HERE", tmp_path)
+    strings.catalogue.cache_clear()
+    try:
+        shut = Unreachable(
+            "We couldn't open https://x.test/a.",
+            "HTTP 403",
+            status=403,
+            host="x.test",
+            key="fetch.would-not-open",
+            url="https://x.test/a",
+        )
+        # What Unreachable is for is untouched: the status and the host still travel.
+        assert shut.status == 403 and shut.host == "x.test"
+        assert refused_in("ru", shut) == "Не удалось открыть https://x.test/a. HTTP 403"
+    finally:
+        strings.catalogue.cache_clear()
+
+
+def test_a_keyword_with_no_key_behind_it_is_a_mistake() -> None:
+    """Taking `**fill` is what stopped the signature catching a mistyped `hint`, and
+    mypy cannot catch it either. `fill` is only ever read against a key, so a keyword
+    with no key is certainly a mistake and is refused outright."""
+    from targum.errors import TargumError, Unreachable
+
+    with pytest.raises(TypeError, match="hnt"):
+        TargumError("We couldn't open it.", hnt="try again")
+    with pytest.raises(TypeError, match="url"):
+        Unreachable("We couldn't open it.", url="https://x.test")
+
+    # And the legitimate shapes still stand.
+    assert TargumError("plain").fill == {}
+    assert TargumError("named", key="a.key", url="u").fill == {"url": "u"}
+
+
+def test_the_sign_in_refusal_really_interpolates_in_russian() -> None:
+    """targum-internal#252's sign-in wall, against the **real** catalogue rather than a
+    fixture one.
+
+    Every other refusal test here writes its own `en.json`/`ru.json` into `tmp_path`,
+    which proves the machinery and cannot prove the shipped sentences. This one has to
+    ask the real catalogue, because the bug it guards is invisible to a fixture: the
+    blanks are filled from `error.fill`, and `Unreachable` eats `host`, `status`,
+    `challenge` and `via` as fields of its own. A translation naming `{host}` would raise
+    `KeyError` inside `say()`, get caught, and **fall back to English without a word** —
+    a Russian reader would simply never see Russian, and nothing would fail.
+    """
+    from targum.errors import Unreachable
+    from targum.serve import refused_in
+
+    wall = Unreachable(
+        "paywall.example asks you to sign in, so we can't open it.",
+        "Open it yourself and paste the text into the box instead.",
+        status=401,
+        host="paywall.example",
+        key="fetch.needs-a-sign-in",
+        site="paywall.example",
+    )
+    said = refused_in("ru", wall)
+    assert "paywall.example" in said, "the site is named, so the blank was really filled"
+    assert "{" not in said, "and no blank was left standing in the page"
+    assert said != refused_in("en", wall), "a Russian reader is not handed the English"
+    assert "войти" in said
+
+
+# -- counted things and dates, said per language (targum-internal#348) ------------------
+
+
+def test_russian_takes_three_plural_forms_and_the_teens_are_the_trap() -> None:
+    """A page that says «5 стиха» reads as broken rather than as foreign. 21 is `one` and
+    11 is `many`, which is the pair that catches people out."""
+    from targum.strings import plural_form
+
+    assert [plural_form(n, "ru") for n in (1, 21, 101)] == ["one"] * 3
+    assert [plural_form(n, "ru") for n in (2, 3, 4, 22, 24)] == ["few"] * 5
+    assert [plural_form(n, "ru") for n in (5, 11, 12, 13, 14, 25, 111)] == ["many"] * 7
+    assert plural_form(1, "ru-RU") == "one", "a regional tag is the language"
+
+    assert plural_form(1, "en") == "one" and plural_form(0, "en") == "other"
+    assert plural_form(2, "xx") == "other", "a language nobody wrote a rule for reads as English"
+
+
+def test_a_counted_string_falls_back_the_way_a_plain_one_does() -> None:
+    from targum.strings import counted
+
+    said = counted("parasha.page.verses", 2, "ru", {"one": "{n} verse", "other": "{n} verses"})
+    assert said == "{n} стиха"
+    # A language with no catalogue gets what the template wrote, in the form it asked for.
+    assert counted("parasha.page.verses", 1, "xx", {"one": "{n} verse", "other": "{n} verses"}) == (
+        "{n} verse"
+    )
+
+
+def test_a_date_is_said_the_way_its_language_writes_it() -> None:
+    """English keeps exactly what it said, so nothing already on a page moves. Russian
+    puts the day first and the month in the genitive."""
+    from datetime import date
+
+    from targum.strings import said_date, said_on
+
+    saturday = date(2026, 5, 30)
+    assert said_date(saturday, "en") == "Saturday, May 30, 2026"
+    assert said_on(saturday, "en") == said_date(saturday, "en"), "English writes one phrase"
+
+    assert said_date(saturday, "ru") == "суббота, 30 мая 2026"
+    # The accusative after «в», which is the half a translated sentence gets wrong most
+    # visibly: «читают суббота» is not foreign, it is wrong.
+    assert said_on(saturday, "ru") == "в субботу, 30 мая 2026"
+    assert said_on(date(2026, 6, 2), "ru") == "во вторник, 2 июня 2026", "во, not в"
+
+
+def test_every_word_a_page_draws_is_said_in_russian() -> None:
+    """targum-internal#106 and #188: the mechanism has been there since #184, and the
+    gap it leaves is silent by design — `t()` falls back to the English written in the
+    template, so an unfilled key looks like a working page in the wrong language rather
+    than like a bug.
+
+    Sixty-five were unfilled on 2026-09-22, and they were not the obscure ones: the
+    library's whole set of subject chips, the Add page's "What targum found", and the
+    "What to work on" fold. Counted from the templates and the assets rather than from a
+    list kept by hand, so a key added tomorrow is covered tomorrow.
+
+    English is the source and is therefore exempt; a language with no catalogue at all is
+    a language targum does not speak yet, and `desk_languages()` is what answers that.
+    """
+    from targum.strings import SOURCE, catalogue, desk_languages
+
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    used: set[str] = set()
+    for path in sorted(root.glob("templates/*.j2")) + sorted(root.glob("assets/*.js")):
+        text = path.read_text(encoding="utf-8")
+        used |= set(re.findall(r'\bt\(\s*"([^"]+)"', text))
+        used |= set(re.findall(r'\btn\(\s*"([^"]+)"', text))
+
+    english = catalogue(SOURCE)
+    # A match that is not a key English holds is the regex catching something else — a
+    # Jinja `default()`, say — and not a string anybody failed to translate.
+    keys = sorted(key for key in used if key in english)
+    assert len(keys) > 1000, f"only {len(keys)} keys found; the scan is broken, not the catalogue"
+
+    for code in desk_languages():
+        said = catalogue(code)
+        missing = [key for key in keys if key not in said]
+        assert not missing, f"{code} has no word for {len(missing)}: {missing[:8]}"

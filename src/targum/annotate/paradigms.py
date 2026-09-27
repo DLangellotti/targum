@@ -45,6 +45,152 @@ TABLE = Path(__file__).parent / "paradigms.json.gz"
 MOST = 60
 
 
+#: The points, so a lemma can be read as letters-with-vowels rather than a string.
+_POINTS = frozenset(
+    "\u05b0\u05b1\u05b2\u05b3\u05b4\u05b5\u05b6\u05b7\u05b8"
+    "\u05b9\u05ba\u05bb\u05bc\u05bd\u05c1\u05c2\u05c7"
+)
+_SHVA, _HIRIQ, _TSERE, _PATACH, _QAMATS = "\u05b0", "\u05b4", "\u05b5", "\u05b7", "\u05b8"
+#: Qubuts and qamats qatan, the two ways the passive binyanim point their first letter.
+_QUBUTS, _QATAN = "\u05bb", "\u05c7"
+_HE, _TAV, _NUN = "\u05d4", "\u05ea", "\u05e0"
+
+#: How few of a lemma's letters may be pointed before it is not a pointed lemma. The
+#: dump carries both — `הָלַךְ` and `אוחזר` sit side by side — and an unpointed one says
+#: nothing about its binyan, so it is refused rather than read as פעל.
+_LEAST_POINTED = 2
+
+
+def _units(word: str) -> list[tuple[str, str]]:
+    """Each Hebrew letter with the points that follow it, in order."""
+    out: list[list[str]] = []
+    for ch in word:
+        if ch in _POINTS:
+            if out:
+                out[-1][1] += ch
+        elif "\u05d0" <= ch <= "\u05ea":
+            out.append([ch, ""])
+    return [(letter, points) for letter, points in out]
+
+
+def binyan_of(lemma: str) -> str | None:
+    """Which binyan a *pointed* lemma is built in, or None where it cannot be read.
+
+    Wikidata's Hebrew lexemes carry no binyan statement — checked against the dump — so
+    the conjugation lookup had no way to tell `הָלַךְ` from `הִלֵּךְ` except by hoping the
+    reader's own pointing matched one of them (targum-internal#307). This reads it off
+    the lemma instead, which is owned outright and behind no licence door: the lemma is
+    the third-person masculine singular past, and that is the form each binyan spells in
+    its own pattern. It is `hebrew.root_of` run the other way.
+
+    Only the prefix and the first two vowels are asked, because that is what the seven
+    patterns differ in and the rest of the word is the root's business. A lemma with
+    fewer than two points is not pointed, and says nothing; a pattern that is not one of
+    the seven is None. Both refuse rather than guess, for the reason the card refuses a
+    root it could not work out: a wrong conjugation table is worse than none.
+    """
+    units = _units(lemma)
+    if len(units) < 2 or sum(1 for _, points in units if points) < _LEAST_POINTED:
+        return None
+    (first, points), (second, after) = units[0], units[1]
+    # A prefix is a prefix only when the letter after it is quiescent. הִפְעִיל and
+    # נִפְעַל both put a shva there, and it is the whole of what separates them from a
+    # root whose own first letter is ה or נ: הִלֵּךְ is פיעל of ה־ל־ך and נִסָּה is פיעל
+    # of נ־ס־ה, and both were read as prefixed until this asked.
+    quiescent = _SHVA in after
+    if first == _HE and _HIRIQ in points and quiescent:
+        # הִתְפַּעֵל keeps its ת; הִפְעִיל has the root's own letter there.
+        return "התפעל" if second == _TAV else "הפעיל"
+    if first == _HE and _HIRIQ in points:
+        # A weak root's הִפְעִיל has no shva to give — הִגִּיד, הִתִּיר — and neither has the
+        # פיעל of a root beginning with ה. They part on the vowel the second letter
+        # carries: הִפְעִיל's own hiriq, against פיעל's tsere.
+        if _HIRIQ in after:
+            return "הפעיל"
+        if _TSERE in after:
+            return "פיעל"
+        return None
+    if first == _HE and (_QUBUTS in points or _QATAN in points) and quiescent:
+        return "הופעל"
+    if first == _NUN and _HIRIQ in points and quiescent:
+        # נִפְעַל, and not נָתַן — which is פעל and carries a qamats, not a hiriq.
+        return "נפעל"
+    if _QUBUTS in points or _QATAN in points:
+        return "פועל"
+    if _HIRIQ in points and (_TSERE in after or _PATACH in after):
+        return "פיעל"
+    if _QAMATS in points:
+        return "פעל"
+    return None
+
+
+#: The most verbs a card will name beside the one the reader tapped. A root with all
+#: seven binyanim exists — כתב has every one — and seven other words under a word is a
+#: list rather than a fact about it.
+SIBLINGS = 5
+
+
+@lru_cache(maxsize=1)
+def _families() -> dict[str, tuple[tuple[str, str], ...]]:
+    """Every root the shipped table can work out, and the verbs built on it.
+
+    Owned outright and computed here rather than fetched: the lemma gives its binyan
+    (`binyan_of`) and the two together give the root (`hebrew.root_of`), so a family is
+    two rules over a CC0 source and no licence door at all (targum-internal#301).
+
+    A verb whose lemma is unpointed says no binyan, and one whose root will not come out
+    at three letters says no root; both are left out rather than guessed at, which is the
+    same guard every rule in `hebrew.py` ends at. Of the table's 4,703 verbs, 2,613 have
+    a root and 2,071 of those have at least one sibling.
+    """
+    from .hebrew import root_of
+
+    out: dict[str, list[tuple[str, str]]] = {}
+    for verb in table().verbs.values():
+        binyan = binyan_of(verb.lemma)
+        if not binyan:
+            continue
+        root = root_of(verb.lemma, binyan)
+        if not root:
+            continue
+        out.setdefault(root, []).append((verb.lemma, binyan))
+    # In the order a learner meets them, so a family reads the same way every time and
+    # not in whatever order the dump happened to list it.
+    order = {name: at for at, name in enumerate(BINYAN_ORDER)}
+    return {
+        root: tuple(sorted(verbs, key=lambda one: (order.get(one[1], 99), one[0])))
+        for root, verbs in out.items()
+    }
+
+
+#: The binyanim in the order a grammar book teaches them, which is the order a family is
+#: read in. `hebrew.BINYANIM` is keyed on the tagger's names; this is the sequence.
+BINYAN_ORDER = ("פעל", "נפעל", "פיעל", "פועל", "הפעיל", "הופעל", "התפעל")
+
+
+def family_of(lemma: str, binyan: str | None) -> tuple[tuple[str, str], ...]:
+    """The other verbs built on this verb's root, each with its own binyan.
+
+    Empty where the root could not be had honestly — the card already hides a root it
+    could not work out, and a guessed family is worse than none — and empty where the
+    root is this verb's alone. The verb itself is never in its own family.
+    """
+    from .hebrew import root_of
+
+    root = root_of(lemma, binyan) if binyan else None
+    if not root:
+        return ()
+    # By binyan, not by spelling. A root has one verb per binyan, so the tapped verb's
+    # own binyan is the one to drop — and that also drops it where the annotator points
+    # its lemma differently from the source, which spelling alone would miss.
+    #
+    # Spelling cannot do this job: כָּתַב and כִּתֵּב are both written כתב, and a family
+    # filtered on the bare form would throw away the פיעל for looking like the פעל —
+    # which is the very pair the card exists to show.
+    kin = [one for one in _families().get(root, ()) if one[1] != binyan]
+    return tuple(kin[:SIBLINGS])
+
+
 def bare(text: str) -> str:
     """The letters alone, which is the only spelling two sources agree on."""
     return "".join(
@@ -79,7 +225,7 @@ class Table:
     verbs: dict[str, Paradigm]
     by_form: dict[str, tuple[str, ...]]
 
-    def of(self, word: str, seen: str = "") -> Paradigm | None:
+    def of(self, word: str, seen: str = "", binyan: str | None = None) -> Paradigm | None:
         """The paradigm for a lemma or any inflected form of it.
 
         `seen` is a pointed spelling the word actually wore in the text, and it is what
@@ -92,17 +238,30 @@ class Table:
         The points break the tie. A form the reader actually saw, spelled out, belongs to
         one of the candidates and not the other, and that is the one.
 
-        None where nothing matches at all, and None where the points do not settle it
-        either: a wrong conjugation table is worse than no table, and the way out to
-        Pealim is still on the card.
+        `binyan` is the conjugation targum already worked out for the occurrence, and it
+        is the stronger of the two signals (targum-internal#307). The source carries no
+        binyan statement, so each candidate's is read off its own pointed lemma
+        (`binyan_of`); the candidate whose binyan is the one in the text is the verb.
+        Measured over 114,291 verb tokens on the built shelf, this is what takes the
+        table from 55.4% of them to 72.4%.
+
+        Where both signals decide and they disagree, neither is taken. That is 0.1% of
+        tokens and they are real conflicts — a נִפְעַל lemma whose surface form is spelled
+        the way its פָּעַל cousin spells one — so the honest answer is the one the card
+        has always given for a root it could not work out.
+
+        None where nothing matches at all, and None where nothing settles it: a wrong
+        conjugation table is worse than no table, and the way out to Pealim is still on
+        the card.
         """
         found = self.by_form.get(bare(word)) or ()
         if not found:
             return None
         if len(found) == 1:
             return self.verbs.get(found[0])
+        pointed = []
         if seen:
-            exact = [
+            pointed = [
                 lid
                 for lid in found
                 if (verb := self.verbs.get(lid))
@@ -111,8 +270,19 @@ class Table:
                 # only the forms missed `הָלַךְ` — the very word that made this necessary.
                 and (verb.lemma == seen or any(form.written == seen for form in verb.forms))
             ]
-            if len(exact) == 1:
-                return self.verbs.get(exact[0])
+        built = []
+        if binyan:
+            built = [
+                lid
+                for lid in found
+                if (verb := self.verbs.get(lid)) and binyan_of(verb.lemma) == binyan
+            ]
+        if len(pointed) == 1 and len(built) == 1:
+            return self.verbs.get(pointed[0]) if pointed[0] == built[0] else None
+        if len(built) == 1:
+            return self.verbs.get(built[0])
+        if len(pointed) == 1:
+            return self.verbs.get(pointed[0])
         return None
 
 

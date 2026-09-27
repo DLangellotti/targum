@@ -107,89 +107,9 @@
   --lift: 0 2px 10px rgb(0 0 0 / 0.10);
 
   /* What separates a floating overlay from the page. On paper the shadows do it and
-     this is just the ordinary hairline; on ink a black shadow draws nothing, so the
-     dark blocks lighten this edge instead — the shadow's job done by a line. */
+     this is just the ordinary hairline. It is its own token because an ink surface
+     would want a lighter line here, where a black shadow draws nothing. */
   --overlay-rule: var(--rule);
-}
-
-/* Three states, not two. With nothing stamped on <html> the system decides, which is
-   what happens until someone presses the toggle; after that the stamp wins in both
-   directions — the :not() guard is what lets a light choice beat an OS set to dark.
-   color-scheme goes with them so form controls and scrollbars follow. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --ink: #e6e1d8;
-    --ink-soft: #9a9288;
-    --paper: #171614;
-    --paper-raised: #201e1b;
-    --rule: #322e29;
-    --accent: #c8a778;
-    --focus: #b8935e;
-    --mark-accent: #c8a778;
-    --leaf: #a8c37e;
-    --clay: #e0937d;
-    --iris: #b3a3d6;
-    /* On ink the page is already the panel the bright set was measured against. */
-    --desk: #201e1b;
-    --rail: #322e29;
-    --divider: #322e29;
-    --page-max: #121110;
-    --ink-max: #fffdf9;
-    --ground: #121110;
-    --card: #201e1b;
-    --hairline: rgb(255 253 249 / 0.10);
-    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
-    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
-    --well: #3a3631;
-    --teal: #6fb8b3;
-    --teal-ink: #0f1a19;
-    --teal-wash: rgb(111 184 179 / 0.12);
-    --bar: #0c0b0a;
-    --bar-ink: #e6e1d8;
-    --bar-muted: #8a827a;
-    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --page-shadow: 2px 3px 0 rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.45);
-    --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-    --ink: #e6e1d8;
-    --ink-soft: #9a9288;
-    --paper: #171614;
-    --paper-raised: #201e1b;
-    --rule: #322e29;
-    --accent: #c8a778;
-    --focus: #b8935e;
-    --mark-accent: #c8a778;
-    --leaf: #a8c37e;
-    --clay: #e0937d;
-    --iris: #b3a3d6;
-    /* On ink the page is already the panel the bright set was measured against. */
-    --desk: #201e1b;
-    --rail: #322e29;
-    --divider: #322e29;
-    --page-max: #121110;
-    --ink-max: #fffdf9;
-    --ground: #121110;
-    --card: #201e1b;
-    --hairline: rgb(255 253 249 / 0.10);
-    --shadow-rest: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
-    --shadow-floating: 0 2px 6px rgb(0 0 0 / 0.5), 0 24px 48px -20px rgb(0 0 0 / 0.8);
-    --well: #3a3631;
-    --teal: #6fb8b3;
-    --teal-ink: #0f1a19;
-    --teal-wash: rgb(111 184 179 / 0.12);
-    --bar: #0c0b0a;
-    --bar-ink: #e6e1d8;
-    --bar-muted: #8a827a;
-    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
-    --page-shadow: 2px 3px 0 rgb(0 0 0 / 0.35), 0 12px 28px rgb(0 0 0 / 0.45);
-    --overlay-rule: color-mix(in srgb, var(--rule) 55%, var(--ink-soft));
 }
 
 * { box-sizing: border-box; }
@@ -201,12 +121,10 @@
 :where(:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Selection is quiet ink with paper text (§4), never accent and never the browser's
-   blue — which is what a phrase-drag painted before this rule existed. The tokens
-   carry both themes. */
+   blue — which is what a phrase-drag painted before this rule existed. */
 ::selection { background: var(--ink-soft); color: var(--paper); }
 
-/* Every surface that floats (§8) takes the overlay edge, so the dark theme's lighter
-   line reaches all of them from one place. */
+/* Every surface that floats (§8) takes the overlay edge, from one place. */
 .keys-card, .gloss-card, .pick-card, .player, .list, .list-tab { border-color: var(--overlay-rule); }
 
 /* Hebrew is set from its own stack. Every element that holds source text carries a
@@ -521,6 +439,16 @@ a.bar-brand:hover { color: var(--accent); }
   body:not(.has-keyboard) .bar-more .group[data-what="Keys"] { display: none; }
 }
 
+/* The keys button says "Keys" in the bar (targum-internal#338). It keeps its mark behind
+   ⋯, where the row beside it is already named, and between 60 and 75rem, where the bar
+   has already put away its English title and the known count so as not to wrap: measured
+   at 1100px, the word cost it a second row. */
+.bar [data-keys] .keys-mark { display: none; }
+@media (max-width: 75rem) {
+  .bar [data-keys] .keys-word { display: none; }
+  .bar [data-keys] .keys-mark { display: inline; }
+}
+
 /* No blue flash. Chrome on Android paints its own highlight over anything tapped, in
    a blue this palette does not have (§4) — on a word it flashed over the one thing the
    reader was looking at, forty times a page. The reader's own pressed states say what
@@ -548,21 +476,6 @@ button:active, select:active, .list-tab:active { color: var(--ink); border-color
 .player-play:active { background: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
 button.on { color: var(--paper); background: var(--ink-soft); border-color: var(--ink-soft); }
 
-[data-theme-toggle] {
-  display: grid;
-  place-items: center;
-  padding: 0.28rem 0.45rem;
-}
-[data-theme-toggle] svg {
-  width: 15px;
-  height: 15px;
-  display: block;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 
 /* --- reading surface ---------------------------------------------------- */
 
@@ -676,6 +589,12 @@ body.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
 .pair p { margin: 0; }
 .src { max-width: var(--measure); }
 .tr { max-width: var(--measure); color: var(--ink-soft); }
+/* A verse of commentary is several comments, joined with a newline and each opening with
+   the words it comments on (targum-internal#200). Without this they run together and read
+   as one comment, which is not Rashi being terse — it is three comments pretending to be
+   one, and a reader cannot tell that is wrong. `pre-line` keeps the breaks and still
+   wraps, so a long comment behaves like the prose it is. */
+.tr.commented { white-space: pre-line; }
 .pair:hover .tr, .pair:focus-visible .tr, .pair.here .tr { color: var(--ink); }
 
 /* A title and its translation sit side by side like any other pair, but read as a
@@ -1175,6 +1094,58 @@ body.marking .w.here,
 @media (hover: none) and (pointer: coarse) {
   .gloss-card .ask-go,
   .gloss-card .ask-field { min-height: 44px; }
+}
+
+
+/* --- saying a meaning is wrong (targum-internal#164, door 3) ---------------
+   Quiet, and under everything else on the card: a reader came to find out what a word
+   means, not to audit it. It is ink on paper rather than an accented key — the accent is
+   for the thing the card is for, and this is the thing it is not. */
+.gloss-card .fix-row { display: flex; flex-direction: column; gap: 0.4rem; }
+.gloss-card .fix-open {
+  align-self: start;
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.gloss-card .fix-open:hover { color: var(--ink); }
+.gloss-card .fix-form { display: flex; gap: 0.4rem; align-items: center; }
+.gloss-card .fix-field {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9375rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.gloss-card .fix-field:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.gloss-card .fix-go {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--paper);
+  cursor: pointer;
+}
+.gloss-card .fix-go:disabled { opacity: 0.5; cursor: default; }
+.gloss-card .fix-said { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+/* §8 again: these are controls, drawn to be pressed. */
+@media (hover: none) and (pointer: coarse) {
+  .gloss-card .fix-open,
+  .gloss-card .fix-go,
+  .gloss-card .fix-field { min-height: 44px; }
 }
 
 
@@ -1686,7 +1657,7 @@ body[data-case="Loc"] .w.case-Loc {
      of glass, the same 22px of ink. The inline growth stops at the midline of the gap
      to the neighbour, so a near-miss lands on the button it looks like it landed on. */
   :is(
-    .bar .group button, .modes button, .renderings .rendering, [data-theme-toggle],
+    .bar .group button, .modes button, .renderings .rendering,
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
@@ -1696,7 +1667,7 @@ body[data-case="Loc"] .w.case-Loc {
     position: relative;
   }
   :is(
-    .bar .group button, .modes button, .renderings .rendering, [data-theme-toggle],
+    .bar .group button, .modes button, .renderings .rendering,
     .vocab-editor .level, .keys-close,
     .player-play, .player-get, .player-close, .player-slower, .player-faster,
     .player-back, .player-on, .pair.voiced .say,
@@ -1721,13 +1692,15 @@ body[data-case="Loc"] .w.case-Loc {
      would unplace them; the rest are given one. */
   :is(
     .copy, .hear, .pick-card button, .pager a, .bar .levels .level,
-    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
+    .list-nav .list-back, .arrived button
   ) {
     position: relative;
   }
   :is(
     .copy, .hear, .grab, .list-tab, .pick-card button, .pager a, .bar .levels .level,
-    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .rest [id="rest-undo"]
+    .gloss-card .look-up, .vocab-editor .note-save, .waiting-note button, .foot-plain,
+    .list-nav .list-back, .arrived button
   )::after {
     content: "";
     position: absolute;
@@ -1883,7 +1856,8 @@ body[data-case="Loc"] .w.case-Loc {
 /* The pager and the offer at the foot belong to the end of the chapter, not to every
    page of it. */
 body.paged:not(.last-page) .pager,
-body.paged:not(.last-page) .rest { display: none; }
+body.paged:not(.last-page) .credits,
+body.paged:not(.last-page) .foot { display: none; }
 
 /* Turning the page. Two round buttons in the two bottom corners — back at the start
    edge, forward at the end edge, so each arrow points outward, toward the edge you
@@ -1946,7 +1920,7 @@ body.first-page .turn button[data-turn="-1"]:hover { background: var(--paper-rai
 /* Room under the last pair for the control to sit over. */
 body.paged main { padding-block-end: 1rem; }
 /* And on the last page, what sits under the text clears the arrows too. */
-body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
+body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
 
 @media print {
   .bar, .pager, .turn { display: none; }
@@ -2005,12 +1979,76 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 .waiting-note button:disabled { opacity: 0.6; cursor: default; }
 .waiting-note button[hidden] { display: none; }
 
-/* The offer at the foot of a part: the words never marked, known in one press. The
-   button carries ink; Undo is quieter. Same shape as the waiting note above the text. */
-.rest {
+/* The foot of a section is one block (design.md §12, "The foot is one block",
+   2026-09-25): where you are, one press, one quiet way to press it differently, and what
+   comes next, top to bottom and all at one edge. It was three strips — the playlist's
+   Next, the offer of the words never marked in leaf, and a leaf Done flush to the other
+   edge — and two primary colours a screen apart. Now one filled pill in the primary, the
+   one per view §13 allows, and everything else quiet. */
+.foot {
   max-width: calc(var(--measure) * 2 + var(--gap));
-  margin: 1.5rem auto 0;
-  padding: 0.25rem 1rem;
+  margin: 1.5rem auto 2rem;
+  padding: 1rem 1rem 0;
+  border-block-start: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.foot-press {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.foot-press[hidden] { display: none; }
+.foot-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.75rem;
+  padding: 0 1.4rem;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(var(--gloss), transparent) var(--teal);
+  color: var(--teal-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.foot-go:hover { filter: brightness(1.08); }
+.foot-go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The same press without the marking: a text link under it, never a second button. */
+.foot-plain {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.foot-plain:hover { color: var(--ink); }
+.foot-plain:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.foot-plain[hidden],
+.foot-next[hidden] { display: none; }
+.foot-next p { margin: 0; }
+/* On a phone the press takes the width, where a thumb finds it. */
+@media (max-width: 40rem) {
+  .foot-press { align-self: stretch; }
+  .foot-go { inline-size: 100%; }
+}
+
+/* Finished: the ink block, in the foot. Undo is the one press on it. */
+.finished {
+  box-sizing: border-box;
+  inline-size: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -2019,49 +2057,45 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
-.rest[hidden] { display: none; }
-.rest span { flex: 1; }
-/* Both buttons are about "known" and "done", which §4 gives to leaf — and they carry
-   the §9 gloss recipe a primary button is allowed: one sheen, light on glass, at 14%.
-   Undo is quieter. */
-.rest button,
+.finished[hidden] { display: none; }
+.finished > span { flex: 1; }
 .finished button {
   padding: 0.4rem 1rem;
   border: 0;
-  border-radius: 6px;
-  background: linear-gradient(var(--gloss), transparent) var(--leaf);
-  color: var(--paper);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: var(--lift);
-}
-.rest button:hover,
-.finished button:hover { filter: brightness(1.06); }
-.rest button[hidden] { display: none; }
-.rest #rest-undo,
-.finished button.undo {
+  border-radius: 999px;
   background: none;
   color: var(--ink);
-  border: 1px solid var(--rule);
-  font-weight: 400;
-  box-shadow: none;
+  font: inherit;
+  cursor: pointer;
 }
+.finished button:hover { filter: brightness(1.06); }
 
-/* Finished: the same strip, under the offer. Leaf for what has been done. */
-.finished {
+/* What the press before did, at the top of the page it led to: once, briefly, with the
+   Undo that takes it back. The first-time line's place and voice, and nothing moves. */
+.arrived {
   max-width: calc(var(--measure) * 2 + var(--gap));
-  margin: 1rem auto 0;
-  padding: 0.75rem 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1rem;
-  font-family: system-ui, sans-serif;
+  margin: 0 auto;
+  padding: 0.5rem 1.25rem 0;
+  font-family: var(--chrome);
   font-size: 0.8125rem;
   color: var(--ink-soft);
+  text-align: center;
 }
-.finished > span { flex: 1; }
+.arrived[hidden] { display: none; }
+.arrived button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.arrived button[hidden] { display: none; }
+.arrived button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Where to go next, at the foot of a finished text.
  *
@@ -2122,7 +2156,7 @@ body.paged .finished, body.paged .pager { margin-block-end: 6rem; }
 /* Both of them belong to the end of the text, so neither appears until the reader is at
    it. The suggestion was left out of this when it was added and turned up under page one
    of five, offering somewhere else to go to somebody who had just arrived. */
-body.paged:not(.last-page) .finished,
+body.paged:not(.last-page) .foot,
 body.paged:not(.last-page) .practice-step,
 body.paged:not(.last-page) .next-up { display: none; }
 
@@ -2130,69 +2164,61 @@ body.paged:not(.last-page) .next-up { display: none; }
    `room` takes its band out of every page — but the Done line and the suggestion come
    after the pairs and are not pairs, so without this they land underneath it. The last
    page is the one page allowed to scroll, and this is what it scrolls to. */
-body.has-player .finished,
+body.has-player .foot,
 body.has-player .next-up { margin-block-end: 9rem; }
+/* Only under whichever of them is last: the room under the foot, when the next section's
+   door stands under it, opened a gap between the press and the door (2026-09-25). */
+body.has-player .foot:has(+ .next-up:not([hidden])),
+body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
 
 /* Finished. The strip inverts to ink — §9's wake-up move, one block per screen, spent
-   on the one block that earned it — and brags the brand's way: a real count in the
-   reading face, tabular, leaf-bright on ink. Celebration in type, nothing moves. */
+   on the one block that earned it — and says what the section came to in three figures
+   (§12, 2026-09-25): "Finished · #14" with the Undo on its line, and three figures of
+   equal weight under it, each over its label. Figures in the reading face, tabular,
+   paper-white, with leaf for the one that is words known. Nothing moves. */
 .finished.is-done {
-  padding: 1rem 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  padding: 1rem 1.25rem 1.1rem;
   border-radius: 8px;
   background: var(--ink-max);
   color: var(--page-max);
   font-family: var(--reading);
   font-size: 1.0625rem;
 }
-.finished.is-done .cheer { display: block; font-weight: 600; }
-.finished.is-done .tally {
+.finished.is-done > span { grid-column: 1 / -1; grid-row: 1; }
+.finished.is-done > button.undo { grid-column: 2; grid-row: 1; margin-block-start: -0.35rem; }
+.finished.is-done .finished-head {
   display: block;
-  margin-block-start: 0.2rem;
-  color: color-mix(in srgb, var(--page-max) 72%, transparent);
-  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.finished.is-done .tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-block-start: 0.85rem;
+}
+.finished.is-done .tile,
+.list-end-tiles .tile { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+.finished.is-done .tile b {
+  color: var(--page-max);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 /* `.ledger` names the inverted block — the one surface the bright set is legal on. */
-.finished.ledger .tally b { color: var(--leaf-bright); font-size: 1.5rem; font-weight: 600; }
-/* What moved while this section was read (targum-internal#175): one line per count that
-   did, the delta then the standing, in the ledger's own treatment — real counts in the
-   reading face, tabular, one functional hue per line and paper-white where none is
-   earned. In the flow, under the tally, nothing to dismiss, and nothing moves. */
-.finished.is-done .move {
-  display: block;
-  margin-block-start: 0.15rem;
+.finished.ledger .tile:first-child b { color: var(--leaf-bright); }
+.finished.is-done .tile span {
   color: color-mix(in srgb, var(--page-max) 72%, transparent);
-  font-size: 0.9375rem;
-  font-variant-numeric: tabular-nums;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  line-height: 1.3;
 }
-.finished.is-done .move b { color: var(--page-max); font-weight: 600; }
-.finished.ledger .move.leaf b { color: var(--leaf-bright); }
-.finished.ledger .move.iris b { color: var(--iris-bright); }
-.finished.ledger .move.sun b { color: var(--sun); }
-/* The words (targum-internal#174): what was looked up here and how often before, what
-   was read here without a look-up having been looked up before, and the two or three
-   offered to the list. Each word in the reading face and bold, the sentence around it
-   quiet; never clay, never a percentage — counting look-ups is counting what is there,
-   and the tone is "looked up six times", not a verdict. The offer is a press, drawn as
-   the Undo beside it is: paper on ink, an outline, nothing lit. */
-.finished.is-done .move.cost,
-.finished.is-done .move.stopped,
-.finished.is-done .move.offer { margin-block-start: 0.5rem; line-height: 1.6; }
-.finished.is-done .move b[lang] { font-weight: 600; font-size: 1.0625rem; }
-.finished.is-done .move.offer { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
-.finished.is-done button.offer {
-  padding: 0.25rem 0.7rem;
-  border: 1px solid color-mix(in srgb, var(--page-max) 30%, transparent);
-  border-radius: 4px;
-  background: none;
-  color: var(--page-max);
-  font: inherit;
-  font-weight: 600;
-  box-shadow: none;
-}
-.finished.is-done button.offer:hover { border-color: var(--page-max); }
 @media (hover: none) and (pointer: coarse) {
-  /* §8: a control a thumb presses answers a tap over 44px. Done, Undo and the offer. */
+  /* §8: a control a thumb presses answers a tap over 44px. Done and Undo. */
   .finished button { min-height: 44px; }
 }
 .finished.is-done button.undo {
@@ -2397,7 +2423,7 @@ body.practice-hebrew .src { max-width: none; }
 /* A section kept by the practice is finished once the practice has read it through —
    the third reading of the aliyah, or the last verse — unless it is finished already,
    in which case its record and its Undo stay where they are. */
-body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.is-done) {
+body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-press {
   display: none;
 }
 
@@ -2782,6 +2808,9 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
 .player-clock {
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
+  /* A clock is one thing. On a 320px phone it broke at the stroke — "0:09 /" over
+     "0:48" — and the strip grew a third line to hold it. */
+  white-space: nowrap;
   color: var(--ink-soft);
   display: none;
 }
@@ -2877,6 +2906,23 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
    neither copy can become a second, disagreeing idea of the same action — the rule the
    picture's own button already follows by sharing an attribute rather than a class.
    Exactly one copy of each is shown at any width. */
+/* Who and what made the page, at the foot of the text (targum-internal#342): the
+   chrome's face, small and in the resting colour, a hairline over it. Quiet, and there. */
+.credits {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 2rem auto 0;
+  padding: 0.9rem 1.25rem 0;
+  border-block-start: 1px solid var(--rule);
+  font-family: var(--chrome, system-ui, sans-serif);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.credits .credit { margin: 0 0 0.4rem; }
+.credits a { color: inherit; }
+body.paged .credits { margin-block-end: 6rem; }
+.more-credit { display: block; margin-block-start: 0.35rem; font-size: 0.8125rem; color: var(--ink-soft); }
+
 .more-player { display: none; }
 .more-player .more-get,
 .more-player .more-close {
@@ -2970,9 +3016,8 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .finished:not(.
   aspect-ratio: var(--film, 16 / 9);
   object-fit: contain;
   border-radius: 4px;
-  /* A letterbox is dark in both themes — `--ink` flips to cream on the dark page,
-     which made the empty box the brightest thing on it. The dark page's own paper,
-     as a literal: the one place a theme-invariant dark field is the right answer. */
+  /* A letterbox is dark: §4's ink surface, as a literal, because there is no token
+     for a dark field on a page that has one look (2026-09-19). */
   background: #171614;
 }
 
@@ -3223,6 +3268,16 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
   }
   .video:not(.watching) .video-size svg { inline-size: 0.9rem; block-size: 0.9rem; }
   .video:not(.watching) .video-size:hover { background: var(--paper-raised); }
+
+  /* The bar across a vertical panel. It was written for 20rem and the upright dock is
+     narrower, so "Full screen" ran off the panel's edge and the corner and close keys
+     were under it. The panel is as wide as its keys need — still well short of the
+     landscape one — and the grip keeps its dots and drops its word, which is the one
+     word here a reader does not need to be told. */
+  .video.tall:not(.watching):not(.free) { inline-size: min(13.5rem, calc(100vw - 2.5rem)); }
+  .video.tall:not(.watching) .video-grip .video-word { display: none; }
+  .video.tall:not(.watching) .video-grip { flex: 0 0 auto; }
+  .video.tall:not(.watching) .video-mode { margin-inline-end: auto; }
 }
 
 .video.watching .video-keys { gap: 0.5rem; margin: 1rem; }
@@ -3281,6 +3336,11 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
   background: #171614;
   z-index: 40;
   display: grid;
+  /* One cell the size of the window, said out loud. Left implicit the track is `auto`,
+     and an `auto` track is sized by what is in it: a film at the size the importer
+     keeps (480x854 for a reel) made the row 2562px tall on a 900px window, with the
+     line and the transport under the fold. The fixture films are 64px and never did. */
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
 }
 /* Everything in the one cell, so the picture, the titles, the keys and the transport
    stack without any of them being taken out of the flow and placed by hand. */
@@ -3288,6 +3348,8 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
 .video.watching .video-el {
   inline-size: 100%;
   block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
   aspect-ratio: auto;
   border-radius: 0;
 }
@@ -3296,10 +3358,15 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
   align-self: start;
   flex-direction: row;
   margin: 0.75rem;
+  /* The band's docked keys carry a pale ground to stand on a film (below 60rem). These
+     are pills with a ground of their own, and the box stayed on behind them on a phone
+     held sideways — the portrait block had already taken it off (R-07). */
+  background: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
-/* Over a film, not over a page: the paper as a literal rather than as the token, which
-   flips to near-black on the dark theme and would put dark keys on a dark frame. The
-   same reason the letterbox above is written out. */
+/* Over a film, not over a page: the paper as a literal, beside the letterbox's
+   literal above, so the pair that draws the frame is written in one place. */
 .video.watching .video-close,
 .video.watching .video-mode { color: color-mix(in srgb, #fbf9f5 80%, transparent); }
 .video.watching .video-close:hover,
@@ -3371,7 +3438,7 @@ body.watching { overflow: hidden; }
      and the transport rather than between the picture and the line — a caption is part
      of the frame it belongs to, and half a screen of paper between them makes it a
      paragraph about the film instead. */
-  .video.watching { grid-template-rows: auto auto 1fr; }
+  .video.watching { grid-template-rows: auto auto minmax(0, 1fr); }
   .video.watching .video-el {
     grid-row: 1;
     align-self: start;
@@ -3386,9 +3453,12 @@ body.watching { overflow: hidden; }
     margin-block-start: 0;
     block-size: 100%;
     inline-size: auto;
+    /* Sized by its height, and never past the window: a 9:16 film in a window a little
+       squarer than 9:16 is wider than the screen at full height. */
+    max-inline-size: 100%;
     justify-self: center;
   }
-  .video.watching.tall { grid-template-rows: 1fr auto auto; }
+  .video.watching.tall { grid-template-rows: minmax(0, 1fr) auto auto; }
   .video.watching.tall .video-titles { grid-row: 2; }
   .video.watching.tall .player { grid-row: 3; }
   .video.watching .video-keys { grid-row: 1; align-self: start; }
@@ -3451,6 +3521,7 @@ body.watching { overflow: hidden; }
     margin-block-start: 0;
     block-size: 100%;
     inline-size: auto;
+    max-inline-size: 100%;
     justify-self: center;
   }
   .video.watching .video-tap-glyph { display: none; }
@@ -3470,6 +3541,65 @@ body.watching { overflow: hidden; }
    and this margin is the room the transport takes when the line is over it. */
 @media (max-width: 46rem) and (orientation: landscape) {
   .video.watching .video-titles { margin-block-end: 5rem; }
+}
+
+/* An upright film in a window that is not. Held to the window's height the picture is a
+   column in the middle of it with a letterbox either side wider than itself — and the
+   line and the transport were both laid across that one column: on a phone turned
+   sideways they covered two thirds of the picture, and at any size they sat where a
+   reel burns its own captions in. The empty room is beside the picture, so that is
+   where they go: the film at the start, the line it is saying next to it as text, the
+   transport under the line. Nothing stands on the picture but its own keys. */
+@media (orientation: landscape) {
+  /* `:not([hidden])` for its weight: below 60rem the rule that lifts watching out of
+     the band is written last, carries it too, and sets the padding to nought. */
+  .video.watching.tall:not([hidden]) {
+    grid-template: minmax(0, 1fr) auto / auto minmax(0, 36rem);
+    justify-content: center;
+    column-gap: 2rem;
+    padding-inline: 1rem;
+  }
+  /* A strip at the foot of a phone is square because it meets the window's edges. Here
+     it stands free on the letterbox, so it is a panel (§8). */
+  .video.watching.tall .player { border-radius: 8px; }
+  .video.watching.tall .video-el {
+    grid-area: 1 / 1 / -1 / 2;
+    justify-self: center;
+    inline-size: auto;
+    max-inline-size: 45vw;
+  }
+  .video.watching.tall .video-titles {
+    grid-area: 1 / 2;
+    align-self: center;
+    justify-self: stretch;
+    inline-size: auto;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+  .video.watching.tall .player {
+    grid-area: 2 / 2;
+    inline-size: 100%;
+  }
+  /* In the grid, at the far end from the picture — below 60rem the band places the keys
+     by hand at the start, which here is half on the film and half off it. */
+  .video.watching.tall .video-keys {
+    position: relative;
+    inset: auto;
+    grid-area: 1 / 1 / -1 / -1;
+  }
+  /* The tap that plays is the picture's, here as in portrait: spread over the window it
+     put its disc in the middle of the line being read. */
+  .video.watching.tall .video-tap {
+    position: relative;
+    inset: auto;
+    grid-area: 1 / 1 / -1 / 2;
+    justify-self: center;
+    block-size: 100%;
+    inline-size: auto;
+    max-inline-size: 45vw;
+    aspect-ratio: var(--film, 9 / 16);
+  }
 }
 
 /* The word list slides in from the same edge, so the player steps aside for it rather
@@ -3757,6 +3887,29 @@ html:fullscreen { background: var(--paper); }
     inset-inline: 0;
   }
 
+  /* A vertical film is an occupant of the band like any other: the sheet is the width
+     of the window and the picture stands in the middle of it, sized by its height. The
+     wide window's narrow panel (`.video.tall`, four classes) outranked the sheet, so a
+     reel on a phone was an 11rem box in the corner with the page showing beside it —
+     and in a Hebrew text the corner it took is where every line begins. */
+  .video.tall:not(.watching):not(.free) {
+    inline-size: auto;
+    justify-content: center;
+  }
+  .video.tall:not(.watching) .video-el {
+    flex: none;
+    inline-size: auto;
+    block-size: min(16rem, calc(45svh - 1.75rem));
+  }
+  /* Beside the picture rather than on it, so on the sheet's own ground — and down the
+     edge, because a row of three reaches back over a picture this narrow. */
+  .video.tall:not(.watching) .video-keys {
+    flex-direction: column;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   /* --- the strip --- */
   body .player,
   body.paged .player {
@@ -3802,6 +3955,15 @@ html:fullscreen { background: var(--paper); }
 
   /* --- the page, above the lot --- */
   body { padding-block-end: var(--foot, 0px); }
+
+  /* --- and below what stands at the top --- */
+  /* A picture docked at the top is a resident too, and takes its room out of the page
+     like the rest: the page begins under it, and the bar — the one strip that is always
+     targum's — sticks under it rather than behind it. `--head` is `reader.js`'s measure
+     of it, and nothing when nothing is there. Not while watching: the picture is the
+     window then, and the measure is not taken. */
+  body { padding-block-start: var(--head, 0px); }
+  .bar { inset-block-start: var(--head, 0px); }
 
   /* --- how it moves --- */
   /* An occupant rises from the foot of the window, and what stands on the band — the
@@ -4010,6 +4172,15 @@ html:fullscreen { background: var(--paper); }
 
 /* Folded shut. A learner who wants the table opens it; somebody reading a sentence is
    not handed thirty-three forms they did not ask for. */
+/* The other verbs built on this one's root (targum-internal#301). A reading and not a
+   control: nothing here is pressed, so nothing is ink and nothing claims the 44px reach
+   §8 asks of a control. One verb a line, its binyan after it, its meaning after that. */
+.card-kin { display: grid; gap: 0.15rem; margin: 0.6rem 0 0; }
+.card-kin-head { font-size: 0.6875rem; color: var(--ink-soft); }
+.card-kin-verb { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: baseline; }
+.card-kin-word { font-family: var(--reading-hebrew); font-size: 0.9375rem; color: var(--ink); }
+.card-kin-binyan { font-size: 0.6875rem; color: var(--ink-soft); }
+.card-kin-meaning { font-size: 0.8125rem; color: var(--ink-soft); }
 .card-conj { margin-block-start: 0.6rem; }
 .card-conj > summary {
   cursor: pointer;
@@ -4046,4 +4217,236 @@ html:fullscreen { background: var(--paper); }
   border-block-start: 1px solid var(--hairline);
   color: var(--ink-soft);
   font-size: 0.8125rem;
+}
+
+/* --- a reader opened from a playlist (targum-internal#366) ----------------------------
+   Next and Back at the foot of the text, where an article is left after it has been
+   read, and Next among the picture's keys, where a reel is watched. The library's own
+   suggestion steps aside: a playlist already knows what is next. Nothing here moves, so
+   there is nothing for reduced motion to stop — the next item replaces this one. */
+.in-list .next-up:not(.here) { display: none; }
+
+/* Where you are, at the head of the foot: "← Back · Couples and everyday life, 2 of 3".
+   Back is a link on the line, not a pill beside the press (2026-09-25). */
+.list-nav { margin: 0; color: var(--ink-soft); }
+.list-nav .list-back {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.list-nav .list-back:hover { text-decoration: underline; }
+.list-nav .list-back:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.list-up-next,
+.list-waiting { margin: 0; }
+/* Past the last item the end card is the way on, so the press that led to it goes. */
+.list-ended .foot-press { display: none; }
+body.has-player.list-ended .list-end {
+  margin-block-end: calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 2rem);
+}
+
+/* In the picture's keys, Back and Next are pills among its own keys. */
+.list-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2.5rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.list-key:hover { background: var(--teal-wash); color: var(--ink); }
+.list-key.list-next { background: var(--teal); color: var(--teal-ink); }
+.list-key.list-next:hover { background: var(--teal); color: var(--teal-ink); filter: brightness(1.08); }
+.list-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-key { min-block-size: 44px; }
+}
+
+/* In the picture's keys it is one of them, not a second style. Shown only while
+   watching: docked, the foot of the text has its own. */
+.video-list-next,
+.video-list-back { display: none; }
+.video.watching .video-list-next,
+.video.watching .video-list-back { display: inline-flex; }
+
+.list-end {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 2rem;
+  padding: 0 1rem;
+}
+.list-end[hidden] { display: none; }
+
+/* The end card (#367): the words met, as words in their own face and direction, and
+   its one door, a tonal pill (§13) — nothing that moves. Chrome, so the chrome's face;
+   the words themselves are content, and keep the reading face. */
+.list-end { font-family: var(--chrome); font-size: 0.9375rem; color: var(--ink); }
+/* The playlist added up (§12, "The finished box is three figures"): the same figures
+   as the box, on paper here — the box above is the page's one ink block. */
+.list-end-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.list-end-tiles .tile b {
+  font-family: var(--reading);
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.list-end-tiles .tile:nth-child(2) b { color: var(--leaf); }
+.list-end-tiles .tile span { color: var(--ink-soft); font-size: 0.8125rem; line-height: 1.3; }
+.list-end-words,
+.list-end-lead,
+.list-end-over { margin: 0.5rem 0; }
+.list-end-lead { color: var(--ink-soft); font-size: 0.8125rem; }
+.list-end-list {
+  list-style: none;
+  margin: 0.5rem 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+}
+.list-end-list li { color: var(--ink-soft); }
+.list-end-list li.new { color: var(--ink); }
+.list-end-next,
+.list-end-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-inline-size: 100%;
+  min-block-size: 2.5rem;
+  margin-block-start: 0.25rem;
+  padding: 0 1rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.list-end-next:hover,
+.list-end-home:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.list-end-next:focus-visible,
+.list-end-home:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-end-next,
+  .list-end-home { min-block-size: 44px; }
+}
+
+/* Add to playlist, in the bar's This text group: drawn as the bar's other controls are —
+   a pill with no line until the pointer or the focus finds it, in the bar's ink — and
+   never as a bare link. */
+.bar .group .more-playlist {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.bar .group .more-playlist:hover,
+.bar .group .more-playlist:focus-visible { color: var(--ink); border-color: var(--rule); }
+.bar .group .more-playlist[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
+.bar-more.open .group .more-playlist { border-color: var(--rule); }
+@media (hover: none) and (pointer: coarse) {
+  .bar .group .more-playlist { min-block-size: 44px; }
+}
+
+/* Add to a playlist, in place (2026-09-24): a floating panel under the press, on every
+   page that has a shelf row or a reader's ⋯ menu. §13: radius 24 for a floating panel,
+   the playlists as tonal presses, Confirm the one filled press in it. */
+.playlist-menu {
+  position: fixed;
+  z-index: 60;
+  inline-size: min(18rem, calc(100vw - 1rem));
+  padding: 0.5rem;
+  border-radius: 24px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--lift, 0 8px 28px rgba(0, 0, 0, 0.16));
+  font-family: var(--chrome, system-ui, sans-serif);
+  font-size: 0.9375rem;
+}
+.playlist-menu .pm-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  max-block-size: 14rem;
+  overflow-y: auto;
+}
+.playlist-menu .pm-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  inline-size: 100%;
+  min-block-size: 2.5rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.playlist-menu .pm-choice:hover,
+.playlist-menu .pm-choice:focus-visible { background: var(--teal-wash); }
+.playlist-menu .pm-choice bdi { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.playlist-menu .pm-count { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.playlist-menu .pm-new { display: flex; gap: 0.5rem; }
+.playlist-menu .pm-name {
+  flex: 1;
+  min-inline-size: 0;
+  min-block-size: 2.5rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 12px;
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+}
+.playlist-menu .pm-confirm {
+  min-block-size: 2.5rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal);
+  color: var(--teal-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.playlist-menu .pm-confirm:hover { filter: brightness(1.08); }
+.playlist-menu .pm-choice:focus-visible,
+.playlist-menu .pm-confirm:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.playlist-menu .pm-name:focus-visible { outline: 0; box-shadow: inset 0 0 0 2px var(--teal); }
+.playlist-menu .pm-status { margin: 0.5rem 0.25rem 0; color: var(--ink-soft); }
+.playlist-menu .pm-status.bad { color: var(--clay); }
+@media (pointer: coarse) {
+  .playlist-menu .pm-choice,
+  .playlist-menu .pm-name,
+  .playlist-menu .pm-confirm { min-block-size: 2.75rem; }
 }

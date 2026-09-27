@@ -446,17 +446,18 @@ def test_a_reader_with_words_already_is_not_told_how_to_mark_one() -> None:
 # -- the offer at the foot of a part ---------------------------------------------
 
 
-def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
-    """ "Words should be marked as known automatically when I'm done with the article."
-    Offered, never done for you: the words you never marked, in one press, with the
-    number said. The ones you are working on are left alone."""
+def test_the_press_says_both_halves_and_does_both() -> None:
+    """design.md §12, "The foot is one block" (2026-09-25). The words you never marked are
+    offered with the finish, in one press that says both halves before it is pressed —
+    offered, never done for you — and a quiet link under it that finishes alone. The ones
+    you are working on are left alone."""
     words, lemmas = chapter(["a", "b", "c"])
     before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
-    assert before["rest"] == {
-        "hidden": False,
-        "text": "",
-        "button": "Mark 2 words as known",
-        "undo": False,
+    assert before["foot"] == {
+        "press": "Done, and mark 2 words known",
+        "pressHidden": False,
+        "plain": "Done without marking",
+        "finished": False,
     }
     after = run(
         [],
@@ -464,35 +465,62 @@ def test_the_rest_is_offered_and_one_press_marks_it_known() -> None:
         lemmas=lemmas,
         vocab={},
         levels=[{"word": "a", "status": 2}],
-        markRest=True,
+        presses=[True],
     )
     assert [item["lemma"] for item in after["queue"]] == ["a"], "still learning a; b and c known"
-    assert after["rest"]["text"] == "2 words marked known"
-    assert after["rest"]["undo"] is True
+    assert after["finished"]["at"] > 0, "and the section is finished by the same press"
+    assert after["foot"]["finished"] is True and after["foot"]["pressHidden"] is True
 
 
-def test_one_undo_takes_the_whole_batch_back() -> None:
+def test_the_quiet_link_finishes_without_marking() -> None:
+    words, lemmas = chapter(["a", "b"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[False])
+    assert done["finished"]["at"] > 0
+    assert [item["lemma"] for item in done["queue"]] == ["a", "b"], "nothing was marked"
+
+
+def test_one_undo_takes_back_the_finish_and_the_words() -> None:
+    words, lemmas = chapter(["a", "b", "c", "d"])
+    done = run([], chapter=words, lemmas=lemmas, vocab={}, presses=[True, "undo"])
+    assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
+    assert done["finished"]["at"] == 0
+    assert done["foot"]["press"] == "Done, and mark 4 words known"
+
+
+def test_the_batch_still_has_its_own_undo() -> None:
     words, lemmas = chapter(["a", "b", "c", "d"])
     done = run([], chapter=words, lemmas=lemmas, vocab={}, markRest=True, undoAfter=True)
     assert [item["lemma"] for item in done["queue"]] == ["a", "b", "c", "d"]
-    assert done["rest"]["button"] == "Mark 4 words as known"
 
 
-def test_marking_the_rest_takes_the_names_with_it_but_never_counts_them() -> None:
+def test_the_press_takes_the_names_with_it_but_never_counts_them() -> None:
     """The whole point is a clean page, so a name is marked with the rest — and it still
-    counts for nothing, because its record keeps "name" as its band, which is what every
-    count reads."""
+    counts for nothing, so the press does not call it a word."""
     rows = {"s0": [[0, 1, 3, 0, 0, 0, 0], [2, 3, 0, 0, 1, 0, 1], [4, 5, 3, 0, 2, 0, 0]]}
-    done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, markRest=True)
-    assert done["rest"]["text"] == "3 words marked known"
+    before = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={})
+    assert before["foot"]["press"] == "Done, and mark 2 words known"
+    done = run([], chapter=rows, lemmas=["a", "Name", "c"], vocab={}, presses=[True])
     assert done["queue"] == [], "nothing left lit"
     assert done["list"] == [], "and nothing on the list"
 
 
-def test_nothing_is_offered_on_a_part_with_nothing_left() -> None:
+def test_nothing_left_to_mark_is_plain_done() -> None:
     words, lemmas = chapter(["a"])
     done = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}})
-    assert done["rest"]["hidden"] is True
+    assert done["foot"]["plain"] == ""
+
+
+def test_in_a_playlist_the_press_is_next_and_on_the_last_item_finish() -> None:
+    words, lemmas = chapter(["a", "b"])
+    middle = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next")["foot"]
+    assert middle["press"] == "Next, and mark 2 words known"
+    assert middle["plain"] == "Next without marking"
+    last = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="finish")["foot"]
+    assert last["press"] == "Finish, and mark 2 words known"
+    assert last["plain"] == "Finish without marking"
+    # Finished, the press is still the way on in a playlist, and marks nothing.
+    finished = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[False])
+    assert finished["foot"]["press"] == "Next" and finished["foot"]["pressHidden"] is False
 
 
 # -- pages, not a scroll ----------------------------------------------------------
@@ -592,16 +620,17 @@ def test_done_is_said_once_however_often_it_is_pressed() -> None:
     count on the progress page can only ever move by one."""
     words, lemmas = chapter(["a"])
     fresh = run([], chapter=words, lemmas=lemmas)["finished"]
-    assert fresh["at"] == 0 and fresh["button"] == "Done" and fresh["said"] == ""
+    assert fresh["at"] == 0 and fresh["said"] == ""
+    assert fresh["button"] == "Done, and mark 1 word known"
+    assert fresh["shown"] is False, "the ink block waits for the finish"
 
     done = run([], chapter=words, lemmas=lemmas, finish=[True])["finished"]
     assert done["at"] > 0 and done["record"] == done["at"], "written where the sync reads it"
-    assert done["button"] == "Undo"
-    assert done["said"].startswith("You finished a targum.")
-    assert "1st" in done["said"], "and how many so far"
+    assert done["shown"] is True, "the ink block, with its Undo"
+    assert done["said"].startswith("Finished · #1"), "and how many so far"
 
     back = run([], chapter=words, lemmas=lemmas, finish=[True, False])["finished"]
-    assert back["at"] == 0 and back["button"] == "Done"
+    assert back["at"] == 0 and back["shown"] is False
 
 
 def test_a_chapter_of_a_book_is_finished_on_its_own() -> None:
@@ -618,7 +647,7 @@ def test_a_chapter_of_a_book_is_finished_on_its_own() -> None:
     assert done["sections"] == {"3": done["at"]}, "and it is the chapter that is recorded"
     assert done["record"] == 0, "the book is not finished by one chapter of it"
     assert done["tally"] == 1, "and it is worth one finished targum"
-    assert done["said"].startswith("You finished a targum.")
+    assert done["said"].startswith("Finished · #1")
 
     back = run([], chapter=words, lemmas=lemmas, section=3, sections=50, finish=[True, False])[
         "finished"
@@ -699,7 +728,7 @@ def test_the_count_of_finished_targums_is_this_languages() -> None:
         "finished"
     ]
     assert done["tally"] == 2, "the Italian one before it and this one, not the Hebrew"
-    assert "2nd" in done["said"]
+    assert done["said"].startswith("Finished · #2")
 
 
 def test_finishing_survives_everything_else_the_reader_writes() -> None:
@@ -969,12 +998,11 @@ def test_a_deck_name_cannot_nest_deeper_than_the_text() -> None:
     assert deck(WORD, name="Genesis::1")[3] == "#deck:targum::Genesis:1"
 
 
-# --- what moved, delivered rather than visited ----------------------------------------
+# --- what the section came to ---------------------------------------------------------
 #
-# targum-internal#175. /progress is a destination a reader has to choose to visit; a
-# rating put in front of you at the end of every game is not. The foot of a finished
-# section says what moved while it was read — the delta, then the standing — and only
-# what moved.
+# design.md §12, "The finished box is three figures" (2026-09-25), after #174 and #175:
+# "Finished · #N", then three figures of equal weight — words that became known here,
+# the share known here, and words looked up here. This text only, and a zero is a 0.
 
 
 def _days(*ago: int) -> dict[str, int]:
@@ -983,64 +1011,65 @@ def _days(*ago: int) -> dict[str, int]:
     return {(date.today() - timedelta(days=n)).isoformat(): 1 for n in ago}
 
 
-def test_the_foot_says_what_moved_while_the_section_was_read() -> None:
+def test_the_box_says_three_figures_for_this_text() -> None:
     words, lemmas = chapter(["a", "b"])
     done = run(
         [],
         chapter=words,
         lemmas=lemmas,
         levels=[{"word": "a", "status": 9}],
+        looked=[1],
         finish=[True],
     )["finished"]
     said = done["said"]
-    assert said.startswith("You finished a targum."), "the finish is still said first"
-    assert "1 newly known · 1 known" in said, "the delta, then the standing"
-    assert "1 newly saved · 1 saved" in said
-    assert "day 1 reading" in said, "opened on a new reading day, so the day moved"
-    assert "running" not in said, "a run of one day is not a run"
+    assert said.startswith("Finished · #1")
+    assert "+1word known" in said, "the word that became known while it was read"
+    assert "50%known here" in said, "the header's own share, after the press"
+    assert "1word looked up" in said
+    for standing in ("known ·", "saved", "reading", "running"):
+        assert standing not in said, f"{standing!r} is a standing, and it lives on Progress"
 
 
-def test_a_section_where_nothing_moved_says_the_finish_and_no_zeroes() -> None:
+def test_a_zero_is_said_as_zero_so_the_figures_never_move() -> None:
     words, lemmas = chapter(["a"])
-    done = run(
+    said = run(
         [],
         chapter=words,
         lemmas=lemmas,
         vocab={"x": {"status": 9, "surface": "x", "at": 1}},
         stored={"targum:days": json.dumps(_days(0))},
         finish=[True],
-    )["finished"]
-    said = done["said"]
-    assert said.startswith("You finished a targum.")
-    for word in ("newly", "reading", "running", "0 "):
-        assert word not in said, f"{word!r} is a zero, and a zero is not said"
+    )["finished"]["said"]
+    assert "+0words known" in said and "0%known here" in said and "0words looked up" in said
 
 
-def test_the_longest_run_is_announced_on_the_day_it_rises_and_on_no_other() -> None:
-    words, lemmas = chapter(["a"])
-    # Read yesterday and the day before; today makes three in a row for the first time.
-    risen = run(
+def test_the_press_that_marks_counts_its_words_as_known() -> None:
+    """The words the press marks are marked before the finish is written, so they are
+    among the known — "Done, and mark 2 words known" says +2."""
+    words, lemmas = chapter(["a", "b"])
+    said = run([], chapter=words, lemmas=lemmas, presses=[True])["finished"]["said"]
+    assert "+2words known" in said and "100%known here" in said
+
+
+def test_no_run_and_no_word_list_is_said() -> None:
+    words, lemmas = chapter(["a", "b", "c"])
+    said = run(
         [],
         chapter=words,
         lemmas=lemmas,
-        stored={"targum:days": json.dumps(_days(1, 2))},
+        stored={
+            "targum:days": json.dumps(_days(1, 2)),
+            "targum:cards:he": json.dumps({"a": {"n": 5, "at": 1}, "c": {"n": 3, "at": 1}}),
+        },
+        looked=[0, 1, 1],
         finish=[True],
     )["finished"]["said"]
-    assert "3 days running · your longest" in risen
-    assert "day 3 reading" in risen
-    # Read three days ago and the day before that; today starts a run of one, and the
-    # longest stays two, so nothing about a run is said.
-    quiet = run(
-        [],
-        chapter=words,
-        lemmas=lemmas,
-        stored={"targum:days": json.dumps(_days(3, 4))},
-        finish=[True],
-    )["finished"]["said"]
-    assert "running" not in quiet and "day 3 reading" in quiet
+    assert "2words looked up" in said, "distinct words, not taps"
+    for gone in ("running", "reading", "Looked up here", "without a look-up", "Keep on your"):
+        assert gone not in said
 
 
-def test_taking_the_finish_back_takes_the_movement_with_it() -> None:
+def test_taking_the_finish_back_takes_the_figures_with_it() -> None:
     words, lemmas = chapter(["a"])
     back = run(
         [],
@@ -1049,71 +1078,10 @@ def test_taking_the_finish_back_takes_the_movement_with_it() -> None:
         levels=[{"word": "a", "status": 9}],
         finish=[True, False],
     )["finished"]
-    assert back["said"] == "" and back["button"] == "Done"
+    assert back["said"] == "" and back["shown"] is False
 
 
-# --- which words cost the most ---------------------------------------------------------
-#
-# targum-internal#174. The gloss tap only fires when the reader already knows they are
-# stuck, and nothing volunteers what went wrong. The foot says which words were looked
-# up here and how often before, which were read here without a look-up having been
-# looked up before, and offers the most-repeated to the list. Counts, never a verdict.
-
-
-def test_the_foot_says_which_words_were_looked_up_and_how_often_before() -> None:
-    words, lemmas = chapter(["a", "b", "c"])
-    said = run(
-        [],
-        chapter=words,
-        lemmas=lemmas,
-        stored={"targum:cards:he": json.dumps({"a": {"n": 5, "at": 1}})},
-        looked=[0, 1, 1],
-        finish=[True],
-    )["finished"]["said"]
-    assert "Looked up here: " in said
-    assert "a, looked up 5 times before" in said, "counted across everything read before"
-    assert "b, the first time" in said, "twice here, never before: still the first time"
-    assert said.index("a, looked") < said.index("b, the"), "the most-repeated first"
-    assert "c" not in said.split("Looked up here: ")[1].split("Keep")[0].replace("c", "")
-
-
-def test_a_word_read_without_a_look_up_that_once_needed_one_is_the_progress_half() -> None:
-    words, lemmas = chapter(["a", "b"])
-    said = run(
-        [],
-        chapter=words,
-        lemmas=lemmas,
-        stored={"targum:cards:he": json.dumps({"b": {"n": 3, "at": 1}, "z": {"n": 9, "at": 1}})},
-        finish=[True],
-    )["finished"]["said"]
-    assert "Read here without a look-up, looked up before: b" in said
-    assert "Looked up here" not in said, "nothing was looked up, so that half is not said"
-    assert "z" not in said, "a word that does not appear here is not progress here"
-    assert "%" not in said and "score" not in said.lower()
-
-
-def test_the_most_repeated_words_are_offered_to_the_list_and_kept_ones_are_not() -> None:
-    words, lemmas = chapter(["a", "b", "c", "d"])
-    said = run(
-        [],
-        chapter=words,
-        lemmas=lemmas,
-        vocab={"c": {"status": 2, "surface": "c", "at": 1}},
-        stored={
-            "targum:cards:he": json.dumps(
-                {"a": {"n": 6, "at": 1}, "b": {"n": 2, "at": 1}, "c": {"n": 8, "at": 1}}
-            )
-        },
-        looked=[0, 1, 2, 3],
-        finish=[True],
-    )["finished"]["said"]
-    offered = said.split("Keep on your list: ")[1]
-    assert offered.startswith("ab"), "the most looked-up first, and only words not yet kept"
-    assert "c" not in offered, "already on the list, so not offered"
-    assert "d" in offered, "a first look-up can still be offered"
-
-
-def test_a_name_is_never_a_word_that_cost() -> None:
+def test_a_name_looked_up_is_not_a_word_looked_up() -> None:
     words, lemmas = chapter(["a", "Tom"])
     # A name, marked the way the annotator marks one: the seventh column says so.
     for rows in words.values():
@@ -1121,7 +1089,7 @@ def test_a_name_is_never_a_word_that_cost() -> None:
             if lemmas[row[4]] == "Tom":
                 row.extend([0, 1])
     said = run([], chapter=words, lemmas=lemmas, looked=[1], finish=[True])["finished"]["said"]
-    assert "Looked up here" not in said
+    assert "0words looked up" in said
 
 
 # --- the switch between renderings (targum-internal#199) ------------------------
@@ -1618,3 +1586,57 @@ def test_a_split_words_pieces_are_said_in_the_pages_language() -> None:
         "ו и + ל к + בית + его",
         "מ из + ה артикль + ספר + with a pronoun on the end",
     ]
+
+
+def test_a_french_noun_is_kept_on_the_list_with_its_article() -> None:
+    """targum-internal#263, change 4: the list and the file store the form a word was met
+    in, so a noun met as *l'école* is kept with no way to see it is feminine — and the
+    article is the only place its gender shows.
+
+    The Anki cards already named it; the list beside the text and the CSV did not, which
+    is where a reader actually looks at their own words.
+    """
+    # One sentence, three words, each token pointing at its own grammar line: the ninth
+    # field is the index into the table the builder ships.
+    words = {
+        "s0": [
+            [0, 6, 3, 0, 0, 0, 0, 0, 0],
+            [7, 12, 3, 0, 1, 0, 0, 0, 1],
+            [13, 19, 3, 0, 2, 0, 0, 0, 2],
+        ]
+    }
+    lemmas = ["école", "livre", "manger"]
+    grammar = [
+        "UPOS=NOUN|Gender=Fem|Number=Sing",
+        "UPOS=NOUN|Gender=Masc|Number=Sing",
+        "UPOS=VERB|VerbForm=Inf",
+    ]
+    rows = run(
+        [],
+        language="fr",
+        chapter=words,
+        lemmas=lemmas,
+        grammar=grammar,
+        vocab={lemma: {"status": 2} for lemma in lemmas},
+    )["list"]
+
+    shown = {row["lemma"]: row["shown"] for row in rows}
+    assert shown["école"] == "une école", "the gender l' and les hide"
+    assert shown["livre"] == "un livre"
+    assert shown["manger"] == "manger", "a verb keeps the form it was met in"
+
+
+def test_a_noun_outside_french_keeps_the_form_it_was_met_in() -> None:
+    """The article is French's alone: a Hebrew or Russian noun is left exactly as it was,
+    and nothing on those pages pays for the lookup."""
+    words = {"s0": [[0, 4, 3, 0, 0, 0, 0, 0, 0]]}
+    for language, lemma in (("he", "ספר"), ("ru", "книга")):
+        rows = run(
+            [],
+            language=language,
+            chapter=words,
+            lemmas=[lemma],
+            grammar=["UPOS=NOUN|Gender=Fem|Number=Sing"],
+            vocab={lemma: {"status": 2}},
+        )["list"]
+        assert [row["shown"] for row in rows] == [lemma], language

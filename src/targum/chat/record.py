@@ -173,3 +173,69 @@ def outside_share(lines: list[list[dict[str, Any]]], allowed: set[str]) -> float
             if word.get("lemma") not in allowed:
                 outside += 1
     return outside / total if total else 0.0
+
+
+# --- what changed between what they wrote and what came back ---------------------------
+
+#: Stripped from the edge of a word before it is compared. A recast is a clean sentence
+#: and a reader's line is usually not: the maqaf and the geresh are Hebrew's own, and the
+#: rest is what either of them might end on.
+PUNCTUATION = ".,!?;:\u05be\u05f3\u05f4\"'()[]\u2014\u2013-\u2026"
+
+
+def _bare(word: str) -> str:
+    """One word without its points or the punctuation around it.
+
+    `strip_nikkud` answers with its index map too, which is what a span needs and not
+    what a comparison does. The punctuation goes because a recast ends in a full stop the
+    reader's line often does not, and "sentence." against "sentence" is not a correction.
+    """
+    bare, _ = strip_nikkud(word)
+    return bare.strip(PUNCTUATION)
+
+
+def changed_words(wrote: str, recast: str) -> list[str]:
+    """The words of the recast that the reader did not write, in the recast's order.
+
+    The diff behind two things at once: the label #242 wants on a corrected line, and the
+    record #290 keeps of what a reader got wrong. One implementation, because two diffs
+    of the same pair would eventually disagree about whether a line was corrected.
+
+    **Compared without vowel points.** The model is asked to point every word it writes
+    and the reader almost never does, so a comparison that counted the points would call
+    every line wrong — and the one thing this must never do is report a correction that
+    did not happen. `strip_nikkud` is the same normalisation the annotator uses, so a
+    word matches here exactly when it is the same word there.
+
+    **Order is not a change.** Hebrew word order is one of the things a recast fixes, and
+    a reader who wrote the right words in the wrong order has made a mistake worth
+    keeping — but the words themselves are not what changed, and listing all of them
+    would say they were all wrong. Multiplicity is kept, so a word written once and
+    recast twice shows the second.
+    """
+    mine = [_bare(word) for word in wrote.split() if word.strip()]
+    theirs = [(word, _bare(word)) for word in recast.split() if word.strip()]
+    spare: dict[str, int] = {}
+    for bare in mine:
+        spare[bare] = spare.get(bare, 0) + 1
+    out: list[str] = []
+    for word, bare in theirs:
+        if spare.get(bare, 0) > 0:
+            spare[bare] -= 1
+            continue
+        out.append(word)
+    return out
+
+
+def rewritten(wrote: str, recast: str) -> bool:
+    """Whether the recast changed the reader's Hebrew at all.
+
+    Not `wrote != recast`: the recast is pointed and the reader's line is usually not, so
+    the strings differ on nearly every correct sentence. What makes a line a slip is that
+    a word is there which the reader did not write, or that one they wrote is gone.
+    """
+    if not wrote.strip() or not recast.strip():
+        return False
+    mine = sorted(_bare(word) for word in wrote.split() if word.strip())
+    theirs = sorted(_bare(word) for word in recast.split() if word.strip())
+    return mine != theirs

@@ -35,11 +35,12 @@ def test_the_prompt_speaks_as_we_and_thanks_the_reader() -> None:
 
 def test_the_prompt_keeps_price_language_out_of_the_product() -> None:
     """The reader pays by the month (design.md §6, 2026-09-13): a wait is a time and a
-    cost is hours, and the model is told to say neither as a price nor to price anything."""
+    cost is credits (§12, 2026-09-23), and the model is told to say neither as a price nor
+    to price anything."""
     said = " ".join(prompts.SYSTEM.split())
     assert "No price language" in said
     assert "never say price, cost, quote or sale" in said
-    assert "minutes of your hours" in said
+    assert "uses about 20 credits" in said and "of your hours" not in said
     assert "never in money" in said
     assert "price a" not in said and "You can price" not in said
     assert "we couldn't reach it" in prompts.shut_hosts(["example.org"])
@@ -95,10 +96,25 @@ def test_hebrew_is_content_and_graded() -> None:
     assert "one new word at most" in prompts.SYSTEM
 
 
-def test_no_tool_in_this_slice_spends() -> None:
-    """The seam is drawn before the first tool needs it: every tool that spends will need
-    a consent row, and nothing here has one to give."""
-    assert not [tool.name for tool in REGISTRY if tool.spends or tool.needs_consent]
+def test_the_chat_is_offered_nothing_that_spends() -> None:
+    """The seam was drawn on 2026-09-05 before any tool needed it. One does now —
+    `record_turn`, for a conversation held somewhere else (#80) — and design.md §12
+    ("A scope is a press that lasts") is where that is written down.
+
+    What is unchanged is this surface. In targum's own conversation the model is given
+    the registry minus anything that spends, because targum already recasts every line
+    here and writes the slip itself: offering it would record the same mistake twice.
+    """
+    from targum import oauth
+    from targum.chat.tools import anthropic_tools
+
+    by_name = {tool.name: tool for tool in REGISTRY}
+    offered = [tool["name"] for tool in anthropic_tools()]
+    assert not [name for name in offered if by_name[name].spends or by_name[name].needs_consent]
+    # And the one that does spend carries the scope that consents to it, and nothing else.
+    spending = [tool for tool in REGISTRY if tool.spends]
+    assert [tool.name for tool in spending] == ["record_turn"]
+    assert spending[0].scope == oauth.SPENDING_SCOPE == "chat"
 
 
 def test_a_question_from_inside_the_text_is_answered_in_the_conversation_s_hebrew() -> None:
@@ -184,7 +200,13 @@ def test_the_gloss_line_is_in_the_language_the_reader_reads() -> None:
     assert "No Russian and no English inside a Hebrew line" in russian
     assert "Do not think of an English sentence and translate it" in russian, "still about Hebrew"
     assert hebrew.gloss_language({"ru"}) == "ru"
-    assert hebrew.gloss_language({"ru", "en"}) == "en" and hebrew.gloss_language(set()) == "en"
+    # English beside Russian is still Russian since 2026-09-22 (targum-internal#286,
+    # item 1): an account starts at {"en"} and Russian is added to it, so "reads English
+    # too" was true of every Russian reader there is and English won for all of them.
+    assert hebrew.gloss_language({"ru", "en"}) == "ru"
+    assert hebrew.gloss_language(set()) == "en" and hebrew.gloss_language({"en"}) == "en"
+    # Two others and nothing says which is meant.
+    assert hebrew.gloss_language({"en", "ru", "fr"}) == "en"
 
 
 def test_the_level_target_is_a_number_the_tools_carry() -> None:
@@ -194,3 +216,195 @@ def test_the_level_target_is_a_number_the_tools_carry() -> None:
     assert "known_share of 0.8 or more" in said and "0.65 or more" in said
     assert "applies the reader's own ceiling" in said
     assert "never as a percentage or a level" in said
+
+
+def test_the_cold_start_names_at_most_three_recurring_rules() -> None:
+    """targum-internal#290. A model handed a list of everything a reader has ever got
+    wrong writes a grammar lesson, which is the thing this must never become. Three is
+    enough to drift toward a weak spot and too few to teach from."""
+    from targum.chat.hebrew import RULES_BACK, recurring
+
+    slips = [{"why": f"Rule {n}."} for n in range(8) for _ in range(2)]
+    assert len(recurring(slips)) == RULES_BACK == 3
+
+
+def test_a_mistake_made_once_is_not_a_rule() -> None:
+    """Everybody gets a line wrong once, and a conversation that bent itself toward
+    every single mistake would be a conversation about mistakes."""
+    from targum.chat.hebrew import recurring
+
+    assert recurring([{"why": "Past tense."}]) == []
+    assert recurring([{"why": "Past tense."}, {"why": "Past tense."}]) == ["Past tense."]
+    # Commonest first, so the three it picks are the three that recur most.
+    many = [{"why": "Twice."}] * 2 + [{"why": "Five times."}] * 5 + [{"why": "Three times."}] * 3
+    assert recurring(many) == ["Five times.", "Three times.", "Twice."]
+
+
+def test_the_rules_steer_the_sentences_and_are_never_said() -> None:
+    """ "if smth gonna ping me or bother me like duolingo I'll fucking delete it". The half
+    a scheduler cannot have is the record; the way to waste it is to announce it."""
+    from targum import level
+    from targum.chat.hebrew import ledger_block
+
+    block = ledger_block(level.EMPTY, ["ספר"], [], None, ["Past tense: הָלַכְתִּי, not הָלַךְ."])
+    assert "corrected more than once" in block
+    assert "Never mention this list" in block
+    assert "never set an exercise" in block
+
+    # And nothing at all where there is nothing recurring.
+    quiet = ledger_block(level.EMPTY, ["ספר"], [])
+    assert "corrected more than once" not in quiet
+
+
+# -- find mode answers in the reader's language (targum-internal#286, item 2) -----------
+
+
+def _a_level():  # type: ignore[no-untyped-def]
+    from targum import level as level_module
+
+    return level_module.Level("he", 400, 0, 400.0, None, None, 0, 0, 0, 0, 0)
+
+
+def test_find_mode_is_told_which_language_to_write_in() -> None:
+    """`SYSTEM` says which language's *texts* to offer and never which language to
+    *write* in, so a Russian reader asking for something to read was answered in English
+    by a product whose buttons were already Russian.
+
+    It rides in the per-reader block and not in `SYSTEM`, which is the cached half and
+    holds nothing that changes per reader.
+    """
+    from targum.chat import prompts
+
+    level = _a_level()
+    english = prompts.ledger(level)
+    russian = prompts.ledger(level, "Russian")
+
+    assert "Write to the reader in Russian" in russian
+    assert "Hebrew you quote stays Hebrew" in russian, "the Hebrew is the thing being read"
+
+    # And English is named too, rather than falling silent for it. That is not symmetry
+    # for its own sake: `SYSTEM` stopped saying "English" in item 3, so silence here
+    # would leave an English reader with no instruction anywhere at all.
+    assert "Write to the reader in English" in english
+    assert prompts.ledger(level, "") == english, "nothing said is English"
+
+    # The ledger itself is the same either way; only the last line differs.
+    assert english.rsplit("\n\n", 1)[0] == russian.rsplit("\n\n", 1)[0]
+
+
+def test_the_answer_follows_the_same_rule_as_the_gloss_lines() -> None:
+    """One rule rather than two: a reader who gets Russian meanings and an English answer
+    in the same thread is being told the product has not decided."""
+    from types import SimpleNamespace
+
+    from targum.chat.hebrew import gloss_language
+    from targum.chat.session import _answered_in
+    from targum.strings import reading_language
+
+    def standing_in(said: set[str] | None) -> SimpleNamespace:
+        """A `Ctx` for this one question. `Level` takes eleven arguments and none of them
+        are about language; `Ctx.language` is the single call below, and the real one is
+        exercised against a real `Ctx` in `test_chat_tools.py`."""
+        return SimpleNamespace(said_reads=said, language=reading_language(said))
+
+    assert gloss_language({"ru"}) == "ru"
+    assert _answered_in(standing_in({"ru"})) == "Russian"
+    assert _answered_in(standing_in({"en", "ru"})) == "Russian", "the common case"
+    assert _answered_in(standing_in(set())) == "English"
+    assert _answered_in(standing_in(None)) == "English", "nobody signed in"
+
+    # And it is the same rule the chrome answers to, which is the whole of item 1: these
+    # were two rules that disagreed, and the reader saw both at once.
+    from targum.strings import drawn_in
+
+    assert reading_language({"en", "ru"}) == drawn_in({"en", "ru"}) == "ru"
+    # The chrome alone falls back where nothing has been written for a language. The
+    # meanings do not: they are bought per language rather than written here, and a
+    # French reader had French meanings before any of the chrome was French.
+    assert reading_language({"fr"}) == "fr" and drawn_in({"fr"}) == "en"
+
+
+def test_the_cached_half_of_the_prompt_names_no_language_of_its_own() -> None:
+    """targum-internal#286, item 3. `SYSTEM` is cached for every reader, so a rule in it
+    that names English is a rule about English written for readers who are not being
+    written to in English.
+
+    It used to say "How you write English", "its English beside it" and "the English
+    rules above". Which language to write in belongs to the ledger, which is the half
+    that changes per reader; `SYSTEM` says only *how*.
+
+    The one mention left is the note-answering paragraph, which names the English gloss
+    as its example and then says, in the same sentence, "in a conversation held in
+    another language, in that language, the same way". The hedge is what carries it, and
+    a neutral rewrite would lose the concrete example without gaining anything.
+    """
+    from targum.chat import prompts
+
+    named = [line.strip() for line in prompts.SYSTEM.splitlines() if "English" in line]
+    assert len(named) == 1, named
+    assert "with the English under every line" in named[0]
+    # And the sentence that hedges it is still there, two lines down.
+    assert "in a conversation held in another language, in that language" in prompts.SYSTEM
+
+    assert "How you write to the reader" in prompts.SYSTEM
+    assert "How you write English" not in prompts.SYSTEM
+    assert "its meaning beside it" in prompts.SYSTEM
+
+
+# -- the contract is written for the reader's language (targum-internal#286 item 4) ------
+
+
+def test_the_calques_named_are_the_ones_this_reader_would_be_pulled_into() -> None:
+    """The four calques named were English ones, on a contract handed to every reader.
+    A Russian reader is pulled two ways, not one — and only one of them was named.
+
+    The English list stays whatever the reader reads: the model's own pull toward
+    English does not weaken because the person on the other side is Russian. The
+    reader's-language list is the *second* pull, and it exists only for a reader who has
+    a second language to be pulled by.
+    """
+    from targum.chat import hebrew
+
+    russian = " ".join(hebrew.contract("Russian").split())
+    english = " ".join(hebrew.contract("English").split())
+
+    # Both pulls are named for a Russian reader.
+    assert 'not "אָז נַגִּיד אֶת זֶה יָשִׁיר" for "let\'s say it straight"' in russian
+    assert "do not think of a Russian sentence and translate it either" in russian
+    assert "«сделать фотографию»" in russian and "לְצַלֵּם" in russian
+    assert "«сколько тебе лет»" in russian and "בֶּן כַּמָּה אַתָּה" in russian
+    assert "«заниматься спортом»" in russian
+
+    # And an English reader's contract is what it was: no Russian in it anywhere.
+    assert "Russian" not in english
+    assert "сделать" not in english
+
+    # A language nothing has been written for falls back to the contract as it was,
+    # rather than to an empty "and do not think of a … sentence" with nothing after it.
+    french = " ".join(hebrew.contract("French").split())
+    assert "do not think of a French sentence" not in french
+    assert 'not "מַדָּף הַתְחָלָה מְשׁוּתָּף" for "a shared starter shelf". Speak to the' in french
+
+
+def test_a_reader_who_has_said_their_gender_is_not_hedged_at() -> None:
+    """The contract knew one way to learn how to address somebody — the ledger — so a
+    Russian woman who wrote «я прочитала» went on being spoken to in forms that refuse to
+    choose. Her own sentence had already said, as plainly as the ledger would.
+
+    Never from a name, which is the one source that looks like an answer and is not.
+    """
+    from targum.chat import hebrew
+
+    russian = " ".join(hebrew.contract("Russian").split())
+    assert "«я прочитала» rather than «я прочитал»" in russian
+    assert "as plainly as the ledger would" in russian
+    assert "Never take it from a name." in russian
+
+    # The hedging forms are still there: they are what to do when nothing has said.
+    assert "an infinitive (כְּדַאי לִקְרוֹא)" in russian
+    assert "the first person plural (בּוֹאוּ נִקְרָא)" in russian
+
+    # An English reader gets the rule without a Russian example they could not read.
+    english = " ".join(hebrew.contract("English").split())
+    assert "a gendered form of their own in any language they write in" in english
+    assert "прочитала" not in english

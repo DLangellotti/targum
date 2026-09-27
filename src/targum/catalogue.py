@@ -213,6 +213,20 @@ class Line:
 
     source: str
     target: str
+    #: The same line in any other language targum speaks, by code (targum-internal#188).
+    #: The *only* place a sample is drawn is the public text page, and that page is the
+    #: one a Russian searcher arrives at from a Russian search — so a sample that can
+    #: only be English is a page that answers in English whatever the address said.
+    #: Empty for every sample written before this, which `said_in` reads as the English.
+    said: dict[str, str] = field(default_factory=dict)
+
+    def said_in(self, language: str) -> str:
+        """This line's translation in `language`, English where it has none.
+
+        Never wrong, only foreign — the same fallback every other string on the shelf
+        makes, and the one that lets a language be filled a row at a time.
+        """
+        return self.said.get(language.split("-")[0].lower()) or self.target
 
 
 @cache
@@ -220,7 +234,16 @@ def _samples() -> dict[str, list[Line]]:
     """The opening lines, from the catalogue file: content, beside the entries it belongs to."""
     raw = _read().get("samples") or {}
     return {
-        entry_id: [Line(source=line["source"], target=line["target"]) for line in lines]
+        entry_id: [
+            Line(
+                source=line["source"],
+                target=line["target"],
+                said={
+                    str(code): str(text) for code, text in (line.get("said") or {}).items() if text
+                },
+            )
+            for line in lines
+        ]
         for entry_id, lines in raw.items()
     }
 
@@ -238,6 +261,20 @@ class Rendering:
     translation of scripture by who made it, so both are shown wherever the text is —
     and naming the licence is also how a CC-BY obligation gets discharged by the code
     rather than remembered by a person.
+
+    `licence_url` is where that claim was read, and it is the half this carried until
+    2026-09-22 (targum-internal#355). LICENSING.md's own standard asks for both, and says
+    why: the URL is kept verbatim *precisely so the claim can be re-checked against the
+    page rather than against somebody's summary of it*. Without it a rendering's licence
+    is recorded and cannot be re-checked.
+
+    The row's URL cannot stand in for it. A rendering's provenance is often nothing like
+    its row's: the five Russian Torah rows are Sefaria's Hebrew, and the rendering beside
+    them is Gerstein & Gordon 1875 off a scan at the Russian State Library.
+
+    Optional and empty by default, so every catalogue written before it still reads — and
+    `targum licences` names the ones still empty, so silence is not read as a checked
+    licence.
     """
 
     name: str
@@ -245,6 +282,7 @@ class Rendering:
     note: str = ""
     publisher: str = ""
     licence: str = ""
+    licence_url: str = ""
 
     @property
     def language(self) -> str:
@@ -255,6 +293,34 @@ class Rendering:
         parts = self.source.split(":")
         named = parts[1] if len(parts) > 2 else ""
         return named if named.isalpha() and named.islower() and len(named) <= 3 else "en"
+
+
+#: The doors of the Beit Midrash, in the order they stand (targum-internal#340,
+#: 2026-09-19). The library's third tab walks the texts `beit_midrash()` keeps as a tree,
+#: the way Sefaria's contents does, and these are its top level. A collection — or a text
+#: that is in none — says which door it stands behind in its `door` field; the catalogue
+#: file is where that is written, and a file that says nothing draws no tab.
+#:
+#: Seven and not Sefaria's dozen, because this is what the shelf has: there is no Talmud
+#: and no Midrash on it (the only free Hebrew Bavli is CC BY-SA and Aramaic), and a door
+#: with nothing behind it is a dead end (design.md §12, "a row of chips is drawn from the
+#: rows that exist"). A door is added here the day its first text is filed.
+DOORS: tuple[str, ...] = (
+    "tanakh",
+    "portions",
+    "targum",
+    "mishnah",
+    "halakhah",
+    "thought",
+    "liturgy",
+)
+
+
+def _door(raw: object) -> str:
+    """A door read back from the file, dropping one this targum does not know — forgiving
+    on the way out, as `interests_of` is, so a newer file does not break an older page."""
+    said = str(raw or "").strip().lower()
+    return said if said in DOORS else ""
 
 
 @dataclass(frozen=True)
@@ -290,6 +356,34 @@ class Collection:
     #: where the order is only the order somebody typed them in and the reader's sort is
     #: the better one.
     ordered: bool = False
+    #: Which door of the Beit Midrash it stands behind: one of `DOORS`, or "" for a
+    #: collection that is not in it (an author's shelf, the scenes).
+    door: str = ""
+    #: The name and the blurb in the other languages the interface is read in
+    #: (targum-internal#289), by language code, exactly as an `Entry` keeps them. English
+    #: lives in `english` and `blurb` rather than in here, for the reason the entry's own
+    #: comment gives: a fallback that sits in the same map as the things falling back to
+    #: it is a fallback you can delete by accident.
+    #:
+    #: A Russian reader met an all-English library. The rows learned their own language in
+    #: targum#280 and the collections they fold into did not, so a shelf could read
+    #: "Тора" over rows whose group was still called "Torah".
+    named: dict[str, str] = field(default_factory=dict)
+    blurbs: dict[str, str] = field(default_factory=dict)
+    #: Whether this is one of targum's own playlists (targum-internal#368; design.md §12,
+    #: "A playlist is swiped, and one press takes the set", 2026-09-23): short texts
+    #: built once on the shared shelf, which a reader opens as a playlist of their own
+    #: and swipes through for nothing. `"swipe": true` in the file.
+    swipe: bool = False
+
+    def name_in(self, code: str) -> str:
+        """The collection's name for somebody reading the interface in `code`, and the
+        English where that language has none — never wrong, only foreign."""
+        return self.named.get(code.split("-")[0].lower(), "") or self.english
+
+    def blurb_in(self, code: str) -> str:
+        """And the blurb, the same way and for the same reason."""
+        return self.blurbs.get(code.split("-")[0].lower(), "") or self.blurb
 
     def state(self) -> dict[str, object]:
         return {
@@ -297,8 +391,12 @@ class Collection:
             "title": self.title,
             "english": self.english,
             "blurb": self.blurb,
+            "named": dict(self.named),
+            "blurbs": dict(self.blurbs),
             "members": list(self.members),
             "ordered": self.ordered,
+            "door": self.door,
+            "swipe": self.swipe,
         }
 
 
@@ -388,6 +486,10 @@ class Entry:
     #: know" must never read as "just arrived".
     added: str = ""
 
+    #: Which door of the Beit Midrash a text stands behind when it is in no collection:
+    #: one of `DOORS`, or "". A member of a collection stands behind its collection's.
+    door: str = ""
+
     @property
     def sample(self) -> list[Line]:
         """The opening, both languages, for the public page.
@@ -415,6 +517,20 @@ class Entry:
         if scheme == "sefaria" and book in BIBLICAL_ARAMAIC:
             found.append("arc")
         return list(dict.fromkeys(code for code in found if code))
+
+    def name_in(self, code: str) -> str:
+        """The text's name for somebody reading the interface in `code`, and the English
+        where that language has none — which is never wrong, only foreign.
+
+        The same rule `library.js` reads these by, so the page a stranger is shown and the
+        shelf a reader is shown do not disagree about what a book is called. The Hebrew
+        title is not this: that is `title`, and it stays Hebrew in every language.
+        """
+        return self.named.get(code.split("-")[0].lower(), "") or self.english
+
+    def blurb_in(self, code: str) -> str:
+        """And the blurb, the same way and for the same reason."""
+        return self.blurbs.get(code.split("-")[0].lower(), "") or self.blurb
 
     def state(self) -> dict[str, object]:
         from .spoken import is_spoken as _is_spoken
@@ -449,6 +565,9 @@ class Entry:
             "tags": sorted(tag.value for tag in self.tags),
             # When it arrived, so the shelf can say what is new (targum-internal#315).
             "added": self.added,
+            # The door of the Beit Midrash a text in no collection stands behind
+            # (targum-internal#340). A member of a collection stands behind its door.
+            "door": self.door,
             # Not the model: the page has no use for it and it is not the browser's to
             # ask for. The server reads it back from here when a build starts.
             "translations": [
@@ -657,6 +776,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
                 note=str(t.get("note", "")),
                 publisher=str(t.get("publisher", "")),
                 licence=str(t.get("licence", "")),
+                licence_url=str(t.get("licence_url", "")),
             )
             for t in raw.get("translations", [])
         ],
@@ -670,6 +790,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
         # A row written before the field existed has no date, and the shelf reads that as
         # "not known" rather than as "new" — see `Entry.added`.
         added=str(raw.get("added", "")),
+        door=_door(raw.get("door")),
     )
 
 
@@ -681,6 +802,10 @@ def _collection(raw: dict[str, Any]) -> Collection:
         blurb=str(raw.get("blurb", "")),
         members=tuple(str(member) for member in raw.get("members", [])),
         ordered=bool(raw.get("ordered", False)),
+        door=_door(raw.get("door")),
+        named=_said_in(raw.get("named")),
+        blurbs=_said_in(raw.get("blurbs")),
+        swipe=bool(raw.get("swipe", False)),
     )
 
 
@@ -774,6 +899,16 @@ def collections() -> list[Collection]:
         if len(members) > 1:
             kept.append(replace(collection, members=members))
     return kept
+
+
+def swipe_sets() -> list[Collection]:
+    """targum's own playlists, as the file lists them (targum-internal#368).
+
+    Not `collections()`, which folds rows for the library and drops a collection of one:
+    a playlist of one is still a playlist, and which members are built is a question for
+    the box that serves them (`Library.targum_sets`), not for the file.
+    """
+    return [collection for collection in COLLECTIONS if collection.swipe]
 
 
 def collection_of(entry_id: str) -> Collection | None:

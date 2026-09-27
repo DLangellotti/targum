@@ -1,7 +1,7 @@
 """How well targum reads pictures and text-layer PDFs, against transcriptions checked by hand.
 
-    set -a && . ./.env && set +a
-    PYTHONPATH=$PWD/src .venv/bin/python scripts/measure_reading.py <folder>
+    PYTHONPATH=$PWD/src op run --env-file op.env -- \\
+      .venv/bin/python scripts/measure_reading.py <folder>
 
 The folder holds pictures (`.png .jpg .jpeg .webp .heic`) and PDFs, each beside a `.txt`
 of the same name holding what the page really says, one printed line per line. The

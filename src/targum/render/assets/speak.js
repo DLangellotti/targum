@@ -50,8 +50,12 @@
     if (use) use.setAttribute("href", "#glyph-" + glyph);
   }
 
-  function toggle(mic, onClip, onFail) {
+  // `resting` is the word the button wears when it is not recording — "Speak" on the
+  // composer, "Record" on Add (targum-internal#254). The glyph is the same either way:
+  // a microphone at rest, a square while recording.
+  function toggle(mic, onClip, onFail, resting) {
     if (!can) return false;
+    var word = resting || t("chat.page.speak", "Speak");
     if (recorder) {
       recorder.stop();
       return true;
@@ -70,7 +74,7 @@
           var clip = new Blob(recorded, { type: recorder.mimeType || "audio/webm" });
           recorder = null;
           mic.setAttribute("aria-pressed", "false");
-          say(mic, t("chat.page.speak", "Speak"), "mic");
+          say(mic, word, "mic");
           onClip(clip);
         };
         recorder.start();

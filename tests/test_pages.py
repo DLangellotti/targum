@@ -128,14 +128,15 @@ def test_the_progress_page_is_only_the_numbers() -> None:
 # -- the nav -------------------------------------------------------------------
 
 
-def test_every_page_carries_the_same_four_places() -> None:
+def test_every_page_carries_the_same_five_places() -> None:
     """One nav file, because copies drift — they had drifted into three different orders
     once already. Three from 2026-09-06, when the chat became the box at the top of
     Learn and uploading the `+` on it; four since 2026-09-13, when Add came back last,
-    because with the box in a drawer the Add page had no door of its own."""
+    because with the box in a drawer the Add page had no door of its own; five since
+    2026-09-24, when the shelf got its own, second (design.md §12)."""
     for name, page in PAGES.items():
         found = re.findall(r'data-nav="(\w+)"', page)
-        assert found == ["learn", "library", "progress", "add"], name
+        assert found == ["learn", "texts", "library", "progress", "add"], name
 
 
 #: Reached from somewhere other than the nav — a profile is not one of the places you
@@ -145,7 +146,7 @@ NOT_IN_THE_NAV = {"you", "words", "phrases"}
 #: Learn's lists, gone to a page of their own, and the conversation, which is where a
 #: line typed into Learn's box goes. They mark Learn, which is where they came from and
 #: the only nav entry that could honestly be current.
-UNDER_LEARN = {"texts", "chat"}
+UNDER_LEARN = {"chat"}
 
 
 def test_the_nav_marks_where_you_are() -> None:
@@ -184,7 +185,7 @@ def test_the_front_page_is_the_reader_s_own_highlight() -> None:
     learn = PAGES["learn"]
     assert learn.index('class="front"') < learn.index('id="carry-sheet"')
     assert 'id="shelf-panel"' not in learn and 'id="trash-panel"' not in learn, (
-        "nothing under the sheet since 2026-09-11: the shelf is the Recently read menu"
+        "nothing under the sheet since 2026-09-11: the shelf is the Recently opened menu"
     )
     assert 'id="carry-frame"' in learn and 'class="open" id="carry"' in learn
     assert 'id="carry-expand"' not in learn and 'id="talk-hide"' not in learn
@@ -479,9 +480,15 @@ def test_the_library_is_one_list() -> None:
     page whose whole job is finding something."""
     library = PAGES["library"]
     assert 'id="shelves"' not in library, "no room switcher"
-    assert "Beit Midrash" not in library
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert "SHELVES" not in source and "drawShelves" not in source
+    # The name came back on 2026-09-19 (design.md §12, targum-internal#340) and the rooms
+    # did not: the Beit Midrash is a tab over the same list, which is the thing this test
+    # was always protecting. It draws with the list's own rows and cards, it has no
+    # address of its own for a text, and `test_library_js.py` holds it to every row being
+    # a row under All texts too.
+    assert "/beit-midrash/" not in library and "/beit-midrash/" not in source
+    assert source.count("function card(row)") == 1 and source.count("function draw(row") == 1
 
 
 def test_a_row_says_what_the_text_is() -> None:
@@ -669,18 +676,17 @@ def test_the_library_is_browsed_as_cards_and_sifted_as_a_list() -> None:
     assert 'id="said"' in library, "and the line that says how far it is narrowed"
 
 
-def test_the_catalogue_and_your_uploads_are_tabs_rather_than_a_filter() -> None:
-    """What is there to read and what have I put here are two questions, not one setting.
-    As a select called "Access" the second list was a thing nobody found."""
+def test_the_library_is_everyone_s_and_your_targums_is_yours() -> None:
+    """design.md §12, "Yours and everyone's" (2026-09-25). The Library had a Your
+    uploads tab, which listed what Your targums already listed. It is gone; the tab strip
+    stays for the Beit Midrash."""
     library = PAGES["library"]
     assert 'id="where"' in library and 'role="tablist"' in library
-    assert 'id="access"' not in library, "and the filter it replaces is gone"
+    assert 'id="access"' not in library, "the Access filter stays gone too"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert '["library", t("library.where.library", "All texts")]' in source
-    assert '["mine", t("library.where.mine", "Your uploads")]' in source
-    # The cell is still there — a build narrates itself in it — but it no longer carries
-    # a Public/Private word, because the tab above the list says that once.
+    assert "library.where.mine" not in source
     assert '"row-state", row.entry ? "Public" : "Private"' not in source
 
 
@@ -797,7 +803,10 @@ def test_the_word_targum_is_defined_where_somebody_meets_it() -> None:
     every text and every reader, and a public text is built once for everybody, so most
     reading is opening something already made rather than making it."""
     page = PAGES["texts"]
-    assert "A targum is an interactive bilingual text" in page
+    # Shown, not only said, since 2026-09-26 (design.md §12, "Your targums has tabs").
+    assert "What&#39;s a targum?" in page or "What's a targum?" in page
+    assert "with its translation held line by line" in page
+    assert 'class="defined-example"' in page
     assert "A targum is a text you have built" not in page
 
 
@@ -817,12 +826,12 @@ def test_a_list_page_carries_its_own_list_and_no_other(which: str, has: str, lac
     assert 'id="carry"' not in page, "and none of them repeats the landing page"
 
 
-def test_a_list_page_marks_learn_in_the_nav() -> None:
-    """Your targums is where Learn's Recently read goes on, so the nav goes on saying
-    Learn. Your words and phrases are reached from the account and mark no place: a nav
-    that lit Learn on them said the reader was somewhere they were not (2026-09-14)."""
+def test_your_targums_marks_itself_in_the_nav() -> None:
+    """Your targums has its own place since 2026-09-24 (design.md §12). Your words and
+    phrases are reached from the account and mark no place: a nav that lit Learn on them
+    said the reader was somewhere they were not (2026-09-14)."""
     current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES["texts"])
-    assert current == ["learn"]
+    assert current == ["texts"]
     for which in ("words", "phrases"):
         current = re.findall(r'data-nav="(\w+)"[^>]*aria-current="page"', PAGES[which])
         assert current == [], which
@@ -1058,3 +1067,62 @@ def test_a_youtube_address_is_no_longer_turned_away_at_the_paste() -> None:
     add = PAGES["add"]
     assert "YouTube links are not fetched here" not in add
     assert "run targum on your own computer" not in add
+
+
+def test_your_words_carries_the_fold_and_promises_nothing_by_it() -> None:
+    """What to work on (targum-internal#103): the words flagged and never come back to,
+    above the table they are also in.
+
+    It starts hidden, because a reader with nothing to work on sees no fold at all —
+    not an empty state and not an invitation — and `lists.js` is what decides.
+    """
+    words = PAGES["words"]
+    assert 'id="work-on"' in words and 'id="work-rows"' in words
+    assert 'id="work-on" hidden' in words, "hidden until there is something in it"
+    assert "What to work on" in words, "a question answered, not an instruction"
+
+    # And nothing that schedules, counts or chases. "if smth gonna ping me or bother me
+    # like duolingo I'll fucking delete it" — Dmitry Z, 2026-09-16, in the same minute he
+    # asked for the list itself.
+    fold = words[words.index('id="work-on"') : words.index('id="word-table"')]
+    for chasing in ("due", "streak", "goal", "reminder", "review", "overdue"):
+        assert chasing not in fold.lower(), f"the fold must not say {chasing!r}"
+
+
+def test_the_fold_stands_on_the_words_page_and_on_the_front_door() -> None:
+    """Both, and nowhere else (David, 2026-09-18).
+
+    This test used to say "only on the words page", because Learn stopped carrying the
+    lists on 2026-09-11 and should not get them back one section at a time. What changed
+    is not that argument but what the fold turned out to be: the lists are an inventory,
+    which is what did not belong on a landing page, and the fold is five rows of the one
+    thing a reader came back to do. It is capped here and says where the rest are, which
+    is the arrangement every list on Learn had before the move.
+
+    Progress, Phrases and Your targums still do not carry it: the fold answers "what is
+    worth going over", and a page that answers something else should not ask it too.
+    """
+    assert 'id="work-on"' in PAGES["learn"], "the front door carries it"
+    assert 'id="work-all"' in PAGES["learn"], "and says where the rest of it is"
+    for name in ("progress", "phrases", "texts"):
+        assert 'id="work-on"' not in PAGES[name], name
+
+
+def test_the_key_is_set_before_any_script_that_reads_it() -> None:
+    """targum-internal#343, found by the pre-deploy QA of 2026-09-20. `building.js` in the
+    `<head>`, and the pill, the followed series and the palette in the nav, each read
+    `window.TARGUM_KEY` once, as they load. The page set it at the foot of the body — so on
+    a local serve they held an empty key for the life of the page, and `/jobs`, `/series`,
+    `/account/follows` and `/chat/list` were refused on every desk page. Four console
+    errors a page is also how a real one hides.
+
+    Asked of the built pages rather than of the templates: the nav's scripts arrive by an
+    include, which is how a template-only check would have missed three of the four.
+    """
+    for name, built in PAGES.items():
+        if 'window.TARGUM_KEY = "' not in built:
+            continue
+        key_at = built.index('window.TARGUM_KEY = "')
+        reads = [m.start() for m in re.finditer(r"window\.TARGUM_KEY \|\|", built)]
+        assert reads, f"{name} sets a key nothing reads"
+        assert key_at < min(reads), f"{name}: a script reads the key before the page sets it"

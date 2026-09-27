@@ -7,7 +7,13 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
+{#- The key, before anything that reads it (targum-internal#343). `building.js`, and
+    the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
+    once as they load; it was set in a script at the foot of the body, so on a local serve
+    they held an empty key for the life of the page and the bell, the followed series and
+    the chat list were refused. The hosted box has no key and was never affected. -#}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 {#- `words` as well as `progress`, for the same reason Learn carries it: the chart
     palette (--step-1..4) is defined on `.words`, and the tiles, the growth line and the
@@ -32,6 +38,24 @@
       figures and never a lit one. Filled by `account.js` from who is signed in;
       absent for a visit with no account and where there is no cap (targum-internal#237). -#}
   <p class="note hours-line" id="hours-line" hidden></p>
+
+  {#- Time listened, time watched and words read (targum-internal#339), read off the
+      account's record of what happened in each text (#127) — so, unlike everything else
+      on this page, not from this browser's own store, and absent where there is no such
+      record: signed out, a box that keeps none, a reader who has stopped theirs. The
+      filters narrow these figures and nothing else: a day is not in a language, and the
+      longest run is not in a medium (§12). Real counts in the ledger's own treatment —
+      hours and minutes, words — and no invented unit. Drawn by `progress.js`. -#}
+  <section class="panel spent" id="spent" hidden>
+    <h2>{{ t("progress.spent.title", "Time and words") }}</h2>
+    <div class="spent-filters">
+      <div class="chips" id="spent-medium" role="group" aria-label="{{ t("progress.spent.which", "Which") }}"></div>
+      <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
+    </div>
+    <div class="spent-figures" id="spent-figures"></div>
+    <p class="note" id="spent-note">{{ t("progress.spent.note", "A word counts as read when you turn past its page or mark its section done.") }}</p>
+  </section>
+  <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
 
   {#- The day strip is seven rows tall and the milestones are two, so the milestones
       share their column with the ladder rather than leaving a hole beside it. -#}
@@ -60,8 +84,8 @@
     </div>
 
     <section class="panel">
-      <h2>{{ t("progress.page.days-reading", "Days reading") }}</h2>
-      <p class="note">{{ t("progress.page.every-language-together-a-day-counts-when", "Every language together. A day counts when you open a text.") }}</p>
+      <h2>{{ t("progress.page.days-reading", "Days on targum") }}</h2>
+      <p class="note">{{ t("progress.page.every-language-together-a-day-counts-when", "Every language together. A day counts when you open something.") }}</p>
       <div id="days"></div>
     </section>
   </div>
@@ -91,7 +115,7 @@
 <p class="nothing" id="nothing" hidden>
   {#- "your library" meant the catalogue and the reader's own shelf at once, and the
       link went to the upload page, which was neither. Both have their own page now. -#}
-  {{ t("progress.page.nothing-yet-open-something-from-the", "Nothing yet. Open something from the") }} <a id="library-link" href="/library">{{ t("progress.page.library", "Library") }}</a>.
+  {{ t("progress.page.nothing-yet", "Nothing yet.") }} <a id="library-link" href="/library">{{ t("progress.page.open-something-from-the-library", "Open something from the Library.") }}</a>
 </p>
 
 <script>

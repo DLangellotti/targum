@@ -122,21 +122,30 @@ def _load(source: str) -> Document:
         raise UnsupportedSource(
             f"We don't know the source '{source.split(':', 1)[0]}'.",
             f"Supported: {', '.join(sources())}",
+            key="file.unknown-source",
+            named=source.split(":", 1)[0],
+            supported=", ".join(sources()),
         )
 
     path = Path(source)
     suffix = path.suffix.lower()
 
     if is_drm(source):
-        raise UnsupportedSource("This file is protected, so we can't read it.")
+        raise UnsupportedSource(
+            "This file is protected, so we can't read it.", key="file.protected"
+        )
     if not path.exists():
-        raise TargumError(f"No such file: {source}")
+        raise TargumError(f"No such file: {source}", key="file.not-there", name=source)
     if path.is_dir():
         # The pages of one text, photographed one after another: the upload door
         # numbers them into a folder, and the folder is the source.
         if is_pictures(path):
             return PictureIngester().load(source)
-        raise UnsupportedSource(f"We only read a folder that holds pictures: {path.name}")
+        raise UnsupportedSource(
+            f"We only read a folder that holds pictures: {path.name}",
+            key="file.folder-without-pictures",
+            name=path.name,
+        )
     if is_audio(source) or is_video(source):
         # A video is the audio import with pictures kept: the same ingester reads the
         # same transcripts, and the pictures never enter the document at all.
@@ -147,5 +156,8 @@ def _load(source: str) -> Document:
         raise UnsupportedSource(
             f"We can't read '{suffix or path.name}' files.",
             f"Supported: {', '.join(sources())}",
+            key="file.unreadable-kind",
+            kind=suffix or path.name,
+            supported=", ".join(sources()),
         )
     return ingester.load(source)

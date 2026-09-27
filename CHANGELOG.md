@@ -6,6 +6,98 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- targum in Claude and ChatGPT: the connector, with a token that names a person
+  (targum-internal#80). A reader adds targum by pasting one address and pressing Connect,
+  and the tools they already had in the chat answer about their own shelf, their own
+  ledger and the library — from wherever they already ask. `/connect` says how, assuming
+  it is their first connector of any kind: one block per host, each with its own steps,
+  and nothing detected or guessed.
+
+  It is OAuth 2.1, because both connector directories require the flow and because a key
+  pasted into somebody else's client is a bearer credential with no scopes and no way to
+  take it back one client at a time. Authorization code with PKCE (S256 only), dynamic
+  client registration, the two metadata documents a client reads off a 401, and refresh
+  tokens that rotate — so a refresh token presented twice finds itself revoked, which is
+  the one signal available that it was copied. Nothing is stored in the clear: codes and
+  tokens are digests, as sign-in links and sessions already were.
+
+  Three scopes, and the reader grants them on a page of ours. The library and what is at
+  a link; their words, their mistakes and how far they have got; and checking their
+  Hebrew and pricing a text, which is the one that uses their hours and says so before it
+  is granted. What each connector holds is listed on the account page and taken back
+  there, both kinds of token at once.
+
+  **One standing rule changed, and design.md §12 records it.** A chat tool could not
+  spend at all; now exactly one scope may say otherwise, because the record only fills if
+  something recasts what the reader wrote. Everything else holds: a build still needs its
+  own press, and a quote made through a connector comes back carrying a link to the page
+  the button is on rather than a way to spend. The model never presses anything.
+
+  The transport is JSON-RPC over the server targum already runs — no second process, no
+  SDK on the box, and no session held between two calls, so a deploy can restart
+  mid-conversation without a client noticing. `Mcp-Session-Id` is deliberately absent.
+  Prompts are offered by name — what to read next, work on what you got wrong, read with
+  me — which is how a reader reaches targum without having to describe what they want.
+
+  And Learn's row of doors takes a third that is not a text, styled exactly like the two
+  that carry one, because a door drawn as a lesser thing reads as an advertisement on a
+  page that promises to pull and never push.
+- The privacy notice says what the record of use is. Two clauses under the categories of
+  data: the reader's own record, kept to show them their time and words, which they can
+  stop or erase from their account page; and counts across everybody that carry nobody's
+  identifier and leave uploads out. A line in the retention schedule, the record named
+  in what closing an account deletes, and clause 3.10 no longer says nothing of what a
+  reader does is kept. This is what `TARGUM_EVENTS` was waiting for
+  (targum-internal#127).
+- Two more first-run moments, each a line said once and in place. When a new reader marks
+  their first word on a text that has a recording, the line under the bar says "Now press
+  play. The page follows the voice, line by line", and the press puts it away. The first
+  time What to work on has anything in it, it says whose words they are and that they
+  will be waiting. And the text the arrival opens is one that can be heard, where the
+  reader's subject has one. Nothing opens on its own, nothing moves the page, and nothing
+  is counted (design.md §12, targum-internal#335).
+- A record of what happens in a text, and Time and words on Your Progress. Behind
+  `TARGUM_EVENTS`, off unless the deployment sets it: a word looked up, a stretch of a
+  recording played, a page turned, a section finished, where a sitting stopped and which
+  of the reader's controls was pressed are appended to the account (`POST /events`) and
+  never merged or sent back. Your Progress reads time listened, time watched and words
+  read off it (`GET /account/totals`), with filters for what the reader was doing and
+  when; the panel is absent where there is no record. A word is read when its page was
+  turned past or its section marked done. The account page says what is recorded and has
+  a switch that stops it and an erase that asks twice. A control pressed carries its
+  name, the window's width and the day, and the server drops anything more
+  (design.md §12, targum-internal#127, #339, #341).
+- The arrival asks one question a screen, and leads into a text. A new reader is asked
+  what they are interested in, then how much Hebrew they have, each on its own screen with
+  a Skip, and the last answer opens the text it chose instead of returning to Learn. On a
+  phone the arrival is the screen: the nineteen subjects wrap as pills where they stood as
+  nineteen rows, and Next and Skip stay at the foot of the window. The level is said as
+  what a person can follow ("I follow the news, with a dictionary"), and it is kept on the
+  account as a seed: it chooses how hard the first text is, which band the Library opens
+  on and how hard the conversation writes, until the reader's own marked words reach a
+  rung, and from then on it is not read. It is never shown back. Learn on a phone leads
+  with one card that carries the page's one filled button (design.md §12,
+  targum-internal#334, #306).
+- What to work on turns over. The fold showed the same rows on every visit, because it
+  is ordered oldest first and a word's stamp is written once. The order stays. Each visit
+  now opens where the last one ended, a press at the foot ("Show others") turns to the
+  next screenful, and off the end it comes round to the oldest again, in both tabs and on
+  both pages. The place is kept by the row and not by a position, so marking a word does
+  not move the rest, and it is kept in the browser only. The press is drawn only where
+  there is another screenful, and says nothing about how much is behind it
+  (targum-internal#336).
+- The Beit Midrash: a third tab on the Library, for Hebrew, that walks the Tanakh and the
+  Judaica as a tree the way Sefaria's contents does. It opens on its doors — Tanakh, the
+  Torah by portion, the Aramaic translations, Mishnah, Halakhah, Thought and ethics, Liturgy — each saying
+  how many texts stand behind it, and behind a door every shelf stands open under its own
+  heading, so the tab, Tanakh and Ruth is two presses. It is not the second room the old
+  Beit Midrash shelf was: every text in it is also under All texts at the same address,
+  drawn by the same rows and cards. The level band does not apply there, the search looks
+  behind every door at once, and the tree has an address (`#bm/tanakh`). The Targums have
+  a door and stay Aramaic: they open as Aramaic readers and their words go to the Aramaic
+  list. Which door a collection stands behind is a field in the catalogue file
+  (`Collection.door`), and a file that says nothing draws no tab (design.md §12,
+  targum-internal#340).
 - A Russian page can show every word in one case. A "cases" choice in the bar lists the
   six cases with how many words of each the page has ("genitive · 12"). Choosing one gives
   those words the highlight wash and a dotted underline, `c` steps to the next case, and
@@ -108,6 +200,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Fixed
+- The reader's keys card lists two sets of keys it left out: with the recording's track in
+  focus, the arrows go back and on five seconds and Home and End go to its ends; with the
+  picture's Move or its size handle in focus, the arrows move or resize it, further with
+  Shift. Both only ever worked and were never said (targum-internal#341).
+- A deleted account's finished-section rows were not deleted with it: the purge named its
+  tables by hand and `section` was never added to the list. A test now asks the database
+  which tables name a person, instead of a list that can go stale.
+- A reader's credits can be reached on a phone. Who read a recording and under what
+  licence, and what worked out the dictionary forms and the vowel points, stood at the foot
+  of the keyboard-shortcuts card, which a window under 60rem does not show until a key is
+  pressed. So on a phone a CC BY-SA recording could be played and saved from a page that
+  never said whose it was. They are at the foot of the text now, at every width, on the
+  last page beside the pager, and the recording's credit is also beside "Save the audio"
+  in the phone's menu. The keys card holds the keys (targum-internal#342).
+- On a local serve the bell, the followed series, the conversation's list and the palette
+  were refused on every desk page. Each reads the page's key once, as it loads, and the
+  page set the key at the foot of the body. The key is set in the `<head>` now, before
+  the nav. The hosted box has no key and was never affected (targum-internal#343).
+- The reader's keys button says "Keys". It was a `?`, which a stranger read as help and
+  which opened a table of keyboard shortcuts. The `?` key still opens the card. The
+  button keeps the mark behind ⋯ on a narrow window, where the row is already named, and
+  under 75rem, where the bar has no room for a word
+  (design.md §7 and §12, targum-internal#338).
 - Transcribe on part two, three or four of an upload does something. The part door
   answered "ready" whenever the part's transcript was on disk, and the page reloaded onto
   the same "not transcribed yet". That happened whenever the hearing had landed and the
@@ -669,6 +784,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   its foot (2026-09-11).
 
 ### Changed
+- The verb follows the medium. Buttons and labels assumed a reader was there to read, and
+  many come to listen and to watch. A door on Learn now says Continue reading, Continue
+  listening or Continue watching by what it leads to, its lead button says Read, Listen or
+  Watch, the hint over the sheet says the same, and a Library row's build button says
+  Start reading, listening or watching. "Listening" is for a text that began as a
+  recording — a talk, an imported podcast — and not for a text with a reading attached,
+  which is most of the shelf. Where no row is known yet the word is neutral: Add asks
+  "What would you like to learn from?" and its button says "Open it". The ledger counts
+  "days on targum" and "words learned on targum". "{share}% read" is "{share}% through",
+  "Recently read" is "Recently opened", "Read next" is "Up next", and three sentences that
+  said "the shelf" say what they mean. English and Russian moved together, and a new test
+  fails when an English sentence changes and its translation does not: `strings/from/`
+  records which English each translation was made from, and
+  `scripts/stamp_strings.py` stamps it again (design.md §6, targum-internal#337).
 - For a new reader, the conversation's first exchange goes on (2026-09-11): once words
   are marked, targum's next turn is a text at that level, asked for without a model
   turn, so a text is two presses away without leaving the page. The count line on Learn
@@ -1148,6 +1277,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   glyph as one character and JavaScript as two, so every span after one landed a unit
   short: half of שחרית marked, the other half of the mark on the time beside it. Every
   offset that ships to a page now goes through `js_span`.
+
+### Removed
+- Dark mode, on every page. targum has one look, and it is light: the second palette, the
+  switch in the bar, in the account's sheet and on the public pages, and the script that
+  stamped the choice are gone, and a browser that prefers dark gets the same page as any
+  other. The front door had been light-only since 2026-09-16; this is the rest. An
+  inverted ink block, a film's letterbox and the favicon's own switch for a dark tab
+  strip are not dark mode and stay. Readers built before this still carry the old theme
+  until the shelf is rendered again (design.md §12, targum-internal#333).
 
 ## [0.2.0.0] - 2026-09-01
 

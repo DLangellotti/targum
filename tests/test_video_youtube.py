@@ -388,3 +388,74 @@ def test_an_unset_egress_is_not_a_flag(monkeypatch) -> None:
         "--skip-download",
         "https://youtu.be/abc123",
     ]
+
+
+# --- the backup routes (2026-09-18) ---------------------------------------------------
+
+
+def test_a_refused_exit_is_tried_again_and_then_the_embedded_player(monkeypatch) -> None:
+    """A flagged exit, then another exit, then the embedded player's client, then
+    android_vr — each only because the one before was refused in a way it might not be."""
+    seen: list[list[str]] = []
+
+    def run(args, **kwargs):
+        seen.append(list(args))
+        if len(seen) < 3:
+            raise subprocess.CalledProcessError(1, args, stderr=BOT_CHECK)
+        return subprocess.CompletedProcess(args, 0, b'{"id": "abc123"}', b"")
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, "socks5://127.0.0.1:1080")
+    monkeypatch.delenv(youtube.POT_PROVIDER_ENV, raising=False)
+    assert youtube.describe("https://youtu.be/abc123")["id"] == "abc123"
+    assert len(seen) == 3
+    assert seen[0] == seen[1], "the same route twice: a second process is a second exit"
+    assert "youtube:player_client=tv_embedded" in seen[2]
+    for argv in seen:
+        assert argv[-1] == "https://youtu.be/abc123"
+        assert argv[argv.index("--proxy") + 1] == "socks5://127.0.0.1:1080"
+
+
+def test_a_fact_about_the_video_is_not_asked_again(monkeypatch) -> None:
+    seen: list[list[str]] = []
+
+    def run(args, **kwargs):
+        seen.append(list(args))
+        raise subprocess.CalledProcessError(1, args, stderr=b"ERROR: [youtube] x: Private video\n")
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    with pytest.raises(TargumError, match="Private video"):
+        youtube.describe("https://youtu.be/abc123")
+    assert len(seen) == 1
+
+
+def test_every_route_refused_ends_on_the_backup_egress(monkeypatch, tmp_path: Path) -> None:
+    """The second egress is the last route, and carries the minter but not the first
+    proxy. Unset, it is not tried at all."""
+    seen: list[list[str]] = []
+
+    def run(args, **kwargs):
+        seen.append(list(args))
+        raise subprocess.CalledProcessError(1, args, stderr=BOT_CHECK)
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, "http://first:1")
+    monkeypatch.setenv(youtube.POT_PROVIDER_ENV, "http://127.0.0.1:4416")
+    monkeypatch.delenv(youtube.YTDLP_PROXY_BACKUP_ENV, raising=False)
+    with pytest.raises(TargumError):
+        youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert len(seen) == 4
+
+    seen.clear()
+    monkeypatch.setenv(youtube.YTDLP_PROXY_BACKUP_ENV, "http://second:2")
+    with pytest.raises(TargumError) as raised:
+        youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert len(seen) == 5
+    last = seen[-1]
+    assert last[last.index("--proxy") + 1] == "http://second:2"
+    assert last.count("--proxy") == 1 and "http://first:1" not in last
+    assert "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" in last
+    assert "--cookies" not in raised.value.message

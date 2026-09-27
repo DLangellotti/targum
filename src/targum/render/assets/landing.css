@@ -128,8 +128,8 @@
   --lift: 0 2px 10px rgb(0 0 0 / 0.10);
 
   /* What separates a floating overlay from the page. On paper the shadows do it and
-     this is just the ordinary hairline; on ink a black shadow draws nothing, so the
-     dark blocks lighten this edge instead — the shadow's job done by a line. */
+     this is just the ordinary hairline. It is its own token because an ink surface
+     would want a lighter line here, where a black shadow draws nothing. */
   --overlay-rule: var(--rule);
 }
 
@@ -140,10 +140,13 @@
   --bar-raised: #201e1b;
   --bar-rule: #322e29;
   --bar-teal: #6fb8b3;
+  /* The muted of §4, for secondary lines. Every rule on this page painted with it from
+     the start, and nothing defined it, so they all fell back to full ink (2026-09-24). */
+  --muted: var(--ink-soft);
   /* The front door is light, always (David, 2026-09-16): one page and one
      look. A stranger meeting it for three seconds should not meet a second
-     design because their phone is in night mode; the product behind the
-     door keeps both themes. */
+     design because their phone is in night mode. Since 2026-09-19 the
+     product behind the door has one look too (design.md §12). */
   color-scheme: light;
 }
 
@@ -195,6 +198,12 @@ h1, h2, h3 { text-wrap: balance; }
 .btn.ghost:hover { background: var(--hairline); }
 .btn.small { min-block-size: 2rem; padding: 0.35rem 0.8rem; font-size: 0.875rem; }
 @media (hover: none) and (pointer: coarse) { .btn { min-block-size: 44px; } }
+/* §8: a control a thumb presses answers a tap over 44px. The why-fold is a button
+   (`landing.html.j2`, `id="whyFold"`) and had none: the front door is the page most
+   likely to be opened on a phone, and it loads `landing.css` alone — `reader.css`
+   gives `.fold` its reach, and no landing page has ever loaded that. The icon stays
+   small; what answers the tap is 44px. */
+@media (hover: none) and (pointer: coarse) { .fold { min-block-size: 44px; } }
 
 /* the bar: glass, sticky, no rule */
 .bar { position: sticky; inset-block-start: 0; z-index: 20; background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }

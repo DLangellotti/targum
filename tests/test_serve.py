@@ -24,7 +24,7 @@ import pytest
 
 from targum.accounts import Store
 from targum.mail import ConsoleMailer
-from targum.serve import POLICY, Handler, Library
+from targum.serve import POLICY, Handler, Library, desk_languages
 
 
 class Postbox(io.StringIO):
@@ -74,6 +74,13 @@ def served(tmp_path: Path, postbox: Postbox) -> Iterator[tuple[int, str, Path]]:
             "store": Store(tmp_path / "words.db"),
             "mailer": ConsoleMailer(postbox),
             "address": f"http://127.0.0.1:{port}",
+            # Which languages a desk page was rendered in, which the real server fills
+            # from `desk_languages()` at start-up. Left out here until 2026-09-22, and
+            # `_ui_language` reads it — so every reader in this fixture was English
+            # whatever their account said, and anything downstream of the interface
+            # language was being tested against a server that had none. Empty pages:
+            # `_desk` falls back to the English one, so nothing else here moves.
+            "translated": {code: {} for code in desk_languages()},
         },
     )
     server.RequestHandlerClass = handler
@@ -562,7 +569,10 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
     _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert me["learning"] == ["he", "yi"] and me["reads"] == ["en", "ru"]
 
-    # A source language they have not ticked is refused the same way.
+    # A source language they have not ticked is refused the same way — and in Russian,
+    # because English and Russian is what they just said they read, and that is the whole
+    # of what picks the interface language. It read English here until 2026-09-22, when
+    # the fixture began filling `translated` the way the real server does.
     status, answer, _ = call(
         port,
         "POST",
@@ -570,7 +580,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "en", "from": "arc"},
         cookie=cookie,
     )
-    assert status == 400 and answer["error"].startswith("Aramaic isn't in your profile")
+    assert status == 400 and "язык: Арамейский" in answer["error"]
 
 
 def test_the_switcher_s_language_is_kept_on_the_account(
@@ -657,6 +667,153 @@ def test_a_profile_nobody_can_read_with_is_refused_whole(
     status, answer, _ = call(port, "POST", f"/account/languages?k={token}", asked, cookie=cookie)
     assert status == 400 and answer["error"] == said
     assert answer["learning"] == ["he"] and answer["reads"] == ["en"]
+
+
+def test_the_rung_said_on_arrival_is_kept_and_handed_back(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#306 (2026-09-19): asked on the arrival, kept on the account, and
+    handed back by `/account/me` so a second browser does not ask again. A rung the ladder
+    does not have is refused, and nobody signed out can say one."""
+    port, token, _ = served
+    status, answer, _ = call(port, "POST", f"/account/level?k={token}", {"level": "gimel"})
+    assert status == 401 and answer == {"signedIn": False}
+
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(
+        port, "POST", f"/account/level?k={token}", {"level": "gimel"}, cookie=cookie
+    )
+    assert status == 200 and answer["declared"] == "gimel"
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert status == 200 and me["declared"] == "gimel"
+
+    status, answer, _ = call(
+        port, "POST", f"/account/level?k={token}", {"level": "native"}, cookie=cookie
+    )
+    assert status == 400 and answer["error"] == "No such choice."
+
+
+def test_forgetting_somebody_takes_every_row_that_names_them(tmp_path: Path) -> None:
+    """Asked of the schema rather than of a list: every table with a `person` column is
+    empty of them once the grace period is over.
+
+    The purge named its tables by hand, and `section` — which chapters they finished — was
+    added to the schema and not to that list, so those rows outlived the account they
+    belonged to. Found on 2026-09-20 while adding `event` beside it. A list kept by hand
+    goes stale the way `sync.js`'s drop-list did; this asks the database what it has.
+    """
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("leaver@example.com"))
+    assert signed is not None
+    person = signed[0]
+    store.push(
+        person,
+        {
+            "words": [{"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1}],
+            "sections": [{"hash": "ruth", "section": "2", "at": 5, "seen": 5}],
+            "days": [{"day": "2026-09-20", "count": 1, "seen": 1}],
+        },
+    )
+    store.add_events(person, [{"kind": "page", "day": "2026-09-20", "amount": 10}])
+
+    store.forget(person)
+    assert store.purge(days=-1) == [person.id]
+    tables = [
+        str(row["name"])
+        for row in store.db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    ]
+    for table in tables:
+        columns = [str(c["name"]) for c in store.db.execute(f"PRAGMA table_info({table})")]
+        if "person" not in columns:
+            continue
+        left = store.db.execute(
+            f"SELECT COUNT(*) AS n FROM {table} WHERE person = ?", (person.id,)
+        ).fetchone()["n"]
+        assert left == 0, f"{table} still names somebody who asked to be forgotten"
+
+
+SITTING = [
+    {"kind": "lookup", "day": "2026-09-20", "at": 5, "language": "he", "medium": "read",
+     "document": "ruth", "segment": "b0003"},
+    {"kind": "play", "day": "2026-09-20", "at": 6, "language": "he", "medium": "listen",
+     "document": "ruth", "segment": "b0003", "amount": 95},
+    {"kind": "play", "day": "2026-09-20", "at": 7, "language": "he", "medium": "watch",
+     "document": "film", "amount": 40},
+    {"kind": "page", "day": "2026-09-20", "at": 8, "language": "he", "medium": "read",
+     "document": "ruth", "amount": 180},
+    {"kind": "control", "day": "2026-09-20", "at": 9, "control": "data-paged", "width": "phone",
+     "document": "ruth", "segment": "b0003", "language": "he"},
+    {"kind": "invented-by-a-newer-page", "day": "2026-09-20"},
+]  # fmt: skip
+
+
+def test_nothing_about_a_sitting_is_kept_unless_the_deployment_says_so(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#127. The record of what a reader does in a text stands behind
+    `TARGUM_EVENTS`, off by default: the privacy notice names a legal basis for every
+    category of data and this is a new one, so switching it on is not a merge."""
+    monkeypatch.delenv("TARGUM_EVENTS", raising=False)
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, answer, _ = call(port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie)
+    assert status == 200 and answer["kept"] == 0 and answer["keeping"] is False
+    status, totals, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert totals["kept"] is False and totals["totals"] == []
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["events"] == {"kept": False, "on": True}
+
+
+def test_a_sitting_is_appended_and_the_figures_are_read_off_it(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Appended, never merged, never sent back: the totals are a reading of the log, so two
+    devices add up by construction, which a last-write-wins tally never could."""
+    monkeypatch.setenv("TARGUM_EVENTS", "1")
+    port, token, _ = served
+    status, answer, _ = call(port, "POST", f"/events?k={token}", {"events": SITTING})
+    assert status == 401, "nobody signed out has a record to add to"
+
+    cookie = sign_in(port, postbox)
+    for _ in range(2):  # the same sitting from a second device
+        status, answer, _ = call(
+            port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie
+        )
+        assert status == 200 and answer["kept"] == 5, "the kind nobody knows is dropped alone"
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    by_medium = {row["medium"]: row for row in got["totals"]}
+    assert by_medium["listen"]["listened"] == 190 and by_medium["listen"]["watched"] == 0
+    assert by_medium["watch"]["watched"] == 80
+    assert by_medium["read"]["words"] == 360
+
+
+def test_a_reader_can_stop_the_record_and_erase_it(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """On from the first session, by decision — and theirs to stop and to erase, from the
+    account page. Stopped means the page's events are not kept whatever it sends."""
+    monkeypatch.setenv("TARGUM_EVENTS", "1")
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    call(port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie)
+
+    status, answer, _ = call(
+        port, "POST", f"/account/events?k={token}", {"collect": False}, cookie=cookie
+    )
+    assert answer["events"] == {"kept": True, "on": False} and answer["erased"] == 0
+    status, answer, _ = call(port, "POST", f"/events?k={token}", {"events": SITTING}, cookie=cookie)
+    assert answer["kept"] == 0 and answer["keeping"] is False
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert got["totals"] == [], "stopped, the figures go absent rather than standing still"
+
+    status, answer, _ = call(
+        port, "POST", f"/account/events?k={token}", {"forget": True, "collect": True}, cookie=cookie
+    )
+    assert answer["erased"] == 5 and answer["events"]["on"] is True
+    status, got, _ = call(port, "GET", f"/account/totals?k={token}", cookie=cookie)
+    assert got["totals"] == []
 
 
 def test_an_old_marking_arrives_as_the_persons_own_choice(tmp_path: Path) -> None:
@@ -1955,6 +2112,75 @@ def test_a_shelf_row_says_what_the_text_is(tmp_path: Path) -> None:
     assert row["minutes"] == 2, "260 words at 130 a minute"
 
 
+@pytest.mark.parametrize(
+    ("source", "pictures", "kind"),
+    [
+        ("/uploads/japan.mp4", True, "talk"),
+        ("https://www.youtube.com/watch?v=x", True, "talk"),
+        ("/uploads/page.jpg", False, ""),
+        ("https://www.ynet.co.il/news/article/x", False, "article"),
+    ],
+)
+def test_an_upload_is_never_filed_as_bible_narrative(
+    tmp_path: Path, source: str, pictures: bool, kind: str
+) -> None:
+    """Every upload with no address to go on was `prose`, which the library calls "Bible
+    narrative": a travel video read as one of the Bible's story books (2026-09-18). A
+    video is a talk, as the catalogue files its own, and a text nothing can be said about
+    is filed under nothing."""
+    from targum.audio import manifest as manifest_module
+    from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    out = tmp_path / "targum-out"
+    folder = out / "local" / "upload-he"
+    folder.mkdir(parents=True)
+    document = Document(
+        source=source,
+        title="העלאה",
+        language="he",
+        blocks=[Block(id="b0", kind=BlockKind.paragraph, text="מלה")],
+    )
+    document.content_hash = document.recompute_hash()
+    segment = Segment(id="s1", block_id="b0", block_index=0, index=0, text="מלה")
+    segmented = SegmentedDocument(
+        document_hash=document.content_hash, language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash=document.content_hash,
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "word"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    (folder / "translations").mkdir()
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+    if pictures:
+        manifest_module.write(
+            folder,
+            manifest_module.AudioManifest(
+                source=source,
+                sha256="0",
+                duration=60.0,
+                language="he",
+                parts=[
+                    manifest_module.ManifestPart(
+                        number=1, start=0.0, end=60.0, audio="a.m4a", video="v.mp4"
+                    )
+                ],
+            ),
+        )
+
+    row = Library(out).readers(out / "local")[0]
+
+    assert row["kind"] == kind
+    assert row["video"] is pictures
+
+
 def test_a_catalogue_text_is_described_by_the_catalogue(tmp_path: Path) -> None:
     """Its difficulty is measured off the whole text by a script that runs for minutes.
     Nothing worked out at page-draw time could be better than that."""
@@ -2077,6 +2303,28 @@ def test_a_cover_is_served_and_only_from_the_covers_directory(
     assert missing == 404, "a text with no cover drawn yet is not an error"
 
     climbing, _ = fetch(f"/thumb/..%2Fsecret?k={key}")
+    assert climbing == 404
+
+
+def test_a_video_import_without_a_cover_shows_its_own_frame(
+    served: tuple[int, str, Path],
+) -> None:
+    port, key, out = served
+    (out / "local" / "clip").mkdir(parents=True)
+    (out / "local" / "clip" / "poster.jpg").write_bytes(b"\xff\xd8\xff" + b"0" * 40)
+
+    def fetch(path: str) -> tuple[int, bytes, str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path)
+            response = connection.getresponse()
+            return response.status, response.read(), response.getheader("Content-Type") or ""
+        finally:
+            connection.close()
+
+    status, body, kind = fetch(f"/thumb/clip?k={key}")
+    assert status == 200 and body.startswith(b"\xff\xd8") and kind == "image/jpeg"
+    climbing, _, _ = fetch(f"/thumb/..%2Fclip?k={key}")
     assert climbing == 404
 
 
@@ -2688,6 +2936,36 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
 
 
+def test_a_quote_says_a_silent_text_can_be_given_a_voice_later() -> None:
+    """targum-internal#246, change 5. The card says it in one line and offers no button:
+    the press is in the reader, beside the section it would read, and this card is
+    quoting a build that has not happened yet.
+
+    The same three conditions `render` draws the door on — a language the voice speaks,
+    no recording of its own, and a price for the voice.
+    """
+    from targum.serve import Job
+
+    assert Job(id="a", source="x", language="he").state()["voice_later"] is True
+    assert Job(id="b", source="x", language="en").state()["voice_later"] is False, (
+        "the voice does not speak it"
+    )
+    heard = Job(id="c", source="x", language="he", audio=True)
+    assert heard.state()["voice_later"] is False, "a recording is already sound"
+
+
+def test_an_unpriced_voice_is_not_offered_on_a_card_either(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unpriced voice is not for sale, which is the decision of 2026-09-10 and the
+    condition the reader's own door is drawn on."""
+    from targum import speech
+    from targum.serve import Job
+
+    monkeypatch.setattr(speech, "PRICES", {})
+    assert Job(id="a", source="x", language="he").state()["voice_later"] is False
+
+
 def test_the_commonest_words_are_served_in_order_with_what_the_glossary_holds(
     served: tuple[int, str, Path],
 ) -> None:
@@ -2981,13 +3259,67 @@ def test_a_follower_can_stop_from_the_email_with_one_press(
     cookie = sign_in(port, postbox)
     call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
     book = Store(out.parent / "words.db")
-    ((email, stop),) = book.followers("parasha")
+    ((email, stop, said),) = book.followers("parasha")
+    assert said == "en", "the press was in English, so the way out is"
     status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
     assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
     assert book.followers("parasha"), "fetching the link spent nothing"
     status, body, _ = form(port, "/series/stop", {"t": stop})
     assert status == 200 and b"tell you about it again" in body
     assert book.followers("parasha") == []
+
+
+def test_a_russian_reader_is_followed_down_as_one(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The press is the only moment the language can be learnt — there is no account
+    behind a follow row — so the door has to write it down as it happens."""
+    port, key, out = served
+    cookie = sign_in(port, postbox)
+    status, saved, _ = call(
+        port,
+        "POST",
+        f"/account/languages?k={key}",
+        {"learning": ["he"], "reads": ["en", "ru"]},
+        cookie=cookie,
+    )
+    assert status == 200 and saved["reads"] == ["en", "ru"]
+    call(port, "POST", "/account/follows", {"series": "parasha"}, cookie)
+
+    book = Store(out.parent / "words.db")
+    ((_, _, said),) = book.followers("parasha")
+    assert said == "ru", "reading Russian is the choice that says so"
+
+
+def test_the_way_out_is_in_the_language_the_reader_followed_in(
+    served: tuple[int, str, Path],
+) -> None:
+    """targum-internal#289. The stop page is followed out of a mail client with no session
+    and no account, so the token is the only thing it has to go on — and it drew English
+    at a reader whose library, whose letter and whose follow button were all Russian."""
+    port, key, out = served
+    book = Store(out.parent / "words.db")
+    book.follow_series("r@example.org", "parasha", language="ru")
+    ((_, stop, said),) = book.followers("parasha")
+    assert said == "ru"
+
+    status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
+    page = body.decode("utf-8")
+    assert status == 200
+    assert "Да, перестать" in page and "Yes, stop" not in page
+    assert "ваши подписки" in page
+    assert 'lang="ru"' in page, "the page says which language it is in"
+
+    status, body, _ = form(port, "/series/stop", {"t": stop})
+    page = body.decode("utf-8")
+    assert status == 200 and "Больше не сообщим." in page
+    assert "tell you about it again" not in page
+    assert book.followers("parasha") == [], "and it still stops them"
+
+    # A token matching nothing is English rather than an error: it is a link out of a mail
+    # client, and the page has to draw for somebody who already pressed it once.
+    status, body, _ = call(port, "GET", "/series/stop?t=nonsense")
+    assert status == 200 and b"Yes, stop" in body
 
 
 def test_the_front_page_frames_its_own_origin_and_the_framed_pages_allow_it(
@@ -3135,3 +3467,225 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         assert "targum is under construction" in page and '<html lang="en"' in page
     finally:
         server.shutdown()
+
+
+# -- what targum found, before the price (targum-internal#250) ------------------------
+
+
+def test_a_link_is_described_before_it_is_priced(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reading `describe_source` has done for the model since #126, opened to the
+    page: the Add box showed a price and a title, and nothing about what was being
+    bought. No model runs and no media file is fetched."""
+    from targum.chat import tools
+
+    asked: list[str] = []
+
+    def described(ctx: object, args: dict[str, object]) -> dict[str, object]:
+        asked.append(str(args.get("url")))
+        return {
+            "kind": "video",
+            "title": "מה קרה היום",
+            "seconds": 754,
+            "hours": 0.21,
+            "hebrew_subtitles": False,
+            "advice": ["No written Hebrew subtitles: the recording would be transcribed."],
+            "licence": "standard YouTube licence",
+        }
+
+    monkeypatch.setattr(tools, "describe_source", described)
+    port, key, _ = served
+
+    status, found, _ = call(
+        port, "POST", f"/describe?k={key}", {"url": "https://www.youtube.com/watch?v=abc"}
+    )
+
+    assert status == 200
+    assert asked == ["https://www.youtube.com/watch?v=abc"], "the link, once"
+    assert found["kind"] == "video" and found["seconds"] == 754
+    assert found["advice"] == ["No written Hebrew subtitles: the recording would be transcribed."]
+
+
+def test_describing_a_link_that_cannot_be_read_is_an_answer_and_not_a_failure(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A refusal is what the page says about the link, so the reader can try another.
+    200 either way, the way the model's own tool result is."""
+    from targum.chat import tools
+
+    monkeypatch.setattr(
+        tools, "describe_source", lambda ctx, args: {"error": "That is not a link targum follows."}
+    )
+    port, key, _ = served
+
+    status, found, _ = call(port, "POST", f"/describe?k={key}", {"url": "ftp://example.com/x"})
+    assert status == 200 and "not a link" in found["error"]
+
+
+def test_describing_nothing_is_refused_at_the_door(served: tuple[int, str, Path]) -> None:
+    port, key, _ = served
+    status, found, _ = call(port, "POST", f"/describe?k={key}", {"url": "   "})
+    assert status == 400 and found["error"]
+
+
+# -- the library answers while you type (targum-internal#251) -------------------------
+
+
+def test_a_title_already_in_the_library_is_named_while_it_is_typed(
+    served: tuple[int, str, Path],
+) -> None:
+    """`instead()` says this too, but only after Continue and only once `/prepare` has
+    answered — so a reader is told a text is already here *after* being quoted a price
+    for making a second copy of it. Asked of the catalogue and nothing else."""
+    port, key, _ = served
+
+    status, found, _ = call(port, "POST", f"/already?k={key}", {"text": "בראשית"})
+    assert status == 200
+    assert found["id"] == "genesis" and found["english"] == "Genesis"
+    assert found["translations"] == 1, "so the card can say a person published one"
+
+    _, by_english, _ = call(port, "POST", f"/already?k={key}", {"text": "Ecclesiastes"})
+    assert by_english["id"] == "kohelet", "the name a reader of English would type"
+
+
+def test_a_catalogue_source_pasted_in_is_recognised_exactly(
+    served: tuple[int, str, Path],
+) -> None:
+    """A link or a `gutenberg:` name is exact, and `_prepare` would answer with the same
+    row a moment later — which is the point: it is answered before the press."""
+    port, key, _ = served
+    _, found, _ = call(port, "POST", f"/already?k={key}", {"text": "test:ruth"})
+    assert found["id"] == "ruth"
+
+
+def test_nothing_the_library_has_answers_with_nothing(served: tuple[int, str, Path]) -> None:
+    port, key, _ = served
+    for typed in ("", "x", "   ", "a text nobody has ever written"):
+        _, found, _ = call(port, "POST", f"/already?k={key}", {"text": typed})
+        assert found == {}, typed
+
+
+def test_a_title_two_texts_share_is_not_guessed_at(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Offering the wrong Genesis is worse than offering nothing, and a box somebody is
+    still typing into is no place to ask which they meant. Continue still works."""
+    import dataclasses
+
+    from targum import catalogue as catalogue_module
+
+    one = catalogue_module.by_id("genesis")
+    assert one is not None
+    twin = dataclasses.replace(one, id="genesis-again")
+    monkeypatch.setattr(catalogue_module, "everything", lambda: [one, twin])
+
+    port, key, _ = served
+    _, found, _ = call(port, "POST", f"/already?k={key}", {"text": "בראשית"})
+    assert found == {}
+
+
+def test_where_readers_stall_in_one_text_can_be_read_back(tmp_path: Path) -> None:
+    """targum-internal#127, acceptance 3: one text's stall points can be plotted from
+    stored data — and acceptance 1's other half, that they survive a re-cut.
+
+    A word tapped for a gloss was a word not known, a segment replayed was one not
+    caught, and a stop is where somebody put the text down. Those three, per segment,
+    are what "where do readers stall" means.
+    """
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    people = []
+    for address in ("one@example.com", "two@example.com"):
+        signed = store.finish_sign_in(store.start_sign_in(address))
+        assert signed is not None
+        people.append(signed[0])
+
+    def at(person, kind, segment, document="ruth-he"):
+        store.add_events(
+            person,
+            [{"kind": kind, "day": "2026-09-20", "document": document, "segment": segment}],
+        )
+
+    # Segment 2 is the hard one: both readers look words up there and one replays it.
+    at(people[0], "lookup", "2")
+    at(people[0], "replay", "2")
+    at(people[1], "lookup", "2")
+    at(people[0], "lookup", "1")
+    at(people[1], "stop", "3")
+    # Another text's events must not leak into this one's plot.
+    at(people[0], "lookup", "2", document="esther-he")
+
+    found = store.stalls("ruth-he")
+    assert [row["segment"] for row in found] == ["1", "2", "3"], "in segment order, to plot"
+
+    hard = {row["segment"]: row for row in found}
+    assert hard["2"]["lookups"] == 2 and hard["2"]["replays"] == 1
+    assert hard["2"]["readers"] == 2, "two readers stalled here, not one reader twice"
+    assert hard["1"]["lookups"] == 1 and hard["1"]["readers"] == 1
+    assert hard["3"]["stops"] == 1
+
+    assert all("person" not in row and "day" not in row for row in found), (
+        "aggregate and of nobody: clause 3.7's granularity, not clause 3.6's"
+    )
+
+    # Acceptance 1: keyed on the segment id, so a re-cut that keeps its ids keeps its
+    # history — the property translations and annotations already have.
+    again = store.stalls("ruth-he")
+    assert again == found
+
+
+def test_a_correction_is_refused_without_the_grant_and_kept_with_it(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#164, door 3, acceptance 2. The grant gates the *control* — the
+    reader's card draws nothing without it — and it gates the door as well, because a
+    door only shut in the page is not shut.
+
+    And acceptance 3's premise: what arrives is a proposal. It changes no gloss here and
+    nothing anybody else can see until somebody with standing settles it.
+    """
+    from targum.accounts import CONTRIBUTOR_GRANT, Store
+
+    port, token, home = served
+    cookie = sign_in(port, postbox)
+
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["granted"] is False, "nobody is granted by signing in"
+
+    offered = {"lemma": "עם", "meaning": "with", "stood": "people", "sentence": "הלכתי עם אחי"}
+    status, refused, _ = call(port, "POST", f"/correction?k={token}", offered, cookie=cookie)
+    assert status == 403 and refused["error"] == "no grant"
+
+    status, given, _ = call(port, "POST", f"/account/grant?k={token}", {}, cookie=cookie)
+    assert status == 200 and given["granted"] is True
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["granted"] is True, "and the page is told, which is what draws the control"
+
+    status, made, _ = call(port, "POST", f"/correction?k={token}", offered, cookie=cookie)
+    assert status == 200 and made["proposed"]
+
+    # The store sits beside the output directory, not inside it. Asserted rather than
+    # guarded with an `if`: a conditional body that silently does not run is a test that
+    # proves nothing, and this one did not run until the path was right.
+    beside = home.parent / "words.db"
+    assert beside.is_file(), beside
+    store = Store(beside)
+    row = next(r for r in store.corrections() if r["id"] == made["proposed"])
+    assert row["state"] == "proposed", "a proposal, not an application"
+    assert row["licence"] == CONTRIBUTOR_GRANT, "under the terms it arrived with"
+    assert row["who"] == "reader" and row["judge"], "a role, and a pseudonym beside it"
+    assert row["after"] == "with" and row["before"] == "people"
+    assert store.agreed() == [], "and nothing reaches the gold set unsettled"
+
+
+def test_a_correction_with_nothing_in_it_is_refused(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    call(port, "POST", f"/account/grant?k={token}", {}, cookie=cookie)
+    for bad in ({"lemma": "עם"}, {"meaning": "with"}, {}):
+        status, answer, _ = call(port, "POST", f"/correction?k={token}", bad, cookie=cookie)
+        assert status == 400, answer

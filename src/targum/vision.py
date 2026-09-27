@@ -126,7 +126,7 @@ def probe(path: Path) -> tuple[int, int]:
             width, height = image.size
             return int(width), int(height)
     except Exception as why:
-        raise TargumError("We couldn't read that picture.") from why
+        raise TargumError("We couldn't read that picture.", key="pictures.unreadable") from why
 
 
 def prepared(path: Path) -> tuple[bytes, str]:

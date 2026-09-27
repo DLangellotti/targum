@@ -199,7 +199,21 @@ SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 #: CC BY-SA asks to be named and linked where the facts are used, the decision DICTA's
 #: link made (targum-internal#259). Only on a Russian page that quoted the tables.
 OPENRUSSIAN = "https://en.openrussian.org"
-OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, SVG_NAMESPACE, OPENRUSSIAN)
+#: The other video hosts' homes, one shape each (`video/hosts.py`). Instagram's is a reel
+#: targum fetched; the rest are where a video the reader downloaded and dropped in came
+#: from (targum-internal#255). Written out rather than imported, so that a host added to
+#: the table is a line added here too.
+INSTAGRAM = "https://www.instagram.com/reel/"
+VIDEO_HOMES = (
+    INSTAGRAM,
+    # A post that is a film keeps the `/p/` it was pasted with (2026-09-18).
+    "https://www.instagram.com/p/",
+    "https://vimeo.com/",
+    "https://www.tiktok.com/@/video/",
+    "https://www.facebook.com/watch/?v=",
+    "https://www.reddit.com/comments/",
+)
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, *VIDEO_HOMES, SVG_NAMESPACE, OPENRUSSIAN)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -341,10 +355,10 @@ def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
     document, segmented, translation = imported(tmp_path, "https://youtu.be/abc123")
     page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
     html = page.read_text(encoding="utf-8")
-    assert f'data-home href="{YOUTUBE}abc123"' in html, "one shape, whatever was pasted"
+    assert f'data-home="at" href="{YOUTUBE}abc123"' in html, "one shape, whatever was pasted"
     assert 'target="_blank" rel="noreferrer noopener"' in html
     # The time is the reader's line, decided at the click: the markup carries none.
-    assert not re.search(r'data-home href="[^"]*[?&]t=', html)
+    assert not re.search(r'data-home="[^"]*" href="[^"]*[?&]t=', html)
     # And the part's place in the whole video, so the script can add the two.
     assert '"offset": 99.65' in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
@@ -355,9 +369,30 @@ def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
     document, segmented, translation = imported(plain, "")
     page = render(document, segmented, [translation], plain / "reader", folder=plain)[0]
     html = page.read_text(encoding="utf-8")
-    assert "data-home href=" not in html, "an uploaded file has no home to go to"
+    assert 'data-home="' not in html, "an uploaded file has no home to go to"
     assert '"home": ' not in html and '"offset": ' not in html
     assert YOUTUBE not in html
+
+
+def test_a_reel_links_home_at_its_start(tmp_path: Path) -> None:
+    """Instagram's address takes no time, so the control is not marked for one and does
+    not promise the line — it names the service and opens the reel."""
+    document, segmented, translation = imported(
+        tmp_path, "https://www.instagram.com/kan_news/reel/DSkLv4UE196/?igsh=abc"
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'data-home="" href="{INSTAGRAM}DSkLv4UE196"' in html, "one shape, no share token"
+    assert 'aria-label="Open on Instagram"' in html
+    assert "at this line" not in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_every_video_home_the_table_writes_is_pinned_here() -> None:
+    from targum.video import hosts
+
+    assert set(hosts.HOMES) == {YOUTUBE, *VIDEO_HOMES}
 
 
 def test_multiple_sections_get_an_index_and_pages(tmp_path: Path) -> None:
@@ -980,18 +1015,21 @@ def test_the_progress_page_stands_on_its_own() -> None:
     assert "--step-4: var(--leaf);" in css, "the top of the ramp is leaf itself"
 
 
-def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
-    """Light or dark is a choice about targum, not about one page of it.
+def test_there_is_one_look_on_every_page(tmp_path: Path) -> None:
+    """targum is light, on every page, whatever the browser prefers (design.md §12,
+    2026-09-19).
 
-    The stamp has to be on the document before anything paints, or the page shows one
-    theme and swaps to the other; and every page has to carry both the switch and the
-    script, or the choice stops at the page you made it on.
+    It had a dark theme, a switch for it on every page and a script in every <head> to
+    stamp the choice before first paint. "Remove dark mode everywhere," David wrote, and
+    the front door had already gone that way on 2026-09-16. What is pinned here is the
+    absence: no second palette, no switch, no stamp, and no page that reads the old key.
     """
     from targum.render.builder import ASSETS, add_page, learn_page, library_page, progress_page
 
-    theme = (ASSETS / "theme.js").read_text(encoding="utf-8")
-    assert '"targum:theme"' in theme  # one key, one origin, every page
-    assert "matchMedia" in theme  # until you choose, the system decides
+    assert not (ASSETS / "theme.js").exists(), "what was left of it is keep.js"
+    keep = (ASSETS / "keep.js").read_text(encoding="utf-8")
+    assert "window.targumKeep" in keep and "window.targumForget" in keep
+    assert "matchMedia" not in keep and "targum:theme" not in keep
 
     segments = [paragraph(0)]
     segmented = make_segmented(segments)
@@ -1014,20 +1052,26 @@ def test_the_theme_is_chosen_once_for_every_page(tmp_path: Path) -> None:
         ),
     }
     for name, html in pages.items():
-        assert "data-theme-toggle" in html, name
-        # Inlined by the asset helper, and it has to sit above the body: a stamp
-        # applied at the end of the document is applied after the first paint.
-        assert '"targum:theme"' in html, name
-        # ("<body" would match a CSS comment in the inlined stylesheet, so the head's
-        # own end is what this measures against.)
-        assert html.index('"targum:theme"') < html.index("</head>"), name
+        assert "data-theme" not in html, name
+        assert "targum:theme" not in html, name
+        assert "prefers-color-scheme" not in html.replace(_favicon(html), ""), name
+        # Every page still keeps things, so every page still carries where a write goes.
+        assert "window.targumKeep" in html, name
 
-    css = (ASSETS / "reader.css").read_text(encoding="utf-8")
-    # A light choice has to beat an OS set to dark, which is what the guard is for.
-    assert ':root:not([data-theme="light"])' in css
-    assert ':root[data-theme="dark"]' in css
-    # And the controls follow, or a dark page keeps white dropdowns and scrollbars.
-    assert "color-scheme: light" in css and "color-scheme: dark" in css
+    for sheet in sorted(ASSETS.glob("*.css")):
+        css = sheet.read_text(encoding="utf-8")
+        assert "prefers-color-scheme" not in css, sheet.name
+        assert "data-theme" not in css, sheet.name
+        assert "color-scheme: dark" not in css, sheet.name
+    assert "color-scheme: light" in (ASSETS / "reader.css").read_text(encoding="utf-8")
+
+
+def _favicon(html: str) -> str:
+    """The inlined favicon, which follows the *tab strip's* scheme and not the page's
+    (§11, `_icons.html.j2`): a dark monogram on a dark tab bar is invisible. It is the
+    one `prefers-color-scheme` a page still carries, and it is not the page's."""
+    found = re.search(r'<link rel="icon" href="data:image/svg[^>]*>', html)
+    return found.group(0) if found else ""
 
 
 def test_the_reader_draws_words_and_phrases_in_one_pass() -> None:
@@ -1113,7 +1157,10 @@ def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
         "in the reader, every copy announces through #spoken"
     )
     lists = (ASSETS / "lists.js").read_text(encoding="utf-8")
-    assert lists.count("window.TargumVocab.copyButton(") == 2, "a word row and a phrase row"
+    assert lists.count("window.TargumVocab.copyButton(") == 5, (
+        "a word row and a phrase row, and on a row's card the word, its dictionary form"
+        " and its meaning"
+    )
     vocab = (ASSETS / "vocab.js").read_text(encoding="utf-8")
     assert 'setAttribute("role", "status")' in vocab and 'aria-live", "polite"' in vocab, (
         "and elsewhere through a region of its own"
@@ -2179,10 +2226,10 @@ def test_signing_out_keeps_a_list_of_what_to_keep_not_what_to_drop() -> None:
 
     assert 'indexOf("targum:") === 0' in clearing, "it should sweep every targum key"
     assert "KEEP" in clearing, "and keep only what is named"
-    # Only a display preference survives. Anything about the reader must not.
+    # Nothing survives. The theme was the one display preference that did, until there
+    # was one look (2026-09-19); anything about the reader never could.
     keep = source[source.index("var KEEP = ") : source.index("\n", source.index("var KEEP = "))]
-    assert keep.count('"') == 2, f"exactly one key should survive, found: {keep}"
-    assert "targum:theme" in keep
+    assert keep.count('"') == 0, f"nothing should survive a sign-out, found: {keep}"
 
 
 def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
@@ -4226,7 +4273,7 @@ def test_printing_a_paged_chapter_prints_the_whole_chapter() -> None:
 def test_the_pager_and_the_offer_belong_to_the_last_page() -> None:
     css = _reader_css()
     assert "body.paged:not(.last-page) .pager" in css
-    assert "body.paged:not(.last-page) .rest" in css
+    assert "body.paged:not(.last-page) .foot" in css
 
 
 def test_the_foot_of_a_narrow_window_is_one_band() -> None:
@@ -5180,7 +5227,11 @@ def test_a_silent_hebrew_section_offers_its_audio_only_while_the_voice_is_priced
         encoding="utf-8"
     )
     assert 'id="voice-offer"' in offered and 'data-section="1"' in offered
-    assert "Hear this section" in offered and "of your hours" in offered
+    # A cost is credits since 2026-09-23 (design.md §12), and this line counted in raw
+    # English with a hand-rolled plural until then, so it agrees with itself now too.
+    assert "Hear this section" in offered
+    assert "credit" in offered and "of your hours" not in offered
+    assert "1 credits" not in offered
     assert "TargumVoice" in offered, "the press rides in the page"
     assert "http" not in offered.split('id="voice-offer"')[1][:600], "still fetches nothing"
 
@@ -5307,7 +5358,7 @@ def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
         ("learn_page", "learn.page.continue-reading", "Continue reading"),
         ("library_page", "nav.library", "Library"),
         ("you_page", "nav.your-account", "Your account"),
-        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to read?"),
+        ("add_page", "add.page.what-would-you-like-to-read", "What would you like to learn from?"),
     ],
 )
 def test_every_desk_page_is_said_in_the_language_asked(
@@ -5417,3 +5468,131 @@ def test_a_readers_next_text_is_offered_in_the_language_it_is_read_in() -> None:
     assert russian[0]["because"] == "Следующий по порядку." and russian[0]["scene"] == "Сцена 2"
     assert russian[1]["because"] == "Легче этого."
     assert offers_in(offers, "en") == offers
+
+
+def test_a_verb_ships_the_other_verbs_built_on_its_root(tmp_path: Path) -> None:
+    """targum-internal#301. The front door says "every verb comes with its root and
+    binyan, beside the other verbs built from it"; the root and binyan shipped and the
+    family did not. Worked out at build from the same CC0 table the conjugations come
+    from, so the page carries it and fetches nothing."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(
+                    start=0,
+                    end=4,
+                    surface="נפגש",
+                    lemma="נִפְגַּשׁ",
+                    band=3,
+                    pos="VERB",
+                    binyan="נפעל",
+                    root="פגש",
+                ),
+                Token(start=5, end=9, surface="בבית", lemma="בית", band=1, pos="NOUN"),
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    extensions = data["extensions"]
+
+    # One index per lemma, parallel to the rest: the noun has none.
+    assert extensions["siblings"] == [1, 0]
+    family = dict(tuple(row) for row in extensions["families"][1])
+    assert family["פָּגַשׁ"] == "פעל" and family["הִפְגִּישׁ"] == "הפעיל"
+    assert "נִפְגַּשׁ" not in family, "a verb is not its own sibling"
+    # The empty row at 0 is kept, because `siblings` indexes into this and 0 means none.
+    assert extensions["families"][0] == []
+
+
+# -- a commentary's comments are separated (targum-internal#200) ------------------------
+
+
+def test_only_a_commentary_keeps_the_breaks_between_its_comments() -> None:
+    """A verse of Rashi is several comments joined with a newline, each opening with the
+    words it comments on. In a line of prose a newline is whitespace, so they ran together
+    and read as one comment — three comments pretending to be one, which a reader cannot
+    tell is wrong.
+
+    Scoped to the rendering: a translation's line has no such structure, and a stray
+    newline in one should go on collapsing rather than breaking the line.
+    """
+    from targum.render.builder import _commentary_named
+
+    assert _commentary_named("Rashi on Genesis")
+    assert _commentary_named("Ramban on Exodus")
+    assert not _commentary_named("Genesis")
+    assert not _commentary_named("Song of Songs"), "a book's own name is not a commentary"
+    assert not _commentary_named("The Metsudah Chumash"), "nor a translation's"
+    assert not _commentary_named("")
+
+    css = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.css"
+    ).read_text(encoding="utf-8")
+    assert ".tr.commented { white-space: pre-line; }" in css
+    # And the plain rendering line is left as it was.
+    assert ".tr { max-width: var(--measure); color: var(--ink-soft); }" in css
+
+
+def _rashi() -> Translation:
+    return _rendering(
+        "Rashi on Genesis", "he", {s.id: f"קטע {s.index}\nעוד קטע {s.index}" for s in GENESIS}
+    )
+
+
+def test_rashi_is_offered_on_the_switch_beside_onkelos(tmp_path: Path) -> None:
+    """targum-internal#200's acceptance 2: Rashi is a rendering a reader can choose, on a
+    portion that already carries Onkelos. Nothing about it is special — it ships through
+    #199's switch like any other, named and pressable.
+    """
+    html = _genesis(tmp_path, [_onkelos(), _rashi()])
+    switch = _switch(html)
+    assert 'title="Rashi on Genesis"' in switch and 'title="Onkelos"' in switch
+    # Onkelos sorts last wherever it appears, so Rashi is what opens and Onkelos is the
+    # press — the ordering `render` already asks of the language rather than of the
+    # argument, which is why these are t0 and t1 and not the order they were passed in.
+    assert re.search(r'class="rendering on" data-translation="t0" aria-pressed="true"', switch)
+    assert re.search(r'class="rendering" data-translation="t1" aria-pressed="false"', switch)
+    assert "disabled" not in switch, "Rashi covers this chapter, so it is not refused"
+
+
+def test_pressing_the_commentary_separates_its_comments(tmp_path: Path) -> None:
+    """The template can only stamp the rendering it *draws*, so on a text carrying both,
+    everything #381 fixed came undone the moment a reader pressed Rashi: the cells kept
+    the plain class and the comments ran together again. Which one is a commentary is
+    shipped per rendering, and the swap toggles the class the way it already toggles the
+    language and the direction.
+    """
+    html = _genesis(tmp_path, [_onkelos(), _rashi()])
+    shipped = _payload(html)["translations"]
+    assert shipped["t0"]["commented"] is True
+    assert "commented" not in shipped["t1"], "Onkelos's lines are prose, not comments"
+
+    # Rashi opens, so the template stamps it — and that is as far as the template can go.
+    # Press Onkelos and the class has to come off, press Rashi and it has to come back,
+    # which is the swap's job and not the template's.
+    assert 'class="tr commented"' in html
+    js = (
+        Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.js"
+    ).read_text(encoding="utf-8")
+    assert 'cell.classList.toggle("commented", !!entry.commented);' in js

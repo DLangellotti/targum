@@ -352,7 +352,18 @@
 
   ask();
 
-  // The month's hours, once they are nearly gone (2026-09-11): the same threshold the
+  // Hours as a person says them: "6 hours 30 minutes", never "6.5" (2026-09-14).
+  function clockOf(hours) {
+    var minutes = Math.round((Number(hours) || 0) * 60);
+    var whole = Math.floor(minutes / 60);
+    var rest = minutes % 60;
+    var parts = [];
+    if (whole) parts.push(tn("account.hours", whole, "{n} hour", "{n} hours"));
+    if (rest || !whole) parts.push(tn("account.minutes", rest, "{n} minute", "{n} minutes"));
+    return parts.join(" ");
+  }
+
+  // The month's credits, once they are nearly gone (2026-09-11): the same threshold the
   // box uses, three quarters, said in the inbox with the door to the count.
   fetch(keyed("/account/me"), { credentials: "same-origin" })
     .then(function (r) {
@@ -362,10 +373,21 @@
       var hours = me && me.signedIn && me.hours;
       if (!hours || !hours.allowed || !(hours.used >= hours.allowed * 0.75)) return;
       var reset = hours.ends ? " " + t("building.hours.reset", "They reset on {date}.", { date: hours.ends }) : "";
-      var used = t("building.hours.used", "You've used {used} of your {allowed} hours this month.", {
-        used: hours.used,
-        allowed: hours.allowed,
-      });
+      /* Credits with the rate beside them (design.md §12, 2026-09-23), and what is left
+         rather than what is gone — this is a warning, and what remains is the thing it
+         is warning about. It said "You've used 6.2 of your 8 hours", a decimal nobody
+         reads as six hours twelve, which is the fault the account page was fixed for on
+         2026-09-14 and this line kept. */
+      var spare = Math.max(0, (Number(hours.allowed) || 0) - (Number(hours.used) || 0));
+      var used =
+        tn(
+          "building.credits.left",
+          Math.round(spare * 60),
+          "{n} credit left this month.",
+          "{n} credits left this month."
+        ) +
+        " " +
+        t("building.credits.rate", "That's about {clock} of audio.", { clock: clockOf(spare) });
       note("hours:" + (hours.ends || "now"), used + reset, {
         href: keyed("/progress"),
         label: t("building.hours.see", "See"),

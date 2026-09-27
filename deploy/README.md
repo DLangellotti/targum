@@ -24,12 +24,27 @@ It runs the checks, builds a wheel, installs it, restarts, and fails loudly if
 `/health` does not come back. `targum preflight` is the same gate on the box, and
 systemd runs it before every start.
 
-Secrets live in `/etc/targum/targum.env` and nowhere else.
+Secrets live in the `targum` vault in 1Password. `deploy.sh` writes the lines named in
+`box.env.op` into `/etc/targum/targum.env` on every deploy; everything else in that file
+is a setting, and is edited on the box as before.
 
 Daily learning is not indexed until `TARGUM_INDEX_DAILY=1` is set on the box, and that
 is a separate switch from `TARGUM_INDEX_PARASHA`. Sharing one would mean that inviting
 crawlers to fifty-four portions — a corpus that is finished, and the same fifty-four every
 year — also invited them to four pages that change every night.
+
+**`targum parasha build` must run with the main checkout as its working directory.** The
+recordings root is `cwd/targum-out/recordings`, so a build from a worktree finds no
+chanted audio and ships the portions without it, silently — caught on 2026-09-20 only by
+diffing against a backup. `--out` does not govern it and neither does
+`TARGUM_PARASHA_DIR`.
+
+**A rebuild does not reach every reader.** `targum rebuild` rewrites what has artifacts
+beside it; the parasha corpus and the daily window keep none, and the four shared Russian
+texts are skipped by design. After any change to reader CSS or JS those stay as they were
+cut, and `deploy.sh` used to say "done" over them — three times. `targum preflight` now
+counts them (`stale readers`), so the gap is a line in the deploy rather than something
+found weeks later. Re-cut and ship what it names.
 
 Daily learning. `ship-daily.sh` carries the rolling window of `/mishna-yomi` and its
 three siblings. Unlike `ship-parasha.sh` it wants running **nightly**, and that is the

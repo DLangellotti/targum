@@ -88,6 +88,12 @@ function element(tag) {
     getAttribute(name) {
       return name in this.attrs ? this.attrs[name] : null;
     },
+    /* The other half of `setAttribute`, missing until 2026-09-18. An absent attribute is
+       how the DOM says "not this one" — `aria-current` on the rail is the case that found
+       it — so a stub that can only ever add one cannot express the ordinary state. */
+    removeAttribute(name) {
+      delete this.attrs[name];
+    },
     addEventListener(type, handler) {
       (this.listeners[type] = this.listeners[type] || []).push(handler);
     },
@@ -100,6 +106,12 @@ function element(tag) {
       // pressed it passed anyway, which is how the arrival's Done went untested.
       const assigned = this["on" + type];
       if (typeof assigned === "function") assigned.call(this, event || {});
+    },
+    /** A real method on a real element, and the one way a page saves a file: an anchor
+     *  is made, clicked and thrown away. Without it `link.click()` threw and no test
+     *  could ever have reached an export. */
+    click() {
+      this.fire("click");
     },
     focus() {},
     /** Leaving a field is what commits what you typed into it, so this has to be the
@@ -115,9 +127,20 @@ function element(tag) {
     getBoundingClientRect() {
       return Object.assign({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0 }, this.rect);
     },
+    /* One box unless `hidden`: with no stylesheet there is nothing else to hide an
+       element, so the stub is always the desk. A phone is a browser test's job. */
+    getClientRects() {
+      return this.hidden ? [] : [this.getBoundingClientRect()];
+    },
     /* Classes, and one attribute form: `[data-row="..."]`, which is how the library
        page finds the row a reader was sent to. Without it the selector fell through to
        the class match, never hit, and the stub quietly answered null. */
+    /* Whether a node is this one or inside it. Scripts poll with it to find out
+       whether the block they drew is still on the page before touching it again. */
+    contains(node) {
+      if (node === this) return true;
+      return (this.children || []).some((child) => child.contains && child.contains(node));
+    },
     querySelector(selector) {
       const attr = /^\[([\w-]+)="?([^"\]]*)"?\]$/.exec(selector);
       const hit = attr ? (node) => node.attrs[attr[1]] === attr[2] : wearing(selector);
@@ -154,6 +177,12 @@ function install(globals) {
        and the tag behaves like any other element. */
     createElementNS: (namespace, tag) => element(tag),
     createTextNode: (text) => ({ textContent: text, children: [] }),
+    /* A fragment, which several scripts build a block in before saying it once. Made of
+       the same stuff as an element: nothing here lays anything out, so a fragment that
+       stays a node when it is appended rather than dissolving into its parent is a tree
+       one level deeper and the same nodes in the same order. Every harness that reads a
+       block walks the children anyway. */
+    createDocumentFragment: () => element("fragment"),
     getElementById(id) {
       byId[id] = byId[id] || element("div");
       return byId[id];
@@ -204,11 +233,16 @@ function install(globals) {
     },
     key: (index) => Object.keys(stored)[index] ?? null,
   };
-  /* Where a write goes. On a page these are defined by `theme.js`, which is in the
+  /* Where a write goes. On a page these are defined by `keep.js`, which is in the
      <head> of all eighteen templates, and replaced by `durable.js` in a reader — the one
      artefact opened from disk, where `localStorage` does not reliably keep what it is
      given (targum-internal#137). A harness that loads one asset on its own has neither,
      so it stands in for the page and provides them. */
+  /* The same object under both names, as a browser has it. Without this a script
+     reaching for `window.localStorage` wrote to `undefined` — which throws, which the
+     `try` every one of them is wrapped in then swallowed, so the write vanished and the
+     test that made it passed. Found on the fold's handoff, 2026-09-18. */
+  global.window.localStorage = global.localStorage;
   global.targumKeep = (name, value) => global.localStorage.setItem(name, value);
   global.targumForget = (name) => global.localStorage.removeItem(name);
   global.window.targumKeep = global.targumKeep;

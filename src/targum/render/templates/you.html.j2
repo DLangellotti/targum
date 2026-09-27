@@ -7,7 +7,13 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
+{#- The key, before anything that reads it (targum-internal#343). `building.js`, and
+    the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
+    once as they load; it was set in a script at the foot of the body, so on a local serve
+    they held an empty key for the life of the page and the bell, the followed series and
+    the chat list were refused. The hosted box has no key and was never affected. -#}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="words you">
 {% set here = 'you' %}{% set title = t("you.page.title", "You") %}
@@ -69,6 +75,34 @@
     <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the whole of it.") }}</p>
   </section>
 
+  {#- What is recorded of a sitting (targum-internal#127): on from the first session, by
+      decision, and the reader's own to stop and to erase — so it is said here, plainly, with
+      both controls beside it. Drawn only where this box keeps such a record at all
+      (`TARGUM_EVENTS`); where it does not, there is nothing to say and nothing to switch. -#}
+  <section class="panel" id="record" hidden>
+    <h2>{{ t("you.page.what-we-record", "What we record as you go") }}</h2>
+    <p>{{ t("you.page.record-says", "When you look a word up, play a recording, turn a page or finish a section, we keep a note of it on your account. It is how Your Progress can say how long you've listened and how much you've read, and it shows us which lines are hard. We keep it for as long as you keep your account.") }}</p>
+    <p class="ending-row">
+      <button type="button" class="go-quiet" id="record-switch" aria-pressed="true"></button>
+      <button type="button" class="go-quiet danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
+    </p>
+    <p class="said" id="record-said" hidden></p>
+  </section>
+
+  {#- Correcting a meaning (targum-internal#164, door 3). Behind the account rather than
+      in the reader, because it is a thing you agree to once and not a thing you meet in
+      the middle of a sentence. Until it is accepted the reader offers no such control at
+      all — not a greyed one, which would be an invitation to a shut door. -#}
+  <section class="panel" id="correcting">
+    <h2>{{ t("you.page.correcting", "Correcting a meaning") }}</h2>
+    <p>{{ t("you.page.correcting-says", "If a word's meaning is wrong, you can say so from the word's card and tell us what it should be. Nothing changes until a person looks at it. We keep what you send under the terms in the contribution grant, and you keep every right in it as well. Your name is never stored with it.") }}</p>
+    <p class="ending-row">
+      <button type="button" class="go-quiet" id="grant-go"></button>
+      <a class="go-quiet" href="https://github.com/DLangellotti/targum/blob/master/CONTRIBUTING.md#correcting-a-meaning-and-what-that-grants">{{ t("you.page.correcting-read", "Read the grant") }}</a>
+    </p>
+    <p class="said" id="grant-said" hidden></p>
+  </section>
+
   {#- Last, and quiet. Everything here is either slow to undo or impossible. -#}
   {#- Your subscriptions (2026-09-11): what comes out on its own clock — the weekly, the
       weekly portion, a learning cycle — each with where it is this week, one press to
@@ -76,6 +110,44 @@
       when it lands, in the bell, and in your inbox. Here, behind the account, and not on
       the Library: the main pages stay as simple as they can. Drawn by `follow.js`;
       hidden until the server has named a series. -#}
+  {#- What is connected, and the way to end it (targum-internal#80). Here because this
+      is where a reader comes to take something back, and because design.md §12 ("A
+      scope is a press that lasts") rests on the grant being visible somewhere they can:
+      a standing consent that could not be found is not one. Hidden until there is one —
+      a panel saying "nothing is connected" is a panel advertising connecting, and
+      /connect is where that is done. -#}
+  <section class="panel" id="connections" hidden>
+    <h2>{{ t("you.page.what-s-connected", "What's connected") }}</h2>
+    <p class="note">{{ t("you.page.connections-says", "Apps you've connected targum to, and what each one may do. Disconnecting takes effect at once.") }}</p>
+    <ul class="series" id="connection-rows"></ul>
+    <p class="said" id="connections-said" hidden></p>
+  </section>
+
+  {#- What a reader wrote for their connector to offer (targum-internal#80, note 17:
+      "enable users to use targum their way"). Two fields and no jargon: what to call it,
+      and what it should do. What they write appears in Claude or ChatGPT beside ours the
+      moment it saves.
+
+      Shown only once something is connected — a box for writing prompts, to somebody who
+      has no connector to show them in, is a control without a job (§6). -#}
+  <section class="panel" id="prompts" hidden>
+    <h2>{{ t("you.page.your-prompts", "Your prompts") }}</h2>
+    <p class="note">{{ t("you.page.prompts-says", "Things you ask for often. Write one here and it appears in Claude or ChatGPT by name, next to ours.") }}</p>
+    <ul class="series" id="prompt-rows"></ul>
+    <label class="field">
+      <span>{{ t("you.page.prompt-name", "What to call it") }}</span>
+      <input type="text" id="prompt-name" maxlength="40" spellcheck="false" autocapitalize="off">
+    </label>
+    <label class="field">
+      <span>{{ t("you.page.prompt-says", "What it should do") }}</span>
+      <input type="text" id="prompt-says" maxlength="2000">
+    </label>
+    <p class="ending-row">
+      <button type="button" class="tonal" id="prompt-save">{{ t("you.page.prompt-save", "Save") }}</button>
+    </p>
+    <p class="said" id="prompts-said" hidden></p>
+  </section>
+
   <section class="panel" id="subscriptions" hidden>
     <h2>{{ t("you.page.your-subscriptions", "Your subscriptions") }}</h2>
     <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on their own clock. Follow one and we'll put each

@@ -9,6 +9,7 @@ browser's own code.
 from __future__ import annotations
 
 import json
+import random
 import shutil
 import subprocess
 from datetime import date
@@ -160,7 +161,9 @@ def test_the_description_quotes_counts_and_refuses_to_place() -> None:
         level.Level("he", 1240, 87, 2000.0, level.ULPAN[2], level.ULPAN[3], 12, 3, 9, 31, 4)
     )
     assert "1,240 words marked known" in told
-    assert "12 days read" in told and "streak of 3" in told
+    assert "12 days read" in told and "longest run of days 9" in told
+    # design.md §12: the current streak is refused, here as everywhere.
+    assert "streak" not in told
     assert "'bet'" in told, "the rung is given, for grading"
     assert "not a placement" in told and "Never tell the reader" in told
     assert "!" not in told
@@ -179,6 +182,38 @@ def test_known_share_counts_a_known_word_with_or_without_its_prefix() -> None:
     assert level.known_share("שָׁלוֹם " * 25, {"שלום"}) == 1.0, "points are stripped first"
     assert level.known_share("שלום עולם", {"שלום"}) is None, "too short to say"
     assert level.known_share("hello " * 40, {"שלום"}) is None, "no Hebrew, nothing measured"
+
+
+def test_known_share_answers_a_page_inside_its_budget() -> None:
+    """targum-internal#244, acceptance criterion 2: `known_share` on a 500-word page runs
+    under 50 ms.
+
+    It is a budget rather than a benchmark, and it is asserted because of where this
+    function is called: on the quote card a reader waits for, and on every row
+    `suggest_next` ranks, so a slow one is felt several times in a turn rather than once.
+    Nothing pinned it before.
+
+    Measured 2026-09-21 on an 8 GB laptop under load: median 0.32 ms, worst of twenty
+    0.36 ms — about 139× inside the budget. The assertion is the card's 50 ms and not the
+    measurement, so an ordinarily busy machine cannot make this fail; a regression big
+    enough to trip it is a real one.
+    """
+    import time
+
+    draw = random.Random(1)
+    words = [
+        "".join(draw.choice("אבגדהוזחטיכלמנסעפצקרשת") for _ in range(draw.randint(2, 7)))
+        for _ in range(500)
+    ]
+    page = " ".join(words)
+    forms = set(words[:250]) | {word + "ים" for word in words[:100]}
+
+    worst = 0.0
+    for _ in range(5):
+        started = time.perf_counter()
+        level.known_share(page, forms)
+        worst = max(worst, (time.perf_counter() - started) * 1000)
+    assert worst < 50.0, f"known_share took {worst:.1f} ms on a 500-word page"
 
 
 def test_the_share_is_said_in_words_never_a_percentage() -> None:
@@ -226,3 +261,83 @@ def test_the_chat_is_told_how_to_address_the_reader_in_hebrew(tmp_path: Path) ->
     assert "as a man" in level.describe(level.snapshot(store, person.id, "he"))
     with pytest.raises(ValueError):
         store.set_address(person, "x")
+
+
+def test_the_rung_a_reader_said_is_a_seed_and_a_measured_one_outvotes_it(tmp_path: Path) -> None:
+    """targum-internal#306, its fifth state (design.md §12, 2026-09-19).
+
+    Asked on arrival and kept on the account. It stands in while nothing about the reader
+    has been measured, and the first rung their own marked words reach retires it.
+    """
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed is not None
+    person = signed[0]
+
+    assert store.declared(person.id) == ""
+    assert level.seed(level.snapshot(store, person.id, "he")) is None, (
+        "nothing said, nothing seeded"
+    )
+
+    assert store.set_declared(person, "Bet-Plus ") == "bet-plus"
+    got = level.snapshot(store, person.id, "he")
+    seeded = level.seed(got)
+    assert seeded is not None and seeded.name == "bet plus"
+    assert got.here is None, "saying it measures nothing: the ledger's own rung is untouched"
+    # Asked over the ulpan ladder, so it says nothing about another language.
+    assert level.seed(level.snapshot(store, person.id, "fr")) is None
+
+    with pytest.raises(ValueError):
+        store.set_declared(person, "fluent")
+    assert store.profile(person)["declared"] == "bet-plus", "handed back to a second browser"
+
+    measured = level.Level(
+        "he", 400, 0, 400.0, level.ULPAN[0], level.ULPAN[1], 3, 1, 1, 2, 1, declared="vav"
+    )
+    assert level.seed(measured) is None, "vav was said, and their words say aleph"
+
+    assert store.set_declared(person, "") == "", "and it can be taken back"
+
+
+def test_the_chat_grades_to_the_seed_and_never_quotes_it() -> None:
+    told = level.describe(
+        level.Level("he", 0, 0, 0.0, None, level.ULPAN[0], 0, 0, 0, 0, 0, declared="gimel")
+    )
+    assert "'gimel' rung" in told and "no measured rung yet" in told
+    assert "never quote it back" in told
+    # The state a page is handed carries no trace of it: nothing can print it.
+    shown = level.Level("he", 0, 0, 0.0, None, level.ULPAN[0], 0, 0, 0, 0, 0, declared="gimel")
+    assert "gimel" not in json.dumps(shown.state())
+
+
+# --- the rung a text needs (design.md §12, 2026-09-24) -----------------------------
+
+
+def test_a_text_of_the_commonest_words_is_aleph() -> None:
+    from targum.level import ULPAN, ULPAN_LADDER, text_rung
+
+    assert text_rung([1, 5, 12, 40, 200] * 20, ULPAN_LADDER) == ULPAN[0]
+
+
+def test_a_text_full_of_rare_words_is_high() -> None:
+    from targum.level import ULPAN, ULPAN_LADDER, text_rung
+
+    assert text_rung([11_000] * 50, ULPAN_LADDER) == ULPAN[-1]
+    assert text_rung([None] * 50, ULPAN_LADDER) == ULPAN[-1], "past the list is past every rung"
+
+
+def test_the_rung_is_read_at_ninety_percent_of_the_running_words() -> None:
+    """Ten rare words in a hundred are what the dictionary one tap away is for; eleven
+    are not (targum-internal#372: at 95% nearly every text read Vav · C2)."""
+    from targum.level import ULPAN_LADDER, text_rung
+
+    easy = [100] * 90 + [8_000] * 10
+    harder = [100] * 89 + [8_000] * 11
+    assert text_rung(easy, ULPAN_LADDER).name == "aleph"  # type: ignore[union-attr]
+    assert text_rung(harder, ULPAN_LADDER).name == "hey"  # type: ignore[union-attr]
+
+
+def test_a_text_with_no_words_has_no_rung() -> None:
+    from targum.level import ULPAN_LADDER, text_rung
+
+    assert text_rung([], ULPAN_LADDER) is None

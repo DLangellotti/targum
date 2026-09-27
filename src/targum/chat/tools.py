@@ -1,8 +1,9 @@
 """The tools the chat may call, declared once.
 
-Each tool is a name, a description, a JSON schema, two flags and a function. The same
-list is handed to the Anthropic SDK today and will be mounted on a remote MCP server
-later (targum-internal #80), so nothing here knows which of the two is asking.
+Each tool is a name, a description, a JSON schema, four flags and a function. The same
+list is handed to the Anthropic SDK, served over stdio to a client on this machine, and
+mounted on the remote connector (targum-internal #80) — so nothing here knows which of
+the three is asking.
 
 Two rules hold the whole surface up.
 
@@ -11,13 +12,27 @@ whose words and whose builds from the context the server built out of the sessio
 argument naming an owner is not a thing that exists. That is what makes the registry
 safe to expose to a client the server does not control.
 
-**Only a person spends.** No tool here spends money. `quote_build` prices a text for
+**Only a person spends, and the chat holds nothing that does.** `anthropic_tools` —
+the list this conversation's model is given — leaves out anything with `spends` set, so
+the rule below is unchanged for the surface it was written for. One tool in the registry
+does spend (`record_turn`, for a conversation held somewhere else), and it is reachable
+only through a connector whose reader granted the scope that consented to it: design.md
+§12, "A scope is a press that lasts", 2026-09-22.
+
+`quote_build` prices a text for
 nothing — `Library.prepare` is the free half of the quote-then-consent seam — and hands
 the page a card; the card's button posts to `/build`, the same route the Add page's
 button posts to, and `Handler._build` is then the only path to `Library.claim`. The
 model never holds a tool that could press. `spends` and `needs_consent` stay on `Tool`
 for a surface where that is not so (a client the server does not control), so the seam
 is drawn before the first tool needs it.
+
+**And a scope decides what a connector may even see.** `scope` says which of
+`oauth.SCOPES` a remote client must have been granted before a tool is listed to it at
+all: the library's by default, `record` for anything that reads the reader's own words,
+`chat` for the one that prices a text. Over the Anthropic SDK and over stdio there is
+no token and no scope, and the whole registry stands — the reader is the person who
+started the process. See `connector.exposed`.
 """
 
 from __future__ import annotations
@@ -30,11 +45,11 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
@@ -42,6 +57,7 @@ from .. import level as level_module
 from ..level import Level
 from ..translate.prompts import INTO, language_name
 from ..usage import Usage
+from . import check as check_module
 from . import hebrew as hebrew_module
 from . import sources as sources_module
 
@@ -96,10 +112,45 @@ class Ctx:
     #: Whether the per-account rails apply. Read once from the session, carried on the
     #: job the quote makes, never taken from an argument.
     admin: bool = False
+    #: What this reader *said* they read, or `None` where nobody is signed in. Not the
+    #: same thing as `reads`, which answers "everything" for a visitor because it is a
+    #: permission rather than a preference — feeding that to a rule which picks one
+    #: language makes a signed-out conversation Russian, `INTO` holding exactly English
+    #: and Russian (targum-internal#286, item 1).
+    said_reads: set[str] | None = None
+    #: How to reach targum's own model, for the one tool that spends (#80). A callable
+    #: rather than a client, so nothing here decides when one is made and a test can
+    #: hand over a script. `None` where there is no model to reach — the command line,
+    #: a box with no key — and `record_turn` says so rather than failing inside.
+    #:
+    #: The chat does not set it: a turn there already has a client and buys its own
+    #: reply. This is for a surface where the conversation is somebody else's and only
+    #: the judgement is ours.
+    ask: Callable[[], Any] | None = None
+    #: Where a press lives, for a caller that has no page of ours to draw a card on.
+    #: Empty in the chat, which draws the card itself and posts `/build` from it; the
+    #: public address over the connector, where the quote has to come back carrying a
+    #: link to the page the button is on (targum-internal#80). Either way the press is
+    #: the reader's own, on targum, and the model cannot make it.
+    press_at: str = ""
+    #: Whether this caller may read the reader's record — their words and their slips.
+    #: Always, in the chat and over stdio; over the connector, only where the token was
+    #: granted `record`. Read by the one tool that is offered without that scope and
+    #: carries the record when it has it (`how_to_talk`).
+    sees_record: bool = True
 
     @property
     def person_id(self) -> int | None:
         return self.person.id if self.person else None
+
+    @property
+    def language(self) -> str:
+        """The language this conversation is written to the reader in — its meanings, its
+        `= ` lines, and the name a build made from it is given. One rule with the chrome's
+        (`strings.reading_language`), which it disagreed with until 2026-09-22."""
+        from ..strings import reading_language
+
+        return reading_language(self.said_reads)
 
 
 Run = Callable[[Ctx, dict[str, Any]], dict[str, Any]]
@@ -113,6 +164,46 @@ class Tool:
     run: Run
     spends: bool = False
     needs_consent: bool = False
+    #: Whether this tool has anything to say to nobody. Everything that reads the
+    #: reader's own shelf, ledger or builds does not: over stdio, where `Ctx.person` is
+    #: None because the machine has one signed-out reader, listing it would be offering
+    #: a tool that can only answer emptily. Remote, the token names a person and this is
+    #: always satisfied — see `connector.exposed`.
+    needs_account: bool = False
+    #: Which scope a connector must have been granted to see this at all
+    #: (targum-internal#80). Empty means the library's, which is what a tool that asks
+    #: nothing of the reader's record needs. The one tool that spends carries
+    #: `oauth.SPENDING_SCOPE`, and that pairing is the whole of what design.md §12's
+    #: "A scope is a press that lasts" allows.
+    scope: str = ""
+    #: For a conversation held somewhere else, where the host writes the replies
+    #: (targum-internal#80). Never offered to targum's own chat, which already holds its
+    #: conversation to the contract and recasts every line itself — see `anthropic_tools`.
+    elsewhere: bool = False
+    #: What a host shows a person in place of the name (MCP's `title`). Claude prints a
+    #: tool's name in its own interface, and "Quote build" or "My hours" is this
+    #: registry's vocabulary said to a reader. The name stays, because hosts already
+    #: connected call tools by it; the title is what somebody reads.
+    title: str = ""
+    #: Whether calling it changes anything the reader has: a playlist, a job waiting on
+    #: their press, a line kept. Everything else only reads (MCP's `readOnlyHint`).
+    writes: bool = False
+    #: Whether it reaches past targum to the web (MCP's `openWorldHint`).
+    open_world: bool = False
+    #: Whether calling it twice with the same arguments does no more than once
+    #: (MCP's `idempotentHint`, which only means something for a tool that writes).
+    idempotent: bool = False
+
+    def hints(self) -> dict[str, bool]:
+        """The tool's MCP annotations. None of them deletes or overwrites anything."""
+        said = {
+            "readOnlyHint": not self.writes,
+            "destructiveHint": False,
+            "openWorldHint": self.open_world,
+        }
+        if self.writes:
+            said["idempotentHint"] = self.idempotent
+        return said
 
 
 def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[str, Any]:
@@ -124,9 +215,18 @@ def _schema(properties: dict[str, Any], required: tuple[str, ...] = ()) -> dict[
     }
 
 
-def reader_url(name: str) -> str:
-    """Where a built text opens. The same shape `Library.tell` mails out."""
-    return f"/reader/{quote(name)}/reader/index.html"
+def reader_url(name: str, at: str = "") -> str:
+    """Where a built text opens. The same shape `Library.tell` mails out.
+
+    `at` is the public address, and it is the whole difference between a link and a piece
+    of text. targum's own chat draws these into its own page, where a path is right and
+    an origin would be noise. A host is not on targum: Claude was handed
+    `/reader/%D7%A9.../reader/index.html` and printed it as words, because a relative path
+    resolves against *its* origin and no client will guess ours (2026-09-23). So over the
+    connector it carries the scheme and host, which is what makes it clickable — and
+    clicking it is the only way anything targum offers gets opened.
+    """
+    return f"{at.rstrip('/')}/reader/{quote(name)}/reader/index.html"
 
 
 # -- the shelf, measured -----------------------------------------------------------
@@ -183,7 +283,7 @@ def _shelf(ctx: Ctx) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         row["shared"] = True
     _measure(ctx, ctx.library.shared, shared)
     for row in [*mine, *shared]:
-        row["reader"] = reader_url(str(row["name"]))
+        row["reader"] = reader_url(str(row["name"]), ctx.press_at)
     return mine, shared
 
 
@@ -235,6 +335,21 @@ def _matches(entry: catalogue_module.Entry, query: str) -> bool:
 # -- the tools ---------------------------------------------------------------------
 
 
+#: What a search in one language also finds. Aramaic sits on the Hebrew shelf — Onkelos
+#: beside its verse, the Gemara beside its Mishnah — and nobody learning Hebrew searching
+#: for either means "not that one".
+_FAMILY: dict[str, set[str]] = {"he": {"he", "arc"}}
+
+
+def _language_asked(ctx: Ctx, args: dict[str, Any]) -> str:
+    """The language a search is held to: the one named, or the conversation's own; ""
+    for "all"."""
+    said = str(args.get("language") or "").strip()
+    if said.lower() in ("all", "any", "*"):
+        return ""
+    return (language_code(said) or ctx.level.language or "he").split("-")[0].lower()
+
+
 def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "")
     register = str(args.get("register") or "")
@@ -246,10 +361,17 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         ceiling = level_module.ceiling_for(ctx.level)
     minutes = args.get("max_minutes")
     limit = max(1, min(int(args.get("limit") or 10), 20))
+    # The conversation's language unless another is named (2026-09-24: an Italian talk
+    # came back for a Hebrew reader). "all" is every language.
+    language = _language_asked(ctx, args)
     mine, shared = _shelf(ctx)
     built = _by_source([*mine, *shared])
     found: list[dict[str, Any]] = []
     for entry in catalogue_module.everything():
+        if language and entry.language.split("-")[0].lower() not in _FAMILY.get(
+            language, {language}
+        ):
+            continue
         if register and entry.register.value != register:
             continue
         if kind and entry.kind.value != kind:
@@ -267,10 +389,37 @@ def search_library(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     if not found and query and ctx.store is not None:
         # What the shelf could not answer is what the operator most wants to know.
         ctx.store.want(query, "")
-    out: dict[str, Any] = {"count": len(found), "texts": found[:limit]}
+    out: dict[str, Any] = {
+        "count": len(found),
+        "language": language or "all",
+        "texts": found[:limit],
+    }
     if ceiling is not None and args.get("max_looked_up_percent") is None:
         out["ceiling_applied"] = int(ceiling)
     return out
+
+
+def _not_ready_yet(ctx: Ctx, entry_id: str) -> str:
+    """How to get a library text that is not on the reader's shelf yet.
+
+    Conditional on what the caller holds, because `quote_build` is offered only where the
+    chat scope was granted and this tool is offered to every connector: telling a host
+    with the library alone to call a tool it does not have is a dead end.
+    """
+    page = f"{ctx.press_at.rstrip('/')}/library/{quote(entry_id)}"
+    return (
+        f"Not on the reader's shelf yet. If quote_build is among your tools, call it with "
+        f"this id; otherwise send them this library link, on a line of its own: {page}"
+    )
+
+
+def _too_many_playlists(ctx: Ctx) -> str:
+    from ..accounts import MOST_PLAYLISTS
+
+    return (
+        f"The reader has {MOST_PLAYLISTS} playlists, the most we keep. Ask them to delete one "
+        "on targum first."
+    )
 
 
 def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -282,11 +431,7 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     row = _entry_row(entry, built)
     row["blurb"] = entry.blurb
     row["how_to_open"] = (
-        "Give the reader the link in `reader`."
-        if built
-        else "Not ready for this reader yet. Call quote_build with this id: the page shows "
-        "a card with a button, and the reader presses it to get the text ready. You "
-        "cannot start one."
+        "Give the reader the link in `reader`." if built else _not_ready_yet(ctx, entry.id)
     )
     return row
 
@@ -363,7 +508,12 @@ def sentences_with(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
 def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     query = str(args.get("query") or "").lower()
-    language = str(args.get("language") or "")
+    # A language named holds both halves to it. None named: the reader's own texts are
+    # all theirs and all listed, and the shared shelf is held to the conversation's
+    # language, which is where an Italian talk reached a Hebrew reader.
+    named = str(args.get("language") or "").strip()
+    language = _language_asked(ctx, args) if named else ""
+    starter = _language_asked(ctx, args)
     mine, shared = _shelf(ctx)
     # When each text was last opened and finished, from the reader's own sync. The
     # model answered "what was the last targum I read?" with "the list does not keep
@@ -377,7 +527,15 @@ def search_my_shelf(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         key=lambda row: -times.get(str(row.get("document") or ""), {}).get("opened", 0),
     )
     for row in ordered:
-        if language and str(row.get("language") or "") != language:
+        written = str(row.get("language") or "").split("-")[0].lower()
+        if language and written != language:
+            continue
+        if (
+            row.get("shared")
+            and starter
+            and written
+            and written not in _FAMILY.get(starter, {starter})
+        ):
             continue
         text = " ".join(str(row.get(k) or "") for k in ("title", "author", "name")).lower()
         if query and not all(word in text for word in query.split()):
@@ -436,13 +594,42 @@ def my_vocabulary(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "language": language,
         **by_status,
         "recent": [
-            {"lemma": lemma, "status": status, "band": band} for lemma, status, band, _ in recent
+            {
+                "lemma": lemma,
+                "status": _STATUS.get(-1 if status is None else status, "learning"),
+                "band": band,
+            }
+            for lemma, status, band, _ in recent
+            if band not in ("name", "number")
         ],
     }
 
 
+#: A word's status as a word rather than the store's number: 9 known, 1 to 3 learning,
+#: 0 ignored. A host handed "status": 2 guesses what it means, and says the guess.
+_STATUS: dict[int, str] = {9: "known", 1: "learning", 2: "learning", 3: "learning", 0: "ignored"}
+
+
 def my_progress(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    return ctx.level.state()
+    """Real counts, and nothing a model could say back as a placement or a streak.
+
+    `Level.state()` carries the current streak and the rung the ledger reaches, for the
+    page's own use. Neither goes to a model: the current streak is refused outright
+    (design.md §12, "The streak is the longest one, and the current one is refused"),
+    and a rung handed to a host is a level said to a reader — which is the one thing
+    every contract forbids, on a surface where nothing of ours can stop it being said.
+    """
+    state = ctx.level.state()
+    return {
+        "language": state["language"],
+        "known": state["known"],
+        "learning": state["learning"],
+        "days": state["days"],
+        "longest_run_of_days": state["longest"],
+        "sections": state["sections"],
+        "texts": state["texts"],
+        "ladder": {"name": state["ladder"]["name"], "note": state["ladder"]["note"]},
+    }
 
 
 def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
@@ -478,9 +665,14 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         known = row.get("known_share")
         tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
-            row["because"] = f"You know {round(float(known) * 100)}% of its words."
-            row["reason"] = {"key": "suggest.known", "share": round(float(known) * 100)}
             row["known_line"] = level_module.words_in_ten(float(known))
+            # Said the way the card says it, because a host repeats `because` and the rule
+            # is never a percentage (prompts.py). `reason` keeps the number for the page's
+            # own line, which `because_in` draws.
+            row["because"] = (
+                row["known_line"] or f"You know {round(float(known) * 100)}% of its words."
+            )
+            row["reason"] = {"key": "suggest.known", "share": round(float(known) * 100)}
             rank = (0.0, -(float(known) + 0.1 * tilt))
         elif entry.difficulty:
             # Which Hebrew only for Hebrew: every other language's catalogue rows carry
@@ -553,6 +745,20 @@ def language_code(value: str) -> str:
     return by_name.get(said.lower(), said)
 
 
+#: The fields of `Job.state()` that are dollars. The page never draws them as money, and
+#: a host would: it paraphrases whatever it is handed, and "there is no money anywhere
+#: inside the product" (design.md §12, "A cost is credits") covers what a host says on
+#: targum's behalf. So they stay on the in-app card's state and never leave for a host.
+DOLLAR_FIELDS = ("estimate", "meanings", "translation", "transcription")
+
+
+def _for_host(state: dict[str, Any]) -> dict[str, Any]:
+    """A job's state as a host may have it: no dollars, and the credits it uses."""
+    out = {key: value for key, value in state.items() if key not in DOLLAR_FIELDS}
+    out["credits"] = credits_for(float(state.get("seconds") or 0)) if state.get("audio") else 0
+    return out
+
+
 def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """Price a text for nothing, and leave a job the reader can press to start.
 
@@ -587,7 +793,7 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             return {
                 "already_built": True,
                 "reader": built["reader"],
-                "note": "Nothing to build. Give the reader the link.",
+                "note": "It is on their shelf already. Give the reader the link in `reader`.",
             }
         source = entry.source
         payload.update(
@@ -635,6 +841,26 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     ctx.library.prepare(job)
     ctx.library.remember(job)
     state = job.state()
+    if ctx.press_at:
+        # No page of ours to draw a card on, so the press comes back as a link to one
+        # (targum-internal#80). The seam is unchanged: `/build/<id>` shows the quote and
+        # one button, `Handler._build` is still the only path to `Library.claim`, and
+        # what the model holds is a URL rather than a way to spend.
+        state = _for_host(state)
+        state["open"] = f"{ctx.press_at}/build/{job.id}"
+        return {
+            "quote": state,
+            "note": (
+                "Give the reader the link in `open`, on a line of its own, and say in ONE "
+                "sentence what the text is. If `credits` is more than 0, say it uses that "
+                "many credits; never say money. They confirm it on targum's own page, and "
+                "you cannot. Don't describe the page, don't tell them to press anything, "
+                "and don't call this a quote, a price or a build."
+                if state["stage"] == "ready"
+                else "We can't get this text ready now. Tell the reader why in one plain "
+                "sentence, from `error` or `blocked`."
+            ),
+        }
     return {
         "quote": state,
         # One sentence, because the card says the rest (targum-internal#236). Asked to say
@@ -653,6 +879,140 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "This cannot be made ready now; the card says why. Tell the reader plainly, "
                 "in one sentence."
             )
+        ),
+    }
+
+
+#: How many texts one set may hold: design.md §12's cap, and the playlist's own.
+MOST_IN_SET = 20
+
+
+def _folder_of(reader: str) -> str:
+    """A reader's folder name from its address, `/reader/<name>/reader/index.html`."""
+    return unquote(reader.removeprefix("/reader/").split("/")[0])
+
+
+def _quote_item(
+    ctx: Ctx, alone: Ctx, item: dict[str, Any], titles: dict[str, str]
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Quote one text for a playlist, the way `quote_set` quotes each of its items and
+    `add_to_playlist` quotes one that is not made yet: an item to hold, or a refusal
+    with its reason. `alone` is `ctx` with no press link, because the set's page is the
+    only press. Nothing is claimed.
+
+    A text already on a shelf is kept under its own title, not its folder's name: the
+    model sends what it was shown, and "במעלית-he" reached /set and /playlists live
+    (2026-09-24). `titles` is the shelf's, read once per call and only if some item turns
+    out to be built already."""
+    from ..render.builder import credits_of
+
+    asked = {key: item[key] for key in ("source", "catalogue_id", "to") if item.get(key)}
+    said = quote_build(alone, asked)
+    if "in_library" in said:
+        # A published translation beats a machine one; quote that instead.
+        said = quote_build(alone, {**asked, "catalogue_id": said["in_library"]["id"]})
+    title = " ".join(str(item.get("title") or "").split())
+    if said.get("already_built"):
+        folder = _folder_of(str(said.get("reader") or ""))
+        if not titles:
+            mine, shared = _shelf(ctx)
+            titles.update(
+                {
+                    str(row["name"]): str(row.get("title") or "")
+                    for row in [*shared, *mine]
+                    if row.get("title") and row.get("title") != row.get("name")
+                }
+            )
+            # Marks the shelf as read, so a shelf with no titles is not read again.
+            titles.setdefault("", "")
+        entry = catalogue_module.by_id(str(asked.get("catalogue_id") or ""))
+        given = "" if title == folder else title
+        real = titles.get(folder) or given or (entry.title if entry else "") or folder
+        return {"title": real, "reader": folder}, {}
+    quote = said.get("quote")
+    if not quote or quote.get("stage") != "ready":
+        why = said.get("error") or (quote or {}).get("error") or (quote or {}).get("blocked")
+        return None, {"source": asked.get("source") or asked.get("catalogue_id") or "", "why": why}
+    credits = credits_of(float(quote.get("seconds") or 0)) if quote.get("audio") else 0
+    return (
+        {
+            "title": title or str(quote.get("title") or ""),
+            "job": str(quote["id"]),
+            "known_line": quote.get("known_line") or "",
+            "seconds": quote.get("seconds") or 0,
+            "audio": bool(quote.get("audio")),
+            "credits": credits,
+        },
+        {},
+    )
+
+
+def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Price a named set of texts as one, and leave one press for all of them (#365).
+
+    design.md §12, "A playlist is swiped, and one press takes the set": each item is an
+    ordinary quote — `quote_build`, with its refusals in its words — and the set is a
+    playlist holding their jobs. The press is `/set/<id>` on a page of ours, and it claims
+    every text or none. A playlist or channel *address* is still refused item by item by
+    its door's own guard; a set is a list somebody wrote out, never somebody else's list.
+    """
+    if ctx.person is None or ctx.store is None:
+        return {"error": "A set needs an account."}
+    items = args.get("items") or []
+    if not isinstance(items, list) or not items:
+        return {"error": "Give the texts for the set: a link or a library id each."}
+    if len(items) > MOST_IN_SET:
+        return {"error": f"A set holds at most {MOST_IN_SET} texts. Send fewer."}
+    name = " ".join(str(args.get("name") or "").split()) or "Playlist"
+    # Each item quoted as the chat quotes one, with no press link of its own: the set's
+    # is the only press.
+    alone = replace(ctx, press_at="")
+    titles: dict[str, str] = {}
+    held: list[dict[str, Any]] = []
+    refused: list[dict[str, Any]] = []
+    # The same text named twice in one set is held once, and priced once (2026-09-25).
+    seen: set[object] = set()
+    for raw in items:
+        item = raw if isinstance(raw, dict) else {"source": str(raw)}
+        one, why = _quote_item(ctx, alone, item, titles)
+        if one is None:
+            refused.append(why)
+            continue
+        key = one.get("reader") or (_text_of(ctx, str(one["job"])) or ("", "", one["job"]))[:2]
+        if key in seen:
+            continue
+        seen.add(key)
+        held.append(one)
+    if not held:
+        return {"error": "Nothing in that set can be made now.", "refused": refused}
+    made = ctx.store.make_playlist(
+        ctx.person.id, name, made_by="connector" if ctx.press_at else "chat"
+    )
+    if made is None:
+        return {"error": _too_many_playlists(ctx)}
+    for one in held:
+        ctx.store.add_to_playlist(
+            ctx.person.id,
+            int(made["id"]),
+            one["title"],
+            reader=one.get("reader"),
+            job=one.get("job"),
+        )
+    link = f"{ctx.press_at}/set/{made['id']}"
+    return {
+        "set": {
+            "id": made["id"],
+            "name": made["name"],
+            "items": held,
+            "credits": sum(int(one.get("credits") or 0) for one in held),
+            "refused": refused,
+        },
+        "open": link,
+        "note": (
+            "Give the reader the link in `open`, on a line of its own, and say in ONE "
+            "sentence what the set is. They press it on targum's own page, where every "
+            "text is listed and they can untick any; you cannot press it. Name anything "
+            "in `refused` in one short sentence, with its reason."
         ),
     }
 
@@ -677,7 +1037,7 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # In the conversation's own language (targum-internal#280): `ctx.level` is read in the
     # language the conversation was opened in (`Chats.context`).
     held_in = (ctx.level.language or "he").split("-")[0].lower()
-    into = hebrew_module.gloss_language(ctx.reads)
+    into = ctx.language
     path, kept, dropped = transcript.write(ctx.store, ctx.home, ctx.chat_id, reader, held_in, into)
     if kept < 2:
         return {
@@ -718,20 +1078,227 @@ def quote_conversation(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"quote": state, "lines": kept, "dropped": dropped, "note": note}
 
 
+def credits_for(seconds: float) -> int:
+    """Seconds of audio or video in the unit the reader is told: a credit is a minute
+    (design.md §12, "A cost is credits, and a credit is a minute")."""
+    from ..serve import SECONDS_A_CREDIT
+
+    return round(max(0.0, float(seconds or 0)) / SECONDS_A_CREDIT)
+
+
+#: What a balance is said beside, wherever one is: the rate, so a credit is never a
+#: number somebody has to convert from memory.
+CREDIT_RATE = (
+    "One credit is one minute of audio or video: {month} credits a month is {hours} hours. "
+    "Chatting and reading text are included."
+)
+
+
 def my_hours(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
-    """The audio allowance, in the only unit a reader is ever told about."""
+    """The month's credits, in the only unit a reader is ever told about.
+
+    Named `my_hours` because hosts already connected call it by that name; what it says
+    is credits (design.md §12, 2026-09-23), and its title says so too.
+    """
     allowed = ctx.library.upload_seconds
     used = (
         ctx.store.hours_used(ctx.person_id, ctx.library._month_from())
         if ctx.store is not None
         else 0.0
     )
+    month = None if allowed is None else credits_for(allowed)
     return {
-        "used_hours": round(used / 3600, 2),
-        "allowed_hours": None if allowed is None else round(allowed / 3600, 2),
-        "left_hours": None if allowed is None else round(max(0.0, allowed - used) / 3600, 2),
+        "credits_used": credits_for(used),
+        "credits_a_month": month,
+        "credits_left": None if allowed is None else credits_for(max(0.0, allowed - used)),
         "month_ends": ctx.library._month_ends(),
-        "note": "Hours, never money. Text is unlimited; only recordings and video count.",
+        "note": (
+            "No monthly limit on this account."
+            if allowed is None
+            else CREDIT_RATE.format(month=month, hours=f"{allowed / 3600:g}")
+        )
+        + " Say it in credits, never in money.",
+    }
+
+
+# -- playlists (targum-internal#364) ---------------------------------------------------
+
+
+def _playlist_link(ctx: Ctx, playlist_id: int, items: list[dict[str, Any]]) -> str:
+    """Where a playlist opens: its first ready text, carrying the list and its place in
+    it so the reader swipes on to the next (`playlists.js`'s `listed`), or the playlists
+    page while nothing in it is ready. Absolute over the connector, like every link."""
+    first = next((one for one in items if one.get("reader") and not one.get("failed")), None)
+    if first is None:
+        return f"{ctx.press_at.rstrip('/')}/playlists"
+    at = reader_url(str(first["reader"]), ctx.press_at)
+    return f"{at}?list={playlist_id}&at={int(first.get('position') or 0)}"
+
+
+def my_playlists(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """The reader's playlists, and what is in each, in order, each with its own link."""
+    if ctx.store is None or ctx.person is None:
+        return {"error": "This needs an account."}
+    out = []
+    for row in ctx.store.playlists(ctx.person.id):
+        found = ctx.store.playlist(ctx.person.id, int(row["id"])) or {}
+        items = list(found.get("items") or [])
+        out.append(
+            {
+                "name": row["name"],
+                "open": _playlist_link(ctx, int(row["id"]), items),
+                "texts": [
+                    {
+                        "title": item["title"],
+                        "reader": (
+                            reader_url(str(item["reader"]), ctx.press_at)
+                            if item.get("reader")
+                            else None
+                        ),
+                        "ready": bool(item.get("reader")) and not item.get("failed"),
+                    }
+                    for item in items
+                ],
+            }
+        )
+    return {"count": len(out), "playlists": out}
+
+
+def _text_of(ctx: Ctx, job_id: str) -> tuple[str, str, str] | None:
+    """What a quoted job is a job *for*: its source's key, the language it goes into, and
+    the folder it was built into if it has been. None for a job this box no longer
+    holds, which cannot then be compared and is left alone."""
+    job = ctx.library.jobs.get(job_id)
+    if job is None:
+        return None
+    into = str((job.options or {}).get("to") or "")
+    return catalogue_module._key(job.source), into, _folder_of(job.reader or "")
+
+
+def _already_in(ctx: Ctx, playlist_id: int, one: dict[str, Any]) -> dict[str, Any] | None:
+    """The answer when the text is in that playlist already, or None when it is not.
+
+    Asked twice for the same link, a model quoted it twice and the playlist held it twice
+    (2026-09-25): each quote is a new job, so the store's own check — which knows readers,
+    not jobs — let both in. A text is the same text when it is the same folder, or the same
+    source going into the same language, whether the one already there is still waiting,
+    being made, or made. Nothing is added and nothing is quoted again."""
+    assert ctx.store is not None and ctx.person is not None
+    found = ctx.store.playlist(ctx.person.id, playlist_id) or {}
+    items = list(found.get("items") or [])
+    new = _text_of(ctx, str(one["job"])) if one.get("job") else None
+    for item in items:
+        same = bool(one.get("reader")) and item.get("reader") == one["reader"]
+        if not same and item.get("job") and not item.get("failed"):
+            old = _text_of(ctx, str(item["job"]))
+            if old is not None:
+                if new is not None:
+                    same = old[:2] == new[:2]
+                elif one.get("reader"):
+                    same = bool(old[2]) and old[2] == one["reader"]
+        if same:
+            waiting = bool(item.get("job")) and not item.get("reader")
+            return {
+                "playlist": found.get("name") or "",
+                "already_in": item.get("title") or one.get("title") or "",
+                "open": (
+                    f"{ctx.press_at}/set/{playlist_id}"
+                    if waiting
+                    else _playlist_link(ctx, playlist_id, items)
+                ),
+                "note": "It is in that playlist already, so nothing was added. Say so in "
+                "one sentence and give the link in `open`.",
+            }
+    return None
+
+
+def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Put a text into one of the reader's playlists, making the playlist if there is
+    none by that name.
+
+    The text is one of three things: `text`, a name from the reader's shelf, which costs
+    nothing; or `source` / `catalogue_id`, a text that may not be made yet, quoted the way
+    an item of a set is (design.md §12, amended 2026-09-25). A quoted text joins the list
+    unclaimed, and the set's page, `/set/<id>`, is where the reader presses it — the press
+    there claims only what is still waiting, so nothing already made is charged again.
+    Nothing here claims or spends."""
+    if ctx.store is None or ctx.person is None:
+        return {"error": "This needs an account."}
+    wanted = " ".join(str(args.get("playlist") or "").split())
+    text = str(args.get("text") or "").strip()
+    source = str(args.get("source") or "").strip()
+    catalogue_id = str(args.get("catalogue_id") or "").strip()
+    if not wanted:
+        return {"error": "Name the playlist."}
+    if sum(1 for one in (text, source, catalogue_id) if one) != 1:
+        return {
+            "error": "Give exactly one of: text (a name from search_my_shelf), source (a "
+            "link) or catalogue_id."
+        }
+    one: dict[str, Any]
+    if text:
+        mine, shared = _shelf(ctx)
+        # Only what is on this reader's shelf, by the name search_my_shelf gave it: the
+        # model cannot put somebody else's text into a list by naming it.
+        row = next((found for found in [*mine, *shared] if str(found["name"]) == text), None)
+        if row is None:
+            return {
+                "error": "That text isn't on the reader's shelf. Find it with "
+                "search_my_shelf, or pass it as source or catalogue_id."
+            }
+        one = {"title": str(row.get("title") or text), "reader": text}
+    else:
+        item = {
+            key: args[key] for key in ("source", "catalogue_id", "title", "to") if args.get(key)
+        }
+        held, refused = _quote_item(ctx, replace(ctx, press_at=""), item, {})
+        if held is None:
+            return {"error": refused.get("why") or "That text can't be added now."}
+        one = held
+    person = ctx.person.id
+    existing = next(
+        (found for found in ctx.store.playlists(person) if found["name"].lower() == wanted.lower()),
+        None,
+    )
+    if existing is not None:
+        there = _already_in(ctx, int(existing["id"]), one)
+        if there is not None:
+            return there
+    if existing is None:
+        existing = ctx.store.make_playlist(
+            person, wanted, made_by="connector" if ctx.press_at else "chat"
+        )
+        if existing is None:
+            return {"error": _too_many_playlists(ctx)}
+    added = ctx.store.add_to_playlist(
+        person, int(existing["id"]), one["title"], reader=one.get("reader"), job=one.get("job")
+    )
+    if added is None:
+        from ..accounts import MOST_IN_PLAYLIST
+
+        return {
+            "error": f"That playlist holds {MOST_IN_PLAYLIST} texts, the most it can. "
+            "Start another."
+        }
+    if one.get("job"):
+        return {
+            "playlist": existing["name"],
+            "added": one["title"],
+            "known_line": one.get("known_line") or "",
+            "credits": one.get("credits") or 0,
+            "open": f"{ctx.press_at}/set/{existing['id']}",
+            "note": (
+                "Give the reader the link in `open`, on a line of its own, and say in ONE "
+                "sentence that it's in the playlist and that pressing Confirm there gets "
+                "only this text ready; what is already made is not charged again. You "
+                "cannot press it."
+            ),
+        }
+    found = ctx.store.playlist(person, int(existing["id"])) or {}
+    return {
+        "playlist": existing["name"],
+        "added": one["title"],
+        "open": _playlist_link(ctx, int(existing["id"]), list(found.get("items") or [])),
     }
 
 
@@ -903,8 +1470,8 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         advice: list[str] = []
         if not subtitled:
             advice.append(
-                "No written Hebrew subtitles: the recording would be transcribed, and the "
-                "hours count against the audio allowance."
+                "No written Hebrew subtitles, so the recording would be transcribed: it "
+                f"uses about {credits_for(media.duration)} credits."
             )
         else:
             advice.append("Has Hebrew subtitles somebody wrote, so nothing is transcribed.")
@@ -916,7 +1483,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "kind": "video",
             "title": media.title,
             "seconds": round(media.duration),
-            "hours": round(media.duration / 3600, 2),
+            "credits": credits_for(media.duration),
             "audio_language": heard,
             "hebrew_subtitles": subtitled,
             "advice": advice,
@@ -924,7 +1491,144 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             **_licence_row(media.licence),
         }
 
+    from ..video import hosts as hosts_module
+    from ..video import instagram as instagram_module
+
+    try:
+        reel = instagram_module.is_reel(url)
+    except TargumError as error:
+        return {"kind": "video", "error": error.message}
+    post = instagram_module.backup(url) if instagram_module.is_post(url) else None
+    if post is not None and not post.video:
+        # A post of pictures: its caption is the text, free to read, and its pictures
+        # are the reader's to ask for on the card — never read on the model's say.
+        return {
+            "kind": "post",
+            "title": post.title,
+            "author": f"@{post.author}" if post.author else "",
+            "caption_words": len(post.caption.split()),
+            "pictures": len(post.pictures),
+            "advice": [
+                "An Instagram post: the caption becomes the text. Its pictures are read "
+                "only if the reader presses for them on the card."
+            ],
+            "quote_with": url,
+        }
+    if reel:
+        from .. import screen as screen_module
+
+        try:
+            info = instagram_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
+        media = screen_module.from_ytdlp(info)
+        said = [
+            "An Instagram reel: it has no subtitles, so the recording would be transcribed. "
+            f"It uses about {credits_for(media.duration or instagram_module.GUESS_S)} credits."
+        ]
+        if not media.duration:
+            said.append(
+                "Instagram did not say how long it runs, so that is counted as "
+                f"{round(instagram_module.GUESS_S / 60)} minutes."
+            )
+        return {
+            "kind": "video",
+            "title": media.title.strip(),
+            "seconds": round(media.duration or instagram_module.GUESS_S),
+            "credits": credits_for(media.duration or instagram_module.GUESS_S),
+            "audio_language": "",
+            "hebrew_subtitles": False,
+            "advice": said,
+            "quote_with": instagram_module.home_url(url) or url,
+            **_licence_row(media.licence),
+        }
+    from ..video import tiktok as tiktok_module
+
+    try:
+        tok = tiktok_module.is_tiktok(url)
+    except TargumError as error:
+        return {"kind": "video", "error": error.message}
+    if tok:
+        from .. import screen as screen_module
+
+        try:
+            info = tiktok_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
+        media = screen_module.from_ytdlp(info)
+        return {
+            "kind": "video",
+            "title": media.title.strip(),
+            "seconds": round(media.duration),
+            "credits": credits_for(media.duration),
+            "audio_language": "",
+            "hebrew_subtitles": False,
+            "advice": [
+                "A TikTok: the recording would be transcribed. It uses about "
+                f"{credits_for(media.duration)} credits."
+            ],
+            "quote_with": tiktok_module.home_url(str(info.get("webpage_url") or url)) or url,
+            **_licence_row(media.licence),
+        }
+    named = hosts_module.host_for(url)
+    if named is not None:
+        # Named, and not fetched from: said as the way in that works, so the model can
+        # pass it on instead of reading the login wall as an article.
+        return {
+            "kind": "video",
+            "error": f"{named.name} doesn't let us fetch its videos. Download it and add "
+            "the file on targum.",
+        }
+
     host = (parsed.hostname or "").lower()
+
+    # A direct link to a file, before anything reads it as a page (targum-internal#256).
+    # `episode.find` fetches an address it cannot name from its suffix, and `.mp4` is one
+    # — so a reader's link to a video was pulled whole, twice, and then described as
+    # "file". Named here from the address, timed from its front, and never pulled.
+    from ..video import is_video as is_video_file
+
+    path = unquote(parsed.path)
+    if episode_module.sounds_like_audio(url) or is_video_file(path):
+        watching = is_video_file(path)
+        try:
+            front = url_module.opening(url)
+        except Unreachable as error:
+            shut = refused(ctx, host, error)
+            return shut if shut is not None else {"error": error.message}
+        except TargumError as error:
+            return {"error": error.message}
+        if ctx is not None and ctx.store is not None:
+            ctx.store.reach(host, True, egress="direct")
+        from ..audio.probe import timed
+
+        seconds = timed(front.head, front.length)
+        said = [
+            "A video: only its sound is read, unless the pictures are kept."
+            if watching
+            else "A recording.",
+            f"It would be transcribed, and uses about {credits_for(seconds)} credits."
+            if seconds
+            else "It would be transcribed, and uses a credit a minute.",
+        ]
+        if not seconds:
+            # Said rather than guessed. The length is read for certain when the file is
+            # fetched, and the quote is made from that.
+            said.append("How long it runs could not be read from the link; the quote will say.")
+        return {
+            "kind": "recording",
+            "title": Path(path).stem,
+            "medium": "video" if watching else "audio",
+            "content_type": front.content_type,
+            "seconds": round(seconds),
+            "credits": credits_for(seconds) if seconds else None,
+            "megabytes": round(front.length / (1024 * 1024), 1) if front.length else None,
+            "has_transcript": False,
+            "advice": said,
+            "quote_with": url,
+            **_licence_row(""),
+        }
+
     try:
         found = episode_module.find(url)
     except UnsupportedSource as refusal:
@@ -939,12 +1643,15 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "kind": "recording",
             "title": found.title,
             "seconds": round(found.seconds),
-            "hours": round(found.seconds / 3600, 2) if found.seconds else None,
+            "credits": credits_for(found.seconds) if found.seconds else None,
             "has_transcript": bool(found.transcript_url),
             "advice": [
                 "Its own transcript comes with it, so nothing is transcribed."
                 if found.transcript_url
-                else "It would be transcribed; the hours count against the audio allowance."
+                else "It would be transcribed, and uses about "
+                f"{credits_for(found.seconds)} credits."
+                if found.seconds
+                else "It would be transcribed, and uses a credit a minute."
             ],
             "quote_with": url,
             **_licence_row(""),
@@ -1104,7 +1811,7 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         return {
             "count": 0,
             "items": [],
-            "note": "No publishers with feeds are registered on this box.",
+            "note": "We don't follow any publishers yet.",
         }
     items: list[dict[str, Any]] = []
     skipped: list[str] = []
@@ -1122,6 +1829,13 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             haystack = f"{item.title} {item.summary}".lower()
             if query and not all(word in haystack for word in query):
                 continue
+            # What the reader would already know of it, from the hook the feed gives:
+            # a title and up to four hundred characters of summary. Not the article —
+            # nothing here has been fetched — so it is an estimate off an estimate, and
+            # `known_share` answers None below twenty tokens rather than guessing at a
+            # headline. Enough to tell two of the same day's stories apart, which is all
+            # it is asked to do.
+            known = _known_share(ctx, f"{item.title}\n{item.summary}")
             items.append(
                 {
                     "title": item.title,
@@ -1132,9 +1846,22 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                     "seconds": round(item.seconds) if item.seconds else 0,
                     "has_transcript": bool(item.transcript),
                     "licence": publisher.licence,
+                    "known_share": None if known is None else round(known, 2),
                 }
             )
-    items.sort(key=lambda row: str(row["published"]), reverse=True)
+    # Newest first, and within a day the one this reader would get furthest into
+    # (targum-internal#244, change 4b). The day is the window on purpose: news is worth
+    # reading because it is today's, so a story the reader knows more of does not climb
+    # over a fresher one — it only wins against the others published alongside it. An
+    # entry too short to measure sorts as if it were average rather than as nothing,
+    # since a headline that says little about its Hebrew is not evidence of hard Hebrew.
+    items.sort(
+        key=lambda row: (
+            str(row["published"])[:10],
+            0.5 if row["known_share"] is None else row["known_share"],
+        ),
+        reverse=True,
+    )
     out: dict[str, Any] = {"count": len(items), "items": items[:limit]}
     if skipped:
         out["unreachable"] = skipped
@@ -1147,29 +1874,252 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     job = ctx.library.jobs.get(str(args.get("id") or ""))
     if job is None or job.owner != ctx.person_id:
-        return {"error": "No build of yours has that id."}
-    state = job.state()
+        return {"error": "None of the reader's texts has that id."}
+    # Read by a model on either surface and drawn by no page, so it never carries money.
+    state = _for_host(job.state())
     if state.get("reader"):
-        state["open"] = f"/reader/{state['reader']}"
+        folder = str(state["reader"]).removesuffix("/reader/index.html")
+        state["open"] = reader_url(folder, ctx.press_at)
     return state
 
 
 REGISTERS = [register.value for register in catalogue_module.Register]
 KINDS = [kind.value for kind in catalogue_module.Kind]
 
+
+def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """Check one line the reader wrote elsewhere, and keep what they got wrong.
+
+    **The one tool that spends** (design.md §12, "A scope is a press that lasts"). It
+    takes what the reader wrote and never the host's correction: targum recasts it on its
+    own model against its own contract, so the record has one judge whichever surface a
+    line came from. See `chat/check.py` for why that is worth paying for.
+
+    Claimed and settled like a turn of conversation, on the same rails and the same eight
+    hours, because it is one — narrowed to the reader's own line, with no reply's worth
+    added, because the host wrote the reply and targum did not.
+    """
+    wrote = str(args.get("wrote") or "").strip()
+    language = str(args.get("language") or "he").split("-")[0].lower()
+    if not wrote:
+        return {"error": "Give the line the reader wrote."}
+    if ctx.person is None or ctx.store is None:
+        return {"error": "This needs an account."}
+    if language not in hebrew_module.TALKED:
+        return {"error": _not_yet(language)}
+    if not hebrew_module.written_in(wrote, language):
+        # Nothing to judge, so nothing is claimed: a question in English, a link, a line
+        # of numbers. design.md §12: only a line in the language is recast.
+        return {
+            "checked": False,
+            "note": (
+                f"That line isn't in {language_name(language)}, so there was nothing to "
+                "check and nothing was used. Answer it as the contract says, with the "
+                "recast written yourself."
+            ),
+        }
+    if hebrew_module.words_in(wrote) > check_module.MOST_WORDS:
+        return {
+            "error": (
+                f"That is more than {check_module.MOST_WORDS} words. Send one line at a "
+                "time — a paragraph recast as a sentence teaches nothing."
+            )
+        }
+    if ctx.ask is None:
+        return {"error": "We can't check lines right now. Carry on without the check."}
+    from ..serve import Job
+
+    job = Job(
+        id=f"check-{ctx.person.id}-{secrets.token_urlsafe(8)}",
+        source=f"check:{language}",
+        title="",
+        estimate=check_module.MOST_PER_LINE,
+        # The reader's own words and nothing else. An in-app turn adds a reply's worth
+        # because targum writes the reply; here the host wrote it.
+        seconds=hebrew_module.seconds_for(hebrew_module.words_in(wrote)),
+        stage="working",
+        owner=ctx.person.id,
+        home=ctx.home,
+        admin=ctx.admin,
+        kind="chat",
+    )
+    ctx.library.jobs[job.id] = job
+    ctx.library.remember(job)
+    refused = ctx.library.claim_turn(job)
+    if refused:
+        return {"error": refused}
+    try:
+        said = check_module.recast(ctx, language, wrote, ctx.ask())
+    except Exception:  # noqa: BLE001 - the model reads this, and a host repeats it
+        ctx.library.release(job)
+        return {"error": "We couldn't check that line. Nothing was used. Carry on without it."}
+    job.spent = ctx.usage.cost()
+    ctx.library.settle(job)
+    if said is None:
+        return {"error": "We couldn't read that line back, so nothing was kept."}
+    kept = check_module.keep(ctx, language, wrote, said, "connector")
+    # And the language goes on, if it was not already (2026-09-23). This is the first
+    # moment anything of the reader's is written in it, and it happens under `chat` —
+    # the one scope whose words on the approval page say it keeps what they write. Asking
+    # to practise wrote nothing and needed no scope; writing a line does both.
+    turned_on = ctx.store.also_learning(ctx.person.id, language)
+    return {
+        "checked": True,
+        "recast": said.hebrew,
+        "meaning": said.english,
+        "why": said.why,
+        "changed": bool(kept),
+        "learning": turned_on,
+        "note": (
+            "Show the reader this recast and the reason, in their own conversation. "
+            "We'll remember it and bring it back on targum."
+            if kept
+            else "That line was already right. Say so briefly and carry on."
+        ),
+    }
+
+
+def _not_yet(language: str) -> str:
+    """The refusal for a language targum does not talk in, naming the ones it does."""
+    talks = sorted(language_name(one) for one in hebrew_module.TALKED)
+    said = ", ".join(talks[:-1]) + f" and {talks[-1]}" if len(talks) > 1 else talks[0]
+    return f"We talk in {said}, not yet in {language_name(language)}."
+
+
+def elsewhere(language: str = "he", gloss: str = "English") -> str:
+    """What a host is told on top of the contract, because there the host writes the
+    replies and targum does not (design.md §12, "The connector talks by the contract",
+    2026-09-23). Three things differ from targum's own page and nothing else does.
+
+    In the conversation's own language, and quoting the contract's own rule word for
+    word: it said Hebrew to an Italian conversation, and named a rule ("never a Hebrew
+    line without its line") that no contract says in those words.
+    """
+    named = language_name(language)
+    article = "an" if named[:1] in "AEIOU" else "a"
+    return f"""You are holding this conversation for targum, inside another app. The contract
+below is the one targum's own chat is held to, and you keep to it, with three changes,
+because here you write the replies and there is no targum page to draw them:
+
+- The meaning lines. On targum's page every "= " line is folded under its {named} and a
+  tap opens it; you cannot fold, so the tap here is the reader asking. Write the {named}
+  lines, and the "= " line only when the reader asks what something means or asks for
+  the translation — for the lines they asked about, or for every line from then on if
+  that is what they asked for, until they say otherwise. A new word you bring in still
+  gets its meaning, on one "= " line after the reply naming only the new words. In your
+  first reply, say once, in one short {named} line with its meaning, that they can ask
+  for the translation at any time. This overrides this rule below, and nothing else:
+  "Never {article} {named} line without its {gloss} line."
+- The reader's own line. When record_turn is among your tools, call it with every line
+  the reader writes in {named}, exactly as they wrote it, before you answer, and make
+  the recast it returns your "> " line and its why your "~ " line — targum's judgement,
+  not yours, because that is the one we remember and bring back to them on targum.
+  Never send it your own correction. A line they wrote in another language you say in
+  {named} yourself, as the contract says, and nothing is kept. Without record_turn,
+  write the recast yourself.
+- Doors. Where the contract speaks of a path the page draws as a door, give the link
+  the tool returned, on a line of its own.
+
+Everything else holds: the vocabulary below, the length, the recast, never a level."""
+
+
+#: The Hebrew one, which is the one most hosts are handed.
+ELSEWHERE = elsewhere("he")
+
+
+def how_to_talk(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """targum's own talk contract and this reader's ledger, for a host to hold to.
+
+    Free and read-only. It is the system prompt targum's chat is given
+    (`session.py`, `contract_for` and `ledger_block`), handed to a model that is not
+    targum's so a conversation held in Claude or ChatGPT is held to the same standard:
+    one contract, both surfaces (design.md §12, 2026-09-23). No exemplars, which are
+    drawn per turn and would be stale by the second one.
+    """
+    language = str(args.get("language") or "he").split("-")[0].lower()
+    if language not in hebrew_module.TALKED:
+        return {"error": _not_yet(language)}
+    # What the reader is *already* learning does not gate this (2026-09-23). It did, and
+    # an account set to Hebrew alone met "je veux pratiquer mon français" with a refusal
+    # naming its own configuration — turning the plainest possible statement of what
+    # somebody is learning into the reason they could not. Talking costs nothing and
+    # writes nothing, so there is nothing here to protect: the ledger comes back empty in
+    # a language they have no words in yet, which is true and is the point.
+    store, person_id = ctx.store, ctx.person_id
+    # The contract is offered to every connector, the words only to one granted
+    # `record`: a reader who shared only the library still gets the conversation in
+    # Hebrew, graded to the commonest words rather than their own.
+    shared = store is not None and person_id is not None and ctx.sees_record
+    returning: hebrew_module.Returning | None = None
+    if store is not None and person_id is not None and shared:
+        level = level_module.snapshot(store, person_id, language)
+        # The ledger holds whatever a reader tapped, and "and", "the", digits and single
+        # letters are in it; a host told these are the words they know writes with them.
+        known = hebrew_module.for_host(
+            hebrew_module.known_words(store, person_id, language), language
+        )
+        # One slice of the ledger a day, so a conversation that asks twice is told the
+        # same words both times.
+        seed = int(time.time() // 86400)
+        back = hebrew_module.bring_back(store, person_id, language, seed=seed)
+        returning = hebrew_module.Returning(
+            new=hebrew_module.for_host(back.new, language),
+            learning=hebrew_module.for_host(back.learning, language),
+            nearly=hebrew_module.for_host(back.nearly, language),
+            known=hebrew_module.for_host(back.known, language),
+            phrases=back.phrases,
+        )
+        rules = hebrew_module.recurring(
+            store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+        )
+    else:
+        level, known, rules = replace(level_module.EMPTY, language=language), [], []
+    common = hebrew_module.for_host(hebrew_module.common_words(language=language), language)
+    gloss = language_name(ctx.language)
+    return {
+        "language": language,
+        "contract": "\n\n".join(
+            [
+                elsewhere(language, gloss),
+                hebrew_module.contract_for(language, gloss),
+                hebrew_module.ledger_block(level, known, common, returning, rules, shared=shared),
+            ]
+        ),
+    }
+
+
+#: The language a search is held to, as a schema property: the conversation's own
+#: unless another is named.
+_LANGUAGE_FILTER = {
+    "type": "string",
+    "description": 'A language code, or "all". Leave it out for the language the reader '
+    "is learning here.",
+}
+
+#: The language to translate into, as quote_build and each item of quote_set take it.
+_TRANSLATE_INTO = {
+    "type": "string",
+    "enum": [code for code, _ in INTO],
+    "description": "The code of the language to translate into: "
+    + ", ".join(f"{code} for {language_name(code)}" for code, _ in INTO)
+    + ". Leave it out for the language the reader reads.",
+}
+
 REGISTRY: tuple[Tool, ...] = (
     Tool(
         "search_library",
-        "Search the public library of texts with published translations. Filter by "
-        "register (which Hebrew), kind, how much a learner looks up, or reading time. "
-        "Returns whether each text is already on the reader's shelf and, if so, its link "
-        "and how much of it they know.",
+        "Search targum's public library: texts with published translations, in the "
+        "language the reader is learning here unless you name another. Filter by register "
+        "(which Hebrew), kind, how much a learner looks up, or reading time. Each result "
+        "says whether it is already on the reader's shelf and, if so, gives its link and "
+        "how much of it they know. Read only.",
         _schema(
             {
                 "query": {
                     "type": "string",
                     "description": "Words to match in title, author, blurb.",
                 },
+                "language": _LANGUAGE_FILTER,
                 "register": {"type": "string", "enum": REGISTERS},
                 "kind": {"type": "string", "enum": KINDS},
                 "max_looked_up_percent": {"type": "integer", "minimum": 0, "maximum": 100},
@@ -1178,35 +2128,44 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         search_library,
+        title="Search the library",
     ),
     Tool(
         "open_library_text",
-        "One library text by id: its blurb, whether it is built for this reader, and the "
-        "link to open it if it is.",
+        "One library text by id: what it is, whether it is on the reader's shelf, the "
+        "link to open it if it is, and how to get it if it isn't. Read only.",
         _schema({"id": {"type": "string"}}, ("id",)),
         open_library_text,
+        title="Look at a library text",
     ),
     Tool(
         "search_my_shelf",
-        "The reader's own built texts and the shared starter shelf, newest opened first, "
-        "each with its link, which languages it opens in, chapters ready, how much of it "
-        "they know, when they last opened it and when they finished it.",
-        _schema({"query": {"type": "string"}, "language": {"type": "string"}}),
+        "The reader's own texts and the shared starter shelf, newest opened first, each "
+        "with its link, which languages it opens in, chapters ready, how much of it they "
+        "know, when they last opened it and when they finished it. The starter shelf is "
+        "held to the language the reader is learning here unless you name one. Read only.",
+        _schema({"query": {"type": "string"}, "language": _LANGUAGE_FILTER}),
         search_my_shelf,
+        scope="record",
+        title="Search my texts",
     ),
     Tool(
         "sentences_with",
         "Up to five sentences from the texts on the reader's shelf, and the shared one, in "
         "which a word appears, found by its dictionary form so every inflected form counts; "
         "each with the form it takes there and the text it is from. For setting two uses "
-        "side by side — a Russian verb beside its aspect partner — from what the reader has.",
+        "side by side — a Russian verb beside its aspect partner — from what the reader "
+        "has. Read only.",
         _schema({"lemma": {"type": "string"}, "language": {"type": "string"}}, ("lemma",)),
         sentences_with,
+        scope="record",
+        title="Sentences with a word",
     ),
     Tool(
         "my_vocabulary",
-        "The reader's ledger of words in one language: how many known, how many still "
-        "being learned, and the most recently marked.",
+        "The reader's word list in one language: how many words they know, how many they "
+        "are still learning, and the ones they marked most recently, each as known, "
+        "learning or ignored. Read only.",
         _schema(
             {
                 "language": {"type": "string"},
@@ -1214,19 +2173,27 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         my_vocabulary,
+        scope="record",
+        title="My words",
     ),
     Tool(
         "my_progress",
-        "Real counts of what the reader has done: words known, days read, streak, "
-        "sections finished. Never a placement.",
+        "Real counts of what the reader has done: words known, days read, their longest "
+        "run of days, sections finished. Say these counts; never say a level or a rung, "
+        "and never a streak in progress. Read only.",
         _schema({}),
         my_progress,
+        scope="record",
+        title="My progress",
     ),
     Tool(
         "suggest_next",
-        "Library texts the reader has not built yet, ranked gentlest first by how much of "
-        "each they already know where that is measured, and by how much a learner looks "
-        "up otherwise. Each comes with one reason.",
+        "Library texts to read next, in the language the reader is learning, leaving out "
+        "the texts they brought in themselves. Some are on the shared shelf and open "
+        "straight away (`on_shelf`, with a `reader` link); the rest need getting ready "
+        "first. Ranked gentlest first, by how much of each they know where that is "
+        "measured and by how much a learner looks up otherwise, each with one reason you "
+        "can say as it is. Read only.",
         _schema(
             {
                 "language": {"type": "string"},
@@ -1236,43 +2203,46 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         suggest_next,
+        scope="record",
+        title="What to read next",
     ),
     Tool(
         "quote_build",
-        "Estimate how long a text will take for the reader, free to call: a link (an "
-        "article, a podcast episode, a YouTube address, a Gutenberg or Wikisource id) or a "
-        "library text by id. Returns the estimate the page draws a card from — title, "
-        "language, sentences or chapters, audio length — or why it cannot be built. The "
-        "reader presses the card to start it; you cannot.",
+        "For one text: a link (article, podcast episode, YouTube, Instagram or TikTok "
+        "video, Gutenberg or Wikisource id) or a library id. Free. Returns its length, how "
+        "much of it the reader knows, the credits it uses, and a link the reader opens to "
+        "confirm; you cannot confirm it. For two or more texts use quote_set. A playlist, "
+        "channel or profile address is refused; give single items.",
         _schema(
             {
                 "source": {"type": "string", "description": "A link or fetcher id."},
                 "catalogue_id": {"type": "string", "description": "A library text's id."},
-                "to": {
-                    "type": "string",
-                    "enum": [code for code, _ in INTO],
-                    "description": "The code of the language to translate into: "
-                    + ", ".join(f"{code} for {language_name(code)}" for code, _ in INTO)
-                    + ". Leave it out for the language the reader reads.",
-                },
+                "to": _TRANSLATE_INTO,
             }
         ),
         quote_build,
+        scope="chat",
+        title="Get a text ready",
+        writes=True,
+        open_world=True,
     ),
     Tool(
         "describe_source",
-        "What is at a link before it is offered: a YouTube video (length, audio language, "
-        "whether it has Hebrew subtitles somebody wrote), a podcast episode (length, whether "
-        "a transcript comes with it), or an article (words, minutes, how much is Hebrew). "
-        "The licence is recorded, never a refusal. Metadata only; nothing is fetched whole.",
+        "What is at a link before you offer it: a YouTube, Instagram or TikTok video "
+        "(length, the credits it uses, whether it has Hebrew subtitles somebody wrote), a "
+        "podcast episode (length, credits, whether a transcript comes with it), or an "
+        "article (words, minutes, how much is Hebrew). Metadata only; nothing is fetched "
+        "whole and nothing is used.",
         _schema({"url": {"type": "string"}}, ("url",)),
         describe_source,
+        title="Look at a link",
+        open_world=True,
     ),
     Tool(
         "search_sources",
-        "What the Hebrew publishers this box knows have published lately, matched to words "
+        "What the Hebrew publishers targum follows have put out lately, matched to words "
         "in the title or summary. News, podcasts and videos, newest first, each with its "
-        "link to describe or offer.",
+        "link to look at or offer. Read only.",
         _schema(
             {
                 "query": {"type": "string"},
@@ -1281,6 +2251,8 @@ REGISTRY: tuple[Tool, ...] = (
             }
         ),
         search_sources,
+        title="What publishers put out",
+        open_world=True,
     ),
     Tool(
         "quote_conversation",
@@ -1289,19 +2261,155 @@ REGISTRY: tuple[Tool, ...] = (
         "the conversation opens on their shelf with every word tappable and on their ledger.",
         _schema({}),
         quote_conversation,
+        title="Keep this conversation",
+        writes=True,
+    ),
+    Tool(
+        "quote_set",
+        "For two or more texts at once, as a new playlist the reader swipes through: give "
+        "it a name and up to 20 items, each a link or a library id. Free. Use it whenever "
+        'the reader wants several texts ("find me some reels", "make me a playlist"); use '
+        "quote_build for one, and add_to_playlist to add to a playlist that exists. "
+        "Returns every text with the credits it uses, the total, "
+        "what could not be got ready and why, and one link the reader opens to confirm "
+        "them all together; you cannot confirm it.",
+        _schema(
+            {
+                "name": {"type": "string", "description": "What to call the playlist."},
+                "items": {
+                    "type": "array",
+                    "maxItems": MOST_IN_SET,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "source": {"type": "string", "description": "A link or fetcher id."},
+                            "catalogue_id": {"type": "string"},
+                            "title": {"type": "string", "description": "A short title."},
+                            "to": _TRANSLATE_INTO,
+                        },
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            ("name", "items"),
+        ),
+        quote_set,
+        needs_account=True,
+        scope="chat",
+        title="Get a playlist ready",
+        writes=True,
+        open_world=True,
+    ),
+    Tool(
+        "my_playlists",
+        "The reader's playlists and the texts in each, with a link to open each one. Read only.",
+        _schema({}),
+        my_playlists,
+        needs_account=True,
+        scope="record",
+        title="My playlists",
+    ),
+    Tool(
+        "add_to_playlist",
+        "Add a text to one of the reader's playlists, making the playlist if needed. Use it "
+        'whenever the reader says "add this to my playlist", whether or not the text is '
+        "made yet: pass text (its name from search_my_shelf) for one on their shelf, or "
+        "source (a link) or catalogue_id for one that isn't. Free: a text that isn't made "
+        "yet comes back with its credits and a link where the reader confirms it; you "
+        "cannot confirm it. For a new playlist of several texts, use quote_set.",
+        _schema(
+            {
+                "playlist": {"type": "string", "description": "The playlist's name."},
+                "text": {
+                    "type": "string",
+                    "description": "A text on the shelf, exactly as search_my_shelf named it.",
+                },
+                "source": {"type": "string", "description": "A link or fetcher id."},
+                "catalogue_id": {"type": "string"},
+                "title": {"type": "string", "description": "A short title."},
+                "to": _TRANSLATE_INTO,
+            },
+            ("playlist",),
+        ),
+        add_to_playlist,
+        needs_account=True,
+        # A write, so the scope that says it writes: `record` is read-only on the approval
+        # page, and a list the reader did not make is more than they agreed to there.
+        scope="chat",
+        title="Add to a playlist",
+        writes=True,
+        # Not idempotent since 2026-09-25: a link is quoted afresh on every call, so the
+        # same link sent twice is two unclaimed items on the list. And it reaches out to
+        # fetch that link, as quote_set does.
+        open_world=True,
     ),
     Tool(
         "my_hours",
-        "How much of this month's audio allowance the reader has used, in hours, and when "
-        "it returns. Never money.",
+        "How many credits the reader has left this month, how many they get, and when "
+        "they come back. One credit is one minute of audio or video; chatting and reading "
+        "text are included. Say credits, never money. Read only.",
         _schema({}),
         my_hours,
+        scope="record",
+        title="My credits",
+    ),
+    Tool(
+        "record_turn",
+        "Check one line the reader wrote in the language they are practising, exactly as "
+        "they wrote it, and remember what they got wrong. Send what the READER wrote, never "
+        "your own correction of it: targum checks it itself. Returns targum's recast, its "
+        "meaning and one line of why — show them that. A line that was already right keeps "
+        "nothing, and a line in another language is not checked. Chatting is included in "
+        "the reader's plan.",
+        _schema(
+            {
+                "wrote": {
+                    "type": "string",
+                    "description": "The line the reader wrote, exactly as they wrote it.",
+                },
+                "language": {
+                    "type": "string",
+                    "description": "The code of the language they were writing in.",
+                },
+            },
+            ("wrote",),
+        ),
+        record_turn,
+        spends=True,
+        needs_account=True,
+        scope="chat",
+        elsewhere=True,
+        title="Check what I wrote",
+        writes=True,
+    ),
+    Tool(
+        "how_to_talk",
+        "Call this first whenever the reader wants to talk, chat or practise in the "
+        "language they are learning. Returns targum's own conversation rules and, where "
+        "the reader shared them, their words: talk to them in that language, graded to "
+        "what they know, with the translation when they ask for it. Hold to it for the "
+        "rest of the conversation. Free and read only.",
+        _schema(
+            {
+                "language": {
+                    "type": "string",
+                    "description": "The code of the language to talk in; Hebrew if not given.",
+                },
+            }
+        ),
+        how_to_talk,
+        scope="",
+        elsewhere=True,
+        title="How to talk with me",
     ),
     Tool(
         "check_job",
-        "Where one of the reader's own builds has got to, by id.",
+        "Where a text the reader is getting ready has got to, by the id quote_build "
+        "returned, with its link once it is ready. Read only.",
         _schema({"id": {"type": "string"}}, ("id",)),
         check_job,
+        scope="record",
+        title="Where a text has got to",
     ),
 )
 
@@ -1324,10 +2432,18 @@ def anthropic_tools(*, web_search: bool = False) -> list[dict[str, Any]]:
     and a reader called it stingy. What keeps the search on Hebrew is the Hebrew the
     model searches in and the Hebrew share `describe_source` counts before anything is
     offered; the list added a failure mode and not a floor.
+
+    **Nothing that spends is offered here**, and the chat is the surface that rule was
+    written for: a tool that spends on a model's decision makes the pricing page a lie.
+    `record_turn` exists for a conversation held somewhere else, where the host wrote the
+    reply and only the judgement is ours. In *this* conversation targum already recasts
+    every line in its own contract and writes the slip itself (`chat/record.py`), so
+    offering it here would record the same mistake twice and charge for it twice.
     """
     tools: list[dict[str, Any]] = [
         {"name": tool.name, "description": tool.description, "input_schema": tool.schema}
         for tool in REGISTRY
+        if not tool.spends and not tool.elsewhere
     ]
     if web_search:
         tools.append(
@@ -1357,6 +2473,11 @@ def run(name: str, args: dict[str, Any], ctx: Ctx) -> tuple[str, bool]:
         return json.dumps({"error": "This needs the reader's own press, and has none."}), True
     try:
         out = tool.run(ctx, args or {})
-    except Exception as error:  # noqa: BLE001 - the model reads this, a reader does not
-        return json.dumps({"error": f"{type(error).__name__}: {error}"}), True
+    except Exception:  # noqa: BLE001 - the model reads this, and a host repeats it
+        # Never the exception itself: over the connector a host says it to the reader,
+        # and "KeyError: 'reader'" is not a sentence. The log has the traceback.
+        import logging
+
+        logging.getLogger(__name__).exception("tool %s failed", name)
+        return json.dumps({"error": "Something went wrong on our side. Try again later."}), True
     return json.dumps(out, ensure_ascii=False), "error" in out

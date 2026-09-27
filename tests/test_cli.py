@@ -768,6 +768,78 @@ def test_seed_hands_a_reader_the_front_of_every_hebrew_track() -> None:
         assert head in planned, f"{group.id}: its first text is a build button"
 
 
+def test_seed_puts_a_text_behind_every_subject_the_arrival_offers() -> None:
+    """targum-internal#311. The arrival asks which subjects somebody came for and then
+    hands them a shelf. Measured on 2026-09-17 that shelf was 116 rows, 100 of them the
+    dialogues, so most of those doors opened onto a row of build buttons — history,
+    philosophy and Hebrew-itself had rows in the catalogue and nothing built."""
+    from targum.catalogue import CATALOGUE, by_id
+    from targum.cli import HOME_LANGUAGE, seeds
+
+    planned = seeds()
+    seeded = {
+        tag
+        for entry_id in planned
+        for tag in (by_id(entry_id).tags if by_id(entry_id) is not None else ())
+    }
+    offered = {
+        tag for entry in CATALOGUE if entry.language.startswith(HOME_LANGUAGE) for tag in entry.tags
+    }
+    assert offered, "the Hebrew catalogue carries subjects"
+    assert offered <= seeded, f"no text behind {sorted(str(t) for t in offered - seeded)}"
+
+
+def test_the_text_behind_a_subject_is_the_easiest_one_carrying_it() -> None:
+    """A door is opened by somebody who has just said this is what they came for, and
+    the cheapest way to lose them is to open it onto the hardest essay on the shelf. So
+    a subject nothing else already covers is given its easiest text, ties by id, and the
+    list is the same on every machine."""
+    from targum.catalogue import CATALOGUE, Kind, by_id, collections
+    from targum.cli import HOME_LANGUAGE, SEED, seeds
+
+    planned = seeds()
+    hebrew = [e for e in CATALOGUE if e.language.startswith(HOME_LANGUAGE)]
+    # What the seed holds for its own reasons: the two named, the scenes, and the front
+    # of every ordered track. A subject one of those already carries is not chosen for.
+    already = {*SEED, *(e.id for e in CATALOGUE if e.kind is Kind.dialogue)}
+    already |= {g.members[0] for g in collections() if g.ordered and g.members}
+    for tag in {tag for entry in hebrew for tag in entry.tags}:
+        if any(tag in entry.tags for i in already if (entry := by_id(i)) is not None):
+            continue
+        easiest = min((e for e in hebrew if tag in e.tags), key=lambda e: (e.difficulty, e.id))
+        assert easiest.id in planned, f"{tag}: seeded something other than {easiest.id}"
+
+
+def test_seeding_a_subject_costs_a_handful_of_texts_and_not_a_shelf() -> None:
+    """Heads only, and one text per subject: the annotator is about a minute a text on a
+    box with no GPU, and a seed that grew by a collection at a time would be hours."""
+    from targum.cli import seeds
+
+    assert len(seeds()) < 150, "the seed is a first press, not a library"
+
+
+def test_seed_builds_every_member_of_a_swipe_set() -> None:
+    """targum-internal#368. A swipe set is offered only where its members are built on
+    the shared shelf, so the seed is what makes one exist on the box at all."""
+    from targum import catalogue
+    from targum.accounts import MOST_IN_PLAYLIST
+    from targum.cli import seeds
+
+    members = [f"swiped-{n}" for n in range(MOST_IN_PLAYLIST + 3)]
+    kept = list(catalogue.COLLECTIONS)
+    catalogue.COLLECTIONS.append(
+        catalogue._collection(
+            {"id": "kitchen", "title": "במטבח", "members": members, "swipe": True}
+        )
+    )
+    try:
+        planned = seeds()
+    finally:
+        catalogue.COLLECTIONS[:] = kept
+    assert set(members[:MOST_IN_PLAYLIST]) <= set(planned)
+    assert members[MOST_IN_PLAYLIST] not in planned, "a playlist's worth, no more"
+
+
 def test_seed_names_each_text_once() -> None:
     """A collection's head may be one of the two named outright, and building a text
     twice is an annotator minute spent on nothing."""
@@ -1004,6 +1076,71 @@ def test_licences_counts_the_translation_beside_the_source(
     assert "of 4 sources" in result.output, "two texts and two translations, not two rows"
     assert "1 texts stand differently in the two languages" in result.output
     assert "free in the source, owed in the translation" in result.output
+
+
+def test_licences_names_a_claim_that_cannot_be_re_checked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#355. LICENSING.md asks for the licence together with the URL it
+    was read at, "precisely so it can be re-checked against the page rather than against
+    somebody's summary of it". A recorded licence with no URL is therefore a claim
+    nobody can check, and it was reported nowhere: the standing table counts it as free,
+    and the "nothing recorded" block below it is about a different defect — those have
+    no licence at all.
+
+    Reported per rendering and never per row, because a rendering's provenance is often
+    nothing like its row's: the Russian Torah is Sefaria's Hebrew under a translation off
+    a Russian State Library scan.
+    """
+    from targum.catalogue import Entry, Rendering
+
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        "targum.catalogue.everything",
+        lambda: [
+            Entry(
+                id="checkable",
+                title="a",
+                author="a",
+                language="he",
+                source="sefaria:A",
+                blurb="a",
+                words=10,
+                licence="Public Domain",
+                licence_url="https://example.org/a",
+                translations=[
+                    Rendering(
+                        name="Backed",
+                        source="published:ru:A",
+                        licence="Public Domain",
+                        licence_url="https://rusneb.ru/catalog/000199_000009_009682814/",
+                    )
+                ],
+            ),
+            Entry(
+                id="bare",
+                title="b",
+                author="b",
+                language="he",
+                source="sefaria:B",
+                blurb="b",
+                words=10,
+                licence="Public Domain",
+                licence_url="https://example.org/b",
+                translations=[Rendering(name="Bare", source="sefaria:en:B", licence="CC-BY")],
+            ),
+        ],
+    )
+
+    result = runner.invoke(app, ["licences"])
+
+    assert result.exit_code == 0, result.output
+    assert "1 with a licence and no URL behind it" in result.output
+    assert "(1 translation)" in result.output, "the heading splits rows from renderings"
+    assert "bare \u00b7 Bare" in result.output and "CC-BY" in result.output
+    # The one that can be re-checked is not named, and neither row is: both carry a URL.
+    assert "Backed" not in result.output
+    assert "checkable" not in result.output.split("no URL behind it")[-1]
 
 
 def test_parasha_entries_write_puts_the_portions_on_the_shelf_as_one_collection(

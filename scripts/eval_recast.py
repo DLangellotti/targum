@@ -31,12 +31,30 @@ and `corpus=ntrex-128`, so the references are separate lines and not one. Both a
 sentences from articles and run long, so the length cap is wider there than Tatoeba's;
 `--max-words` names any.
 
+**And the reader need not be writing English.** `--source ru` sends a Russian sentence
+as the reader's line and scores the recast against the Hebrew written for that same line.
+
+- With **NTREX**, the two are aligned because every NTREX reference renders one English
+  source, so its Russian and its Hebrew are renderings of the same sentence.
+- With **Tatoeba**, the pool carries a `ru` field once `scripts/tatoeba_russian.py` has
+  joined Tatoeba's own `heb-rus` links onto it — 6,644 rows at sentence length.
+  **This is the one to use.** targum-internal#222 measured the recast on NTREX and
+  concluded NTREX asks for faithfulness to a full translation, which a graded recast
+  does not aim for, so Tatoeba stays the recast's yardstick; a Russian number taken on
+  NTREX inherits that mismatch.
+
+Either files under its own ledger line — `tatoeba-ru`, `ntrex-128-ru` — because a
+reader writing Russian to a contract written for English speakers is a different
+measurement from an English speaker doing it (targum-internal#286). The contract itself
+is untouched: #286 asked for the number *before* anything the model is told changes, so
+this measures what a Russian reader gets today.
+
 **What it costs.** N chat turns and N judge calls at the chat's model. Nothing is cached
 by design: the question is what the model does today.
 
-    set -a && . ./.env && set +a && \\
+    op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_recast.py --pool ~/.targum/exemplars.jsonl --pairs 200
-    set -a && . ./.env && set +a && \\
+    op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_recast.py --reference flores --pairs 200 --save out.jsonl
 """
 
@@ -46,6 +64,8 @@ import argparse
 import json
 import random
 import sys
+from collections.abc import Sequence
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -55,10 +75,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from targum import evals  # noqa: E402
 from targum.annotate import lemma  # noqa: E402
 from targum.annotate.base import NOT_VOCABULARY  # noqa: E402
-from targum.chat import CHAT_MODEL, EFFORT, exemplars, flores, hebrew, ntrex, prompts  # noqa: E402
+from targum.chat import (  # noqa: E402
+    CHAT_MODEL,
+    EFFORT,
+    MAX_TOKENS,
+    exemplars,
+    flores,
+    flores200,
+    hebrew,
+    ntrex,
+    prompts,
+)
 from targum.level import EMPTY  # noqa: E402
 from targum.models import Segment  # noqa: E402
 from targum.translate.anthropic_provider import output_config  # noqa: E402
+from targum.translate.prompts import language_name  # noqa: E402
 from targum.usage import Usage  # noqa: E402
 from targum.vocalize.base import strip_nikkud  # noqa: E402
 
@@ -72,7 +103,35 @@ MAX_WORDS = 12
 ARTICLE_MAX_WORDS = 30
 
 #: What each reference is called in the ledger. Three references are three lines.
-CORPUS = {"tatoeba": "tatoeba", "flores": "flores-plus", "ntrex": "ntrex-128"}
+CORPUS = {
+    "tatoeba": "tatoeba",
+    "flores": "flores-plus",
+    "ntrex": "ntrex-128",
+    # Not FLORES+: its ungated predecessor, and the only reference carrying Yiddish.
+    # Comparable to published FLORES-200 numbers, only approximately to FLORES+ ones.
+    "flores200": "flores-200",
+}
+
+
+def corpus_of(reference: str, source: str, language: str = "he") -> str:
+    """The ledger's name for this run, carrying either end when it is not the default.
+
+    `evals.Row.key()` is (stage, corpus, metric) and nothing else, so a Russian run filed
+    under `ntrex-128` would share a trend line with the English one and each would look
+    like the other moving. A reader writing Russian to a contract written for English
+    speakers is a different measurement — targum-internal#286 exists because we expect it
+    to score worse — so it gets a line of its own rather than muddying that one.
+    """
+    name = CORPUS[reference]
+    if language != "he":
+        # The conversation's own language, and it must not collide with the source
+        # suffix below. `ntrex-128-ru` already means "a Russian speaker's turn against
+        # the Hebrew reference" (#286); "an English turn against the Russian reference"
+        # is a different measurement entirely, and two of those on one trend line is the
+        # fault this function exists to prevent. So the target end says `in`.
+        name = f"{name}-in-{language}"
+    return name if source == "en" else f"{name}-{source}"
+
 
 #: Who scores the recast. Not the writer: a model grading its own Hebrew prefers its own
 #: Hebrew, and the first pilot had Opus judging Opus. Decided 2026-09-07: Sonnet 5 judges,
@@ -81,8 +140,8 @@ JUDGE_MODEL = "claude-sonnet-5"
 
 JUDGE = """You are checking one line of Hebrew written by a language app for a learner.
 
-The learner wrote, in English:
-{english}
+The learner wrote, in {language}:
+{said}
 
 A native Hebrew speaker rendered the same sentence as:
 {reference}
@@ -90,17 +149,23 @@ A native Hebrew speaker rendered the same sentence as:
 The app wrote:
 {candidate}
 
-Is the app's line a correct and idiomatic Hebrew rendering of the English — what a Hebrew
-speaker would actually say, with the same meaning? Different words from the native
-rendering are fine; a calque, an English word order, a wrong form, or a changed meaning is
-not. Ignore the vowel points. Answer YES or NO on the first line, then one short sentence
-saying why."""
+Is the app's line a correct and idiomatic Hebrew rendering of what the learner wrote —
+what a Hebrew speaker would actually say, with the same meaning? Different words from the
+native rendering are fine; a calque, the word order of the learner's language, a wrong
+form, or a changed meaning is not. Ignore the vowel points. Answer YES or NO on the first
+line, then one short sentence saying why."""
 
 
-def pool_rows(path: Path, max_words: int = MAX_WORDS) -> list[dict[str, Any]]:
-    """English originals with a native Hebrew rendering, at sentence length. Streamed
-    and filtered on the way in: the whole pool as Python objects is what tipped an
-    8 GB laptop into killing the run."""
+def pool_rows(path: Path, max_words: int = MAX_WORDS, source: str = "en") -> list[dict[str, Any]]:
+    """Sentences a native Hebrew speaker wrote, with what the reader would have written,
+    at sentence length. Streamed and filtered on the way in: the whole pool as Python
+    objects is what tipped an 8 GB laptop into killing the run.
+
+    `source="ru"` reads the `ru` field `scripts/tatoeba_russian.py` adds, and drops the
+    `from_english` condition with it — that flag says the *Hebrew* was translated out of
+    English, which is the right guard for an English turn and says nothing about a
+    Russian one.
+    """
     rows: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as lines:
         for line in lines:
@@ -108,39 +173,56 @@ def pool_rows(path: Path, max_words: int = MAX_WORDS) -> list[dict[str, Any]]:
             if not line:
                 continue
             raw = json.loads(line)
-            if (
-                raw.get("from_english")
-                and raw.get("en")
-                and len(str(raw["he"]).split()) <= max_words
-            ):
-                rows.append(raw)
+            said = raw.get(source)
+            if not said or len(str(raw["he"]).split()) > max_words:
+                continue
+            if source == "en" and not raw.get("from_english"):
+                continue
+            rows.append({"id": raw["id"], "said": said, "he": raw["he"]})
     return rows
 
 
 def article_rows(
-    pairs: list[flores.Pair], max_words: int = ARTICLE_MAX_WORDS
+    lines: Sequence[tuple[str, str, str]], max_words: int = ARTICLE_MAX_WORDS
 ) -> list[dict[str, Any]]:
-    """FLORES+ or NTREX pairs in the shape the pool's rows have, so the rest of the eval
-    does not know which reference it is scoring against. `id` is the corpus's own and is
-    not a Tatoeba id, which is why the exemplar pool is never held out against it."""
+    """FLORES+ or NTREX lines in the shape the pool's rows have, so the rest of the eval
+    does not know which reference it is scoring against. `said` is what the reader wrote,
+    in whatever language this run's source is. `id` is the corpus's own and is not a
+    Tatoeba id, which is why the exemplar pool is never held out against it."""
     return [
-        {"id": pair.id, "en": pair.en, "he": pair.he}
-        for pair in pairs
-        if len(pair.he.split()) <= max_words
+        {"id": one, "said": said, "he": he}
+        for one, said, he in lines
+        if len(he.split()) <= max_words
     ]
 
 
 def reference_rows(
-    reference: str, pool: Path | None, split: str, max_words: int | None
+    reference: str,
+    pool: Path | None,
+    split: str,
+    max_words: int | None,
+    source: str = "en",
+    language: str = "he",
 ) -> list[dict[str, Any]]:
     """The rows the eval draws from, by reference."""
     if reference == "flores":
-        return article_rows(flores.load(split), max_words or ARTICLE_MAX_WORDS)
+        return article_rows(
+            [(pair.id, pair.en, pair.he) for pair in flores.load(split)],
+            max_words or ARTICLE_MAX_WORDS,
+        )
     if reference == "ntrex":
-        return article_rows(ntrex.load(), max_words or ARTICLE_MAX_WORDS)
+        return article_rows(
+            [(one.id, one.said, one.rendered) for one in ntrex.load(source, language)],
+            max_words or ARTICLE_MAX_WORDS,
+        )
+    if reference == "flores200":
+        return article_rows(
+            [(one.id, one.en, one.he) for one in flores200.load(language, split)],
+            max_words or ARTICLE_MAX_WORDS,
+        )
     if pool is None:
         sys.exit("--pool is required with the Tatoeba reference")
-    return pool_rows(pool, max_words if max_words is not None else MAX_WORDS)
+    return pool_rows(pool, max_words if max_words is not None else MAX_WORDS, source)
 
 
 def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, Any]]:
@@ -150,12 +232,12 @@ def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, 
     return fit[:count]
 
 
-def content_lemmas(reader: lemma.Lemmatizer, lines: list[str]) -> list[set[str]]:
+def content_lemmas(reader: lemma.Lemmatizer, lines: list[str], into: str = "he") -> list[set[str]]:
     segments = [
         Segment(id=f"s{n}", block_id="eval", block_index=0, index=n, text=strip_nikkud(line)[0])
         for n, line in enumerate(lines)
     ]
-    read = reader.lemmas(segments, "he") if any(line.strip() for line in lines) else {}
+    read = reader.lemmas(segments, into) if any(line.strip() for line in lines) else {}
     return [
         {
             token.lemma
@@ -172,17 +254,27 @@ def jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
-def recast(client: object, system: list[dict[str, str]], english: str, usage: Usage) -> str:
+def recast(
+    client: object,
+    system: list[dict[str, str]],
+    said: str,
+    usage: Usage,
+    into: str = "he",
+) -> str:
     reply = client.messages.create(  # type: ignore[attr-defined]
         model=CHAT_MODEL,
-        max_tokens=600,
+        # What the chat gives a turn. It was 600, which fitted Hebrew, French and
+        # Russian and did not fit pointed Yiddish — dense enough to run past the cap,
+        # come back `stop_reason=max_tokens`, and never write the `> ` line at all.
+        # That scored as the contract failing (targum-internal#359).
+        max_tokens=MAX_TOKENS,
         system=system,
-        messages=[{"role": "user", "content": english}],
+        messages=[{"role": "user", "content": said}],
         **output_config(CHAT_MODEL, EFFORT),
     )
     usage.add(CHAT_MODEL, reply.usage.input_tokens, reply.usage.output_tokens)
     text = "".join(getattr(block, "text", "") for block in reply.content)
-    for pair in hebrew.pairs(text):
+    for pair in hebrew.pairs(text, into):
         if pair.recast:
             return pair.hebrew
     return ""
@@ -190,11 +282,13 @@ def recast(client: object, system: list[dict[str, str]], english: str, usage: Us
 
 def judge(
     client: object,
-    english: str,
+    said: str,
     reference: str,
     candidate: str,
     usage: Usage,
     model: str = JUDGE_MODEL,
+    language: str = "English",
+    named: str = "Hebrew",
 ) -> tuple[str, str]:
     """ "yes", "no", or "none" where the judge wrote nothing — counted apart, never as a
     no: the first run counted empty replies as wrong and the number could not be read."""
@@ -204,7 +298,13 @@ def judge(
         messages=[
             {
                 "role": "user",
-                "content": JUDGE.format(english=english, reference=reference, candidate=candidate),
+                "content": JUDGE.format(
+                    named=named,
+                    language=language,
+                    said=said,
+                    reference=reference,
+                    candidate=candidate,
+                ),
             }
         ],
         **output_config(model, EFFORT),
@@ -232,6 +332,12 @@ def main() -> None:
         "--split", choices=flores.SPLITS, default=flores.DEFAULT_SPLIT, help="FLORES+ only"
     )
     parser.add_argument(
+        "--source",
+        choices=sorted(ntrex.NAMED),
+        default="en",
+        help="the language the reader writes in; NTREX only, and its own ledger line",
+    )
+    parser.add_argument(
         "--max-words",
         type=int,
         help=f"longest reference kept; {MAX_WORDS} for Tatoeba, {ARTICLE_MAX_WORDS} otherwise",
@@ -246,24 +352,60 @@ def main() -> None:
         "--save", type=Path, help="write every pair, recast and verdict here, JSONL"
     )
     parser.add_argument("--judge", default=JUDGE_MODEL, help="the model that scores the recast")
+    parser.add_argument(
+        "--into",
+        default="he",
+        choices=sorted({*hebrew.CONTRACTS, "he"}),
+        help="the language the conversation is held in; its contract is what is measured",
+    )
     args = parser.parse_args()
 
     import anthropic
 
-    common = hebrew.common_words()
-    if not common:
+    into = args.into
+    named = language_name(into)
+    if into != "he" and args.reference not in ("ntrex", "flores200"):
+        sys.exit(
+            f"{named} is scored against NTREX-128 (--reference ntrex) or FLORES-200 "
+            "(--reference flores200). Tatoeba's pool is Hebrew and Russian, and FLORES+ "
+            "needs a Hugging Face token."
+        )
+    if args.reference == "ntrex" and not ntrex.carried(into):
+        sys.exit(f"NTREX-128 has no {named}. FLORES-200 does: --reference flores200.")
+    common = hebrew.common_words(language=into)
+    if not common and not hebrew.common_words():
         sys.exit("wordfreq is not installed: uv sync --extra difficulty")
+    if not common:
+        # wordfreq has no list for this language — Yiddish and Aramaic are such
+        # languages. Production behaves the same way: the prompt stands on the ledger
+        # alone. Scoring against a different prompt would measure what nobody ships
+        # (targum-internal#360).
+        print(f"  wordfreq has no {named} list; the prompt stands on the ledger alone")
     known = common[: args.known]
     allowed = set(common) | set(known)
-    ledger = hebrew.ledger_block(EMPTY, known, common)
+    ledger = hebrew.ledger_block(replace(EMPTY, language=into), known, common)
 
     if args.exemplars and args.pool is None:
         sys.exit("--exemplars rides the Tatoeba pool: name it with --pool")
-    rows = reference_rows(args.reference, args.pool, args.split, args.max_words)
+    if args.source != "en" and args.reference == "flores":
+        # FLORES+ is read English-side here, so a source language it does not carry would
+        # file English rows under a Russian name and nothing would show it. Refused
+        # rather than ignored. Tatoeba carries Russian once `tatoeba_russian.py` has run,
+        # and the guard for that is on the rows themselves, below.
+        sys.exit(f"--source {args.source} is not available for FLORES+; use ntrex or tatoeba")
+    rows = reference_rows(args.reference, args.pool, args.split, args.max_words, args.source, into)
     chosen = sample(rows, args.pairs, args.seed)
     if not chosen:
         if args.reference != "tatoeba":
-            sys.exit(f"no {CORPUS[args.reference]} pairs; run targum models fetch {args.reference}")
+            sys.exit(
+                f"no {corpus_of(args.reference, args.source, into)} pairs; "
+                f"run targum models fetch {args.reference}"
+            )
+        if args.source != "en":
+            sys.exit(
+                f"no rows in the pool carry a {ntrex.NAMED.get(args.source, args.source)} "
+                f"sentence; add them with scripts/tatoeba_russian.py"
+            )
         sys.exit("no English-original rows in the pool; build it with --limit first")
     # The sentences sent as turns are never among the exemplars. Only the Tatoeba
     # reference can collide with the Tatoeba pool: a FLORES+ id is a different number.
@@ -299,16 +441,21 @@ def main() -> None:
             if picked:
                 block = ledger + "\n\n" + exemplars.block(picked)
         system = [
-            {"type": "text", "text": prompts.SYSTEM + "\n\n" + hebrew.CONTRACT},
+            {"type": "text", "text": prompts.SYSTEM + "\n\n" + hebrew.contract_for(into)},
             {"type": "text", "text": block},
         ]
-        candidates.append(recast(client, system, str(row["en"]), usage))
+        candidates.append(recast(client, system, str(row["said"]), usage, into))
         if args.save:
             args.save.parent.mkdir(parents=True, exist_ok=True)
             with args.save.open("a", encoding="utf-8") as out:
                 out.write(
                     json.dumps(
-                        {"id": row["id"], "en": row["en"], "ref": row["he"], "got": candidates[-1]},
+                        {
+                            "id": row["id"],
+                            "said": row["said"],
+                            "ref": row["he"],
+                            "got": candidates[-1],
+                        },
                         ensure_ascii=False,
                     )
                     + "\n"
@@ -320,8 +467,8 @@ def main() -> None:
     # The lemmatizer is loaded after the turns and dropped before the judging, so the
     # model is not held in memory through four hundred API calls.
     reader = lemma.for_source("chat:eval")
-    got = content_lemmas(reader, candidates)
-    want = content_lemmas(reader, references)
+    got = content_lemmas(reader, candidates, into)
+    want = content_lemmas(reader, references, into)
     del reader
     overlaps = [jaccard(a, b) for a, b in zip(got, want, strict=True)]
     unpaired = sum(1 for line in candidates if not line)
@@ -331,7 +478,18 @@ def main() -> None:
         if not candidate:
             verdicts.append(("no", "no recast line"))
             continue
-        verdicts.append(judge(client, str(row["en"]), str(row["he"]), candidate, usage, args.judge))
+        verdicts.append(
+            judge(
+                client,
+                str(row["said"]),
+                str(row["he"]),
+                candidate,
+                usage,
+                args.judge,
+                ntrex.NAMED.get(args.source, args.source),
+                named,
+            )
+        )
         if (n + 1) % 20 == 0:
             print(f"  {n + 1}/{len(chosen)} judged", flush=True)
     unjudged = sum(1 for verdict, _ in verdicts if verdict == "none")
@@ -348,7 +506,7 @@ def main() -> None:
                     json.dumps(
                         {
                             "id": row["id"],
-                            "en": row["en"],
+                            "said": row["said"],
                             "ref": row["he"],
                             "got": candidate,
                             "verdict": verdict,
@@ -361,7 +519,7 @@ def main() -> None:
                 )
 
     print(
-        f"{len(chosen)} pairs against {CORPUS[args.reference]}, "
+        f"{len(chosen)} pairs against {corpus_of(args.reference, args.source, into)}, "
         f"exemplars {'on' if args.exemplars else 'off'}, known={args.known}"
     )
     print(
@@ -375,7 +533,7 @@ def main() -> None:
             continue
         shown += 1
         reason = why.splitlines()[-1] if why else "(no reason given)"
-        print(f"\n  {row['en']}\n  ref: {row['he']}\n  got: {candidate}\n  {reason}")
+        print(f"\n  {row['said']}\n  ref: {row['he']}\n  got: {candidate}\n  {reason}")
 
     today = date.today().isoformat()
     riding = "on" if args.exemplars else "off"
@@ -383,8 +541,9 @@ def main() -> None:
         f"known={args.known} pairs={len(chosen)} seed={args.seed} exemplars={riding} "
         f"unjudged={unjudged} judge={args.judge}"
         + (f" split={args.split}" if args.reference == "flores" else "")
+        + (f" source={args.source}" if args.source != "en" else "")
     )
-    corpus = CORPUS[args.reference]
+    corpus = corpus_of(args.reference, args.source, into)
     rows_out = [
         evals.Row(
             today,

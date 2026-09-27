@@ -185,7 +185,7 @@
      never justified. At most two clauses; the first is the one that changes what the
      list is. "—" is explained only while one is on screen. */
   var NOTES = {
-    base: t("library.note.base", "Tap a text to read it."),
+    base: t("library.note.base", "Tap one to open it."),
     kind: {
       dialogue: t("library.note.dialogue", "Scenes — numbered conversations with audio. Start at 1."),
       prose: t("library.note.prose", "Bible narrative — the Bible's story books."),
@@ -252,16 +252,62 @@
     note.textContent = lead ? "" : text;
   }
 
-  /* The two halves of the page. The catalogue is everybody's; an upload is yours and
-     nobody else can reach it. Tabs rather than a filter: they are not two settings of one
-     list, they are two lists, and as a select called "Access" the second one was a thing
-     nobody found. */
+  /* The page is the catalogue, which is everybody's (design.md §12, "Yours and
+     everyone's", 2026-09-25). It had a second tab, Your uploads, for the texts that are
+     yours alone, and Your targums listed the same texts again in another shape, so a
+     reader had two places for one thing and no way to tell which was meant. Yours are
+     on Your targums now, builds included. A text you built from here is still marked
+     here, and opens your copy.
+     So there is one tab, drawn only when the Beit Midrash stands beside it: a single tab
+     over a list is a heading that looks pressable. */
   // "All texts", not "Library": under a page headed Library a first tab of the same name
   // said nothing (2026-09-14). Sentence case, like every other label on the page.
-  var WHERE = [
-    ["library", t("library.where.library", "All texts")],
-    ["mine", t("library.where.mine", "Your uploads")],
+  var WHERE = [["library", t("library.where.library", "All texts")]];
+
+  /* --- the Beit Midrash (targum-internal#340, 2026-09-19) ---------------------------
+   *
+   * A third tab, Hebrew's alone: the texts `catalogue.beit_midrash()` keeps, walked as a
+   * tree the way Sefaria's contents is — doors, then the books behind each under their
+   * own headings. "Someone who only studies Biblical Hebrew should be able to find what
+   * they are looking for right away": the tab, Tanakh, Ruth.
+   *
+   * **It is not a second room.** There was a Beit Midrash shelf once, with its own
+   * addresses, and it was taken out because a reader had to know which room a text was
+   * in before they could find it (`catalogue.Tag`). Every row here is also a row under
+   * All texts, at the same address, drawn by the same code: this is the one list
+   * (design.md §12, "The library folds") asked a different question — not "what is it
+   * about" but "where does it stand". A subject only ever narrows (§12, 2026-09-17), and
+   * so does a door.
+   *
+   * Which door a collection stands behind is a fact in the catalogue file
+   * (`Collection.door`), and a file that says nothing draws no tab. The names are here
+   * because they are the page's own words, like the subjects'.
+   *
+   * It crosses one line the rest of the library does not: the Aramaic translations of the
+   * Tanakh — Onkelos, Jonathan — are Aramaic rows,
+   * and they have a door here, named for what they are rather than by the word the
+   * brand keeps for itself (David, 2026-09-19 — Sefaria files them under Tanakh,
+   * and a Torah student looks for Onkelos beside the Torah). They open as Aramaic
+   * readers and their words still go to the Aramaic list (targum-internal#202); their
+   * cards say Aramaic. Nowhere else does the Hebrew shelf show another language's rows.
+   */
+  var DOORS = [
+    ["tanakh", "תנ״ך", t("library.door.tanakh", "Tanakh")],
+    ["portions", "פרשות השבוע", t("library.door.portions", "The Torah, by portion")],
+    ["targum", "תרגום", t("library.door.targum", "Aramaic translations")],
+    ["mishnah", "משנה", t("library.door.mishnah", "Mishnah")],
+    ["halakhah", "הלכה", t("library.door.halakhah", "Halakhah")],
+    ["thought", "מחשבה ומוסר", t("library.door.thought", "Thought and ethics")],
+    ["liturgy", "תפילה", t("library.door.liturgy", "Liturgy")],
   ];
+  var MIDRASH = ["midrash", t("library.where.midrash", "Beit Midrash")];
+  //: The language the tree carries besides Hebrew.
+  var BESIDE_HEBREW = "arc";
+
+  function doorNamed(id) {
+    for (var n = 0; n < DOORS.length; n++) if (DOORS[n][0] === id) return DOORS[n];
+    return null;
+  }
 
   // Where the gauge starts and stops. Nothing in Hebrew comes in under a tenth or over
   // two fifths, so a bar drawn from zero would be four identical bars.
@@ -312,9 +358,15 @@
   /* Whether a row's share means anything. Zero is a measurement on a catalogue text — a
      twenty-word scene with no uncommon word in it — and "not measured" on an upload
      built without word-level annotation. The two are different claims, and only the
-     second is drawn as a dash. */
+     second is drawn as a dash. The longest scene is 67 words. */
+  var MEASURED_ZERO = 200;
+
   function measured(row) {
-    return row.difficulty > 0 || !!row.entry;
+    if (row.difficulty > 0) return true;
+    // A zero is believable only on a text short enough to have no uncommon word in it.
+    // Forty-seven catalogue rows — Rashi, the Aramaic targumim, a novel — carry 0 because
+    // nobody measured them, and read "0% hard words" at the top of Easiest (2026-09-27).
+    return !!row.entry && (row.entry.words || 0) <= MEASURED_ZERO;
   }
 
   function level(row) {
@@ -354,8 +406,29 @@
     // it is not a claim at all — so it sits in the middle rather than being hidden.
     if (!measured(row)) return "stretch";
     var band = level(row);
+    /* And where the reader said on arrival how much Hebrew they have, that moves what
+       "now" means until their own marked words can (targum-internal#306, 2026-09-19;
+       `charts.seed`). The ladder in thirds: a beginner reads the easy shelf now, as
+       before; from bet plus the middle shelf is within reach as well; from dalet all of
+       it is. Coarse on purpose — it is a seed, and `anyKnown` retires it. */
+    var reach = seedReach();
+    if (reach === 2) return "now";
     if (band === "easy") return "now";
-    return band === "mid" ? "stretch" : "hard";
+    if (band === "mid") return reach === 1 ? "now" : "stretch";
+    return reach === 1 ? "stretch" : "hard";
+  }
+
+  //: 0, 1 or 2: how far up the shelf the rung a reader named reaches. 0 where they named
+  //: none, or where something about them has been measured since.
+  var seeded = "";
+
+  function seedReach() {
+    var ladder = window.TargumCharts;
+    // Asked over the ulpan ladder, so it says nothing about another language's shelf.
+    if (!seeded || !ladder || !inHebrew) return 0;
+    var at = ladder.seedFraction(seeded);
+    if (at >= 5 / 7) return 2;
+    return at >= 3 / 7 ? 1 : 0;
   }
 
   /* How lately a text has to have arrived to be worth marking. A fortnight, which is
@@ -439,50 +512,10 @@
     return (entry && entry.blurbs && entry.blurbs[uiLanguage]) || (entry && entry.blurb) || "";
   }
 
-  /* Builds that have not finished, as rows on the shelf (design.md §12, 2026-09-17).
-   *
-   * "I need a more obvious place to see the progress — the notifications tab is too easy
-   * to miss." The bell follows the reader from page to page, which is what it is for and
-   * also why it is ambient; a text being built belongs where the reader was going, which
-   * is here. It carries its title and how far it has got, and becomes the ordinary row
-   * the moment it is done.
-   *
-   * Filed under Your uploads whatever it was built from, because that tab is "texts of
-   * mine" and a build is exactly that until it exists. Nothing on one can be pressed: it
-   * is not a link yet and it is certainly not a button that would buy it again.
-   */
+  // The reader's texts that are not in the catalogue, which `rows()` leaves out.
+  var yoursAlone = [];
+  // What `/jobs` said was building, last time it was asked.
   var buildingNow = [];
-
-  function buildingRows() {
-    return buildingNow
-      .filter(function (job) {
-        return job.stage !== "done" && !job.error && job.title;
-      })
-      .map(function (job) {
-        return {
-          id: "building:" + job.id,
-          entry: null,
-          building: job,
-          title: job.title,
-          english: job.english || "",
-          author: "",
-          language: job.language || lang.HOME,
-          kind: "",
-          register: "",
-          difficulty: 0,
-          // Nothing measured yet, and a zero here would be a claim. The row says what it
-          // is doing instead of pretending to be a text with facts.
-          minutes: 0,
-          spoken: false,
-          video: false,
-          tags: [],
-          built: null,
-          opened: 0,
-          // Newest of everything: it is the most recently arrived thing there is.
-          place: 1e9,
-        };
-      });
-  }
 
   function rows(readers, shared) {
     var mine = {};
@@ -528,31 +561,16 @@
         opened: built ? built.opened || 0 : 0,
       });
     });
-    // What is building, above what is built: it is the thing the reader is waiting on.
-    buildingRows().forEach(function (row) {
-      out.push(row);
+    // Only the catalogue. A reader's own texts, and what is building, are rows on Your
+    // targums (design.md §12, 2026-09-25); a catalogue text they built is the row above,
+    // marked as theirs. The rest are kept only to be counted, for a language whose
+    // catalogue is empty (see the empty line in `redraw`).
+    var listed = {};
+    catalogue.forEach(function (entry) {
+      listed[entry.id] = true;
     });
-    readers.forEach(function (reader) {
-      if (reader.entry && mine[reader.entry]) return;
-      out.push({
-        id: reader.name,
-        entry: null,
-        title: reader.title,
-        english: "",
-        author: "",
-        language: reader.language,
-        kind: reader.kind,
-        register: reader.register,
-        difficulty: reader.difficulty,
-        minutes: reader.minutes,
-        spoken: !!reader.spoken,
-        video: !!reader.video,
-        // A reader's own text is filed under no subject: nothing has read it to say what
-        // it is about, and `serve.py` sends an empty list rather than a guess.
-        tags: reader.tags || [],
-        built: reader,
-        opened: reader.opened || 0,
-      });
+    yoursAlone = readers.filter(function (reader) {
+      return !(reader.entry && listed[reader.entry]);
     });
     return out;
   }
@@ -585,6 +603,15 @@
       PLACE_IN[id] = index;
     });
   });
+
+  /* Which door of the Beit Midrash a text stands behind: its collection's, or its own
+     where it is in none. "" for everything that is not in the tree. */
+  function doorOf(row) {
+    if (!row.entry) return "";
+    var group = GROUP_OF[row.id];
+    var said = group ? group.door : row.entry.door;
+    return said && doorNamed(said) ? said : "";
+  }
 
   /* The middle value, which is the honest single number for a set of texts: a mean is
      dragged by the one hard thing in it, and Berdichevsky's thirty-nine range from 13 to
@@ -619,7 +646,12 @@
       rows: rows,
       entry: null,
       title: group.title,
-      english: group.english,
+      // The group's own name in the reader's language, by the same helpers a row uses —
+      // they only want something with `named` and `english`, and a collection has both
+      // since targum-internal#289. A shelf that read "Тора" over rows whose group was
+      // still called "Torah" was the complaint.
+      english: titleIn(group),
+      englishLang: namedIn(group) ? uiLanguage : "en",
       author: "",
       language: rows[0].language,
       kind: shared(rows, "kind"),
@@ -692,6 +724,10 @@
     // A search opens everything it found. A reader who types "teshuvah" and is shown
     // one closed row saying "Mishneh Torah" has been told the search failed.
     if (view.find) return true;
+    // Behind a door of the Beit Midrash every shelf stands open: the Tanakh is its books
+    // under Torah, Prophets and Writings, and a student looking for Ruth should not have
+    // to guess which of three shut rows it is in.
+    if (view.where === "midrash" && view.door) return true;
     return !!unfolded[group.id];
   }
 
@@ -764,7 +800,6 @@
    * cheaper way to do that.
    */
   function card(row) {
-    if (row.building) return buildingCard(row);
     var item = el("li", "card-item");
     item.setAttribute("data-row", row.id);
 
@@ -871,65 +906,6 @@
 
     open.appendChild(what);
     item.appendChild(open);
-    return item;
-  }
-
-  /* A text being built, as a card that says so.
-   *
-   * Neither a link nor a button: there is nothing to open yet and nothing to buy again.
-   * A span, so nothing about it invites a press and a keyboard passes straight over it.
-   * It carries what is known — the title, and how far the build has got — and the moment
-   * the build finishes it is replaced by the ordinary row for the text it became.
-   */
-  function buildingCard(row) {
-    var job = row.building;
-    var item = el("li", "card-item");
-    item.setAttribute("data-row", row.id);
-
-    var box = el("span", "card card-building");
-    // Said aloud when it changes, because a reader watching this is waiting on it.
-    box.setAttribute("role", "status");
-
-    var cover = el("span", "card-cover");
-    cover.setAttribute("aria-hidden", "true");
-    cover.appendChild(
-      window.TargumCovers.tile("", { title: row.title, language: row.language, drawn: false })
-    );
-    box.appendChild(cover);
-
-    var what = el("span", "card-what");
-    var mark = el("span", "card-scene card-making", t("library.building", "Building"));
-    mark.setAttribute("lang", saidIn);
-    what.appendChild(mark);
-    var title = el("bdi", "card-title", row.title);
-    title.setAttribute("lang", row.language);
-    title.setAttribute("dir", "auto");
-    what.appendChild(title);
-    if (row.english) {
-      var english = el("span", "card-english", row.english);
-      english.setAttribute("lang", "en");
-      english.setAttribute("dir", "ltr");
-      what.appendChild(english);
-    }
-
-    // The pipeline narrates itself in its own vocabulary; this is the reader's, from the
-    // same table the row's own build sentence uses.
-    var said = job.behind
-      ? tn("library.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
-      : say(job.message) || t("library.build.almost", "Almost there…");
-    what.appendChild(el("span", "card-meta", said));
-
-    var share = job.total ? job.done / job.total : 0;
-    var track = el("span", "card-known-track");
-    var fill = el("span");
-    fill.style.inlineSize = Math.max(2, Math.min(100, Math.round(share * 100))) + "%";
-    track.appendChild(fill);
-    var going = el("span", "card-known card-going");
-    going.appendChild(track);
-    what.appendChild(going);
-
-    box.appendChild(what);
-    item.appendChild(box);
     return item;
   }
 
@@ -1270,8 +1246,10 @@
     minutes: function (row) {
       return row.minutes || 0;
     },
+    // Null where nothing was measured: last in either direction, because it is not 0%
+    // hard and not 100% either (2026-09-27).
     difficulty: function (row) {
-      return row.difficulty || 0;
+      return measured(row) ? row.difficulty || 0 : null;
     },
     // Most of it known first, which is the way somebody choosing what to read wants it
     // — so this column alone sorts descending by default (`DESCENDING` below). A row
@@ -1402,6 +1380,8 @@
     "subject",
     "fit",
     "shape",
+    // Since 2026-09-19: which door of the Beit Midrash is open, "" for the doors themselves.
+    "door",
   ];
   var views = stored("targum:library");
   if (
@@ -1426,8 +1406,10 @@
     if (!one.dir) one.dir = DESCENDING[one.sort] ? -1 : 1;
     if (!one.kind) one.kind = "";
     if (!one.register) one.register = "";
-    if (!one.where) one.where = "library";
+    // "mine" was the Your uploads tab until 2026-09-25; a view stored on it is on All texts.
+    if (!one.where || one.where === "mine") one.where = "library";
     if (!one.subject) one.subject = "";
+    if (!one.door) one.door = "";
     // `fit` is deliberately left unset here. What it defaults to depends on whether this
     // reader has marked any words, which is not known until `/readers` answers — see
     // `fitWanted`. Once they choose, the choice is stored and outranks both defaults.
@@ -1463,7 +1445,9 @@
   }
 
   function defaultFit(everything, code) {
-    if (!anyKnown) return "";
+    // A stranger gets the whole shelf: a band would be a claim about somebody the page
+    // knows nothing of. A reader who said where they are is not a stranger.
+    if (!anyKnown && !seedReach()) return "";
     var bands = ["now", "stretch", ""];
     for (var i = 0; i < bands.length; i++) {
       var pretend = {};
@@ -1477,6 +1461,96 @@
       }
     }
     return "";
+  }
+
+  /* The doors, as cards on the grid the texts use: the Hebrew name in the reading face,
+     the page's own word under it, and how many texts stand behind it — "each chip
+     carries its count" (design.md §12), so a door says what is there before it is
+     opened. Only doors with something behind them, in the catalogue's order. */
+  function doors(host, showing, redraw) {
+    var behind = {};
+    showing.forEach(function (row) {
+      var door = doorOf(row);
+      if (door) behind[door] = (behind[door] || 0) + 1;
+    });
+    DOORS.forEach(function (door) {
+      if (!behind[door[0]]) return;
+      var press = el("button", "door-card");
+      press.type = "button";
+      press.setAttribute("data-door", door[0]);
+      var name = el("bdi", "door-name", door[1]);
+      name.setAttribute("lang", "he");
+      press.appendChild(name);
+      press.appendChild(el("span", "door-english", door[2]));
+      press.appendChild(
+        el("span", "door-holds", tn("library.tally.all", behind[door[0]], "{n} text", "{n} texts"))
+      );
+      press.addEventListener("click", function () {
+        view.door = door[0];
+        redraw();
+      });
+      // The host is the cards' list, so a door is an item of it like any card.
+      var item = el("li", "door-item");
+      item.appendChild(press);
+      host.appendChild(item);
+    });
+  }
+
+  /* Where you are, in words, above the list: "Beit Midrash › Tanakh". The first is the
+     way back to the doors. Drawn only inside one — at the doors the tab already says
+     where you are, and a trail of one step is a label. */
+  function crumbs(host, tree, redraw) {
+    if (!host) return;
+    host.textContent = "";
+    var door = tree && view.door ? doorNamed(view.door) : null;
+    host.hidden = !door;
+    if (!door) return;
+    var back = el("button", "crumb", MIDRASH[1]);
+    back.type = "button";
+    back.addEventListener("click", function () {
+      view.door = "";
+      view.find = "";
+      var find = document.getElementById("find");
+      if (find) find.value = "";
+      redraw();
+    });
+    host.appendChild(back);
+    host.appendChild(el("span", "crumb-step", "›"));
+    var here = el("span", "crumb crumb-here");
+    var name = el("bdi", null, door[1]);
+    name.setAttribute("lang", "he");
+    here.appendChild(name);
+    here.appendChild(document.createTextNode(" · " + door[2]));
+    here.setAttribute("aria-current", "page");
+    host.appendChild(here);
+  }
+
+  /* The tree has an address — `#bm`, `#bm/tanakh` — the first view of this page that
+     does, so a link can land somebody on the Writings' door. Written with
+     `replaceState`: walking the tree is not a history of pages. A row's own hash
+     (`#ruth`, `#build:ruth`) is left alone; `pointAt` reads those. */
+  var TREE_HASH = "bm";
+
+  function address(tree) {
+    if (!window.history || !history.replaceState) return;
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    var mine = now === TREE_HASH || now.indexOf(TREE_HASH + "/") === 0;
+    if (!tree) {
+      if (mine) history.replaceState(null, "", location.pathname + location.search);
+      return;
+    }
+    if (now && !mine) return;
+    var want = "#" + TREE_HASH + (view.door ? "/" + view.door : "");
+    if (location.hash !== want) history.replaceState(null, "", location.pathname + location.search + want);
+  }
+
+  //: The door a tree address names, "" for the doors themselves, null for any other hash.
+  function addressed() {
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    if (now === TREE_HASH) return "";
+    if (now.indexOf(TREE_HASH + "/") !== 0) return null;
+    var door = now.slice(TREE_HASH.length + 1);
+    return doorNamed(door) ? door : "";
   }
 
   var view = viewFor(lang.HOME);
@@ -1493,14 +1567,11 @@
 
   function matches(row, code, using) {
     var state = using || view;
-    if (!inLanguage(row, code)) return false;
-    /* A build in progress is on the shelf whatever the filters say (design.md §12,
-       2026-09-17). Nothing about it is measured yet — no kind, no register, no hard-word
-       share — so every narrowing control would hide it, and the one row the reader is
-       actually waiting on would be the one row they could not find. It answers to the
-       tab and to the language, which are the two questions about *where* it is rather
-       than about what it is like. */
-    if (row.building) return state.where === "mine";
+    var tree = state.where === "midrash";
+    // The one place the Hebrew shelf shows rows of another language: the Aramaic door.
+    if (!inLanguage(row, code) && !(tree && code === lang.HOME && inLanguage(row, BESIDE_HEBREW))) {
+      return false;
+    }
     if (state.kind && row.kind !== state.kind) return false;
     if (code === lang.HOME && state.register && row.register !== state.register) return false;
     if (state.length && lengthOf(row.minutes) !== state.length) return false;
@@ -1511,9 +1582,17 @@
     // among them rather than whether it is the value — a match report is journalism and
     // sport at once, and belongs under both chips.
     if (state.subject && !holdsSubject(row, state.subject)) return false;
-    if (!fits(row, fitWanted(state))) return false;
-    if (state.where === "mine" && row.entry) return false;
-    if (state.where !== "mine" && !row.entry) return false;
+    /* The band is for choosing from the catalogue. It is not for the Beit Midrash: a tree that hid the Writings from a beginner because
+       they are hard would be a tree with branches missing, and the reader came to see
+       where things stand. Each row still says how much of it they know. */
+    if (!tree && !fits(row, fitWanted(state))) return false;
+    if (!row.entry) return false;
+    if (tree) {
+      var behind = doorOf(row);
+      if (!behind) return false;
+      // A search looks behind every door; otherwise one door at a time.
+      if (state.door && !state.find && behind !== state.door) return false;
+    }
     if (state.find) {
       // The blurb and the name the text is filed under are in this on purpose. A reader
       // typing "herzl" into a library of Hebrew titles otherwise finds nothing: the
@@ -1561,6 +1640,7 @@
       var left = pick(a);
       var right = pick(b);
       var order;
+      if ((left === null) !== (right === null)) return left === null ? 1 : -1;
       if (typeof left === "number") order = left - right;
       else order = String(left).localeCompare(String(right));
       // A tie falls back to the title, so the list never shuffles under a reader who
@@ -1959,12 +2039,12 @@
         if (job.blocked) throw new Error(job.blocked);
         // A price with no build in it — the server pointing at a catalogue row instead —
         // is not something to press Build on: an empty id came back as a lost build.
-        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one."));
+        if (!job.id) throw new Error(t("library.build.could-not-start", "We couldn't start this one. Try again."));
         // Said, and then pressed (2026-09-14). The first press used to go straight on to
         // the build, while the conversation and the Add page both say how long a thing
         // takes and wait for the reader's own press before anything is spent. The same
         // here: how long, and a press of its own beside the row.
-        return confirmBuild(open, state, job).then(function (yes) {
+        return confirmBuild(open, state, job, entry).then(function (yes) {
           if (!yes) {
             tell(state, "");
             open.disabled = false;
@@ -2004,11 +2084,17 @@
       : t("library.wait.minutes", "Ready in about {n} minutes.", { n: mins });
   }
 
-  function confirmBuild(open, state, job) {
+  function confirmBuild(open, state, job, entry) {
     return new Promise(function (resolve) {
       var item = open.parentNode;
       tell(state, waitFor(job));
-      var go = el("button", "row-go", t("library.build.start-reading", "Start reading"));
+      // The verb follows the medium (targum-internal#337): the row knows what it carries.
+      var starting = entry && entry.video
+        ? t("library.build.start-watching", "Start watching")
+        : entry && entry.kind === "talk"
+          ? t("library.build.start-listening", "Start listening")
+          : t("library.build.start-reading", "Start reading");
+      var go = el("button", "row-go", starting);
       go.type = "button";
       var not = el("button", "row-not", t("library.build.not-now", "Not now"));
       not.type = "button";
@@ -2091,9 +2177,11 @@
     return found;
   }
 
-  /* The shelf and what is building on it, asked for together (design.md §12,
-     2026-09-17). `/jobs` is what the bell polls; the library reads the same answer, so
-     the two can never disagree about what is happening. */
+  /* The shelf and what is building, asked for together (design.md §12, 2026-09-17).
+     `/jobs` is what the bell polls; the library reads the same answer, so the two can
+     never disagree about what is happening. A build is no longer a row here (2026-09-25:
+     it is on Your targums), but a catalogue text being built somewhere else still turns
+     into a built row here when it finishes, which is what `follow()` watches for. */
   Promise.all([ask("/readers"), ask("/jobs").catch(function () { return {}; })]).then(function (both) {
     var data = both[0] || {};
     buildingNow = (both[1] && both[1].jobs) || [];
@@ -2112,6 +2200,13 @@
       anyKnown = (readers || []).concat(shared || []).some(function (reader) {
         return typeof reader.known === "number" && reader.known > 0;
       });
+    }
+    // The rung they named on arrival, while it is all the page has to go on. `charts.seed`
+    // answers "" once their marked words reach a rung of their own.
+    seeded = "";
+    if (!anyKnown && window.TargumCharts) {
+      var ledger = window.TargumCharts.collect(window.TargumCharts.meaningLanguage(lang.HOME))[lang.HOME];
+      seeded = window.TargumCharts.seed(ledger && ledger.words, lang.HOME);
     }
     canDraw = !!data.covers;
     var opened = stored("targum:opened");
@@ -2172,12 +2267,60 @@
       choices(document.getElementById("audio"), SPOKEN, "spoken", redraw);
       choices(document.getElementById("length"), LENGTHS, "length", redraw);
       choices(document.getElementById("difficulty"), LEVELS, "level", redraw);
-      tabs(document.getElementById("where"), WHERE, "where", redraw);
+      /* The Beit Midrash is Hebrew's, and is drawn only where the catalogue says which
+         door anything stands behind: a tab over an empty tree is a dead end. Under another
+         language, or a file with no doors, a view left on it goes back to All texts. */
+      var treed =
+        chosen === lang.HOME &&
+        everything.some(function (row) {
+          return !!doorOf(row);
+        });
+      if (view.where === "midrash" && !treed) view.where = "library";
+      // One tab alone is not drawn (see `WHERE`).
+      var strip = document.getElementById("where");
+      if (strip) strip.hidden = !treed;
+      tabs(strip, treed ? WHERE.concat([MIDRASH]) : [], "where", redraw);
       heading(redraw);
+      var tree = view.where === "midrash";
+      if (!tree) view.door = "";
+      /* A first visit opens All texts on the Scenes, which is the page's doing and not the
+         reader's. Carried into the tree it left every door with nothing behind it —
+         there are no dialogues in the Tanakh — and the tab drew an empty page (found by
+         opening it, 2026-09-19). A kind the *reader* chose still narrows the tree. */
+      if (tree && leading) {
+        view.kind = "";
+        leading = false;
+      }
+      // At the doors themselves there is no list yet, so nothing that narrows one: the
+      // subjects (every row here is Tanakh or Judaica), the band, the sorts.
+      var atDoors = tree && !view.door && !view.find;
+      ["subject-label", "subject-chips", "said"].forEach(function (id) {
+        var part = document.getElementById(id);
+        if (part) part.hidden = tree;
+      });
+      ["sorts", "shape"].forEach(function (id) {
+        var part = document.getElementById(id);
+        if (part) part.hidden = atDoors;
+      });
+      crumbs(document.getElementById("crumbs"), tree, redraw);
+      address(tree);
 
       var surviving = everything.filter(function (row) {
         return matches(row, chosen);
       });
+      if (atDoors) {
+        host.textContent = "";
+        cards.textContent = "";
+        host.hidden = true;
+        cards.hidden = false;
+        var rowsHead = document.getElementById("rows-head");
+        if (rowsHead) rowsHead.hidden = true;
+        doors(cards, surviving, redraw);
+        placeNote(t("library.note.doors", "Pick a shelf. Every text here is also under All texts."));
+        empty.hidden = true;
+        tally.textContent = tn("library.tally.all", surviving.length, "{n} text", "{n} texts");
+        return;
+      }
       var top = folded(surviving);
       /* A list that is one collection is that collection. Picking the Scenes chip and
          being shown a single row saying "Scenes · 100 texts" is the filter answering a
@@ -2218,32 +2361,35 @@
       if (head) head.hidden = browsing;
       placeNote(noteFor(showing));
       pointAt();
-      // Counted within the list being looked at, not across both: "2 of 116" under Your
-      // Uploads would be counting somebody's two texts against everybody's catalogue.
       var here = everything.filter(function (row) {
-        return inLanguage(row, chosen) && (view.where === "mine" ? !row.entry : row.entry);
+        // Behind a door, counted against that door: "5 of 499" under the Torah would be
+        // counting five books against the whole library.
+        if (tree) return doorOf(row) && (!view.door || view.find || doorOf(row) === view.door);
+        return inLanguage(row, chosen) && row.entry;
       });
       empty.hidden = showing.length > 0;
       if (!showing.length) {
-        // An empty tab and an empty filter are different things to be told.
+        // An empty list and an empty filter are different things to be told.
         // A language with no catalogue yet says so, and points at what the reader has in
         // it already, if anything (2026-09-14): "Nothing here yet" under Italian hid the
-        // two Italian texts one tab away.
-        var uploaded = everything.filter(function (row) {
-          return inLanguage(row, chosen) && !row.entry;
+        // two Italian texts the reader had brought. They are on Your targums since
+        // 2026-09-25, so that is where it points.
+        var uploaded = yoursAlone.filter(function (reader) {
+          return inLanguage(reader, chosen);
         }).length;
         empty.textContent = here.length
           ? t("library.empty.no-match", "Nothing here matches that.")
-          : view.where === "mine"
-            ? t("library.empty.mine", "You haven't added anything yet. Use Add to bring your own.")
-            : uploaded
-              ? t("library.empty.language-uploads", "No {language} texts in the library yet. You have {n} in Your uploads.", {
-                  language: names[chosen] || chosen,
-                  n: uploaded,
-                })
-              : t("library.empty.language", "No {language} texts in the library yet.", {
-                  language: names[chosen] || chosen,
-                });
+          : uploaded
+            ? tn(
+                "library.empty.language-yours",
+                uploaded,
+                "No {language} texts in the library yet. You have {n} in Your targums.",
+                "No {language} texts in the library yet. You have {n} in Your targums.",
+                { language: names[chosen] || chosen }
+              )
+            : t("library.empty.language", "No {language} texts in the library yet.", {
+                language: names[chosen] || chosen,
+              });
       }
       var total = here.length;
       // Texts, not rows. A folded list is thirty-six rows over three hundred and
@@ -2284,7 +2430,7 @@
     var lifted = false;
     function pointAt() {
       var wanted = decodeURIComponent((location.hash || "").slice(1));
-      if (!wanted) return;
+      if (!wanted || addressed() !== null) return;
       /* `#build:<id>` is what `/open/<id>` sends when this reader has not built the text
          yet (targum-internal#313). It means the same as a bare id — find that row and
          show it — and adds one thing: the row's own offer is put up, so the reader lands
@@ -2348,7 +2494,7 @@
       // stronger claim than any setting made earlier, and the one text somebody was sent
       // for is exactly the one a "what you can read now" list is entitled to hide.
       view.fit = "";
-      view.where = target.entry ? "library" : "mine";
+      view.where = "library";
       find.value = "";
       // show() redraws, and redraw() comes back through here with the row in the list.
       if (code && code !== chosen) return show(code);
@@ -2359,9 +2505,9 @@
      *
      * Only while: a shelf with nothing on the way polls nothing, the same rule the bell
      * follows, and for the same reason — a page left open overnight should not be a page
-     * asking a question every three seconds until morning. When a build finishes, its row
-     * stops being a build and `/readers` has the text it became, so both are asked for
-     * again and the card turns into the real one in the same draw.
+     * asking a question every three seconds until morning. When a build finishes,
+     * `/readers` has the text it became, so both are asked for again and a catalogue
+     * row it came from is marked as built in the same draw.
      */
     var following = null;
     function follow() {
@@ -2464,7 +2610,8 @@
       var ownHebrew = readers.some(function (reader) {
         return inLanguage(reader, chosen);
       });
-      if (!known && !ownHebrew) {
+      // Somebody who said they follow the news is not led to Scene 1 (#306, 2026-09-19).
+      if (!known && !ownHebrew && !seedReach()) {
         view.kind = "dialogue";
         leading = true;
       }
@@ -2475,6 +2622,12 @@
       view = viewFor(code);
       find.value = view.find || "";
       inHebrew = code === lang.HOME;
+      // An address into the tree opens the tree, where the shelf showing is Hebrew's.
+      var into = addressed();
+      if (into !== null && inHebrew) {
+        view.where = "midrash";
+        view.door = into;
+      }
       lang.set(code);
       lang.switcher(document.getElementById("langs"), codes, names, code, show);
       if (betaNote) {
@@ -2490,6 +2643,15 @@
       }
       redraw();
     }
+
+    // A link followed, or the address edited, while the page is open.
+    window.addEventListener("hashchange", function () {
+      var into = addressed();
+      if (into === null || chosen !== lang.HOME) return;
+      view.where = "midrash";
+      view.door = into;
+      redraw();
+    });
 
     show(chosen);
 

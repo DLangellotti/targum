@@ -23,6 +23,12 @@ import pytest
 
 HARNESS = Path(__file__).resolve().parent / "js" / "learn.js"
 
+#: The doors, in order. Every one of them carries a text. The way into Claude and ChatGPT
+#: was a fourth here from 2026-09-22 until 2026-09-24, when design.md §12 took it out —
+#: "a third door where two carry texts" competed with the two whose job is getting
+#: somebody reading. It is a banner above the row now, and a line in the foot.
+ROW = ["Continue reading", "Suggested", "Recently opened"]
+
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
 
@@ -139,7 +145,7 @@ def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
 
 def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> None:
     """David, 2026-09-11: "'my targums' removed from underneath, and added to a menu next
-    to the subscriptions ... titled something like 'Recently read', and it only shows the
+    to the subscriptions ... titled something like 'Recently opened', and it only shows the
     last few and a link to full history". The reader's own texts opened lately, newest
     first, five at most, each a row that puts the text in the sheet; All your targums at
     the foot goes to the whole list. A text never opened is on that list and not here."""
@@ -149,7 +155,7 @@ def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> 
     drawn = draw(shelf, stamps)
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
-        ("Recently read", False),
+        ("Recently opened", False),
     ]
     recent = drawn["recent"]
     assert [i["label"] for i in recent["items"]] == [f"ספר {n}" for n in range(5)], (
@@ -165,7 +171,7 @@ def test_recently_read_is_a_menu_in_the_row_with_the_way_to_the_whole_list() -> 
     assert pressed["carry"]["frame"].endswith("r2/reader/index.html?k=k&preview=1")
     assert [(d["label"], d["on"]) for d in pressed["doors"]] == [
         ("Continue reading", False),
-        ("Recently read", True),
+        ("Recently opened", True),
     ], "the door says which way the sheet was reached"
     assert [i["on"] for i in pressed["recent"]["items"]] == [False, False, True, False, False]
     assert not pressed["recent"]["open"], "a press closes the menu"
@@ -203,7 +209,7 @@ def test_a_text_read_through_carries_a_check_in_the_menu() -> None:
 
 
 def test_nothing_under_the_sheet() -> None:
-    """The shelf and the trash left Learn on 2026-09-11 for the Recently read menu and
+    """The shelf and the trash left Learn on 2026-09-11 for the Recently opened menu and
     Your targums."""
     page = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/learn.html.j2"
@@ -228,9 +234,15 @@ def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
     reader sees. Until ten, the line says what to do here — decided with David on
     2026-09-11: one quiet sentence for a new reader — which is what makes the count."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=9)))
-    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        drawn["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
     nine = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(9))))
-    assert nine["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        nine["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
     ten = draw([reader("a", "א")], vocabulary(*(word(f"מ{n}", "w", status=9) for n in range(10))))
     assert ten["known"] == "You know 10 Hebrew words."
 
@@ -238,7 +250,10 @@ def test_a_count_under_ten_says_what_to_do_rather_than_how_little() -> None:
 def test_knowing_nothing_yet_asks_rather_than_scoring_zero() -> None:
     """ "You know 0 words" is a score of zero, which is the arcade the brand keeps out."""
     drawn = draw([reader("a", "א")], vocabulary(word("ספר", "book", status=1)))
-    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        drawn["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
 
 
 def test_the_card_and_every_step_beside_it_is_one_whole_target() -> None:
@@ -402,7 +417,10 @@ def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
     fresh = draw([], shared=[ruth, holon])
     assert fresh["carry"]["track"] == "Modern Hebrew" and fresh["carry"]["title"] == "הפועל חולון"
     assert fresh["carry"]["heading"] == "Start here"
-    assert fresh["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        fresh["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
     biblical = draw([], {"targum:opened": json.dumps({"ruth": 7})}, shared=[holon, ruth])
     assert biblical["carry"]["track"] == "Biblical Hebrew" and biblical["carry"]["title"] == "רות"
     assert biblical["carry"]["heading"] == "Continue reading"
@@ -517,7 +535,10 @@ def test_an_account_that_knows_nothing_starts_on_scene_one() -> None:
     """The sheet at Start here on Scene 1, which says which scene of how many, how long,
     and that it can be heard. Nothing says "ready", and Open opens a built text."""
     drawn = draw([], shared=SCENES + [RUTH])
-    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        drawn["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
     assert drawn["carry"]["track"] == "Modern Hebrew" and drawn["carry"]["heading"] == "Start here"
     assert (
         drawn["carry"]["title"] == "נעים מאוד" and drawn["carry"]["english"] == "Nice to meet you"
@@ -538,7 +559,10 @@ def test_a_scene_half_read_is_continued_with_the_words_left() -> None:
     drawn = draw([], opened, shared=[first, *SCENES[1:], RUTH])
     assert drawn["carry"]["heading"] == "Continue reading"
     assert drawn["carry"]["meta"] == "Scene 1 of 3 · 12 words left · audio"
-    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        drawn["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
 
 
 def test_a_finished_scene_hands_over_to_the_next() -> None:
@@ -551,7 +575,10 @@ def test_a_finished_scene_hands_over_to_the_next() -> None:
     assert drawn["carry"]["heading"] == "Up next"
     assert drawn["carry"]["title"] == "בבית קפה"
     assert drawn["carry"]["meta"] == "Scene 2 of 3 · 19 words · audio"
-    assert drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
+    assert (
+        drawn["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
+    )
 
 
 def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
@@ -561,7 +588,8 @@ def test_a_scene_finished_on_another_device_is_not_a_start() -> None:
     drawn = draw([], done, shared=SCENES + [RUTH])
     assert drawn["carry"]["heading"] == "Up next" and drawn["carry"]["title"] == "בבית קפה"
     assert (
-        drawn["known"] == "Read, tap the words you don't know and talk to targum about any line."
+        drawn["known"]
+        == "Open something, tap the words you don't know and talk to targum about any line."
     ), "every word ignored and Done pressed is not a score of zero"
 
 
@@ -768,7 +796,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     drawn = draw([mine], stored, series=[portion, digest])
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
-        ("Recently read", False),
+        ("Recently opened", False),
         ("Subscriptions", False),
     ]
     assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
@@ -786,7 +814,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     )
     assert [(d["label"], d["on"]) for d in week["doors"]] == [
         ("Continue reading", False),
-        ("Recently read", False),
+        ("Recently opened", False),
         ("The weekly portion", True),
     ], "the door says which subscription is in the sheet"
     both = dict(stored, **{"targum:follows": json.dumps({"parasha": 1, "weekly": 1})})
@@ -796,9 +824,10 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
         ("Weekly News Digest", True),
     ], "the newest lands in the sheet and is seen; the other keeps its dot"
     alone = draw([mine], {"targum:opened": json.dumps({"d3": 5})}, series=[portion, digest])
-    assert [d["label"] for d in alone["doors"]] == ["Continue reading", "Recently read"], (
-        "nothing followed: no subscriptions door"
-    )
+    assert [d["label"] for d in alone["doors"]] == [
+        "Continue reading",
+        "Recently opened",
+    ], "nothing followed: no subscriptions door"
     nothing = draw([], {})
     assert nothing["doors"] == [], "no text in the sheet, no row"
 
@@ -860,7 +889,6 @@ def test_a_subscription_read_through_carries_a_check_in_its_menu() -> None:
 
 
 # The row over the sheet with one text of the reader's own and a suggestion (2026-09-11).
-ROW = ["Continue reading", "Suggested", "Recently read"]
 
 
 def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
@@ -904,9 +932,10 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
         "built on the shared shelf: framed in the sheet"
     )
     none = draw([mine], stored)
-    assert [d["label"] for d in none["doors"]] == ["Continue reading", "Recently read"], (
-        "nothing suggested and nothing followed: no Suggested door"
-    )
+    assert [d["label"] for d in none["doors"]] == [
+        "Continue reading",
+        "Recently opened",
+    ], "nothing suggested and nothing followed: no Suggested door"
 
 
 def test_a_finished_suggestion_makes_way_for_the_next() -> None:
@@ -949,7 +978,7 @@ def test_suggested_falls_back_to_the_catalogue_s_next_step() -> None:
     assert [d["label"] for d in drawn["doors"]] == ROW
     pressed = draw([mine], stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert pressed["carry"]["title"] == "קשה" and pressed["carry"]["heading"] == "Suggested for you"
-    assert pressed["carry"]["meta"].startswith("A step up from what you've read")
+    assert pressed["carry"]["meta"].startswith("A step up from where you are")
     assert pressed["carry"]["href"] == "/open/harder?k=k"
 
 
@@ -969,6 +998,15 @@ def test_past_the_modern_catalogue_suggested_offers_another_register() -> None:
     drawn = draw(built_all, stored, catalogue=catalogue, do=[{"door": "suggested"}])
     assert [d["label"] for d in drawn["doors"]] == ROW
     assert drawn["carry"]["title"] == "רות" and drawn["carry"]["heading"] == "Suggested for you"
+
+
+def test_a_box_with_no_connector_draws_no_door_to_one() -> None:
+    """The connector ships dark behind `TARGUM_CONNECTOR` (#80), and a door to a 404 is
+    worse than no door."""
+    shelf = [reader(f"r{n}", f"ספר {n}", built=100 - n, opened=50 - n) for n in range(8)]
+    stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(8)})}
+    drawn = draw(shelf, stamps, connector=False)
+    assert [d["label"] for d in drawn["doors"]] == ["Continue reading", "Recently opened"]
 
 
 def test_the_date_follows_the_language_the_page_is_in() -> None:
@@ -1070,75 +1108,165 @@ def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() 
     assert len(thin["arrival"]) == 19
 
 
-def test_the_ladder_is_the_ulpan_one_and_says_it_in_words() -> None:
-    """targum-internal#306, decided 2026-09-17: the rung is asked, narrowly.
+THREE = [{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}]
 
-    Eight rungs, aleph to vav, the ladder `level.py` already climbs. The words come
-    first and the kitah second, because the letter is the whole label to somebody who
-    did an ulpan and noise to everybody else.
+
+def test_the_arrival_is_one_question_a_screen() -> None:
+    """targum-internal#334: "one question page", "always clear what next step is".
+
+    The subjects are the first screen and the only thing on it; the ladder is not drawn
+    beside them. Each screen says where it is, in words.
     """
-    drawn = draw([], shared=seeded())
-    assert len(drawn["levels"]) == 8
-    assert drawn["levels"][0].startswith("Just starting")
-    assert drawn["levels"][0].endswith("\u05d0"), "the kitah beside the words, not instead"
-    assert drawn["levels"][-1].endswith("\u05d5")
+    first = draw([], shared=seeded())
+    assert first["subjectsUp"] and first["levels"] == []
+    assert first["step"] == "1 of 2"
+    assert first["arriving"], "the page knows the arrival is up, so a phone can make it the screen"
+
+    second = draw([], shared=seeded(), do=[*THREE, {"press": "arrival-done"}])
+    assert not second["subjectsUp"], "the subjects have gone"
+    assert second["step"] == "2 of 2"
+    assert len(second["levels"]) == 8
+    assert second["levels"][0].startswith("Just starting")
+    # What a person can follow, not what they can read: many come to listen and watch.
+    assert any(row.startswith("I follow the news") for row in second["levels"])
+    assert not any("read" in row.lower() for row in second["levels"])
+    # Pressing a row is the answer, so the second screen has no Next to press.
+    assert not second["nextShown"]
 
 
-def test_three_subjects_and_a_rung_before_the_answer_is_taken() -> None:
+def test_three_subjects_wake_next() -> None:
     """One subject is a label and two is a preference; three is the first number that
-    describes somebody. The rung is the other half of the question."""
+    describes somebody."""
     two = draw([], shared=seeded(), do=[{"subject": "Sport"}, {"subject": "History"}])
     assert two["done"] is False, "two is not enough"
     assert two["counted"] == "Pick 1 more"
 
-    three = draw(
-        [],
-        shared=seeded(),
-        do=[{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}],
-    )
-    assert three["done"] is False, "the subjects are not the whole question"
+    three = draw([], shared=seeded(), do=THREE)
+    assert three["done"] is True, "three subjects and Next is live"
     assert three["counted"] == ""
 
-    both = draw(
+
+def test_either_question_may_be_skipped() -> None:
+    """A question a reader may not decline is a gate, and the arrival is not one. Skip is
+    live from the first moment — the only filled button on a new reader's first screen
+    used to be a disabled one, with no way past it but to answer."""
+    past = draw([], shared=seeded(), do=[{"press": "arrival-skip"}])
+    assert past["step"] == "2 of 2", "skipping the subjects goes on to the ladder"
+    assert "targum:arrived" not in (past.get("kept") or {}), "and keeps nothing it was not told"
+
+    out = draw([], shared=seeded(), do=[{"press": "arrival-skip"}, {"press": "arrival-skip"}])
+    assert out["arrival"] == [] and not out["arriving"]
+    assert not any("/account/level" in str(where) for where in out["posted"])
+    assert "/reader/" in out["went"], "and still opens a text: the track's own start"
+
+
+def test_the_last_answer_opens_the_text_it_chose() -> None:
+    """Not Learn with a card to find. The next step after the last question is the
+    reader, open (design.md §12, 2026-09-19)."""
+    after = draw(
         [],
         shared=seeded(),
         do=[
             {"subject": "Sport"},
             {"subject": "History"},
             {"subject": "Archaeology"},
-            {"rung": "I read slowly, with help"},
+            {"press": "arrival-done"},
+            {"rung": "Simple conversations"},
         ],
     )
-    assert both["done"] is True
+    assert not after["broke"]
+    assert "/reader/holon" in after["went"], after["went"]
 
 
-def test_the_rung_is_kept_nowhere() -> None:
-    """The whole of #306's decision: asked, used once, thrown away.
-
-    The subjects are kept — they are a profile and they travel between devices. The rung
-    is not: no key in the browser, nothing posted to the account, no column behind it. A
-    number nobody keeps is a number nobody can be wrong about a month later.
-    """
+def test_the_rung_is_kept_on_the_account_and_in_the_browser() -> None:
+    """The fifth state of #306. It was asked and thrown away (2026-09-17) and then not
+    asked (2026-09-18); since 2026-09-19 it is asked and **kept**, as a seed."""
     after = draw(
         [],
         shared=seeded(),
-        do=[
-            {"subject": "Sport"},
-            {"subject": "Torah and Judaism"},
-            {"subject": "Archaeology"},
-            {"rung": "I read almost anything"},
-            {"press": "arrival-done"},
-        ],
+        do=[*THREE, {"press": "arrival-done"}, {"rung": "I follow the news"}],
     )
-    kept = after.get("kept") or {}
-    posted = after.get("posted") or []
-    # The harness would have shown it: the subjects went both places on the same press.
-    assert "targum:arrived" in kept, "the subjects are kept, so this test can see keeping"
-    assert any("/account/interest" in str(where) for where in posted), (
-        "the subjects are posted, so this test can see posting"
+    assert (after.get("kept") or {}).get("targum:declared") == "gimel"
+    sent = [call for call in after["sent"] if "/account/level" in call["path"]]
+    assert sent and sent[0]["body"] == {"level": "gimel"}
+    assert any("/account/interest" in str(where) for where in after["posted"])
+
+
+def hard_and_easy() -> list[dict[str, Any]]:
+    return [
+        reader(
+            "easy", "קל", "easy", kind="article", register="modern", tags=["sport"], difficulty=5
+        ),
+        reader(
+            "mid", "בינוני", "mid", kind="article", register="modern", tags=["sport"], difficulty=20
+        ),
+        reader(
+            "hard", "קשה", "hard", kind="article", register="modern", tags=["sport"], difficulty=45
+        ),
+    ]
+
+
+def test_the_rung_picks_how_hard_the_first_text_is() -> None:
+    """Aleph takes the easiest a subject can answer and vav the hardest. The reader at
+    gimel who is handed Scene 1 has been patronised before pressing anything (#306)."""
+    stamps = {"targum:arrived": "sport,history,art"}
+    low = draw([], {**stamps, "targum:declared": "aleph"}, shared=hard_and_easy())
+    assert low["carry"]["title"] == "קל"
+    high = draw([], {**stamps, "targum:declared": "vav"}, shared=hard_and_easy())
+    assert high["carry"]["title"] == "קשה"
+    unsaid = draw([], stamps, shared=hard_and_easy())
+    assert unsaid["carry"]["title"] == "קל", "no rung, and the shelf's own order is the order"
+
+
+def test_a_measured_rung_outvotes_the_one_they_said() -> None:
+    """The rule that keeps a declared level small: the first measurement retires it.
+    A reader whose own marked words reach aleph is routed by nothing they said."""
+    known = {
+        f"w{n}": {"surface": f"w{n}", "status": 9, "band": "easy", "at": 1} for n in range(400)
+    }
+    stamps = {
+        "targum:arrived": "sport,history,art",
+        "targum:declared": "vav",
+        "targum:vocab:he": json.dumps(known),
+    }
+    measured = draw([], stamps, shared=hard_and_easy())
+    assert measured["carry"]["title"] == "קל", "vav was said, and is not consulted"
+
+
+def test_the_account_hands_the_rung_back_to_a_second_browser() -> None:
+    """Asked on a phone, not asked again on a laptop — and the laptop's Library and first
+    text are seeded by the same answer."""
+    me = {"signedIn": True, "interest": ["sport", "history", "art"], "declared": "dalet"}
+    adopted = draw([], shared=seeded(), me=me)
+    assert (adopted.get("kept") or {}).get("targum:declared") == "dalet"
+
+
+def test_nothing_prints_the_rung_back() -> None:
+    """It is never shown. Your Progress shows the measured rung and only that, and no
+    sentence anywhere says "you said gimel" (design.md §12)."""
+    from pathlib import Path as _P
+
+    root = _P(__file__).resolve().parent.parent / "src" / "targum" / "render"
+    for page in ("progress.js", "lists.js", "account.js", "chat.js"):
+        source = (root / "assets" / page).read_text(encoding="utf-8")
+        assert "targum:declared" not in source and "DECLARED" not in source, page
+    for page in ("progress.html.j2", "you.html.j2"):
+        assert "declared" not in (root / "templates" / page).read_text(encoding="utf-8"), page
+
+
+def test_the_measured_rung_is_untouched_by_this() -> None:
+    """`level.py` still climbs the ulpan ladder off words the reader actually marked, and
+    Your Progress still shows it — that is the level §12 sanctions. Pinned when the asked
+    rung was taken out (2026-09-18) so a clean-up could not take this with it, and kept
+    now that the asked one is back, for the same reason."""
+    from pathlib import Path as _P
+
+    root = _P(__file__).resolve().parent.parent
+    assert (root / "src" / "targum" / "level.py").is_file()
+    progress = (root / "src" / "targum" / "render" / "templates" / "progress.html.j2").read_text(
+        encoding="utf-8"
     )
-    assert not any("level" in key for key in kept), f"the rung was stored: {kept}"
-    assert not any("level" in str(where) for where in posted), f"the rung was posted: {posted}"
+    assert "rung" in progress, "the measured rung still has its panel"
 
 
 def test_a_subject_pressed_twice_is_put_back() -> None:
@@ -1191,3 +1319,206 @@ def test_a_retired_answer_is_dropped_and_the_question_asked_again(tmp_path: Path
     )
     assert asked["arrival"], "asked again rather than acted on"
     assert asked["carry"]["title"] == "סצנה", "its register's own door, not nothing"
+
+
+def rail_shelf() -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """A shelf that produces more than one door: four texts opened lately, newest first.
+    The recent doors are drawn from `targum:opened` rather than from the rows, which is
+    why the stamps are the half that matters here."""
+    shelf = [
+        reader(f"r{n}", f"ספר {n}", entry=f"r{n}", built=100 - n, opened=50 - n) for n in range(4)
+    ]
+    stamps = {"targum:opened": json.dumps({f"r{n}": 50 - n for n in range(4)})}
+    return shelf, stamps
+
+
+def test_the_rail_offers_a_card_for_every_text_the_page_can_show() -> None:
+    """The cards were built on 2026-09-14 for phones and the stylesheet drew them nowhere
+    else, so a desk had one object and a three-way pill. They are the same cards at both
+    widths now (2026-09-18); only where they stand differs."""
+    shelf, stamps = rail_shelf()
+    drawn = draw(shelf, stamps)
+    assert drawn["broke"] is False
+    entries = [card["entry"] for card in drawn["cards"]]
+    assert len(entries) > 1, "a rail of one card is the pill it replaced"
+    assert len(entries) == len(set(entries)), "one text is one card"
+
+
+def test_the_rail_says_which_text_the_sheet_is_showing() -> None:
+    """A list of places you cannot locate yourself in is not a map. Marked by the reader
+    rather than by the door: the rail draws one card per text and drops the duplicates,
+    so the card for what you are reading often carries no door id at all."""
+    shelf, stamps = rail_shelf()
+    drawn = draw(shelf, stamps)
+    current = [card for card in drawn["cards"] if card["current"]]
+    assert len(current) == 1, "exactly one, and never none"
+    assert current[0]["entry"] == drawn["carry"]["entry"]
+
+
+def test_pressing_a_rail_card_swaps_the_sheet_rather_than_leaving_the_page() -> None:
+    """At a desk the rail took the row of doors' place, so a press has to do what a door
+    did. The address stays on the card underneath — it is what a phone uses, where there
+    is no sheet to swap."""
+    shelf, stamps = rail_shelf()
+    first = draw(shelf, stamps)
+    other = next(c["entry"] for c in first["cards"] if not c["current"])
+    drawn = draw(shelf, stamps, do=[{"card": other}])
+    assert drawn["cardPresses"] == [{"card": other, "followed": False}], "the press was taken"
+    assert drawn["went"] == "", "and nobody was sent anywhere"
+    assert drawn["carry"]["entry"] == other, "the sheet swapped"
+
+
+def test_the_mark_moves_with_the_sheet() -> None:
+    """The swap redraws no cards, so a mark that only moved on a redraw would sit on the
+    card you came from for the rest of the visit."""
+    shelf, stamps = rail_shelf()
+    first = draw(shelf, stamps)
+    other = next(c["entry"] for c in first["cards"] if not c["current"])
+    drawn = draw(shelf, stamps, do=[{"card": other}])
+    assert [c["entry"] for c in drawn["cards"] if c["current"]] == [other]
+
+
+def test_a_modified_press_is_left_to_the_address() -> None:
+    """Cmd-click, middle click and "open in new tab" are how people open a second thing
+    without losing the first. Swallowing them to swap a sheet is the convenient order
+    rather than the right one."""
+    shelf, stamps = rail_shelf()
+    first = draw(shelf, stamps)
+    was = first["carry"]["entry"]
+    other = next(c["entry"] for c in first["cards"] if not c["current"])
+    drawn = draw(shelf, stamps, do=[{"card": other, "modified": True}])
+    assert drawn["cardPresses"] == [{"card": other, "followed": True}], "the browser has it"
+    assert drawn["carry"]["entry"] == was, "and the sheet did not move"
+
+
+# -- the verb follows the medium (targum-internal#337) ----------------------------------
+
+
+def test_a_door_says_read_listen_or_watch_by_what_it_leads_to() -> None:
+    """ "Copy of buttons… assumes the reader is there to read — but many will be there to
+    listen and watch." A row says what it is, so what stands over it says what the person
+    will do with it."""
+    opened = {"targum:opened": json.dumps({"film": 9, "pod": 8, "book": 7})}
+    film = draw([reader("film", "סרט", video=True, spoken=True, heard=True, opened=9)], opened)
+    assert film["carry"]["heading"] == "Continue watching"
+    pod = draw([reader("pod", "הסכת", spoken=True, heard=True, opened=8)], opened)
+    assert pod["carry"]["heading"] == "Continue listening"
+    book = draw([reader("book", "ספר", opened=7)], opened)
+    assert book["carry"]["heading"] == "Continue reading"
+
+
+def test_a_text_with_a_reading_attached_is_still_read() -> None:
+    """`spoken` is true of most of the shelf: the Tanakh has a reading attached and every
+    scene is voiced. Those are read with a voice beside them. A first cut keyed the verb
+    on `spoken` and told a reader halfway through a scene to "Continue listening"."""
+    opened = {"targum:opened": json.dumps({"ruth": 9})}
+    voiced = draw([reader("ruth", "רות", spoken=True, opened=9)], opened)
+    assert voiced["carry"]["heading"] == "Continue reading"
+
+
+# -- three moments in ten minutes (targum-internal#335) ---------------------------------
+
+
+def test_a_first_text_is_one_that_can_be_heard_where_the_subject_has_one() -> None:
+    """The second thing a new reader should find out is that the page has a voice — the
+    first stranger never did — and nobody finds that out on a silent text."""
+    shelf = [
+        reader("quiet", "שקט", "quiet", kind="article", register="modern", tags=["sport"]),
+        reader(
+            "loud", "קול", "loud", kind="article", register="modern", tags=["sport"], spoken=True
+        ),
+    ]
+    came = draw([], {"targum:arrived": "sport,history,art"}, shared=shelf)
+    assert came["carry"]["title"] == "קול"
+    # Where nothing in the subject is voiced, the subject still wins: it is what they asked for.
+    silent = draw([], {"targum:arrived": "sport,history,art"}, shared=shelf[:1])
+    assert silent["carry"]["title"] == "שקט"
+
+
+def test_the_fold_says_what_it_is_the_first_time_and_never_again() -> None:
+    """The third moment: the words a new reader marked ten minutes ago are waiting, and a
+    line says whose they are. Once — the second time they know."""
+    marked = vocabulary(word("ספר", "book", status=2, at=300))
+    first = draw([], marked)
+    assert first["workOnce"], "said on the visit the fold first has anything in it"
+    told = (first.get("kept") or {}).get("targum:taught-the-record")
+    assert told
+    again = draw([], {**marked, "targum:taught-the-record": told})
+    assert not again["workOnce"], "and not on the next"
+    nothing = draw([], {})
+    assert not nothing["workOnce"], "nor to a reader with nothing in it, who has no fold at all"
+
+
+def test_the_arrival_opens_a_book_at_its_first_chapter_not_its_contents() -> None:
+    """Regression: ISSUE-001 — the arrival's last answer opened a book's contents page.
+    Found by /qa on 2026-09-20. A book's own address is its list of chapters, so a new
+    reader who had just answered two questions landed one more press from a line of
+    Hebrew. It opens the first chapter that is ready; a text with no chapters opens as
+    itself."""
+    chapters = [
+        {"number": 1, "title": "א", "file": "sec-0001.html", "ready": False},
+        {"number": 2, "title": "ב", "file": "sec-0002.html", "ready": True},
+    ]
+    book = reader("ruth", "רות", "ruth", register="biblical", tags=["tanakh"], chapters=chapters)
+    went = draw(
+        [],
+        shared=[book],
+        do=[
+            {"subject": "Torah and Judaism"},
+            {"subject": "History"},
+            {"subject": "Art"},
+            {"press": "arrival-done"},
+            {"rung": "Just starting"},
+        ],
+    )["went"]
+    assert "/reader/ruth/reader/sec-0002.html" in went, went
+
+    single = reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])
+    went = draw(
+        [],
+        shared=[single],
+        do=[
+            {"subject": "Sport"},
+            {"subject": "History"},
+            {"subject": "Art"},
+            {"press": "arrival-done"},
+            {"press": "arrival-skip"},
+        ],
+    )["went"]
+    assert "/reader/holon/reader/index.html" in went, went
+
+
+# --- the connector's banner, above the row (design.md §12, 2026-09-24) ----------------
+
+
+def a_shelf() -> list[dict[str, Any]]:
+    return [reader(f"r{n}", f"ספר {n}", built=100 - n, opened=50 - n) for n in range(8)]
+
+
+def test_a_reader_with_no_connection_is_told_once_about_claude() -> None:
+    """The way in was a fourth door in the row until 2026-09-24, where it competed with
+    the two whose job is getting somebody reading. It is a banner above the row now."""
+    drawn = draw(a_shelf(), {}, me={"signedIn": True, "connections": []})
+    assert drawn["banner"], "a reader who has not connected is told"
+    assert "Claude" in drawn["banner"]["says"]
+    assert drawn["banner"]["goes"] == "/connect"
+    assert "Claude and ChatGPT" not in [d["label"] for d in drawn["doors"]], "and not a door"
+
+
+def test_a_reader_who_has_connected_is_never_asked_again() -> None:
+    """It stops by itself, from what the account already knows — so nothing is stored to
+    remember it, and it is true on every device the reader opens."""
+    drawn = draw(a_shelf(), {}, me={"signedIn": True, "connections": [{"client": "c"}]})
+    assert drawn["banner"] is None
+
+
+def test_a_box_with_no_connector_offers_none() -> None:
+    """It ships dark behind `TARGUM_CONNECTOR` (#80), and an invitation to a 404 is worse
+    than no invitation."""
+    drawn = draw(a_shelf(), {}, connector=False, me={"signedIn": True, "connections": []})
+    assert drawn["banner"] is None
+
+
+def test_nobody_signed_out_is_asked() -> None:
+    """There is no account to connect, so there is nothing to offer."""
+    assert draw(a_shelf(), {}, me={"signedIn": False})["banner"] is None

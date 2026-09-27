@@ -193,6 +193,9 @@ class Build:
         # Whether a video source keeps its pictures. Off, the import is the audio one
         # exactly — for whoever wants the talk, not the talking head.
         video: bool = True,
+        # Whether an Instagram post of pictures has its pictures read too. Off, the post
+        # is its caption, which costs nothing to read — the hosted card's default.
+        pictures: bool = False,
         notify: Notify | None = None,
     ) -> None:
         self.source = source
@@ -242,6 +245,7 @@ class Build:
         #: line says so rather than letting Italian arrive segmented as Hebrew.
         self.language_assumed = False
         self.video = video
+        self.pictures = pictures
         self._episode: Any = None
         self._transcriber: Any = transcriber
         #: The refiner this build ran, once it has run one: what it bought — the
@@ -297,6 +301,9 @@ class Build:
     def ingest(self) -> Document:
         from urllib.parse import urlparse
 
+        # Before anything asks whether this is a film: a `/p/` address is one only if the
+        # post says so, and a post of pictures leaves here as a text.
+        self._adopt_post()
         if not self.is_recording_source and urlparse(str(self.source)).scheme in ("http", "https"):
             # An episode page or a feed resolves to its audio before anything is read
             # as an article. One extra fetch for a page that turns out to be prose —
@@ -1177,6 +1184,8 @@ class Build:
         from urllib.parse import urlparse
 
         from .video import is_video
+        from .video.instagram import is_reel
+        from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
 
         source = str(self.source)
@@ -1185,7 +1194,9 @@ class Build:
             # A direct link to a video file is a video, the same way a direct link
             # to an mp3 sounds like audio — left out, it fell through to the article
             # path and read raw mp4 bytes as a page.
-            return is_youtube(source) or is_video(parsed.path)
+            return (
+                is_youtube(source) or is_reel(source) or is_tiktok(source) or is_video(parsed.path)
+            )
         return is_video(source)
 
     @property
@@ -1203,6 +1214,47 @@ class Build:
 
             self._transcriber = build_transcriber(self.transcriber_name or default_name())
         return self._transcriber
+
+    def _adopt_post(self) -> None:
+        """An Instagram `/p/` post of pictures, as the text the hosted door writes
+        (`Library._prepare_post`, targum-internal#330).
+
+        `is_reel` is true of every `/p/` address, and only the post can say which it is.
+        A film, or a page that would not say, keeps the reel's door and its own refusal.
+        Pictures become the caption, bylined with the account, and the words in the
+        pictures follow it only where `pictures` asked for them: that reading is the one
+        part of this that spends.
+        """
+        from .video import instagram as instagram_module
+
+        address = str(self.source)
+        if not instagram_module.is_post(address):
+            return
+        post = instagram_module.backup(address)
+        if post is None or post.video:
+            return
+        wanted = self.pictures and bool(post.pictures)
+        if not post.caption.strip() and not wanted:
+            raise TargumError(
+                "That post's words are all in its pictures.",
+                "Pass --pictures to read them." if post.pictures else None,
+            )
+        root = self._out_root or (Path.cwd() / "targum-out")
+        folder = (self._out.parent if self._out else root) / "posts" / post.code
+        text = instagram_module.caption_text(post)
+        if wanted:
+            from . import vision
+            from .usage import Usage
+
+            self.notify("Reading the pictures…")
+            paths = instagram_module.pictures_into(post, folder / "pictures")
+            reads = vision.read_pages(paths, usage=Usage())
+            text = "\n\n".join([text.rstrip(), *(read.text for read in reads)]) + "\n"
+        target = folder / f"{post.code}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        self.home = address
+        self.source = str(target)
 
     def _audio_workspace(self) -> Path:
         return self.resolved_out / "audio"
@@ -1222,6 +1274,8 @@ class Build:
         from .audio import DEFAULT_LANGUAGE, ffmpeg_available
         from .audio import parts as parts_module
         from .audio import probe as probe_module
+        from .video.instagram import is_reel
+        from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
 
         if not self.source_language:
@@ -1232,10 +1286,27 @@ class Build:
 
         address = ""
         watching = False
+        reel = False
         if urlparse(str(self.source)).scheme in ("http", "https"):
             address = str(self.source)
             watching = is_youtube(address)
-            if watching:
+            reel = not watching and is_reel(address)
+            tok = not watching and not reel and is_tiktok(address)
+            if tok:
+                from .video.hosts import video_id as tok_id
+
+                self.home = address
+                stem = tok_id(address) or "tiktok"
+                suffix = ".mp4"
+            elif reel:
+                # The reel's own id for the folder, and the address as its home — the
+                # page reduces it to the one shape its allowlist pins.
+                from .video.hosts import video_id
+
+                self.home = address
+                stem = video_id(address) or "reel"
+                suffix = ".mp4"
+            elif watching:
                 self.home = address
                 # The video id, not the path's stem — every watch page's stem is "watch".
                 from urllib.parse import parse_qs
@@ -1271,6 +1342,16 @@ class Build:
 
                     self.notify("Fetching the video…")
                     target = youtube_module.fetch(address, workspace)
+                elif reel:
+                    from .video import instagram as instagram_module
+
+                    self.notify("Fetching the video…")
+                    target = instagram_module.fetch(address, workspace)
+                elif tok:
+                    from .video import tiktok as tiktok_module
+
+                    self.notify("Fetching the video…")
+                    target = tiktok_module.fetch(address, workspace)
                 else:
                     self.notify("Fetching the recording…")
                     download(address, target)
@@ -1825,6 +1906,11 @@ class Build:
                             )
                     if reel.exists():
                         entry.video = str(reel.relative_to(self.resolved_out))
+                        # Measured every build, not only when the cut is made: the
+                        # manifest is written afresh here each time, and a part cut
+                        # before this was recorded gets its shape on the next build
+                        # without being cut again.
+                        entry.frame = tools.frame(reel)
                 if piece.exists():
                     entry.audio = str(piece.relative_to(self.resolved_out))
                     entry.transcribed = True
@@ -1846,17 +1932,24 @@ class Build:
                                 entry.speakers[line.id] = paragraph.speaker
             entries.append(entry)
 
+        # A later part is built from the file already beside the reader, which has no
+        # address of its own; the home the first sitting found is kept, not forgotten.
+        before = manifest_module.load(self.resolved_out)
         manifest_module.write(
             self.resolved_out,
             manifest_module.AudioManifest(
                 source=str(self.source),
-                home=self.home,
+                home=self.home or (before.home if before is not None else ""),
                 sha256=found.sha256,
                 duration=found.duration,
                 language=drafted.language,
                 parts=entries,
             ),
         )
+        # A video import's picture for the shelf, from its own first cut.
+        from .video import poster
+
+        poster.ensure(self.resolved_out)
 
     # -- driving -----------------------------------------------------------
 
@@ -2102,7 +2195,16 @@ class Build:
             )
             written.write(self.resolved_out / "translations" / name)
             translations.append(written)
-        if self.machine and written is None:
+        # An English that came with the text answers a build *into English*, and nothing
+        # else (targum-internal#288). A dialogue's English is written with the scene and a
+        # curated video's was bought once; either way `authored` hands one back without
+        # ever looking at what this build was asked for, so `--to ru` wrote the English,
+        # skipped the buy, and produced a Russian build with no Russian in it.
+        #
+        # The authored English is still written — it costs nothing and a reader may hold
+        # both — but it no longer stands in for a language it is not.
+        wants_buying = written is None or written.target_language != self.target_language
+        if self.machine and wants_buying:
             # A translation on disk is whole only when the build wants the whole text.
             # Buying by the chapter, it is where `translate` starts from rather than
             # where it stops: a heard part's page whose English was never bought matched

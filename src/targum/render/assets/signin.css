@@ -92,8 +92,24 @@ body.signin {
   box-shadow: inset 0 0 0 2px var(--teal);
 }
 
-/* The one call to action on the page, so it is ink (§9): the max-contrast pair. */
+/* The one call to action on the page, so it is ink (§9): the max-contrast pair.
+
+   Drawn from the pill in the 2026-09-24 sneak peek, which showed targum appearing inside
+   ChatGPT — David, seeing it: "let's also use that button in the app". Two of its three
+   parts travel and one does not.
+
+   The lift is here, so the press sits a little off the card at rest and not only when a
+   pointer finds it, which a phone has not got. The arrow is *not* here: it says "this
+   takes you somewhere", which is true of Read this and of Connect and false of Send a
+   link, so it is written into the buttons that mean it rather than given to all three.
+   And the mark stays in the mockup — two bars inside a button say "targum, over here",
+   which is worth saying inside somebody else's app and not on a page already carrying
+   the lockup above it. */
 .gate .go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   width: 100%;
   min-block-size: 2.75rem;
   padding: 0.6rem 1.25rem;
@@ -105,11 +121,21 @@ body.signin {
   font-size: 1.0625rem;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--shadow-rest);
   transition: box-shadow 200ms ease;
+}
+/* Dimmed, because it hints where the press goes and is not a second thing to read. */
+.gate .go .go-arrow {
+  flex: none;
+  inline-size: 0.8em;
+  block-size: 0.8em;
+  opacity: 0.7;
 }
 .gate .go:hover { box-shadow: var(--lift); }
 .gate .go:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .gate .go[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
+/* An arrow on a button that cannot be pressed promises a way on that is not there yet. */
+.gate .go[disabled] .go-arrow { display: none; }
 
 .gate .aside {
   margin: 1.25rem 0 0;
@@ -165,3 +191,120 @@ body.signin {
 /* What went wrong last time. Ink, not red: a cancelled sign-in is not an error, and the
    way out of every one of these is the form underneath. */
 .gate .trouble { margin-block-end: 0.75rem; }
+
+/* The approval page's scope list (targum-internal#80). What a connector would be able
+   to do, one row a scope, in the order `oauth.SCOPES` lists them — least first, so the
+   one that spends is the one the eye stops on last and lowest. */
+.gate .scopes {
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1px;
+  background: var(--rule);
+  border-radius: var(--radius-row);
+  overflow: hidden;
+}
+.gate .scopes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  /* The card's own tone, so the 1px gaps over the rule read as hairlines. It named
+     --page, which nothing defines, and the rows ran together as one block. */
+  background: var(--card);
+}
+/* `display: flex` above beats the `hidden` attribute, so the quote's "Ready in about 3
+   minutes" stayed on the card after the press, beside the measured "about 3 minutes
+   left" that was meant to replace it (2026-09-25). */
+.gate .scopes li[hidden] { display: none; }
+.gate .scopes + .said { margin-block-start: 1rem; }
+.gate .scope-says { flex: 1 1 12rem; min-width: 0; }
+/* Where Connect sends the reader, in bold at body size beside the press: the heading is
+   the app's claim about its own name, and the host is the fact that checks it. */
+.gate .dest { margin-block-start: 1rem; }
+.gate .dest .host { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+
+/* Not now. A ghost beside the filled press, per §13's three buttons: one filled per
+   view, and refusing is not the thing this page is for. */
+.gate .ghost {
+  width: 100%;
+  min-block-size: 2.75rem;
+  margin-block-start: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.gate .ghost:hover { color: var(--ink); }
+.gate .ghost:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* --- a set, pressed as one (targum-internal#365) -----------------------------------
+   Its rows are the scope list's, and each title is body type in its own direction: the
+   tick's label is not the desk's small uppercase label, which is what `.gate label`
+   draws. The tick is §13's own — a well that fills with the primary — rather than the
+   browser's. */
+.gate .set-items li { align-items: center; }
+.gate .set-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+}
+.gate .set-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+.gate .set-item .set-title { flex: 1 1 auto; }
+.gate .set-meta { flex: 1 1 100%; color: var(--ink-soft); font-size: 0.875rem; }
+.gate .set-total { margin-block: 1rem; }
+.gate .set-item input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  margin: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--field);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent);
+  cursor: pointer;
+}
+.gate .set-item input[type="checkbox"]:checked { background: var(--teal); box-shadow: none; }
+.gate .set-item input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0.42rem;
+  inset-block-start: 0.2rem;
+  inline-size: 0.3rem;
+  block-size: 0.6rem;
+  border: solid var(--teal-ink);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.gate .set-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The ways on, in the primary like every link on the desk, and never the browser's
+   visited purple. */
+.gate .aside a { color: var(--teal); text-decoration: none; font-weight: 600; }
+.gate .aside a:hover { text-decoration: underline; }
+@media (hover: none) and (pointer: coarse) {
+  .gate .set-items li { min-block-size: 44px; }
+}

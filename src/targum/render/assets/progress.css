@@ -8,9 +8,8 @@
  *
  * §9's wake-up move, spent once. The max-contrast pair rather than plain ink-on-paper,
  * because this is an engagement screen and the moment should feel switched on: 18.6:1
- * either way round. Both values are stated here rather than inherited, so the block
- * stays inverted when the rest of the page turns over — a dark theme flips --paper and
- * --ink, and a block that followed them would stop being an inversion of anything.
+ * either way round. Both values are stated here rather than inherited: the block is
+ * an inversion of the page, and says so in its own values.
  */
 
 .progress .ledger {
@@ -247,3 +246,15 @@
 
 /* --- the desk grown up (§13, 2026-09-11) ------------------------------------------ */
 .panel { border: 0; border-radius: var(--radius-card); box-shadow: var(--shadow-raised); }
+
+/* --- time and words (targum-internal#339) ------------------------------------------
+   The ledger's own treatment on paper: the figure in the reading face with tabular
+   numbers, its word under it in the chrome's, no fill and no hue — these are counts of
+   what was done, not achievements, so leaf is not theirs. */
+.spent-filters { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-block-end: 1rem; }
+.spent-figures { display: flex; flex-wrap: wrap; gap: 1rem 2.5rem; }
+.spent-figure { display: grid; gap: 0.1rem; }
+.spent-amount { font-family: var(--reading); font-size: 1.75rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
+.spent .note { margin-block-start: 1rem; }
+

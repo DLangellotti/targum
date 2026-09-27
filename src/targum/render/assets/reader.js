@@ -1,7 +1,7 @@
 /* Started once the durable store has put back what this browser kept — see
    durable.js. On `file://` the copy `localStorage` holds can be one version behind,
-   and everything below reads it: the place, the vocabulary, the preferences, the
-   theme. The whole file waits rather than the first block of it, because the player
+   and everything below reads it: the place, the vocabulary, the preferences.
+   The whole file waits rather than the first block of it, because the player
    and the rest are their own closures and read the same store.
 
    One local read, and it gives up after half a second — a store that will not answer
@@ -239,6 +239,11 @@ var targumReader = function () {
   var paradigmAt = extensions.paradigms || [];
   var conjugationTables = extensions.conjugations || [];
   var conjugationFeatures = extensions.features || [];
+  // The other verbs built on this one's root (targum-internal#301): an index per lemma
+  // into the families, and the families themselves. Both absent where no verb on the
+  // page has a root the table could work out.
+  var familyAt = extensions.siblings || [];
+  var families = extensions.families || [];
 
   // The letters of a pointed word, for comparing one spelling with another. Hebrew
   // points are combining marks; U+05BD..U+05C7 are the ones that are not caught by the
@@ -595,6 +600,58 @@ var targumReader = function () {
   var sectionId = String(data.section || 1);
   var sectionCount = Number(data.sections || 1);
 
+  /* What happens here is said to `events.js`, which decides whether anybody is told
+     (targum-internal#127): it is inert off a disk, in the framed preview, signed out,
+     where the box keeps no such record, and where the reader has stopped it. */
+  var happenings = window.TargumEvents || null;
+  if (happenings) happenings.about({ document: documentId, language: language, address: keyed });
+  function happened(event) {
+    if (happenings) happenings.note(event);
+  }
+
+  /* Words read (targum-internal#339): "a word is read when its page was turned past or its
+     section was marked done" — never a guess from how far somebody scrolled. A page counts
+     once in a visit, however often it is turned back to; marking the section done counts
+     what is left of it. The count is of the text's own words, off the same plain text the
+     word list is cut from. */
+  /* Counted by the line and not by the page: a window resized or a type size changed cuts
+     the pages again, and a page number would then name different words. A line counts
+     once in a visit, however the pages fall and however often one is turned back to. */
+  var linesCounted = {};
+  function wordsIn(from, to) {
+    var total = 0;
+    for (var n = from; n <= to && n < pairs.length; n++) {
+      var id = pairs[n].getAttribute("data-id");
+      if (!id || linesCounted[id] || pairs[n].classList.contains("head")) continue;
+      linesCounted[id] = true;
+      var text = "";
+      try {
+        text = segmentText(id) || "";
+      } catch (e) {
+        text = "";
+      }
+      var parts = text.split(/\s+/);
+      for (var w = 0; w < parts.length; w++) if (parts[w]) total += 1;
+    }
+    return total;
+  }
+  function pageTurnedPast(n) {
+    if (!pages[n]) return;
+    var words = wordsIn(pages[n][0], pages[n][1]);
+    if (words) {
+      happened({
+        kind: "page",
+        amount: words,
+        segment: pairs[pages[n][0]].getAttribute("data-id") || "",
+      });
+    }
+  }
+  function sectionRead() {
+    var words = wordsIn(0, pairs.length - 1);
+    if (words) happened({ kind: "section", amount: words, segment: sectionId });
+  }
+
+
   // Words are kept per language and shared by every text in it. Meeting a word again
   // in the next article, already marked, is the whole point of having kept it — which
   // is why this is no longer filed under the document it was first met in.
@@ -947,6 +1004,11 @@ var targumReader = function () {
       // here the reader said outright.
       done: was.done || 0,
     };
+    /* And the sections finished, for the same reason (2026-09-25). This rewrite predates
+       them (#173), so every word marked after a finish wrote the record back without its
+       sections — and the one press at the foot marks the words and finishes the section
+       together, which is the order that made it matter. */
+    if (was.sections && typeof was.sections === "object") all[documentId].sections = was.sections;
     try {
       targumKeep(DOCS, JSON.stringify(all));
     } catch (e) {}
@@ -958,6 +1020,22 @@ var targumReader = function () {
   var finishedBox = document.getElementById("finished");
   var finishedMark = document.getElementById("done-mark");
   var finishedSaid = document.getElementById("done-said");
+  var finishedUndo = document.getElementById("done-undo");
+  // The rest of the foot (design.md §12, "The foot is one block", 2026-09-25): the press
+  // and the quiet way to press it without marking, and the block they stand in.
+  var footPress = document.getElementById("foot-press");
+  var footPlain = document.getElementById("done-plain");
+  /* Inside a playlist the press moves on. `list.js` says so through `TargumReader.foot`
+     once it has the list: which word the press says ("next", or "finish" on the last
+     item) and what moving on is. Null on a text read on its own, where the press is Done. */
+  var footWay = null;
+  /* What this visit's press did, so the Undo on the ink block takes back the words it
+     marked as well as the finish. Null when the section was finished on another visit:
+     the words marked then are not this page's to take back. */
+  var footPressed = null;
+  /* Drawn first by the counts, not by the finish: the finish is drawn before the names and
+     the counts it needs exist, and the counts draw the foot every time they change. */
+  var footDrawn = false;
 
   /* When this section was finished.
    *
@@ -979,7 +1057,60 @@ var targumReader = function () {
     return sectionCount === 1 ? Number(record.done || 0) : 0;
   }
 
+  /* Which control was pressed (targum-internal#341): "audit all controls on the reader and
+     ensure the most often accessed are the most accessible" is a measurement, and nothing
+     measured it. A name, and nothing about the text — `events.js` adds the window's width
+     and the day and the server would drop anything more. The name is the control's own
+     hook in the markup, so a new control is counted the day it is drawn. */
+  var PRESSABLE =
+    ".bar button, .bar select, .bar a, #player button, #player [role=slider], .video button, " +
+    ".turn button, #list-tab, #list button, #done-mark, #done-plain, #done-undo, #arrived-undo, " +
+    "#practice-next, #next-up-else, .say";
+  function nameOf(control) {
+    var attributes = control.attributes || [];
+    for (var n = 0; n < attributes.length; n++) {
+      var name = attributes[n].name;
+      if (name.indexOf("data-") !== 0 || name === "data-id" || name === "data-what") continue;
+      var value = attributes[n].value;
+      // A mode or a type size is a choice among a few, and which one is the point.
+      return value && value.length < 20 ? name.slice(5) + ":" + value : name.slice(5);
+    }
+    if (control.id) return control.id;
+    return String(control.className || "").split(" ")[0] || control.tagName.toLowerCase();
+  }
+  document.addEventListener(
+    "click",
+    function (event) {
+      var control = event.target.closest ? event.target.closest(PRESSABLE) : null;
+      if (control) happened({ kind: "control", control: nameOf(control) });
+    },
+    true
+  );
+
+  /* Where a sitting stopped: how far through the section, and the line at the top of the
+     window. The one event nobody presses for, said as the page goes. */
+  window.addEventListener("pagehide", function () {
+    var through = 0;
+    if (pages.length > 1) through = current / (pages.length - 1);
+    else {
+      var tall = document.documentElement.scrollHeight - window.innerHeight;
+      through = tall > 0 ? Math.min(1, Math.max(0, window.scrollY / tall)) : 0;
+    }
+    var at = "";
+    for (var n = 0; n < pairs.length; n++) {
+      if (pairs[n].hidden) continue;
+      var box = pairs[n].getBoundingClientRect();
+      if (box.bottom > 0 && box.height) {
+        at = pairs[n].getAttribute("data-id") || "";
+        break;
+      }
+    }
+    happened({ kind: "stop", amount: Math.round(through * 100) / 100, segment: at });
+    if (happenings) happenings.flush(true);
+  });
+
   function setFinished(on) {
+    if (on) sectionRead();
     // What moved while this section was read, worked out before the finish is written
     // so the finish itself is not among the movements (targum-internal#175).
     footMoved(on);
@@ -1072,7 +1203,7 @@ var targumReader = function () {
   }
 
   // How many targums this reader has finished in this page's language: the number the
-  // celebration brags with. A section finished twice is finished once.
+  // finished box's first line gives. A section finished twice is finished once.
   //
   // In this language only (2026-09-14): the foot's other counts are this language's words,
   // and Your Progress counts finished targums per language, so a first Italian text that
@@ -1092,30 +1223,21 @@ var targumReader = function () {
     return count;
   }
 
-  function ordinal(n) {
-    var rest = n % 100;
-    if (rest >= 11 && rest <= 13) return n + "th";
-    return n + (["th", "st", "nd", "rd"][n % 10] || "th");
-  }
-
-  /* What moved, delivered rather than visited (targum-internal#175).
+  /* What this section came to, delivered rather than visited (targum-internal#175;
+   * design.md §12, "The finished box is three figures", 2026-09-25).
    *
    * /progress holds the ledger and is right, and it is a destination a reader has to
-   * choose to visit. A chess rating is not: it is put in front of you at the end of
-   * every game, unbidden, and that half of the mechanism is the half that does the work.
-   * So the foot of a finished section says what moved while it was being read — the
-   * delta, then the standing it moved to — and says nothing about a count that did not
-   * move: a row of zeroes is a dashboard, and a delta with no total has no weight.
+   * choose to visit. So the foot of a finished section says what this section came to,
+   * in three figures and nothing else: the words that became known while it was read,
+   * how much of it is known now, and how many words were looked up in it. This text
+   * only — the standings (all known, all saved, the longest run) are Your Progress's,
+   * and a delta beside a standing is two numbers to reconcile where one should be read.
    *
    * Where the ledger stood when this section was first opened is kept under
-   * `targum:foot`, by document and section, and read back on Done. It is a bookmark
+   * `targum:foot`, by document and section, and read back on the press. It is a bookmark
    * into the ledger rather than a fact about the reader, so it stays in this browser
-   * and never goes to the account; a section opened before it existed simply says the
-   * finish and not the movement. Nothing here is a score, a point or a level: every
-   * figure is a count of a real thing the reader did, in the reading face, and the
-   * streak it can mention is the longest there has ever been, on the day it rises and
-   * on no other day — the current one is refused on purpose (design.md §12,
-   * 2026-09-03), because a count that can be lost is the thing that makes people quit.
+   * and never goes to the account. Every figure is a count of a real thing the reader
+   * did; none is a verdict on them.
    */
   function footKey() {
     return documentId + ":" + sectionId;
@@ -1131,26 +1253,17 @@ var targumReader = function () {
     } catch (e) {}
   }
 
-  // The ledger now, in the counts the foot can report. The same rules `charts.js` counts
-  // by: an ignored word is not a saved one, and a name or a number is not vocabulary.
-  function ledgerNow(days) {
+  // Words known in this language now, by the rules `charts.js` counts by: an ignored
+  // word is not vocabulary, and nor is a name or a number.
+  function ledgerNow() {
     var known = 0;
-    var saved = 0;
     var words = read(VOCAB, "{}");
     Object.keys(words).forEach(function (lemma) {
       var word = words[lemma] || {};
       if (word.status === IGNORED || word.band === "name" || word.band === "number") return;
-      saved += 1;
       if (word.status === KNOWN) known += 1;
     });
-    var list = Object.keys(days || read("targum:days", "{}"));
-    return {
-      known: known,
-      saved: saved,
-      finished: finishedCount(),
-      days: list.length,
-      longest: window.TargumCharts ? window.TargumCharts.longest(list) : 0,
-    };
+    return { known: known };
   }
 
   function footOpen(days) {
@@ -1160,30 +1273,18 @@ var targumReader = function () {
       if (Number((foot[key] || {}).at || 0) < cutoff) delete foot[key];
     });
     if (!foot[footKey()] && !finishedAt()) {
-      var stood = ledgerNow(days);
+      var stood = ledgerNow();
       stood.at = Date.now();
       foot[footKey()] = stood;
     }
     footWrite(foot);
   }
 
-  /* Which words cost the reader the most (targum-internal#174).
-   *
-   * The gloss tap is the whole explanation mechanism, and it only ever fires when the
-   * reader already knows they are stuck; nothing volunteers what went wrong. The review
-   * that appears after every chess game — you were fine until move 24 — is the
-   * strongest retention mechanism the game has, and it turns a loss into a lesson.
-   * The reader has the same data and never shows it back. So the foot of a finished
-   * section says which words were looked up in it and how often each had been looked up
-   * before, which words appeared here and were passed without a look-up having been
-   * looked up in an earlier text — the half that shows progress rather than debt — and
-   * offers the two or three most-repeated to the reader's list. One offer, not a quiz.
-   *
-   * What it never does: score the section, print a percentage, or scold. There is no
-   * oracle for "did you understand this sentence", and inventing one puts a lie in
-   * tabular numbers; counting look-ups is counting what is there. The sentence is
-   * "looked up six times", never "you still do not know this", and the hue is the
-   * ledger's, never clay.
+  /* The words looked up here (targum-internal#174). Each tap on a word for its meaning
+   * is counted in the language's history, which Words draws from, and against this
+   * section while it is open; the finished box says how many distinct words that was.
+   * It lists them no longer (2026-09-25): the box is read at a glance, and the words
+   * themselves are on Words.
    */
   function lookedRead() {
     return read(LOOKED, "{}");
@@ -1208,7 +1309,7 @@ var targumReader = function () {
       targumKeep(LOOKED, JSON.stringify(history));
       var foot = footRead();
       var entry = foot[footKey()];
-      if (entry && !entry.moved) {
+      if (entry && !entry.tally) {
         entry.looked = entry.looked || {};
         entry.looked[lemma] = Number(entry.looked[lemma] || 0) + 1;
         footWrite(foot);
@@ -1216,24 +1317,8 @@ var targumReader = function () {
     } catch (e) {}
   }
 
-  // Every token of this section carrying a lemma, once per lemma, names and numbers
-  // left out: the words that appeared here.
-  function eachLemmaHere(callback) {
-    var seen = {};
-    Object.keys(wordData).forEach(function (segment) {
-      (wordData[segment] || []).forEach(function (row) {
-        var index = row[4];
-        var lemma = lemmas[index];
-        if (!lemma || seen[lemma] || isName(row)) return;
-        seen[lemma] = true;
-        callback(lemma, index, row);
-      });
-    });
-  }
-
   // Whether the word at this lemma index is a name or a number anywhere on the page.
-  // Read off the rows themselves: `eachLemmaHere` leaves names out, which is what it is
-  // for and makes it the wrong tool for this.
+  // Read off the rows themselves.
   function isNameAt(index) {
     var named = false;
     Object.keys(wordData).forEach(function (segment) {
@@ -1244,230 +1329,96 @@ var targumReader = function () {
     return named;
   }
 
-  // What this section cost, what it no longer costs, and what to offer. Counts only.
-  function footCost(entry) {
-    var history = lookedRead();
-    var here = entry.looked || {};
-    var cost = Object.keys(here)
-      .map(function (lemma) {
-        var total = Number((history[lemma] || {}).n || 0);
-        return { lemma: lemma, here: here[lemma], before: Math.max(0, total - here[lemma]) };
-      })
-      .sort(function (a, b) {
-        return b.before - a.before || b.here - a.here || (a.lemma < b.lemma ? -1 : 1);
-      });
-    var stopped = [];
-    eachLemmaHere(function (lemma) {
-      if (here[lemma] || !(history[lemma] && history[lemma].n)) return;
-      stopped.push({ lemma: lemma, before: Number(history[lemma].n) });
-    });
-    stopped.sort(function (a, b) {
-      return b.before - a.before || (a.lemma < b.lemma ? -1 : 1);
-    });
-    // Offered: the most-repeated of what cost, not already on the list. Two or three.
-    var offer = cost
-      .filter(function (item) {
-        return !vocab[item.lemma];
-      })
-      .slice(0, 3)
-      .map(function (item) {
-        return item.lemma;
-      });
-    return { cost: cost.slice(0, 8), stopped: stopped.slice(0, 8), offer: offer };
-  }
-
-  // Worked out on the press, before the finish is written: the delta and the standing
-  // for every count that moved since the section was opened, kept beside the snapshot
-  // so the foot can say it again on the next visit. Taking the finish back drops it.
+  // Worked out on the press, before the finish is written, and kept beside the bookmark
+  // so the box can say it again on the next visit and the playlist can add it up. The
+  // words the press marked are already marked, so they are among the known. Taking the
+  // finish back drops it. A section opened before the bookmark existed is counted from
+  // now: nothing known, nothing looked up, and the share as it stands.
   function footMoved(on) {
     var foot = footRead();
     var entry = foot[footKey()];
-    if (!entry) return;
     if (!on) {
-      delete entry.moved;
-      delete entry.cost;
-      footWrite(foot);
+      if (entry) {
+        delete entry.tally;
+        footWrite(foot);
+      }
       return;
     }
     var now = ledgerNow();
-    entry.cost = footCost(entry);
-    var moved = [];
-    if (now.known > entry.known) {
-      moved.push({ hue: "leaf", delta: now.known - entry.known, of: "newly known", standing: now.known, all: "known" });
-    }
-    if (now.saved > entry.saved) {
-      moved.push({ hue: "iris", delta: now.saved - entry.saved, of: "newly saved", standing: now.saved, all: "saved" });
-    }
-    // "day 12 reading" is the delta and the standing in one phrase: the day is the one
-    // that moved, and twelve is what it moved to.
-    if (now.days > entry.days) moved.push({ hue: "", day: now.days });
-    // A run of one is not a run. The longest run is said on the day it rises past the
-    // last one it was said at, and never as a standing: the standing lives on /progress.
-    if (now.longest > entry.longest && now.longest >= 2) {
-      moved.push({ hue: "sun", run: now.longest });
-    }
-    entry.moved = moved;
+    if (!entry) entry = foot[footKey()] = { known: now.known, at: Date.now() };
+    var counts = coverage();
+    entry.tally = {
+      known: Math.max(0, now.known - Number(entry.known || 0)),
+      here: counts.known,
+      of: counts.total - counts.ignored,
+      looked: Object.keys(entry.looked || {}).length,
+    };
     footWrite(foot);
   }
 
-  function times(n) {
-    return n === 1
-      ? t("reader.foot.once", "once")
-      : n === 2
-        ? t("reader.foot.twice", "twice")
-        : tn("reader.foot.times", n, "{n} times", "{n} times");
-  }
-
-  // The words, after the counts: what cost, what stopped costing, and the offer. Each
-  // word in the reading face, bold, and the sentence around it in the ledger's quiet
-  // tone. A reader who looked nothing up sees the half that shows progress, and a
-  // section with neither says neither.
-  function drawCost(into, cost) {
-    if (!cost) return;
-    function line(className, lead) {
-      var span = document.createElement("span");
-      span.className = "move " + className;
-      if (lead) span.appendChild(document.createTextNode(lead));
-      into.appendChild(span);
-      return span;
-    }
-    function name(span, lemma) {
-      var b = document.createElement("b");
-      b.setAttribute("lang", language);
-      b.textContent = lemma;
-      span.appendChild(b);
-    }
-    if (cost.cost && cost.cost.length) {
-      var costly = line("cost", t("reader.foot.looked-up-here", "Looked up here: "));
-      cost.cost.forEach(function (item, n) {
-        if (n) costly.appendChild(document.createTextNode(" · "));
-        name(costly, item.lemma);
-        costly.appendChild(
-          document.createTextNode(
-            item.before
-              ? t("reader.foot.looked-up-before", ", looked up {times} before", {
-                  times: times(item.before),
-                })
-              : t("reader.foot.first-time", ", the first time")
-          )
-        );
-      });
-    }
-    if (cost.stopped && cost.stopped.length) {
-      var eased = line(
-        "stopped",
-        t("reader.foot.stopped", "Read here without a look-up, looked up before: ")
-      );
-      cost.stopped.forEach(function (item, n) {
-        if (n) eased.appendChild(document.createTextNode(" · "));
-        name(eased, item.lemma);
-      });
-    }
-    var offer = (cost.offer || []).filter(function (lemma) {
-      return !vocab[lemma];
-    });
-    if (offer.length) {
-      var asked = line("offer", t("reader.foot.offer", "Keep on your list: "));
-      offer.forEach(function (lemma) {
-        var button = document.createElement("button");
-        button.type = "button";
-        button.className = "offer";
-        button.setAttribute("lang", language);
-        button.textContent = lemma;
-        button.addEventListener("click", function () {
-          var index = lemmas.indexOf(lemma);
-          var band = "";
-          eachLemmaHere(function (found, at, row) {
-            if (found === lemma) band = bandOf(row);
-          });
-          if (index >= 0 && setStatus(index, lemma, band, LEARNING[0])) {
-            redraw();
-            renderFinished();
-          }
-        });
-        asked.appendChild(button);
-      });
-    }
-  }
-
-  function drawMoved(into) {
+  // This section's three figures, or null where it was finished before they were kept.
+  function footFigures() {
     var entry = footRead()[footKey()];
-    var moved = entry && entry.moved;
-    if (entry && entry.cost) drawCost(into, entry.cost);
-    if (!moved || !moved.length) return;
-    moved.forEach(function (item) {
-      var line = document.createElement("span");
-      line.className = "move" + (item.hue ? " " + item.hue : "");
-      function figure(n) {
-        var b = document.createElement("b");
-        b.textContent = String(n);
-        line.appendChild(b);
-      }
-      if (item.day) {
-        line.appendChild(document.createTextNode(t("reader.foot.day-before", "day ")));
-        figure(item.day);
-        line.appendChild(document.createTextNode(t("reader.foot.day-after", " reading")));
-      } else if (item.run) {
-        figure(item.run);
-        line.appendChild(
-          document.createTextNode(t("reader.foot.run-after", " days running · your longest"))
-        );
-      } else {
-        figure(item.delta);
-        // Kept in the foot's record in English words, so they are said from the key.
-        var saved = item.all === "saved";
-        var newly = saved
-          ? t("reader.foot.newly-saved", "newly saved")
-          : t("reader.foot.newly-known", "newly known");
-        line.appendChild(document.createTextNode(" " + newly + " · "));
-        figure(item.standing);
-        line.appendChild(
-          document.createTextNode(
-            " " + (saved ? t("reader.foot.saved", "saved") : t("reader.foot.known", "known"))
-          )
-        );
-      }
-      into.appendChild(line);
-    });
+    return entry && entry.tally ? entry.tally : null;
   }
 
-  // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block
-  // that earned it — and brags the brand's way: a real count, in serif tabular figures,
-  // leaf-bright on ink. Type, not motion.
+  function shareOf(tally) {
+    return tally && tally.of ? Math.round((tally.here / tally.of) * 100) : 0;
+  }
+
+  // One figure over its label, the figure in the reading face and tabular.
+  function tile(figure, label) {
+    var box = document.createElement("span");
+    box.className = "tile";
+    var b = document.createElement("b");
+    b.textContent = figure;
+    box.appendChild(b);
+    var under = document.createElement("span");
+    under.textContent = label;
+    box.appendChild(under);
+    return box;
+  }
+
+  // Finished: the strip inverts to ink — §9's wake-up move, spent on the one block that
+  // earned it — and says what the section came to in three figures of equal weight
+  // (design.md §12, "The finished box is three figures", 2026-09-25): "Finished · #14",
+  // then the words known, the share known here, the words looked up. A zero is a 0, so the three
+  // stand where they always stand. Type, not motion.
   function renderFinished() {
-    if (!finishedBox || !finishedMark || !finishedSaid) return;
+    if (!finishedBox || !finishedSaid) return;
     var when = finishedAt();
     finishedSaid.textContent = "";
     if (when) {
-      var day = new Date(when);
-      var said = "";
-      try {
-        said = day.toLocaleDateString(undefined, { day: "numeric", month: "short" });
-      } catch (e) {
-        said = day.toDateString();
+      var head = document.createElement("b");
+      head.className = "finished-head";
+      head.textContent = t("reader.finish.head", "Finished · #{n}", { n: finishedCount() });
+      finishedSaid.appendChild(head);
+      var tally = footFigures();
+      if (tally) {
+        var row = document.createElement("span");
+        row.className = "tiles";
+        row.appendChild(
+          tile(
+            "+" + tally.known,
+            tn("reader.finish.known", tally.known, "word known", "words known")
+          )
+        );
+        row.appendChild(tile(shareOf(tally) + "%", t("reader.finish.known-here", "known here")));
+        row.appendChild(
+          tile(
+            String(tally.looked),
+            tn("reader.finish.looked", tally.looked, "word looked up", "words looked up")
+          )
+        );
+        finishedSaid.appendChild(row);
       }
-      var count = finishedCount();
-      var lead = document.createElement("b");
-      lead.className = "cheer";
-      lead.textContent = t("reader.finish.cheer", "You finished a targum.");
-      finishedSaid.appendChild(lead);
-      var tally = document.createElement("span");
-      tally.className = "tally";
-      var figure = document.createElement("b");
-      figure.textContent = ordinal(count);
-      tally.appendChild(document.createTextNode(t("reader.finish.your", "Your ")));
-      tally.appendChild(figure);
-      tally.appendChild(document.createTextNode(count === 1 ? " · " + said : " · " + said));
-      finishedSaid.appendChild(tally);
-      drawMoved(finishedSaid);
       finishedSaid.hidden = false;
-      finishedMark.textContent = t("reader.finish.undo", "Undo");
-      finishedMark.classList.add("undo");
     } else {
       finishedSaid.hidden = true;
-      finishedMark.textContent = t("reader.finish.done", "Done");
-      finishedMark.classList.remove("undo");
     }
+    // The ink block is the finish, and it is only there once there is one: before it,
+    // the foot is the press.
+    finishedBox.hidden = !when;
     finishedBox.classList.toggle("is-done", !!when);
     // The inverted block is a ledger, and `.ledger` is what licenses the bright set.
     finishedBox.classList.toggle("ledger", !!when);
@@ -1479,6 +1430,54 @@ var targumReader = function () {
        different element with a different rule; this only ever touches the near one. */
     var onward = document.getElementById("next-up");
     if (onward && onward.classList.contains("here")) onward.hidden = !when;
+    renderFoot();
+  }
+
+  /* How many words the press would mark: vocabulary only, never names and numbers, which
+     the press still clears without calling them words (the same count the header gives,
+     because two counts disagreeing on one screen read as a bug). */
+  function leftToMark() {
+    return lemmasHere(false).filter(function (lemma) {
+      return statusOf(lemma) === undefined;
+    }).length;
+  }
+
+  /* The press and the line under it, as they stand. One press, saying both halves of
+     what it does — "Done, and mark 12 words known" — and a text link under it that does
+     the first half alone. Nothing left to mark: "Done", and no link. Finished, the press
+     goes: the ink block says so and holds the Undo — except in a playlist, where the
+     press is still the way on, and moving on from a finished item marks nothing. */
+  function renderFoot() {
+    if (!footDrawn || !footPress || !finishedMark) return;
+    var when = finishedAt();
+    var verb = footWay ? footWay.verb : "done";
+    var left = when ? 0 : leftToMark();
+    footPress.hidden = !!when && !footWay;
+    finishedMark.textContent = pressSays(verb, left);
+    if (footPlain) {
+      footPlain.hidden = !left;
+      footPlain.textContent = left ? plainSays(verb) : "";
+    }
+  }
+  function pressSays(verb, left) {
+    if (verb === "next") {
+      return left
+        ? tn("reader.foot.next-mark", left, "Next, and mark {n} word known", "Next, and mark {n} words known")
+        : t("reader.list.next", "Next");
+    }
+    if (verb === "finish") {
+      return left
+        ? tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known")
+        : t("reader.list.done", "Finish");
+    }
+    return left
+      ? tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known")
+      : t("reader.page.done", "Done");
+  }
+  function plainSays(verb) {
+    if (verb === "next") return t("reader.foot.next-plain", "Next without marking");
+    if (verb === "finish") return t("reader.foot.finish-plain", "Finish without marking");
+    return t("reader.foot.done-plain", "Done without marking");
   }
   renderFinished();
 
@@ -1611,7 +1610,9 @@ var targumReader = function () {
     fetch(keyed("/gloss"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ lemma: form, source: wordLanguage(index), target: into, free: true }),
+      // `document` so a grounding can be held to the text's licence later
+      // (targum-internal#164, acceptance 5). It names the text, never the reader.
+      body: JSON.stringify({ lemma: form, source: wordLanguage(index), target: into, free: true, document: documentId }),
     })
       .then(function (response) {
         return response.json();
@@ -1667,6 +1668,7 @@ var targumReader = function () {
         lemma: form,
         source: wordLanguage(index),
         target: into,
+        document: documentId,
         sentence: sentence || "",
       }),
     })
@@ -1876,7 +1878,6 @@ var targumReader = function () {
   // undo list and most of it would be unreachable. Names and numbers go too — the
   // whole point is a clean page — and stay out of every count, because the record
   // keeps "name" as its band.
-  var restSaid = 0;
 
   // What is still unmarked on this page, names included: what the offer counts.
   function unmarkedHere() {
@@ -1906,7 +1907,6 @@ var targumReader = function () {
     if (!batch.length) return 0;
     undoable.push({ bulk: batch, surface: "", where: null });
     if (undoable.length > UNDO_DEPTH) undoable.shift();
-    restSaid = batch.length;
     remember();
     redraw();
     say(
@@ -1918,6 +1918,259 @@ var targumReader = function () {
       )
     );
     return batch.length;
+  }
+
+  /* --- the press at the foot ------------------------------------------------ */
+
+  /* What the one press does (design.md §12, "The foot is one block", 2026-09-25): marks
+     the words never marked, when the reader chose the press that says so, and finishes
+     the section. Words first, because the finish is what the ledger counts and the words
+     are part of what it counts. A section already finished is left as it is: pressing
+     again is moving on, not a second finish. */
+  function pressFoot(marking) {
+    var already = !!finishedAt();
+    var taken = [];
+    var counted = 0;
+    if (marking && !already) {
+      counted = leftToMark();
+      if (markRest()) {
+        var last = undoable[undoable.length - 1];
+        taken = last && last.bulk
+          ? last.bulk.map(function (item) {
+              return item.lemma;
+            })
+          : [];
+      }
+    }
+    if (!already) {
+      setFinished(true);
+      footPressed = { lemmas: taken, counted: taken.length ? counted : 0 };
+    }
+    return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
+  }
+
+  /* The press, from the button or the link under it. Inside a playlist `list.js` has said
+     what moving on is, and does it after the press; on its own the press is the whole of
+     it, and the ink block and the next section appear. */
+  function footGo(marking) {
+    if (footWay && footWay.go) {
+      footWay.go(marking);
+      return;
+    }
+    if (finishedAt()) return;
+    pressFoot(marking);
+  }
+
+  /* The Undo on the ink block: the finish, and the words this visit's press marked. A
+     word the reader has said something else about since is theirs and is left alone. */
+  function takeBack(taken) {
+    for (var n = undoable.length - 1; n >= 0; n--) {
+      var bulk = undoable[n].bulk;
+      if (bulk && bulk.length && taken.indexOf(bulk[0].lemma) >= 0) {
+        undoable.splice(n, 1);
+        break;
+      }
+    }
+    taken.forEach(function (lemma) {
+      var record = vocab[lemma];
+      if (record && record.status === KNOWN && !record.learned) forgetWord(lemma);
+    });
+    remember();
+    redraw();
+  }
+  function unpress() {
+    var pressed = footPressed;
+    footPressed = null;
+    if (pressed && pressed.lemmas.length) takeBack(pressed.lemmas);
+    setFinished(false);
+  }
+
+  /* Leaving by the press, for the next item of a playlist. What the press did goes with
+     the reader, so the page they land on can say it and take it back: the press left this
+     page, and an Undo nobody can reach is not an Undo. The tab's own store, because it is
+     about this sitting and nothing else — a second tab or tomorrow's visit is told
+     nothing. Only a press that did something is carried; moving on from an item already
+     finished says nothing where it lands. */
+  var LEFT = "targum:foot:left";
+  function leave(marking, title) {
+    var pressed = pressFoot(marking);
+    if (pressed.already) return pressed;
+    try {
+      sessionStorage.setItem(
+        LEFT,
+        JSON.stringify({
+          document: documentId,
+          section: sectionId,
+          sections: sectionCount,
+          title: String(title || documentTitle || ""),
+          counted: pressed.counted,
+          tally: footFigures(),
+          words: pressed.lemmas.map(function (lemma) {
+            return [tongueOf(lemma), wordOf(lemma)];
+          }),
+          at: Date.now(),
+        })
+      );
+    } catch (e) {}
+    return pressed;
+  }
+
+  /* Where that press landed the reader: once and briefly, at the top, "Finished <title> ·
+     12 words marked known · Undo". Read once and taken out of the store at once, so a
+     reload does not say it twice. Twenty seconds, then it goes, unless the reader is on
+     it; nothing about it moves. */
+  var arrived = document.getElementById("arrived");
+  var arrivedSaid = document.getElementById("arrived-said");
+  var arrivedUndo = document.getElementById("arrived-undo");
+  var landed = null;
+  var ARRIVED_FOR = 20000;
+  function hideArrived(after) {
+    setTimeout(function () {
+      if (!arrived) return;
+      var active = document.activeElement;
+      if (active && arrived.contains && arrived.contains(active)) return hideArrived(after);
+      arrived.hidden = true;
+    }, after);
+  }
+  function sayLanded(said) {
+    arrivedSaid.textContent = "";
+    var line = t("reader.arrived.finished", "Finished {title}");
+    var cut = line.indexOf("{title}");
+    if (cut < 0) arrivedSaid.appendChild(document.createTextNode(line));
+    else {
+      arrivedSaid.appendChild(document.createTextNode(line.slice(0, cut)));
+      var name = document.createElement("bdi");
+      name.setAttribute("dir", "auto");
+      name.textContent = String(said.title || "");
+      arrivedSaid.appendChild(name);
+      arrivedSaid.appendChild(document.createTextNode(line.slice(cut + 7)));
+    }
+    // The finished box's three figures, in the same order, on one line: "Finished
+    // <title> · +12 known · 96% · 3 looked up" (§12, 2026-09-25).
+    var tally = said.tally;
+    if (tally) {
+      arrivedSaid.appendChild(
+        document.createTextNode(
+          " · " +
+            t("reader.arrived.figures", "+{known} known · {share}% · {looked} looked up", {
+              known: Number(tally.known || 0),
+              share: shareOf(tally),
+              looked: Number(tally.looked || 0),
+            })
+        )
+      );
+    } else if (said.counted) {
+      arrivedSaid.appendChild(
+        document.createTextNode(
+          " · " + tn("reader.rest.done", said.counted, "{n} word marked known", "{n} words marked known")
+        )
+      );
+    }
+  }
+  function landHere() {
+    var said = null;
+    try {
+      said = JSON.parse(sessionStorage.getItem(LEFT) || "null");
+      sessionStorage.removeItem(LEFT);
+    } catch (e) {
+      said = null;
+    }
+    if (!said || !arrived || !arrivedSaid) return;
+    // A press is news on the page it led to, not on a page opened ten minutes later.
+    if (Date.now() - Number(said.at || 0) > 10 * 60 * 1000) return;
+    if (said.document === documentId && String(said.section) === sectionId) return;
+    landed = said;
+    sayLanded(said);
+    if (arrivedUndo) arrivedUndo.hidden = false;
+    arrived.hidden = false;
+    hideArrived(ARRIVED_FOR);
+  }
+
+  /* Undo, from where the reader landed: the section that press finished, and the words
+     it marked, in whichever language's list they went to. The page that marked them is
+     gone, so this goes to the stores directly, the way `sync.js` sweeps them, and leaves
+     a tombstone as a dropped word does so another device does not push them back. A word
+     said something else about since the press is left alone. */
+  function undoLanding() {
+    var said = landed;
+    landed = null;
+    if (!said) return;
+    // Grouped by language, so each list and each store of meanings is read and written
+    // once rather than once a word: a long chapter marks a few thousand.
+    var byTongue = {};
+    (said.words || []).forEach(function (pair) {
+      var tongue = String((pair && pair[0]) || "");
+      var word = String((pair && pair[1]) || "");
+      if (tongue && word) (byTongue[tongue] = byTongue[tongue] || []).push(word);
+    });
+    Object.keys(byTongue).forEach(function (tongue) {
+      var name = "targum:vocab:" + tongue;
+      var theirs = read(name, "{}");
+      var gone = byTongue[tongue].filter(function (word) {
+        var record = theirs[word];
+        if (!record || record.status !== KNOWN || record.learned) return false;
+        delete theirs[word];
+        return true;
+      });
+      if (!gone.length) return;
+      try {
+        targumKeep(name, JSON.stringify(theirs));
+      } catch (e) {}
+      // Their meanings, in the browser's stores and in this page's own copies, which it
+      // would otherwise write back.
+      var head = "targum:meanings:" + tongue + ":";
+      var names = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i) || "";
+          if (key.indexOf(head) === 0) names.push(key);
+        }
+      } catch (e) {}
+      names.forEach(function (key) {
+        var records = read(key, "{}");
+        gone.forEach(function (word) {
+          delete records[word];
+        });
+        try {
+          targumKeep(key, JSON.stringify(records));
+        } catch (e) {}
+      });
+      Object.keys(meaningStores).forEach(function (store) {
+        var mine = tongue === language ? store.indexOf(":") < 0 : store.indexOf(tongue + ":") === 0;
+        var records = mine && meaningStores[store].records;
+        if (records) {
+          gone.forEach(function (word) {
+            delete records[word];
+          });
+        }
+      });
+      if (window.TargumSync) {
+        gone.forEach(function (word) {
+          window.TargumSync.forgetWord(tongue, word);
+        });
+      }
+    });
+    var all = read(DOCS, "{}");
+    var record = all[said.document];
+    if (record) {
+      if (record.sections && typeof record.sections === "object") delete record.sections[String(said.section)];
+      if (Number(said.sections) === 1) record.done = 0;
+      record.updated = Date.now();
+      all[said.document] = record;
+      try {
+        targumKeep(DOCS, JSON.stringify(all));
+      } catch (e) {}
+    }
+    if (window.TargumSync) {
+      if (window.TargumSync.forgetSection) window.TargumSync.forgetSection(said.document, String(said.section));
+      window.TargumSync.touched();
+    }
+    vocab = readVocab();
+    redraw();
+    if (arrivedSaid) arrivedSaid.textContent = t("reader.arrived.took-back", "Taken back.");
+    if (arrivedUndo) arrivedUndo.hidden = true;
+    say(t("reader.finish.undone", "Not finished."));
+    hideArrived(4000);
   }
 
   function bandOfLemma(index) {
@@ -1939,7 +2192,6 @@ var targumReader = function () {
         if (item.before) vocab[item.lemma] = item.before;
         else forgetWord(item.lemma);
       });
-      restSaid = 0;
       remember();
       redraw();
       say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} words.", "Took back {n} words."));
@@ -2046,9 +2298,17 @@ var targumReader = function () {
   } catch (e) {}
   if (firstTime) first.hidden = false;
 
-  function firstWordMarked() {
-    if (!firstTime) return;
-    firstTime = false;
+  /* The second moment (targum-internal#335): "aim for a magic moment within 1 minute,
+     another within 3". The first is the word. The second is the voice — the first
+     stranger never found out the page could be heard — so on a text that has one, the
+     line that has just done its first job says the next thing: press play. It is the same
+     line in the same place, so nothing on the page moves; it is said once in a browser;
+     and the press itself puts it away. Not a tour: an earlier one opened a card on load
+     and eleven tests failed on a page rearranging itself under the reader. */
+  var VOICE = "targum:taught-the-voice";
+  var pointingAtPlay = false;
+
+  function keysLine() {
     // The arrow that actually goes forward on this page — §7, typed characters per
     // reading direction. The card's legend already knew this; the bar did not.
     var forward =
@@ -2056,10 +2316,41 @@ var targumReader = function () {
     first.textContent = t("reader.first.keys", "k known · 1 2 3 · {forward} next word · ? every key", {
       forward: forward,
     });
+  }
+
+  function firstWordMarked() {
+    if (!firstTime) return;
+    firstTime = false;
+    var strip = document.getElementById("player");
+    var heard = false;
+    try {
+      heard = !!localStorage.getItem(VOICE);
+    } catch (e) {}
+    // `has-voice` is the player's own word that there is a recording to play. Asking only
+    // whether a strip exists was asking the markup, and a page with none still answers.
+    var voiced = document.body.classList.contains("has-voice");
+    if (voiced && strip && !strip.hidden && !heard) {
+      pointingAtPlay = true;
+      first.textContent = document.getElementById("video")
+        ? t("reader.first.watch", "Now press play. The page follows the film, line by line.")
+        : t("reader.first.listen", "Now press play. The page follows the voice, line by line.");
+    } else {
+      keysLine();
+    }
     try {
       targumKeep(FIRST, String(Date.now()));
     } catch (e) {}
   }
+
+  // Said by the player's closure when a recording starts; see `pressed()`.
+  document.addEventListener("targum:playing", function () {
+    try {
+      targumKeep(VOICE, "1");
+    } catch (e) {}
+    if (!pointingAtPlay) return;
+    pointingAtPlay = false;
+    keysLine();
+  });
 
   function interlinear() {
     return prefs.mode === "inter";
@@ -2510,52 +2801,10 @@ var targumReader = function () {
   //: automatic one on the next redraw would take it back.
   var finishedBySelf = false;
 
-  var restBox = document.getElementById("rest");
-  var restText = document.getElementById("rest-text");
-  var restMark = document.getElementById("rest-mark");
-  var restUndo = document.getElementById("rest-undo");
-
-  function renderRest(counts) {
-    if (!restBox || !restText || !restMark || !restUndo) return;
-    if (restSaid) {
-      restText.textContent = tn(
-        "reader.rest.done",
-        restSaid,
-        "{n} word marked known",
-        "{n} words marked known"
-      );
-      restMark.hidden = true;
-      restUndo.hidden = false;
-      restBox.hidden = false;
-    } else if (unmarkedHere().length) {
-      // One button that says the whole thing, rather than a question and a number.
-      // The number is the header's number: vocabulary only, because a count that
-      // included names and numerals sat beside a header that did not, and the two
-      // disagreeing on one screen read as a bug. Names and numerals are still
-      // cleared by the press — the offer is a clean page — they are just not called
-      // words to your face.
-      var left = lemmasHere(false).filter(function (lemma) {
-        return statusOf(lemma) === undefined;
-      }).length;
-      restText.textContent = "";
-      restMark.textContent = left
-        ? tn("reader.rest.mark", left, "Mark {n} word as known", "Mark {n} words as known")
-        : t("reader.rest.clear-names", "Clear names and numbers");
-      restMark.setAttribute(
-        "title",
-        left ? t("reader.rest.names-too", "We clear names and numbers too, without counting them.") : ""
-      );
-      restMark.hidden = false;
-      restUndo.hidden = true;
-      restBox.hidden = false;
-    } else {
-      restBox.hidden = true;
-    }
-  }
-
   function renderStats() {
     var counts = coverage();
-    renderRest(counts);
+    footDrawn = true;
+    renderFoot();
     // What the arrows still have to walk: everything neither known nor ignored. The
     // queue is built from the same rule, so this is its length without building it.
     var left = counts.fresh + counts.learning;
@@ -2723,9 +2972,11 @@ var targumReader = function () {
     term.className = "term";
     var word = document.createElement("bdi");
     word.setAttribute("lang", language);
-    word.textContent = entry.term;
+    var shown = namedTerm(entry) || entry.term;
+    word.textContent = shown;
     term.appendChild(word);
-    if (entry.lemma && entry.lemma !== entry.term) {
+    // The dictionary form after it would only repeat what the article already says.
+    if (entry.lemma && entry.lemma !== shown && entry.lemma !== entry.term) {
       var separator = document.createElement("span");
       separator.className = "sep";
       separator.textContent = "·";
@@ -2737,7 +2988,7 @@ var targumReader = function () {
       term.appendChild(dictionary);
     }
     // Inside the term's cell, so the row keeps its four columns.
-    term.appendChild(window.TargumVocab.copyButton(entry.term, { say: say }));
+    term.appendChild(window.TargumVocab.copyButton(shown, { say: say }));
     item.appendChild(term);
 
     // A phrase is in its own list now, so it no longer has to announce that it is one.
@@ -3012,11 +3263,22 @@ var targumReader = function () {
   //
   // Overlays are not in any of these sums. A card takes nothing out of the page, so
   // nothing is told about it and nothing is laid out again for it — see `overlays`.
-  var footSaid = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
+  //
+  // And `--head`, for the one resident that can stand at the top instead: the picture,
+  // docked there. `atFoot` kept it out of the band's sums, which was right, and nothing
+  // then counted it anywhere. Pages are cut under it (`room`), but on a narrow window a
+  // docked picture suspends paging, so the reader it actually meets is the scrolling
+  // one, which knew of nothing at the top but the bar: the picture stood over the bar,
+  // over the first lines of the text with no way to scroll them clear, and over every
+  // line the voice brought to the top. Hidden in part one by a title tall enough to be
+  // the thing covered; plain in part two (David, on his phone, 2026-09-20).
+  var footSaid = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null, "--head": null };
+  //: `--head` as a number, for `ceiling`, which is asked far more often than this runs.
+  var headNow = 0;
 
   function seatFoot() {
     var root = document.documentElement.style;
-    var said = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null };
+    var said = { "--occupant": null, "--strip": null, "--tab": null, "--tab-lift": null, "--foot": null, "--head": null };
     function tell(name) {
       if (said[name]) root.setProperty(name, said[name]);
       else root.removeProperty(name);
@@ -3053,7 +3315,20 @@ var targumReader = function () {
       });
       var foot = window.innerHeight - top;
       said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
+      var head = 0;
+      residents().forEach(function (thing) {
+        if (standing(thing) && !atFoot(thing) && !thing.classList.contains("watching")) {
+          head = Math.max(head, thing.getBoundingClientRect().height);
+        }
+      });
+      said["--head"] = head ? Math.round(head) + "px" : null;
     }
+    var headWas = headNow;
+    headNow = said["--head"] ? parseInt(said["--head"], 10) : 0;
+    // Said to the stylesheet now, not the next time somebody happens to ask: `--ceiling`
+    // is every line's `scroll-margin`, and the voice brings a line to the top without
+    // asking anything first.
+    if (headNow !== headWas) ceiling();
     var changed = false;
     Object.keys(said).forEach(function (name) {
       if (footSaid[name] === said[name]) return;
@@ -4058,6 +4333,60 @@ var targumReader = function () {
      handed thirty-three forms they did not ask for. */
   var CONJ_TENSES = ["past", "present", "future", "imperative", "infinitive"];
 
+  /* The other verbs built on this word's root, each with its binyan and whatever this
+     page already knows it means (targum-internal#301).
+
+     The front door says "every verb comes with its root and binyan, beside the other
+     verbs built from it", and the root and binyan shipped while the family did not.
+     It is worked out from the same CC0 table the conjugations come from, so it is
+     owned outright: nothing is fetched and nothing is bought to draw it.
+
+     Only where the root was had honestly — the card already hides a root it could not
+     work out, and a guessed family is worse than none. */
+  function siblingLine(index) {
+    var kin = families[familyAt[index] || 0];
+    if (!kin || !kin.length) return null;
+
+    var box = document.createElement("p");
+    box.className = "card-kin";
+    var head = document.createElement("span");
+    head.className = "card-kin-head";
+    head.textContent = t("reader.card.same-root", "From the same root");
+    box.appendChild(head);
+
+    kin.forEach(function (one) {
+      var row = document.createElement("span");
+      row.className = "card-kin-verb";
+      var written = document.createElement("bdi");
+      written.setAttribute("lang", language);
+      written.className = "card-kin-word";
+      written.textContent = one[0];
+      row.appendChild(written);
+      var pattern = document.createElement("bdi");
+      pattern.setAttribute("lang", language);
+      pattern.className = "card-kin-binyan";
+      pattern.textContent = POINTED_BINYANIM[one[1]] || one[1];
+      row.appendChild(pattern);
+      // What it means, where this reader already has it: their own ledger first, then
+      // whatever the page was built with. Nothing is asked of the network here — a
+      // family is up to five words, and five lookups to draw one card is a bill the
+      // reader did not ask for. A word with no meaning to hand is still worth showing:
+      // that the verb exists, and which binyan it is, is most of what this line is for.
+      // Asked of the pointed lemma the table carries and of its bare spelling: a reader
+      // who kept this verb from another text kept it under whatever that text's
+      // annotator called it, which is rarely pointed the same way.
+      var meaning = meaningOf(one[0]) || meaningOf(bareOf(one[0])) || "";
+      if (meaning) {
+        var said = document.createElement("span");
+        said.className = "card-kin-meaning";
+        said.textContent = meaning;
+        row.appendChild(said);
+      }
+      box.appendChild(row);
+    });
+    return box;
+  }
+
   function conjugations(index, surface) {
     var rows = conjugationTables[paradigmAt[index] || 0];
     if (!rows || !rows.length) return null;
@@ -4183,6 +4512,111 @@ var targumReader = function () {
     card.appendChild(said);
   }
 
+
+  /* "This meaning is wrong", on a word's card (targum-internal#164, door 3).
+
+     A proposal and never an application: it changes nothing here, nothing on the shelf
+     and nothing for anybody else until a person with standing settles it. That is the
+     card's "not a vote", and it is also why this asks for no confirmation and costs
+     nothing — no model is called and no gloss is touched.
+
+     Drawn only for a reader who has accepted the contribution grant, which is acceptance
+     2. `granted` is null until the page has asked; the card redraws when the answer
+     lands, the way a look-up does, so the control appears without the page moving under
+     anybody who was already reading. A reader who has not accepted sees nothing at all
+     here — not a greyed control, which would be an invitation to a door that is shut. */
+  var granted = null;
+  var askingGrant = false;
+
+  function askGranted(then) {
+    if (granted !== null || askingGrant || !canAsk() || typeof fetch !== "function") return;
+    askingGrant = true;
+    fetch(keyed("/account/me"), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (me) {
+        granted = !!(me && me.granted);
+        if (then) then();
+      })
+      .catch(function () {
+        // Unknown stays unknown rather than becoming "no": a failed request is not an
+        // answer about what this reader agreed to.
+        askingGrant = false;
+      });
+  }
+
+  function correctionRow(index, word, lemma, stood) {
+    var row = document.createElement("div");
+    row.className = "fix-row";
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "fix-open";
+    open.textContent = t("reader.card.meaning-wrong", "This meaning is wrong");
+    row.appendChild(open);
+
+    open.onclick = function (event) {
+      event.stopPropagation();
+      row.removeChild(open);
+      var form = document.createElement("form");
+      form.className = "fix-form";
+      var field = document.createElement("input");
+      field.type = "text";
+      field.className = "fix-field";
+      field.dir = "auto";
+      field.autocomplete = "off";
+      field.setAttribute("aria-label", t("reader.card.what-it-means", "What it means here"));
+      field.placeholder = t("reader.card.what-it-means", "What it means here");
+      var go = document.createElement("button");
+      go.type = "submit";
+      go.className = "fix-go";
+      go.textContent = t("reader.card.send-correction", "Send");
+      form.appendChild(field);
+      form.appendChild(go);
+      form.addEventListener("submit", function (sent) {
+        sent.preventDefault();
+        var said = field.value.trim();
+        if (!said) return;
+        go.disabled = true;
+        fetch(keyed("/correction"), {
+          method: "POST",
+          headers: keyHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            lemma: lemma,
+            source: wordLanguage(index),
+            target: targetLanguage,
+            meaning: said,
+            stood: stood,
+            sentence: sentenceOf(word),
+            document: documentId,
+          }),
+        })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (answer) {
+            row.innerHTML = "";
+            var thanks = document.createElement("p");
+            thanks.className = "fix-said";
+            thanks.textContent =
+              answer && answer.proposed
+                ? t(
+                    "reader.card.correction-taken",
+                    "Thank you. We will look at it before it changes for anybody."
+                  )
+                : t("reader.card.correction-lost", "We could not send that. Try again later.");
+            row.appendChild(thanks);
+          })
+          .catch(function () {
+            go.disabled = false;
+          });
+      });
+      row.appendChild(form);
+      field.focus();
+    };
+    return row;
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
@@ -4192,6 +4626,8 @@ var targumReader = function () {
     // to know what the word was, and that is the whole of the signal the foot reports.
     //
     noteLookUp(index);
+    var askedIn = word.closest ? word.closest("[data-id]") : null;
+    happened({ kind: "lookup", segment: askedIn ? askedIn.getAttribute("data-id") || "" : "" });
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
@@ -4399,6 +4835,8 @@ var targumReader = function () {
       // wants more than a table.
       var drawn = conjugations(index, word.textContent);
       if (drawn) card.appendChild(drawn);
+      var kin = siblingLine(index);
+      if (kin) card.appendChild(kin);
     }
 
     // The part of speech's own line. A name and a number say which they are — that is
@@ -4491,6 +4929,14 @@ var targumReader = function () {
     // for either is `i`. Everything else keeps the editor exactly as it was.
     var level = levelOf(word);
     if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+
+    // A meaning can only be called wrong where there is one to call wrong.
+    if (sense && !own) {
+      askGranted(function () {
+        if (lookedUp === word) showCard(word);
+      });
+      if (granted) card.appendChild(correctionRow(index, word, lemma, sense));
+    }
 
     if (word.classList.contains("split") && !built) {
       // Say so rather than presenting one reading of an ambiguous string as settled —
@@ -5451,7 +5897,7 @@ var targumReader = function () {
       ],
       wordEntries().map(function (entry) {
         return [
-          entry.term,
+          namedTerm(entry) || entry.term,
           entry.lemma,
           entry.level || "",
           statusName(entry.status),
@@ -5549,7 +5995,7 @@ var targumReader = function () {
       var met = firstMeeting(entry.lemma);
       var index = met ? met.token[4] : -1;
       var line = met && met.token.length > 8 ? grammarTable[met.token[8]] || "" : "";
-      var named = withArticle(wordOf(entry.lemma), line);
+      var named = namedTerm(entry);
       return {
         front: named || (met ? readingRun(met.segmentId, met.token[0], met.token[1]) : entry.term),
         // What the reader wrote or kept first; failing that, the meaning the page
@@ -5571,6 +6017,24 @@ var targumReader = function () {
     var gender = feat(line, "Gender") === "Fem" ? "f" : feat(line, "Gender") === "Masc" ? "m" : "";
     if (said.length !== 2 || said[0] !== gender) return "";
     return gt("reader.grammar.like-most-nouns-in", "like most nouns in -{ending}", { ending: said[1] });
+  }
+
+  //: What `namedTerm` has already worked out, by lemma. The grammar of a word on a page
+  //: does not change while the page is open, and `firstMeeting` walks every token on it —
+  //: so without this the list would walk the page once per word on every redraw.
+  var namedTerms = {};
+
+  // How a word is written where the list, the file and the cards all show it: a French
+  // noun with its article, and everything else exactly as it was met
+  // (targum-internal#263, change 4). The gender is the whole reason: a noun met as
+  // *l'école* or *les écoles* is kept with no way to see it is feminine.
+  function namedTerm(entry) {
+    if (language !== "fr") return "";
+    if (!entry || entry.kind !== "word" || !entry.lemma) return "";
+    if (namedTerms[entry.lemma] !== undefined) return namedTerms[entry.lemma];
+    var met = firstMeeting(entry.lemma);
+    var line = met && met.token.length > 8 ? grammarTable[met.token[8]] || "" : "";
+    return (namedTerms[entry.lemma] = withArticle(wordOf(entry.lemma), line));
   }
 
   // A French noun as a learner keeps it: its dictionary form with *un* or *une*, the only
@@ -5693,7 +6157,9 @@ var targumReader = function () {
   // top of the text.
   var ceilingSaid = "";
   function ceiling() {
-    var band = (bar ? bar.getBoundingClientRect().height : 0) + 16;
+    // And under a picture docked at the top of a narrow window, which the bar now stands
+    // below: a line brought "to the top" is brought to the top of what can be read.
+    var band = (bar ? bar.getBoundingClientRect().height : 0) + headNow + 16;
     // Written where the stylesheet can read it: `scroll-margin-block-start` used to say
     // 4rem while this measured the truth, and on a narrow window the bar wraps past
     // 4rem — so `scrollIntoView` landed the sentence behind it. One measurement, two
@@ -6406,14 +6872,22 @@ var targumReader = function () {
 
      Watching is not suspended: the picture is the whole window then and there is no
      reading column under it to cut. And the reader's own setting is never written to —
-     this reads it, so pages come back the moment the picture is closed or watched. */
+     this reads it, so pages come back the moment the picture is closed or watched.
+
+     Closed by the reader, that is. A word's card takes the band and the band holds one
+     thing at a time, so the card puts the picture away — and gives it back when it goes
+     (`pictureWas`). That is a visit, not a closing, and it un-suspended paging all the
+     same: every tap on a word under a docked picture laid the chapter out in pages and
+     showed page one, the word the reader had asked about nowhere on the screen (David,
+     on his phone, 2026-09-20). A card covers the page and does not move it (design.md
+     §12), so while the picture is only put away for an overlay — or for the frame
+     between the overlay going and the picture coming back — nothing here has changed.
+     Put away for the words sheet is different: the sheet is a mode and means to stay,
+     and pages under it are what they always were. */
   function pagingSuspended() {
-    return (
-      !roomy.matches &&
-      !!videoPanel &&
-      !videoPanel.hidden &&
-      !videoPanel.classList.contains("watching")
-    );
+    if (roomy.matches || !videoPanel) return false;
+    if (pictureWas && (occupant === null || overlay(occupant))) return true;
+    return !videoPanel.hidden && !videoPanel.classList.contains("watching");
   }
 
   /* What the last layout was told, so a picture docking or closing can be noticed. */
@@ -6607,6 +7081,7 @@ var targumReader = function () {
     if (!paged() || !pages.length) return false;
     var n = current + delta;
     if (n < 0 || n >= pages.length) return false;
+    if (delta > 0) pageTurnedPast(current);
     showPage(n);
     turned(delta);
     return true;
@@ -6747,7 +7222,22 @@ var targumReader = function () {
        possible at all, and it arrives here rather than through the setting. Re-apply
        before the early return, or pages put away under a picture never come back. */
     if (paging && pagingSuspended() !== wasSuspended) {
+      /* And the reader keeps their place across it. `applyPaged` opens on the page last
+         turned to, which is the answer when a text is opened and the wrong one here: a
+         reader who scrolled to line forty under a picture and then closed it was shown
+         page one, and one who opened a picture on page nine was handed the top of the
+         transcript. The place is the line they are on — the top of the page that was
+         open, or the line under the bar of a scroll — taken before anything moves. */
+      var from = pages.length ? pairs[pages[current][0]] : lineUnderTheBar();
       applyPaged();
+      /* Past the first line only. At the top of a text there is no place to keep, and
+         bringing its first line under the bar takes the title off the screen — which is
+         what every text with a picture would have opened to, since the picture arriving
+         is the first of these changes. */
+      if (from && from.parentNode && pairs.indexOf(from) > 0) {
+        if (paged() && pages.length) showPage(pageFor(pairs.indexOf(from), pages), true);
+        else if (from.scrollIntoView) from.scrollIntoView({ block: "start" });
+      }
       return;
     }
     if (!paging || !paged()) return;
@@ -6772,6 +7262,18 @@ var targumReader = function () {
     if (linked && !linked.hidden) held = linked;
     paginate();
     showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
+  }
+
+  /* The line a scrolling reader is on: the first whose foot is under the bar. Not
+     `anchor`, which prefers a word they stood on wherever it now is, and otherwise the
+     middle of the window — right for holding a sentence still, and a third of a screen
+     out for saying which line a page should begin on. */
+  function lineUnderTheBar() {
+    var top = ceiling();
+    for (var i = 0; i < pairs.length; i++) {
+      if (!pairs[i].hidden && pairs[i].getBoundingClientRect().bottom > top + 4) return pairs[i];
+    }
+    return null;
   }
 
   function applyPaged() {
@@ -6882,6 +7384,11 @@ var targumReader = function () {
       // wrong end of the line and read out in the wrong voice.
       if (columnLanguage) cell.setAttribute("lang", columnLanguage);
       if (columnDirection) cell.setAttribute("dir", columnDirection);
+      // And for the same reason: a commentary's line is several comments joined with a
+      // newline, and only the drawn rendering is stamped as one in the template. A text
+      // carrying Onkelos and Rashi both drew Rashi's comments run together the moment a
+      // reader pressed it (targum-internal#200).
+      cell.classList.toggle("commented", !!entry.commented);
       // Each translation is aligned independently, so which regions are approximate
       // changes with the translation on show.
       pair.classList.toggle("coarse", !!coarse[segmentId]);
@@ -7481,16 +7988,20 @@ var targumReader = function () {
         showList(!!(listBox && listBox.hidden));
         return;
       }
-      if (button.id === "rest-mark") {
-        markRest();
-        return;
-      }
-      if (button.id === "rest-undo") {
-        undo();
-        return;
-      }
       if (button.id === "done-mark") {
-        setFinished(!finishedAt());
+        footGo(true);
+        return;
+      }
+      if (button.id === "done-plain") {
+        footGo(false);
+        return;
+      }
+      if (button.id === "done-undo") {
+        unpress();
+        return;
+      }
+      if (button.id === "arrived-undo") {
+        undoLanding();
         return;
       }
       if (button.getAttribute("data-export") === "csv") {
@@ -7528,7 +8039,7 @@ var targumReader = function () {
         // a mode that alters what reading does deserves more than that.
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you read.")
+            ? t("reader.mode.marking", "Marking words as you go.")
             : t("reader.mode.not-marking", "Not marking.")
         );
         return;
@@ -7624,7 +8135,7 @@ var targumReader = function () {
     }
     hideCard();
     showKeys(false);
-    // And the menu, unless this is a press inside it: its own buttons — the theme, the
+    // And the menu, unless this is a press inside it: its own buttons — the type size, the
     // player's — fall through to here.
     if (!(more && more.contains(event.target))) showMore(false);
   });
@@ -8132,7 +8643,7 @@ var targumReader = function () {
         save();
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you read.")
+            ? t("reader.mode.marking", "Marking words as you go.")
             : t("reader.mode.not-marking", "Not marking.")
         );
         return;
@@ -8494,7 +9005,24 @@ var targumReader = function () {
     }
   });
 
+  // Said once the page is drawn, so the Undo it offers has a page to redraw.
+  landHere();
+  // A playlist that arrived before this line left its way on where it could be found.
+  if (window.TargumFootWay) {
+    footWay = window.TargumFootWay;
+    renderFoot();
+  }
+
   window.TargumReader = {
+    // Whether the reader is on its last page and its first, for a playlist deciding
+    // whether a swipe leaves the item or turns within it (targum-internal#366). A text
+    // that is not paged answers yes to both, and the scroll decides.
+    onLastPage: function () {
+      return !paged() || !pages.length || current >= pages.length - 1;
+    },
+    onFirstPage: function () {
+      return !paged() || current <= 0;
+    },
     where: where,
     placeNear: placeNear,
     stopHover: stopHover,
@@ -8520,12 +9048,37 @@ var targumReader = function () {
     ankiText: ankiText,
     compoundLine: compoundLine,
     withArticle: withArticle,
+    namedTerm: namedTerm,
     endingLine: endingLine,
     tagOf: tagOf,
     builtIn: builtIn,
     inflects: inflects,
     // Everything never marked, marked known at once; one undo takes it all back.
     markRest: markRest,
+    // The press at the foot, as a playlist asks for it (design.md §12, "The foot is one
+    // block"): what the press says and what moving on is, and the press itself made
+    // before the playlist moves on. `press` and `unpress` are the same press and its
+    // Undo, for tests with no button to click.
+    foot: function (way) {
+      footWay = way || null;
+      renderFoot();
+    },
+    leave: leave,
+    // This section's three figures once it is finished, for the playlist's end card to
+    // add up (§12, "The finished box is three figures"). Null before, or for a section
+    // finished before they were kept.
+    figures: footFigures,
+    press: pressFoot,
+    unpress: unpress,
+    undoLanding: undoLanding,
+    footSays: function () {
+      return {
+        press: finishedMark ? finishedMark.textContent : "",
+        pressHidden: footPress ? Boolean(footPress.hidden) : true,
+        plain: footPlain && !footPlain.hidden ? footPlain.textContent : "",
+        finished: finishedBox ? !finishedBox.hidden : false,
+      };
+    },
     // Finished with the text, and taken back.
     finish: setFinished,
     finishedAt: finishedAt,
@@ -8672,7 +9225,7 @@ var targumReader = function () {
       }
     }
     var say = window.TargumStrings || { t: function (key, english) { return english; } };
-    if (lead) lead.textContent = say.t("reader.next.lead", "Read next") + (pick.scene ? " · " + pick.scene : "");
+    if (lead) lead.textContent = say.t("reader.next.lead", "Up next") + (pick.scene ? " · " + pick.scene : "");
     if (why) {
       why.textContent =
         pick.because +
@@ -8907,6 +9460,8 @@ var targumReader = function () {
     return;
   }
   if (!speech || !speech.audio) return;
+  // Said for the first-run line, which is another closure's: there is something to play.
+  document.body.classList.add("has-voice");
 
   /* One media element, not two clocks. Where the import kept its pictures the page
      carries a <video> pointed at the sidecar beside this file, and that element is the
@@ -8937,6 +9492,15 @@ var targumReader = function () {
      * is the switch the layout needs: a picture taller than it is wide is sized by its
      * height, or a 9:16 at the panel's width would be a column of video down the window.
      */
+    /* And before it lands, the shape the build measured (2026-09-20). Until the metadata
+     * arrived a reel stood in the 16/9 the stylesheet falls back to and then jumped
+     * upright — on a slow line, for as long as the line was slow. The build reads the
+     * cut's size and the page carries it as `data-film`; `tall` is already in the class
+     * the page came with. As an attribute and not a style: a served page's policy allows
+     * no inline style, and a property set from here is not one. The film still has the
+     * last word below, in the same form, so a page that was told wrong is put right. */
+    var builtFilm = videoBox ? videoBox.getAttribute("data-film") : "";
+    if (builtFilm && /^\d+ \/ \d+$/.test(builtFilm)) videoBox.style.setProperty("--film", builtFilm);
     videoEl.addEventListener("loadedmetadata", function () {
       var wide = videoEl.videoWidth;
       var high = videoEl.videoHeight;
@@ -9013,11 +9577,47 @@ var targumReader = function () {
     }
   }
 
+  /* Time listened and time watched (targum-internal#339), off the element's own events so a
+     line pressed and a whole scene run are counted alike. Wall-clock seconds, because that
+     is what a person spent; told apart by whether the picture was up, because a film played
+     with its picture put away was listened to. Under a second is a mis-press. */
+  var begun = 0;
+  function pictureUp() {
+    var panel = document.getElementById("video");
+    return !!(panel && !panel.hidden);
+  }
+  function stretchOver() {
+    if (!begun) return;
+    var seconds = Math.round((Date.now() - begun) / 1000);
+    begun = 0;
+    if (seconds < 1 || !window.TargumEvents) return;
+    var saying = document.querySelector(".pair.voiced.now");
+    window.TargumEvents.note({
+      kind: "play",
+      amount: seconds,
+      medium: pictureUp() ? "watch" : "listen",
+      segment: saying ? saying.getAttribute("data-id") || "" : "",
+    });
+  }
+  audio.addEventListener("playing", function () {
+    if (!begun) begun = Date.now();
+  });
+  audio.addEventListener("pause", stretchOver);
+  audio.addEventListener("ended", stretchOver);
+  window.addEventListener("pagehide", stretchOver);
+  //: Lines asked for in this visit: a second press on one is a replay, which is the
+  //: clearest thing a listener can say about a line.
+  var askedFor = {};
+
   function pressed(on) {
     scenes.forEach(function (button) {
       button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     if (player) player.classList.toggle("playing", !!on);
+    // The first-run line is another closure's; it hears that a recording has started.
+    if (on && typeof CustomEvent === "function") {
+      document.dispatchEvent(new CustomEvent("targum:playing"));
+    }
   }
 
   function clocked(seconds) {
@@ -9559,6 +10159,11 @@ var targumReader = function () {
     var again = playing === button;
     halt();
     if (again) return;
+    var line = button.getAttribute("data-id") || "";
+    if (askedFor[line] && window.TargumEvents) {
+      window.TargumEvents.note({ kind: "replay", medium: pictureUp() ? "watch" : "listen", segment: line });
+    }
+    askedFor[line] = true;
     playing = button;
     playingEnd = span[1];
     button.classList.add("saying");
@@ -10255,9 +10860,22 @@ var targumReader = function () {
       var keptSize = parseFloat(localStorage.getItem(SIZE_STORE));
       if (keptSize > 0 && keptSize <= 1) size = keptSize;
     } catch (e) {}
+    /* Inside a playlist the picture is the item (design.md §12, 2026-09-23): a reader
+       who swiped into a reel came to watch it. So it opens watching, whatever this
+       text's own stores say — and writes neither of them, so the text opened on its own
+       later still opens the way its reader left it. `go` is the swipe that brought the
+       reader here, which was the press; opened any other way, nothing plays. */
+    var inList = false;
+    var swipedHere = false;
+    try {
+      var listed = new URLSearchParams(location.search);
+      inList = /^https?:$/.test(location.protocol) && /^\d+$/.test(listed.get("list") || "");
+      swipedHere = inList && listed.get("go") === "1";
+    } catch (e) {}
     setCorner(where, false);
-    showVideo(!putAway, false);
-    showWatch(!putAway && wantsFullScreen, false);
+    showVideo(inList || !putAway, false);
+    showWatch(inList || (!putAway && wantsFullScreen), false);
+    if (swipedHere) toggleScene();
   }
 
   /* The video's home, opened at the line in front of the reader. The sidecar stays
@@ -10268,7 +10886,9 @@ var targumReader = function () {
      is one nobody can copy. The spans are into this part's own cut, which begins
      `offset` seconds into the whole video; the two are added here. */
   var home = document.querySelector("[data-home]");
-  if (home) {
+  // Only an address that takes a time is given one. The "at" mark is YouTube's, and an
+  // Instagram reel with `&t=` on the end is an address Instagram does not answer.
+  if (home && home.getAttribute("data-home") === "at") {
     var homeBase = home.getAttribute("href");
     var homeOffset = Number(speech.offset) || 0;
     var homeAt = function () {
@@ -10401,4 +11021,34 @@ else targumReader();
   };
 
   window.TargumVoice = { POLL: POLL };
+})();
+
+/* Into a playlist (targum-internal#364), from the ⋯ menu.
+ *
+ * Only where the page arrived over a connection: a playlist is kept on the account, and a
+ * reader opened off a disk has none. The address names this reader's folder, read off
+ * where the page is, because the built file does not know the name it is served under.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+  var group = document.getElementById("to-playlist");
+  var link = document.getElementById("more-playlist");
+  var served = /^\/reader\/([^/]+)\/reader\//.exec(location.pathname);
+  if (!group || !link || !served) return;
+  var name = decodeURIComponent(served[1]);
+  var address = "/playlists?add=" + encodeURIComponent(name) +
+    "&title=" + encodeURIComponent(link.getAttribute("data-title") || name);
+  var key = new URLSearchParams(location.search).get("k");
+  if (key) address += "&k=" + encodeURIComponent(key);
+  link.href = address;
+  // A menu in place (2026-09-24); the address above is where a middle-click still goes.
+  if (window.TargumPlaylistMenu) {
+    window.TargumPlaylistMenu.attach(
+      link,
+      { name: name, title: link.getAttribute("data-title") || name },
+      key
+    );
+  }
+  group.hidden = false;
 })();

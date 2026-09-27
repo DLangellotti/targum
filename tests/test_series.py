@@ -167,8 +167,9 @@ def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> Non
 
     store = Store(tmp_path / "words.db")
     store.follow_series("a@example.org", "parasha")
-    ((email, stop),) = store.followers("parasha")
+    ((email, stop, said),) = store.followers("parasha")
     assert email == "a@example.org" and store.series_followed("a@example.org") == ["parasha"]
+    assert said == "en", "nobody said a language, so it is the one targum is written in"
     assert store.stop_following(stop) and store.followers("parasha") == []
     assert store.series_followed("a@example.org") == []
     assert not store.stop_following("nonsense") and not store.stop_following("")
@@ -178,3 +179,120 @@ def test_one_click_stops_a_series_and_unfollowing_does_too(tmp_path: Any) -> Non
         store, ConsoleMailer(io.StringIO()), "https://targum.page", [PORTION], pause=0
     )
     assert report.sent == []
+
+
+# -- a series says its name in the reader's language (targum-internal#289) --------------
+
+
+def test_a_series_row_is_said_in_the_readers_language() -> None:
+    """The follow page drew "Weekly News Digest" beside a Russian interface. The names and
+    blurbs were hard-coded English in `series.py` and `daily/cycles.py`, so they were the
+    one row on that page that could not be anything else."""
+    from targum import series
+
+    row = {
+        "id": "weekly",
+        "name": "Weekly News Digest",
+        "hebrew": "מבט השבוע",
+        "what": "Hebrew news, written three ways, every week.",
+        "page": "/weekly",
+    }
+
+    english = series.said_in(row, "en")
+    assert english["name"] == "Weekly News Digest"
+    assert english["what"].startswith("Hebrew news")
+
+    russian = series.said_in(row, "ru")
+    assert russian["name"] == "Недельный обзор новостей"
+    assert russian["what"].startswith("Новости")
+    assert series.said_in(row, "ru-RU") == russian, "a regional tag is the language"
+
+    # The Hebrew name is the series' name in Hebrew and stays Hebrew in every language.
+    assert russian["hebrew"] == "מבט השבוע"
+    # And nothing else about the row moves.
+    assert russian["page"] == "/weekly"
+
+
+def test_a_series_with_nothing_written_for_it_keeps_its_english() -> None:
+    """English beside it is never wrong, only foreign — the same fallback the catalogue's
+    own names make."""
+    from targum import series
+
+    row = {"id": "nobody-wrote-this", "name": "A Series", "what": "What it is."}
+    for language in ("ru", "fr", "xx"):
+        assert series.said_in(row, language) == row
+
+
+def test_every_cycle_and_series_has_its_words_in_the_catalogue() -> None:
+    """Asked of the list rather than of a hand-written set, so a cycle added later is
+    covered the day it is added rather than the day somebody notices."""
+    from targum.daily.cycles import CYCLES
+    from targum.strings import catalogue
+
+    english = catalogue("en")
+    for slug in [cycle.slug for cycle in CYCLES] + ["weekly", "parasha"]:
+        for part in ("name", "what"):
+            assert f"series.{slug}.{part}" in english, f"series.{slug}.{part}"
+
+
+# -- and the mail, and the page it leads to (targum-internal#289) -----------------------
+
+
+PORTION_RU = {
+    "id": "parasha",
+    "name": "The weekly portion",
+    "what": "This Shabbat's reading, with its cantillation, every week.",
+    "page": "/parasha",
+    "instalment": {"id": "bereshit", "title": "Bereshit", "hebrew": "בראשית"},
+}
+
+
+def test_a_follower_is_written_down_with_the_language_they_followed_in(tmp_path: Any) -> None:
+    """There is no account behind a follow row — it is keyed by address so that stopping
+    never touches one — so the press is the only moment the language can be learnt."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    store.follow_series("r@example.org", "parasha", language="ru-RU")
+    ((_, stop, said),) = store.followers("parasha")
+    assert said == "ru", "a regional tag is the language"
+    assert store.following_language(stop) == "ru"
+
+    # Following again in another language means the new one; stopping does not forget it,
+    # so somebody who comes back is still read in what they last said.
+    store.follow_series("r@example.org", "parasha", language="en")
+    assert store.following_language(stop) == "en"
+    store.follow_series("r@example.org", "parasha", False)
+    assert store.following_language(stop) == "en"
+
+    # A token matching no row is English rather than an error: it is a link out of a mail
+    # client, and the page it opens has to draw either way.
+    assert store.following_language("nonsense") == "en" and store.following_language("") == "en"
+
+
+def test_the_letter_is_written_in_the_language_its_reader_follows_in() -> None:
+    """The last thing in this file still English for everybody, on a series whose name and
+    blurb the same reader already had in Russian."""
+    from targum import series
+
+    subject, body = series.letter(PORTION_RU, "https://targum.page", "tok", "ru")
+    assert "Недельная глава" in subject and "Bereshit" in subject
+    assert "Уже на targum: https://targum.page/parasha" in body
+    assert "https://targum.page/series/stop?t=tok" in body
+    assert "You are getting this" not in body
+
+    english = series.letter(PORTION_RU, "https://targum.page", "tok")[1]
+    assert "You are getting this because you follow The weekly portion" in english
+
+
+def test_one_russian_follower_does_not_make_everyone_elses_letter_russian() -> None:
+    """The series is read once for everybody and its name is resolved into *somebody's*
+    language before `announce` loops. A letter that took the row's name as given would say
+    the Russian name to every English reader as soon as a Russian follower sorted first.
+    """
+    from targum import series
+
+    already = series.said_in(PORTION_RU, "ru")
+    assert already["name"] == "Недельная глава"
+    subject, body = series.letter(already, "https://targum.page", "tok", "en")
+    assert "The weekly portion" in subject and "Недельная глава" not in body

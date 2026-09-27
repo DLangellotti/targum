@@ -447,3 +447,44 @@ def test_announcing_the_wrong_week_posts_nothing(store: Store) -> None:
 
     slip = announce(store, ConsoleMailer(stream=io.StringIO()), last, "https://targum.page")
     assert slip.sent == []
+
+
+# -- a mailout that reached nobody says so (targum-internal#346) ----------------------
+
+
+def test_a_database_with_nobody_in_it_is_not_a_finished_run(store: Store, issue: Issue) -> None:
+    """An empty list is two different facts and one of them is a defect.
+
+    The weekly is written on a laptop, because its writer is one of the gitignored
+    modules; the people who asked for it signed up on the box. So a scheduled run can
+    draft, publish and ship an issue and tell nobody, with nothing going wrong anywhere
+    — the mailout found an empty list and called it a finished job.
+    """
+    report = announce(store, ConsoleMailer(stream=io.StringIO()), issue, "https://targum.page")
+
+    assert report.sent == []
+    assert report.nobody is True
+    assert "no subscribers" in str(report)
+
+
+def test_everybody_having_had_it_is_a_finished_run(store: Store, issue: Issue) -> None:
+    """The other empty list: the idempotence working. A re-run must not start claiming
+    there is nobody here — there is, and they have had it."""
+    store.follow("a@example.com")
+    first = announce(store, ConsoleMailer(stream=io.StringIO()), issue, "https://targum.page")
+    assert first.sent == ["a@example.com"] and first.nobody is False
+
+    again = announce(store, ConsoleMailer(stream=io.StringIO()), issue, "https://targum.page")
+    assert again.sent == [] and again.nobody is False, "somebody is subscribed; they have had it"
+    assert str(again) == "0 sent"
+
+
+def test_somebody_who_stopped_is_not_somebody_to_tell(store: Store, issue: Issue) -> None:
+    """`subscribed()` counts who could be mailed at all, so a list of nothing but people
+    who unsubscribed is a database with nobody in it — which is the honest reading."""
+    store.follow("a@example.com")
+    store.follow("a@example.com", on=False)
+    assert not store.following("a@example.com")
+
+    report = announce(store, ConsoleMailer(stream=io.StringIO()), issue, "https://targum.page")
+    assert report.nobody is True

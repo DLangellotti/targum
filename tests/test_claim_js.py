@@ -79,6 +79,9 @@ def test_the_checked_words_are_marked_known_for_real_and_the_rest_are_left() -> 
     marked = got["ledger"]
     assert sorted(marked) == ["הוא", "של"]
     assert all(row["status"] == 9 and row["learned"] == 0 for row in marked.values())
+    assert all(row["source"] == "claimed" for row in marked.values()), (
+        "ticked off here, not met in a text (targum-internal#245)"
+    )
     assert marked["של"]["surface"] == "של" and marked["של"]["meaning"] == "m-של"
     assert marked["של"]["at"] < marked["הוא"]["at"], "kept in the order they were shown"
     assert sorted(got["passed"]) == sorted(f for f in FIRST if f not in ("של", "הוא")), (

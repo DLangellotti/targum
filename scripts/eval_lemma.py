@@ -35,7 +35,7 @@ dropped at the curly one shows up as a gap between the two recalls.
 **What it costs.** A few cents a language at the default sample. Nothing is read from or
 written to the production cache: the question is what the model does today.
 
-    set -a && . ./.env && set +a && \\
+    op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_lemma.py --sentences 120
 """
 

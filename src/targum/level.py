@@ -19,6 +19,7 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, timedelta
+from math import ceil
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -211,6 +212,9 @@ class Level:
     common: int = 0
     #: How the reader wants to be addressed in Hebrew: 'm', 'f', or '' for not said.
     address: str = ""
+    #: The rung they named on arrival, by its arrival id ("bet-plus"), or "". A seed: see
+    #: `seed`. Deliberately absent from `state()` — no page is handed it to print.
+    declared: str = ""
 
     def state(self) -> dict[str, Any]:
         return {
@@ -235,6 +239,27 @@ class Level:
 
 
 EMPTY = Level("he", 0, 0, 0.0, None, ULPAN[0], 0, 0, 0, 0, 0)
+
+
+def seed(level: Level) -> Rung | None:
+    """The rung a reader *said*, while nothing about them has been measured.
+
+    targum-internal#306, decided on 2026-09-19 after being decided the other way twice
+    (design.md §12, "The arrival is two questions…"). Every other level here is counted
+    off words the reader marked. This one is declared, and what keeps that small is this
+    function's one rule: **a measured rung outvotes it.** Once `here` exists — by reading,
+    or by the claim grid a minute after the first text — this answers None and the
+    declared rung is not consulted. Hebrew only: the arrival asks over the ulpan ladder.
+    """
+    if level.here is not None or not level.declared:
+        return None
+    if (level.language or "he").split("-")[0].lower() != "he":
+        return None
+    name = level.declared.replace("-", " ")
+    for rung in ULPAN:
+        if rung.name == name:
+            return rung
+    return None
 
 
 def snapshot(
@@ -274,6 +299,7 @@ def snapshot(
         ladder=ladder.title if ladder else "",
         common=among,
         address=store.address(person_id) if hasattr(store, "address") else "",
+        declared=store.declared(person_id) if hasattr(store, "declared") else "",
     )
 
 
@@ -287,10 +313,13 @@ def describe(level: Level) -> str:
 
     code = (level.language or "he").split("-")[0].lower()
     ladder = _ladder_sentence(level, ladder_for(code))
+    # The longest run and never the current one (design.md §12, "The streak is the
+    # longest one, and the current one is refused"): a model handed a current streak says
+    # it back, and a connector's host says it to a reader on a page we do not draw.
     return (
         f"The reader is learning {language_name(code)}. Their ledger: {level.known:,} words "
-        f"marked known, {level.learning:,} still being learned; {level.days:,} days read, a "
-        f"current streak of {level.streak:,} (longest {level.longest:,}); "
+        f"marked known, {level.learning:,} still being learned; {level.days:,} days read, "
+        f"their longest run of days {level.longest:,}; "
         f"{level.sections:,} sections finished across {level.texts:,} texts. {ladder}"
         "Never tell the reader they are 'at a level' or name the rung as a placement — it is "
         "a guide from self-reported words, not a placement and not a test. Quote the real "
@@ -334,6 +363,16 @@ def _ladder_sentence(level: Level, ladder: Ladder | None) -> str:
             else "Weighted by how common each word is, their known words have not yet "
             "reached the first rung of the ulpan ladder"
         )
+        said_rung = seed(level)
+        if said_rung is not None:
+            # Nothing is measured yet, so what they said on arrival stands in. It is
+            # for grading what is written for them and for nothing else.
+            return (
+                f"{said}, so there is no measured rung yet. When they arrived they said "
+                f"they were at about the '{said_rung.name}' rung (about {said_rung.cefr} on "
+                "the CEFR): grade anything you write for them in Hebrew to that until their "
+                "own marked words say otherwise, and never quote it back to them. "
+            )
         if level.next:
             said += f"; the next rung, '{level.next.name}', wants about {level.next.at:,} words"
         return f"{said}. Use the rung to grade anything you write for them in Hebrew. "
@@ -424,3 +463,39 @@ def ceiling_for(level: Level) -> int | None:
         if level.weighted < words:
             return ceiling
     return None
+
+
+#: The share of a text's running words a reader has to know to read it. The research
+#: puts adequate unassisted reading at 95–98% (Laufer 1989; Hu and Nation 2000), and
+#: this was 0.95 until 2026-09-27. Measured against wordfreq, 95% fell past the list for
+#: nearly every real text: 153 of 186 on the live shelf read Vav · C2, and a 17-word
+#: scene read C1, because a list of spellings misses what a reader's lemmas are. At 90%
+#: the scenes land at gimel and the shelf spreads. David's call (targum-internal#372):
+#: a reader here reads with a dictionary one tap away, which is what the other 10% is.
+TEXT_COVERAGE = 0.90
+
+
+def text_rung(
+    ranks: Iterable[int | None], ladder: Ladder, coverage: float = TEXT_COVERAGE
+) -> Rung | None:
+    """The rung a text needs, which is the text's and never the reader's (design.md §12,
+    2026-09-24).
+
+    `ranks` is the frequency rank of every running word's lemma, in order of the text,
+    with None for a word past the frequency list. The text needs the vocabulary that
+    covers `coverage` of its running words: the rank at that point in the sorted list. The
+    rung is the lowest one whose vocabulary reaches it, and a text that needs more than
+    the top rung has the top rung. None for a text with no words to count.
+    """
+    ordered = sorted(RANKED_PAST if one is None else one for one in ranks)
+    if not ordered or not ladder.rungs:
+        return None
+    needed = ordered[max(0, ceil(coverage * len(ordered)) - 1)]
+    for rung in ladder.rungs:
+        if rung.at >= needed:
+            return rung
+    return ladder.rungs[-1]
+
+
+#: What a word the frequency list never reached counts as: past every rung.
+RANKED_PAST = 10**9

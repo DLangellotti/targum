@@ -184,6 +184,9 @@
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 /* How much of the text the reader already has, said in words (targum-internal#244). */
 .quote-known { margin: 0; font-size: 0.8125rem; color: var(--ink); }
+/* What could be done with it after it is built, not now: a note, so it does not read
+   as another thing to press (targum-internal#246). */
+.quote-voice { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .quote-card.refused .quote-note { color: var(--clay); }
 /* The first lines of a text that arrived as pages, in the reading face: what the
    reader will get, seen before the press. Four lines at most, set by the server. */

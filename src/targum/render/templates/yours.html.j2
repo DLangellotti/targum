@@ -12,7 +12,13 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('learn.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
+{#- The key, before anything that reads it (targum-internal#343). `building.js`, and
+    the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
+    once as they load; it was set in a script at the foot of the body, so on a local serve
+    they held an empty key for the life of the page and the bell, the followed series and
+    the chat list were refused. The hosted box has no key and was never affected. -#}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 {#- The lists, whole. `texts` is the shelf, which Learn holds the top of; `words` is
     Your Words, behind the account since 2026-09-11 — the words, the commonest words you
@@ -20,27 +26,68 @@
     Same markup and the same scripts as anywhere else a row is drawn, so a row here and a
     row there cannot drift. -#}
 <body class="words learn yours">
-{#- Your targums is where Learn's Recently read goes on, so the nav says Learn. Your words
-    and phrases are reached from the account, and a nav that lit Learn on them said the
-    reader was somewhere they were not (2026-09-14). -#}
-{% set here = 'learn' if which == 'texts' else 'yours' %}{% set title = heading %}
+{#- Your targums has its own place in the nav since 2026-09-24 (design.md §12, "The shelf
+    says what a text is at a glance"). Your words and phrases are reached from the
+    account, and a nav that lit Learn on them said the reader was somewhere they were not
+    (2026-09-14). -#}
+{% set here = 'texts' if which == 'texts' else 'yours' %}{% set title = heading %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
 <main id="page" hidden>
   {%- if which == 'texts' %}
-  <section class="panel" id="shelf-panel">
-    <p class="note what-is">{{ t("yours.page.a-targum-is-an-interactive-bilingual-text", "A targum is an interactive bilingual text, optimised for
-      language learning.") }}</p>
-    <p class="note" id="shelf-note"></p>
-    <div class="shelf-head" id="shelf-head" role="row" hidden>
-      <span></span>
-      <span>{{ t("yours.page.text", "Text") }}</span>
-      <span>{{ t("yours.page.chapters", "Chapters") }}</span>
-      <span>{{ t("yours.page.last-opened", "Last opened") }}</span>
-      <span></span>
+  {#- The tabs first, so they stand where they stand on /playlists, which has no
+      definition: under the heading, as the Library's do. Below the definition they
+      jumped a screen up the page the moment Playlists was pressed (2026-09-27). -#}
+  {% set tab = 'all' %}{% include '_yours_tabs.html.j2' %}
+
+  {#- What a targum is, shown rather than only said (design.md §12, 2026-09-26): one
+      sentence, and a line of Hebrew with its translation under it and one word tapped.
+      Type and the palette, no picture file. Hebrew whatever the shelf's language: it is
+      the word the product is named for. -#}
+  {#- Drawn whole until the reader has finished a text; after that one line, pressed to
+      open it again (David, 2026-09-27, targum-internal#374): a phone's first screen was
+      the definition on every visit to a shelf of seventy. `yours.js` folds it. -#}
+  <section class="defined" id="defined" aria-labelledby="defined-head">
+    <button type="button" class="defined-open" id="defined-open" aria-expanded="false" aria-controls="defined" hidden>{{ t("yours.defined.head", "What's a targum?") }}</button>
+    <div class="defined-words">
+      <h2 id="defined-head">{{ t("yours.defined.head", "What's a targum?") }}</h2>
+      <p>{{ t("yours.defined.body", "A text you read in the language you're learning, with its translation held line by line under it. Tap any word for what it means.") }}</p>
     </div>
-    <ul class="books shelf-rows" id="library-list"></ul>
+    <figure class="defined-example" aria-label="{{ t("yours.defined.example", "An example of a targum") }}">
+      <p class="defined-line" lang="he" dir="rtl">הַסֵּפֶר עַל <mark class="defined-word">הַשֻּׁלְחָן</mark></p>
+      <p class="defined-under">{{ t("yours.defined.translation", "The book is on the table") }}</p>
+      <span class="defined-card" aria-hidden="true">
+        <bdi class="defined-card-word" lang="he">שֻׁלְחָן</bdi>
+        <span class="defined-card-means">{{ t("yours.defined.meaning", "table") }}</span>
+        <span class="defined-card-what">{{ t("yours.defined.part", "noun") }}</span>
+      </span>
+    </figure>
+  </section>
+
+
+  <section class="panel" id="shelf-panel">
+    {#- Sifting (2026-09-26): drawn by `yours.js` only on a shelf of six or more. -#}
+    <div class="sift-shelf" id="sift-shelf" hidden>
+      <div class="chips" id="status-chips" role="group" aria-label="{{ t("yours.sift.status", "Show") }}"></div>
+      <input type="search" class="find" id="shelf-find" dir="auto" autocomplete="off" spellcheck="false"
+        placeholder="{{ t("yours.sift.search", "Search your targums") }}" aria-label="{{ t("yours.sift.search", "Search your targums") }}">
+      <label class="pick"><span>{{ t("yours.sift.order", "Order") }}</span>
+        <select id="shelf-order">
+          <option value="read">{{ t("yours.sift.by-read", "Last read") }}</option>
+          <option value="added">{{ t("yours.sift.by-added", "Recently added") }}</option>
+          <option value="easy">{{ t("yours.sift.by-easy", "Easiest") }}</option>
+          <option value="known">{{ t("yours.sift.by-known", "Words you know") }}</option>
+        </select>
+      </label>
+    </div>
+    {#- Inside a series (2026-09-26): its name and the way back to the whole shelf. -#}
+    <p class="in-series" id="in-series" hidden>
+      <button type="button" class="series-back" id="series-back">{{ t("yours.series.back", "← All") }}</button>
+      <bdi class="series-name" id="series-name"></bdi>
+    </p>
+    <p class="note" id="shelf-note"></p>
+    <ul class="books shelf-rows shelf-cards" id="library-list"></ul>
     <p class="empty" id="shelf-empty" hidden></p>
   </section>
 
@@ -52,6 +99,51 @@
   {%- endif %}
 
   {%- if which == 'words' %}
+  {#- What to work on (targum-internal#103). The words the reader flagged and never came
+      back to: still learning, oldest first, twenty at most.
+
+      Dmitry Z, 2026-09-16, on why a list like this is the thing worth paying for: "anki
+      requires bookkeeping and discipline that I lack", and "anki srs is kinda dumb in the
+      sense it doesnt really know what you get wrong beyond what you tell it". And, three
+      minutes later, the constraint: "if smth gonna ping me or bother me like duolingo
+      I'll fucking delete it".
+
+      So it is pull and never push. Nothing here is scheduled, nothing is due, nothing is
+      counted and nothing is sent. It is a view of rows that already exist, waiting when
+      the reader arrives and silent when they do not.
+
+      A reader with nothing to work on sees no fold at all — not an empty state and not an
+      invitation. `lists.js` hides the section, which is why it starts hidden here. -#}
+  <section class="panel work" id="work-on" hidden>
+    <h2>{{ t("yours.page.what-to-work-on", "What to work on") }}</h2>
+    {#- Two halves, one question (2026-09-18): the words, and the phrases — the ones kept
+        from a text and the lines the conversation corrected, oldest first across both.
+        The tabs are drawn only when both have rows. -#}
+    <div class="tabs work-tabs" id="work-tabs" role="tablist" aria-label="{{ t("lists.work.words-or-phrases", "Words or phrases") }}" hidden>
+      <button type="button" class="tab" role="tab" id="work-tab-words" data-work="words" aria-controls="work-rows" aria-selected="true">{{ t("lists.work.words", "Words") }}</button>
+      <button type="button" class="tab" role="tab" id="work-tab-phrases" data-work="phrases" aria-controls="work-phrase-rows" aria-selected="false" tabindex="-1">{{ t("lists.work.phrases", "Phrases") }}</button>
+    </div>
+    <ul class="work-rows" id="work-rows" role="tabpanel" aria-labelledby="work-tab-words"></ul>
+    <ul class="work-rows" id="work-phrase-rows" role="tabpanel" aria-labelledby="work-tab-phrases" hidden></ul>
+
+    {#- One door out of the fold, at its foot (targum-internal#103).
+
+        The rows have two answers each and no third: a row is where the reader says what
+        they know, and twenty of anything else on it makes the list a console. This is
+        the other thing a reader looking at these words might want — to meet them in a
+        sentence rather than in a list — and one control for the sitting is the size that
+        thought actually is.
+
+        It opens the conversation with a line written and unsent. The press is not a
+        send: the reader reads the line, edits it or does not, and presses Send with
+        their own hand, which is the same rule every other door in the product obeys.
+        Nothing here spends. -#}
+    <p class="work-foot" id="work-foot" hidden>
+      <button type="button" id="work-talk">{{ t("lists.work.talk-words", "Practise these words") }}</button>
+        <button type="button" class="work-more" id="work-more" hidden><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.5v2.6h-2.6"/></svg> {{ t("lists.work.more", "Show others") }}</button>
+    </p>
+  </section>
+
   <section class="panel">
     <div class="list-controls">
       <h2><span id="words-title">{{ t("yours.page.your-words", "Your Words") }}</span></h2>
@@ -70,8 +162,11 @@
         <option value="9">{{ t("yours.page.known", "Known") }}</option>
         <option value="0">{{ t("yours.page.ignored", "Ignored") }}</option>
       </select>
-      {#- Hidden until sync says there is an account to export from. -#}
-      <button type="button" id="export-words" hidden>{{ t("yours.page.export", "Export") }}</button>
+      {#- Hidden until sync says there is an account to export from. Named by what
+          comes out rather than "Export": two buttons that both said Export would have
+          left the reader to find out which was which by pressing one. -#}
+      <button type="button" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
+      <button type="button" id="export-anki" hidden>{{ t("yours.page.anki", "Anki") }}</button>
     </div>
     <div class="table-wrap">
       <table class="rows" id="word-table">
@@ -98,8 +193,7 @@
       afterwards it lives here. Drawn by `claim.js`, hidden until it has rows. -#}
   <section class="panel claim" id="claim-panel" hidden>
     <h2>{{ t("yours.page.words-you-may-already-know", "Words you may already know") }}</h2>
-    <p class="note">{{ t("yours.page.the-commonest-words-of-modern-hebrew-that", "The commonest words of modern Hebrew that aren't on your ledger yet.
-      Check the ones you know and we'll bring up the next fifty.") }}</p>
+    <p class="note">{{ t("yours.page.the-commonest-words-of-modern-hebrew-that", "The most common Hebrew words not on your list yet. Check the ones you know and we'll show the next fifty.") }}</p>
     <div id="claim-body"></div>
   </section>
   {%- endif %}
@@ -108,20 +202,30 @@
   <section class="panel">
     <div class="list-controls">
       <h2><span id="phrases-title">{{ t("yours.page.your-phrases", "Your Phrases") }}</span></h2>
-      <button type="button" id="export-phrases" hidden>{{ t("yours.page.export", "Export") }}</button>
+      <button type="button" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
     </div>
     <p class="note">{{ t("yours.page.phrases-stay-with-their-text", "Phrases stay with their text.") }}</p>
     <div id="phrase-list"></div>
-    <p class="empty" id="phrases-empty" hidden>{{ t("yours.page.nothing-yet-drag-across-words-while-you", "Nothing yet. Drag across words while you read to save a phrase.") }}</p>
+    <p class="empty" id="phrases-empty" hidden>{{ t("yours.page.nothing-yet-drag-across-words-while-you", "Nothing yet. Drag across words to save a phrase.") }}</p>
+
+    {#- The lines the conversation corrected (targum-internal#290), every one, newest
+        first: the record, so no control on a row. The ones still to go over are in What
+        to work on. Drawn by `lists.js`, hidden until there is one. -#}
+    <h3 class="work-heading" id="rewrote-heading" hidden>{{ t("yours.page.lines-corrected-in-conversation", "Corrected in conversation") }}</h3>
+    <ul class="work-rows rewrote" id="rewrote-rows"></ul>
   </section>
   {%- endif %}
 
+  {#- Your targums is a place in the nav since 2026-09-24; a way back to Learn at its foot
+      was left from when it hung off Learn. The lists behind the account keep theirs. -#}
+  {%- if which != 'texts' %}
   <p><a class="back" href="/" data-back>{{ t("yours.page.learn", "Learn") }}</a></p>
+  {%- endif %}
 </main>
 
 <section class="nothing" id="nothing" hidden>
   <p class="lede">{{ t("yours.page.nothing-here-yet", "Nothing here yet.") }}</p>
-  <p>{{ t("yours.page.pick-something-from", "Pick something from") }} <a href="/library">{{ t("yours.page.library", "Library") }}</a>.</p>
+  <p><a href="/library">{{ t("yours.page.find-something-in-the-library", "Find something in the Library.") }}</a></p>
 </section>
 
 {% include '_foot.html.j2' %}
@@ -140,6 +244,7 @@ window.TARGUM_LIST = "{{ which }}";
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('covers.js') }}</script>
+<script>{{ asset('playlist-menu.js') }}</script>
 <script>{{ asset('shelf.js') }}</script>
 {%- if which == 'words' %}
 <script>{{ asset('claim.js') }}</script>

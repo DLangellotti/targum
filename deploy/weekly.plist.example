@@ -14,6 +14,15 @@
 
       launchctl start page.targum.weekly && tail -f /tmp/targum-weekly.log
 
+  **The keys come from 1Password, as the targum-box service account.** Nobody is at the
+  laptop at 07:00 to unlock the app, so the run reads the vault with that account's token,
+  kept in the login keychain. Putting it there is one command, run once, in a terminal of
+  your own so the token stays out of any log or transcript: CLAUDE.md has it, under the
+  keys. (Not here, because an XML comment may not hold a double hyphen and the command
+  is mostly those.)
+
+  The account reads the targum vault and nothing else, and cannot write to it.
+
   **It is not loaded by installing it.** Nothing here arms itself: this job writes an
   issue with a model, publishes it under the targum name and mails whoever asked for it,
   and a thing that does all three starts when a person says so.
@@ -67,9 +76,11 @@
   <key>RunAtLoad</key>
   <false/>
 
-  <!-- launchd hands a job almost no environment. The script loads `.env` itself for the
-       API key; these two are the ones it reads from here, and leaving either out is a
-       run that publishes and then says it did not mail or ship. -->
+  <!-- launchd hands a job almost no environment. The script fetches the keys itself,
+       through op; these two are the ones it reads from here, and leaving either out is a
+       run that publishes and then says it did not mail or ship. /opt/homebrew/bin is on
+       PATH because that is where op lives, and a PATH without it is a run that stops
+       before it starts. -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>TARGUM_HOST</key>
@@ -77,7 +88,7 @@
     <key>TARGUM_PUBLIC_ADDRESS</key>
     <string>https://targum.page</string>
     <key>PATH</key>
-    <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
 </dict>
 </plist>

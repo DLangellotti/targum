@@ -51,6 +51,18 @@ class Turn(BaseModel):
     #: The published translation of this line. Written with the scene rather than bought
     #: from a model, because a dialogue is authored and its English is authored with it.
     english: str = ""
+    #: And the same line in any other language targum speaks, by code
+    #: (targum-internal#288). Authored like the English and carried with the scene, not
+    #: bought at build time: a scene is content, and content a reader meets is reviewed
+    #: before it ships. Empty for every scene written before this, which `said_in` reads
+    #: as "say it in English" — the same fallback the catalogue's own names make.
+    said: dict[str, str] = Field(default_factory=dict)
+
+    def said_in(self, language: str) -> str:
+        """This line's translation in `language`, English where there is none."""
+        code = language.split("-")[0].lower()
+        return self.said.get(code) or self.english
+
     #: Where this line sits in the scene's audio, in seconds. `None` where the line has no
     #: audio — a scene voiced before the line was added, or a synthesis that failed. A
     #: reader shows silence there rather than the wrong line's sound.
@@ -71,6 +83,11 @@ class Dialogue(BaseModel):
     #: One sentence on what happens, for the shelf. Not shown inside the reader: a scene
     #: that has to be explained before it is read has not been written well enough.
     gloss: str = ""
+    #: The scene's own name and its one sentence, in any other language targum speaks
+    #: (targum-internal#288). `named` answers `english`, `glossed` answers `gloss`; both
+    #: are empty for every scene written before this and fall back to what they had.
+    named: dict[str, str] = Field(default_factory=dict)
+    glossed: dict[str, str] = Field(default_factory=dict)
     #: Which rung. 1 is six turns of present tense; 6 is forty and a register a learner
     #: meets in an office and nowhere else.
     level: int = 1
@@ -79,6 +96,28 @@ class Dialogue(BaseModel):
     #: The scene's audio, named relative to the dialogue's own directory so the same
     #: folder can be copied between machines without rewriting anything.
     audio: str = ""
+
+    def name_in(self, language: str) -> str:
+        """What this scene is called in `language`, English where it has no name yet."""
+        return self.named.get(language.split("-")[0].lower()) or self.english
+
+    def gloss_in(self, language: str) -> str:
+        """Its one sentence in `language`, English where it has none."""
+        return self.glossed.get(language.split("-")[0].lower()) or self.gloss
+
+    @property
+    def said_languages(self) -> set[str]:
+        """Every language this scene is fully written in — every turn, not some of them.
+
+        A scene half in Russian is worse than one not in Russian at all: the reader
+        meets two languages in one conversation and neither is the one they chose.
+        """
+        if not self.turns:
+            return set()
+        codes = set(self.turns[0].said)
+        for turn in self.turns[1:]:
+            codes &= set(turn.said)
+        return {code for code in codes if all(turn.said.get(code) for turn in self.turns)}
 
     @property
     def words(self) -> int:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -282,3 +283,75 @@ def test_a_conversation_photographed_over_two_screens_is_one_dialogue(
         ("p1", "me", "שלום אמא"),
         ("p2", "אמא", "מה נשמע?"),
     ]
+
+
+def test_a_scans_pages_become_pictures_in_page_order(tmp_path: Path) -> None:
+    """targum-internal#252: the only way into a PDF with no text layer.
+
+    Named with a padded number so `picture.pages_of`'s sort is page order — unpadded,
+    page 10 sorts before page 2 and the text comes out shuffled.
+    """
+    pytest.importorskip("pymupdf", reason="the `bring` extra renders a scan's pages")
+    from targum.ingest import pdf as pdf_module
+
+    made = pdf_module.rasterise(FIXTURES / "scan.pdf", tmp_path / "pages", most=30)
+    assert made, "a scan has pages"
+    assert [path.name for path in made] == sorted(path.name for path in made), "page order"
+    assert all(path.suffix == ".png" and path.stat().st_size > 0 for path in made)
+    assert len(made) == pdf_module.page_count(FIXTURES / "scan.pdf")
+
+
+def test_only_as_many_pages_as_the_reader_was_quoted_are_rendered(tmp_path: Path) -> None:
+    """The cap is the reader's bill. A longer scan is not quietly turned into a different
+    text: the card says how many it will read before anything is read."""
+    pytest.importorskip("pymupdf", reason="the `bring` extra renders a scan's pages")
+    from targum.ingest import pdf as pdf_module
+
+    made = pdf_module.rasterise(FIXTURES / "scan.pdf", tmp_path / "one", most=1)
+    assert len(made) == 1 and made[0].name == "p001.png"
+
+
+def test_the_add_page_names_no_refusal_before_it_is_met() -> None:
+    """targum-internal#252, finished 2026-09-22. The page listed its refusals in advance
+    — scanned PDFs, .aax, Spotify, anything behind a login — and the list was the weaker
+    half twice over.
+
+    It was **wrong**: the rasteriser shipped and the box installs the extra that reads a
+    scan (`deploy.sh` puts `bring` in the install), so the page went on telling readers
+    targum could not do a thing it could. And it was in **the wrong place**: a reader met
+    the list before they had anything to add, and met silence at the moment it mattered.
+
+    Each of the four says itself where it happens now, with the way on. What is left of
+    that paragraph is the sentence about hours, which was never a refusal.
+    """
+    import json
+
+    root = Path(__file__).parents[1] / "src" / "targum"
+    english = json.loads((root / "strings" / "en.json").read_text(encoding="utf-8"))
+    # Jinja comments stripped first: a comment is not drawn, and the one above this
+    # paragraph names all four refusals in order to explain where they went.
+    template = re.sub(
+        r"\{#.*?#\}",
+        "",
+        (root / "render" / "templates" / "add.html.j2").read_text(encoding="utf-8"),
+        flags=re.S,
+    )
+
+    drawn = english["add.page.a-recording-or-a-video-uses-some"]
+    assert drawn == "A recording or a video uses some of your credits — one credit a minute."
+    # Asserted against the template as well as the catalogue, because the template
+    # carries the English as `t()`'s fallback and a reader with no catalogue sees that.
+    for said, where in ((drawn, "the catalogue"), (template, "the template")):
+        for named in ("scanned PDF", "Spotify", ".aax", "behind a login"):
+            assert named not in said, f"{where} still refuses {named} in advance"
+
+    # And the retired string is gone rather than left saying nothing.
+    assert "add.page.we-can-t-add-scanned-pdfs-protected" not in english
+
+    # Each refusal carries its own way on, where it happens.
+    assert english["episode.spotify.hint"].endswith("and we'll look.")
+    assert "drop that in instead" in english["upload.protected.hint"]
+    assert "paste the text into the box" in english["fetch.needs-a-sign-in.hint"]
+    from targum.ingest import pdf as pdf_module
+
+    assert hasattr(pdf_module, "rasterise"), "the scan's way on is a real button"

@@ -183,6 +183,294 @@
     });
   }
 
+  /* What is recorded of a sitting, and the reader's two controls over it
+     (targum-internal#127). Absent where the box keeps no such record. Erasing asks twice,
+     the way leaving does: it cannot be put back. */
+  function drawRecord(who) {
+    var panel = at("record");
+    var events = who && who.events;
+    if (!panel || !events || !events.kept) return;
+    panel.hidden = false;
+    var toggle = at("record-switch");
+    var erase = at("record-erase");
+    var said = at("record-said");
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+    function paint(on) {
+      toggle.setAttribute("aria-pressed", on ? "true" : "false");
+      toggle.textContent = on
+        ? t("you.record.stop", "Stop recording")
+        : t("you.record.start", "Start recording again");
+    }
+    paint(!!events.on);
+    toggle.onclick = function () {
+      var next = toggle.getAttribute("aria-pressed") !== "true";
+      ask("/account/events", { collect: next }).then(function (answer) {
+        var on = !!(answer && answer.events && answer.events.on);
+        paint(on);
+        tell(
+          on
+            ? t("you.record.started", "We're recording again from now.")
+            : t("you.record.stopped", "Stopped. What's already recorded is still here until you erase it.")
+        );
+      });
+    };
+    erase.onclick = function () {
+      if (erase.getAttribute("data-sure") !== "yes") {
+        erase.setAttribute("data-sure", "yes");
+        erase.textContent = t("you.record.sure", "Erase it for good");
+        return;
+      }
+      ask("/account/events", { forget: true }).then(function () {
+        erase.removeAttribute("data-sure");
+        erase.textContent = t("you.page.record-erase", "Erase what's recorded");
+        tell(t("you.record.erased", "Erased. Your words and your texts are untouched."));
+      });
+    };
+  }
+
+  /* What holds a token for this account, and the press that ends it (#80).
+
+     One row a connector, never a token: what is shown is that Claude is connected and
+     what it may do, which is a fact about the reader. The token is a credential and is
+     on no page.
+
+     Disconnecting takes both kinds at once — an access token revoked while its refresh
+     token lives is a disconnection that undoes itself within the hour — and it does not
+     ask twice, because reconnecting is one press in the app it came from. */
+  function drawConnections(who) {
+    var panel = at("connections");
+    var rows = at("connection-rows");
+    var said = at("connections-said");
+    if (!panel || !rows) return;
+
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+
+    /* A day as the page's language writes it. */
+    function day(stamp) {
+      var root = document.documentElement;
+      try {
+        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        });
+      } catch (e) {
+        return "";
+      }
+    }
+
+    /* When it was connected, and when it was last used. Claude registers itself afresh
+       each time it is reconnected, and removing it in Claude does not tell us, so two
+       rows both called "Claude" is ordinary; the dates are what tell them apart. */
+    function whenSaid(one) {
+      if (!one.made) return "";
+      if (one.seen) {
+        return t("you.connections.connected-and-used", "Connected {made}, last used {seen}", {
+          made: day(one.made),
+          seen: day(one.seen)
+        });
+      }
+      return t("you.connections.connected-on", "Connected {made}", { made: day(one.made) });
+    }
+
+    function paint(connections, keep) {
+      rows.textContent = "";
+      /* Kept open by a press on it, so the last Disconnect still shows that it worked;
+         the next visit, with nothing connected, draws no panel. */
+      panel.hidden = !(connections && connections.length) && !keep;
+      (connections || []).forEach(function (one) {
+        var row = document.createElement("li");
+        var name = document.createElement("span");
+        name.className = "series-name";
+        name.textContent = one.name || t("you.connections.an-app", "An app");
+        var says = document.createElement("span");
+        says.className = "note";
+        says.textContent = scopesSaid(one.scopes);
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "ghost";
+        press.textContent = t("you.connections.disconnect", "Disconnect");
+        press.onclick = function () {
+          press.disabled = true;
+          ask("/account/disconnect", { client: one.client })
+            .then(function (answer) {
+              paint(answer && answer.connections, true);
+              tell(t("you.connections.disconnected", "Disconnected."));
+            })
+            .catch(function () {
+              press.disabled = false;
+              tell(t("you.connections.could-not", "We couldn't disconnect that. Try again."));
+            });
+        };
+        var when = document.createElement("span");
+        when.className = "note when";
+        when.textContent = whenSaid(one);
+        row.appendChild(name);
+        row.appendChild(says);
+        row.appendChild(press);
+        row.appendChild(when);
+        rows.appendChild(row);
+      });
+    }
+
+    /* The scopes in the reader's words, in the order the approval page listed them.
+       Chatting is said to be included, as the approval page says it (design.md §12,
+       2026-09-24), because this is the page they come to when they want to know what
+       they agreed to. */
+    function scopesSaid(scopes) {
+      var held = (scopes || "").split(" ");
+      var words = [];
+      if (held.indexOf("library") >= 0) {
+        words.push(t("you.connections.library", "the library"));
+      }
+      if (held.indexOf("record") >= 0) {
+        words.push(t("you.connections.record", "your words and mistakes"));
+      }
+      /* `chat` was `check` until 2026-09-23 (§12, "A cost is credits, and a credit is a
+         minute"). A grant made before then still holds the old word — `oauth.RENAMED`
+         maps it server-side, and this list is drawn from what the grant stores, so it
+         answers to both spellings rather than showing a reader one fewer scope than
+         they agreed to. */
+      if (held.indexOf("chat") >= 0 || held.indexOf("check") >= 0) {
+        words.push(
+          t(
+            "you.connections.chatting",
+            "chatting in the language you're learning, which is included"
+          )
+        );
+      }
+      return words.join(", ");
+    }
+
+    paint(who && who.connections);
+  }
+
+  /* What a reader wrote for their connector to offer (#80, note 17).
+
+     Two fields and no jargon: what to call it, and what it should do. The name is
+     narrowed by the server to one lowercase word, because a host draws these as things
+     to pick by name and several draw them as slash commands, where a space ends the
+     name. The page does not pretend otherwise — what comes back is what was saved, and
+     the row shows that.
+
+     Drawn only where something is connected: a box for writing prompts, shown to
+     somebody with no connector to show them in, is a control without a job. */
+  function drawPrompts(who) {
+    var panel = at("prompts");
+    var rows = at("prompt-rows");
+    var name = at("prompt-name");
+    var says = at("prompt-says");
+    var save = at("prompt-save");
+    var said = at("prompts-said");
+    if (!panel || !rows || !save) return;
+    var connected = !!(who && who.connections && who.connections.length);
+
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+
+    function paint(prompts) {
+      rows.textContent = "";
+      panel.hidden = !connected;
+      (prompts || []).forEach(function (one) {
+        var row = document.createElement("li");
+        var called = document.createElement("span");
+        called.className = "series-name";
+        called.textContent = one.name;
+        var what = document.createElement("span");
+        what.className = "note";
+        what.textContent = one.says;
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "ghost";
+        press.textContent = t("you.prompts.remove", "Remove");
+        press.onclick = function () {
+          press.disabled = true;
+          ask("/account/prompts", { name: one.name, gone: true })
+            .then(function (answer) {
+              paint(answer && answer.prompts);
+              tell(t("you.prompts.removed", "Removed."));
+            })
+            .catch(function () {
+              press.disabled = false;
+              tell(t("you.prompts.could-not-remove", "We couldn't remove that. Try again."));
+            });
+        };
+        row.appendChild(called);
+        row.appendChild(what);
+        row.appendChild(press);
+        rows.appendChild(row);
+      });
+    }
+
+    save.onclick = function () {
+      ask("/account/prompts", { name: name.value, says: says.value })
+        .then(function (answer) {
+          if (answer && answer.error) {
+            tell(answer.error);
+            paint(answer.prompts);
+            return;
+          }
+          paint(answer && answer.prompts);
+          name.value = "";
+          says.value = "";
+          var written = answer && answer.written;
+          tell(
+            written
+              ? t("you.prompts.saved", "Saved as {name}. It's in your apps now.", {
+                  name: written.name,
+                })
+              : t("you.prompts.saved-plain", "Saved.")
+          );
+        })
+        .catch(function () {
+          tell(t("you.prompts.could-not", "We couldn't save that. Try again."));
+        });
+    };
+
+    paint(who && who.prompts);
+  }
+
+  /* Accepting the contribution grant (targum-internal#164, door 3), which is the whole
+     of what decides whether a word's card offers a way to correct a meaning.
+
+     Once, and not undone from here: a correction already offered stays under the terms
+     it arrived with, and withdrawing means offering no more rather than unmaking what
+     was given. So the control says what it does and then says it is done, instead of
+     becoming a switch that implies the first half can be taken back. */
+  function drawGrant(who) {
+    var panel = at("correcting");
+    var go = at("grant-go");
+    var said = at("grant-said");
+    if (!panel || !go) return;
+    if (who && who.granted) {
+      go.hidden = true;
+      said.hidden = false;
+      said.textContent = t("you.grant.done", "You've accepted the grant, so a word's card offers a correction.");
+      return;
+    }
+    go.textContent = t("you.page.correcting-accept", "Accept and turn it on");
+    go.onclick = function () {
+      go.disabled = true;
+      ask("/account/grant", {}).then(function (answer) {
+        if (!(answer && answer.granted)) {
+          go.disabled = false;
+          return;
+        }
+        go.hidden = true;
+        said.hidden = false;
+        said.textContent = t("you.grant.thanks", "Thank you. A word's card now offers a correction.");
+      });
+    };
+  }
+
   function drawLanguages(who) {
     drawTicks(
       "you-learning",
@@ -294,6 +582,10 @@
       if (!who.signedIn) return;
       drawWho(who);
       drawLanguages(who);
+      drawRecord(who);
+      drawConnections(who);
+      drawPrompts(who);
+      drawGrant(who);
       at("you-name").addEventListener("input", saveName);
       var address = at("you-address");
       if (address) address.addEventListener("change", saveAddress);

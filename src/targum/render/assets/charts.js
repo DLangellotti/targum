@@ -746,6 +746,41 @@
     return best;
   }
 
+  /* The rung a reader *said* on arrival, while nothing about them has been measured
+   * (targum-internal#306, 2026-09-19; design.md §12, "The arrival is two questions…").
+   *
+   * `level.seed` in Python is the same rule and says why: every other level is counted
+   * off marked words, this one is declared, and **a measured rung outvotes it**. Once the
+   * reader's known words reach aleph this answers "" and the declared rung is not read.
+   * Hebrew only, because the arrival asks over the ulpan ladder.
+   *
+   * Here rather than in learn.js because the Library reads it too, and two pages with
+   * two ideas of when a reader has been measured would disagree about the same reader.
+   * It answers with the arrival's id ("bet-plus") and `seedFraction` with where that sits
+   * on the ladder, 0 at aleph and 1 at vav. Nothing prints either.
+   */
+  var DECLARED = "targum:declared";
+  var DECLARED_RUNGS = ["aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"];
+
+  function seed(words, code) {
+    var key = String(code || "he")
+      .split("-")[0]
+      .toLowerCase();
+    if (key !== "he") return "";
+    if (standingIn(reach(words).weighted, ULPAN).here) return "";
+    var said = "";
+    try {
+      said = localStorage.getItem(DECLARED) || "";
+    } catch (e) {
+      return "";
+    }
+    return DECLARED_RUNGS.indexOf(said) === -1 ? "" : said;
+  }
+
+  function seedFraction(id) {
+    var at = DECLARED_RUNGS.indexOf(id);
+    return at === -1 ? 0 : at / (DECLARED_RUNGS.length - 1);
+  }
 
   window.TargumCharts = {
     el: el,
@@ -776,6 +811,10 @@
     common: common,
     reach: reach,
     standingIn: standingIn,
+    seed: seed,
+    seedFraction: seedFraction,
+    DECLARED: DECLARED,
+    DECLARED_RUNGS: DECLARED_RUNGS,
     levelFor: levelFor,
   };
 })();

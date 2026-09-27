@@ -34,7 +34,6 @@ body {
 }
 .site-head-row { padding-block: 0.65rem; }
 .site-head .brand, .site-head .brand span { color: var(--bar-ink); }
-.site-head [data-theme-toggle] { color: var(--bar-ink); border-color: rgb(255 253 249 / 0.25); }
 .site-head-row,
 .site-head h1,
 .site-head .beta-note {
@@ -81,7 +80,6 @@ body {
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-.site-head [data-theme-toggle] { margin-inline-start: 0; }
 
 @media (max-width: 40rem) {
   .site-head { padding-block-start: 1rem; }
@@ -126,9 +124,17 @@ body {
    themselves they fitted three and dropped "+ Add" onto a line of its own (641 to about
    850px, 2026-09-14). Two things give way first — the word "Your", and the language's
    name beside its flag, as on a phone. */
+/* The shelf's place is "Your targums", and "targums" where "Your" does not fit, the way
+   Progress drops it. It said "Texts" there from 2026-09-24, because "targums" alone read
+   as a typo; a place with two names read worse, and design.md §12 ("Yours and
+   everyone's", 2026-09-25) gave it one. */
 @media (max-width: 60rem) {
   .site-nav { flex-wrap: nowrap; }
   .site-nav .nav-your { display: none; }
+  /* Russian names the place «Ваши тексты», and «Тексты» alone: «targum» alone was the
+     wordmark's own word beside it (targum-internal#373, David, 2026-09-27). The
+     capital is Russian's; English keeps its lowercase targums, which the brand needs. */
+  html:lang(ru) .site-nav .nav-many { text-transform: capitalize; }
   .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 
@@ -669,8 +675,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
    since a title that follows you down the page is a bar too tall. */
 .site-head:not(:has(h1)) { position: sticky; inset-block-start: 0; z-index: 25; }
 .site-head .brand, .site-head .brand span { color: var(--ink); }
-.site-head [data-theme-toggle] { color: var(--ink-soft); border-color: var(--hairline); border-radius: 999px; }
-.site-head [data-theme-toggle]:hover { color: var(--ink); background: var(--teal-wash); }
 .site-nav a { color: var(--ink-soft); border-radius: 999px; padding: 0.4rem 0.85rem; }
 .site-nav a:hover { color: var(--ink); background: var(--teal-wash); }
 .site-nav a.on { color: var(--teal); background: var(--teal-wash); box-shadow: none; }
@@ -781,7 +785,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
     margin: 0;
     padding: 0.35rem 0.5rem calc(0.35rem + env(safe-area-inset-bottom));
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.25rem;
     background: var(--glass);
     -webkit-backdrop-filter: blur(12px);
@@ -838,9 +842,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
     z-index: 33;
   }
   /* The top bar keeps the mark, the language, the bell and the account (design.md §13);
-     find and the light switch are rows in the account's sheet. */
-  .site-head-row > .palette-open,
-  .site-head-row > [data-theme-toggle] { display: none; }
+     find is a row in the account's sheet. */
+  .site-head-row > .palette-open { display: none; }
   .account-panel .account-phone {
     display: flex;
     align-items: center;
@@ -851,7 +854,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
     margin-block-end: 0.7rem;
     border-block-end: 1px solid var(--hairline);
   }
-  .account-panel .account-theme { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--ink-soft); font-size: 0.875rem; }
   /* The conversation page itself: its box sits above the bar, and its list sheet's rows
      clear it. */
   body.chat { padding-block-end: 0; height: calc(100svh - 4rem - env(safe-area-inset-bottom)); }

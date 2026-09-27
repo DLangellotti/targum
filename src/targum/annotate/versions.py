@@ -77,10 +77,19 @@ class Shelf:
     #: Texts whose annotator cannot be worked out here — no `document.json`, or a
     #: lemmatizer this machine cannot build. Counted rather than assumed either way.
     unknown: int = 0
+    #: Readings that name the annotator they were cut with, where the book they were cut
+    #: *from* is not on this machine — so the comparison has nothing to run against.
+    #: Split out from `unknown` on 2026-09-18, because the two have opposite remedies and
+    #: reading as one sent a deploy looking for a missing name that was never missing:
+    #: the box has no `library` at all, the corpus recorded its annotator perfectly well,
+    #: and the line said "cut before the corpus recorded its annotator" on all 143.
+    #: Not current either — it is "cannot be judged here", which is the honest third
+    #: answer rather than a softer way of saying fine.
+    unjudged: int = 0
 
     @property
     def total(self) -> int:
-        return self.current + len(self.behind) + self.unknown
+        return self.current + len(self.behind) + self.unknown + self.unjudged
 
     def moved(self) -> dict[str, int]:
         """How many texts each component move accounts for, commonest first."""
@@ -248,8 +257,10 @@ def _behind_the_shelf(
         have = reading.get("annotator", "")
         books = reading.get("books") or []
         want = carries(books[0]) if books else None
-        if not have or want is None:
+        if not have:
             shelf.unknown += 1
+        elif want is None:
+            shelf.unjudged += 1
         elif have != want:
             shelf.behind.append((str(read / folder), have, want))
         else:

@@ -284,6 +284,60 @@ def test_the_sitemap_lists_every_text_and_nothing_private(
         assert shut not in paths, shut
 
 
+def test_the_sitemap_gives_each_language_its_own_entry(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#188. A text page answers in two languages at two addresses, and a
+    sitemap that names only one of them is asking for only one to be indexed.
+
+    Every entry lists the whole alternate set including itself, which is what the sitemap
+    protocol asks for and is the half people leave out. And the claim is made only for
+    the pages that really answer in both: saying it of `/about`, which serves one
+    language at one address, teaches a crawler to distrust the claim where it is true.
+    """
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    xml = ask(port, "/sitemap.xml", "targum.page")[1].decode()
+    found = {
+        url.removeprefix("https://targum.page") for url in re.findall(r"<loc>(.*?)</loc>", xml)
+    }
+
+    one = CATALOGUE[0].id
+    assert f"/library/{one}" in found and f"/library/{one}?lang=ru" in found
+    assert "/" in found and "/?lang=ru" in found
+    assert "/library" in found and "/library?lang=ru" in found
+
+    assert '<xhtml:link rel="alternate" hreflang="ru"' in xml
+    assert 'xmlns:xhtml="http://www.w3.org/1999/xhtml"' in xml, "or the links are not valid"
+
+    # A page that answers in one language at one address makes no such claim.
+    assert "/about?lang=ru" not in found
+
+
+def test_a_public_page_answers_in_the_language_its_address_asks_for(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The address is the choice (targum-internal#188). Until now a text page read the
+    browser's `Accept-Language` and nothing else, so the Russian version had no address
+    to be indexed at — and the front door's switcher, which writes `?lang=`, led to pages
+    that ignored it."""
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    one = CATALOGUE[0].id
+    russian = ask(port, f"/library/{one}?lang=ru", "targum.page")[1].decode()
+    assert '<html lang="ru"' in russian
+    english = ask(port, f"/library/{one}", "targum.page")[1].decode()
+    assert '<html lang="en"' in english
+    # A language nobody has a catalogue for is not a language, and falls back rather than
+    # rendering a page in a code the catalogue has never heard of.
+    nonsense = ask(port, f"/library/{one}?lang=zz", "targum.page")[1].decode()
+    assert '<html lang="en"' in nonsense
+
+
 def test_the_legal_documents_are_shut_for_the_alpha(hosted: tuple[int, str]) -> None:
     """Shut all the way down, as the catalogue is: 404 rather than the holding page.
 
@@ -559,6 +613,64 @@ def test_the_export_holds_every_language_and_no_filter(hosted: tuple[int, str]) 
     assert data["account"]["email"] == "reader@example.com"
     for expected in ("words", "phrases", "docs", "builds", "account"):
         assert expected in data, expected
+
+
+def test_a_claimed_word_says_so_in_the_export(hosted: tuple[int, str]) -> None:
+    """targum-internal#245. A word ticked off on "Words you may already know" counts the
+    same as one met in a text, and is not the same thing: the reader is telling us about
+    a word they never met here. The count does not care and the corpus does, so the row
+    carries how it got there and the export says it."""
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.whoever(session)
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {
+                    "language": "he",
+                    "lemma": "שולחן",
+                    "status": 9,
+                    "source": "claimed",
+                    "at": 3,
+                    "seen": 3,
+                },
+                {"language": "he", "lemma": "כיסא", "status": 9, "at": 4, "seen": 4},
+            ]
+        },
+    )
+
+    status, body = ask(port, "/account/export", "targum.page", session)
+    assert status == 200
+    words = {word["lemma"]: word for word in json.loads(body)["words"]}
+    assert words["שולחן"]["source"] == "claimed"
+    assert words["כיסא"]["source"] == "", "met in a text, which is the ordinary way"
+
+
+def test_a_word_already_in_the_ledger_is_not_reclassified_by_a_later_push(
+    hosted: tuple[int, str],
+) -> None:
+    """A field a push does not mention keeps what is stored, which is `_merge`'s own
+    rule. It matters here because every word marked before this column existed has no
+    source, and a browser that syncs one back must not be able to invent one for it."""
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.whoever(session)
+    assert person is not None
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "he", "lemma": "דלת", "status": 9, "source": "claimed", "seen": 1}
+            ]
+        },
+    )
+    store.push(person, {"words": [{"language": "he", "lemma": "דלת", "status": 5, "seen": 2}]})
+
+    words = {w["lemma"]: w for w in store.everything(person)["words"]}
+    assert words["דלת"]["status"] == 5, "the newer push wins on what it said"
+    assert words["דלת"]["source"] == "claimed", "and does not erase what it did not say"
 
 
 def test_the_export_holds_every_kind_the_account_syncs(hosted: tuple[int, str]) -> None:
@@ -1008,3 +1120,26 @@ def test_a_finished_text_is_kept_on_the_account_and_in_the_export() -> None:
         assert [row["done"] for row in rows] == [9]
         taken = json.dumps(store.everything(person))
         assert '"done": 9' in taken
+
+
+# -- what to work on: a corrected line said known (2026-09-18) -------------------------
+
+
+def test_a_corrected_line_said_known_leaves_the_queue_and_not_the_record(
+    hosted: tuple[int, str],
+) -> None:
+    port, session = hosted
+    store = Store(STORE[0])
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+    mine = store.slip(person.id, wrote="אני הלך", recast="אני הולך", changed=["הולך"])
+
+    assert _signed_post(port, f"/slips/{mine}", {"known": True}, session) == (200, {"ok": True})
+    status, body = ask(port, "/slips", "targum.page", session)
+    assert status == 200 and mine not in [row["id"] for row in json.loads(body)["slips"]]
+    status, body = ask(port, "/slips?all=1", "targum.page", session)
+    assert mine in [row["id"] for row in json.loads(body)["slips"]], "the record keeps it"
+
+    assert _signed_post(port, "/slips/999999", {"known": True}, session)[0] == 404
+    assert _signed_post(port, "/slips/nonsense", {"known": True}, session)[0] == 404
+    assert _signed_post(port, f"/slips/{mine}", {"known": True}, "")[0] == 401

@@ -7,7 +7,13 @@
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('add.css') }}</style>
 {{ hebrew_face() }}
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
+{#- The key, before anything that reads it (targum-internal#343). `building.js`, and
+    the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
+    once as they load; it was set in a script at the foot of the body, so on a local serve
+    they held an empty key for the life of the page and the bell, the followed series and
+    the chat list were refused. The hosted box has no key and was never affected. -#}
+<script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="add">
 {% set here = 'add' %}
@@ -20,8 +26,7 @@
   <h1 class="lede">{{ t("add.page.add", "Add") }}</h1>
   {#- Worth a look before waiting for a build, and no more than that: the catalogue is a
       few hundred texts, not most of what anybody wants. -#}
-  <p class="hint">{{ t("add.page.it-may-already-be-in-the", "It may already be in the") }}
-    <a class="to-library" href="/library">{{ t("add.page.library", "Library") }}</a>.</p>
+  <p class="hint"><a class="to-library" href="/library">{{ t("add.page.it-may-already-be-in-the-library", "It may already be in the Library.") }}</a></p>
 
   {% if no_key %}
   <p class="notice" role="status">{{ no_key }}</p>
@@ -36,7 +41,7 @@
   <section class="bring" aria-label="{{ t("add.page.what-to-add", "What to add") }}">
     <div class="drop" id="drop">
       <ul class="given-files" id="given-files" hidden></ul>
-      <label class="given-label" for="given">{{ t("add.page.what-would-you-like-to-read", "What would you like to read?") }}</label>
+      <label class="given-label" for="given">{{ t("add.page.what-would-you-like-to-read", "What would you like to learn from?") }}</label>
       <textarea id="given" rows="2" dir="auto" spellcheck="false" aria-describedby="understood"
                 placeholder="{{ t("add.page.paste-a-link-or-some-hebrew-drop", "Paste a link or some Hebrew, drop a file, or say what you want") }}"></textarea>
       <p class="understood" id="understood" aria-live="polite">{{ t("add.page.we-can-read-books-articles-podcasts-videos", "We can read books, articles, podcasts, videos, voice notes, subtitles and photos of pages.") }}</p>
@@ -48,6 +53,11 @@
       {#- Only for a description, and only where the talk drawer is there to say it in:
           looking for a text by describing it is a turn of conversation, metered like one,
           and the reader's own press sends it. -#}
+      {#- Something the reader recorded themselves (targum-internal#254). Hidden until
+          the script says this browser can record, so the page never offers what it
+          cannot do — the same rule the composer's Speak follows. -#}
+      <button type="button" id="record" class="bring-choose" hidden
+              aria-pressed="false" aria-label="{{ t("add.page.record", "Record") }}" title="{{ t("add.page.record", "Record") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg><span id="record-word">{{ t("add.page.record", "Record") }}</span></button>
       <button type="button" id="ask-targum" class="bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
       {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
           the button went on offering, and a press only repeated the notice. -#}
@@ -73,7 +83,7 @@
               what the rest of the app can show: these are the pairs an upload has been
               taken end to end in. -#}
           <label class="field short">
-            <span>{{ t("add.page.i-am-reading", "I am reading") }}</span>
+            <span>{{ t("add.page.i-am-reading", "I'm learning") }}</span>
             <select id="from">
               {% for one in reading %}<option value="{{ one.code }}"{% if loop.first %} selected{% endif %}>{{ one.name }} ({{ one.label }})</option>{% endfor %}
             </select>
@@ -144,6 +154,11 @@
     </div>
   </section>
 
+  {#- The library answering while the box is typed in (targum-internal#251): a text
+      already here is said before Continue, not after a price for making a second copy
+      of it. Drawn by `add.js`; empty and out of the way until it has something. -#}
+  <div class="already" id="already" hidden></div>
+
   <div class="status" id="status" hidden></div>
 
   {#- What the hours are, before any of them are spent (targum-internal#299). The reader
@@ -154,10 +169,18 @@
       the library named as costing none of it (§6, and the voice of 2026-09-13). -#}
   <p class="hint hours" id="hours" hidden></p>
 
-  {#- The refusals, named before they are met, until each is said where it happens with
-      the way on (targum-internal#252). -#}
-  <p class="hint limits">{{ t("add.page.we-can-t-add-scanned-pdfs-protected", "We can't add scanned PDFs, protected audiobooks (.aax), Spotify or
-    anything behind a login. A recording or a video uses some of your hours.") }}</p>
+  {#- The paragraph of refusals named in advance is gone (targum-internal#252, finished
+      2026-09-22). Each of the four is said where it happens now, with the way on:
+
+      - a scanned PDF is refused once and offers the button that reads its pages;
+      - Spotify names Apple Podcasts, the RSS feed, or describing the episode here;
+      - a protected audiobook names the ordinary file, or describing the book here;
+      - a page behind a login says to paste the text instead.
+
+      Naming them in advance was always the weaker half — a reader met the list before
+      they had a thing to add, and then met silence at the moment it mattered. The one
+      sentence worth keeping is the one about hours, which is not a refusal at all. -#}
+  <p class="hint limits">{{ t("add.page.a-recording-or-a-video-uses-some", "A recording or a video uses some of your credits — one credit a minute.") }}</p>
 
 </main>
 {% include '_foot.html.j2' %}
@@ -175,6 +198,10 @@ window.TARGUM_INTO = {{ into|tojson }};
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('account.js') }}</script>
 <script>{{ asset('bring.js') }}</script>
+{#- The recorder the composer's Speak uses, so a voice note can be made here rather than
+    only brought (targum-internal#254). Before `add.js`, which asks it whether this
+    browser can record before drawing the button. -#}
+<script>{{ asset('speak.js') }}</script>
 <script>{{ asset('add.js') }}</script>
 </body>
 </html>

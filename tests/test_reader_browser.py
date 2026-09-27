@@ -1316,6 +1316,57 @@ def test_onkelos_changes_the_column_and_the_card_stays_in_english(
     context.close()
 
 
+@pytest.fixture(scope="module")
+def beside_rashi(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    return bilingual(
+        tmp_path_factory.mktemp("rashi") / "reader",
+        ("Rashi on Genesis", "he", "פירוש ראשון\nפירוש שני"),
+    )
+
+
+#: How the translation column is drawing right now: whether it is stamped a commentary,
+#: and what the browser actually resolves that to. The computed value is the point — a
+#: class nothing styles would pass a test that only looked for the class.
+COMMENTED = """
+() => {
+  const cell = document.querySelector('.pair .tr');
+  return {
+    marked: cell.classList.contains('commented'),
+    space: getComputedStyle(cell).whiteSpace,
+    lines: cell.getClientRects().length,
+  };
+}
+"""
+
+
+def test_pressing_a_commentary_separates_its_comments_in_the_browser(
+    browser, beside_rashi: Path
+) -> None:
+    """targum-internal#200. A verse of Rashi is several comments joined with a newline,
+    and only the rendering the page opens on is stamped as a commentary by the template.
+    So on a text carrying both, pressing Rashi drew its comments run together — the exact
+    thing that was fixed, undone by one press.
+
+    The computed `white-space` is what is asserted rather than the class, because a class
+    that nothing styles would satisfy a test looking only for the class.
+    """
+    context, page = open_reader(browser, beside_rashi)
+
+    english = page.evaluate(COMMENTED)
+    assert not english["marked"] and english["space"] == "normal"
+
+    page.evaluate(SWITCH, "t1")
+    rashi = page.evaluate(COMMENTED)
+    assert rashi["marked"], "the swap never stamped the commentary"
+    assert rashi["space"] == "pre-line"
+
+    # And back: English is prose again, so a newline in it goes on collapsing.
+    page.evaluate(SWITCH, "t0")
+    back = page.evaluate(COMMENTED)
+    assert not back["marked"] and back["space"] == "normal"
+    context.close()
+
+
 #: What tapping one word under `selector` opens: the word, the card's language, its
 #: meaning and its "from" line.
 TAP_WORD = """
@@ -2077,6 +2128,123 @@ def test_putting_the_player_away_gives_the_page_its_room_back(paged_scene) -> No
     assert len(after["shown"]) > before
 
 
+@pytest.fixture
+def worded_scene(browser, tmp_path, monkeypatch):
+    """A dialogue with its words marked up: a recording *and* something to tap."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", words=True)
+    context = opened(browser)
+    open_page = context.new_page()
+    open_page.goto(address(built))
+    open_page.wait_for_selector("#player")
+    yield open_page
+    context.close()
+
+
+def test_the_second_moment_is_the_voice_and_it_is_said_once(worded_scene) -> None:
+    """targum-internal#335: "a magic moment within 1 minute, another within 3". The first is
+    the word. The first stranger never found out the page could be heard, so on a text
+    with a recording the first-run line — having just done its first job — says the next
+    thing, in the same place, so nothing on the page moves. The press itself puts it away.
+    """
+    scene = worded_scene
+    line = scene.locator("#first")
+    assert "Tap a word" in line.inner_text()
+    tall = scene.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    scene.locator(".w").first.click()
+    scene.keyboard.press("1")
+    scene.wait_for_function(
+        "() => document.getElementById('first').textContent.indexOf('press play') >= 0"
+    )
+    same = scene.evaluate("() => document.getElementById('first').getBoundingClientRect().height")
+    assert same == tall, "the line changed what it says and not how much room it takes"
+    scene.keyboard.press("Escape")
+    scene.click(".player-play")
+    scene.wait_for_function(
+        "() => document.getElementById('first').textContent.indexOf('every key') >= 0"
+    )
+    assert scene.evaluate("() => localStorage.getItem('targum:taught-the-voice')") == "1"
+
+
+def _sitting(browser, tmp_path, monkeypatch, me: dict) -> list[dict]:
+    """Open a voiced scene with markable words, look a word up, play a moment, leave —
+    and answer with everything the page handed to `/events`."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", words=True)
+    context = opened(browser)
+    page = context.new_page()
+    sent: list[dict] = []
+
+    def answer(route, request):
+        if "/account/me" in request.url:
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(me))
+        if "/events" in request.url:
+            sent.extend(json.loads(request.post_data or "{}").get("events", []))
+            return route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"signedIn": True, "kept": 1, "keeping": True}),
+            )
+        return route.continue_()
+
+    page.route("**/account/me*", answer)
+    page.route("**/events*", answer)
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    page.wait_for_timeout(400)  # the account's answer, which decides everything
+    page.locator(".w").first.click()
+    page.keyboard.press("Escape")
+    page.click(".player-play")
+    # Until a line is being spoken, and then long enough to be a stretch and not a mis-press.
+    page.wait_for_function("() => document.querySelector('.pair.voiced.now')")
+    page.wait_for_timeout(1600)
+    page.click(".player-play")
+    # The element says `pause` a task later, and that is what ends the stretch.
+    page.wait_for_timeout(250)
+    page.evaluate("() => window.TargumEvents.flush()")
+    page.wait_for_timeout(300)
+    context.close()
+    return sent
+
+
+def test_a_sitting_reaches_the_account_and_says_nothing_it_should_not(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """targum-internal#127, in a browser because the whole of it is wiring between three
+    closures and a server. A word looked up, a stretch played, and the controls pressed —
+    and a control says its name, the window's width and the day, and nothing of the text."""
+    me = {"signedIn": True, "email": "r@x.test", "events": {"kept": True, "on": True}}
+    sent = _sitting(browser, tmp_path, monkeypatch, me)
+    kinds = [event["kind"] for event in sent]
+    assert "lookup" in kinds and "play" in kinds and "control" in kinds, kinds
+
+    looked = next(event for event in sent if event["kind"] == "lookup")
+    assert looked["segment"] and looked["document"] and looked["language"] == "he"
+    played = next(event for event in sent if event["kind"] == "play")
+    assert played["medium"] == "listen" and 1 <= played["amount"] <= 5, played
+
+    for press in (event for event in sent if event["kind"] == "control"):
+        assert set(press) == {"kind", "day", "control", "width"}, press
+        assert press["width"] in {"phone", "narrow", "desk"}
+
+
+@pytest.mark.parametrize(
+    "me",
+    [
+        {"signedIn": False},
+        {"signedIn": True, "events": {"kept": False, "on": True}},
+        {"signedIn": True, "events": {"kept": True, "on": False}},
+    ],
+    ids=["signed-out", "the-box-keeps-none", "the-reader-stopped-it"],
+)
+def test_nothing_leaves_the_page_unless_it_is_kept_and_wanted(
+    browser, tmp_path, monkeypatch, me: dict
+) -> None:
+    """Most of `events.js` is about when it does nothing, and each of those is a promise:
+    signed out, a box that keeps no such record, and a reader who has stopped theirs."""
+    assert _sitting(browser, tmp_path, monkeypatch, me) == []
+
+
 def test_the_line_being_spoken_is_never_behind_the_player(scene) -> None:
     """The scrolling reader reserves nothing, so the page moves the spoken line instead."""
     scene.click(".player-play")
@@ -2557,6 +2725,48 @@ def test_a_line_lights_each_word_as_it_is_said(browser, tmp_path: Path) -> None:
     context.close()
 
 
+def test_a_french_line_lights_each_word_as_it_is_said(browser, tmp_path: Path) -> None:
+    """The same thing again in French, which is the half of targum-internal#265 that the
+    Hebrew test cannot show. The card was widened to "every language with a voice" on
+    2026-09-14, and the word-lighting path reads character offsets off `data-bare` and
+    walks the DOM — both of which could carry a Hebrew assumption (right to left, a word
+    counted in Hebrew letters) without any Hebrew test noticing.
+
+    "une deux trois" gives the offsets 0-3, 4-8 and 9-14, where the Hebrew gives 0-3, 4-8
+    and 9-13: the third word is a letter longer, so a fixture that had hard-coded the
+    Hebrew numbers would light the wrong word here.
+    """
+    built = imported(tmp_path / "reader", language="fr", text="une deux trois")
+    context = opened(browser)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector(".pair.voiced .say")
+    page.wait_for_selector(".src .w")
+
+    # The offsets the clocks are matched against, before anything is played: this is the
+    # part that would break on a language whose letters count differently.
+    assert page.evaluate(
+        "() => Array.from(document.querySelectorAll('.src .w[data-bare]'))"
+        ".map(w => [w.textContent, w.getAttribute('data-bare')])"
+    ) == [["une", "0,3"], ["deux", "4,8"], ["trois", "9,14"]]
+
+    page.locator(".pair.voiced .say").first.click()
+    # Wait for the voice to be going before waiting for a word, so the budget below covers
+    # only the 0.8s until the middle word's clock opens and not however long the page took
+    # to start. Without this the wait carries both, and on a loaded machine it is the
+    # startup that spends it — measured here on 2026-09-22, four browser tests deep.
+    page.wait_for_selector(".say.saying", timeout=4000)
+    page.wait_for_function(
+        "() => { const w = document.querySelector('.w.voiced-now'); "
+        "return w && w.textContent === 'deux'; }",
+        timeout=4000,
+    )
+    assert page.locator(".w.voiced-now").count() == 1, "one word at a time, in French too"
+    page.wait_for_function(STILL_SAYING, timeout=4000)
+    assert page.locator(".w.voiced-now").count() == 0, "and none once the line is over"
+    context.close()
+
+
 def test_a_text_is_picked_up_where_it_was_left(scene) -> None:
     """Item 5 of the note. The speed, the shut picture and the reading place were all
     kept across the door; the one thing a listener would notice was not."""
@@ -2960,10 +3170,55 @@ def test_space_plays_a_book_too_rather_than_turning_its_page(read_aloud) -> None
 def test_the_reader_of_a_recording_is_credited_on_the_page(read_aloud) -> None:
     """CC BY-SA asks for the reader to be named, and a credit in a file nobody opens is
     not a naming. It rides with the audio, which is the part that can be saved."""
-    credit = read_aloud.locator(".keys-credit")
+    credit = read_aloud.locator("#credits .credit", has_text="Rabbi Somebody")
     assert credit.count() == 1
-    assert "Rabbi Somebody" in credit.inner_text()
     assert credit.locator("a").get_attribute("href").startswith("https://creativecommons.org/")
+    # At the foot of the text, not in the keys card (targum-internal#342): the card is a
+    # thing a phone never shows, and the credit belongs to the text.
+    assert read_aloud.locator("#keys .credit, #keys .keys-credit").count() == 0
+
+
+def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """targum-internal#342. Every attribution a reader owes stood at the foot of the
+    keyboard-shortcuts card, and under 60rem that card waits for a key to be pressed — so on
+    a phone a CC BY-SA recording could be played and *saved* from a page that never said
+    whose it was. It is at the foot of the text now, where the pager is, and beside Save
+    the audio in the menu; and the keys button is still not drawn, which is right."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    page.wait_for_function("() => document.body.classList.contains('paged')")
+    first = page.evaluate(
+        """() => ({
+          keys: [...document.querySelectorAll('.bar [data-keys]')]
+            .some((k) => k.getClientRects().length),
+          foot: document.getElementById('credits').getClientRects().length > 0,
+        })"""
+    )
+    # To the last page, the way a reader gets there.
+    pages = int(page.inner_text("#page-of").split()[-1])
+    for _ in range(pages - 1):
+        page.click(".turn .forward")
+    page.wait_for_function("() => document.body.classList.contains('last-page')")
+    last = page.evaluate(
+        """() => {
+          const credits = document.getElementById('credits');
+          return { shown: credits.getClientRects().length > 0, says: credits.innerText };
+        }"""
+    )
+    page.click(".bar .more")
+    menu = page.inner_text(".more-player")
+    context.close()
+
+    assert not first["keys"], "no keyboard, no keys button: that part was right"
+    assert not first["foot"], "and the foot of the text is on the last page, with the pager"
+    assert last["shown"] and "Rabbi Somebody" in last["says"], last
+    assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
 def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
@@ -3323,6 +3578,53 @@ def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
         ".getAttribute('aria-label')"
     )
     assert label and label.startswith("Copy "), "the row beside the text carries one"
+
+
+@pytest.mark.parametrize(("width", "says"), [(1100, "?"), (1280, "Keys"), (1600, "Keys")])
+def test_the_keys_say_keys_where_the_bar_has_room(
+    browser, built: Path, width: int, says: str
+) -> None:
+    """targum-internal#338. The bar's `?` read as help to the first stranger, and opened a
+    table of keyboard shortcuts. It says "Keys" now.
+
+    A word is wider than a mark, in a bar that already puts away its English title between
+    60 and 75rem so as not to wrap — and measured at 1100px the word cost it a second row.
+    So it is the word from 75rem and the mark below it, and what is pinned is that the
+    word never makes the bar taller than the mark did.
+    """
+    context = opened(browser, viewport={"width": width, "height": 800})
+    open_page = context.new_page()
+    open_page.goto(address(built))
+    open_page.wait_for_timeout(300)
+    got = open_page.evaluate(
+        """() => {
+          const press = document.querySelector('.bar [data-keys]');
+          const bar = () => document.querySelector('.bar').getBoundingClientRect().height;
+          const word = press.querySelector('.keys-word');
+          const mark = press.querySelector('.keys-mark');
+          const tall = bar();
+          word.style.display = 'none';
+          mark.style.display = 'inline';
+          const withMark = bar();
+          word.style.display = '';
+          mark.style.display = '';
+          return {
+            says: press.innerText.trim(),
+            named: press.getAttribute('aria-label'),
+            tall, withMark,
+            sideways: document.documentElement.scrollWidth > window.innerWidth,
+          };
+        }"""
+    )
+    open_page.locator(".bar [data-keys]").click()
+    opens = open_page.evaluate("() => !document.getElementById('keys').hidden")
+    context.close()
+
+    assert got["says"] == says, got
+    assert got["named"] == "Keyboard shortcuts", "and a screen reader is told the whole of it"
+    assert got["tall"] == got["withMark"], f"the word cost the bar a row at {width}px: {got}"
+    assert not got["sideways"]
+    assert opens, "and it still opens the card"
 
 
 @pytest.mark.parametrize("direction", ["rtl", "ltr"])
@@ -3981,17 +4283,32 @@ def test_opening_the_menu_on_a_phone_leaves_the_pages_where_they_were(
 # never into the neighbouring word, and a silent page offers no ear at all.
 
 
-def imported(out: Path) -> Path:
-    """A built reader over an imported recording: manifest beside it, word clocks in."""
+def imported(
+    out: Path,
+    language: str = "he",
+    text: str = "אחד שתים שלוש",
+    said: str = "one two three",
+) -> Path:
+    """A built reader over an imported recording: manifest beside it, word clocks in.
+
+    Three words, whatever the language. The clocks are read off the text rather than
+    written down, so a French fixture gets the offsets its own letters give — the Hebrew
+    default still comes out [0,3], [4,8], [9,13], which is what it always was.
+    """
     from targum.audio import manifest as manifest_module
 
-    text = "אחד שתים שלוש"
     segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
     tokens = []
     offset = 0
     for word in text.split(" "):
         tokens.append(Token(start=offset, end=offset + len(word), surface=word, lemma=word, band=1))
         offset += len(word) + 1
+    # The middle word's clock ends before the next begins, so the pad has room on one
+    # side and a neighbour to stop at on the other.
+    clocks = [
+        [token.start, token.end, at, at + 0.5]
+        for token, at in zip(tokens, (0.2, 0.8, 1.4), strict=True)
+    ]
     out.mkdir(parents=True, exist_ok=True)
     voice(out / "voice.wav", 2.0)
     manifest_module.write(
@@ -4000,7 +4317,7 @@ def imported(out: Path) -> Path:
             source="audio:x",
             sha256="s",
             duration=2.0,
-            language="he",
+            language=language,
             parts=[
                 manifest_module.ManifestPart(
                     number=1,
@@ -4009,9 +4326,7 @@ def imported(out: Path) -> Path:
                     audio="voice.wav",
                     transcribed=True,
                     spans={segment.id: [0.2, 1.9]},
-                    # The middle word's clock ends before the next begins, so the pad
-                    # has room on one side and a neighbour to stop at on the other.
-                    words={segment.id: [[0, 3, 0.2, 0.7], [4, 8, 0.8, 1.3], [9, 13, 1.4, 1.9]]},
+                    words={segment.id: clocks},
                 )
             ],
         ),
@@ -4019,24 +4334,24 @@ def imported(out: Path) -> Path:
     document = Document(
         source="audio:x",
         title="A recording",
-        language="he",
+        language=language,
         blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=text)],
         content_hash="h",
     )
     segmented = SegmentedDocument(
-        document_hash="h", language="he", segmenter="test/1", segments=[segment]
+        document_hash="h", language=language, segmenter="test/1", segments=[segment]
     )
     translation = Translation(
         name="English",
         document_hash="h",
-        source_language="he",
+        source_language=language,
         target_language="en",
         provider="authored",
-        segments={segment.id: "one two three"},
+        segments={segment.id: said},
     )
     annotation = Annotation(
         document_hash="h",
-        language="he",
+        language=language,
         annotator="test/1",
         method="frequency",
         method_note="a test",
@@ -4684,7 +4999,8 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
 FOOT = """
 () => {
   const step = document.getElementById('practice-step');
-  const done = document.getElementById('finished');
+  // The press at the foot (design.md §12, "The foot is one block"): what finishes.
+  const done = document.getElementById('foot-press');
   const cell = document.querySelector('.pair.verse:not([hidden]) .tr');
   return {
     said: step && !step.hidden ? document.getElementById('practice-said').textContent : null,
@@ -6705,3 +7021,78 @@ def test_a_vertical_film_docks_as_a_narrow_panel(browser, tmp_path) -> None:
     )
     # And the thing that was actually wrong: it is not taller than the whole window.
     assert portrait["height"] < 600, portrait
+
+
+def _card_with_account(browser, tmp_path, me: dict):
+    """A word's card with a meaning on it, and `/account/me` answering with `me`.
+
+    A meaning has to be *on* the card before there is anything to call wrong, so the
+    look-up is stubbed and pressed the way `test_a_word_is_bought_once` does. Everything
+    goes through one fake host so the page's own address carries a key and `canAsk()` is
+    true — without one a locally-opened reader correctly offers nothing.
+    """
+    built = imported(tmp_path / "reader")
+    html = built.read_text(encoding="utf-8")
+    context = opened(browser)
+    page = context.new_page()
+    sent: list[dict] = []
+
+    def answer(route, request):
+        if "/account/me" in request.url:
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(me))
+        if "/correction" in request.url:
+            sent.append(json.loads(request.post_data or "{}"))
+            return route.fulfill(
+                status=200, content_type="application/json", body=json.dumps({"proposed": 7})
+            )
+        if "/gloss" in request.url:
+            free = (request.post_data_json or {}).get("free")
+            return route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps(
+                    {"meaning": None, "cached": False}
+                    if free
+                    else {"meaning": MEANING, "grounded": True}
+                ),
+            )
+        return route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair .src .w")
+    page.evaluate(TAP_ANY)
+    page.wait_for_timeout(300)
+    page.eval_on_selector(".look-up", "button => button.click()")
+    page.wait_for_timeout(500)  # the meaning, then the account's answer
+    return context, page, sent
+
+
+def test_a_reader_without_the_grant_is_offered_no_way_to_correct(browser, tmp_path: Path) -> None:
+    """targum-internal#164, acceptance 2: a reader who has not accepted the grant sees no
+    correction control. Absent, not disabled — a greyed control is an invitation to a
+    door that is shut."""
+    context, page, _ = _card_with_account(browser, tmp_path, {"signedIn": True, "granted": False})
+    assert page.evaluate(CARD)["meaning"] == MEANING, "there is a meaning to call wrong"
+    assert page.locator("#gloss-card .fix-open").count() == 0
+    context.close()
+
+
+def test_a_reader_with_the_grant_can_say_a_meaning_is_wrong(browser, tmp_path: Path) -> None:
+    """And acceptance 3's half a reader can reach: what they send is a proposal, carrying
+    the word, the sentence they read it in and the text it came from."""
+    context, page, sent = _card_with_account(browser, tmp_path, {"signedIn": True, "granted": True})
+    page.wait_for_selector("#gloss-card .fix-open")
+    page.click("#gloss-card .fix-open")
+    page.fill("#gloss-card .fix-field", "two")
+    page.click("#gloss-card .fix-go")
+    page.wait_for_selector("#gloss-card .fix-said")
+
+    assert len(sent) == 1, sent
+    said = sent[0]
+    assert said["meaning"] == "two" and said["lemma"]
+    assert said["stood"] == MEANING, "what it said before travels with what it should say"
+    assert said["sentence"], "the line it was read in travels with it"
+    assert said["document"], "and which text, so the licence can be applied later"
+    assert "Thank you" in page.locator("#gloss-card .fix-said").inner_text()
+    context.close()

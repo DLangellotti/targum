@@ -43,6 +43,24 @@
     }
   }
 
+  /* The language pressed on the front door, carried here on the link (2026-09-20). It was
+     a press, so it is kept the way any other is: as what this browser reads into, which
+     the sign-in email is then written in and which Learn hands to the new account — so
+     somebody who chose Russian before they had an account is not asked again after.
+     Only where this browser has not already said; a press on a landing page does not
+     overrule a choice made inside the product. */
+  var asked = form.getAttribute("data-asked") || "";
+  function carried() {
+    var held = into();
+    if (held || !asked) return held;
+    try {
+      localStorage.setItem("targum:into", asked);
+    } catch (e) {
+      /* nowhere to keep it; the email still arrives in it */
+    }
+    return asked;
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var field = form.querySelector('input[type="email"]');
@@ -55,7 +73,7 @@
     fetch("/account/sign-in", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: field.value, into: into() }),
+      body: JSON.stringify({ email: field.value, into: carried() }),
     })
       .then(function (response) {
         return response.json().then(function (body) {

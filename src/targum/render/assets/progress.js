@@ -49,8 +49,7 @@
   /* One bar per band, and each its own colour. A scale rather than six unrelated hues:
      it runs leaf → iris → clay, which is the order §4 already gives them — what you can
      read, what is new to you, what it costs you. Mixed from the three working cuts, so
-     nothing here is a colour the palette does not have and every step flips with the
-     theme. Green to purple to red, deliberately: green to red alone mixes to brown in
+     nothing here is a colour the palette does not have. Green to purple to red, deliberately: green to red alone mixes to brown in
      the middle, which is the thing this page was getting too much of. */
   var COMMONNESS = [
     "var(--leaf)",
@@ -395,14 +394,14 @@
     // is the part of that count that started lower on the ladder and was read up to known.
     count(
       sums.learned,
-      tn("progress.count.learned", sums.learned, "word learned by reading", "words learned by reading"),
+      tn("progress.count.learned", sums.learned, "word learned on targum", "words learned on targum"),
       "sun"
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
     // thing, and the one on this page that is a whole text rather than a word.
     count(sums.finished, tn("progress.count.finished", sums.finished, "targum finished", "targums finished"), "leaf");
-    count(days.length, tn("progress.count.days", days.length, "day reading", "days reading"));
+    count(days.length, tn("progress.count.days", days.length, "day on targum", "days on targum"));
     // The longest run of days there has ever been, and never the current one. Decided
     // 2026-09-03 (targum-internal#175) and recorded in design.md §12: a current streak
     // is a count that can be destroyed, and that is what makes people quit in the week
@@ -480,7 +479,7 @@
     if (next === null) {
       line.textContent = t("progress.milestone.past", "You're past every milestone we keep.");
     } else if (known === 0) {
-      line.textContent = t("progress.milestone.start", "Mark a word while you read and it starts here.");
+      line.textContent = t("progress.milestone.start", "Mark a word as you go and it starts here.");
     } else {
       boldIn(
         line,
@@ -648,10 +647,10 @@
         ? tn(
             "progress.days.reading",
             counted,
-            "{n} day reading in the last twelve weeks",
-            "{n} days reading in the last twelve weeks"
+            "{n} day on targum in the last twelve weeks",
+            "{n} days on targum in the last twelve weeks"
           )
-        : t("progress.days.none", "No reading days in the last twelve weeks yet")
+        : t("progress.days.none", "No days on targum in the last twelve weeks yet")
     );
     host.appendChild(strip);
 
@@ -669,6 +668,124 @@
   }
 
   /* --- putting it together --------------------------------------------------- */
+
+  /* --- time and words (targum-internal#339) ---------------------------------------
+   *
+   * "Track hours and minutes listened and watched, and words read; displayed and
+   * filterable on Progress." These are the account's reading of its own log
+   * (`/account/totals`, targum-internal#127), a row a day, language and medium — so they
+   * add up across devices, which a tally kept in this browser never could.
+   *
+   * Filtered by what the reader was doing and by when; the language is the page's own.
+   * A figure that is nought is not drawn ("a zero is worth suppressing rather than
+   * colouring"), and the panel is absent where there is no record at all.
+   */
+  var spentRows = null;
+  var spentView = { medium: "", period: "" };
+  var MEDIA = [
+    ["", t("progress.spent.all", "Everything")],
+    ["read", t("progress.spent.reading", "Reading")],
+    ["listen", t("progress.spent.listening", "Listening")],
+    ["watch", t("progress.spent.watching", "Watching")],
+  ];
+  var PERIODS = [
+    ["", t("progress.spent.ever", "All time")],
+    ["30", t("progress.spent.month", "Last 30 days")],
+    ["7", t("progress.spent.week", "Last 7 days")],
+  ];
+
+  function clock(seconds) {
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 1) return t("progress.spent.under-a-minute", "under a minute");
+    var hours = Math.floor(minutes / 60);
+    var rest = minutes % 60;
+    if (!hours) return t("progress.spent.minutes", "{m} min", { m: rest });
+    return rest
+      ? t("progress.spent.hours-minutes", "{h} h {m} min", { h: hours, m: rest })
+      : t("progress.spent.hours", "{h} h", { h: hours });
+  }
+
+  function since(days) {
+    var then = new Date();
+    then.setDate(then.getDate() - (days - 1));
+    var two = function (n) {
+      return (n < 10 ? "0" : "") + n;
+    };
+    return then.getFullYear() + "-" + two(then.getMonth() + 1) + "-" + two(then.getDate());
+  }
+
+  function spentChips(host, options, field) {
+    if (!host) return;
+    host.textContent = "";
+    options.forEach(function (pair) {
+      var chip = el("button", "chip", pair[1]);
+      chip.type = "button";
+      chip.setAttribute("aria-pressed", spentView[field] === pair[0] ? "true" : "false");
+      chip.addEventListener("click", function () {
+        spentView[field] = pair[0];
+        drawSpent(currentCode);
+      });
+      host.appendChild(chip);
+    });
+  }
+
+  function drawSpent(code) {
+    var panel = document.getElementById("spent");
+    var figures = document.getElementById("spent-figures");
+    if (!panel || !figures || !spentRows) return;
+    panel.hidden = false;
+    spentChips(document.getElementById("spent-medium"), MEDIA, "medium");
+    spentChips(document.getElementById("spent-period"), PERIODS, "period");
+    var from = spentView.period ? since(Number(spentView.period)) : "";
+    var sums = { listened: 0, watched: 0, words: 0 };
+    spentRows.forEach(function (row) {
+      if (row.language && row.language !== code) return;
+      if (spentView.medium && row.medium !== spentView.medium) return;
+      if (from && row.day < from) return;
+      sums.listened += row.listened || 0;
+      sums.watched += row.watched || 0;
+      sums.words += row.words || 0;
+    });
+    figures.textContent = "";
+    function figure(amount, label) {
+      var one = el("div", "spent-figure");
+      one.appendChild(el("span", "spent-amount", amount));
+      one.appendChild(el("span", "spent-label", label));
+      figures.appendChild(one);
+    }
+    if (sums.listened) figure(clock(sums.listened), t("progress.spent.listened", "listened"));
+    if (sums.watched) figure(clock(sums.watched), t("progress.spent.watched", "watched"));
+    if (sums.words) {
+      figure(
+        sums.words.toLocaleString(),
+        tn("progress.spent.words", sums.words, "word read", "words read")
+      );
+    }
+    if (!figures.children.length) {
+      figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing here yet.")));
+    }
+  }
+
+  function askSpent() {
+    if (!window.fetch) return;
+    fetch(keyed("/account/totals"), { credentials: "same-origin" })
+      .then(function (answer) {
+        return answer.json();
+      })
+      .then(function (said) {
+        if (!said || !said.signedIn || !said.kept) return;
+        if (!said.on) {
+          var off = document.getElementById("spent-off");
+          if (off) off.hidden = false;
+          return;
+        }
+        spentRows = said.totals || [];
+        drawSpent(currentCode);
+      })
+      .catch(function () {
+        /* no record to read is no panel, which is how the page already stood */
+      });
+  }
 
   function show(code) {
     currentCode = code;
@@ -696,9 +813,11 @@
     );
     drawGrowth(document.getElementById("growth"), data[code].words);
     drawBands(document.getElementById("bands"), data[code].words);
+    drawSpent(code);
   }
 
   show(currentCode);
+  askSpent();
 
   // If the account turns out to hold words this browser had not seen — kept on a phone,
   // or kept here before signing in on another machine — everything is gathered again

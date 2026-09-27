@@ -40,7 +40,7 @@ building on targum is entitled to know about.
 | trafilatura | Apache-2.0 | |
 | anthropic | MIT | client only; the API behind it is a paid service |
 | nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
-| tokenizers, huggingface_hub | Apache-2.0 | load the menaked's own character tokenizer and fetch its weights |
+| tokenizers, huggingface_hub | Apache-2.0 | load the menaked's and LaBSE's tokenizers and fetch their weights |
 | **stanza** | Apache-2.0 (code) | installed, and loads no model: nothing is audited — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
@@ -48,14 +48,16 @@ building on targum is entitled to know about.
 
 | Extra | Package | Licence | Notes |
 | --- | --- | --- | --- |
-| `align` | sentence-transformers | Apache-2.0 | |
+| `align` | — | | empty since 2026-09-18: LaBSE is read with transformers |
 | `speech-align` | torchaudio, transformers | BSD-2, Apache-2.0 | the acoustic model is Apache-2.0 too |
 | `covers` | pillow | MIT-CMU | |
+| `bring` | pillow, pillow-heif, pypdf | MIT-CMU, BSD-3 | a picture or a PDF through the `+` |
+| `bring` | **pymupdf** | **AGPL-3.0** | a scanned PDF's pages as pictures — see below |
 | `difficulty` | wordfreq | Apache-2.0 | the code; its data files are CC BY-SA 4.0 — see below |
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
 | `browser` | playwright | Apache-2.0 | test-only |
 
-`torch` arrives transitively with stanza and sentence-transformers; its metadata reports
+`torch` arrives transitively with stanza; its metadata reports
 Apache-2.0 for the package and bundles third-party components under their own terms.
 
 ## Nothing NonCommercial is left
@@ -192,6 +194,30 @@ The credit is at the foot of every reader whose pointing it made, beside the ann
 and keyed the same way: to the vocalizer that actually ran, and only where it pointed a
 word the edition had not. A reader pointed by Nakdimon, or by its edition, carries no
 DICTA credit for its vowels.
+
+### PyMuPDF — AGPL, chosen deliberately 2026-09-22
+
+A PDF with no text layer has one way in: render its pages as pictures and let the model
+read them (targum-internal#252). That needs a rasteriser, and the choice was a licence
+question rather than a technical one. **PyMuPDF is AGPL-3.0**, and it was taken over
+`pypdfium2` (Apache-2.0/BSD) and `pdf2image` (which wants poppler installed on the box).
+
+**For targum this adds no obligation.** The project is AGPL-3.0-or-later already, which
+is the strongest term in here, so a copyleft dependency asks for nothing the licence on
+this repository does not already give.
+
+**For somebody building on targum it is not nothing, and that is the honest part.** The
+short version at the top of this file promises you may install targum and use it for
+anything, commercial included — and that promise holds: the AGPL permits commercial use.
+What PyMuPDF adds is that a derived work which links it and is offered over a network
+must publish its source under the AGPL too. That was already true of targum's own code.
+It becomes true of this extra as well, and it is the one place where *not installing an
+extra* changes the terms rather than only the features: a box that never reads a scanned
+PDF can leave `bring` out and never links it.
+
+It is an extra and lazily imported, so nothing loads it until a reader presses to have a
+scan read. Artifex also sells a commercial licence for anyone who needs one; targum does
+not, for the reason above.
 
 ### Nakdimon's weights — MIT, confirmed 2026-09-02
 
@@ -381,6 +407,37 @@ transcribing and aligning are adaptations, and no access policy cures an ND term
 ShareAlike is accepted, which means the segments cut from such a recording carry
 ShareAlike onward.
 
+### Siddur audio, deferred — 2026-09-21
+
+**The siddur ships mute, deliberately, and this is the reason written down.**
+targum-internal#120 asked for siddur audio either licensed-and-attached or explicitly
+deferred with the reason recorded. It is deferred.
+
+Recordings of the siddur are abundant — it is chanted daily, everywhere — and abundance
+is exactly what makes this dangerous. **Free to listen to is not free to use**, and no
+recording has yet been found whose licence clears the bar above. That bar is not a
+formality here: the pipeline cuts a recording into per-section parts and aligns it word
+by word, which is adaptation, so an ND term refuses the recording outright however freely
+it is offered. NonCommercial is acceptable while the audio stays free to access; ND never
+is.
+
+The rule applied is `ingest/fetch/sefaria.py`'s: **check the licence at the source, never
+infer it from availability.** The cost of the other habit is already in this document —
+`audio/align.py` was described as "local and free" while running a CC BY-NC aligner, and
+Stanza's other languages were called clean here for months and were not.
+
+**And TTS is refused for this text in particular**, not merely unchosen. The engine
+ignores nikkud entirely, and the whole reason a vocalized siddur is worth having is that
+its vowels are *correct* rather than guessed. Synthesising it would throw away the one
+property that made the edition worth ingesting, and would do it silently — a reader
+cannot hear that a vowel was invented.
+
+What would lift the deferral is one recording with a licence stated at its source that is
+not no-derivatives. Until then the siddur is a text, and the mussar works beside it are
+text-only by their own nature: nobody listens to Chovot HaLevavot, and `spoken.is_spoken()`
+already derives spokenness from whether a recording exists, so silence is a native state
+rather than a gap.
+
 ### The treebanks the annotator is scored against, which never ship
 
 Until 2026-09-03 every number targum gave for its Hebrew annotation was one annotator
@@ -480,9 +537,17 @@ three contributors writing most of them — filtered and lemmatized by
 does not ship in the wheel or the repository. Tatoeba's audio is licensed per recording
 and most Hebrew recordings carry no reuse licence; none is taken.
 
+**And since 2026-09-21, the Russian too.** targum-internal#286 asks what a Russian
+reader's recast is worth, and #222 had settled that Tatoeba is the recast's yardstick —
+so the Russian number has to be taken here. `scripts/tatoeba_russian.py` joins Tatoeba's
+own `heb-rus` link file onto the pool, adding a Russian sentence to **6,682** of the
+165,454 rows. It is the same licence and the same terms: CC BY 2.0 FR, per sentence, per
+contributor, nothing else owed. Nothing is lemmatized again and no audio is taken.
+
 **Where the credit is given.** Here, and in every row of the pool, which keeps the
-username of the Hebrew contributor and of the English one, with the sentence's own
-address (`tatoeba.org/sentences/show/<id>`). The sentences reach the model as a prompt
+username of the Hebrew contributor, of the English one and — on a row that has one — of
+the **Russian** one (`ru_by`), with the sentence's own address
+(`tatoeba.org/sentences/show/<id>`). The sentences reach the model as a prompt
 and reach no page: a reader is shown the chat's own lines, which the contract asks it to
 write itself. If a Tatoeba sentence ever appears verbatim in a reader's saved
 conversation, that build's `licence` and `credit` fields are where the attribution
@@ -503,6 +568,47 @@ Credit is required by that licence and is given here, in `annotate/oshb.py`, and
 
 It is fetched rather than vendored, into the model directory beside the language models,
 and converted once on arrival — so a reader build parses no XML and fetches nothing.
+
+### The Russian Torah is targum's own reading of an 1875 page — 2026-09-22
+
+The five Torah rows carry a Russian translation beside the Hebrew: **Пятикнижие, пер.
+Герштейна и Гордона** (Vilna: Romm, 1875, for the ОПЕ). Each rendering records it as
+`Public Domain`, which `licensing.verdict` reads as **free**. targum-internal#187 asked
+for that claim to be checked before anything was bought on top of it; this is the check.
+
+**The work.** Published in 1875, and the translators' dates do not have to be looked up
+to say it is out of copyright: a translator who was twenty at publication and lived to a
+hundred would have died in 1955, which under life-plus-seventy expired at the end of
+2025. Every real possibility is decades earlier. The United States is simpler still —
+published before 1929.
+
+**The scan.** The page came from the open PDF on НЭБ, the Russian National Electronic
+Library, record `000199_000009_009682814`. A faithful reproduction of a public-domain
+printed page carries no new copyright of its own, and Russia's publisher's right (Civil
+Code art. 1337) reaches only works still unpublished when they entered the public domain,
+which an 1875 printed book is not. Nothing of НЭБ's is redistributed in any case: what
+ships is targum's own reading of the page.
+
+**What targum made.** The scan has no text layer, so the text on the shelf is targum's
+own OCR — every page read twice, a third read to settle disagreements, then pre-reform
+spelling converted by rule, about $48 in all. That work is targum's own. A few
+misreadings both reads agreed on are still in the text; `ru.json` is content and is not
+in this repository.
+
+**What was refused, so nobody researches it twice.** Sefaria's two Russian Tanakh
+versions are out: Slivniak is **CC BY-NC**, and Safronov has nothing recorded, which is
+`unknown` and deliberately not read as free. The Synodal translation (1876) *is* public
+domain and was still not taken — a positioning decision rather than a licence one, since
+it is a Christian rendering from a different textual tradition, with Greek numbering in
+the Psalms. russportal's typed Levison–Chwolson claims copyright on the typing and Russia
+grants a database right, so a scan is the safer source than somebody else's keying.
+Kovsan's modern Jewish Tanakh is **CC BY-SA** for the fifteen books he gave Wikimedia
+permission for, and would have to be asked for the rest.
+
+**The rest of the Tanakh has no free Jewish Russian translation**, which is the state of
+the world rather than a gap in the reading: Mandelstam (1872) and Steinberg (1913–14) are
+public domain but exist only as scans, and most of the Prophets and Writings have nothing
+at all.
 
 ### What is recorded, and how to ask
 

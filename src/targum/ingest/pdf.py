@@ -52,12 +52,12 @@ def _reader(path: Path) -> Any:
             try:
                 reader.decrypt("")
             except Exception as locked:
-                raise TargumError(PROTECTED) from locked
+                raise TargumError(PROTECTED, key="pdf.protected") from locked
         return reader
     except TargumError:
         raise
     except Exception as broken:
-        raise TargumError("We couldn't open that PDF.") from broken
+        raise TargumError("We couldn't open that PDF.", key="pdf.unopenable") from broken
 
 
 def page_count(path: Path) -> int:
@@ -79,7 +79,10 @@ def page_lines(path: Path) -> list[list[str]]:
     reader = _reader(path)
     if len(reader.pages) > MAX_PAGES:
         raise TargumError(
-            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a time."
+            f"That PDF has {len(reader.pages)} pages. We can read up to {MAX_PAGES} at a time.",
+            key="pdf.too-many-pages",
+            pages=len(reader.pages),
+            most=MAX_PAGES,
         )
     pages: list[list[str]] = []
     for page in reader.pages:
@@ -151,7 +154,7 @@ class PdfIngester:
         path = Path(source)
         pages = page_lines(path)
         if looks_scanned(pages):
-            raise UnsupportedSource(SCAN)
+            raise UnsupportedSource(SCAN, key="pdf.is-a-scan")
         document = document_from_pages(
             str(path),
             pages,
@@ -160,7 +163,7 @@ class PdfIngester:
             title=_title(path, pages),
         )
         if not document.blocks:
-            raise UnsupportedSource(SCAN)
+            raise UnsupportedSource(SCAN, key="pdf.is-a-scan")
         return document
 
 
@@ -174,3 +177,53 @@ def _title(path: Path, pages: list[list[str]]) -> str | None:
     if named and not named.lower().endswith((".doc", ".docx", ".pdf", ".odt")):
         return named
     return None
+
+
+def _pymupdf() -> Any:
+    """PyMuPDF, or the sentence to say where the extra is not installed.
+
+    Held as `Any` the way `vision._pillow` is: the library ships no type information, and
+    under strict mypy a call into a typed name would be an untyped call in a typed
+    context. Imported here rather than at the top so a box that never reads a scan never
+    loads it — which is also what keeps its AGPL off an install that does not use it.
+    """
+    try:
+        import pymupdf
+    except ImportError as missing:  # pragma: no cover - the extra is installed in CI
+        raise TargumError(
+            "This PDF is a scan, and reading scans is not installed here.",
+            "Install the `bring` extra.",
+        ) from missing
+    return pymupdf
+
+
+def rasterise(path: Path, into: Path, most: int, dpi: int = 200) -> list[Path]:
+    """A scanned PDF's pages as pictures, so the model can read what the text layer has
+    not got (targum-internal#252).
+
+    The only way into a PDF with no text layer. What comes out is a folder of PNGs named
+    in page order, which is exactly what `picture.pages_of` already reads and
+    `_read_pages` already prices — so a scan becomes an ordinary set of pages and nothing
+    downstream learns a new shape.
+
+    **At most `most` pages**, which is `vision.MAX_PAGES`: the cap is the reader's bill
+    and it is the same thirty a folder of photographs gets. A longer scan is not silently
+    truncated to a different text — the caller says how many were offered, and the card
+    quotes that number before anything is read.
+
+    200 dpi is what the Vilna pilot read cleanly (targum-internal#187, 2026-09-15) and is
+    well inside the model's own ceiling on a side, so nothing is paid for pixels that are
+    scaled away before they are read.
+    """
+    into.mkdir(parents=True, exist_ok=True)
+    made: list[Path] = []
+    with _pymupdf().open(path) as document:
+        for number, page in enumerate(document, start=1):
+            if number > most:
+                break
+            # Named so `pages_of`'s sort is page order rather than lexical order: page 10
+            # sorts before page 2 without the padding.
+            out = into / f"p{number:03d}.png"
+            page.get_pixmap(dpi=dpi).save(out)
+            made.append(out)
+    return made

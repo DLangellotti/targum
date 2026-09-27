@@ -39,8 +39,21 @@ for (const name of ["signed-out", "signed-in"]) {
 if (payload.ledgerLine !== false) document.getElementById("hours-line").hidden = true;
 document.getElementById("account-hours").hidden = true;
 
+for (const [name, value] of Object.entries(payload.stored || {})) localStorage.setItem(name, value);
+const corner = () => byId["account-open"].textContent;
+
 require(path.join(assets, "account.js"));
+// What the corner says before sync has answered, and after.
+const first = corner();
 if (changed) changed();
 
 const line = (id) => ({ hidden: Boolean(byId[id].hidden), text: byId[id].textContent });
-process.stdout.write(JSON.stringify({ ledger: line("hours-line"), panel: line("account-hours") }));
+process.stdout.write(
+  JSON.stringify({
+    ledger: line("hours-line"),
+    panel: line("account-hours"),
+    first: first,
+    corner: corner(),
+    held: localStorage.getItem("targum:initials"),
+  })
+);

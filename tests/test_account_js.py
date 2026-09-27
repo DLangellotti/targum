@@ -32,16 +32,19 @@ def drawn(**payload: Any) -> dict[str, Any]:
     return json.loads(done.stdout)
 
 
-def test_your_progress_shows_the_hours_whenever_there_is_an_allowance() -> None:
-    """Whatever share is used, with the day it resets (targum-internal#237, criterion 3):
-    the count left the chat page, and this is where it went."""
+def test_your_progress_shows_the_credits_left_and_what_they_are_worth() -> None:
+    """Whatever is left, with the day it resets (targum-internal#237, criterion 3): the
+    count left the chat page, and this is where it went.
+
+    Credits with the rate beside them since 2026-09-23 (design.md §12), and what is left
+    rather than what is gone — "is that a lot?" is the question a balance is asked, and
+    what remains is the answer to it.
+    """
     hours = {"used": 0.5, "allowed": 8, "ends": "October 1"}
     seen = drawn(who={**READER, "hours": hours})
-    assert seen["ledger"] == {
-        "hidden": False,
-        "text": "30 minutes of your 8 hours used this month · resets October 1",
-    }
-    assert seen["panel"] == {"hidden": False, "text": "30 minutes of your 8 hours used this month"}
+    said = "450 credits left this month — about 7 hours 30 minutes of audio"
+    assert seen["ledger"] == {"hidden": False, "text": f"{said} · resets October 1"}
+    assert seen["panel"] == {"hidden": False, "text": said}
 
 
 def test_your_progress_says_nothing_about_hours_without_an_allowance() -> None:
@@ -51,3 +54,17 @@ def test_your_progress_says_nothing_about_hours_without_an_allowance() -> None:
         seen = drawn(who=who)
         assert seen["ledger"] == {"hidden": True, "text": ""}, who
         assert seen["panel"]["hidden"] is True, who
+
+
+def test_the_corner_says_who_you_are_from_the_first_paint() -> None:
+    """It read "Sign in" on every page until sync had asked, which on the live site looked
+    like being signed out (2026-09-27). The initials this browser last saw are drawn at
+    once; sync confirms them, and forgets them when nobody is signed in."""
+    back = drawn(who=READER, stored={"targum:initials": "RE"})
+    assert back["first"] == "RE" and back["corner"] == "RE" and back["held"] == "RE"
+
+    new = drawn(who=READER)
+    assert new["corner"] == "RE" and new["held"] == "RE", "kept for the next page"
+
+    gone = drawn(who=None, stored={"targum:initials": "RE"})
+    assert gone["corner"] == "Sign in" and gone["held"] is None

@@ -19,7 +19,7 @@ The stages, and what writes them:
 | `ask` | `span_found_share`, `token_f1`, `unanswered`, the chat's reply to a question about a paragraph on a stubbed page against the span a person marked as the answer, on HeQ (`corpus=heq`) | `scripts/eval_ask.py` (targum-internal#223) |
 
 Every chat eval spends model calls and caches nothing: the question is what the model does
-today. Load the key first (`set -a && . ./.env && set +a`).
+today. Load the keys first: prefix the command with `op run --env-file op.env --`.
 
 ## Floors
 

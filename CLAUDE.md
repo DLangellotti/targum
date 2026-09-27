@@ -93,18 +93,39 @@ they did. `publish` still refuses a lifted phrase (the licence boundary) and sti
 a missed band, and the scheduled run never passes `--anyway`. A run that stops has found
 something.
 
-## The API key is in `.env`, and nothing loads it for you
+## The keys are in 1Password, and nothing loads them for you
 
-`ANTHROPIC_API_KEY` lives in `.env` (gitignored, never committed). Neither `uv run` nor
-`.venv/bin/python` reads it, so anything that talks to the model needs:
+Every key lives in the `targum` vault in 1Password and nowhere else (targum-internal#326,
+2026-09-26). `op.env` names the laptop's as `op://` references — no values, so it is
+committed — and neither `uv run` nor `.venv/bin/python` reads it, so anything that talks
+to a model needs:
 
 ```
-set -a && . ./.env && set +a && .venv/bin/python ...
+op run --env-file op.env -- .venv/bin/python ...
 ```
 
 Without it the failure is `Could not resolve authentication method`, which reads like a
 missing key rather than an unloaded one — and the honest conclusion "there is no key" is
 wrong. There is; it is just not in the environment of a fresh shell.
+
+- **The box's keys are `deploy/box.env.op`.** `deploy.sh` resolves them before it builds
+  and writes them into `/etc/targum/targum.env` on every deploy, leaving the non-secret
+  settings alone. Rotating a key is: change it in the vault, deploy. A new key is a line
+  in that file too, or it never reaches the box.
+- **The laptop and the box hold different Anthropic and OpenAI keys** — items
+  `Anthropic laptop` / `OpenAI laptop` against `Anthropic` / `OpenAI` — so a console's
+  usage says which machine spent it.
+- **The Monday weekly reads as the `targum-box` service account**: read-only, the
+  `targum` vault only, its token in the Personal vault and, for the job, in the login
+  keychain. Putting it there, once, in a terminal of your own:
+
+  ```
+  security add-generic-password -a "$USER" -s targum-op-service-account -T /usr/bin/security \
+    -w "$(op item get 'Service Account Auth Token: targum-box' --vault Personal --fields credential --reveal)"
+  ```
+
+  The colon in that item's title makes it unaddressable as an `op://` reference; `op
+  item get` by title is the way in.
 
 ## Things that are easy to get wrong
 
@@ -131,7 +152,18 @@ wrong. There is; it is just not in the environment of a fresh shell.
   so the page posts `/build` itself and opens the reader when it is done — still the
   person's own hand, never the model's, and still through `Library.claim`. A line
   that says more than "open this" is said to the model with a note of what was sent;
-  the model is told, and still cannot open or spend.
+  the model is told, and still cannot open or spend. An Instagram post's pictures are
+  the same spend on the same rails (2026-09-18): its caption is read for free, and its
+  pictures only when the person presses "Also read the pictures" on the card
+  (`Library._prepare_post`).
+- **A scope is the one press that lasts** (2026-09-22, design.md §12). Over the remote
+  connector there is no page of ours to press per turn, so `record_turn` — the only tool
+  that spends without a card — is consented once, by the reader ticking the `check` scope
+  on targum's own approval page where the cost is said in hours, and revoked there. It is
+  still a `job` row of kind `chat` through `Library.claim_turn`, still inside
+  `CHAT_BUDGET` and the eight hours, and still no second counter. Everything else holds:
+  a build needs its own press, the model cannot press anything, and a quote is
+  information. Do not widen this to a second tool without an entry in §12 first.
 - **Readers must fetch nothing.** No script, stylesheet, font or image from the network.
   Outbound links a reader chooses to click are the one exception, and `test_render.py`
   pins the allowlist.

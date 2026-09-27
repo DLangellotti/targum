@@ -31,6 +31,12 @@ install({
   // The bell (2026-09-11): what the page told it.
   TargumNotices: { note: (id, text, extra) => notices.push({ id, text, href: (extra || {}).href || "" }) },
   TARGUM_CATALOGUE: payload.catalogue || [],
+  // Whether this box offers the connector (#80). On by default here, because the
+  // row's shape is what these tests are about; `connector: false` turns it off.
+  TARGUM_CONNECTOR: payload.connector !== false,
+  // The languages a translation can be in (2026-09-20). None unless a test says, so the
+  // arrival asks which one a reader reads only in the tests that are about that.
+  TARGUM_INTO: payload.into || [],
   // The drawer (2026-09-11): what the page asked it to do.
   TargumTalk: { show: (on) => talks.push(on), open: (id) => talks.push("open:" + id) },
   stored: payload.stored || {},
@@ -42,7 +48,12 @@ install({
     learning: () => [payload.language || "he"],
     // The switcher draws; the caller remembers. Both are asked for now.
     set: () => {},
-    into: () => "",
+    // What this browser reads into: what a test says it already holds, then whatever the
+    // page tells it.
+    into: (code) => {
+      if (code !== undefined) heldInto = code;
+      return heldInto;
+    },
     switcher: () => {},
     beta: () => false,
     betaNote: () => "",
@@ -54,6 +65,21 @@ install({
    about that is which text was sent — a card that offered one book and built its
    neighbour would be unnoticeable and expensive. */
 const asked = [];
+let heldInto = payload.held || "";
+let reloaded = 0;
+/* One visit's store, for what has to outlive the page being loaded again in the language
+   a reader chose. A test says what the visit already holds. */
+const visit = Object.assign({}, payload.visit || {});
+global.window.sessionStorage = {
+  getItem: (key) => (key in visit ? visit[key] : null),
+  setItem: (key, value) => {
+    visit[key] = String(value);
+  },
+};
+global.location.reload = () => {
+  reloaded += 1;
+};
+global.document.documentElement.lang = payload.pageLanguage || "en";
 const notices = [];
 const talks = [];
 const wheres = [];
@@ -120,6 +146,12 @@ global.window.TargumClock = Object.assign({}, global.window.TargumClock, {
   now: () => Date.parse(payload.now || "2026-09-14T12:00:00Z"),
 });
 require(path.join(assets, "follow.js"));
+// Shipped `hidden` by the template; a stub element is born shown, which would read as
+// the line being said to everybody.
+global.document.getElementById("work-once").hidden = true;
+// The fold is drawn by `lists.js` on the real page; without it Learn draws no fold at all
+// and nothing about it could be asserted (targum-internal#335).
+require(path.join(assets, "lists.js"));
 require(path.join(assets, "learn.js"));
 
 /** A tile, if one was drawn there: its class, and the letter it rests on. */
@@ -165,6 +197,9 @@ function phrases() {
 }
 
 /** Do something to the page, the way a person would. */
+/** What a press on a rail card did: whether the address was left to carry it. */
+const cardPresses = [];
+
 function act(step) {
   if (step.press) byId[step.press].fire("click", {});
   // A door in the row above the sheet (2026-09-11), by its id — in the row or in the
@@ -173,17 +208,43 @@ function act(step) {
     const found = withDoors(at("doors")).find((p) => p.attrs["data-door"] === step.door);
     if (found) found.fire("click", {});
   }
-  // A subject on the arrival, by its label; and a rung of the ladder beside it.
+  /* A press on a card in the rail (2026-09-18), by the text's entry. `modified` stands
+     for a cmd- or middle-click, which must fall through to the address rather than swap
+     the sheet — the harness reports whether the press was defaulted. */
+  if (step.card) {
+    const found = (at("learn-cards").children || [])
+      .map((item) => (item.children || [])[0])
+      .find((link) => link && link.attrs && link.attrs["data-entry"] === step.card);
+    if (found) {
+      let defaulted = true;
+      found.fire("click", {
+        metaKey: !!step.modified,
+        button: 0,
+        preventDefault() {
+          defaulted = false;
+        },
+      });
+      cardPresses.push({ card: step.card, followed: defaulted });
+    }
+  }
+  // A rung of the ladder on the arrival's second screen, by its words.
+  if (step.rung) {
+    const row = Array.from(at("arrival-levels").children).find(
+      (p) => p.textContent.indexOf(step.rung) === 0
+    );
+    if (row) row.fire("click", {});
+  }
+  // A language on the arrival's first screen, by its own name (2026-09-20).
+  if (step.tongue) {
+    const press = Array.from(at("arrival-tongues").children).find(
+      (p) => p.textContent === step.tongue
+    );
+    if (press) press.fire("click", {});
+  }
+  // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
       (p) => p.textContent === step.subject
-    );
-    if (chip) chip.fire("click", {});
-  }
-  // A rung of the ladder, by the words it leads with.
-  if (step.rung) {
-    const chip = Array.from(at("arrival-levels").children).find((p) =>
-      p.textContent.startsWith(step.rung)
     );
     if (chip) chip.fire("click", {});
   }
@@ -233,6 +294,14 @@ function withDoors(node) {
 
 setTimeout(() => {
   (payload.do || []).forEach(act);
+  /* Read a beat later, not in the same tick as the last press (2026-09-20). Every press
+     until now changed the page where it stood; choosing a language tells the account
+     first and goes on when the account has answered, and read at once the page was
+     always still on the question. */
+  setTimeout(report, 10);
+}, 30);
+
+function report() {
   const carry = at("carry-cover");
   process.stdout.write(
     JSON.stringify({
@@ -242,6 +311,15 @@ setTimeout(() => {
       // The greeting and today, and the row of doors (2026-09-11).
       greeting: at("greeting").textContent,
       today: at("today").textContent,
+      /* The connector's banner, above the row (design.md §12, 2026-09-24): whether it is
+         drawn, what it says, and where its press goes. Drawn only for a signed-in reader
+         with no connection yet, so most payloads see nothing here. */
+      banner: at("connect-banner").hidden || !(at("connect-banner").children || []).length
+        ? null
+        : {
+            says: (at("connect-banner").children[0] || {}).textContent || "",
+            goes: (at("connect-banner").children[1] || {}).href || "",
+          },
       doors: at("doors").hidden
         ? []
         : withDoors(at("doors"))
@@ -254,6 +332,29 @@ setTimeout(() => {
          Reported here so a test can assert it is false rather than puzzle over an
          empty carry. */
       broke: !at("learn-failed").hidden,
+      cardPresses,
+      /* The rail (2026-09-18): a card for every text the page can offer. The stylesheet
+         draws these as a column on a phone and as a rail beside the sheet at a desk, so
+         what they are is the same at both and only where they stand differs — which is
+         why this reports them once, with no width in sight. `current` is the card
+         standing for whatever the sheet is showing. */
+      cards: (at("learn-cards").children || []).map((item) => {
+        const link = (item.children || [])[0] || { attrs: {}, children: [] };
+        const what = (link.children || []).find((c) => String(c.className).includes("learn-card-what")) || {
+          children: [],
+        };
+        const part = (name) =>
+          ((what.children || []).find((c) => String(c.className).includes(name)) || {}).textContent || "";
+        return {
+          state: part("learn-card-state"),
+          title: part("learn-card-title"),
+          english: part("learn-card-english"),
+          door: link.attrs ? link.attrs["data-door"] || "" : "",
+          entry: link.attrs ? link.attrs["data-entry"] || "" : "",
+          current: link.attrs ? link.attrs["aria-current"] === "true" : false,
+          href: link.href || "",
+        };
+      }),
       // The one question a new reader is asked (targum-internal#294): the doors it
       // offers, or nothing at all where it is not asking.
       arrival: at("arrival").hidden
@@ -266,10 +367,31 @@ setTimeout(() => {
         : Array.from(at("arrival-doors").children)
             .filter((p) => p.getAttribute("aria-pressed") === "true")
             .map((p) => p.textContent),
-      levels: at("arrival").hidden
-        ? []
-        : Array.from(at("arrival-levels").children).map((p) => p.textContent),
+      /* The ladder on the second screen (#306: asked, not asked, and asked again since
+         2026-09-19). Read off the element, and only while its screen is the one showing:
+         what a test needs to know is what the reader is looking at. */
+      levels:
+        at("arrival").hidden || at("arrival-level").hidden
+          ? []
+          : Array.from(at("arrival-levels").children).map((p) => p.textContent),
+      /* The language, where it is asked (2026-09-20): its rows in their own names, the
+         question a line a language, what the browser now reads into, whether the page
+         asked to be loaded again, and what the visit was told to remember. */
+      tongues:
+        at("arrival").hidden || at("arrival-language").hidden
+          ? []
+          : Array.from(at("arrival-tongues").children).map((p) => p.textContent),
+      tongueAsks: Array.from(at("arrival-asks-language").children || []).map((p) => p.textContent),
+      heldInto,
+      reloaded,
+      visit,
+      backShown: !at("arrival").hidden && !at("arrival-back").hidden,
+      // Which screen is up and what it says of itself: "1 of 2".
+      step: at("arrival").hidden ? "" : at("arrival-step").textContent,
+      subjectsUp: !at("arrival").hidden && !at("arrival-subjects").hidden,
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
+      nextShown: !at("arrival").hidden && !at("arrival-done").hidden,
+      arriving: global.document.body.classList.contains("arriving"),
       // What the page put in the browser, and where it posted. Both are here so a test
       // can assert something was *not* kept — an assertion that is worthless unless the
       // harness would have shown it had it been.
@@ -281,11 +403,14 @@ setTimeout(() => {
         }
         return out;
       })(),
+      // The line that says what the fold is, the first time it has anything in it (#335).
+      workOnce: at("work-once").hidden === false,
       posted: asked.map((call) => call.path),
+      sent: asked.filter((call) => call.body).map((call) => ({ path: call.path, body: call.body })),
       counted: at("arrival").hidden ? "" : at("arrival-count").textContent,
       // The subscriptions menu: its rows, whether it is open, and which are fresh.
       menu: menuOf("subscriptions"),
-      // Recently read (2026-09-11): the same shape, with the way to the whole list.
+      // Recently opened (2026-09-11): the same shape, with the way to the whole list.
       recent: menuOf("recent"),
       hands: Object.keys(global.window.TargumLearn || {}),
       carry: {
@@ -313,4 +438,4 @@ setTimeout(() => {
       seen: JSON.parse(global.localStorage.getItem("targum:series-seen") || "{}"),
     })
   );
-}, 30);
+}

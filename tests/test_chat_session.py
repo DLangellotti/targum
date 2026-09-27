@@ -148,7 +148,13 @@ def test_a_plain_answer_streams_and_is_kept(tmp_path: Path) -> None:
         "and the last message, so the next turn reads the history back from the cache"
     )
     # The whole registry: this turn was answered on a box with no web_search.
-    assert [tool["name"] for tool in sent["tools"]] == [tool.name for tool in tools.REGISTRY]
+    # What the chat is given is the registry minus anything that spends: `record_turn`
+    # is in the registry since 2026-09-22 and never in this list, because targum recasts
+    # every line of *this* conversation itself (design.md §12).
+    assert [tool["name"] for tool in sent["tools"]] == [
+        tool["name"] for tool in tools.anthropic_tools()
+    ]
+    assert "record_turn" not in [tool["name"] for tool in sent["tools"]]
 
 
 def test_tool_results_go_back_in_one_message_in_order(tmp_path: Path) -> None:
@@ -697,7 +703,7 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
-    assert "hours of audio and conversation" in said and "library is always free" in said
+    assert "credits of audio and conversation" in said and "library is always free" in said
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
 
@@ -1460,6 +1466,10 @@ def test_each_language_has_a_conversation_of_its_own(tmp_path: Path) -> None:
     store.use_language(person, "yi")
     yiddish_chat = chats.say(person, home, "", "something to read", admin=False)
     opened = store.chat_owned(person.id, yiddish_chat.chat_id)
+    # Yiddish had a conversation for a day (#283) and was held back on 2026-09-23 when
+    # it was measured: a third of its recasts had no recast line (#359). Its contract is
+    # written and kept, in `hebrew.HELD`; what it opens in is the English find mode, and
+    # this test is the reason that is worth asserting rather than assuming.
     assert opened["language"] == "yi" and opened["mode"] == "find"
     chats.answer(yiddish_chat)
     assert hebrew.CONTRACT.splitlines()[0] not in client.requests[-1]["system"][0]["text"]
@@ -1494,14 +1504,25 @@ def test_an_aspect_question_is_pointed_at_the_partner_in_what_they_read() -> Non
 # -- Italian in the talk shape (targum-internal#280) --------------------------------------
 
 
-def test_italian_talks_and_a_language_with_no_talk_mode_still_finds() -> None:
+def test_four_languages_talk_and_two_do_not_for_different_reasons() -> None:
+    """French and Russian joined Hebrew and Italian on 2026-09-22 (#281, #282).
+
+    Two are out, and not for the same reason. **Aramaic** is a decision: design.md §12
+    ruled the parallel case for biblical Hebrew, and Onkelos and the Gemara are that
+    shelf (#284). **Yiddish** is a measurement: its contract is written and good, and a
+    third of its recasts came back without a recast line (#359, #360), so it is held in
+    `hebrew.HELD` until it answers every time."""
     assert session_module.mode_for("it", False) == "talk", "a shelf's Hebrew decides nothing here"
     assert session_module.mode_for("he", True) == "talk"
     assert session_module.mode_for("he", False) == "find", "scripture-only Hebrew stays as it was"
-    assert session_module.mode_for("fr", True) == "find"
+    for code in ("fr", "ru"):
+        assert session_module.mode_for(code, False) == "talk", code
+    for code in ("arc", "yi"):
+        assert session_module.mode_for(code, True) == "find", code
     assert session_module.talking({"mode": "find"}, "it"), "stored find only for its language"
     assert not session_module.talking({"mode": "find"}, "he"), "stored find for its shelf"
-    assert not session_module.talking({"mode": "talk"}, "fr")
+    assert not session_module.talking({"mode": "talk"}, "arc")
+    assert not session_module.talking({"mode": "talk"}, "yi"), "a stored talk does not revive it"
 
 
 def test_an_italian_turn_is_held_to_the_italian_contract_and_its_words_are_on_its_receipt(
@@ -1539,3 +1560,128 @@ def test_an_italian_turn_is_held_to_the_italian_contract_and_its_words_are_on_it
     assert read == [(["Ciao.", "Come stai?"], "it")]
     job = library.jobs[f"chat-{chat_id}-{asked.n}"]
     assert job.spent > 0.99, "a million Haiku input tokens of word reading, on this turn"
+
+
+# -- a film that could not be fetched (targum-internal#331) ---------------------------
+
+
+def _refusing(url: str, answer: dict[str, Any]) -> Any:
+    return [
+        reply(
+            [{"type": "tool_use", "id": "d1", "name": "describe_source", "input": {"url": url}}],
+            stop="tool_use",
+        ),
+        reply([{"type": "text", "text": "We couldn't fetch that one."}]),
+    ]
+
+
+def _turn_over(client: Any, library: Any, store: Any) -> session_module.Feed:
+    feed = session_module.Feed()
+    session_module.run_turn(
+        client,
+        context(library, store),
+        [{"role": "user", "content": "bring this in"}],
+        feed,
+        lambda *_: None,
+    )
+    return feed
+
+
+def test_a_film_we_could_not_fetch_is_remembered_for_the_next_file(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The reader downloads what we could not, and drops it into the `+`. The page needs
+    the address to send as its home, and only the turn that was refused knows it."""
+    library, store = world(tmp_path)
+    url = "https://www.tiktok.com/@kan/video/7312"
+    monkeypatch.setattr(
+        tools,
+        "describe_source",
+        lambda ctx, args: {"kind": "video", "error": "TikTok wouldn't show us that video."},
+    )
+    feed = _turn_over(Script(_refusing(url, {})), library, store)
+    said = [json.loads(data) for kind, data in feed.events if kind == "refused"]
+    assert said == [{"url": url}], "the link the reader gave, as they gave it"
+
+
+def test_a_link_that_is_not_a_film_leaves_nothing_to_remember(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    library, store = world(tmp_path)
+    for found in (
+        {"kind": "article", "error": "That page is too big."},
+        {"kind": "post", "title": "A post", "pictures": 3},
+        {"kind": "video", "title": "A film", "seconds": 90},
+    ):
+        monkeypatch.setattr(tools, "describe_source", lambda ctx, args, f=found: f)
+        feed = _turn_over(Script(_refusing("https://example.com/x", {})), library, store)
+        assert [kind for kind, _ in feed.events if kind == "refused"] == [], found
+
+
+# -- what a search found, carried to the page (targum-internal#253) ----------------------
+
+
+def test_what_a_search_found_is_carried_to_the_page_and_is_not_a_quote() -> None:
+    """Add's description box draws the results itself rather than reading them out of
+    the model's prose, so `search_sources` puts its rows on the feed.
+
+    The distinction this rests on is the consent seam. A **quote** is a card with a
+    price on it and a button that spends; a **found** row is a title and a link, off a
+    feed's own hook, with nothing fetched and nothing priced. The card's acceptance says
+    a description never quotes or builds by itself — so these must not arrive as quotes,
+    and Choose is what turns one into a priced card.
+    """
+    import json
+
+    from targum.chat.session import FOUND_FIELDS, MOST_FOUND, _found_rows
+
+    said = json.dumps(
+        {
+            "count": 4,
+            "items": [
+                {
+                    "title": "A podcast",
+                    "link": "https://a.example/1",
+                    "publisher": "Kan",
+                    "kind": "podcast",
+                    "published": "2026-09-20",
+                    "seconds": 900,
+                    "licence": "CC-BY",
+                    "known_share": 0.72,
+                    "has_transcript": True,
+                },
+                {"title": "No link", "link": "", "kind": "news"},
+                {"title": "An article", "link": "https://b.example/2", "kind": "news"},
+                {"title": "A video", "link": "https://c.example/3", "kind": "video"},
+                {"title": "One too many", "link": "https://d.example/4", "kind": "news"},
+            ],
+        }
+    )
+    rows = _found_rows(said)
+
+    assert len(rows) == MOST_FOUND, "two or three, not a search-results page"
+    assert [row["title"] for row in rows] == ["A podcast", "An article", "A video"]
+    assert all(set(row) == set(FOUND_FIELDS) for row in rows)
+    # A field the tool carries for the model's benefit does not reach a browser because
+    # somebody added it.
+    assert all("has_transcript" not in row for row in rows)
+    # Nothing here is a price, a job or a button.
+    assert all(not {"id", "estimate", "quote"} & set(row) for row in rows)
+
+    # A row Choose could not act on is dropped rather than drawn as a dead button.
+    assert all(row["link"] for row in rows)
+
+    # And the medium rides along, which is what lets the page show more than one kind.
+    assert {row["kind"] for row in rows} == {"podcast", "news", "video"}
+
+
+def test_a_search_that_answers_nothing_useful_puts_nothing_on_the_feed() -> None:
+    """A tool result that is not what this expects leaves the page with no cards rather
+    than with a broken one — and never raises inside the turn, which would lose the
+    reply that was already paid for."""
+    from targum.chat.session import _found_rows
+
+    assert _found_rows("not json at all") == []
+    assert _found_rows('{"count": 0, "items": []}') == []
+    assert _found_rows('{"note": "no publishers"}') == []
+    assert _found_rows('{"items": ["a string, not a row"]}') == []

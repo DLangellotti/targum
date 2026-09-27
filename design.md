@@ -33,7 +33,8 @@ UI elements may carry the gloss recipe and hover lift in §9. Metallic gold ramp
 everywhere.
 
 **A text that carries media opens as its media.** The player stands and is named; a
-picture is on. Nothing plays until pressed, and the text is still the page. This replaced
+picture is on. Nothing plays until pressed — inside a playlist a swipe is a press, see
+§12 (2026-09-23) — and the text is still the page. This replaced
 "the reader is a reader, not a player" on 2026-09-03 — see §12. What that sentence also
 meant still holds: engagement is welcome, arcade is not. Streaks,
 goals and milestones are a ledger: real counts in serif tabular numbers, leaf for
@@ -68,13 +69,15 @@ construction — it carries Hebrew, Arabic, Cyrillic and Latin equally.
 
 ## 4 · Colour
 
-Warm paper, warm ink, one accent hue. The accent does not move between themes — **it
-splits**: a deep cut works on paper, a pale cut works on ink. The pale cut appears on light
+Warm paper, warm ink, one accent hue. There is one look, and it is light (§12, 2026-09-19).
+The second column below is the **ink surface** — §9's inverted block, a film's letterbox, the
+public pages' band: a dark surface *on* a light page, never a dark page. The accent
+**splits** across the two: a deep cut works on paper, a pale cut works on ink. The pale cut appears on light
 surfaces only as a 12–22% wash (kept words, highlights, row tints). What keeps this off the
 ArtScroll shelf is not the hue but the finish: **always flat, never a ramp, never a large
 field, never text below the ratios shown.**
 
-| role | light surface | dark surface | use |
+| role | on paper | on ink | use |
 |---|---|---|---|
 | page | `#fbf9f5` | `#171614` | surface |
 | page · raised | `#f3efe7` | `#201e1b` | cards, hovers |
@@ -94,9 +97,9 @@ The page stays calm; the moments get colour. Three brighter hues are allowed in 
 — feedback, progress, badges, charts — **never in the identity**. One functional hue per
 moment; flat always; text only at these working cuts; washes at 12–22%.
 
-- **leaf** `#5a7340` (5.0:1) · dark `#a8c37e` (9.3:1) — progress, success, "known"
-- **clay** `#b4553f` (4.6:1) · dark `#e0937d` (7.4:1) — cost, errors, destructive
-- **iris** `#6b5a8e` (5.7:1) · dark `#b3a3d6` (7.9:1) — phrases, discovery, "new"
+- **leaf** `#5a7340` (5.0:1) · on ink `#a8c37e` (9.3:1) — progress, success, "known"
+- **clay** `#b4553f` (4.6:1) · on ink `#e0937d` (7.4:1) — cost, errors, destructive
+- **iris** `#6b5a8e` (5.7:1) · on ink `#b3a3d6` (7.9:1) — phrases, discovery, "new"
 
 Green and purple are the two positions nobody in the category owns; blue and orange stay
 out. The mark, lockup and wordmark remain ink + gold only.
@@ -170,6 +173,13 @@ Two registers, and which one applies depends on who is reading.
   product cannot keep. The strongest line is usually the specific one: "an English
   translation beside every line" beats "the best way to read Hebrew."
 - Second person for the reader's actions ("Tap a word…").
+- **A control names what the person will do with this thing: read, listen or watch.**
+  "The reader" is the product's word for the page and for whoever is at it, and it stays
+  (§1, §13). But many come to listen and to watch (David, 2026-09-19), and a button that
+  says "Start reading" over a video is talking to somebody else. A row knows what it
+  carries, so its verb follows it — Continue watching, Start listening — and where no
+  row is known yet the word is the neutral one: Open. The ledger counts "days on targum"
+  and "words learned on targum", not days reading. targum-internal#337.
 - An error says in words what went wrong; colour alone never carries it — see §4.
 - **The name is always lowercase: targum**, even at sentence start.
 - No emoji, no exclamation marks, **no invented currency** — engagement counts real things
@@ -195,7 +205,8 @@ No icon font, no emoji, no icon library. Icons are tiny inline SVG strokes at te
 **16px viewBox, no fill, stroke `currentColor` at 1.4, round caps** — line diagrams of what
 they do (the three reading-mode glyphs are literally the three layouts). Typed characters
 elsewhere: ← → per reading direction, × to close and after a number as a multiplier
-(1.25×), A− A+ ? as themselves. The box's three actions are glyphs — a microphone, an
+(1.25×), A− A+ as themselves. (`?` was one of them until 2026-09-19: the reader's
+keys say "Keys" now — §12, "The picture's keys say what they do".) The box's three actions are glyphs — a microphone, an
 arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the control's label
 (2026-09-10); the `+` beside them stays typed.
 
@@ -232,6 +243,22 @@ arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the contr
   now, and the list in that test is the registry — a new control belongs in it the day it
   is drawn.
 
+  **A line of text that answers a tap is not a control — 2026-09-22.** The rule is about
+  the chrome: keys, toggles, handles, the things drawn to be pressed. A passage that
+  reveals its translation when you tap it is text with a gesture on it, and the thing
+  being tapped is the sentence itself, at whatever height the sentence is. Giving it the
+  44px reach would put a floor under every line of a conversation and space out the
+  reading to satisfy a rule written for buttons.
+
+  So `.chat-pair` stays out of the registry, deliberately (targum-internal#241, David's
+  call). What it must keep instead is the *keyboard* path, because that is the access the
+  44px was standing in for: the pair is focusable and Enter toggles it, and the toggle at
+  the head of the thread reveals every pair at once for anyone who would rather not aim
+  at a line at all.
+
+  The test for whether something is a control: **would it still be there with nothing to
+  read?** A play key would. A line of Hebrew would not.
+
 ## 9 · Building screens
 
 The palette is warm, but screens must not be a wash of brown on beige. **Contrast is the
@@ -239,7 +266,7 @@ engagement mechanism:** near-white pages, full-ink text, hue concentrated where 
 acts.
 
 - **Text is ink.** Anything the reader came for — body text, headings, numbers they earned —
-  is full ink (15.7:1 light, 13.9:1 dark). Muted `#6b645c` is for genuinely secondary lines
+  is full ink (15.7:1 on paper, 13.9:1 on an ink block). Muted `#6b645c` is for genuinely secondary lines
   only (translations at rest, captions, metadata), never for primary content, and never
   below 13px on raised paper. Brown `#7a5c38` is a link-and-button colour, never a text
   colour for paragraphs.
@@ -251,7 +278,7 @@ acts.
 - **Ink inversion is the wake-up move.** One block per screen may invert to the dark surface
   (`#171614` with `#e6e1d8` text and pale-cut hues) — stats, a milestone, a hero moment. It
   is the highest contrast available; spent on one block it is striking, spent on three it is
-  a dark theme.
+  a dark theme — and there is no dark theme (§12, 2026-09-19).
 - **Hue budget:** roughly 80% paper + ink, 15% structural neutrals, 5% hue — and the 5% goes
   where the reader acts or achieved something, never into decoration.
 - **Interactive means visibly different.** Every tappable element carries ink or a hue:
@@ -320,6 +347,1013 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
+
+A design and QA pass (targum#435) measured four things on the live shelf and put them to
+David, who chose each (targum-internal#372–#375).
+
+- **A text's level is read at 90% of its running words, not 95%.** At 95% the rung fell
+  past wordfreq's list for nearly every real text: 153 of 186 levelled Hebrew texts read
+  Vav · C2 and "On the bus", seventeen words, read Hey · C1. A list of spellings misses
+  what a reader's lemmas are, and a label that says C2 of everything says nothing. At 90%
+  the scenes land at gimel. The other tenth is what the dictionary one tap away is for.
+  This amends "The shelf says what a text is at a glance" (2026-09-24).
+- **In Russian the place is «Ваши тексты», and «Тексты» where «Ваши» drops.** «targum»
+  alone, on a phone, was the wordmark's own word two inches from it, because targum is not
+  declined. English keeps Your targums and targums. This amends "One name" (2026-09-25)
+  for Russian only: one name in each language, not one name across them.
+- **What's a targum? is whole until the reader has finished a text,** then one line that
+  opens it. On a phone it was the first screen of every visit to a shelf of seventy.
+  This amends "A targum is shown" (2026-09-26), which drew it always.
+- **At a desk a letter tile is a strip (16:5); a picture keeps 16:9.** On a shelf of
+  uploads most of the desk was beige boxes with one letter in each. This amends "At a
+  desk the shelf is cards" (2026-09-26), whose letter still stands, smaller.
+
+The series fold reads its title with pointing and direction marks left out, counts a
+Hebrew numeral (פרק כג), knows S01E02 and a second marker ("Part 2 – Chapter 3"), and
+asks a stem to be a name, two words or eight letters: "The" before "Chapter 11" is none.
+
+
+### Your targums has tabs, says what a targum is, and folds a series — 2026-09-26
+
+David, on Your targums at a desk: "I want this page to be designed more delightfully, and
+easier to navigate. It should include tabs with 'all targums' 'your uploads' and
+'playlists' also it should define a targum more clearly and prettily." Asked, he chose
+each of the following.
+
+- **Three tabs: All targums · Your uploads · Playlists.** All targums is everything
+  "Yours and everyone's" (2026-09-25) put here. **Your uploads is only what you brought**
+  — pasted, uploaded, photographed or linked — and not a Library text you built or a
+  shared one you opened. A build in progress is in both. This does not bring back the
+  Library's Your uploads tab: the Library is still everyone's, and this is a view of
+  yours. Playlists is a link to /playlists, which carries the same three tabs with
+  Playlists chosen and lights Your targums in the nav, so the three read as one place.
+  Underlined tabs, as the Library's are.
+- **A targum is shown, not only said.** The line "an interactive bilingual text,
+  optimised for language learning" gives way to one sentence and a drawn example: a
+  Hebrew line, its translation under it, and one word tapped, with its card. Drawn in
+  type and the palette, never a picture file, so it costs the page nothing to fetch. The
+  example is Hebrew whatever the shelf's language: Hebrew is the product's first language
+  and the word it is named for.
+- **The shelf can be sifted.** Chips for All · New · Started · Finished, each with its
+  count and absent at nought (a pressed chip stays, at nought, while it filters); a search over the title and its English; and an order —
+  last read (the default, as before), recently added, easiest first, or most known. They
+  are drawn only on a shelf of six or more: on a short shelf they are questions nobody
+  asked.
+- **At a desk the shelf is cards; on a phone it stays rows.** The same row, laid out as a
+  card from 64rem up, with the picture as its head. A text with no picture wears its
+  letter large. Nothing a row says is dropped from the card.
+- **A series is one row until you open it.** This amends "one row per text in each list"
+  (2026-09-25). Two or more texts whose titles share a stem before an episode marker
+  (*פרק 63*, *Part 2*, *глава 3*, *#4*) fold into one row with the stem as its title, how
+  many there are and how many are finished, and a stack drawn behind its picture. Pressing
+  it shows those texts alone, in episode order, with a way back. It is read off the title
+  because nothing else says what a series is; a title that does not follow the pattern is
+  its own row, which is what it was before. A search or a chip looks inside a series, and
+  a series left with one text is that text's row.
+
+What it does not overturn: a row still says the seven facts of 2026-09-24, a build is
+still a row from the moment it starts, the trash is still at the foot, and Learn's cards
+draw the same rows without any of this.
+
+Amended 2026-09-27 (targum#435), from a design and QA pass: the chip says **Started**, the
+word the row's own status uses, rather than Reading, so one state has one name. The tabs
+stand under the heading and **above** the definition, so they are in the same place on all
+three tabs (Playlists draws no definition), and a reader with nothing on the shelf still
+sees the definition and the tabs. A row's press is its title, stretched over the row, so a
+keyboard can reach it.
+
+
+### The finished box is three figures — 2026-09-25
+
+David, looking at the ink block a finished section inverts to: "let's review what info we
+give at the end of each lesson". It held a sentence ("You finished a targum."), an ordinal
+and a date ("Your 1st · Sep 25"), the ledger's increment as delta and standing for known
+and saved ("12 newly known · 2800 known"), a reading-day or longest-run line, and three
+lines of words — looked up here and how often before, read here without a look-up, and an
+offer to keep two or three. Each was argued for on its day (#173–#175). Together they were
+a paragraph to read at the moment a reader wants to move on. Asked, David chose: "literally
+just a count, more mathematical, statistical, quick to scan"; this text only; lead with
+the win "but keep it very clear — just scan with eyes and get the info"; and four equal
+tiles over a single big number.
+
+- **One line and three tiles.** "Finished · #14" on the first line, Undo on the same
+  line. Under it three figures of equal weight, each with a two- or three-word label under
+  it: **+N words known** (what became known while this section was read, the words the
+  press marked included), **N% known here** (the header's own figure, taken after the
+  press), and **N words looked up** (distinct words tapped for a meaning here). Serif
+  tabular figures on the ink, as the ledger's figures always were.
+- **A zero is shown as 0**, never hidden, so the three always stand in the same places and
+  a reader learns where to look. "Lead with the win" is kept by the figures being wins or
+  plain facts — nothing in the box is a verdict — and when nothing was won the count leads:
+  finishing is the win.
+- **This text only.** Standings — 2800 known, 140 saved, the longest run — live on Your
+  Progress, which is where a reader goes to see a standing. A delta beside a standing is
+  two numbers to reconcile; a delta alone is one to read.
+- **Dropped:** the date (Your Progress keeps it), the sentence (the line says "Finished"),
+  the saved count, the reading-day and longest-run line, and the three lines of words.
+  The longest run is now said only on Your Progress, which amends 2026-09-03's "announced
+  only in the delivered increment". The words a reader looked up are still counted, still
+  kept under `targum:cards:<language>`, and still what Words draws from; they are no longer
+  listed here.
+- **A percentage is allowed here**, which amends #174's "never print a percentage": the
+  figure is the header's "N% known here", already on screen, counted from real marks, and
+  it is about the text, not a grade of the reader. "Score", "points" and "level" stay
+  banned, and nothing on the block moves.
+- **In a playlist it is said twice, briefly.** The line the reader lands on says the same
+  three after the title: "Finished <title> · +12 known · 96% · 3 looked up · Undo". And the
+  playlist's end card adds them up across the texts finished in it: texts finished, +N
+  words known, the share known across all of them weighted by words, and words looked up,
+  in the same tiles.
+
+What it does not overturn: a section is finished once, the press is the reader's, Undo
+takes back the finish and the words, and the increment is still drawn only where the
+section is finished in place.
+
+
+### The foot is one block — 2026-09-25
+
+David, on a phone at the end of the second text of a playlist: "This positioning of buttons
+at end of Playlist lesson does not feel intuitive to me." The foot of a section was three
+things written on three different days: the playlist's line with Back and a teal Next
+(#366), a strip offering the words never marked (the first alpha reader), and a leaf Done
+that finishes the section (#173). They stacked in the order the code happened to append
+them, so moving on came first and finishing came last, with two primary colours a screen
+apart and a gap the player's margin opened between them. And Next finished nothing: a
+reader who went Next, Next, Next through a set had finished nothing on Your Progress.
+Asked, David chose each of the following; outside a playlist, "I never liked the two
+button positioning (done + mark words) find a sleeker design for it".
+
+- **One block at the foot, in reading order:** where you are, one press, one quiet way to
+  press it differently, and what comes next. One primary colour, §13's pill.
+- **The press says both halves.** "Done, and mark 12 words known" finishes the section and
+  marks the words never marked, in one press; "Done without marking" under it, as a text
+  link, finishes it alone. With nothing left to mark the button is "Done" and there is no
+  link. Names and numbers are still cleared by the press and still never called words.
+  "Offered, never done for you" stands: the press is the reader's, and it says what it
+  does before it is pressed.
+- **In a playlist the press is Next.** "Next, and mark 12 words known" / "Next" / "Next
+  without marking", and on the last item "Finish" in the same three forms, followed by the
+  end card. **Moving on finishes the section**, which amends #173's one Done per section:
+  a section is still finished once however often it is pressed, but leaving forward is the
+  press. A swipe forward, the arrow and the Next among a video's keys finish too, without
+  marking: a swipe is a press (2026-09-23), and marking words is never done by a gesture.
+- **Back is a small link on the line that says where you are**: "← Back · Couples and
+  everyday life, 2 of 3". "Up next: <title>" is a small line under the press, not a second
+  button naming the same place.
+- **Undo is where the reader lands.** A press that leaves the page takes the reader to the
+  next item, so the next page says, once and briefly, at its top: "Finished <title> · 12
+  words marked known · Undo". Undo there takes back both, the finish and the words. Coming
+  back to a finished section still offers Undo on its ink block, as it always did.
+- **The ledger's increment is not drawn when a press leaves the page.** It is drawn at the
+  foot of a section finished in place, as before (2026-09-03); a reader who has pressed
+  Next is already reading the next thing, and the counts are on Your Progress.
+
+What it amends: the separate Done at every section's foot (#173) and the separate offer
+under the text become the one press. "Up next" shown only once finished (#173) stands
+outside a playlist, where the door to the next section still appears after the press. What
+it does not overturn: a section is finished once however often it is pressed, the finish
+travels to the account, and the words a press marks are one Undo away.
+
+
+### Yours and everyone's — 2026-09-25
+
+David, on a phone, reading "It's on your texts too" under a build: *"there is some
+redundancy with Library and with the Your uploads tab within that. Further, I don't know
+if the user will understand intuitively the difference between library and texts."*
+
+He was right on both counts, and §12 was the cause. "A build is on the shelf while it is
+building" (2026-09-17) called the Library "the one page that can honestly say
+'everything of yours is here'", and put a build under Your uploads. "The shelf says what
+a text is at a glance" (2026-09-24) made Your targums a place in the nav, "where a reader
+goes back to what they started". Both were true, so both pages listed an upload, drawn
+two different ways, and one place went by three names: Your targums at a desk, Texts on a
+phone, Your texts on Learn. And the wait page sent a reader to Texts to find a build that
+was only in Your uploads.
+
+- **Your targums is yours; the Library is everyone's.** Your targums holds everything of
+  yours: what you built from the library, what you brought, what is being built right
+  now, and the trash. The Library holds the texts targum offers everybody, and nothing
+  else. **Your uploads is gone as a tab.** The Library's tabs are All texts, and the Beit
+  Midrash for Hebrew.
+- **A text you built from the Library is still marked in the Library.** Its row says so
+  and opens your copy. That is the catalogue telling you which of its books you already
+  have, not a second shelf.
+- **A build is a row at the top of Your targums from the moment it starts**, with its
+  title and how far it has got, and becomes the ordinary row when it is done. This
+  replaces the same rule's home under Your uploads. The wait page, Add and the Library's
+  own row still narrate it where the reader pressed.
+- **One name: Your targums.** At a desk it is "Your targums"; on a phone and in a
+  narrow window "Your" drops, as it does for Progress, and it is "targums". This
+  retires "Texts": the 2026-09-24 worry that "targums" alone read as a typo is outweighed
+  by a place with two names. Learn's cards and ⌘K say Your targums too.
+- **The shared shelf stays in the Library.** The texts targum builds for everybody are
+  targum's until you open one. Once this browser has opened one, it is on Your targums
+  beside your own, with nothing on it to delete, because it is not yours to delete.
+
+What it does not overturn: one row per text in each list; a build narrated where it was
+pressed; the Library's filters and its band, which are for choosing and now have only
+choosing to do.
+
+
+### The grant is one press, and chatting is included — 2026-09-24
+
+A design and QA pass over the connector and playlists found that the approval page and the
+words around it had drifted apart. "A scope is a press that lasts" (2026-09-22) says the
+press is the reader *ticking* the spending scope. The page never drew a tick: it grants
+what the app asked for, in one press. Meanwhile /connect told strangers to "Tick what you
+want", and every tab's steps said "choose what it can see". David, asked which one should
+give way: **keep the one press.**
+
+- **The approval page grants the scopes the app asked for, all together, in one press**,
+  and says plainly what each one lets the app do. Connect and Not now are the only choices.
+  To change what an app may do, you disconnect it from your account and connect it again.
+  Nothing on /connect, in the FAQ or in the steps promises a tick.
+- **Chatting is included.** A message rounds to zero credits ("A cost is credits",
+  2026-09-23), so the reader is told it is included rather than "a few seconds of your
+  credits". Credits are named only where audio or video is, with the rate beside the balance.
+- **A Russian reader is promised Russian.** The Russian /connect says a Russian line
+  under the Hebrew and asking in Russian, because the contract writes `= ` lines in the
+  language the reader reads.
+
+What it does not overturn: the spending scope is still the consent, the two ceilings still
+hold, and the model still cannot press anything. The consent just covers the whole request
+the app made, not a subset the reader picks, and the page has always done exactly that.
+
+
+### The shelf says what a text is at a glance, and has its own door — 2026-09-24
+
+David, looking at the shelf: it should tell the reader, without opening anything, the
+text's name, how long it is to read or to watch, its level, when they added it, how much
+of it they know, whether they have read it, and which playlists it is in, with a picture
+where there is one. "Also we need an easier way for the user to quickly navigate to their
+shelf." The shelf was reachable only from Learn's "All your targums", hidden when Learn had
+no cards, and from ⌘K.
+
+- **The nav is five: Learn · Your targums · Library · Your Progress · Add.** This amends
+  "Add is a place again" (2026-09-13), which made it four. The shelf goes second because
+  it is the second most visited: it is where a reader goes back to what they started. On a
+  phone "Your" drops, as it does for Progress, and the bar takes five columns.
+- **A row carries seven facts, in this order:** the picture; the title with its English
+  under it; one line of facts (length, level, known share, and when it was added for an
+  upload or last opened for a library text); its status; and, on the right, Add to
+  playlist and a ⋯ for the rest (chapters, delete). The playlists a text is in are named
+  on the fact line. On a phone the fact line wraps under the title, and status and
+  playlists fold into it.
+- **Length is what the text takes:** minutes to read, or the recording's own length for a
+  video or a recording ("4 min video"), read from the manifest.
+- **A text has a level, and it is the text's, never the reader's.** It is the ulpan rung,
+  with CEFR beside it, whose vocabulary covers 90% of the text's running words, measured
+  from word frequency (95%, the research's unassisted threshold, until 2026-09-27: see
+  the entry of that date). It is not the tier count the library's Easier/Harder chips use. "Never tell the reader they are at a level" stands:
+  the label says what the text needs, not where the reader is. A band is still not a CEFR
+  level; a whole text's coverage is.
+- **Known share is a percentage on the shelf**, as it already is on the library's cards
+  ("You know 72%"). The count in ten stays on the press card, where it came from.
+- **Status is three words:** New, a part count while reading ("3 of 6"), and Finished,
+  with the leaf check that "Recently read" already uses.
+- **A video import gets a picture:** one frame from its own cut, kept beside the reader
+  and served like a cover. The letter tile stays for a text with no picture.
+
+What it does not overturn: one row per text in one list; covers as the library draws
+them; no counts of things watched; no level on the reader.
+
+### The connector is a banner and a line in the foot — 2026-09-24
+
+**This retires "A door that is not a text — 2026-09-22"**, below, which put targum in Claude
+and ChatGPT into Learn's row of doors, styled exactly like the reading doors. It shipped,
+David looked at it on the live page, and said: *"advertise the mcp in some other way, maybe
+a separate button or a banner"* — and, asked where, *"Banner and it should be in footer"*.
+
+The objection was written down the day the decision was taken, under Risks: *"a third door
+where two carry texts. Learn's first job is getting somebody into something to read, and a
+door styled identically but carrying a way in instead competes with the two that carry
+one."* It was right, and what settled it was looking at the page.
+
+- **A banner, above the row.** It announces something once, where a door goes on asking for
+  ever. It is not in the row, so the row is things that carry texts again.
+- **A line in the foot**, which is the permanent home: the foot is already where the things
+  that are always true and rarely wanted live, and this is one of them.
+- **It goes when it has been taken up.** Not a dismissal anybody has to remember — the
+  banner is drawn only for a reader with no connection, which the account already knows. A
+  reader who has connected is never asked again, on any device, with nothing stored to make
+  that so. The cross is for somebody who does not want it *now*, and that one is
+  per-browser, because it is a convenience and not a fact.
+
+**And the doors are counted, which they never were.** The 2026-09-22 entry asked for "a look
+at whether the reading doors' press rate moves after it ships". That look was impossible:
+`learn.html.j2` never loaded `events.js`, so no door on this page has ever been counted and
+the question could not be answered even in principle. It is wired now — the reading doors
+and the banner alike, as `control` events, which carry a name and a window width and nothing
+else. So this change is measurable and the one it replaces was not.
+
+What it does not overturn: the row still decides on the reading doors alone whether it is
+worth drawing at all; nothing on Learn pushes; and §6 still governs the words, so the banner
+says what a reader gets rather than selling it.
+
+
+### Asking to practise a language is how you choose it — 2026-09-23
+
+David, in Claude, on the day the connector went live: *"Bonjour, je veux pratiquer mon
+français. Est-ce que je peux faire ça avec Targum?"* — and was told no, because his targum
+account was configured for Hebrew only. Two tools carried the same guard, `how_to_talk` and
+`record_turn`: a language not in `Store.learning` was refused by name.
+
+**The guard had it backwards.** Saying, in your own words, that you would like to practise
+French *is* the reader telling targum what they are learning — a plainer statement than the
+picker, because nobody opens a picker by accident. Answering it with the account's own
+configuration makes the product argue with its reader about what the reader wants, and
+points them at a page they are not looking at.
+
+So the guard is gone from both, and the answer splits along the seam that already exists:
+
+- **Talking is free and writes nothing.** `how_to_talk` hands over the contract for any
+  language in `TALKED`, whatever the reader has chosen. The ledger comes back empty in a
+  language they have no words in yet, which is true and is the point — there is nothing
+  there to protect, because nothing is spent and nothing is kept.
+- **The language goes on where something is already being written.** `record_turn` keeps
+  the first line the reader writes and turns the language on in the same breath. That is
+  the first moment anything of theirs is recorded, and it happens under `chat` — the one
+  scope whose words on the approval page say it keeps what they write. That scope now says
+  so out loud, and dropped the word "Hebrew" while it was there, which had stopped being
+  true the moment French could be spoken.
+
+What is still refused, and by a better test: a language targum cannot hold a conversation
+in. Aramaic has no contract (#284), and the refusal names that rather than the account.
+
+**`Store.also_learning` adds; it never replaces.** `choose()` writes a kind wholesale,
+which is what a form submitting a set wants and the wrong shape here — a reader asking for
+French has said nothing about Hebrew. There is a trap underneath it that a test found
+rather than a reviewer: `_chosen` answers a person with *no* rows with the default,
+`{"he"}`, which is almost everybody, because almost nobody opens the picker. Inserting one
+French row beside that turns an implied Hebrew into an explicit French and drops Hebrew on
+the way, silently. So the effective set is written down whole, the first time anything is
+added to it.
+
+What it does not overturn: ownership comes from `Ctx` and never from an argument; a build
+still needs its own press; `REQUIRED_LEARNING` still keeps Hebrew on; and the model still
+decides nothing — it passes on a line the reader wrote, and the reader wrote it.
+
+
+### A playlist is swiped, and one press takes the set — 2026-09-23
+
+David, the same day, after a connector found him twelve Hebrew reels and could not bring
+them in: "Once in a playlist they can simply swipe into the next targum super fast, giving
+almost an instagram like feel to it. They won't really even feel like they are learning."
+For YouTube, articles, anything. The first stranger session (2026-09-03) said the product
+feels like work; this is the answer to that from the other side — not less machinery, but
+the machinery arriving one item after another without a decision in between.
+
+It reverses two written rules and adds a thing a reader owns. Each is said here before any
+of it is built.
+
+- **A playlist is the reader's.** An ordered list of texts, kept on the account and not
+  in the browser, with a name. Four hands make one: the connector, targum's own chat, the
+  reader by hand (add to a playlist from any reader or shelf row), and targum, whose own
+  sets — "couples and everyday life", "in the kitchen" — are built once on the shared
+  shelf like the Khan Academy rows and cost the reader nothing to open. A playlist of texts
+  already on the reader's shelf costs nothing either. This is not `series.py`: a series
+  comes out on its own clock, and a playlist is a list somebody made.
+
+- **One press takes a named set.** `video/youtube.py` refuses a playlist address with "A
+  playlist is a queue of separate decisions", and until today every build was a quote and
+  a press. A set now quotes as one: each item named, each with its length and how much of
+  it the reader knows, the total in credits, and one press on targum's page that builds
+  them all. That is still the reader's own hand on targum — "A scope is a press that
+  lasts" (2026-09-22) is the precedent for a press that covers more than one job, and
+  this one covers a list the reader can read before they press. What does **not** change
+  is the harvest guard: a playlist, channel or feed *address* is still refused, because
+  an address names somebody else's list, and the set is a list the reader (or a model on
+  their behalf) wrote out item by item. Every item is still their private import and
+  never the catalogue (#126). A set is capped, at twenty to start — the number is the
+  build's to tune, the cap is not.
+
+- **A swipe is a press.** "Nothing plays until pressed. Autoplay is the arcade's move"
+  ("A text that carries media opens as its media", 2026-09-03) was written for a page
+  that starts itself. Inside a playlist the reader's swipe
+  is their hand choosing the next one, and the next one plays. Nothing plays on arrival
+  — not from a link, not from the bell, not when a playlist is opened; the first item
+  waits for its press like any text. A swipe back plays nothing new.
+
+- **Inside a playlist, a video opens watching.** "A video text opens as its transcript"
+  (2026-09-17) stands for a text opened on its own, where the reader came to read. A
+  reader who swiped into a reel came to watch, so there it opens as the picture with its
+  line on, the way a reel is watched, and one press puts it back to reading. An article
+  opens as its text; the next item is past its end, so a long text is read before it is
+  left, and a swipe mid-text scrolls the text.
+
+- **The end offers more, once.** The last swipe lands on a card: the words met across the
+  set, and one next set chosen for them, quoted like any set and built only on a press.
+  It never refills itself. A feed that tops itself up is the Instagram habit that turns
+  "does not feel like learning" into "does not feel like anything", and a quote that
+  spends is not a thing that happens because a reader kept swiping.
+
+- **Motion stays optional.** The swipe is a gesture, not an animation: under
+  `prefers-reduced-motion` the next item replaces this one with no travel. And every swipe
+  has a key — a visible Next and the arrow keys — because a gesture nobody can find is a
+  control without a job.
+
+What it does not overturn: a quote is information and the model cannot press it; nothing
+that spends happens on a model's decision; engagement yes, arcade no — no counts of reels
+watched, no streak for swiping, and the words met are the only number at the end.
+
+**Amended 2026-09-25: a text joins a playlist whether or not it is made.** David asked
+Claude, over the connector, to add a weather forecast to the news playlist it had just
+quoted. The model could not: `add_to_playlist` took only texts already on the shelf, so
+it quoted the forecast alone and offered to add it "once it's on your shelf" — a second
+press, a second page, and a promise the model had to remember to keep. Now
+`add_to_playlist` takes a link or a library id too. The text is quoted the way an item of
+a set is, and its job joins the named playlist unclaimed. The press is still the set's
+page, `/set/<id>`, and it claims only what is still waiting, so a text already made or
+already being made is not charged again. Nothing here spends on the model's word: adding
+is a quote, and the reader's press is the only claim.
+
+### The connector talks by the contract — 2026-09-23
+
+The connector shipped with one sentence for the host at `initialize`, and it said what the
+tools were and nothing about how to talk. So a reader who asked Claude for something to
+read in Hebrew was answered in English, about Hebrew: the conversation that targum's own
+chat holds in Hebrew, graded to the reader's own words, did not exist on the one surface
+where somebody else's model writes the replies. David asked for it on 2026-09-23 — "it's
+about immersion".
+
+**One contract, both surfaces, now in the other direction too.** `how_to_talk` hands the
+host the contract targum's chat is given (`contract_for`) and the reader's ledger block
+(`ledger_block`), free and read-only, and `mcp_http.INSTRUCTIONS` and the `talk` prompt
+send the host to it. It is marked `Tool.elsewhere` and never offered to targum's own
+chat, which holds that contract already.
+
+**The contract is the library's; the words are the record's.** `how_to_talk` is offered
+on the `library` scope, so every connected reader is talked to in Hebrew. The ledger rides
+with it only where `record` was granted (`Ctx.sees_record`), and without it the
+conversation is graded to the commonest words instead of the reader's own — the words and
+the slips are what `record` says it shares, and a tool that carried them past the scope
+would make the approval page a lie.
+
+Three things differ, and only three, because the host writes the replies and there is no
+page of ours to draw them (`tools.ELSEWHERE` says them to the host):
+
+- **The translation is asked for, not shown.** On targum's page every `= ` line is
+  folded and a tap opens it. A host cannot fold, so an unfolded line under every Hebrew
+  line would be the in-app conversation with its folding taken away, and the reader
+  would read the English. The tap here is the reader asking: the `= ` line is written
+  for the lines they ask about, or for all of them once they ask for that. A new word
+  still gets its meaning, once, after the reply.
+- **The recast is targum's.** Where the scope that spends is granted, every line the reader
+  writes in the language goes through `record_turn` before the host answers, and the
+  recast it returns is the `> ` line — the host's own correction is never shown as the
+  record's, which is §12's "The host's correction is never the record" read from the
+  page's side.
+- **A door is a link.**
+
+What it does not overturn: never a level; the length; the vocabulary; the host is still a
+host, and a host that ignores the instruction is not something targum can stop. The
+contract is the best a server can do, and the in-app chat stays the one place it is
+guaranteed.
+
+### A cost is credits, and a credit is a minute — 2026-09-23
+
+Two entries below say a cost is hours. "Price language left the product the same day — the
+reader pays by the month, so a wait is a time and a cost is hours" (2026-09-13), and "hours
+said in hours and never in money" (2026-09-22). **Both are retired here.** What replaces
+them: **a balance is credits, and one credit is one minute of audio or video.**
+
+The hours language broke in two ways, and only the first is a bug.
+
+The first is grammatical. "Hours" was doing duty as the pool's name *and* as a unit, so any
+cost under an hour put the two in one sentence. The press card for a one-minute video read
+**"Uses 1 minutes of your hours"** — a plural error and a category error in six words, which
+is what prompted this. That alone would argue for saying minutes, not for a new noun.
+
+The second is what actually kills it. Hours described the pool truthfully while the pool was
+only audio: a recording transcribed on the way in, speech synthesised on the way out, both
+things this product buys by the clock, and `serve.UPLOAD_SECONDS` sums them in seconds. Then
+a written line of Hebrew began drawing on the same sum — charged, through
+`hebrew.seconds_for`, as the time it would take to say aloud. That conversion is defensible
+and it is invisible, and a reader told that writing a sentence costs them hours has been
+handed a rule they were never given. The pool stopped being hours before the word did.
+
+**Credits, and not minutes, and the argument against was heard.** A credit is a minute, so
+the name carries no information a minute did not: "1 credit" must be taught where "1 minute"
+is already known. It is taken anyway, for one reason — a credit is a quantity the reader
+*holds*, and a minute is a duration a thing *has*. The pool is no longer a pile of durations,
+and the moment anything is priced that has no length, "minutes" fails exactly the way "hours"
+just did, while "credits" does not. The rate is the promise, not the unit:
+
+> 480 credits a month — 8 hours of audio or video.
+
+**The rate is shown wherever a balance is, never only on the pricing page.** A credit that
+has to be converted from memory is the invented currency §6 forbids; a credit with its
+equivalence beside it is a minute with a better name. So the account page says *412 credits
+left this month — about 6 h 50 m of audio*, and the pricing page says both numbers in one
+line. Cost points may say the credit figure alone, because the balance they sit beside
+carries the rate.
+
+**A chat message rounds to nothing, and that is the honest answer rather than an oversight.**
+Eight words is about five seconds, which is under a tenth of a credit, and rounding it up to
+one would overcharge by twelve times for the privilege of showing a number. So chatting
+shows no per-message cost and the copy says it plainly: chatting is included. It is still
+metered — `Library.claim_turn` passes the same seconds into the same monthly sum, so somebody
+who talks for hours genuinely spends them — and the daily rail stays what its own comment
+already calls it, a rate limit and not a ration. Metered, and free at the scale of a message:
+both true, and the page says the second.
+
+**The word is chat.** "Checking your Hebrew" was the scope name `check` leaking out of
+`oauth.py` into the reader's copy. What the reader is doing in Claude or ChatGPT is having a
+conversation, the in-app surface has always been called the chat, and the rail is already
+`kind="chat"`. The scope is renamed with the copy; one word in the product, the record and
+the rails.
+
+Nothing in the rails moves. `UPLOAD_SECONDS` is still the ceiling, still in seconds, still
+8 × 60 × 60; 480 credits is that number divided by sixty. This is a vocabulary, and a
+vocabulary change that altered what anybody is charged would be a second decision wearing
+the first one's clothes.
+
+What it does not overturn: §6's ban on invented currency, which is about **engagement** and
+still forbids XP, points and levels outright — a credit is what a subscription buys, not a
+score, and nothing may be earned, awarded or levelled up; there is still no money anywhere
+inside the product, and the reader still pays by the month; a wait is still a time, in
+minutes, because a wait is not a cost; and the reader is still never charged for a turn
+targum did not buy.
+
+### A language talks once it has a number — 2026-09-23
+
+French, Russian and Yiddish were given talk contracts on 2026-09-22 and all three went
+into `hebrew.TALKED` together, on the decision that one contract serves both surfaces:
+a contract that applied on the connector but not in targum's own chat would be two
+standards wearing one name. That stands, and this does not reverse it.
+
+What it adds is the thing that decision left unsaid. `TALKED` is read by
+`session.mode_for` and no flag touches it, so a language put there converses in the
+ordinary product on the next deploy — not only through the connector, which is
+flag-held. A language arriving in that set is therefore a release, and it should carry
+what a release carries.
+
+The three were measured the next day, 200 sentences each against a professional
+translator's rendering. French scored 41.5% and Russian 35.0%, against the Hebrew
+contract's 9.0% on the same corpus and the same judge. Yiddish returned no recast line
+at all about a third of the time, where the other two returned one every time, and the
+rule that closes its contract tells the model to prefer common words from a list that
+does not exist, because wordfreq has none for Yiddish. It has no judge number.
+
+So Yiddish came out again, into `hebrew.HELD`: written, kept, and not spoken. The
+contract is good — it writes real YIVO, pointed, and refuses daytshmerish, which is the
+hard part of Yiddish and the part a model gets wrong by default. What it has not shown
+is that it answers every time, and a conversation that fails a third of the time is
+worse for a learner than one that was never offered.
+
+The rule this leaves: **a language enters `TALKED` when it has a number, and the number
+is what the reader will actually meet.** A contract may sit in `HELD` indefinitely
+without costing anybody anything; a contract in `TALKED` is something a reader is
+handed. `CONTRACTS` may therefore hold a language `TALKED` does not, and never the
+reverse — a conversation with no rules is the failure that ordering prevents.
+
+What it does not overturn: one contract, both surfaces; Aramaic stays out on its own
+grounds, which are a decision about the register and not a measurement (#284).
+
+### A scope is a press that lasts — 2026-09-22
+
+Until now the rule was absolute and written in two places: a chat tool never spends, and
+the press that starts a build stays on the page where the card is. `connector.py` says why
+— "a client whose consent UI targum does not control would otherwise be a way round
+`Library.claim`" — and CLAUDE.md says the same thing from the other side. `Tool.spends` and
+`Tool.needs_consent` were drawn on 2026-09-05 for a surface where that might stop holding,
+and never set.
+
+The surface arrived. targum reached through Claude or ChatGPT (targum-internal#80) is worth
+building because the record fills there too, and the record only fills if something recasts
+what the reader wrote — `slip` is written by a model's judgement or it is not written at
+all. A connector that cannot spend cannot check a line, and a connector that cannot check a
+line is a read-only window onto a moat it does not deepen.
+
+So **one tool spends, and the consent is granted once rather than pressed each time.**
+`record_turn` takes what the reader wrote, targum recasts it on its own model against its
+own contract, and the row is written. The press is the reader ticking the `check` scope on
+targum's own approval page, where what it costs is said in hours before anything is
+granted, and where it is revoked. *(Amended 2026-09-24: there is no tick. The press
+grants what the app asked for, in one go, and chatting is said to be included — see "The
+grant is one press, and chatting is included".)*
+
+What makes that safe is not the grant. It is the two ceilings it sits inside — the reader's
+own `CHAT_BUDGET` and the eight hours, both unchanged, both already refusing in words — and
+a rate limit per token. Build them with the tool, not after it.
+
+- **Only a line in a language the reader is learning is recast**, so a question asked in
+  English spends nothing. The turn is a `job` row of kind `chat` through
+  `Library.claim_turn`, on the same rails and the same `SUM(length)`. No second counter.
+- **The host's correction is never the record.** It writes what the reader wrote; targum
+  judges it. One table, one judge, one standard — which is the whole reason the re-check is
+  worth paying for rather than trusting what comes back.
+- **A build still needs its own press.** Nothing here touches that seam: a quote over MCP
+  is still information, and it now carries a link to a targum page with the button on it.
+  The model still cannot press anything, anywhere.
+- **Elicitation is refused.** The protocol can ask the reader a question mid-tool-call,
+  which looks like the missing consent surface. It is the host's UI, and a host that
+  implements it badly would be deciding whether money moves. Consent is targum's page.
+
+What it does not overturn: ownership comes from `Ctx` and never from an argument; no
+invented currency; hours said in hours and never in money; the reader is never charged for
+a turn targum did not buy. *("Hours said in hours" was retired on 2026-09-23 — a cost is
+credits, and a credit is a minute. The rest of this line stands, and so does the scope
+being renamed from `check` to `chat` by that entry.)*
+
+### A door that is not a text — 2026-09-22
+
+*Retired 2026-09-24 — see "The connector is a banner and a line in the foot" above. The
+door came out of the row; the reasoning below is kept because the alternatives it weighed
+are the ones the replacement had to answer.*
+
+Learn's row of doors has been two since 2026-09-06, and they are registers: Modern and
+Biblical, each carrying its own next text, its own progress and its own share of words
+known. The code says what the row means — "the track is the register, never a level" — and
+everything in it has so far been something to read.
+
+It now holds a third that carries a way in instead: **targum in Claude and ChatGPT**,
+styled exactly like the other two. Note 19 of 2026-09-22 asked for the invitation to be
+prominent on Learn, and the alternatives were both worse — a dismissible card on a page
+whose own panel promises "still pull and never push", or the account page, where nobody
+finds a feature.
+
+Styled the same is the decision and not an oversight. A door drawn as a lesser thing reads
+as an advertisement, which is what the page must not carry; drawn as a door it is what it
+is, a way in, and the reader chooses between three doors instead of two.
+
+**It is appended, never counted.** The row is drawn only when there are enough reading
+doors to be worth one, and that rule still reads the reading doors alone. A row holding
+nothing but the way into Claude would be the first thing a new reader met on a page whose
+own panel promises to pull and never push — an advertisement standing where a text should
+be. So it is permanent in the sense that matters, never dismissed and always there, and
+it is there only where there was already a row.
+
+It is also the one door that is a link rather than a button: it goes somewhere, where the
+others swap the sheet below, and it is never marked as the way the sheet was reached
+because it never is.
+
+The cost is real and is written down here so it is not rediscovered: Learn's first job is
+getting somebody into a text, and a third door competes with the two that carry one. The
+only signal that would say so is whether the reading doors are pressed less after it ships,
+and the `event` rows are where to look.
+
+### The arrival asks which language first — 2026-09-20
+
+"How in on-boarding does the russian user switch to russian?" David asked, and the honest
+answer was that they did not. An account's `reads` decides two things — the language of
+the line under each Hebrew one, and the language the desk speaks (§13) — and a new account
+was English in both. The ways out were the profile page, a question the conversation asks
+once and only of a browser that already says Russian, and the operator marking an invited
+address beforehand. The front door had a switcher, and what was pressed there was dropped
+at the next link: the sign-in page went back to the browser's language, and the phone of
+an olah who reads Russian is as often set to Hebrew or English.
+
+So the arrival is **three questions, a screen each**, and the first is *What is your
+native language?* — David's wording, the same day, over "Which language do you read?": it
+is the question a person answers without thinking, where the other asks them to work out
+what targum means by reading. What it sets is unchanged — `reads`, so the line under the
+Hebrew and the desk. A reader whose native language is neither has a third row, **Other ·
+Другой**, in both languages because it is nobody's own name: it sets English, the only
+other language there is to read into, and it is an answer, so they are not asked again —
+Skip says "not now", and this reader means "neither". This amends "The arrival is two questions" below in its count and in nothing
+else: one question a screen, where it is said in words, a Skip on each, a Back on all but
+the first, and the last answer opens the text.
+
+- **First, because it is the one that cannot wait.** A reader who cannot read "What are
+  you interested in?" cannot be asked it.
+- **Asked in every language it offers at once.** The question a line a language, each row
+  in its own name — English, Русский — and each marked as what it is. It is the one screen
+  that may not assume the page's language, so its words are in `learn.js` and not in the
+  catalogue. No flags: §10 stands, and the language menu's exception is the menu's.
+- **Pressing a row is the answer**, as on the ladder. The account is told the way the
+  profile page tells it, and the page is loaded again where the answer changed the
+  language it should be in, because the server draws a desk page in one language. It
+  comes back on "2 of 3", with the language one Back away.
+- **Asked of everybody who has never said, and of nobody who has.** Not only of a browser
+  that says Russian: that is the wrong signal for exactly the reader this is for. An
+  account with `reading` rows has said — its own, or the operator's mark; so has a page
+  that arrived in another language, a browser that holds a choice, and a reader the
+  conversation asked. `first.js` and the arrival keep the same two keys, so neither asks
+  after the other. `/account/me` says `readsSaid`, because `reads` answers English for an
+  account that has said nothing and the two have to be told apart.
+- **A press on the front door is a press.** The switcher's choice rides the sign-in link,
+  the sign-in page and its email are in it, `signin.js` keeps it as what the browser reads
+  into, and Learn hands it to the new account — once, at the arrival, which is the one
+  moment it is certainly a new reader's. Only what was pressed is carried; a language the
+  browser merely suggested is used and not kept.
+- **The first text is one with their language under it, where there is one.** The shelf is
+  English throughout and Russian in places (beta), so the arrival looks across all three
+  subjects for a text whose `targets` has the reader's language before it makes its
+  ordinary pick. Where none has it, the ordinary pick, in the language it exists in: a
+  Russian desk over English lines, which is the true state of the shelf and the argument
+  for translating more of it. Nothing is translated on the way in — no spend on a press
+  that did not ask for one.
+
+`test_learn_arrival_language.py` holds the rules; `test_pages_browser.py`'s arrival answers
+the language first, and its walk into a text is six presses where it was five.
+
+### A reel at the size a reel is — 2026-09-20
+
+A design review of the arrival, the vertical film and Learn, at 320 to 1920 wide. Most of
+what it changed is a repair and needs no entry. Three things are decisions, and would be
+"corrected" back by somebody reading the older entries.
+
+- **The fixture films were too small to fail.** `tiny.webm` is 64x36 and `tall.webm`
+  36x64. Watching is a grid, a grid track left `auto` is sized by what is in it, and a
+  reel comes down 480x854: the picture made its own row 2562px tall on a 900px window,
+  with the line and the transport under the fold, and a landscape film did the same in
+  any window shorter than it. Every test of the mode passed. `reel.webm` and `film.webm`
+  are the sizes the importer keeps, and `test_reel_browser.py` lays them out at six
+  windows. A layout test wants a fixture the size of the thing.
+- **An upright film in a wide window has its line beside it, not over it.** "Laid over
+  the picture in landscape" (2026-09-03) is right for a film that fills the window. An
+  upright one is a column in the middle with a letterbox each side wider than itself,
+  and the line and the transport were both laid across that column: two thirds of the
+  picture on a phone turned sideways, and at any size the place a reel burns its own
+  captions in. So: the film at the start, the line next to it as text on the letterbox,
+  the transport under the line, and the tap that plays the size of the picture. Portrait
+  is as it was — picture, line, transport, down the window.
+- **A docked reel on a phone is an occupant of the band**, full width like any other,
+  the picture in the middle of it and its keys down the edge. It was an 11rem box in the
+  corner with the page showing beside it, and in a Hebrew text the corner it took is
+  where every line begins. At a desk the upright dock is 13.5rem, as wide as its keys
+  need, and the grip drops its word there and nowhere else (2026-09-14, "The picture's
+  keys say what they do", stands for the other three).
+
+And on the arrival, inside what 2026-09-19 settled: the question is set as a card title
+at a desk as it already was on a phone — it was the size of the hint under it — and at
+48rem the ladder is two columns of four, read down then across, because eight rows put
+the text "somebody who ignores it still has" under the fold at 1440x900. Not now, on the
+words-you-know panel, stands at the panel's head rather than under its fifty rows.
+
+Three more the same day, each asked for by David after the review named it.
+
+- **The build measures a film, so the page need not wait for it.** The shape came from
+  the film's own metadata (2026-09-17), which is right and late: until it landed a reel
+  stood in the stylesheet's 16/9 and then jumped upright. `tools.frame` reads the cut's
+  size, `ManifestPart.frame` keeps it, and the page carries it as `tall` in the panel's
+  class and `data-film` beside it. An attribute and not a `style`, because a served
+  page's policy allows no inline style. A manifest from before today has no measure, so
+  the render asks the cut on the disk, and a reader rendered again is put right without
+  being imported again. The film still has the last word when it arrives.
+- **The second question has a Back.** "One question a screen" stands, and so do Skip
+  and the five presses. But the arrival went one way only, and a reader who pressed
+  Next a subject early could not see what they had chosen. Back is a ghost beside Skip
+  on the second screen and nowhere else; the subjects are as they were left, and Next
+  keeps them again if they change.
+- **Mark known, and None.** The two presses under the words-you-know list said "Mark
+  checked as known" and "None of these", which §6 already called long ("a button or a
+  link is one or two words"). On a phone they would not share a row beside the pill, so
+  the strip stood two rows tall over a list with three rows showing at 320x568.
+
+### The arrival is two questions, a screen each, and the second one is kept — 2026-09-19
+
+The arrival is the one thing a new reader is asked, and until today nothing about it was
+written here. It was built under targum-internal#294 and argued over under #306, and the
+whole of that lived in commit messages and comments in `learn.js`. It goes here now
+because it ends in a departure from a rule this document states twice.
+
+**What is asked.** *What are you interested in?* — nineteen subjects in the words a person
+uses about themselves, three at least, every one offered whether or not the shelf can
+answer it yet, because three answers are a profile and a profile may name what has not
+been filed (#294, 2026-09-17). Then *How much Hebrew do you have?* — the eight rungs of
+the ulpan ladder `level.py` climbs, said as what a person can **follow** rather than what
+they can read ("I follow slow Hebrew, with help"), because many come to listen and to
+watch (#337), with the kitah letter as the smaller half of each row.
+
+**A level was asked, then not, then asked again, and this is the fifth state.** §6 says
+engagement counts real things and never a level, §12's "A language with CEFR levels shows
+them" says every level shown is *measured*, and `learn.js` has said since it was written
+that nobody is asked how good they are. Against that: the measurement happens after the
+first text, so the one routing decision it cannot inform is the one a reader meets first,
+and a reader at gimel who is handed Scene 1 has been patronised before they have pressed
+anything. #306 was closed against (2026-09-17, morning), decided narrowly for — asked,
+used once to pick the first text, kept nowhere (2026-09-17) — and decided against again
+the next day, because a rung asked and thrown away "stops a reader on their first visit
+for an answer thrown away before the page is drawn again: the worst half of both".
+David reopened it on 2026-09-19 — "I think we should ask level" — and chose the variant
+the card had named and nobody had built:
+
+- **The answer is kept**, on the account beside the subjects, so a phone's answer is not
+  asked again on a laptop.
+- **It is a seed.** While nothing about the reader has been measured, it decides the
+  three things that otherwise have nothing to go on: which text opens first, the band
+  the Library opens on, and how hard the conversation writes.
+- **It is outvoted by the first measurement.** The moment the reader's own marked words
+  reach a rung — by reading, or by the claim grid a minute after the first text — the
+  measured rung is what everything reads, and the declared one is not consulted.
+- **It is never shown back.** Your Progress shows the measured rung and only that, still
+  "A guide, not a placement"; the conversation still never says a level to the reader;
+  nothing anywhere says "you said gimel".
+
+So it is a declared level, and the rule it departs from is real. What keeps the departure
+small is that the number has a short life and no display: a reader who overclaims gets a
+hard first text and is corrected by their own taps within minutes, and nobody downstream
+inherits the error, which was the objection.
+
+**One question a screen** (David, 2026-09-19: "one question page", "always clear what
+next step is"). The subjects are a screen with a **Next** that wakes at three; the rungs
+are a screen where pressing a row is the answer; each says where it is in words ("1 of
+2") and each has a **Skip**, because a question a reader may not decline is a gate, and
+the arrival is not one. **The last answer opens the text it chose** — the reader, not
+Learn with a card to find. On a phone each step is the screen: the subjects wrap as
+pills instead of standing as nineteen rows, and Next and Skip are fixed at its foot,
+which is the one place a fixed control is right because there is no page under it yet.
+
+This fixes something that was false on a phone. The arrival "sits on the desk ground
+rather than in a card… somebody who ignores the question entirely still has a text open
+and loses nothing" — true at a desk, where the sheet frames a reader under it, and untrue
+under 40rem, where there has been no sheet since 2026-09-14. There, the only filled
+button on a new reader's first screen was a disabled one.
+
+**Learn on a phone has one lead.** The cards were "each worth pressing equally" and so
+none said *start here*. The first card — Start here, or Continue — is the lead: across
+the column, with the one filled button on the page (§13, "filled in the primary, one per
+view") and its verb on it. The rest sit under it as they were.
+
+`test_learn_js.py` pins the two steps, the skip, the rung kept and handed back, and the
+measured rung outvoting it. targum-internal#334, #306.
+### The Beit Midrash comes back, as a way of walking the one list — 2026-09-19
+
+"It is time to build the 'Beit Midrash' section," David wrote: another tab after Your
+uploads, only for Hebrew, inspired by Sefaria's navigation, so that "someone who only
+studies Biblical Hebrew should be able to find what they are looking for right away."
+
+There was one before, and it was taken out. The catalogue was two shelves with a switch
+between them and two sets of addresses, and "a reader had to know which room a text was in
+before they could find it, which is backwards for the one page whose whole job is finding
+something." What survived was the tagging (`catalogue.Tag`, `beit_midrash()`), kept so
+that the texts a reader came for could one day be shown alone. `test_pages.py` forbade
+the name on the library page, and `test_hosted.py` still refuses the old addresses.
+
+So the name returns and the shape does not. **The Beit Midrash is not a second room; it
+is the one list asked a different question** — not "what is it about" but "where does it
+stand". Every text in it is also a row under All texts, at the same address, drawn by
+the same code; `test_library_js.py` pins that, and the old test now asserts the invariant
+it was protecting rather than the absence of two words.
+
+It lives inside the rules that were already here:
+
+- **"The list stays one list"** (The library folds, 2026-09-01). A door narrows the list
+  the way a subject does, and the search still looks behind every door at once.
+- **"A collection is not a second layer and must not become one."** Behind a door the
+  collections are the ones the list already folds into, drawn by the same rows and
+  cards — and standing **open**, because Sefaria's shape is every book under its
+  heading, and a student looking for Ruth should not have to guess which of three shut
+  rows it is in. The tab, Tanakh, Ruth: two presses.
+- **"A row of chips is drawn from the rows that exist"** (2026-09-17). Seven doors —
+  Tanakh, the Torah by portion, the Aramaic translations, Mishnah, Halakhah, Thought and
+  ethics, Liturgy —
+  and not Sefaria's dozen: there is no Talmud and no Midrash on this shelf, and a door
+  with nothing behind it is a dead end. Each door carries its count.
+- **Hebrew's alone** (§13: what only Hebrew has hides under another language), and drawn
+  only where the catalogue says which door anything stands behind (`Collection.door`).
+
+Two things it does that the rest of the library does not, each on purpose:
+
+- **The level band does not apply.** All texts opens on what a reader can read now. A
+  tree that hid the Writings from a beginner because they are hard would be a tree with
+  branches missing; the reader came to see where things stand, and each row still says
+  how much of it they know. The same reasoning took the band off Your uploads *(a tab until 2026-09-25)*.
+- **It crosses a language line, at one door.** The Targums are Aramaic rows and have a
+  door here (David, 2026-09-19: Sefaria files Targum under Tanakh, and a Torah student
+  looks for Onkelos beside the Torah). They open as Aramaic readers, their words still go
+  to the Aramaic list (targum-internal#202), and the door says what they are — "Aramaic
+translations" under תרגום — because the Latin word is the product's name and §2 keeps it
+lowercase and for the product alone. Nowhere
+  else does the Hebrew shelf show another language's rows.
+
+The tree has an address — `#bm`, `#bm/tanakh` — the first view of this page that does,
+so a link can land somebody on a door. targum-internal#68, the account preference that
+shows *only* these texts, is a different thing and still unbuilt; it was renamed the same
+day and will read this tab's predicate. targum-internal#340.
+### There is one look, and it is light — 2026-09-19
+
+"Remove dark mode everywhere," David wrote, and it is gone: the second palette that
+`reader.css` carried twice (once for a browser that prefers dark, once for a reader who
+chose it), the chart neutrals `words.css` carried the same way, the switch in the bar, in
+the account's sheet and on eight pages of their own, the script in every `<head>` that
+stamped the choice before first paint, and the one `localStorage` key that survived a
+sign-out.
+
+Half of this was decided three days earlier and never written here. **The front door is
+light, always (David, 2026-09-16)** — as `landing.css` recorded it, "one page and one
+look. A stranger meeting it for three seconds should not meet a second design because
+their phone is in night mode."
+That covered the landing page and the pages in front of the door — about, legal, the
+holding page — and lived only in their stylesheets and in `test_landing.py`. The argument
+did not stop at the door. A second theme is a second design to draw, measure and keep:
+every contrast ratio in §4 twice, every shadow tier in §13 twice, a ramp in `words.css`
+that had once been written out three times over, and a class of bug — a band that turned
+pale on a dark page, a letterbox that became the brightest thing on it — that existed
+only because a token could flip. One person draws this, and one look drawn well was
+worth more than two kept level.
+
+What is **not** dark mode, and stays exactly as it was:
+
+- **§9's ink inversion** — one block per screen on the ink surface — and the
+  max-contrast pair. These are dark surfaces on a light page, and they are why §4 still
+  has an "on ink" column: the pale cuts of the accent, the teal and the three functional
+  hues are what text and marks are on such a block. The bright set is still ink-panel
+  only.
+- **A film's letterbox**, the keys over a film being watched, and **the public pages'
+  band**. Their colours were literals so that they would not flip; they are literals
+  still, because a block that inverts the page should say its own values.
+- **The favicon's own `prefers-color-scheme` switch** (§11) and the `-dark` marks and
+  lockups. The favicon follows the *tab strip*, which is the browser's and may well be
+  dark; the marks are for ink surfaces.
+
+What it cost: a reader who liked it loses it, and a page that is light at night is
+brighter than some would choose. Nothing is offered in its place — not a dimmer, not a
+sepia. If the reader's page is too bright at night, that is a thing to hear from readers
+and answer in the page's own tone, once, for everyone.
+
+**Built readers carry the old theme until they are rendered again.** A reader is one
+file with its stylesheet and scripts inlined, so every reader built before this day still
+has the dark palette, still reads `targum:theme`, and still draws the switch. The shelf
+is rendered again as part of shipping this — rendering, not annotating: no annotator is
+renamed and `SCHEMA_VERSION` does not move. Until then a phone in night mode gets a dark
+reader off a light desk.
+
+`theme.js` had a second job, where a write goes on a page served over HTTP
+(`targumKeep`, `targumForget`); that half is `keep.js`. `sync.js` keeps its keep-list,
+empty: the next display preference belongs in it. `test_render.py` pins the absence —
+no `prefers-color-scheme` in any stylesheet, no `data-theme` on any page — the way
+`test_landing.py` already did for the front door. Five palette entries that only a dark
+page used left `test_brand.py`. targum-internal#333.
+
+
+### Three moments in ten minutes, and none of them is a tour — 2026-09-19
+
+David, in the handwritten notes of that day: onboarding should "aim for a 'magic moment'
+within 1 minute, another within 3, another within 10", and "the user should have a clear
+understanding of all USPs within 10 minutes."
+
+There was one first-run device in the whole product: a line under the reader's bar, "Tap a
+word to say how well you know it", and a sentence on the first word's card. Nothing told a
+new reader the page could be heard, and the first stranger never found out. And there was
+one recorded failure: a tour that opened a word's card on load, which failed eleven
+browser tests on "element is not stable" — "a card that seizes the band before anybody has
+touched anything is not a tour, it is a page rearranging itself."
+
+So the rule for all three: **a line said once, in place, in answer to something the reader
+just did.** No overlay, no step counter, nothing that moves the page unasked, nothing that
+leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration in type
+(§1).
+
+1. **The word, within a minute.** As it was. The arrival opens a text directly
+   (2026-09-19, above), and where the reader's subject has a text that can be heard, that
+   is the one it opens — because the second moment is impossible on a silent page.
+2. **The voice, within three.** When the first word is marked, the same line, in the same
+   place, at the same height, says "Now press play. The page follows the voice, line by
+   line." The press puts it away, and it is said once in a browser.
+3. **Being remembered, within ten.** The first time What to work on has anything in it, it
+   says what it is: "These are the words you marked. We keep them here, and they'll be
+   waiting whenever you come back." One visit, and never again. It counts nothing — the
+   fold's rule that nothing puts a number on what is waiting is untouched.
+
+What is not here yet, and is the rest of the list David settled the same day: bringing your
+own, talking to targum, and "targum remembers what you're having trouble with", which
+waits for the events of targum-internal#127. targum-internal#335.
+### Time and words on Your Progress, read from the account — 2026-09-20
+
+"I believe we should track hours and minutes a user has listened and watched, and words
+read," David wrote; "this data should be displayed and filterable on Progress."
+
+Nothing measured any of the three. The audio store kept one resume position a text, and
+nothing counted a word as read. So there is a record now of what happens in a text
+(targum-internal#127: a word looked up, a stretch played, a page turned, a section
+finished, where a sitting stopped, a control pressed), and Your Progress has a panel,
+**Time and words**, that is a reading of it.
+
+Two things about it depart from how this page was built, and both are on purpose:
+
+- **It is not drawn from this browser's store.** Everything else on Your Progress is —
+  "the server only hands over the page". These three figures are the account's reading of
+  its own log, because the log is appended and never merged: `/sync` is last-write-wins,
+  which is why a day's count is a constant 1, and a tally of seconds written from two
+  browsers would be destroyed by the merge that keeps the word list whole. Read from the
+  account, a phone and a laptop add up by construction. The cost is that the panel is
+  absent signed out — **absent, not nought**: where there is no record the panel is not
+  drawn, and where the reader has stopped theirs one quiet line says so.
+- **It has filters, on a page that had none but the language.** What the reader was doing
+  (reading, listening, watching) and when (all time, thirty days, seven). They narrow
+  these figures and nothing else: a day is not in a language and the longest run is not
+  in a medium, and the ledger above is untouched.
+
+What it keeps to: real counts of real things (§6) in the ledger's own treatment — hours
+and minutes, words, the reading face with tabular numbers — no unit invented, no hue,
+because these are counts of what was done and not achievements, so leaf is not theirs. A
+figure that is nought is not drawn. **A word is read when its page was turned past or its
+section was marked done**, and the panel says so under the figures: never a guess from how
+far somebody scrolled. Counted by the line, once in a visit, so a window resized cannot
+count a page twice. Time is wall-clock, and a film played with its picture put away was
+listened to.
+
+The record itself stands behind `TARGUM_EVENTS`, off unless the deployment says so: the
+privacy notice names a legal basis for every category of data, this is a new one, and
+the sentence that says so is David's to publish. On the account page the reader has what
+was decided — a plain account of what is recorded, a switch that stops it, and an erase
+that asks twice. targum-internal#127, #339, #341.
+
+
 ### The weekly goes out unread, and claims nothing — 2026-09-17
 
 `weekly publish` was the gate the whole design rested on: nothing written by a model went
@@ -369,7 +1403,8 @@ opposite of ambient.
   ordinary row when it is done. That is where the reader was going anyway; the library is
   the one page that can honestly say "everything of yours is here", and a text that only
   existed in a notification until it finished made that false for the ten minutes it
-  mattered.
+  mattered. *(Since 2026-09-25 that page is Your targums, and a build is a row at the top
+  of it. See "Yours and everyone's".)*
 
 - **The page that started it still narrates it.** `/add` already did and keeps doing it.
   The two are not a duplicate: one is where you are, the other is where you go.
@@ -589,7 +1624,8 @@ These are the ones that change or add a rule, so they are recorded.
   in the bell and in Learn's sheet, whatever this browser has seen.
 - **Names on the Library.** The difficulty column is "Hard words", because it counts
   words rare in the language rather than words new to the reader; the register column
-  and filter are "Which Hebrew"; the tabs are All texts and Your uploads. The weekly's
+  and filter are "Which Hebrew"; the tabs are All texts and Your uploads *(All texts alone since 2026-09-25, with the
+  Beit Midrash for Hebrew: see "Yours and everyone's")*. The weekly's
   top edition is "Native": the other two are real Hebrew too.
 - **Delete account stands on its own row, in clay, and its second press offers Keep
   my account.** A deleted account signs the browser out and empties its store.
@@ -728,7 +1764,7 @@ open the conversation, press `+`, choose a file and then find "More options" —
 type ⌘K. Its maker asked for the Add page to be reachable from the main navigation, "in
 a sleek way".
 
-So the nav is four: Learn · Library · Your Progress · Add. Add is last because the order
+So the nav is four: Learn · Library · Your Progress · Add. *(Five since 2026-09-24: Your targums is second. See "The shelf says what a text is at a glance".)* Add is last because the order
 is how often somebody wants each one, and bringing a text is the rarest of the four. It
 is drawn as the other three are — a pill, current in the primary on its own page — and
 is the one place whose glyph, a `+`, stands beside its word at a desk as well as over it
@@ -772,6 +1808,16 @@ the thing to take hold of, **Full screen**, the corner and ×; the size handle i
 is drawn on a raised ground instead of a faint hatch. Full screen, the two keys are pills
 over a dark backing: **Transcript**, which shrinks the picture to its corner beside the
 text, and **Close**. On a phone nothing moves or resizes, and the sheet is unchanged.
+
+**And the reader's own keys, 2026-09-19.** The bar's `?` was §7's typed character "as
+itself", and the first stranger read it as what a `?` in a corner means everywhere else:
+help. She pressed it to be told how the page works and got a table of keyboard shortcuts.
+So it says **Keys**, the word the card it opens already has at its head. The `?` key
+still opens it, the card still lists `?`, and the button keeps the mark in two places:
+behind ⋯ on a narrow window, where the row is already named Keys, and between 60 and
+75rem, where the bar has no room for a word (measured: at 1100px it cost a second row). What a
+stranger was actually looking for is not a help page; it is the first ten minutes
+(targum-internal#335). targum-internal#338.
 
 ### The language menu carries flags, and the date follows the language — 2026-09-14
 
@@ -919,9 +1965,13 @@ spend, claimed at the estimate and settled to the clip; the section is read alou
 at a time so every line has its clock; and the page is written again with the audio in
 it, the way an imported recording's is, so it still fetches nothing. Ink for the door,
 because it asks the reader to act (§9); the cost in minutes, never money (§6). The door
-is drawn only while the voice has a price, and it does not yet: an unpriced voice is not
-for sale, which is the decision of 2026-09-10 and the reason the door is not on any page
-today.
+is drawn only while the voice has a price — an unpriced voice is not for sale, which is
+the decision of 2026-09-10, and `speech.priced()` is that condition in code.
+
+*It has had a price since 2026-09-13 (`speech.PRICES`), so the door is on the page: a
+Hebrew section with no recording of its own offers it, with the minutes beside it. This
+paragraph said the door "is not on any page today" until 2026-09-20, three weeks after
+it was.*
 
 ### The things most readers ask are buttons — 2026-09-10
 
@@ -1254,7 +2304,8 @@ What stands in its place:
   video" above: the picture is not on beside the page, it is the page until the reader
   says otherwise.*
 - **Nothing plays until pressed.** Autoplay is the arcade's move, and a reader on a train
-  is still a reader.
+  is still a reader. *Amended 2026-09-23, see "A playlist is swiped" in §12: inside a
+  playlist a swipe is the press, and the next item plays.*
 - **A text with neither opens exactly as before.** The Tanakh page is untouched by this.
 - **The text is still the page.** The media is how it opens, not what it is: the player
   and the picture stay occupants of the band, and the reading column keeps its measure.
@@ -1299,8 +2350,9 @@ the sheet holds first, a subscription's new instalment, the suggestion, the text
 lately and the ones followed, each once, each the press to its reader, with All your
 targums under them. The row of doors goes with the sheet, because the cards are the
 doors. A text the conversation offers opens its reader directly, as on every other page.
-At a desk nothing changes: the sheet frames the reader across the row, and the doors choose
-what it holds.
+At a desk the sheet frames the reader across the row. (The doors chose what it held until
+2026-09-18, when the desk got the cards too, as a rail beside the sheet, and the row of
+doors left it — targum#294. The card whose text the sheet shows is marked in the rail.)
 
 ### The menu behind ⋯ covers the page too — 2026-09-14
 
@@ -1423,10 +2475,9 @@ the layout and the picture takes the top.
 
 Three things about it are worth writing down. It is §9's one inverted block, spent here.
 Its colours are **constants, not tokens** — `#171614`, `#e6e1d8`, `#fffdf9`, `#c8a778`,
-every one of them out of §4's table — because the max-contrast pair flips with the theme,
-and flipping turns the band into a pale panel sitting on a dark page; held still, the band
-is the dark surface in both themes, and in dark mode it merges with the ground so the
-photograph is left floating. And the photograph is a stand-in: `assets/scroll/README.md`
+every one of them out of §4's table — so the band says its own values. (They were constants for a second reason
+until 2026-09-19: the max-contrast pair flipped with the theme, and there is no theme
+now.) And the photograph is a stand-in: `assets/scroll/README.md`
 says whose it is, that it is CC0, and that a commissioned one is what should ship.
 
 ### A reader that carries moving pictures — 2026-08-31
@@ -1473,7 +2524,7 @@ says news. Two things now do, and both bend rules written for targum's own paint
   `--lift` shadow although it is not a floating overlay. §8's "shadows exist only on
   floating overlays" governs surfaces the interface rests things on; the stack is an
   illustration of an object that casts one. It is `aria-hidden`, square-cornered (a
-  newspaper has no radius), printed as it was printed in both themes, and never
+  newspaper has no radius), printed as it was printed, and never
   carries controls. The photographs are not free files — a front page is a copyrighted
   work — and shipping them was David's decision, made knowingly on 2026-08-31;
   `assets/press/README.md` records which files and what to do if an outlet objects.
@@ -1501,7 +2552,7 @@ because this paragraph exists.
 §4 described four gold steps for the chart ramp (`#c8a778 → #ab8555 → #8b6840 → #6b4f2e`).
 The code stopped painting them: gold on warm paper made every chart on the page read brown,
 and §4 gives "known" to leaf by name. The ramp is now tints of `--leaf` mixed against
-`--paper`, so one definition serves the light surface and the dark one and "known" is the
+`--paper`, so "known" is the
 most present step on each.
 
 **The structure §4 asks for is unchanged** — one hue, monotone, four steps, the end nearest
@@ -1583,7 +2634,8 @@ What survives from the terse voice below: short lines, one- or two-word buttons,
 exclamation marks, no emoji, the lowercase name, no invented currency, no superlatives.
 What does not: the third-person narrator and the refusal to soften. Price language left
 the product the same day — the reader pays by the month, so a wait is a time and a cost
-is hours.
+is hours. *(Superseded 2026-09-23: a cost is credits, and a credit is a minute. A wait is
+still a time, and there is still no price inside the product.)*
 
 ### The voice is terser than "reasons given" — 2026-08-24
 
@@ -1603,10 +2655,10 @@ the door — sign-in, the holding page and its 404, What's built — stand on th
 since 2026-09-14 (targum-internal#276): the ground, the chrome's face, the door and the
 count as cards, the address in a well, and the call to action still ink (§9).
 
-**Surfaces.** The ground of every chrome page is the desk, `#ece7de` (dark `#121110`);
-things sit on it as cards, `#fffdf9` (dark `#201e1b`), raised by their shadow and not by
+**Surfaces.** The ground of every chrome page is the desk, `#ece7de`;
+things sit on it as cards, `#fffdf9`, raised by their shadow and not by
 a line: three tiers — rest `0 1px 2px` at 6%, raised with `0 8px 24px -12px` at 18%
-under it, floating with `0 24px 48px -20px` at 28% (dark 40 / 60 / 80%). A hairline, ink
+under it, floating with `0 24px 48px -20px` at 28%. A hairline, ink
 at 8%, stands only where two same-tone surfaces meet. Two more surfaces: **tint**, the
 primary at 9%, which is the ordinary press; and **glass**, the card at 78% under a 12px
 blur, which is the bar. The one pure-paper surface, `#fbf9f5`, is the reader's page
@@ -1620,7 +2672,7 @@ primary, the bell and the account as round buttons; the reader keeps its own bar
 phone (under 40rem) the four places — Learn, Library, Your Progress, Add — are a bar at
 the foot of the window on glass, a glyph over each word, and at a desk only Add keeps its
 glyph, a `+` before the word; the top bar keeps the mark, the language (its flag alone), the
-bell and the account, with find and the light switch as rows in the account's sheet; the pill
+bell and the account, with find as a row in the account's sheet; the pill
 that opens the conversation is a round button above the bar, and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn on
@@ -1636,12 +2688,12 @@ view" (§9) is a reader rule; on the desk every card is raised and the sheet is 
 brightest object.
 
 **Colour.** The warm family stays. The primary is teal, `#1f6f6b` on light (5.6:1 on
-paper, 5.8:1 as paper text on it) and `#6fb8b3` on dark (7.4:1): links, Send, the
+paper, 5.8:1 as paper text on it) and `#6fb8b3` on ink (7.4:1): links, Send, the
 active tab, the selected row, a field's focus, and the "on" state. Calls to action stay
 ink-filled with paper text (§9). The brown accent keeps the reader; on the desk it is not
 used. The functional hues — leaf, clay, iris, sun — mean what §4 says and nothing else,
 so a teal thing is always a control and a green thing is always progress. The wash is
-teal at 9% (dark 12%).
+teal at 9%.
 
 **Type.** The chrome speaks in Source Sans 3, self-hosted under its licence (OFL), Latin
 subset, on chrome pages only; the fallback is `"Segoe UI", system-ui, sans-serif`.

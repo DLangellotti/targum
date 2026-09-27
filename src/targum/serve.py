@@ -38,7 +38,18 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
-from .accounts import CHAT_RESTARTED, Person, Store, now, plausible
+from . import mcp_http, oauth
+from .accounts import (
+    CHAT_RESTARTED,
+    MOST_IN_PLAYLIST,
+    MOST_PLAYLISTS,
+    MOST_PROMPTS,
+    Person,
+    Store,
+    now,
+    plausible,
+)
+from .audio.manifest import POSTER
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
@@ -47,7 +58,11 @@ from .remembered import Remembered
 from .render.builder import (
     LEGAL,
     about_page,
+    approve_page,
     back_office_page,
+    connect_page,
+    connect_refused_page,
+    credits_of,
     daily_page,
     front_page,
     holding_page,
@@ -55,6 +70,8 @@ from .render.builder import (
     legal_page,
     not_found_page,
     parasha_page,
+    press_page,
+    set_page,
     shelf_page,
     signin_page,
     text_page,
@@ -156,6 +173,44 @@ def said_in(ui: str, key: str, english: str, **fill: object) -> str:
     return text.format(**fill) if fill else text
 
 
+def refused_in(ui: str, error: TargumError) -> str:
+    """A refusal, in the language of whoever is about to read it (targum-internal#348).
+
+    A `TargumError` is raised where the trouble is — in the fetch door, in an ingester,
+    in a video host's module — and none of those know who is reading. So the message
+    travels in English with a key, and the language is chosen here, at the one point
+    that does know.
+
+    A refusal with no key is said as it always was. That is most of them, and all of the
+    ones only an operator meets.
+    """
+    from .strings import SOURCE, catalogue
+
+    if not error.key:
+        return f"{error.message} {error.hint or ''}".strip()
+    code = (ui or SOURCE).split("-")[0].lower()
+    book = catalogue(code) if code != SOURCE else {}
+
+    def say(key: str, english: str) -> str:
+        """The translation with the sentence's own values in it, or the English as it
+        was raised. The English is interpolated already — it was an f-string where the
+        trouble was — so it is never formatted again: an address with a brace in it
+        would take the whole refusal down with a KeyError."""
+        found = book.get(key)
+        if found is None:
+            return english
+        try:
+            return found.format(**error.fill)
+        except (KeyError, IndexError, ValueError):
+            # A translation whose blanks do not match what the refusal carries. The
+            # English still says the true thing, which is what matters here.
+            return english
+
+    said = say(error.key, error.message)
+    hint = say(f"{error.key}.hint", error.hint) if error.hint else ""
+    return f"{said} {hint}".strip()
+
+
 # A full-length novel costs real money to translate, and a page anyone on this machine
 # can reach should not be able to spend it by accident. Both are estimates rather than
 # billed amounts, so they are deliberately conservative.
@@ -178,6 +233,12 @@ TRASH_DAYS = 7
 # Written inside the folder rather than kept in a table: the folder is the thing being
 # deleted, and a marker inside it cannot drift away from what it describes.
 TRASHED = "trashed"
+
+#: How many rewritten lines the queue offers at once (targum-internal#290). The same
+#: twenty the word queue offers, for the same reason: a sitting rather than a syllabus.
+SLIPS_SHOWN = 20
+#: How many of them the phrases page lists as the record, newest first.
+SLIPS_LISTED = 500
 
 # What a page is allowed to do. Readers are self-contained by construction — no script,
 # stylesheet, font or image from anywhere, and the tests hold that — so the policy can
@@ -301,6 +362,25 @@ ACCOUNT_BUDGET = 10.00
 UPLOAD_HOURS = 8
 UPLOAD_SECONDS = UPLOAD_HOURS * 60 * 60
 
+# The same allowance in the unit the reader is shown (design.md §12, 2026-09-23: "A cost
+# is credits, and a credit is a minute"). Derived rather than typed, so the rate lives in
+# one place and a page cannot quote a number the server does not enforce — the bug the
+# refusal's own comment describes, where the pricing page and the constant said ten to
+# each other until one of them moved.
+#
+# Hours have not gone anywhere: they are the promise ("8 hours a month"), because eight
+# hours is a shape a reader pictures and 480 credits is not. Credits are what a cost is
+# counted in, because a cost is often a minute and nothing here has only durations to
+# price any more. Both numbers appear together wherever a balance does.
+SECONDS_A_CREDIT = 60
+UPLOAD_CREDITS = UPLOAD_SECONDS // SECONDS_A_CREDIT
+
+#: How many of the words met a playlist's end card names (#367): enough to be the words,
+#: few enough to read at a glance. The count beside them is still the whole of it.
+END_WORDS = 12
+#: A text finished this recently is not offered again in a next set.
+RECENT_DAYS = 30
+
 # What one reader's conversation may spend in a day. **A rate limit, like the account
 # rail above, and a narrower one**: a turn is uncacheable and the reader controls the
 # volume, so the rail that was sized for builds — where a novel is the unit — is the
@@ -345,8 +425,30 @@ OPEN_TO_STRANGERS = frozenset(
         "/waitlist",
         "/waitlist/confirm",
         "/waitlist/stop",
+        # The connector (targum-internal#80). A client registering itself, asking for
+        # tokens or giving one back has no account and is not a person; the reader is,
+        # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
+        "/connect",
+        "/oauth/register",
+        "/oauth/token",
+        "/oauth/revoke",
+        "/oauth/authorize",
     }
 ) | frozenset(LEGAL_ROUTES)
+
+#: The two documents that tell a client where the doors are, at the well-known names the
+#: RFCs fix. A client reads the first off a 401 from `/mcp` and the second off the first,
+#: which is what lets a connector be added by pasting one URL and nothing else.
+OAUTH_METADATA = frozenset(
+    {
+        "/.well-known/oauth-protected-resource",
+        "/.well-known/oauth-authorization-server",
+    }
+)
+
+#: The connector's four posted doors, so the switch above them is one line rather than
+#: four that can drift apart.
+OAUTH_POSTS = frozenset({"/oauth/register", "/oauth/token", "/oauth/revoke", "/oauth/authorize"})
 
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
 # nothing is open to strangers until there is something worth arriving at and a
@@ -494,6 +596,44 @@ def shelves_are_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_SHELVES", "").strip().lower() in {"1", "true", "yes"}
 
 
+def keeps_events() -> bool:
+    """Whether the record of what a reader does in a text is kept (targum-internal#127).
+
+    Off unless the deployment says so, and for a different reason from the other switches
+    here. What is kept, for how long, what it is used for and what a reader can do about it
+    were all decided on 2026-09-19. What was not is the sentence that says so: the privacy
+    notice names a legal basis for every category of data it lists, and this is a new
+    category with two purposes — a reader's own figures, and an aggregate signal about the
+    texts. Turning this on and publishing that paragraph are one decision, and it is not
+    one to take by merging a pull request. The draft is on the card.
+
+    While it is off, `/events` keeps nothing and says so, `/account/totals` answers
+    nothing, and Your Progress draws none of the three figures that read from it.
+    """
+    return os.environ.get("TARGUM_EVENTS", "").strip().lower() in {"1", "true", "yes"}
+
+
+def connector_is_open() -> bool:
+    """Whether targum can be added to Claude or ChatGPT (targum-internal#80).
+
+    Off unless the deployment says so, for the reason the front door's switch exists:
+    the whole of it can be deployed, walked end to end against a real client on the box
+    and looked at before a stranger can reach any of it, and the day it opens is one
+    line in `targum.env` rather than a release.
+
+    It earns the switch more than the others did. This is the first public surface where
+    a client targum does not control holds a credential and can write to a reader's
+    record, and the approval page is the entire first impression — see design.md §12,
+    "A scope is a press that lasts".
+
+    While it is off, `/mcp`, the two metadata documents, every `/oauth` door and
+    `/connect` answer 404, the sitemap does not mention the page, and Learn draws no
+    door to it. A token already issued stops working with them: `_mcp` is the only way
+    to use one, and it is not there.
+    """
+    return os.environ.get("TARGUM_CONNECTOR", "").strip().lower() in {"1", "true", "yes"}
+
+
 def front_door_is_open() -> bool:
     """Whether a stranger at `/` gets the front door or the holding page.
 
@@ -578,7 +718,7 @@ STALE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>targum</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: light; }
   body {
     margin: 0; min-height: 100vh; display: grid; place-items: center;
     padding: 2rem; background: #faf8f4; color: #2b2724;
@@ -597,12 +737,6 @@ STALE = """<!doctype html>
   button { background: #7a5c3a; border-color: #7a5c3a; color: #fff; cursor: pointer; }
   .said, .aside { color: #6b625a; font-size: 0.9375rem; }
   .said[hidden] { display: none; }
-  @media (prefers-color-scheme: dark) {
-    body { background: #17150f; color: #ece7de; }
-    code { background: #2b2724; }
-    input { background: #221f1a; border-color: #3b352c; }
-    .said, .aside { color: #a79c8e; }
-  }
 </style>
 </head>
 <body>
@@ -649,7 +783,12 @@ def _icon() -> bytes:
 
 
 def grounding_note(
-    store: Store | None, lemma: str, source: str, target: str
+    store: Store | None,
+    lemma: str,
+    source: str,
+    target: str,
+    text: str = "",
+    judge: str = "",
 ) -> Callable[[Any, Any, str], None]:
     """What a grounding writes to the correction store (targum-internal#164, door 1).
 
@@ -657,6 +796,11 @@ def grounding_note(
     sentence; the row keeps the bare sense that stood, the grounded one that stands,
     and the line — under `who = reader`, never a person. Nothing here may fail the
     look-up: the reader asked what a word means, not for a record to be kept.
+
+    `text` is which document they were reading, so a row can be held to that text's
+    licence when the corpus is exported (acceptance 5); `judge` is their pseudonym, so
+    two readers agreeing can be told from one reader saying it twice (acceptance 4).
+    Both were added on 2026-09-22 and are empty on every row written before.
     """
 
     def note(before: Any, after: Any, context: str) -> None:
@@ -669,6 +813,8 @@ def grounding_note(
                 term=lemma,
                 language=source,
                 target=target,
+                text=text,
+                judge=judge,
                 before=str(getattr(before, "gloss", "") or ""),
                 after=str(getattr(after, "gloss", "") or ""),
                 context=context,
@@ -797,7 +943,31 @@ class Job:
             # see the link to the article"). A link for a page on the web; a fetcher
             # id or a filename otherwise, which the page shows no link for.
             "source": self.source,
+            # Pages whose words are in pictures and have not been read: an Instagram
+            # post's, or a scanned PDF's (targum-internal#252). How many there are, so the
+            # card can offer to read them. Offered, never run: the press is the consent.
+            "pictures_offered": (
+                0
+                if self.options.get("pictures")
+                else int(self.options.get("post_pictures") or self.options.get("pdf_pages") or 0)
+            ),
+            # Whether this text could be given a voice once it is built
+            # (targum-internal#246). A line on the card and never a button: the press is
+            # in the reader, where the section is, and the card is quoting a build.
+            "voice_later": self.voice_later,
         }
+
+    @property
+    def voice_later(self) -> bool:
+        """Whether the reader this job builds would offer to read it aloud.
+
+        The same three conditions `render` draws the door on: a language the voice
+        speaks, no recording of its own, and a price for the voice. A recording is
+        already sound and an unpriced voice is not for sale.
+        """
+        from .speech import priced, speaks
+
+        return bool(not self.audio and speaks(self.language) and priced())
 
 
 def sent_as(job: Job) -> str:
@@ -875,18 +1045,31 @@ class Drawable:
     language: str
 
 
-def unreadable(error: Exception) -> str:
+def unreadable(error: Exception, ui: str = "en") -> str:
     """What a reader is told when bringing something in failed for a reason nobody wrote a
-    sentence for. A web page's refusal carries its status, and the status says what to do."""
+    sentence for. A web page's refusal carries its status, and the status says what to do.
+    In the reader's language: it reached a Russian bell in English (targum-internal#377)."""
     response = getattr(error, "response", None)
     status = getattr(response, "status_code", None)
     if status in (401, 403, 451):
-        return "That site won't let us read the page. Copy the text and paste it here instead."
+        return said_in(
+            ui,
+            "job.unreadable.refused",
+            "That site won't let us read the page. Copy the text and paste it here instead.",
+        )
     if status in (404, 410):
-        return "That page isn't there. Check the link and try again."
+        return said_in(
+            ui, "job.unreadable.missing", "That page isn't there. Check the link and try again."
+        )
     if isinstance(status, int) and status >= 400:
-        return "That site didn't answer properly. Try again, or paste the text itself."
-    return "We couldn't read that. Try again, or paste the text itself."
+        return said_in(
+            ui,
+            "job.unreadable.broken",
+            "That site didn't answer properly. Try again, or paste the text itself.",
+        )
+    return said_in(
+        ui, "job.unreadable.other", "We couldn't read that. Try again, or paste the text itself."
+    )
 
 
 class Jobs(dict[str, Job]):
@@ -1016,10 +1199,18 @@ class Library:
         self.adopt()
         self.empty_trash()
         self.purge_departed()
+        # And the connector's dead rows (#80). Here for the reason `purge_departed` is
+        # here: a sweep nothing calls is a sweep that never happens, which is exactly
+        # what `Store.purge` was until somebody noticed.
+        if self.store is not None:
+            self.store.sweep_tokens()
         self._committed = 0.0
         # Every job, with the builds indexed beside them; see `Jobs`. Assigned through
         # the property below so a plain dict handed in by a test is wrapped, not lost.
         self.jobs = Jobs()
+        # What stopped a set's press, held for the page it redirects back to (#365). A
+        # form post answered by a redirect has nowhere else to put a sentence.
+        self.set_refusals: dict[int, str] = {}
         # The quota's view of each home, cached a minute: a gigabyte arrives in a
         # hundred chunks and the disk should not be walked for every one of them.
         self._used: dict[Path, tuple[int, int]] = {}
@@ -1111,6 +1302,13 @@ class Library:
                 "finished": job.finished,
             }
         )
+        # A playlist waiting on this build learns how it ended (#365). Here for the reason
+        # the stamp above is: every stage change travels this road, so no finishing path
+        # can forget to tell the playlist.
+        if job.stage == "done" and job.reader:
+            self.store.playlist_item_built(job.id, job.reader.split("/")[0])
+        elif job.stage == "failed":
+            self.store.playlist_item_failed(job.id)
 
     # -- the queue --------------------------------------------------------------
 
@@ -1380,13 +1578,20 @@ class Library:
             # constant, because a server configured to a different one must not quote a
             # limit it does not enforce. The two agreed while both said ten; they stopped
             # agreeing the moment the constant moved, which is the whole bug.
+            # The rate is said as a rate and not as a second total (§12, 2026-09-23 asks
+            # for it beside every balance). "Your 480 credits — that's 8 hours" reads
+            # well at the allowance this box ships with and nowhere else: a test box set
+            # to thirty seconds would say "0.5 credits, that's 0.00833333 hours", and a
+            # sentence that is only true at one configuration is the bug this refusal was
+            # already fixed for once.
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return said_in(
                 ui,
-                "job.out-of.hours",
-                "You've used your {hours} hours of audio for this month. They come back on "
-                "{date}. Text uploads still work, and the library is always free.",
-                hours=f"{allowed / 3600:g}",
+                "job.out-of.credits",
+                "You've used your {credits} credits for this month, and a credit is a "
+                "minute of audio. They come back on {date}. Text uploads still work, and "
+                "the library is always free.",
+                credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
         if whose == "account":
@@ -1406,11 +1611,11 @@ class Library:
             allowed = self.upload_seconds if self.upload_seconds is not None else UPLOAD_SECONDS
             return said_in(
                 ui,
-                "job.out-of.talk-hours",
-                "You've used your {hours} hours of audio and conversation for this month. "
-                "They come back on {date}. You can keep reading, and the library is always "
-                "free.",
-                hours=f"{allowed / 3600:g}",
+                "job.out-of.talk-credits",
+                "You've used your {credits} credits of audio and conversation for this "
+                "month, and a credit is a minute. They come back on {date}. "
+                "Everything you have stays open, and the library is always free.",
+                credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
         if whose == "chat":
@@ -1426,7 +1631,8 @@ class Library:
         return said_in(
             ui,
             "job.out-of.everyone",
-            "We've hit our limit for today. Try again in {hours} hours, or read from the library.",
+            "We've hit our limit for today. Try again in {hours} hours, or open something from "
+            "the library.",
             hours=BUDGET_HOURS,
         )
 
@@ -1452,7 +1658,8 @@ class Library:
             return said_in(
                 ui,
                 "job.too-long",
-                "That's too long to take in one go. Try a chapter, or something from the library.",
+                "That's too long to take in one go. Try a shorter piece, or something from the "
+                "library.",
             )
         if estimate > self.remaining():
             return said_in(
@@ -1742,6 +1949,12 @@ class Library:
                 "minutes": entry.minutes,
                 "spoken": spoken.is_spoken(source),
                 "video": spoken.is_video(source),
+                # Whether it *began* as something said (targum-internal#337). `spoken` is
+                # true of most of the shelf — the Tanakh has a reading attached, every
+                # scene is voiced — and those are texts somebody reads with a voice beside
+                # them. A talk is the other thing: the recording is the work and the text
+                # is what was said. It is what decides "Continue listening".
+                "heard": entry.kind is catalogue_module.Kind.talk,
                 "entry": entry.id,
                 "english": entry.english,
                 # When it joined the catalogue, so the shelf can say what is new
@@ -1753,11 +1966,29 @@ class Library:
                     (self.out / "thumbs" / (entry.id + suffix)).is_file() for suffix, _ in THUMBS
                 ),
             }
-        kind = "prose"
+        manifest = folder / manifest_module.MANIFEST
+        # Kept its pictures, by the manifest's own word — the sidecar folder is a
+        # copy the build remakes, and the manifest is the claim.
+        video = spoken.is_video(source) or bool(
+            self.remembered.get(
+                folder, "video", [manifest], lambda: manifest_module.keeps_video(folder)
+            )
+        )
+        # Nothing said is better than something wrong. This was "prose" until 2026-09-18,
+        # which the library labels "Bible narrative", so every upload with no address to
+        # go on — a file, a picture, a recording — was filed as one of the Bible's story
+        # books.
+        kind = ""
         for prefix, named in self.OWN_KINDS:
             if source.startswith(prefix):
                 kind = named
                 break
+        if video:
+            # Somebody talking to a camera, and the text is what they said: the kind the
+            # catalogue made for its own videos. Before the address, because a YouTube
+            # link is https and is not journalism. Only video: narration writes a
+            # manifest too, so a recording alone does not make an article a talk.
+            kind = "talk"
         if source.endswith(".chat"):
             # A conversation read back: shaped like a scene, filed like one.
             kind = "dialogue"
@@ -1772,7 +2003,6 @@ class Library:
                 else 0
             ),
         )
-        manifest = folder / manifest_module.MANIFEST
         return {
             "kind": kind,
             "register": "biblical" if is_biblical(source) else "modern",
@@ -1784,14 +2014,10 @@ class Library:
             # The claim is made by whatever is actually there — for an import, the
             # manifest sitting beside the reader.
             "spoken": spoken.is_spoken(source) or manifest.is_file(),
-            # Kept its pictures, by the manifest's own word — the sidecar folder is a
-            # copy the build remakes, and the manifest is the claim.
-            "video": spoken.is_video(source)
-            or bool(
-                self.remembered.get(
-                    folder, "video", [manifest], lambda: manifest_module.keeps_video(folder)
-                )
-            ),
+            "video": video,
+            # An import with a manifest beside it came in as a recording: a podcast, a
+            # voice note, a film. The text is its transcript, and the reader came to hear it.
+            "heard": manifest.is_file(),
             "entry": "",
             # An upload has no English title anywhere: the reader gave it a Hebrew one
             # and that is what every page shows.
@@ -1854,6 +2080,69 @@ class Library:
                 return folder.name
         return None
 
+    def targum_sets(self) -> list[tuple[Any, list[tuple[Any, str]]]]:
+        """targum's own playlists as this box can serve them (targum-internal#368).
+
+        Each swipe collection with its members that are built on the shared shelf, as
+        (entry, folder), in the file's order and at most a playlist's worth. A member not
+        built here is left out rather than offered as something to make: opening one of
+        these spends nothing, and a member that needed making would be a way round the
+        press. A collection with nothing built is not offered at all.
+        """
+        from . import catalogue as catalogue_module
+
+        entries = {entry.id: entry for entry in catalogue_module.everything()}
+        offered: list[tuple[Any, list[tuple[Any, str]]]] = []
+        for collection in catalogue_module.swipe_sets():
+            built: list[tuple[Any, str]] = []
+            for member in collection.members:
+                entry = entries.get(member)
+                folder = self.built_from(self.shared, entry.source) if entry else None
+                if entry is not None and folder:
+                    built.append((entry, folder))
+                if len(built) == MOST_IN_PLAYLIST:
+                    break
+            if built:
+                offered.append((collection, built))
+        return offered
+
+    def open_targum_set(self, person_id: int, collection_id: str, language: str) -> dict[str, Any]:
+        """One of targum's playlists, copied into the reader's own, or the copy they have.
+
+        The copy is a playlist like any other, made by targum, pointing at the shared
+        shelf's readers, and claims nothing: every member is built already. Opened a
+        second time it is the same copy, found by any of the collection's names, so a
+        reader who changed the interface language does not get a second one.
+
+        Answers the playlist, `{"error": "unknown"}` for a set this box does not offer,
+        or `{"error": "full"}` when the reader keeps as many playlists as they may.
+        """
+        if self.store is None:
+            return {"error": "unknown"}
+        found = next(
+            (
+                (collection, built)
+                for collection, built in self.targum_sets()
+                if collection.id == collection_id
+            ),
+            None,
+        )
+        if found is None:
+            return {"error": "unknown"}
+        collection, built = found
+        names = {collection.english, collection.title, *collection.named.values()}
+        for mine in self.store.playlists(person_id):
+            if mine.get("made_by") == "targum" and mine.get("name") in names:
+                have = self.store.playlist(person_id, int(mine["id"]))
+                if have is not None:
+                    return have
+        made = self.store.make_playlist(person_id, collection.name_in(language), made_by="targum")
+        if made is None:
+            return {"error": "full"}
+        for entry, folder in built:
+            self.store.add_to_playlist(person_id, int(made["id"]), entry.title, reader=folder)
+        return self.store.playlist(person_id, int(made["id"])) or made
+
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
         found: list[dict[str, Any]] = []
@@ -1907,6 +2196,23 @@ class Library:
                     "document": facts["content_hash"],
                     "words": words,
                     **self._shape(folder, facts["source"], language, words),
+                    # What the shelf row says at a glance (design.md §12, 2026-09-24): the
+                    # recording's own length where there is one, and the rung the text
+                    # needs. Both cached on the files they are read from.
+                    "seconds": remember(
+                        folder,
+                        "seconds",
+                        [folder / "audio.json"],
+                        partial(self._recording_seconds, folder),
+                    ),
+                    "level": remember(
+                        folder,
+                        # Named for the threshold, so a change of it is a recount
+                        # rather than a stale answer kept in shelf.json (#372).
+                        f"level90:{language}",
+                        [folder / "annotation.json"],
+                        partial(self._text_level, folder / "annotation.json", language),
+                    ),
                     "sections": sections or 1,
                     "chapters": chapters,
                     "readyChapters": sum(1 for c in chapters if c["ready"]),
@@ -1918,8 +2224,60 @@ class Library:
                     "built": int(index.stat().st_mtime),
                 }
             )
+            # A video import's own frame, where it has one, is its picture.
+            if not found[-1]["drawn"] and (folder / POSTER).is_file():
+                found[-1]["drawn"] = True
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
+
+    @staticmethod
+    def _recording_seconds(folder: Path) -> int:
+        """How long a text's recording runs, in whole seconds, or 0 for a text with none."""
+        from .audio import manifest as manifest_module
+
+        if not (folder / manifest_module.MANIFEST).is_file():
+            return 0
+        try:
+            loaded = manifest_module.load(folder)
+        except Exception:  # noqa: BLE001 - a manifest the shelf cannot read shows no length
+            return 0
+        if loaded is None:
+            return 0
+        seconds = loaded.duration or sum(part.end - part.start for part in loaded.parts)
+        return max(0, round(seconds))
+
+    @staticmethod
+    def _text_level(annotation: Path, language: str) -> dict[str, str] | None:
+        """The rung a text needs (design.md §12, 2026-09-24), or None.
+
+        Read off the annotation's running words, names left out, each lemma ranked by the
+        language's frequency list (`level.text_rung`). None where there is no annotation,
+        no ladder or no frequency list: no level is better than a made-up one.
+        """
+        from . import level as level_module
+        from .annotate.base import NOT_VOCABULARY
+        from .annotate.frequency import rank, ranks
+        from .models import Annotation, read_artifact
+
+        ladder = level_module.ladder_for(language)
+        if ladder is None or not annotation.is_file() or not ranks(language):
+            return None
+        loaded = read_artifact(Annotation, annotation)
+        if loaded is None:
+            return None
+        seen: dict[str, int | None] = {}
+        running: list[int | None] = []
+        for tokens in loaded.tokens.values():
+            for token in tokens:
+                if token.pos in NOT_VOCABULARY or not token.lemma:
+                    continue
+                if token.lemma not in seen:
+                    seen[token.lemma] = rank(token.lemma, language)
+                running.append(seen[token.lemma])
+        rung = level_module.text_rung(running, ladder)
+        if rung is None:
+            return None
+        return {"rung": rung.letter, "name": rung.name, "cefr": rung.cefr}
 
     @staticmethod
     def _sections(folder: Path) -> int:
@@ -1977,6 +2335,10 @@ class Library:
         try:
             from urllib.parse import urlparse
 
+            from .video import instagram as instagram_module
+
+            if instagram_module.is_post(job.source) and self._prepare_post(job):
+                return
             if urlparse(job.source).scheme in ("http", "https"):
                 from .audio import episode as episode_module
                 from .video import youtube as youtube_module
@@ -1987,6 +2349,28 @@ class Library:
                     # the show notes as the text, which is the reason this branch has
                     # always existed and the one thing that must not change.
                     return self._prepare_youtube(job)
+                from .video import hosts as hosts_module
+
+                host = hosts_module.host_for(job.source)
+                if host is hosts_module.INSTAGRAM:
+                    # Its own door for the same reason: the generic ingester would read
+                    # the login wall and call it the text (targum-internal#255).
+                    return self._prepare_reel(job)
+                if host is hosts_module.TIKTOK:
+                    return self._prepare_tiktok(job)
+                if host is not None:
+                    # A service we can name and cannot fetch from: TikTok, Vimeo, Reddit,
+                    # Facebook. Said by name with the way that works, rather than read
+                    # as an article and answered with "save the page as .txt".
+                    job.error = said_in(
+                        job.ui,
+                        "job.video-host-closed",
+                        "{service} doesn't let us fetch its videos. Download the video "
+                        "there and drop the file here.",
+                        service=host.name,
+                    )
+                    job.stage = "failed"
+                    return
                 if episode_module.sounds_like_audio(job.source):
                     # A recording on the other end of a link is not downloaded inside
                     # the request — that is a gigabyte on a click that only asked for a
@@ -1998,7 +2382,7 @@ class Library:
                 except UnsupportedSource as refusal:
                     # This is Library.prepare, not the handler: a refusal travels on
                     # the job, the way every prepare failure does.
-                    job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+                    job.error = refused_in(job.ui, refusal)
                     job.stage = "failed"
                     return
                 if found is not None:
@@ -2025,9 +2409,12 @@ class Library:
                 # built: the door that checks a chosen language cannot check a guess.
                 from .translate.prompts import language_name
 
-                job.error = (
-                    f"This looks like {language_name(job.language)}, and we can't read that "
-                    "yet. Choose the language it's in."
+                job.error = said_in(
+                    job.ui,
+                    "job.unreadable.language",
+                    "This looks like {language}, and we can't read that yet. Choose the "
+                    "language it's in.",
+                    language=language_name(job.language),
                 )
                 job.stage = "failed"
                 return
@@ -2068,7 +2455,7 @@ class Library:
                 job.blocked = self.why_blocked(job.estimate, job.ui)
             job.stage = "blocked" if job.blocked else "ready"
         except TargumError as error:
-            job.error = f"{error.message} {error.hint or ''}".strip()
+            job.error = refused_in(job.ui, error)
             job.stage = "failed"
         except Exception as error:  # a bad file should not take the server down
             # Said plainly, with the library's own words kept for the back office: a
@@ -2076,7 +2463,7 @@ class Library:
             # url …, For more information check: developer.mozilla.org" (2026-09-14).
             traceback.print_exc()
             incidents_module.record(self.incidents, "prepare", error, job=job.id)
-            job.error = unreadable(error)
+            job.error = unreadable(error, job.ui)
             job.stage = "failed"
 
     @staticmethod
@@ -2125,10 +2512,33 @@ class Library:
         source = Path(job.source)
         if source.is_file() and source.suffix.lower() == ".pdf":
             pages = pdf_module.page_lines(source)
-            job.pages = len(pages)
-            job.doubtful = pdf_module.doubtful_lines(pages)
-            job.excerpt = excerpt_of([line for lines in pages for line in lines])
-            return ""
+            if pdf_module.looks_scanned(pages):
+                # No text layer, so there is nothing to read for free and the words are
+                # in the pictures of the pages (targum-internal#252). Offered with a
+                # count and never run: the press is the consent, exactly as an Instagram
+                # post's pictures are. Pressed, the pages become pictures and fall
+                # through to the picture path below, which prices and claims them.
+                offered = min(len(pages), MAX_PAGES)
+                if not job.options.get("pictures"):
+                    job.options["pdf_pages"] = offered
+                    # Raised rather than returned, and that is not a detail: a returned
+                    # sentence becomes `job.blocked`, which `add.js` shows through
+                    # `refuse()` — and `refuse()` has no way forward on it. Only
+                    # `job.error` reaches `refusedWith()`, which is where the button is.
+                    raise UnsupportedSource(
+                        "This PDF is a scan, so its words are in pictures of its pages. "
+                        "Read the pages to bring it in.",
+                        key="pdf.scan-read-the-pages",
+                    )
+                folder = Path(job.home) / "pages" if job.home else source.parent / "pages"
+                pdf_module.rasterise(source, folder, offered)
+                job.source = str(folder)
+                source = folder
+            else:
+                job.pages = len(pages)
+                job.doubtful = pdf_module.doubtful_lines(pages)
+                job.excerpt = excerpt_of([line for lines in pages for line in lines])
+                return ""
         if not picture_module.is_pictures(source):
             return ""
         paths = picture_module.pages_of(source)
@@ -2173,6 +2583,128 @@ class Library:
     SUBTITLES = ("he", "iw")
 
     def _prepare_youtube(self, job: Job) -> None:
+        """A YouTube address, priced through `_prepare_video`."""
+        from .video import youtube as youtube_module
+
+        self._prepare_video(
+            job,
+            vetted=youtube_module.is_youtube,
+            described=youtube_module.describe,
+            unavailable=said_in(
+                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
+            ),
+            subtitled=True,
+        )
+        if job.stage != "failed":
+            job.options["youtube"] = True
+
+    def _prepare_reel(self, job: Job) -> None:
+        """An Instagram reel, priced through `_prepare_video` (targum-internal#255)."""
+        from .video import instagram as instagram_module
+
+        self._prepare_video(
+            job,
+            vetted=instagram_module.is_reel,
+            described=instagram_module.describe,
+            unavailable=said_in(
+                job.ui, "job.instagram-unavailable", "We can't fetch from Instagram here."
+            ),
+            # Instagram never says how long a reel runs; `describe` reads the header, and
+            # where even that is silent the reel is priced long rather than refused as a
+            # live stream, which a reel never is.
+            unmeasured=instagram_module.GUESS_S,
+        )
+
+    def _prepare_tiktok(self, job: Job) -> None:
+        """A TikTok video, priced through `_prepare_video` (targum-internal#255).
+
+        A shared link names no video until it is followed. yt-dlp follows it at the quote,
+        and the job then carries the one canonical address it found, so the build fetches
+        the same video and the reader links home to it.
+        """
+        from .video import tiktok as tiktok_module
+
+        def described(url: str) -> dict[str, Any]:
+            info = tiktok_module.describe(url)
+            found = tiktok_module.home_url(str(info.get("webpage_url") or ""))
+            if found:
+                job.source = found
+            return info
+
+        self._prepare_video(
+            job,
+            vetted=tiktok_module.is_tiktok,
+            described=described,
+            unavailable=said_in(
+                job.ui, "job.tiktok-unavailable", "We can't fetch from TikTok here."
+            ),
+        )
+
+    def _prepare_post(self, job: Job) -> bool:
+        """An Instagram post, read off its embed page (targum-internal#255).
+
+        A post that is a film goes to the reel's door. One that is pictures becomes a
+        text: its caption, with the author as its byline and the post as its home, and —
+        only when the reader pressed for it — the words in its pictures after it, read on
+        the same terms as pictures brought by the `+` (`_read_pages`: reserved, claimed,
+        settled, thirty at most). The caption alone costs nothing to read.
+
+        Returns True when the job is settled here — a film, a refusal — and False when
+        `job.source` is now the caption's text, for the text path below to price.
+        """
+        import secrets
+
+        from . import vision
+        from .annotate.gloss import GLOSS_MODEL
+        from .video import instagram as instagram_module
+
+        post = instagram_module.backup(job.source)
+        if post is None or post.video:
+            # A film, or a page that would not say: yt-dlp's door, with its own backup.
+            self._prepare_reel(job)
+            return True
+        address = job.source
+        job.options["came_from"] = address
+        job.options["post_pictures"] = len(post.pictures)
+        wanted = bool(job.options.get("pictures")) and bool(post.pictures)
+        if not post.caption.strip() and not wanted:
+            job.error = said_in(
+                job.ui,
+                "job.post-only-pictures",
+                "That post's words are all in its pictures. Read the pictures to bring it in.",
+            )
+            job.stage = "failed"
+            return True
+        folder = Path(job.home or self.out) / "uploads" / secrets.token_hex(8)
+        text = instagram_module.caption_text(post)
+        if wanted:
+            paths = instagram_module.pictures_into(post, folder / "pictures")
+            job.source = str(folder / "pictures")
+            refused = self._read_pages(job)
+            if refused:
+                job.blocked = refused
+                job.stage = "blocked"
+                return True
+            # Read a moment ago and cached by their bytes, so this costs nothing: it is
+            # the same words `_read_pages` paid for, put after the caption.
+            reads = vision.read_pages(paths, usage=Usage(), model=GLOSS_MODEL)
+            text = "\n\n".join([text.rstrip(), *(read.text for read in reads)]) + "\n"
+        target = folder / f"{post.code}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        job.source = str(target)
+        return False
+
+    def _prepare_video(
+        self,
+        job: Job,
+        *,
+        vetted: Callable[[str], bool],
+        described: Callable[[str], dict[str, Any]],
+        unavailable: str,
+        unmeasured: float = 0.0,
+        subtitled: bool = False,
+    ) -> None:
         """Price a video from what yt-dlp can say about it, before a byte of it moves.
 
         The reader's act, not ours: they paste the address and press the button, the
@@ -2187,7 +2719,6 @@ class Library:
         """
         from .screen import from_ytdlp
         from .video import MAX_VIDEO_DURATION_S, ytdlp_available
-        from .video import youtube as youtube_module
 
         # What the address is, before what this box has. A playlist is a playlist on a
         # machine with no yt-dlp at all, and telling a reader to install something before
@@ -2195,9 +2726,9 @@ class Library:
         # ask. It is also the harvest guard, and a guard that depends on what is
         # installed is not one.
         try:
-            youtube_module.is_youtube(job.source)
+            vetted(job.source)
         except TargumError as refusal:
-            job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+            job.error = refused_in(job.ui, refusal)
             job.stage = "failed"
             return
 
@@ -2205,21 +2736,22 @@ class Library:
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it
             # names the path that still works on their own machine.
-            refused = said_in(
-                job.ui, "job.youtube-unavailable", "We can't fetch from YouTube here."
-            )
-            job.error = f"{refused} {hint}"
+            job.error = f"{unavailable} {hint}"
             job.stage = "failed"
             return
         try:
-            found = from_ytdlp(youtube_module.describe(job.source))
+            found = from_ytdlp(described(job.source))
         except TargumError as refusal:
             # An age gate, a private video, a region block — yt-dlp's own sentence is
             # better than anything written here, and a refusal travels on the job the
             # way every prepare failure does.
-            job.error = f"{refusal.message} {refusal.hint or ''}".strip()
+            job.error = refused_in(job.ui, refusal)
             job.stage = "failed"
             return
+        if not found.duration and unmeasured:
+            from dataclasses import replace
+
+            found = replace(found, duration=unmeasured)
         if not found.duration:
             # A live stream has no duration, and neither has a premiere that has not
             # started. Both would price at nothing and then run until the disk filled.
@@ -2241,7 +2773,7 @@ class Library:
             job.stage = "failed"
             return
 
-        job.title = found.title or job.source
+        job.title = found.title.strip() or job.source
         # Charged against the hours, like every other recording: `claim` spends
         # `job.seconds` against the month's allowance when `job.audio` is set, so the
         # rate limit this needed is the one the pricing page already promised rather
@@ -2254,8 +2786,14 @@ class Library:
         # `from_ytdlp` counts only the first. Where there is one the hearing is free and
         # the whole import is the price of the English — which is the difference between
         # twenty cents and two dollars on a ten-minute lesson.
-        written = [tag for tag in found.subtitles if tag.split("-")[0] in self.SUBTITLES]
-        job.options["youtube"] = True
+        # YouTube's alone: the build fetches a written track only from YouTube
+        # (`Build._fetch_youtube_transcript`), so a track another host lists would price
+        # a hearing the build then buys anyway.
+        written = (
+            [tag for tag in found.subtitles if tag.split("-")[0] in self.SUBTITLES]
+            if subtitled
+            else []
+        )
         job.options["subtitles"] = bool(written)
         self._price_recording(job, transcribed=not written)
 
@@ -2373,6 +2911,43 @@ class Library:
             if not blocked:
                 self._committed += job.estimate
             return blocked
+
+    def claim_set(self, jobs: list[Job], ui: str = "en") -> tuple[str, float, str]:
+        """Claim every build in a set, or none (#365, design.md §12: one press takes a
+        named set, and David chose all or nothing on 2026-09-23).
+
+        The same rails as `claim`, over the set's totals, in one transaction, so the page
+        can never have quoted a whole set and delivered half of it. Returns the refusal
+        in words, or "", the seconds of allowance left where that was the rail — which
+        is how the page says how many credits would fit — and which rail refused.
+        """
+        if not jobs:
+            return "", 0.0, ""
+        for job in jobs:
+            if job.estimate > self.max_cost:
+                return self.why_blocked(job.estimate, ui), 0.0, "cost"
+        owners = {job.owner for job in jobs}
+        if len(owners) != 1:
+            return self._out_of("everyone", ui), 0.0, "everyone"
+        owner = next(iter(owners))
+        admin = any(job.admin for job in jobs)
+        if self.store is not None:
+            refused, room = self.store.claim_all(
+                [(job.id, job.estimate, job.seconds if job.audio else 0.0) for job in jobs],
+                self.budget,
+                self._since(),
+                owner=owner,
+                per_account=None if admin else self.account_budget,
+                month_from=self._month_from(),
+                per_month_length=None if admin else self.upload_seconds,
+            )
+            return (self._out_of(refused, ui) if refused else ""), room, refused
+        total = sum(job.estimate for job in jobs)
+        with self.lock:
+            blocked = self.why_blocked(total, ui)
+            if not blocked:
+                self._committed += total
+            return blocked, 0.0, "everyone" if blocked else ""
 
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
@@ -2954,7 +3529,7 @@ class Library:
         from .annotate.gloss import GLOSS_MODEL
 
         entry = catalogue_module.matching(job.source)
-        return Build(
+        build = Build(
             job.source,
             target_language=options.get("to", "en"),
             # What the door said, or else what the catalogue row says. The Library's own
@@ -3007,6 +3582,17 @@ class Library:
             # else — the transcriber is the box's own choice, never the request's.
             transcript=str(options.get("transcript")) if options.get("transcript") else None,
         )
+        # A video file the reader downloaded after its link was refused: the link they
+        # pasted first is its home, so the page still says whose film it is. Taken only
+        # in the one shape the host table writes, so a request cannot put an address of
+        # its choosing on the page — anything else reduces to "" and is dropped.
+        from urllib.parse import urlparse
+
+        from .video import hosts as hosts_module
+
+        if urlparse(job.source).scheme not in ("http", "https"):
+            build.home = hosts_module.home_url(str(options.get("came_from") or ""))
+        return build
 
 
 # The cookie the browser carries once somebody has signed in. Not `Secure`, because
@@ -3014,10 +3600,51 @@ class Library:
 # sent; a hosted install serving HTTPS must add it.
 SESSION_COOKIE = "targum_session"
 
+# Where a Connect waits while its reader signs in (targum-internal#80). It holds one of
+# this server's own paths and never a credential, and `Handler._connecting` checks it
+# against the one prefix it may start with — so a cookie somebody else sets is dropped
+# rather than followed. Ten minutes, which is a sign-in and no more.
+CONNECT_COOKIE = "targum_connect"
+CONNECT_MINUTES = 10
+
+
+def _short_cookie(name: str, value: str) -> str:
+    """One cookie that lasts as long as one errand. Same flags as the session's."""
+    return f"{name}={quote(value)}; HttpOnly; SameSite=Lax; Path=/; Max-Age={CONNECT_MINUTES * 60}"
+
+
+def _forget_cookie(name: str) -> str:
+    return f"{name}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+
+
 # What the sign-in page says, whether or not the address has an account, and whether or
 # not the mail went out. Anything more specific turns the form into a way of asking
 # which addresses are registered here.
 SENT = "Thanks. Check your email."
+
+
+#: One end card at a time decides its playlist's next set, so two visits at once cannot
+#: quote two (targum-internal#367). The store's guard is the second line of that.
+_ENDING = threading.Lock()
+
+
+def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
+    """A playlist as `/playlists/<id>.json` says it: each text with the address it opens
+    at, and `null` for one still being made or one that could not be (#364, #366)."""
+    items = []
+    for item in found.get("items") or []:
+        reader = item.get("reader")
+        items.append(
+            {
+                **item,
+                "open": (
+                    f"/reader/{quote(str(reader))}/reader/index.html"
+                    if reader and not item.get("failed")
+                    else None
+                ),
+            }
+        )
+    return {**found, "items": items}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -3032,6 +3659,7 @@ class Handler(BaseHTTPRequestHandler):
     page: str
     adding: str
     progress: str
+    playlists: str
     catalogue: str
     you: str
     #: The conversation page, and the workers that answer it. Empty and None on a
@@ -3088,6 +3716,16 @@ class Handler(BaseHTTPRequestHandler):
     def _person(self) -> Person | None:
         return self.store.whoever(self._cookie(SESSION_COOKIE) or None)
 
+    def _judge(self) -> str:
+        """Whoever is reading, as a judge's pseudonym, or "" where nobody is signed in.
+
+        Written on a correction so two readers agreeing can be told from one reader
+        saying it twice (targum-internal#164). Never a name and never an account id: see
+        `Store.judge_for`.
+        """
+        person = self._person()
+        return self.store.judge_for(person.id) if person is not None else ""
+
     def _reads(self, person: Person | None = None) -> set[str]:
         """Which languages to offer whoever is asking.
 
@@ -3125,6 +3763,7 @@ class Handler(BaseHTTPRequestHandler):
             "/progress",
             "/library",
             "/you",
+            "/playlists",
             "/readers",
             "/suggest",
             "/series",
@@ -3139,7 +3778,18 @@ class Handler(BaseHTTPRequestHandler):
     #: does not exist. It is not a page in the sense of having markup — it redirects —
     #: but it is a page in the sense this list is about, which is "could somebody be
     #: looking at this".
-    PAGE_PREFIXES = ("/reader/", "/thumb/", "/chat/", "/glossary/", "/job/", "/open/")
+    PAGE_PREFIXES = (
+        "/reader/",
+        "/thumb/",
+        "/chat/",
+        "/glossary/",
+        "/job/",
+        "/open/",
+        # A quote made through a connector, pressed on a page of ours (#80).
+        "/build/",
+        # A set quoted as one, pressed as one (#365).
+        "/set/",
+    )
 
     def _is_a_page(self, route: str) -> bool:
         return (
@@ -3205,7 +3855,7 @@ class Handler(BaseHTTPRequestHandler):
         return self._person() is not None
 
     @staticmethod
-    def _policy(body: bytes, frames: str = "") -> str:
+    def _policy(body: bytes, frames: str = "", forms: str = "") -> str:
         """The content policy for one page, naming its own inline blocks by hash.
 
         A page that holds an `<iframe>` may frame its own origin — read off the page as
@@ -3228,6 +3878,22 @@ class Handler(BaseHTTPRequestHandler):
             hashes.append(f"'sha256-{digested}'")
         allowed = " ".join(dict.fromkeys(hashes))
         policy = POLICY
+        if forms:
+            # `form-action` is enforced on the *redirect*, not only on the action URL —
+            # Chrome has checked the whole chain since 2016. The approval page posts to
+            # this origin and is answered with a 303 to the client's callback, so
+            # `'self'` alone lets the POST leave and then silently refuses to follow the
+            # answer: the reader presses Connect and the page sits there, with no
+            # network entry and nothing in the console that a page script can see.
+            #
+            # No test could have caught it. The suite drives this flow over
+            # `HTTPConnection`, where no policy exists, and a policy is a browser's rule
+            # (targum-internal#80, found on the box 2026-09-23).
+            #
+            # What is named here is the one redirect already checked against what the
+            # client registered — never a value off the request — so this widens the
+            # policy by exactly the origin the reader was shown and no further.
+            policy = policy.replace("form-action 'self'", f"form-action 'self' {forms}")
         if frames == "out":
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
@@ -3249,13 +3915,22 @@ class Handler(BaseHTTPRequestHandler):
         )
 
     def _send(
-        self, status: int, body: bytes, kind: str, cache: str = "no-store", frames: str = ""
+        self,
+        status: int,
+        body: bytes,
+        kind: str,
+        cache: str = "no-store",
+        frames: str = "",
+        cookie: str = "",
+        forms: str = "",
     ) -> None:
         self.send_response(status)
         self.send_header("Content-Type", kind)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
         # by their hash, so it has to be taken before the bytes are compressed.
-        policy = self._policy(body, frames) if kind.startswith("text/html") else None
+        policy = self._policy(body, frames, forms) if kind.startswith("text/html") else None
         zipped = self._worth_zipping(body, kind)
         if zipped:
             body = gzip.compress(body, 6)
@@ -3393,12 +4068,17 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, payload: Any, status: int = 200) -> None:
         self._send(status, json.dumps(payload).encode("utf-8"), "application/json")
 
-    def _go(self, where: str, cookie: str | None = None) -> None:
-        """Send them on, optionally handing over or taking back the session."""
+    def _go(self, where: str, cookie: str | list[str] | None = None) -> None:
+        """Send them on, optionally handing over or taking back the session.
+
+        A list where two have to be set at once: finishing a sign-in that interrupted a
+        Connect hands over the session and drops the cookie holding the Connect, and one
+        `Set-Cookie` header cannot say both.
+        """
         self.send_response(303)
         self.send_header("Location", where)
-        if cookie is not None:
-            self.send_header("Set-Cookie", cookie)
+        for one in [cookie] if isinstance(cookie, str) else (cookie or []):
+            self.send_header("Set-Cookie", one)
         self.send_header("Content-Length", "0")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
@@ -3817,7 +4497,7 @@ class Handler(BaseHTTPRequestHandler):
             Level(wanted),
             address=self.address,
             archive=published,
-            language=self._page_language(),
+            language=self._public_language(),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -3831,15 +4511,30 @@ class Handler(BaseHTTPRequestHandler):
         page = weekly_note(message, address=self.address, done=done)
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
-    def _waitlist_note(self, message: str, done: bool = True, **rest: Any) -> None:
+    def _waitlist_note(self, message: str, done: bool = True, said: str = "", **rest: Any) -> None:
         """A sentence back from the front door, on the furniture the weekly's doors use.
 
         The same page, a different heading and a different way home: this is read in a
         mail client by somebody who has no account, may never have seen targum, and is
         being asked one question about an address they typed.
+
+        `said` is the language, and it is the caller's to give because the two doors know
+        it two different ways: somebody typing into the front door is answered in the
+        language that door was in, and somebody arriving from a mail is answered in the
+        language recorded on their row. It falls back to the request's own, which is
+        right for the typed half and never wrong for the other (targum-internal#288).
         """
+        from .strings import text
+
+        code = said or self._public_language()
         page = weekly_note(
-            message, address=self.address, done=done, heading="the waitlist", home="/", **rest
+            message,
+            address=self.address,
+            done=done,
+            heading=text("waitlist.note.heading", code),
+            home="/",
+            language=code,
+            **rest,
         )
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
@@ -3850,74 +4545,97 @@ class Handler(BaseHTTPRequestHandler):
         the person it was sent to, which is why `/account/enter` and the weekly's own
         two stopped being bare GETs.
         """
+        from .strings import text
+
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
         token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+        # The confirm door reads the language off the row, because it already answers
+        # differently for a spent token and a live one — the link is single-use and
+        # personal, and that is the design.
+        #
+        # **The stop door must not**, and this is not a nicety: it is required to say the
+        # same thing for a real token and a made-up one, so that the endpoint cannot be
+        # used to ask whether an address is on the list. A page drawn in the row's
+        # language would answer Russian for a real token and English for a fake one,
+        # which is that question answered. It takes the request's language instead —
+        # the same for both — and the mail mints its link with `?lang=` so somebody who
+        # joined in Russian still lands on a Russian page.
+        said = (
+            store.waiting_language(token)
+            if route == "/waitlist/confirm"
+            else self._public_language()
+        )
         if route == "/waitlist/confirm":
             waiting = store.peek_waiting(token)
             if waiting is None:
-                return self._waitlist_note("That link has already been used, or it's expired.")
-            message = f"Should we keep {waiting} on the waitlist?"
-            button = "Yes, keep me on it"
+                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
+            message = text("waitlist.note.keep-me", said, email=waiting)
+            button = text("waitlist.note.keep-me.button", said)
         else:
-            message = "Should we take you off the waitlist?"
-            button = "Yes, take me off"
+            message = text("waitlist.note.take-me-off", said)
+            button = text("waitlist.note.take-me-off.button", said)
         return self._waitlist_note(
-            message, pending={"action": route, "token": token, "button": button}
+            message, said=said, pending={"action": route, "token": token, "button": button}
         )
 
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
         """Joining, confirming and leaving. Public by necessity, and public by design:
         nobody joining a waitlist has an account, and the whole point is that they
         cannot get one yet."""
+        from .strings import text
+
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
 
         if route == "/waitlist":
             address = (form.get("email") or "").strip()
+            said = self._public_language()
             if not plausible(address):
                 return self._waitlist_note(
-                    "We couldn't read that as an email address. Check it and try again.",
-                    done=False,
+                    text("waitlist.note.not-an-address", said), done=False, said=said
                 )
             if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
-                return self._waitlist_note(
-                    "We've had a few requests for that address. Try again in an hour.", False
-                )
+                return self._waitlist_note(text("waitlist.note.too-often", said), False, said=said)
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, self._front_language())
+            token = store.join_waitlist(address, said)
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)
             if token is not None and postable:
                 where = f"{self.address.rstrip('/')}/waitlist/confirm?t={token}"
                 with contextlib.suppress(Exception):
+                    # In the language of the door they pressed. It was English for
+                    # everybody until 2026-09-22, on a front door that has been
+                    # bilingual since #69 — so a Russian visitor typed into a Russian
+                    # page and the first thing targum ever sent them was English.
                     self.library.mailer.notify(  # type: ignore[union-attr]
                         address,
-                        "Confirm your place on the targum waitlist",
-                        f"Press the button on this page and you're on the list:\n\n{where}\n\n"
-                        f"We're opening in small groups, and we'll email you when it's "
-                        f"your turn.\n\n"
-                        f"If you did not ask for this, nothing has happened and you can "
-                        f"ignore this.\n",
+                        text("mail.waitlist.subject", said),
+                        text("mail.waitlist.body", said, link=where),
                     )
             # The same sentence whatever state the address is in, including already on:
             # an endpoint that answered differently would be a way to ask who is waiting.
-            return self._waitlist_note("Thanks. Check your email and press the button in it.")
+            return self._waitlist_note(text("waitlist.note.check-your-email", said), said=said)
 
         if route == "/waitlist/confirm":
+            said = store.waiting_language(form.get("t", ""))
             if store.confirm_waiting(form.get("t", "")) is None:
-                return self._waitlist_note("That link has already been used, or it's expired.")
-            return self._waitlist_note("You're on the list. We'll email you when it's your turn.")
+                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
+            return self._waitlist_note(text("waitlist.note.you-are-on", said), said=said)
 
         # Nothing is said about whether the token was one, for the reason the weekly's
         # unsubscribe says nothing: an endpoint that reported back would answer whether
         # an address is on the list.
+        # The request's language and never the row's, for the reason `_waitlist_get`
+        # gives: this reply has to be identical for a token that was one and a token
+        # that was not.
+        said = self._public_language()
         store.leave_waitlist(form.get("t", ""))
-        return self._waitlist_note("We've taken you off the waitlist.")
+        return self._waitlist_note(text("waitlist.note.taken-off", said), said=said)
 
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
         store = self.library.store
@@ -3994,7 +4712,10 @@ class Handler(BaseHTTPRequestHandler):
             if series == "weekly":
                 store.follow(person.email, wanted)
             else:
-                store.follow_series(person.email, series, wanted)
+                # In the language they are reading targum in as they press, so the mail
+                # and the page it leads to are in it too (targum-internal#289). There is
+                # no account behind a follow row, so this is the only chance to know.
+                store.follow_series(person.email, series, wanted, self._page_language())
         follows = store.series_followed(person.email)
         if store.following(person.email):
             follows = ["weekly", *follows]
@@ -4004,26 +4725,42 @@ class Handler(BaseHTTPRequestHandler):
         """The one-click door out of a series, from an email: a page with a button, and
         the button is what spends the token — a mail client that fetches every link must
         not be able to answer for the person it was sent to."""
+        from .strings import text
+
         store = self.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
         if form is None:
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
+            # The token is all this page has: it is followed out of a mail client with
+            # no session and no account, so the language it was followed in is read off
+            # the row rather than off the request (targum-internal#289).
+            said = store.following_language(token)
             page = weekly_note(
-                "Should we stop telling you when a new one comes out?",
+                text("series.stop.ask", said),
                 address=self.address,
                 done=False,
-                pending={"action": "/series/stop", "token": token, "button": "Yes, stop"},
-                heading="your subscriptions",
+                pending={
+                    "action": "/series/stop",
+                    "token": token,
+                    "button": text("series.stop.button", said),
+                },
+                heading=text("series.stop.heading", said),
                 home="/library",
+                language=said,
             )
             return self._send(200, page.encode("utf-8"), HTML)
-        store.stop_following(form.get("t", ""))
+        token = form.get("t", "")
+        # Read before it is spent. Stopping does not clear the language, but a token that
+        # matches no row answers English, and this is the last moment one certainly does.
+        said = store.following_language(token)
+        store.stop_following(token)
         page = weekly_note(
-            "We won't tell you about it again.",
+            text("series.stop.done", said),
             address=self.address,
-            heading="your subscriptions",
+            heading=text("series.stop.heading", said),
             home="/library",
+            language=said,
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -4125,7 +4862,11 @@ class Handler(BaseHTTPRequestHandler):
         from . import catalogue as catalogue_module
 
         where = self.address or ""
+        # `/connect` is here because it is a page a stranger searches for by name —
+        # "targum ChatGPT" is how somebody finds out this exists at all (#80).
         paths = ["/", "/about", "/library"]
+        if connector_is_open():
+            paths.append("/connect")
         if legal_is_public():
             paths += list(LEGAL_ROUTES)
         # A portion's catalogue id redirects to its own page, so the id is left out here
@@ -4176,10 +4917,48 @@ class Handler(BaseHTTPRequestHandler):
             for issue in published
             for edition in issue.editions
         ]
-        urls = "".join(f"<url><loc>{where}{path}</loc></url>" for path in paths)
+        weekly_paths = [
+            f"/weekly/{issue.id}/{edition.level.value}"
+            for issue in published
+            for edition in issue.editions
+        ]
+        # The pages that really answer in both languages, and only those
+        # (targum-internal#188). A sitemap that claims a Russian version of `/about`,
+        # which serves one language at one address, teaches a crawler to distrust the
+        # claims it makes about the pages that do have one.
+        bilingual = (
+            {"/", "/library"}
+            | {path for path in paths if path.startswith("/library/")}
+            | set(weekly_paths)
+        )
+        urls = "".join(self._sitemap_url(where, path, path in bilingual) for path in paths)
         return (
             f'<?xml version="1.0" encoding="UTF-8"?>\n'
-            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>\n'
+            f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'
+            f' xmlns:xhtml="http://www.w3.org/1999/xhtml">{urls}</urlset>\n'
+        )
+
+    @staticmethod
+    def _sitemap_url(where: str, path: str, bilingual: bool) -> str:
+        """One `<url>`, with its other languages beside it where it has any.
+
+        Each language gets an entry of its own and every entry lists the whole set,
+        including itself — which is what the sitemap protocol asks for and is the half
+        people leave out. `?lang=` is the address, matching `_public_language`.
+        """
+        from .render.builder import _addressed_in
+
+        if not bilingual:
+            return f"<url><loc>{where}{path}</loc></url>"
+        _, alternates = _addressed_in(f"{where}{path}", "en")
+        links = "".join(
+            f'<xhtml:link rel="alternate" hreflang="{code}" href="{href}"/>'
+            for code, href in alternates
+        )
+        return "".join(
+            f"<url><loc>{href}</loc>{links}</url>"
+            for code, href in alternates
+            if code != "x-default"
         )
 
     def _measure(self, home: Path, readers: list[dict[str, Any]]) -> None:
@@ -4327,6 +5106,7 @@ class Handler(BaseHTTPRequestHandler):
             wanted=self.store.wanted(),
             said=said,
             incidents=incidents_module.recent(self.library.incidents),
+            balances=self.store.balances(),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -4359,6 +5139,25 @@ class Handler(BaseHTTPRequestHandler):
         else:
             said = f"Let {let_in} in."
         self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
+
+    def _balance(self, form: dict[str, str]) -> None:
+        """Record what a service's console said was left, from the back office's form.
+
+        The same door as `_promote`: an admin session, and 404 for anyone else. What is
+        typed is kept as typed, because a console writes dollars, credits or gigabytes
+        and a number with the unit taken off it is a number nobody can read back.
+        """
+        from .services import BY_ID, SAID_MAX
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        service = form.get("service", "")
+        said = " ".join(form.get("said", "").split())[:SAID_MAX]
+        if service not in BY_ID or not said:
+            return self._send(400, b"bad request", "text/plain")
+        self.store.balance_read(service, said)
+        self._go(f"{BACK_OFFICE_ROUTE}#services")
 
     def _promote(self, form: dict[str, str]) -> None:
         """Accept or decline a proposal, from the back office's own form.
@@ -4439,6 +5238,44 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _icon(), "image/png")
         if route == "/robots.txt":
             return self._send(200, self._robots().encode("utf-8"), "text/plain; charset=utf-8")
+        # The connector's metadata, and the page a reader approves on. Before the account
+        # check: the two documents are read by a client that has no account and never will
+        # have one, and the approval page signs a reader in itself rather than handing a
+        # stranger the holding page halfway through pressing Connect.
+        # How to add targum to Claude or ChatGPT. Public, because the reader it is
+        # written for has not got in yet (note 2: assume it is their first install).
+        if route == "/connect":
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
+            page = connect_page(
+                self._public_language(), self.address, signed_in=self._person() is not None
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        if route in OAUTH_METADATA:
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
+            return self._oauth_metadata(route)
+        if route == "/oauth/authorize":
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
+            return self._oauth_authorize(parse_qs(urlparse(self.path).query))
+        # A quote made through a connector, as a page with its button. Needs an
+        # account like any other page that shows somebody their own build.
+        if route.startswith("/build/") and not self._needs_account(route):
+            return self._press_page(route[len("/build/") :])
+        if route.startswith("/set/") and not self._needs_account(route):
+            return self._set_page(route[len("/set/") :])
+        # There is no server-initiated stream here — every call is answered out of a
+        # `Ctx` built from the token on that request, and nothing is held between two.
+        # Saying so is better than holding a socket open that will never carry anything.
+        if route == oauth.RESOURCE_PATH:
+            if not connector_is_open():
+                return self._send(404, b"not found", "text/plain")
+            self.send_response(405)
+            self.send_header("Allow", "POST")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return None
         if route == "/sitemap.xml":
             if not shelves_are_public():
                 return self._send(404, b"not found", "text/plain")
@@ -4485,7 +5322,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, b"not found", "text/plain")
             return self._send(
                 200,
-                text_page(entry, self.address, language=self._page_language()).encode("utf-8"),
+                text_page(entry, self.address, language=self._public_language()).encode("utf-8"),
                 HTML,
             )
         # The shelves answer to whoever is asking. Signed out that is the public index —
@@ -4498,7 +5335,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(
                         200, holding_page(language=self._page_language()).encode("utf-8"), HTML
                     )
-                page = shelf_page(self.address, language=self._page_language())
+                page = shelf_page(self.address, language=self._public_language())
                 return self._send(200, page.encode("utf-8"), HTML)
 
         if self._needs_account(route):
@@ -4507,7 +5344,17 @@ class Handler(BaseHTTPRequestHandler):
             # shown to somebody with no key is a wall that looks like a mistake. The
             # door is one click away, in the corner.
             if route.startswith(
-                ("/readers", "/job/", "/jobs", "/glossary/", "/account/export", "/chat/")
+                (
+                    "/readers",
+                    "/job/",
+                    "/jobs",
+                    "/glossary/",
+                    "/account/export",
+                    "/chat/",
+                    "/slips",
+                    "/playlists.json",
+                    "/playlists/",
+                )
             ):
                 return self._json(
                     {
@@ -4524,7 +5371,9 @@ class Handler(BaseHTTPRequestHandler):
             # signed-out visitor asks for is still the holding page, because the front
             # door is a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
-                page = front_page(language=self._front_language(), address=self.address)
+                page = front_page(
+                    language=self._public_language(), address=self.address, asked=self._asked()
+                )
                 return self._send(200, page.encode("utf-8"), HTML)
             return self._send(
                 200, holding_page(language=self._page_language()).encode("utf-8"), HTML
@@ -4539,7 +5388,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._series_stop(None)
         if route == "/account/signin":
             return self._send(
-                200, signin_page(language=self._page_language()).encode("utf-8"), HTML
+                200,
+                # In the language pressed on the front door, where one was: the link there
+                # carries it, and a stranger who chose Russian a page ago is not handed
+                # English to sign in with (2026-09-20).
+                signin_page(language=self._public_language(), asked=self._asked()).encode("utf-8"),
+                HTML,
             )
         # Google's two halves (targum-internal#304). Exempt from the start-up key for the
         # reason the sign-in page is — somebody signing in has no key yet — and never
@@ -4612,6 +5466,32 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(
                 200, self._desk("you", self.you).encode("utf-8"), "text/html; charset=utf-8"
             )
+        if route == "/playlists":
+            page = self._desk("playlists", self.playlists)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/slips":
+            # Lines this reader wrote that came back changed (targum-internal#290).
+            # Theirs and nobody else's: signed out there is nobody to have any, and the
+            # store answers with an empty list rather than with somebody else's.
+            person = self._person()
+            # `?all=1` is the record on the phrases page, newest first and with the lines
+            # already known; without it, the queue What to work on draws.
+            if parse_qs(urlparse(self.path).query).get("all") == ["1"]:
+                every = self.store.slips(person.id if person else None, limit=SLIPS_LISTED)
+                return self._json({"slips": every})
+            oldest = self.store.slips(
+                person.id if person else None,
+                limit=SLIPS_SHOWN,
+                oldest=True,
+                open_only=True,
+            )
+            return self._json({"slips": oldest})
+        if route == "/playlists.json":
+            return self._playlists_get(None)
+        if route.startswith("/playlists/") and route.endswith("/end.json"):
+            return self._playlist_end(route[len("/playlists/") : -len("/end.json")])
+        if route.startswith("/playlists/") and route.endswith(".json"):
+            return self._playlists_get(route[len("/playlists/") : -len(".json")])
         if route == "/readers":
             # Not "/library": that name belongs to the page a person opens.
             home = self._home()
@@ -4625,6 +5505,11 @@ class Handler(BaseHTTPRequestHandler):
                 reader["shared"] = True
             self._measure(self.library.shared, shared)
             person = self._person()
+            # The playlists each text is in, named on its row (design.md §12, 2026-09-24).
+            if person is not None and self.store is not None:
+                holding = self.store.playlists_holding(person.id)
+                for reader in (*mine, *shared):
+                    reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
             return self._json(
                 {
                     "readers": mine,
@@ -4644,6 +5529,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/account/me":
             return self._me()
+        if route == "/account/totals":
+            return self._totals()
         if route == "/suggest":
             return self._suggest()
         if route == "/account/follows":
@@ -4656,7 +5543,11 @@ class Handler(BaseHTTPRequestHandler):
 
             schedule = parse_qs(urlparse(self.path).query).get("schedule", ["diaspora"])[0]
             return self._json(
-                {"series": series_module.current(schedule, public=shelves_are_public())}
+                {
+                    "series": series_module.current(
+                        schedule, public=shelves_are_public(), language=self._ui_language()
+                    )
+                }
             )
         if route == "/words/common":
             return self._common_words(parse_qs(urlparse(self.path).query))
@@ -4722,6 +5613,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._promote(self._form())
         if route == BACK_OFFICE_ROUTE + "/open-the-door":
             return self._open_the_door(self._form())
+        if route == BACK_OFFICE_ROUTE + "/balance":
+            return self._balance(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by
         # necessity: somebody who reads an issue signed out has no account and is not
         # going to open one to be told when the next is out. Plain forms, before the
@@ -4735,6 +5628,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._waitlist_post(route, self._form())
         if route == "/series/stop":
             return self._series_stop(self._form())
+        # The connector's four (targum-internal#80). Before the account check and before
+        # the JSON parse: three of them are spoken by a client rather than a browser, and
+        # two of those carry a form body the spec fixes. Approving is a press on a page
+        # this server drew, and reads its person from the cookie like any other press.
+        if route in OAUTH_POSTS or route == oauth.RESOURCE_PATH:
+            if not connector_is_open():
+                return self._json({"error": "not found"}, 404)
+        if route == "/oauth/register":
+            return self._oauth_register()
+        if route == "/oauth/token":
+            return self._oauth_token(self._form())
+        if route == "/oauth/revoke":
+            return self._oauth_revoke(self._form())
+        if route == "/oauth/authorize":
+            return self._oauth_approve(self._form())
+        # The connector itself. Before the account check, because what authorises it is a
+        # Bearer token and never the cookie — see `_mcp`.
+        if route == oauth.RESOURCE_PATH:
+            return self._mcp()
         if self._needs_account(route):
             return self._json(
                 {
@@ -4755,6 +5667,14 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 403,
             )
+        # The press on a quote a connector handed over (#80). Before the JSON parse:
+        # it is a plain form submit carrying no body at all, and the JSON door would
+        # refuse it. Which job it is, is in the path; who may press it, `_own_job`.
+        if route.startswith("/build/"):
+            return self._press(route[len("/build/") :])
+        # The press on a whole set (#365): a form post too, carrying the ticked items.
+        if route.startswith("/set/"):
+            return self._set_press(route[len("/set/") :])
         # The chunked door, before the JSON parse: a chunk's body is raw bytes, and
         # holding it to the JSON ceiling would refuse the very uploads it exists for.
         if route.startswith("/upload/"):
@@ -4794,6 +5714,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._weekly_follow(payload)
         if route == "/account/follows":
             return self._follows(payload)
+        if route == "/account/disconnect":
+            return self._disconnect(payload)
+        if route == "/account/prompts":
+            return self._prompts(payload)
+        if route == "/playlists":
+            return self._playlists_post(None, payload)
+        if route.startswith("/playlists/targum/"):
+            return self._targum_set(unquote(route[len("/playlists/targum/") :]))
+        if route.startswith("/playlists/"):
+            return self._playlists_post(route[len("/playlists/") :], payload)
+        if route == "/already":
+            return self._already(payload)
+        if route == "/describe":
+            return self._describe(payload)
         if route == "/prepare":
             return self._prepare(payload)
         if route == "/build":
@@ -4824,8 +5758,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._rename(payload)
         if route == "/account/interest":
             return self._interest(payload)
+        if route == "/account/level":
+            return self._declared(payload)
+        if route == "/events":
+            return self._events(payload)
+        if route == "/account/events":
+            return self._events_choice(payload)
         if route == "/account/address":
             return self._address(payload)
+        if route.startswith("/slips/"):
+            return self._know_slip(route[len("/slips/") :], payload)
+        if route == "/account/grant":
+            return self._accept_grant()
+        if route == "/correction":
+            return self._propose_correction(payload)
         if route == "/account/languages":
             return self._languages(payload)
         if route == "/account/language":
@@ -4846,7 +5792,6 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         person_id = person.id if person else None
         if rest == "list":
-            from .chat import hebrew as hebrew_module
             from .chat.session import mode_for
 
             # The hours beside the list: the one limit a reader is told about, in the
@@ -4869,7 +5814,7 @@ class Handler(BaseHTTPRequestHandler):
                     "language": spoken,
                     # The language the conversation's meanings are in, so a word looked
                     # up from it matches the ones it already carries (targum-internal#287).
-                    "into": hebrew_module.gloss_language(self._reads(person)),
+                    "into": self._reading_language(),
                     "usable": self.chats.usable,
                     # Whether a new conversation here is held in the talk shape: Hebrew for
                     # a reader with modern Hebrew to speak, and Italian (targum-internal
@@ -4996,6 +5941,28 @@ class Handler(BaseHTTPRequestHandler):
                 "error": errors[-1]["message"] if errors else "",
                 # The cards this turn quoted, for a page polling rather than streaming.
                 "quotes": [json.loads(data) for kind, data in feed.events if kind == "quote"],
+                # And what it merely *found* (targum-internal#253): rows a search turned
+                # up, nothing fetched and nothing priced. Separate from `quotes` on
+                # purpose — a quote is a card with a price and a button that spends, and
+                # one of these is a title and a link. Add draws them so that a
+                # description finds things in place, and the price arrives only when the
+                # reader chooses one.
+                "found": [
+                    row
+                    for kind, data in feed.events
+                    if kind == "found"
+                    for row in json.loads(data).get("items", [])
+                ],
+                # And the film it could not fetch, so a page without EventSource keeps
+                # the link the same way a streaming one does (targum-internal#331).
+                "refused": next(
+                    (
+                        json.loads(data)["url"]
+                        for kind, data in reversed(feed.events)
+                        if kind == "refused"
+                    ),
+                    "",
+                ),
                 "words": read[-1] if read else None,
             }
         turns = self.chats.store.chat_turns(chat_id)
@@ -5638,7 +6605,7 @@ class Handler(BaseHTTPRequestHandler):
             n=min(self.COMMON_REACH, offset + limit), language=spoken
         )
         page = forms[offset : offset + limit]
-        target = hebrew_module.gloss_language(self._reads(self._person()))
+        target = self._reading_language()
         bands = FrequencyBands()
         provider = gloss_provider_name()
         rows = []
@@ -5696,16 +6663,419 @@ class Handler(BaseHTTPRequestHandler):
             # not a boundary.
             "learning": sorted(self._learning(person)),
             "reads": sorted(self._reads(person)),
+            # Whether `reads` is their answer or the default, so the arrival asks which
+            # language they read only of somebody who has never said (2026-09-20).
+            "readsSaid": self.store.said_reading(person.id),
             # The language the switcher shows (2026-09-13), so every page and every device
             # opens in the language the reader last chose.
             "language": self.store.language(person.id),
+            # Whether this reader has accepted the contribution grant, which is the whole
+            # of what decides if a correction control is drawn (targum-internal#164,
+            # acceptance 2). The page asks; it never guesses from anything else.
+            "granted": self.store.has_granted(person.id),
             # Which series this account follows (2026-09-11), so a browser that has just
             # signed in draws the same row as the one they followed from.
             "follows": (["weekly"] if self.store.following(person.email) else [])
             + self.store.series_followed(person.email),
+            # Whether what they do in a text is being recorded: whether this box keeps such
+            # a record at all, and whether this reader has left it on (#127). A page sends
+            # nothing unless both are true.
+            "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+            # Which connectors hold a token for this account, and what each may do
+            # (targum-internal#80). A grant that lasts has to be visible somewhere the
+            # reader can take it back, and this is that somewhere — see design.md §12,
+            # "A scope is a press that lasts". Never the token itself.
+            "connections": self.store.connections(person.id),
+            # And what they wrote for those connectors to offer (note 17). Listed here so
+            # the page that writes them is the page that shows them.
+            "prompts": self.store.prompts(person.id),
         }
         answer.update(self.store.profile(person))
         self._json(answer)
+
+    def _prompts(self, payload: dict[str, Any]) -> None:
+        """What a reader wrote for their own connector to offer (#80, note 17).
+
+        One door for writing and removing, because they are the same act from the page's
+        side: a name and what it should do, or a name and nothing. What comes back is the
+        whole list, so the page never has to work out what it now holds.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        name = str(payload.get("name") or "")
+        if payload.get("gone"):
+            self.store.drop_prompt(person.id, name)
+            return self._json({"prompts": self.store.prompts(person.id)})
+        written = self.store.write_prompt(person.id, name, str(payload.get("says") or ""))
+        if written is None:
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.give-it-a-name-and-say-what",
+                        "Give it a name and say what it should do. You can keep up to {most}.",
+                        most=MOST_PROMPTS,
+                    ),
+                    "prompts": self.store.prompts(person.id),
+                },
+                400,
+            )
+        self._json({"written": written, "prompts": self.store.prompts(person.id)})
+
+    def _playlists_get(self, which: str | None) -> None:
+        """The reader's playlists, or one of them with its texts (targum-internal#364).
+
+        Theirs and nobody else's: the owner is the session, and another account's id is
+        a 404, the same answer as an id that does not exist.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if which is None:
+            language = self._page_language()
+            return self._json(
+                {
+                    "playlists": self.store.playlists(person.id),
+                    # targum's own (#368), each with how many of its texts this box has.
+                    "targum": [
+                        {"id": one.id, "name": one.name_in(language), "count": len(built)}
+                        for one, built in self.library.targum_sets()
+                    ],
+                }
+            )
+        found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
+        if found is None:
+            return self._json({"error": "not found"}, 404)
+        return self._json(playlist_answer(found))
+
+    def _targum_set(self, collection_id: str) -> None:
+        """Open one of targum's playlists: copied into the reader's own and answered like
+        any playlist, with nothing claimed (targum-internal#368)."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        opened = self.library.open_targum_set(person.id, collection_id, self._page_language())
+        if opened.get("error") == "full":
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.playlists-kept",
+                        "You already have {most} playlists. Delete one first.",
+                        most=MOST_PLAYLISTS,
+                    )
+                },
+                400,
+            )
+        if "error" in opened:
+            return self._json({"error": "not found"}, 404)
+        return self._json(playlist_answer(opened))
+
+    def _playlist_end(self, which: str) -> None:
+        """What a finished playlist says at its end (targum-internal#367).
+
+        design.md §12, "A playlist is swiped, and one press takes the set": the end
+        offers more, once, and never refills itself. So two things and no more — the
+        words met across the set, as real counts, and one next set, quoted the first
+        time the end is reached and remembered after that. The quote spends nothing; the
+        set is built only when the reader presses it on its own page.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        found = self.store.playlist(person.id, int(which)) if which.isdigit() else None
+        if found is None:
+            return self._json({"error": "not found"}, 404)
+        playlist_id = int(found["id"])
+        folders = self._built_folders(found)
+        language = next((lang for _, lang in folders if lang), "") or "he"
+        with _ENDING:
+            offered = self.store.next_set(person.id, playlist_id)
+            if offered is None:
+                offered = self._quote_next_set(person, found, language)
+                if not self.store.offer_next_set(person.id, playlist_id, offered) and offered:
+                    # Somebody else's visit got there first; theirs is the one offered.
+                    self.store.drop_playlist(person.id, offered)
+                    offered = self.store.next_set(person.id, playlist_id) or 0
+        return self._json(
+            {
+                "words": self._words_met(person, folders),
+                "next": self._next_set_answer(person.id, offered),
+            }
+        )
+
+    def _built_folders(self, found: dict[str, Any]) -> list[tuple[Path, str]]:
+        """Each built item's folder, and the language its text is in. A reader's own
+        texts first, then the shared shelf, where a set can also point."""
+        out: list[tuple[Path, str]] = []
+        home = self._home()
+        for item in found.get("items") or []:
+            name = str(item.get("reader") or "")
+            if not name or item.get("failed") or "/" in name or name.startswith("."):
+                continue
+            for root in (home, self.library.shared):
+                folder = root / name
+                document = folder / "document.json"
+                if not document.is_file():
+                    continue
+                try:
+                    language = str(
+                        json.loads(document.read_text(encoding="utf-8")).get("language") or ""
+                    )
+                except (OSError, json.JSONDecodeError, AttributeError):
+                    language = ""
+                out.append((folder, language.split("-")[0].lower()))
+                break
+        return out
+
+    def _words_met(self, person: Person, folders: list[tuple[Path, str]]) -> dict[str, Any] | None:
+        """The words the set held: how many distinct ones, how many of them the reader had
+        never marked in any way, and the words themselves, the new ones first and at most
+        `END_WORDS` of them — design.md §12 promises "the words met across the set", and a
+        count alone is not the words. `coverage.lemmas` over each built text, so no model
+        runs. None where no text in it carries word-level annotation: saying nothing beats
+        a zero."""
+        from . import coverage
+
+        met: dict[tuple[str, str], None] = {}
+        for folder, language in folders:
+            for lemma in coverage.lemmas(folder):
+                met.setdefault((language, lemma), None)
+        if not met:
+            return None
+        marked: dict[str, dict[str, int]] = {}
+        fresh: list[dict[str, str]] = []
+        known: list[dict[str, str]] = []
+        for language, lemma in met:
+            if language not in marked:
+                marked[language] = self.store.marked(person, language)
+            word = {"word": lemma, "language": language}
+            (known if lemma in marked[language] else fresh).append(word)
+        return {
+            "met": len(met),
+            "new": len(fresh),
+            "list": [{**one, "new": True} for one in fresh[:END_WORDS]]
+            + [{**one, "new": False} for one in known[: max(0, END_WORDS - len(fresh))]],
+        }
+
+    def _not_again(self, person: Person, found: dict[str, Any]) -> list[str]:
+        """The catalogue ids a next set must not offer: every text in the playlist just
+        finished, and whatever this reader finished in the last `RECENT_DAYS` days.
+
+        Found live on 2026-09-24: "More like QA quick scenes" held the three scenes just
+        finished and two more, because `suggest_next` leaves out only what a reader
+        brought in themselves, and targum's own sets point at the shared shelf."""
+        from . import catalogue as catalogue_module
+
+        def source_of(folder: Path) -> str:
+            with contextlib.suppress(OSError, json.JSONDecodeError, AttributeError):
+                document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+                return catalogue_module._key(str(document.get("source") or ""))
+            return ""
+
+        sources = {source_of(folder) for folder, _ in self._built_folders(found)}
+        since = (time.time() - RECENT_DAYS * 86400) * 1000
+        finished = {
+            key
+            for key, times in self.store.read_times(person.id).items()
+            if times["finished"] >= since
+        }
+        if finished:
+            for root in (self._home(), self.library.shared):
+                for row in self.library.readers(root):
+                    if row.get("document") in finished:
+                        sources.add(source_of(root / str(row["name"])))
+        sources.discard("")
+        return [
+            entry.id
+            for entry in catalogue_module.everything()
+            if catalogue_module._key(entry.source) in sources
+        ]
+
+    def _quote_next_set(self, person: Person, found: dict[str, Any], language: str) -> int:
+        """Quote the one set a playlist's end offers, and say which playlist it is, or 0.
+
+        Chosen the way `suggest_next` chooses — the library texts this reader has not
+        brought in, gentlest first by what they already know — in the set's language,
+        five at most. `quote_set` makes the playlist and prices it; nothing is claimed.
+        """
+        from .chat import tools as tools_module
+
+        ctx = tools_module.Ctx(
+            person=person,
+            home=self._home(),
+            library=self.library,
+            store=self.store,
+            chat_id="",
+            level=level_module.snapshot(self.store, person.id, language),
+            reads=self._reads(),
+            learning=self._learning(),
+            admin=self.store.is_admin(person.email),
+        )
+        try:
+            skip = self._not_again(person, found)
+            picked = tools_module.suggest_next(
+                ctx, {"language": language, "limit": 5, "skip": skip}
+            )
+            # And again here, whatever `suggest_next` did with it: the one thing this card
+            # must never do is offer back what was just read.
+            rows = [row for row in picked.get("suggestions") or [] if row.get("id") not in skip]
+            if not rows:
+                return 0
+            quoted = tools_module.quote_set(
+                ctx,
+                {
+                    "name": self._say(
+                        "playlists.next-name", "More like {name}", name=str(found.get("name") or "")
+                    ),
+                    "items": [
+                        {"catalogue_id": row["id"], "title": str(row.get("title") or "")}
+                        for row in rows
+                        if row.get("id")
+                    ],
+                },
+            )
+        except Exception:  # noqa: BLE001 - an end card with no offer is still an end card
+            log.exception("could not quote the next set for playlist %s", found.get("id"))
+            return 0
+        made = (quoted.get("set") or {}).get("id")
+        return int(made) if made else 0
+
+    def _next_set_answer(self, person_id: int, offered: int) -> dict[str, Any] | None:
+        """The offered set as the end card draws it, or None: none was made, or the
+        reader has since taken it away."""
+        if not offered:
+            return None
+        found = self.store.playlist(person_id, offered)
+        if found is None:
+            return None
+        return {
+            "id": found["id"],
+            "name": found["name"],
+            "count": len(found.get("items") or []),
+            "open": f"/set/{found['id']}",
+        }
+
+    def _playlists_post(self, which: str | None, payload: dict[str, Any]) -> None:
+        """Make a playlist, or change one: add a text, move one, take one out, rename it,
+        or take the playlist away. One door per playlist, and what comes back is the
+        playlist as it now stands, so the page never works out what it holds.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if which is None:
+            made = self.store.make_playlist(person.id, str(payload.get("name") or ""))
+            if made is None:
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.playlist-name-it",
+                            "Enter a name. You can have up to {most} playlists.",
+                            most=MOST_PLAYLISTS,
+                        )
+                    },
+                    400,
+                )
+            reader = str(payload.get("reader") or "")
+            if reader:
+                self.store.add_to_playlist(
+                    person.id, int(made["id"]), str(payload.get("title") or reader), reader=reader
+                )
+            found = self.store.playlist(person.id, int(made["id"]))
+            return self._json(playlist_answer(found or made))
+        if not which.isdigit() or self.store.playlist(person.id, int(which)) is None:
+            return self._json({"error": "not found"}, 404)
+        playlist_id = int(which)
+        doing = str(payload.get("do") or "")
+        position = int(payload.get("position") or 0)
+        if doing == "add":
+            reader = str(payload.get("reader") or "")
+            added = self.store.add_to_playlist(
+                person.id, playlist_id, str(payload.get("title") or reader), reader=reader or None
+            )
+            if added is None:
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.playlist-full",
+                            "A playlist holds up to {most} texts.",
+                            most=MOST_IN_PLAYLIST,
+                        )
+                    },
+                    400,
+                )
+        elif doing == "move":
+            self.store.move_in_playlist(
+                person.id, playlist_id, position, 1 if int(payload.get("by") or 0) > 0 else -1
+            )
+        elif doing == "drop":
+            self.store.drop_from_playlist(person.id, playlist_id, position)
+        elif doing == "rename":
+            self.store.rename_playlist(person.id, playlist_id, str(payload.get("name") or ""))
+        elif doing == "gone":
+            self.store.drop_playlist(person.id, playlist_id)
+            return self._json({"gone": True, "playlists": self.store.playlists(person.id)})
+        else:
+            return self._json({"error": "bad request"}, 400)
+        found = self.store.playlist(person.id, playlist_id)
+        return self._json(playlist_answer(found) if found else {"gone": True})
+
+    def _disconnect(self, payload: dict[str, Any]) -> None:
+        """Take a connector's tokens back — the other half of the approval page.
+
+        Both kinds at once, because revoking the access token and leaving the refresh
+        token would be a disconnection that undid itself within the hour.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        client = str(payload.get("client") or "")
+        gone = self.store.disconnect(person.id, client) if client else 0
+        self._json({"disconnected": gone, "connections": self.store.connections(person.id)})
+
+    def _events(self, payload: dict[str, Any]) -> None:
+        """What a reader did in a text, appended (targum-internal#127). Signed in only, and
+        only where the deployment keeps such a record; otherwise it keeps nothing and says
+        so, which is an answer a page can stop sending on."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if not keeps_events():
+            return self._json({"signedIn": True, "kept": 0, "keeping": False})
+        sent = payload.get("events")
+        kept = self.store.add_events(person, sent if isinstance(sent, list) else [])
+        self._json({"signedIn": True, "kept": kept, "keeping": self.store.collects(person.id)})
+
+    def _events_choice(self, payload: dict[str, Any]) -> None:
+        """The reader's own two controls over it: stop or start the record, and erase it."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        erased = self.store.forget_events(person) if payload.get("forget") else 0
+        if "collect" in payload:
+            self.store.set_collects(person, bool(payload.get("collect")))
+        self._json(
+            {
+                "signedIn": True,
+                "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+                "erased": erased,
+            }
+        )
+
+    def _totals(self) -> None:
+        """Time listened, time watched and words read, by day, language and medium."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        showing = keeps_events() and self.store.collects(person.id)
+        self._json(
+            {
+                "signedIn": True,
+                "kept": keeps_events(),
+                "on": self.store.collects(person.id),
+                "totals": self.store.totals(person.id) if showing else [],
+            }
+        )
 
     def _rename(self, payload: dict[str, Any]) -> None:
         """What to call them. Empty clears it, and the avatar goes back to the address."""
@@ -5738,6 +7108,37 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         self._json({"signedIn": True, "interest": list(kept)})
+
+    def _declared(self, payload: dict[str, Any]) -> None:
+        """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
+
+        Kept as a seed: `level.seed` reads it only while nothing about the reader has
+        been measured, and no page prints it back."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            kept = self.store.set_declared(person, str(payload.get("level") or ""))
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "declared": kept})
+
+    def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
+        """ "I know this" on a line that came back changed (2026-09-18).
+
+        `{"known": true}` takes it out of What to work on; false puts it back. The slip
+        itself stays: it is the record, and the record is not the queue.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            slip_id = int(rest)
+        except ValueError:
+            return self._json({"error": "not found"}, 404)
+        if not self.store.know_slip(person.id, slip_id, bool(payload.get("known", True))):
+            return self._json({"error": "not found"}, 404)
+        self._json({"ok": True})
 
     def _address(self, payload: dict[str, Any]) -> None:
         """How the conversation addresses them in Hebrew (2026-09-14)."""
@@ -5858,16 +7259,37 @@ class Handler(BaseHTTPRequestHandler):
         return pages.get(name) or english
 
     def _ui_language(self) -> str:
-        """The language the chrome speaks to this reader in: the one language their account
-        reads other than English, where a desk rendering in it exists — English beside it
-        or not, since reading Russian is the choice that says so. English otherwise: for a
-        visitor, for an account that reads only English, and for one that reads two other
-        languages, where nothing says which."""
+        """The language the chrome speaks to this reader in: `strings.drawn_in`, which is
+        the one rule the conversation answers to as well (targum-internal#286, item 1).
+
+        It asked `self.translated` rather than the catalogue until 2026-09-22 — the same
+        answer on a running server, since that map is built from `desk_languages()` at
+        start-up, but not on one that never filled it.
+        """
+        from .strings import drawn_in
+
+        return drawn_in(self._said_reads())
+
+    def _said_reads(self) -> set[str] | None:
+        """What this reader *said* they read, or nothing where nobody is signed in.
+
+        Deliberately not `_reads`, which answers "everything" for a visitor because it is
+        a permission — which languages may be offered — rather than a preference. Feeding
+        it to a rule that picks *one* language made a signed-out visitor Russian, because
+        `INTO` holds exactly English and Russian and the rule takes the single other one
+        (2026-09-22). The old rule hid it by always preferring English.
+        """
         person = self._person()
         if person is None or self.store is None:
-            return "en"
-        others = [code for code in self.store.reads(person.id) if code != "en"]
-        return others[0] if len(others) == 1 and others[0] in self.translated else "en"
+            return None
+        return self.store.reads(person.id)
+
+    def _reading_language(self) -> str:
+        """The language this reader's meanings and `= ` lines are in: `_ui_language`
+        without the desk gate, since a meaning is bought rather than written here."""
+        from .strings import reading_language
+
+        return reading_language(self._said_reads())
 
     def _say(self, key: str, english: str, **fill: object) -> str:
         """A sentence the server sends back, in the language of whoever asked
@@ -5893,18 +7315,32 @@ class Handler(BaseHTTPRequestHandler):
         self._said_by_browser = True
         return best_language(self.headers.get("Accept-Language", ""))
 
-    def _front_language(self) -> str:
-        """The language the front door answers in.
+    def _public_language(self) -> str:
+        """The language a public page answers in.
 
-        The browser's, as every other public page, unless the visitor pressed the
-        switcher in the bar: `?lang=` is the whole of the choice, kept in the address
-        rather than on a cookie or an account, because a stranger reading a landing page
-        has neither and should not be given one to change the language of a page.
+        The browser's, unless the visitor pressed the switcher in the bar: `?lang=` is
+        the whole of the choice, kept in the address rather than on a cookie or an
+        account, because a stranger reading a public page has neither and should not be
+        given one to change the language of a page.
+
+        It is the address and not only a preference because `hreflang` needs one: a
+        crawler cannot be told that two languages of a page exist unless each has a URL
+        of its own (targum-internal#188). Named for the front door until 2026-09-22, when
+        the text pages and the weekly began answering the same way.
         """
         from .strings import languages
 
         asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
         return asked if asked in set(languages()) else self._page_language()
+
+    def _asked(self) -> str:
+        """The language a visitor pressed for — `?lang=` — or "" where they pressed nothing
+        and the browser decided. The difference is a choice: what was pressed is carried
+        to the next page and kept, and what was inferred is only ever used."""
+        from .strings import languages
+
+        asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
+        return asked if asked in set(languages()) else ""
 
     def _sign_in(self, payload: dict[str, Any]) -> None:
         email = str(payload.get("email") or "")
@@ -6053,8 +7489,444 @@ class Handler(BaseHTTPRequestHandler):
         _, session = got
         from .accounts import SESSION_DAYS
 
-        where = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        self._go(where, self._session_cookie(session, SESSION_DAYS))
+        # Somebody who pressed Connect in Claude and had to sign in first is put back
+        # where they were, rather than on Learn wondering what happened to the thing
+        # they were doing. See `_connecting`: the cookie holds one of our own paths and
+        # is checked against that prefix, so it cannot be turned into a way out.
+        waiting = self._connecting()
+        landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
+        where = waiting or landed
+        cookies = [self._session_cookie(session, SESSION_DAYS)]
+        if waiting:
+            cookies.append(_forget_cookie(CONNECT_COOKIE))
+        self._go(where, cookies)
+
+    # -- the connector's doors (targum-internal#80) --------------------------
+
+    def _connecting(self) -> str:
+        """The Connect the reader was in the middle of, if they were in the middle of one.
+
+        Held in a cookie rather than threaded through the sign-in link, so the mail and
+        the `link` table do not have to learn about OAuth for this. The value is a path
+        this server wrote, and it is checked against that one prefix on the way back
+        out: anything else is dropped, so the cookie is never a redirect somebody else
+        can choose.
+        """
+        waiting = self._cookie(CONNECT_COOKIE)
+        return waiting if waiting.startswith("/oauth/authorize?") else ""
+
+    def _oauth_metadata(self, route: str) -> None:
+        """The two documents a client reads before it knows how to ask for anything.
+
+        Cached for an hour: they change when the server does, which is a deploy, and a
+        client that fetches them on every connection is a client we are asking to do
+        work for nothing.
+        """
+        address = self.address or f"http://{self.headers.get('Host') or 'localhost'}"
+        said = (
+            oauth.protected_resource(address)
+            if route.endswith("oauth-protected-resource")
+            else oauth.authorization_server(address)
+        )
+        body = json.dumps(said).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "public, max-age=3600")
+        # A client fetches this from its own origin before it has a token.
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _oauth_register(self) -> None:
+        """Dynamic client registration (RFC 7591), which both directories expect.
+
+        Open, because that is what dynamic means: a client that has never spoken to this
+        box registers itself and gets an id. Nothing it says is trusted — see
+        `oauth.check_registration` — and an id is worth nothing on its own, because every
+        token behind it needs a reader to have pressed Approve.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > 8192:
+            return self._json({"error": "invalid_client_metadata"}, 400)
+        try:
+            payload = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return self._json({"error": "invalid_client_metadata"}, 400)
+        if not isinstance(payload, dict):
+            return self._json({"error": "invalid_client_metadata"}, 400)
+        try:
+            name, redirects = oauth.check_registration(payload)
+        except oauth.OAuthError as refused:
+            return self._json(refused.as_json(), refused.status)
+        # Open by definition, so the ceiling is on the act rather than on an asker.
+        if self.store.registering_too_often():
+            return self._json({"error": "temporarily_unavailable"}, 429)
+        client_id = self.store.register_client(name, redirects)
+        client = self.store.client(client_id) or {"made": 0}
+        body = oauth.registration_reply(client_id, name, redirects, int(client["made"])).encode()
+        self._send(201, body, "application/json")
+
+    def _oauth_authorize(self, query: dict[str, list[str]]) -> None:
+        """The approval page, and the only place a scope is ever granted.
+
+        Three ways out. A request that is malformed is answered to the *reader*, as a
+        page, because a redirect carrying an error to a client we could not verify is a
+        redirect to an address we have not checked. A reader who is not signed in signs
+        in first and comes back here. Everyone else is shown what is being asked for,
+        in words, with what the spending scope costs beside it — see design.md §12, "A
+        scope is a press that lasts", which is the whole reason that sentence has to be
+        on this page and not only in the docs.
+        """
+        try:
+            asked = oauth.read_request(query)
+            client = self.store.client(asked.client_id)
+            if client is None:
+                raise oauth.OAuthError("invalid_client", "We don't know that client.")
+            redirect = oauth.check_redirect(asked.redirect, client["redirects"])
+        except oauth.OAuthError as refused:
+            return self._refuse_connect(refused)
+        person = self._person()
+        if person is None:
+            here = f"/oauth/authorize?{urlparse(self.path).query}"
+            body = signin_page(language=self._page_language()).encode("utf-8")
+            return self._send(200, body, HTML, cookie=_short_cookie(CONNECT_COOKIE, here))
+        page = approve_page(
+            client=str(client["name"] or ""),
+            scopes=oauth.describe_scopes(asked.scopes),
+            spends=asked.spends,
+            query=urlparse(self.path).query,
+            redirect=redirect,
+            language=self._page_language(),
+        )
+        # The press is answered with a 303 to the client's callback, and a policy of
+        # `'self'` alone refuses to follow it — see `_policy`. Only this redirect, which
+        # `check_redirect` has already matched against what the client registered.
+        self._send(200, page.encode("utf-8"), HTML, forms=oauth.origin_of(redirect))
+
+    def _refuse_connect(self, refused: oauth.OAuthError) -> None:
+        """A Connect we could not read, said to the reader in one catalogue line.
+
+        The client's own `error_description` ("This server takes S256 challenges.") is
+        for whoever wrote the client, and it is English whatever the reader reads, so it
+        goes to the log and never onto the page.
+        """
+        log.info("connect refused: %s (%s)", refused.code, refused.description)
+        body = connect_refused_page(language=self._page_language()).encode("utf-8")
+        self._send(400, body, HTML)
+
+    def _oauth_approve(self, form: dict[str, str]) -> None:
+        """The press. Mints one code and sends the client back to itself.
+
+        What is written on the grant is what this server worked out, never what the form
+        carried: the form says which request this is a press on, and every field is read
+        again from the query it names. A form that could name its own scopes would be a
+        page anybody could post to and get `check` out of.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"error": "invalid_request"}, 401)
+        query = parse_qs(form.get("asked", ""))
+        try:
+            asked = oauth.read_request(query)
+            client = self.store.client(asked.client_id)
+            if client is None:
+                raise oauth.OAuthError("invalid_client", "We don't know that client.")
+            redirect = oauth.check_redirect(asked.redirect, client["redirects"])
+        except oauth.OAuthError as refused:
+            return self._refuse_connect(refused)
+        if form.get("press") != "approve":
+            # A refusal is an answer, and the client is told in the way the spec says so
+            # that it can say something better than "it didn't work".
+            return self._go(
+                oauth.back_to(redirect, error="access_denied", state=asked.state),
+                _forget_cookie(CONNECT_COOKIE),
+            )
+        code = self.store.start_grant(
+            person.id,
+            asked.client_id,
+            scopes=asked.scope_string,
+            redirect=redirect,
+            challenge=asked.challenge,
+            resource=asked.resource,
+        )
+        self._go(
+            oauth.back_to(redirect, code=code, state=asked.state),
+            _forget_cookie(CONNECT_COOKIE),
+        )
+
+    def _oauth_token(self, form: dict[str, str]) -> None:
+        """Code for tokens, and refresh token for a new pair.
+
+        No client authentication: every client here is public, and PKCE is what stands in
+        its place — which is why a code with no verifier, or the wrong one, is refused
+        here rather than anywhere softer.
+        """
+        kind = form.get("grant_type", "")
+        if kind == "refresh_token":
+            return self._oauth_refresh(form)
+        if kind != "authorization_code":
+            return self._json({"error": "unsupported_grant_type"}, 400)
+        grant = self.store.spend_grant(form.get("code", ""))
+        if grant is None:
+            return self._json({"error": "invalid_grant"}, 400)
+        # Everything below is checked against the grant, not the form. The client id and
+        # redirect are re-presented by the client and have to match what the reader
+        # approved, or a code handed to the wrong client would be a code it could spend.
+        if not secrets.compare_digest(form.get("client_id", ""), str(grant["client"])):
+            return self._json({"error": "invalid_grant"}, 400)
+        if form.get("redirect_uri", str(grant["redirect"])) != str(grant["redirect"]):
+            return self._json({"error": "invalid_grant"}, 400)
+        if not oauth.verify_challenge(form.get("code_verifier", ""), str(grant["challenge"])):
+            return self._json({"error": "invalid_grant"}, 400)
+        self._oauth_issue(
+            int(grant["person"]), str(grant["client"]), str(grant["scopes"]), str(grant["resource"])
+        )
+
+    def _oauth_refresh(self, form: dict[str, str]) -> None:
+        """A new pair, and the old refresh token dies here.
+
+        Rotation rather than reuse: a refresh token presented a second time finds itself
+        revoked, which is the one signal available that it was copied.
+        """
+        spent = self.store.rotate_refresh(form.get("refresh_token", ""))
+        if spent is None:
+            return self._json({"error": "invalid_grant"}, 400)
+        if not secrets.compare_digest(form.get("client_id", ""), str(spent["client"])):
+            return self._json({"error": "invalid_grant"}, 400)
+        self._oauth_issue(
+            int(spent["person"]),
+            str(spent["client"]),
+            # In the current spelling, so a grant stored as "check" comes back as "chat"
+            # and the table converges on its own (`oauth.RENAMED`).
+            " ".join(oauth.current(str(spent["scopes"]))),
+            str(spent["resource"]),
+            parent=str(spent["hash"]),
+        )
+
+    def _oauth_issue(
+        self, person_id: int, client_id: str, scopes: str, resource: str, parent: str = ""
+    ) -> None:
+        """Write one access token and one refresh token, and say so without caching it."""
+        from .accounts import ACCESS_MINUTES
+
+        access = self.store.mint_token(
+            person_id, client_id, scopes=scopes, resource=resource, parent=parent
+        )
+        refresh = self.store.mint_token(
+            person_id, client_id, kind="refresh", scopes=scopes, resource=resource, parent=parent
+        )
+        body = json.dumps(oauth.token_reply(access, refresh, scopes, ACCESS_MINUTES * 60)).encode(
+            "utf-8"
+        )
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        # A token is not a thing to leave in a proxy, and the RFC says both of these.
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Pragma", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _press_page(self, job_id: str) -> None:
+        """The quote a connector handed over, as a page with the button on it.
+
+        `_own_job` first, as everywhere: a job id is unguessable and is still checked
+        against the asker, because one that leaked through a log or a shared screen
+        should not hand over somebody else's text.
+        """
+        job = self._own_job(job_id)
+        if job is None:
+            return self._not_found()
+        self._send(200, press_page(job.state(), self._page_language()).encode("utf-8"), HTML)
+
+    def _press(self, job_id: str) -> None:
+        """The press itself, as a form post so the page works with script off.
+
+        The same three steps `_build` takes and in the same order — own it, claim it,
+        enqueue it — because there is exactly one path to `Library.claim` and this must
+        not become a second. What differs is only the answer: a browser running no script
+        is sent back to the page, which now says it is being made.
+        """
+        job = self._own_job(job_id)
+        if job is None:
+            return self._not_found()
+        wants_json = bool(self.headers.get("X-Targum-Press"))
+        if job.stage not in {"working", "done"}:
+            blocked = self.library.claim(job)
+            if blocked:
+                job.blocked = blocked
+                job.stage = "blocked"
+                if wants_json:
+                    return self._json(job.state(), 402)
+                return self._go(f"/build/{job.id}")
+            self.library.enqueue(job)
+        if wants_json:
+            return self._json(job.state())
+        self._go(f"/build/{job.id}")
+
+    def _own_set(self, playlist_id: str) -> tuple[dict[str, Any], list[Job | None]] | None:
+        """A playlist quoted as a set, with its jobs, if it is the asker's. Each item's
+        job comes back only if the asker owns it too — `_own_job`, as everywhere."""
+        person = self._person()
+        if person is None or self.store is None or not playlist_id.isdigit():
+            return None
+        found = self.store.playlist(person.id, int(playlist_id))
+        if found is None:
+            return None
+        jobs = [
+            self._own_job(str(item["job"])) if item.get("job") else None for item in found["items"]
+        ]
+        return found, jobs
+
+    def _set_page(self, playlist_id: str) -> None:
+        """A set a model quoted, as a page: every text, what each uses, the total, and one
+        button (#365). The model made the quote and cannot press it; this is the press."""
+        owned = self._own_set(playlist_id)
+        if owned is None:
+            return self._not_found()
+        found, jobs = owned
+        refused = self.library.set_refusals.pop(int(playlist_id), "")
+        self._send(
+            200,
+            set_page(
+                found,
+                [job.state() if job is not None else None for job in jobs],
+                self._page_language(),
+                refused=refused,
+            ).encode("utf-8"),
+            HTML,
+        )
+
+    def _set_press(self, playlist_id: str) -> None:
+        """One press for the whole set, all or nothing (#365, design.md §12).
+
+        Own it, drop what was unticked, claim every job that is still waiting in one
+        transaction, and enqueue them in the set's order so the first is ready first. The
+        same three steps as `_press`, over a list: `Library.claim_set` is the set's one
+        road to the rails, and nothing here spends on anybody's word but the reader's."""
+        # The body is read before anything can turn the request away: a 404 sent over an
+        # unread body resets the connection, and the asker sees a reset, not the 404
+        # (seen as a one-in-ten test failure, 2026-09-25).
+        wants_json = bool(self.headers.get("X-Targum-Press"))
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(length, 64 * 1024)) if length > 0 else b""
+        owned = self._own_set(playlist_id)
+        if owned is None:
+            return self._not_found()
+        found, jobs = owned
+        keep: set[int] | None = None
+        if wants_json:
+            with contextlib.suppress(ValueError, TypeError):
+                asked = json.loads(raw or b"{}").get("keep")
+                if isinstance(asked, list):
+                    keep = {int(one) for one in asked}
+        else:
+            keep = {
+                int(one) for one in parse_qs(raw.decode("utf-8")).get("keep", []) if one.isdigit()
+            }
+        person = self._person()
+        assert person is not None and self.store is not None
+        pid = int(playlist_id)
+        waiting = [
+            (item, job)
+            for item, job in zip(found["items"], jobs, strict=True)
+            if job is not None and job.stage == "ready"
+        ]
+        if keep is not None:
+            # Highest first, because taking one out closes the gap behind it.
+            for item, _ in sorted(waiting, key=lambda pair: -int(pair[0]["position"])):
+                if int(item["position"]) not in keep:
+                    self.store.drop_from_playlist(person.id, pid, int(item["position"]))
+            waiting = [(item, job) for item, job in waiting if int(item["position"]) in keep]
+        chosen = [job for _, job in waiting if job is not None]
+        blocked, room, rail = self.library.claim_set(chosen, self._page_language())
+        if blocked:
+            fits = int(room // SECONDS_A_CREDIT)
+            said = blocked
+            if rail == "hours":
+                # One line, not the balance's own refusal and then a second one about what
+                # is left (2026-09-24): what the set needs, what there is, what to do.
+                said = said_in(
+                    self._page_language(),
+                    "set.page.only-this-many-fit",
+                    "This playlist needs {total} credits and you have {n} left. "
+                    "Untick some texts and try again.",
+                    total=sum(credits_of(job.seconds) for job in chosen if job.audio),
+                    n=fits,
+                )
+            if wants_json:
+                return self._json({"error": said, "credits_left": fits}, 402)
+            self.library.set_refusals[pid] = said
+            return self._go(f"/set/{pid}")
+        for job in chosen:
+            self.library.enqueue(job)
+        if wants_json:
+            return self._json({"started": [job.id for job in chosen], "playlist": pid})
+        self._go(f"/set/{pid}")
+
+    def _mcp(self) -> None:
+        """The connector, at the one address `oauth.RESOURCE_PATH` names.
+
+        **Bearer only, and the session cookie is deliberately not accepted.** Not because
+        `SameSite=Lax` would leak it — it does not send a cookie on a cross-site POST —
+        but because accepting one would mean this endpoint had two ways in, and the
+        weaker would decide its security: every script already running on a signed-in
+        reader's page would be able to read their whole ledger through it, and a future
+        change to the cookie, the flags or the origins would quietly become a change to
+        what a connector can reach. A token is carried by a client that meant to carry
+        it, and the scopes on it say what it may do. There is nothing a cookie would add
+        here except that.
+
+        A 401 here is not a dead end: it names the metadata document, and following that
+        is how a client with no token finds the way to get one. That chain is the whole
+        of what "paste one URL" means.
+        """
+        token = oauth.bearer_from(self.headers.get("Authorization"))
+        held = self.store.bearer(token) if token else None
+        if held is None:
+            body = json.dumps({"error": "invalid_token"}).encode("utf-8")
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("WWW-Authenticate", oauth.challenge_header(self.address))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        person, scopes = held
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_UPLOAD:
+            return self._json({"error": "too large"}, 413)
+        status, body = mcp_http.answer(
+            self.rfile.read(length) if length > 0 else b"",
+            library=self.library,
+            store=self.store,
+            person=person,
+            scopes=scopes,
+            address=self.address,
+            # The one tool that spends reaches targum's own model through this. The
+            # chat already holds a client, made once and kept; a second here would be a
+            # second connection pool for one call a minute.
+            ask=(lambda: self.chats.client()) if self.chats is not None else None,
+        )
+        self.send_response(status)
+        if body:
+            self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if body:
+            self.wfile.write(body)
+
+    def _oauth_revoke(self, form: dict[str, str]) -> None:
+        """RFC 7009. Always 200, whatever was handed over.
+
+        A revocation endpoint that answered differently for a token it did not recognise
+        would be a way to ask whether a token exists.
+        """
+        self.store.revoke_token(form.get("token", ""))
+        self._json({})
 
     def _sign_out(self) -> None:
         self.store.sign_out(self._cookie(SESSION_COOKIE) or None)
@@ -6110,6 +7982,94 @@ class Handler(BaseHTTPRequestHandler):
         answer = {"signedIn": True, "counts": self.store.counts(person)}
         answer.update(self.store.pull(person, since))
         self._json(answer)
+
+    def _already(self, payload: dict[str, Any]) -> None:
+        """Whether the library already has what is in the Add box (targum-internal#251).
+
+        Asked while the reader is still typing, so it reads the catalogue and nothing
+        else: no fetch of the source, no model, no job. The catalogue is on this machine
+        and a lookup in it is a dictionary lookup.
+
+        A source first — a link, a `gutenberg:` or `wikisource:` name — because that is
+        exact and `_prepare` would answer with the same row a moment later. Then the
+        title, which is what somebody typing "בראשית" means. A title that matches more
+        than one row answers with none of them: offering the wrong Genesis is worse than
+        offering nothing, and Continue still works.
+        """
+        from . import catalogue as catalogue_module
+
+        typed = str(payload.get("text") or "").strip()
+        if len(typed) < 2:
+            return self._json({})
+        entry = catalogue_module.matching(typed)
+        if entry is None:
+            wanted = typed.lower()
+            rows = [
+                one
+                for one in catalogue_module.everything()
+                if one.title.lower() == wanted or one.english.lower() == wanted
+            ]
+            # One row, or nothing. Two texts called the same thing is a question, and a
+            # box somebody is still typing into is no place to ask it.
+            entry = rows[0] if len(rows) == 1 else None
+        if entry is None:
+            return self._json({})
+        return self._json(
+            {
+                "id": entry.id,
+                "title": entry.title,
+                "english": entry.english,
+                "author": entry.author,
+                "minutes": entry.minutes,
+                # How many people have published a translation of it: the sentence the
+                # card says depends on whether there is one.
+                "translations": len(entry.translations),
+            }
+        )
+
+    def _describe(self, payload: dict[str, Any]) -> None:
+        """What is at the end of a link, before anything is priced (targum-internal#250).
+
+        The same reading the model has had since #126 — `chat.tools._describe`, metadata
+        only: a video's length and whether anybody wrote its subtitles, an episode's
+        length and its own transcript, an article's minutes and how much of it this
+        reader already knows. Until now only the model could ask, so a reader pasting a
+        link into Add was shown a price and a title and nothing about what they were
+        buying.
+
+        Nothing is spent and no model runs. The door itself is what refuses — a private
+        address, a page over the cap, a source the ingester does not read — and it is
+        the same door `/prepare` goes through a moment later, so a link that is described
+        here is a link that can be priced.
+        """
+        from .chat import tools as tools_module
+
+        url = str(payload.get("url") or payload.get("source") or "").strip()
+        if not url:
+            return self._json({"error": self._say("serve.give-a-link", "Give a link.")}, 400)
+        person = self._person()
+        found = tools_module.describe_source(
+            tools_module.Ctx(
+                person=person,
+                home=self._home(),
+                library=self.library,
+                store=self.store,
+                chat_id="",
+                level=level_module.snapshot(
+                    self.store,
+                    person.id if person else None,
+                    self._asked_language(payload.get("language")),
+                ),
+                reads=self._reads(),
+                learning=self._learning(),
+                admin=bool(person and self.store.is_admin(person.email)),
+            ),
+            {"url": url},
+        )
+        # A refusal is the answer, not a failure of the request: the page says what was
+        # wrong with the link and the reader tries another. 200 either way, the way the
+        # model's own tool result is.
+        return self._json(found)
 
     def _prepare(self, payload: dict[str, Any]) -> None:
         """Price a build, and say what it will take before anything is spent."""
@@ -6511,6 +8471,54 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         self._json({"restored": True})
 
+    def _accept_grant(self) -> None:
+        """The reader accepted the contribution grant (targum-internal#164, door 3).
+
+        Once, per account, and never undone here: the sentence in CONTRIBUTING.md is what
+        they agreed to, and a correction already offered stays under the licence it
+        arrived with. Withdrawing means offering no more, which is the account page's.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"error": "sign in"}, 401)
+        self.store.grant(person.id)
+        self._json({"granted": True})
+
+    def _propose_correction(self, payload: dict[str, Any]) -> None:
+        """A reader says a meaning is wrong, and what it should be instead.
+
+        **A proposal, never an application.** It changes nothing a reader can see, here
+        or on anybody else's shelf, until somebody with standing settles it — the card's
+        "not a vote". So there is nothing to rate-limit against but noise, and nothing
+        here spends: no model is called and no gloss is touched.
+
+        Refused without the grant, which is acceptance 2: the control is not drawn
+        without it either, but a door that is only shut in the page is not shut.
+        """
+        person = self._person()
+        if person is None:
+            return self._json({"error": "sign in"}, 401)
+        if not self.store.has_granted(person.id):
+            return self._json({"error": "no grant"}, 403)
+        lemma = str(payload.get("lemma", "")).strip()
+        meaning = str(payload.get("meaning", "")).strip()[:200]
+        if not lemma or not meaning:
+            return self._json({"error": "bad request"}, 400)
+        made = self.store.propose_correction(
+            stage="gloss",
+            who="reader",
+            judge=self.store.judge_for(person.id),
+            term=lemma,
+            language=str(payload.get("source", "")).strip() or "he",
+            target=str(payload.get("target", "")).strip() or "en",
+            text=str(payload.get("document", "")).strip()[:200],
+            before=str(payload.get("stood", "")).strip()[:200],
+            after=meaning,
+            context=str(payload.get("sentence", "")).strip()[:400],
+            reason="offered by a reader",
+        )
+        self._json({"proposed": made})
+
     def _gloss_word(self, payload: dict[str, Any]) -> None:
         """One word, because a reader asked for it.
 
@@ -6524,6 +8532,9 @@ class Handler(BaseHTTPRequestHandler):
         # The sentence it was tapped in, which is what tells עם from עם. Capped: a
         # sentence is what this is for, and a paragraph is what a page could send.
         sentence = str(payload.get("sentence", "")).strip()[:400]
+        # Which text they were reading, so a judgement made in it can be held to that
+        # text's licence when the corpus leaves (targum-internal#164, acceptance 5).
+        document = str(payload.get("document", "")).strip()[:200]
         if not lemma or not source:
             return self._json({"error": "bad request"}, 400)
 
@@ -6561,7 +8572,9 @@ class Handler(BaseHTTPRequestHandler):
                 target,
                 provider,
                 context=sentence,
-                on_grounded=grounding_note(self.store, lemma, source, target),
+                on_grounded=grounding_note(
+                    self.store, lemma, source, target, text=document, judge=self._judge()
+                ),
             )
         except TargumError as error:
             return self._json({"error": error.message}, 502)
@@ -6675,7 +8688,15 @@ class Handler(BaseHTTPRequestHandler):
         """
         suffix = Path(name).suffix.lower()
         if suffix in {".aax", ".aa"}:
-            raise TargumError("This file is protected, so we can't read it.")
+            # A way on rather than a wall (targum-internal#252). There is no lawful way
+            # through the protection and targum does not pretend otherwise; what it can
+            # say is where the same book might be had unprotected.
+            raise TargumError(
+                "This file is protected, so we can't read it.",
+                "If you have the book as an ordinary audio file, drop that in instead — "
+                "or say what it is and press Continue, and we'll look.",
+                key="upload.protected",
+            )
         if suffix not in self.READABLE:
             raise TargumError(
                 f"We can't read '{suffix}' files. Save it as plain text or "
@@ -7173,6 +9194,17 @@ class Handler(BaseHTTPRequestHandler):
                 # it on every visit to the library is the whole page's weight again.
                 # Private rather than public: it still travelled a signed-in connection.
                 return self._send(200, target.read_bytes(), kind, cache="private, max-age=86400")
+        # No cover drawn: a video import's own frame, from the asker's shelf or the shared
+        # one (design.md §12, 2026-09-24). By folder name only, and resolved inside the
+        # shelf, so a name cannot reach anywhere else.
+        if "/" not in wanted and "\\" not in wanted and wanted not in ("", ".", ".."):
+            for shelf in (self._home(), self.library.shared):
+                base = shelf.resolve()
+                poster = (base / wanted / POSTER).resolve()
+                if base in poster.parents and poster.is_file():
+                    return self._send(
+                        200, poster.read_bytes(), "image/jpeg", cache="private, max-age=86400"
+                    )
         return self._send(404, b"not found", "text/plain")
 
     def _serve_reader(self, relative: str) -> None:
@@ -7296,40 +9328,11 @@ def best_language(header: str) -> str:
     return SOURCE
 
 
-DESK_KEYS = (
-    "nav.",
-    "progress.",
-    "learn.",
-    "library.",
-    "you.",
-    "add.",
-    "charts.",
-    "lang.",
-    "building.",
-    "account.",
-    "shelf.",
-    "follow.",
-    "bring.",
-    "yours.",
-    "lists.",
-    "vocab.",
-    "claim.",
-    "palette.",
-    "theme.",
-    "chat.",
-    "speak.",
-)
-
-
-def desk_languages() -> list[str]:
-    """The languages besides English with a catalogue that says something on a desk page."""
-    from .strings import catalogue, languages
-
-    return [
-        code
-        for code in languages()
-        if code != "en" and any(key.startswith(DESK_KEYS) for key in catalogue(code))
-    ]
+# Moved into `strings` on 2026-09-22 (targum-internal#286, item 1), so that the one thing
+# which decides a reader's language is not half in the server. Re-exported under its own
+# name because that is what the start-up already imports it as; `DESK_KEYS` went with it
+# and is not re-exported, because nothing outside `strings` ever read it.
+from .strings import desk_languages  # noqa: E402
 
 
 def default_store() -> Path:
@@ -7364,6 +9367,7 @@ def start(
         learn_page,
         library_page,
         list_page,
+        playlists_page,
         progress_page,
         you_page,
     )
@@ -7423,8 +9427,9 @@ def start(
             # runs themselves and useless in an email: hosted, the link has to name the
             # address the reader can actually reach, not the one the server binds to.
             "address": (public_address or f"http://127.0.0.1:{port}").rstrip("/"),
-            "page": learn_page(token),
+            "page": learn_page(token, connector=connector_is_open()),
             "you": you_page(token),
+            "playlists": playlists_page(token),
             "lists": {which: list_page(token, which) for which in LISTS},
             "adding": add_page(token, no_key="" if usable else NO_KEY),
             "chatting": chat_page(token),
@@ -7436,8 +9441,9 @@ def start(
             "translated": {
                 code: {
                     "progress": progress_page(token, language=code),
-                    "page": learn_page(token, language=code),
+                    "page": learn_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
+                    "playlists": playlists_page(token, language=code),
                     "adding": add_page(token, no_key="" if usable else NO_KEY, language=code),
                     "catalogue": library_page(token, language=code),
                     "chatting": chat_page(token, language=code),

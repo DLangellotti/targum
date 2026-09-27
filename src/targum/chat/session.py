@@ -43,7 +43,7 @@ from . import exemplars as exemplars_module
 from . import hebrew as hebrew_module
 from . import sources as sources_module
 from . import tools as tools_module
-from .record import Recorder, outside_share
+from .record import Recorder, changed_words, outside_share, rewritten
 
 if TYPE_CHECKING:
     from ..accounts import Person, Store
@@ -192,6 +192,16 @@ def marked(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [*messages[:-1], last]
 
 
+def _answered_in(ctx: tools_module.Ctx) -> str:
+    """The language a find-mode reply is written in, by the rule the `= ` lines follow.
+
+    One rule rather than two: `hebrew.gloss_language` is what decides a conversation's
+    glosses and a build's target, and a reader who gets Russian meanings and an English
+    answer in the same thread is being told the product has not decided.
+    """
+    return language_name(ctx.language)
+
+
 def run_turn(
     client: Any,
     ctx: tools_module.Ctx,
@@ -263,6 +273,29 @@ def run_turn(
                 quoted = json.loads(text).get("quote")
                 if quoted:
                     feed.put("quote", quoted)
+            if name == "search_sources" and not failed:
+                # What the search turned up, for a page that draws the results itself
+                # rather than reading them out of the model's prose (Add's description
+                # box, targum-internal#253). Free by construction: nothing here has been
+                # fetched, priced or claimed — a row is a title, a link and what the
+                # feed's own hook says about it, and the price arrives only when the
+                # reader chooses one and `/prepare` looks at it.
+                #
+                # Put on the feed and never returned to the model differently: the model
+                # sees exactly what it always saw. This is the same rows, carried to the
+                # page as well.
+                found = _found_rows(text)
+                if found:
+                    feed.put("found", {"items": found})
+            if name == "describe_source":
+                # A film we could not fetch: the address is remembered by the page, so a
+                # video the reader downloads and drops into the `+` still links home to
+                # the post it came from (targum-internal#331). The link the reader gave,
+                # not one the model wrote: `_builder` keeps it only in the host table's
+                # own shape, and anything else reduces to "" there.
+                refused = _refused_video(text, dict(block.get("input") or {}))
+                if refused:
+                    feed.put("refused", {"url": refused})
             results.append(
                 {
                     "type": "tool_result",
@@ -336,6 +369,62 @@ def _count(usage: Usage, reply: Any) -> None:
         )
 
 
+#: What a found row carries to the page. Named rather than passed whole, so a field
+#: added to `search_sources` for the model's benefit does not silently start reaching a
+#: browser — and so the page's card is a contract rather than whatever the tool returned
+#: that day (targum-internal#253).
+FOUND_FIELDS = (
+    "title",
+    "link",
+    "publisher",
+    "kind",
+    "published",
+    "seconds",
+    "licence",
+    "known_share",
+)
+
+#: How many results a description draws. The card asks for "two or three": more than a
+#: handful is a search-results page, which is the thing Add is not.
+MOST_FOUND = 3
+
+
+def _found_rows(text: str) -> list[dict[str, Any]]:
+    """The rows `search_sources` turned up, cut to what a card draws.
+
+    A row that has no link is dropped rather than drawn: Choose posts the link, so a
+    card without one is a button that cannot do anything.
+    """
+    try:
+        items = json.loads(text).get("items") or []
+    except (ValueError, AttributeError):
+        return []
+    rows = []
+    for item in items:
+        if not isinstance(item, dict) or not str(item.get("link") or "").strip():
+            continue
+        rows.append({field: item.get(field) for field in FOUND_FIELDS})
+        if len(rows) >= MOST_FOUND:
+            break
+    return rows
+
+
+def _refused_video(text: str, given: dict[str, Any]) -> str:
+    """The address `describe_source` was asked about, where what it found was a film it
+    could not fetch — and "" for anything else, including a refusal that is not a film's.
+
+    A post of pictures is not refused and an article is not a film: only `kind: video`
+    with an error is a link whose video the reader may bring by hand.
+    """
+    try:
+        found = json.loads(text)
+    except ValueError:
+        return ""
+    if not isinstance(found, dict) or found.get("kind") != "video" or not found.get("error"):
+        return ""
+    return str(given.get("url") or "").strip()
+
+
 def _announce(feed: Feed, announced: set[str], block: Any) -> None:
     """Tell the page a tool is being used, once per call.
 
@@ -382,7 +471,9 @@ def _stream_step(
             {"type": "text", "text": stable, "cache_control": CACHED},
             {
                 "type": "text",
-                "text": ledger or prompts.ledger(ctx.level),
+                # Find mode has no contract of its own, so this is where it learns which
+                # language to answer in (targum-internal#286, item 2).
+                "text": ledger or prompts.ledger(ctx.level, _answered_in(ctx)),
                 "cache_control": CACHED,
             },
         ],
@@ -567,10 +658,11 @@ def mode_for(language: str, talks: bool) -> str:
 
     `talk` — held in the language, graded to the reader — in Hebrew for a reader with
     modern Hebrew to hold it in (`Library.talks`), and in every other language
-    conversation has been built for (`hebrew.TALKED`: Italian since 2026-09-15,
-    targum-internal#280). `talks` is about which Hebrew a shelf holds, so it decides
-    nothing for Italian. Every other language opens in the English find mode (2026-09-13)
-    until conversation in it is built (#281 to #284).
+    conversation has been built for, which is `hebrew.TALKED`: Italian since 2026-09-15
+    (targum-internal#280), and French, Russian and Yiddish since 2026-09-23 (#281 to
+    #283). `talks` is about which Hebrew a shelf holds, so it decides nothing for any of
+    them. Aramaic stays out on purpose (#284), so it opens in the English find mode
+    (2026-09-13), as does any language with no contract in `hebrew.CONTRACTS`.
     """
     code = (language or "he").split("-")[0].lower()
     if code == "he":
@@ -679,6 +771,7 @@ class Chats:
             chat_id=chat_id,
             level=level_module.snapshot(store, person_id, language),
             reads=(store.reads(person_id) & into) if person else into,
+            said_reads=store.reads(person_id) if person else None,
             learning=(store.learning(person_id) & reading) if person else reading,
             admin=admin,
         )
@@ -823,7 +916,7 @@ class Chats:
             spoken = ctx.level.language
             mode = mode_for(spoken, self.library.talks(home, person_id))
             chat_id = store.chat_open(person_id, language=spoken, mode=mode)
-        into = hebrew_module.gloss_language(ctx.reads)
+        into = ctx.language
         # In the language of the line it rides in, not the English the model reads
         # (targum-internal#287).
         because = tools_module.because_in(top, into).strip()
@@ -1043,7 +1136,7 @@ class Chats:
         # English, about the text (`Library.talks`).
         opened = store.chat_owned(person_id, asked.chat_id) or {}
         # The "= " lines in the language the account reads (targum-internal#243).
-        into = hebrew_module.gloss_language(ctx.reads)
+        into = ctx.language
         code = language.split("-")[0].lower()
         contract = (
             hebrew_module.contract_for(code, language_name(into))
@@ -1062,7 +1155,14 @@ class Chats:
         returning = (
             hebrew_module.bring_back(store, person_id, language, seed=seed) if contract else None
         )
-        ledger = hebrew_module.ledger_block(level, known, common, returning)
+        # And what they keep getting wrong (targum-internal#290): at most three rules,
+        # as context for the model's own sentences and never as something it says.
+        rules = hebrew_module.recurring(
+            self.store.slips(person_id, language=language, limit=hebrew_module.SLIPS_READ)
+            if self.store is not None
+            else []
+        )
+        ledger = hebrew_module.ledger_block(level, known, common, returning, rules)
         if contract and self.exemplars and code == "he":
             # A few sentences a Hebrew speaker wrote inside this reader's words, after
             # the breakpoint with the ledger: the idiom to write in, drawn afresh each
@@ -1074,7 +1174,7 @@ class Chats:
                 seed=seed,
             )
             if picked:
-                ledger = ledger + "\n\n" + exemplars_module.block(picked)
+                ledger = ledger + "\n\n" + exemplars_module.block(picked, into)
         # Where the fetch door was refused. After the breakpoint with the ledger, because
         # it changes as the box knocks, and a changing block before the breakpoint would
         # throw the cached prefix away every time it learned something.
@@ -1151,6 +1251,47 @@ class Chats:
             self.library.remember(job)
             feed.close()
 
+    def _slip(self, asked: Asked, said: list[Any], language: str) -> None:
+        """Keep the line the reader got wrong, where they got one wrong.
+
+        "anki srs is kinda dumb in the sense it doesnt really know what you get wrong
+        beyond what you tell it" — Dmitry Z, 2026-09-16. A scheduler knows what you type
+        into it. This is the one place a mistake is visible without anybody typing
+        anything: the reader writes a line of Hebrew, the model rewrites it, and until
+        now that correction was shown once and thrown away.
+
+        Only where the recast actually changed their Hebrew. A correct line writes
+        nothing, so the table is a record of mistakes and not a log of turns — and the
+        comparison is made without vowel points, because the model points every word and
+        the reader almost never does, so a naive string compare would call every line a
+        mistake. The one thing this must never do is keep a correction that did not
+        happen.
+
+        Signed out, nothing is kept: a slip belongs to a person and there is nobody to
+        belong to. It is the reader's own material about themselves, so it never reaches
+        the `correction` table, never reaches the corpus, and goes with the account.
+        """
+        if self.store is None or asked.person is None:
+            return
+        recast = next((pair for pair in said if getattr(pair, "recast", False)), None)
+        if recast is None or not recast.hebrew.strip():
+            return
+        wrote = self.store.chat_said(asked.chat_id, asked.n)
+        if not wrote.strip():
+            return
+        if not rewritten(wrote, recast.hebrew):
+            return
+        self.store.slip(
+            asked.person.id,
+            wrote=wrote,
+            recast=recast.hebrew,
+            changed=changed_words(wrote, recast.hebrew),
+            language=language,
+            chat=asked.chat_id,
+            turn=asked.n,
+            why=getattr(recast, "why", "") or "",
+        )
+
     def _record(
         self,
         asked: Asked,
@@ -1181,6 +1322,7 @@ class Chats:
             self.store.chat_turn_update(
                 asked.chat_id, asked.n, words=json.dumps(payload, ensure_ascii=False)
             )
+            self._slip(asked, said, language)
             feed.put("words", payload)
         except Exception:  # noqa: BLE001 - the states are a courtesy; the turn stands
             traceback.print_exc()

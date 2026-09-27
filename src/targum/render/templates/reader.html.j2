@@ -15,7 +15,7 @@
     it, Yiddish and Aramaic included. -#}
 {% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
 <script>{{ asset('durable.js') }}</script>
-<script>{{ asset('theme.js') }}</script>
+<script>{{ asset('keep.js') }}</script>
 </head>
 <body class="reader mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">
 <header class="bar">
@@ -107,16 +107,29 @@
     {% endif %}
     <div class="bar-more" id="more">
       <div class="more-head"><b>{{ t("reader.page.this-text", "This text") }}</b><button type="button" data-more aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
+    {#- Into a playlist (targum-internal#364). Hidden in the file and shown by the script
+        only where the page arrived over a connection: a playlist is kept on the account,
+        and a reader opened off a disk has no account to keep one on. The address is
+        drawn by the script from where the page is, since a built file does not know the
+        name of the folder it will be served from. -#}
+    <div class="group to-playlist" id="to-playlist" hidden>
+      <a class="more-playlist" id="more-playlist" data-title="{{ title }}">{{ t("reader.page.add-to-playlist", "Add to playlist") }}</a>
+    </div>
     {#- Hear a silent text (2026-09-10, targum-internal#246): on a section with no
         recording, the one door that makes one — a call to action, so ink (§9) — with
-        what it costs in the reader's own hours beside it. The press posts `/voice`;
+        what it costs in the reader's own credits beside it (§12, 2026-09-23: a credit is
+        a minute of audio, so a minute of speech is a credit). The press posts `/voice`;
         the page is rewritten with the audio in it and reopened. Drawn only while the
-        voice has a price; never on a text that carries audio. -#}
+        voice has a price; never on a text that carries audio.
+
+        Through `tn`, because this counted in raw English with a hand-rolled plural and
+        was the only line on the page not said in the reader's own language. It has its
+        own row now (#363), so its length cannot reflow the bar. -#}
     {% if voice_offer %}
     <div class="group voice-offer" id="voice-offer" data-section="{{ voice_offer.section }}" data-seconds="{{ voice_offer.seconds }}">
       <span class="label">{{ t("reader.page.no-recording", "No recording") }}</span>
       <button type="button" class="voice-go" id="voice-go">{{ t("reader.page.hear-this-section", "Hear this section") }}</button>
-      <span class="voice-cost">This uses about {{ voice_offer.minutes }} minute{{ '' if voice_offer.minutes == 1 else 's' }} of your hours</span>
+      <span class="voice-cost">{{ tn("reader.page.voice-costs-credits", voice_offer.minutes, "This uses about {n} credit", "This uses about {n} credits") }}</span>
       <span class="voice-said" id="voice-said" role="status"></span>
     </div>
     {% endif %}
@@ -131,6 +144,8 @@
     <div class="group more-player">
       <span class="label">{{ t("reader.page.the-recording", "The recording") }}</span>
       <a class="more-get" download>{{ t("reader.page.save-the-audio", "Save the audio") }}</a>
+      {#- Whose recording it is, beside the control that carries it off (#342). -#}
+      {% if speech_credit %}<span class="more-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {{ speech_licence }}{% endif %}</span>{% endif %}
       <button type="button" class="more-close">{{ t("reader.page.close-the-player", "Close the player") }}</button>
     </div>
     {% endif %}
@@ -207,9 +222,12 @@
         nothing, and hands nothing over either. The drawing is a screen with the arrow
         leaving it. -#}
     {% if spoken_home %}
+    {#- Only YouTube's address takes a time; any other home opens at the video's start, so
+        its control does not promise the line. -#}
+    {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
     <div class="group" data-what="Where it lives">
-      <a class="home" data-home href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
-         title="{{ t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") }}" aria-label="{{ t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") }}">
+      <a class="home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
+         title="{{ home_says }}" aria-label="{{ home_says }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M8.5 3.5H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8.5"/>
           <path d="M7.5 8.5 13.5 2.5M9.5 2.5h4v4"/>
@@ -311,11 +329,13 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.5c-3.3 0-6 2.2-6 5 0 1.5.8 2.9 2.1 3.8L3.5 13.5l3-1.3c.5.1 1 .2 1.5.2 3.3 0 6-2.2 6-5s-2.7-4.9-6-4.9z"/></svg>
       </button>
     </div>
+    {#- The keys say their word (2026-09-19, targum-internal#338). It was a typed `?`, and
+        a `?` in the corner of a page means help: a stranger pressed it expecting to be
+        told how the page works and got a table of keys. Same complaint, same answer as
+        the picture's keys on 2026-09-14 (design.md §12). Behind ⋯ the row is already
+        named "Keys", so there the button keeps the mark and does not say the word twice. -#}
     <div class="group" data-what="Keys">
-      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}">?</button>
-    </div>
-    <div class="group" data-what="Theme">
-      <button type="button" data-theme-toggle aria-label="{{ t("reader.page.switch-theme", "Switch theme") }}"></button>
+      <button type="button" data-keys aria-expanded="false" aria-controls="keys" aria-label="{{ t("reader.page.keyboard-shortcuts", "Keyboard shortcuts") }}" title="{{ t("reader.page.keyboard-shortcuts-2", "Keyboard shortcuts (?)") }}"><span class="keys-word">{{ t("reader.page.keys", "Keys") }}</span><span class="keys-mark" aria-hidden="true">?</span></button>
     </div>
     </div>
     <button type="button" class="more" data-more aria-expanded="false" aria-controls="more" aria-label="{{ t("reader.page.more", "More") }}">⋯</button>
@@ -349,6 +369,10 @@
     direction, and on an RTL page the bidi algorithm carried its full stop to the
     other end — ".Tap a word to say how well you know it". -#}
 {% if words %}<p class="first" id="first" dir="ltr" hidden>{{ t("reader.page.tap-a-word-to-say-how-well", "Tap a word to say how well you know it.") }}</p>{% endif %}
+{#- Where a press at the foot of the item before landed the reader (design.md §12, "The foot
+    is one block", 2026-09-25): once and briefly, what that press did, with the one Undo
+    that takes all of it back. The press left the page, so this is where the Undo can be. -#}
+<p class="arrived" id="arrived" dir="ltr" role="status" hidden><span id="arrived-said"></span> <button type="button" id="arrived-undo">{{ t("reader.finish.undo", "Undo") }}</button></p>
 
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the
@@ -467,7 +491,10 @@
     bare relative src would ask for the sidecar without it — refused, and the fallback
     would hide the whole feature. The script appends location.search, which is the key
     when there is one and nothing off a disk. -#}
-<div class="video" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}">
+{#- The film's shape, where the build measured it: `tall` for the layout and `data-film`
+    for the frame, so an upright film is upright before it has loaded. Not a `style`
+    attribute — the served page's policy refuses one — so `reader.js` reads this. -#}
+<div class="video{% if spoken_frame and spoken_frame[1] > spoken_frame[0] %} tall{% endif %}" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}"{% if spoken_frame %} data-film="{{ spoken_frame[0] }} / {{ spoken_frame[1] }}"{% endif %}>
   <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
   {#- Tap the picture to play or pause it. The strip's button is 2rem in a row that is
       already crowded on a phone, and the picture is the biggest target on the page and
@@ -563,7 +590,7 @@
     {% if segment.id in unaccented %}
     <h{{ level }} class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</h{{ level }}>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'byline' %}
   <div class="pair byline{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
@@ -574,7 +601,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'turn' %}
   {#- A line of a dialogue. Who said it sits beside the words rather than inside them, so
@@ -593,7 +620,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% else %}
   {#- A verse answers to its address. The row is `#2:1`, which is what a link to Ruth 2:1
@@ -618,7 +645,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ tongue }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% endif %}
 {% endfor %}
@@ -633,28 +660,6 @@
   <button type="button" class="forward" data-turn="1" aria-label="{{ t("reader.page.next-page", "Next page") }}"></button>
 </div>
 
-{#- At the foot, where a part ends: the words you never marked, offered as known in one
-    press, with one Undo. Offered, never done for you — and never a name, which does not
-    count. "Words should be marked as known automatically when I'm done with the
-    article", said the first alpha reader; this is the honest version of that. -#}
-{#- Both strips are English chrome inside a page that may run right to left: without
-    their own direction the "?" wandered to the front and "2 of 4" read "of 4 2". -#}
-{% if words %}
-<div class="rest" id="rest" dir="ltr" hidden>
-  <span id="rest-text"></span>
-  <button type="button" id="rest-mark"></button>
-  <button type="button" id="rest-undo" hidden>{{ t("reader.page.undo", "Undo") }}</button>
-</div>
-{% endif %}
-{#- Finished with the section: one press at its foot, and a line that says when. Pressing
-    again takes it back, so however often it is pressed the section is finished once.
-    Counted on the progress page.
-
-    At the foot of every section rather than only the last. Genesis is one document, so
-    this used to stand fifty chapters in: a reader who read three chapters had finished
-    nothing, and the ledger agreed with them. That is most of what "feels like work"
-    means (targum-internal#173, and #167–#171). A chapter is a chapter however short —
-    the structure decides and there is no floor. -#}
 {#- Where the practice stands, at the foot of the section: which reading of it this is,
     and the press to the next. Filled in and shown by the script, and only while the
     practice is kept by section — or, kept by verse, once every verse is read. -#}
@@ -664,9 +669,34 @@
   <button type="button" id="practice-next"></button>
 </div>
 {% endif %}
-<div class="finished" id="finished" dir="ltr">
-  <span id="done-said" hidden></span>
-  <button type="button" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
+{#- The foot of a section is one block (design.md §12, "The foot is one block",
+    2026-09-25): where you are, one press, one quiet way to press it differently, and what
+    comes next. It was three things written on three different days — the playlist's Next,
+    the offer of the words never marked, and Done — stacked in the order the code happened
+    to append them, so moving on came first and finishing came last.
+
+    The press finishes the section and, where words were never marked, marks them known:
+    "Done, and mark 12 words known". Offered, never done for you — the press says what it
+    does before it is pressed, and "Done without marking" under it finishes the section
+    alone. "Words should be marked as known automatically when I'm done with the article",
+    said the first alpha reader; this is still the honest version of that.
+
+    At the foot of every section rather than only the last (targum-internal#173): a
+    chapter is a chapter however short, the structure decides and there is no floor.
+    Finished, the block inverts to ink with an Undo, as it always did. Inside a playlist
+    `list.js` puts where you are above the press and what is next under it, and the press
+    becomes Next. English chrome in a page that may run right to left, so it carries its own
+    direction. -#}
+<div class="foot" id="foot" dir="ltr">
+  <div class="finished" id="finished" hidden>
+    <span id="done-said" hidden></span>
+    <button type="button" class="undo" id="done-undo">{{ t("reader.finish.undo", "Undo") }}</button>
+  </div>
+  <div class="foot-press" id="foot-press">
+    <button type="button" class="foot-go" id="done-mark">{{ t("reader.page.done", "Done") }}</button>
+    {% if words %}<button type="button" class="foot-plain" id="done-plain" hidden></button>{% endif %}
+  </div>
+  <p class="foot-next" id="foot-next" hidden></p>
 </div>
 {#- And where to go next. The next section first, by name and by how long it is: a reader
     who has just finished something should not have to shop, and the library is a shop.
@@ -681,13 +711,13 @@
     connection. -#}
 {% if following %}
 <aside class="next-up here" id="next-up" dir="ltr" hidden>
-  <span class="next-up-lead">{{ t("reader.page.read-next", "Read next") }}</span>
+  <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}</span>
   <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
   <span class="next-up-why">{{ t("reader.next.minutes", "{n} min", n=minutes[following.number]) }}</span>
 </aside>
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
-  <span class="next-up-lead">{{ t("reader.page.read-next", "Read next") }}{% if suggested.scene %} · {{ suggested.scene }}{% endif %}</span>
+  <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}{% if suggested.scene %} · {{ suggested.scene }}{% endif %}</span>
   {#- `/open/<id>`, the one door onto a catalogue text (targum-internal#313). It sends a
       reader straight to their copy where they have one and to its row with the offer up
       where they have not — never into a build, which is a press and not a redirect. It
@@ -717,6 +747,51 @@
   {% if previous %}<a class="prev" href="{{ previous.filename }}">{{ previous.title }}</a>{% endif %}
   {% if following %}<a class="next" href="{{ following.filename }}" data-next="{{ following.number }}">{{ following.title }}</a>{% endif %}
 </nav>
+{% endif %}
+{#- Who and what made this page, at the foot of the text (targum-internal#342, 2026-09-20).
+    These stood at the foot of the keyboard-shortcuts card, which a phone never shows — it
+    waits for a key to be pressed — so on the device most readers use, a recording under
+    CC BY-SA could be played and saved from a page that never said whose it was. "Naming
+    them in a file nobody opens is not naming them"; nor is naming them in a card nobody
+    can open. They belong to the text, so they travel with it, at every width, on the
+    last page where the pager is. -#}
+{% if speech_credit or words_credit or pointing_credit or lexicon_credit or biblical %}
+<aside class="credits" id="credits" aria-label="{{ t("reader.page.credits", "Credits") }}">
+  {#- Who read it. A recording the library serves is somebody else's work under a licence
+      that asks for them to be named, and naming them in a file nobody opens is not
+      naming them. The text's own credit is on the library page; this one travels with
+      the audio, because the audio is what can be saved and carried off. -#}
+  {% if speech_credit %}
+  <p class="credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
+  {% endif %}
+  {#- Said once, here, rather than left for a reader to work out from a wrong card.
+      The lemmatiser is trained on modern unpointed Hebrew, so on the Tanakh it is
+      guessing at forms the training data barely contains: waw-consecutive, pausal
+      forms, archaic suffixes. On a modern text this does not need saying, so it is
+      not said. targum-internal #87, which asked for the about page — that page is a
+      construction notice now, and the sentence belongs where the words are anyway. -#}
+  {#- What read the words, named because its licence asks to be. CC BY 4.0 wants the
+      work named and the licence linked wherever the work is used, and a credit in a
+      file nobody opens is the same non-naming the reading credit above refuses. -#}
+  {% if words_credit %}
+  <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- And what pointed the words, on the same terms and keyed the same way: to the
+      vocalizer that ran, and only where it pointed something the edition had not. -#}
+  {% if pointing_credit %}
+  <p class="credit">{{ t("reader.page.vowel-points-by", "Vowel points by") }} <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
+      partner or a word whose stress moves (targum-internal#259). -#}
+  {% if lexicon_credit %}
+  <p class="credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
+  {% endif %}
+  {% if biblical %}
+  <p class="credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
+    on modern. The analyser learned from modern unpointed text, so it sometimes misreads
+    waw-consecutive, pausal and archaic forms on a card.") }}</p>
+  {% endif %}
+</aside>
 {% endif %}
 
 {% if words %}
@@ -775,12 +850,17 @@
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>
     <dt>{{ t("reader.page.hard", "hard") }}</dt><dd>{{ t("reader.page.the-level-on-a-word-s-card", "the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you") }}</dd>
     <dt>s</dt><dd>{{ t("reader.page.your-saved-words", "your saved words") }}</dd>
-    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you read") }}</dd>
+    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you go") }}</dd>
     <dt>b</dt><dd>{{ t("reader.page.pages-or-one-long-scroll", "pages, or one long scroll") }}</dd>
     <dt>f</dt><dd>{{ t("reader.page.full-screen-and-out-of-it", "full screen, and out of it") }}</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
     <dt>&lt; &gt;</dt><dd>{{ t("reader.page.slower-faster", "slower, faster") }}</dd>{% endif %}
-    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>{% endif %}
+    {#- Real keys the card never listed (targum-internal#341, 2026-09-20): the recording's
+        track is a slider and answers like one, and the picture's grip and its size handle
+        move by the arrows. They work only with the thing itself in focus, and say so. -#}
+    {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back and on five seconds; Home and End for its two ends") }}</dd>{% endif %}
+    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>
+    <dt>Tab ↑ ↓ ← →</dt><dd>{{ t("reader.page.keys-on-the-picture", "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps") }}</dd>{% endif %}
     <dt>PageDown</dt><dd>{{ t("reader.page.next-page-pageup-back-on-the-last", "next page; PageUp back. On the last page, the next chapter") }}</dd>
     {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
@@ -791,40 +871,6 @@
     <dt>l</dt><dd>{{ t("reader.page.interlinear-the-translation-under-each-line", "interlinear — the translation under each line") }}</dd>
     <dt>o</dt><dd>{{ t("reader.page.source-only-2", "source only") }}</dd>
   </dl>
-  {#- Who read it. A recording the library serves is somebody else's work under a licence
-      that asks for them to be named, and naming them in a file nobody opens is not
-      naming them. The text's own credit is on the library page; this one travels with
-      the audio, because the audio is what can be saved and carried off. -#}
-  {% if speech_credit %}
-  <p class="keys-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
-  {% endif %}
-  {#- Said once, here, rather than left for a reader to work out from a wrong card.
-      The lemmatiser is trained on modern unpointed Hebrew, so on the Tanakh it is
-      guessing at forms the training data barely contains: waw-consecutive, pausal
-      forms, archaic suffixes. On a modern text this does not need saying, so it is
-      not said. targum-internal #87, which asked for the about page — that page is a
-      construction notice now, and the sentence belongs where the words are anyway. -#}
-  {#- What read the words, named because its licence asks to be. CC BY 4.0 wants the
-      work named and the licence linked wherever the work is used, and a credit in a
-      file nobody opens is the same non-naming the reading credit above refuses. -#}
-  {% if words_credit %}
-  <p class="keys-credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
-  {% endif %}
-  {#- And what pointed the words, on the same terms and keyed the same way: to the
-      vocalizer that ran, and only where it pointed something the edition had not. -#}
-  {% if pointing_credit %}
-  <p class="keys-credit">{{ t("reader.page.vowel-points-by", "Vowel points by") }} <a href="https://huggingface.co/dicta-il/dictabert-large-char-menaked" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
-  {% endif %}
-  {#- OpenRussian's tables, CC BY-SA 4.0, named on a page that quoted them: an aspect
-      partner or a word whose stress moves (targum-internal#259). -#}
-  {% if lexicon_credit %}
-  <p class="keys-credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
-  {% endif %}
-  {% if biblical %}
-  <p class="keys-credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
-    on modern. The analyser learned from modern unpointed text, so it sometimes misreads
-    waw-consecutive, pausal and archaic forms on a card.") }}</p>
-  {% endif %}
 </div>
 {#- Talk to targum, in the reader (2026-09-11): "when I am reading something I want to
     literally be able to chat with it". The same pill and drawer every chrome page has,
@@ -847,7 +893,12 @@
 <script>{{ asset('charts.js') }}</script>
 <script>{{ asset('vocab.js') }}</script>
 <script>{{ asset('sync.js') }}</script>
+<script>{{ asset('events.js') }}</script>
+<script>{{ asset('playlist-menu.js') }}</script>
 <script>{{ asset('reader.js') }}</script>
+{#- A reader opened from a playlist: Next, Back and the swipe (targum-internal#366). Does
+    nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
+<script>{{ asset('list.js') }}</script>
 <script>{{ asset('talk.js') }}</script>
 </body>
 </html>

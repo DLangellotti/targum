@@ -144,12 +144,38 @@ def _daily() -> list[dict[str, Any]]:
     return out
 
 
-def current(schedule: str = "diaspora", *, public: bool = True) -> list[dict[str, Any]]:
+def said_in(row: dict[str, Any], language: str) -> dict[str, Any]:
+    """One series' row with its name and blurb in the reader's language.
+
+    Keyed on the series' own id — `series.weekly.name`, `series.tehillim.what` — and
+    falling back to the English written beside it, which is never wrong, only foreign.
+    The Hebrew name is not touched: it is the series' name in Hebrew and stays Hebrew in
+    every language (targum-internal#289).
+
+    Done here rather than inside each builder because every row already carries its id,
+    and one place that rewrites six rows is easier to keep true than three that each
+    remember to.
+    """
+    from .strings import catalogue
+
+    said = catalogue(language.split("-")[0].lower())
+    out = dict(row)
+    for part in ("name", "what"):
+        out[part] = said.get(f"series.{row['id']}.{part}") or row.get(part, "")
+    return out
+
+
+def current(
+    schedule: str = "diaspora", *, public: bool = True, language: str = "en"
+) -> list[dict[str, Any]]:
     """Every series, each with its current instalment where this box has one built.
 
     The portion and the cycles have pages only where the shelves are public; on a box that
     keeps them shut they are not offered, since a page nobody can reach is not a series to
     follow. The weekly's readers are on every shelf.
+
+    `language` is the reader's: the names and blurbs were English for everybody, on a row
+    the follow page draws beside a Russian interface (targum-internal#289).
     """
     found: list[dict[str, Any]] = []
     for name, ask in (
@@ -165,7 +191,7 @@ def current(schedule: str = "diaspora", *, public: bool = True) -> list[dict[str
             log.warning("series: %s unavailable: %s", name, error)
             continue
         found.extend(got if isinstance(got, list) else [got])
-    return found
+    return [said_in(row, language) for row in found]
 
 
 # -- telling followers (2026-09-11) --------------------------------------------------------
@@ -176,14 +202,11 @@ def current(schedule: str = "diaspora", *, public: bool = True) -> list[dict[str
 BATCH = 25
 PAUSE = 2.0
 
-SUBJECT = "{name}: {title}"
-
-BODY = """{name} — {title}{hebrew}
-
-It is on targum now: {where}
-
-You are getting this because you follow {name}. To stop: {stop}
-"""
+#: The mail, in the catalogue since targum-internal#289 rather than written here. It was
+#: the last thing in this file still English for everybody, on a series whose name and
+#: blurb the same reader already had in their own language.
+SUBJECT = "mail.series.subject"
+BODY = "mail.series.body"
 
 
 @dataclass
@@ -201,18 +224,32 @@ class Report:
         return line
 
 
-def letter(one: dict[str, Any], address: str, stop_token: str) -> tuple[str, str]:
+def letter(
+    one: dict[str, Any], address: str, stop_token: str, language: str = "en"
+) -> tuple[str, str]:
+    """The subject and body for one follower, in the language they follow in.
+
+    `one` is passed through `said_in` here rather than by the caller, because the series
+    is read once for everybody and the name in it is the name in *somebody's* language —
+    a letter that took it as given would say the Russian name to every English reader as
+    soon as one Russian follower came first.
+    """
+    from .strings import text
+
+    said = said_in(one, language)
     inst = one["instalment"]
     hebrew = f" · {inst['hebrew']}" if inst.get("hebrew") else ""
     where = f"{address.rstrip('/')}{one['page']}"
-    body = BODY.format(
-        name=one["name"],
+    body = text(
+        BODY,
+        language,
+        name=said["name"],
         title=inst["title"],
         hebrew=hebrew,
         where=where,
         stop=f"{address.rstrip('/')}/series/stop?t={stop_token}",
     )
-    return SUBJECT.format(name=one["name"], title=inst["title"]), body
+    return text(SUBJECT, language, name=said["name"], title=inst["title"]), body
 
 
 def announce(
@@ -238,8 +275,8 @@ def announce(
         holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()
         try:
             with holding:
-                for index, (email, stop_token) in enumerate(waiting):
-                    subject, body = letter(one, address, stop_token)
+                for index, (email, stop_token, language) in enumerate(waiting):
+                    subject, body = letter(one, address, stop_token, language)
                     unsubscribe = f"<{address.rstrip('/')}/series/stop?t={stop_token}>"
                     try:
                         mailer.notify(

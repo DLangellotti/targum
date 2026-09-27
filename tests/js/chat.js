@@ -242,6 +242,7 @@ function cards() {
         meta: by("quote-meta") ? by("quote-meta").textContent : "",
         note: by("quote-note") ? by("quote-note").textContent : "",
         known: by("quote-known") ? by("quote-known").textContent : "",
+        voice: by("quote-voice") ? by("quote-voice").textContent : "",
         button: by("quote-go") ? by("quote-go").textContent : "",
         more: by("quote-more") ? by("quote-more").href : "",
         source: by("quote-source")
@@ -275,6 +276,10 @@ function pairsDrawn() {
         en: node.children[1].textContent,
         // Folded or open (#241).
         enHidden: node.children[1].hidden,
+        // Reachable from a keyboard, which is what §8's exception rests on (#241).
+        focusable: node.attrs.tabindex === undefined ? null : node.attrs.tabindex,
+        // Whether a tap does anything here, which is what must imply the above.
+        tappable: !!node.onclick,
         // Corrected, and why (#242).
         corrected: String(node.className).split(" ").includes("corrected"),
         fixed: he.children
@@ -423,6 +428,18 @@ function drawn() {
       const pair = found[step.n || 0];
       if (pair.onclick) pair.onclick({ target: pair.children[0] });
     }
+    if (step.type === "key") {
+      // Enter on the n-th pair. design.md §8 lets a line of text answer a tap without
+      // the 44px a control needs, and leans on this being reachable instead (#241).
+      const found = [];
+      const walk = (node) => {
+        if (String(node.className).split(" ")[0] === "chat-pair") found.push(node);
+        (node.children || []).forEach(walk);
+      };
+      walk(turns);
+      const pair = found[step.n || 0];
+      if (pair.onkeydown) pair.onkeydown({ key: step.key || "Enter", preventDefault() {} });
+    }
     if (step.type === "english") {
       byId["chat-english"].onclick();
     }
@@ -509,6 +526,9 @@ function drawn() {
       ledger: JSON.parse(global.localStorage.getItem("targum:vocab:he") || "{}"),
       held: (byId["chat-held"].children || []).map((chip) => chip.children[0].textContent),
       field: byId["say"].value,
+      // A line handed over by another page is read once and deleted, so this is "" on
+      // any load that had one — and a test can tell "never read" from "read and kept".
+      handed: global.localStorage.getItem("targum:say"),
       placeholder: byId["say"].placeholder,
       pairs: pairsDrawn(),
       foot: foot(),

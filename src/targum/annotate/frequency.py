@@ -8,7 +8,9 @@ and English all run on frequency here.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
+from functools import lru_cache
 
 from ..errors import TargumError
 from .base import BAND_COUNT, UNRATED
@@ -82,3 +84,37 @@ def available() -> bool:
     except ImportError:
         return False
     return True
+
+
+#: How deep the rank table reaches. Past the last rung of any ladder (12,000 for vav), so
+#: a word ranked beyond it is simply a word no rung covers.
+RANKED = 20_000
+
+_POINTS = re.compile("[\u0591-\u05c7]")
+
+
+@lru_cache(maxsize=8)
+def ranks(language: str) -> dict[str, int]:
+    """Each of the language's commonest words and its place in the frequency list, from 1.
+
+    wordfreq ranks surface forms, and a lemma is looked up as one: the dictionary form of a
+    Hebrew word is usually also one of its commonest spellings, and where it is not the
+    word ranks lower than it should, so a text's level errs high rather than low. Empty
+    where wordfreq has no list for the language.
+    """
+    code = language.split("-")[0].lower()
+    try:
+        from wordfreq import available_languages, top_n_list
+    except ImportError:
+        return {}
+    if code not in available_languages():
+        return {}
+    out: dict[str, int] = {}
+    for place, word in enumerate(top_n_list(code, RANKED), start=1):
+        out.setdefault(word, place)
+    return out
+
+
+def rank(lemma: str, language: str) -> int | None:
+    """Where a lemma stands in its language's frequency list, or None past `RANKED`."""
+    return ranks(language).get(_POINTS.sub("", lemma))

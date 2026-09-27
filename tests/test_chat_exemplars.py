@@ -85,3 +85,72 @@ def test_a_saved_word_the_reader_does_not_know_yet_is_still_brought_back() -> No
     assert exemplars.pick(pool, allowed) == [pool[0]], "the market sentence needs לחם"
     picked = exemplars.pick(pool, allowed, lately=["לחם"])
     assert picked[0].id == 1000001, "saved, so inside the reader's words, and first"
+
+
+# -- the gloss follows the reader's language (targum-internal#286, item 5) --------------
+
+
+def _said(hebrew: str, english: str, russian: str = "") -> exemplars.Exemplar:
+    return exemplars.Exemplar(
+        id=1,
+        hebrew=hebrew,
+        english=english,
+        russian=russian,
+        lemmas=frozenset({hebrew.split()[0]}),
+        by="anna",
+        russian_by="dmitri" if russian else "",
+    )
+
+
+def test_an_exemplar_is_glossed_in_the_language_the_reader_reads() -> None:
+    """The model is being shown what the reader will see. A block glossed in English
+    while the conversation glosses in Russian was teaching it the wrong shape of answer,
+    in the one place the prompt claims to be showing it the right one."""
+    both = _said("שלום לך", "hello to you", "привет тебе")
+    only_english = _said("בוקר טוב", "good morning")
+
+    assert both.said_in("ru") == "привет тебе"
+    assert both.said_in("ru-RU") == "привет тебе", "a regional tag is the language"
+    assert both.said_in("en") == "hello to you"
+    # Most rows have no Russian — 6,682 of 165,454 — and the English there is never
+    # wrong, only foreign, which is the fallback every other string on the shelf makes.
+    assert only_english.said_in("ru") == "good morning"
+
+    russian = exemplars.block([both, only_english], "ru")
+    assert "שלום לך = привет тебе" in russian
+    assert "בוקר טוב = good morning" in russian, "the row with no Russian keeps its English"
+    assert "hello to you" not in russian
+
+    english = exemplars.block([both, only_english], "en")
+    assert "שלום לך = hello to you" in english
+    assert "привет тебе" not in english
+
+    # The instruction stays English in both, because the prompt is English. What follows
+    # the reader is the gloss, which is the half they would recognise.
+    for made in (russian, english):
+        assert made.startswith("Sentences a Hebrew speaker wrote")
+
+    assert exemplars.block([both]) == exemplars.block([both], "en"), "English is the default"
+
+
+def test_a_pool_row_keeps_the_russian_and_who_wrote_it(monkeypatch: Any) -> None:
+    """Tatoeba is CC BY per sentence per contributor, and LICENSING.md says the credit
+    lives in the row — so the row keeps `ru_by` whether or not anything shows it."""
+    made = exemplars._row(
+        {
+            "id": 7,
+            "he": "שלום",
+            "en": "hello",
+            "ru": "привет",
+            "ru_by": "dmitri",
+            "words": [["שלום", "NOUN"]],
+            "by": "anna",
+        }
+    )
+    assert made is not None
+    assert made.russian == "привет" and made.russian_by == "dmitri"
+
+    without = exemplars._row(
+        {"id": 8, "he": "שלום", "en": "hello", "words": [["שלום", "NOUN"]], "by": "anna"}
+    )
+    assert without is not None and without.russian == "" and without.russian_by == ""

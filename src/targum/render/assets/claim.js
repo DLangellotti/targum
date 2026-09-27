@@ -6,9 +6,9 @@
  * that are not on the ledger, fifty at a time, each with the meaning the glossary already
  * holds and a checkbox (2026-09-11: "this should work with checkboxes, you can mark
  * words you checked as known, also option to check all"). One at the head checks the
- * page; "Mark checked as known" writes the checked ones as ordinary known words, marked
+ * page; "Mark known" writes the checked ones as ordinary known words, marked
  * by the reader's own hand, and leaves the unchecked unmet and remembered as passed over,
- * since they were looked at and left; "None of these" passes the whole page. Nothing is
+ * since they were looked at and left; "None" passes the whole page. Nothing is
  * bought; a word the glossary does not hold is shown bare.
  *
  * Drawn wherever it is mounted (2026-09-11): on Your Words, and as the conversation's
@@ -101,7 +101,10 @@
     var all = el("input", "claim-check claim-all");
     all.type = "checkbox";
     all.setAttribute("aria-label", t("claim.check-all", "Check all"));
-    tick.appendChild(all);
+    // In a label of its own, so under a thumb the press can be larger than the box.
+    var reach = el("label", "claim-all-reach");
+    reach.appendChild(all);
+    tick.appendChild(reach);
     headRow.appendChild(tick);
     [t("yours.page.word", "Word"), t("yours.page.meaning", "Meaning"), t("yours.page.how-common", "How common")].forEach(function (name) {
       var th = el("th", "", name);
@@ -116,10 +119,10 @@
     host.appendChild(wrap);
 
     var actions = el("div", "claim-actions");
-    var yes = el("button", "claim-yes", t("claim.mark-known", "Mark checked as known"));
+    var yes = el("button", "claim-yes", t("claim.mark-known", "Mark known"));
     yes.type = "button";
     yes.disabled = true;
-    var no = el("button", "claim-no", t("claim.none", "None of these"));
+    var no = el("button", "claim-no", t("claim.none", "Skip"));
     no.type = "button";
     var said = el("span", "claim-said", "");
     actions.appendChild(yes);
@@ -254,6 +257,11 @@
           meaning: word.meaning || "",
           band: word.band || "",
           learned: 0,
+          // Ticked off here rather than met in a text, and the ledger says which
+          // (targum-internal#245). The count is the same; what differs is what may be
+          // said about the word later, since a claim is the reader's own word and not
+          // evidence from a page they read.
+          source: "claimed",
           // One millisecond apart, so "kept" keeps the order they were shown in.
           at: now + n,
           seen: now + n,

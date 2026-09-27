@@ -332,3 +332,84 @@ def test_a_russian_page_says_it_is_russian() -> None:
     assert '<html lang="ru"' in html
     assert "Учите современный и библейский иврит" in html
     assert 'hreflang="ru"' in html, "a crawler is told the two addresses are one page"
+
+
+# -- and all of it in the language they came through (targum-internal#288) --------------
+
+
+def test_the_front_door_answers_in_the_language_it_was_read_in(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The door has been bilingual since #69 and `waiting.language` has recorded which
+    one somebody came through since #292 — and only the invitation ever read it back. So
+    a visitor typed their address into a Russian page and every single thing targum said
+    between joining and being invited was English, starting with the mail.
+    """
+    port, store, posted = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+
+    status, body = post(port, "/waitlist?lang=ru", {"email": "dina@example.com"})
+    assert status == 200
+    assert "Спасибо. Проверьте почту" in body
+    assert "Check your email" not in body
+    assert 'lang="ru"' in body, "the page says which language it is in"
+
+    # The mail too, which is the first thing targum ever sends anybody.
+    sent = posted.getvalue()
+    assert "Подтвердите место в списке ожидания targum" in sent
+    assert "Confirm your place" not in sent
+
+    # And the row remembers it, so the page the mail leads to is Russian without the
+    # link having to say so. The token comes out of the mail, which is the only place it
+    # exists in the clear — `confirm` is hashed in the row, like a sign-in link.
+    token = re.search(r"/waitlist/confirm\?t=(\S+)", sent).group(1)
+    assert store.waiting_language(token) == "ru"
+
+    status, page = get(port, f"/waitlist/confirm?t={token}")
+    assert status == 200
+    assert "Оставить dina@example.com в списке ожидания?" in page
+    assert "Да, оставить" in page and "Yes, keep me" not in page
+
+    status, page = post(port, "/waitlist/confirm", {"t": token})
+    assert status == 200 and "Вы в списке." in page
+    assert store.waiting_state("dina@example.com") == "on"
+
+
+def test_an_english_visitor_is_answered_as_they_always_were(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The half that would be easy to break while fixing the other one."""
+    port, _store, posted = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, body = post(port, "/waitlist", {"email": "dina@example.com"})
+    assert status == 200 and "Check your email" in body
+    assert "Confirm your place on the targum waitlist" in posted.getvalue()
+
+
+def test_the_way_out_cannot_be_used_to_ask_who_is_waiting(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`/waitlist/stop` must say the same thing for a real token and a made-up one, and
+    drawing the page in the *row's* language would break that: Russian for a real token
+    and English for a fake one is that question answered.
+
+    So the stop door takes the request's language, which is the same for both, and the
+    mail mints its link with `?lang=` so somebody who joined in Russian still lands on a
+    Russian page. Asserted in Russian precisely because English would pass either way.
+    """
+    port, store, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    token = store.join_waitlist("dina@example.com", "ru")
+    assert token and store.confirm_waiting(token)
+    stop = store.db.execute(
+        "SELECT stop FROM waiting WHERE email = ?", ("dina@example.com",)
+    ).fetchone()["stop"]
+
+    for lang in ("", "?lang=ru"):
+        _, real = post(port, f"/waitlist/stop{lang}", {"t": stop})
+        _, made_up = post(port, f"/waitlist/stop{lang}", {"t": "not-a-token"})
+        assert real == made_up, f"the two replies differ at {lang!r}"
+    # And the page really is Russian when asked in Russian, so the sameness above is not
+    # the sameness of two English pages.
+    _, said = post(port, "/waitlist/stop?lang=ru", {"t": "not-a-token"})
+    assert "Мы убрали вас из списка ожидания." in said

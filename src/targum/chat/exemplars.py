@@ -57,7 +57,23 @@ class Exemplar:
     lemmas: frozenset[str]
     by: str
     english_by: str = ""
+    #: The same sentence in Russian where Tatoeba links one, and who wrote it
+    #: (targum-internal#286 item 5; the data arrived with targum#349, on 6,682 of the
+    #: 165,454 rows). Empty on the rest, which is most of them.
+    russian: str = ""
+    russian_by: str = ""
     original: bool = False
+
+    def said_in(self, language: str) -> str:
+        """The gloss beside the Hebrew, in the language the reader reads.
+
+        English where that language has none, which is the same fallback every other
+        string on the shelf makes and is never wrong, only foreign. The Hebrew itself
+        never changes: it is what the block is for.
+        """
+        if language.split("-")[0].lower() == "ru" and self.russian:
+            return self.russian
+        return self.english
 
     @property
     def credit(self) -> str:
@@ -93,6 +109,8 @@ def _row(raw: dict[str, Any]) -> Exemplar | None:
         id=int(raw.get("id") or 0),
         hebrew=hebrew,
         english=str(raw.get("en") or "").strip(),
+        russian=str(raw.get("ru") or "").strip(),
+        russian_by=str(raw.get("ru_by") or ""),
         lemmas=lemmas,
         by=str(raw.get("by") or ""),
         english_by=str(raw.get("en_by") or ""),
@@ -155,8 +173,18 @@ def pick(
     return (carrying + rest)[:count]
 
 
-def block(picked: list[Exemplar]) -> str:
-    """The per-turn block, for the ledger's side of the cache breakpoint."""
+def block(picked: list[Exemplar], into: str = "en") -> str:
+    """The per-turn block, for the ledger's side of the cache breakpoint.
+
+    `into` is the language the reader's own `= ` lines are in, and the gloss beside each
+    sentence follows it (targum-internal#286 item 5). The model is being shown what the
+    reader will see: a block glossed in English while the conversation glosses in Russian
+    was teaching it the wrong shape of answer, in the one place the prompt claims to be
+    showing it the right one.
+
+    The instruction stays English because the prompt is English. What changes is the
+    sentence's gloss, which is the half the reader would recognise.
+    """
     if not picked:
         return ""
     lines = [
@@ -166,7 +194,8 @@ def block(picked: list[Exemplar]) -> str:
         "contract asks."
     ]
     for row in picked:
-        lines.append(f"{row.hebrew} = {row.english}" if row.english else row.hebrew)
+        said = row.said_in(into)
+        lines.append(f"{row.hebrew} = {said}" if said else row.hebrew)
     return "\n".join(lines)
 
 

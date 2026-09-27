@@ -61,7 +61,7 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
     the routing decides what the file may be, not the file.
     """
     if path.suffix.lower() in DRM_SUFFIXES:
-        raise TargumError("This file is protected, so we can't read it.")
+        raise TargumError("This file is protected, so we can't read it.", key="file.protected")
     answer = tools.ffprobe_json(path)
     form = answer.get("format") or {}
     tags = {str(k).lower(): str(v) for k, v in (form.get("tags") or {}).items()}
@@ -73,18 +73,24 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
         if s.get("codec_type") == "video" and not (s.get("disposition") or {}).get("attached_pic")
     ]
     if not sound and moving:
-        raise TargumError("There's nothing to transcribe in a silent video.")
+        raise TargumError(
+            "There's nothing to transcribe in a silent video.", key="recording.silent-video"
+        )
     if not sound or (moving and not allow_video):
         # A film with a soundtrack is not a recording, and extracting one from the
         # other is a different product. Attached cover art is not moving pictures.
-        raise TargumError(tools.UNREADABLE)
+        raise TargumError(tools.UNREADABLE, key="recording.unreadable")
     length = _floated(form.get("duration"))
     if length < MIN_DURATION_S:
-        raise TargumError(tools.UNREADABLE)
+        raise TargumError(tools.UNREADABLE, key="recording.unreadable")
     if moving and length > MAX_VIDEO_DURATION_S:
-        raise TargumError("That video is over 4 hours. Try a shorter one.")
+        raise TargumError(
+            "That video is over 4 hours. Try a shorter one.", key="recording.video-too-long"
+        )
     if length > MAX_DURATION_S:
-        raise TargumError("That recording is over 12 hours. Try a shorter one.")
+        raise TargumError(
+            "That recording is over 12 hours. Try a shorter one.", key="recording.too-long"
+        )
     marks = [
         Mark(
             start=_floated(chapter.get("start_time")),
@@ -102,6 +108,50 @@ def examine(path: Path, *, allow_video: bool = False) -> Probe:
         has_video=bool(moving),
         chapters=[m for m in marks if m.end > m.start],
     )
+
+
+def timed(head: bytes, declared: int) -> float:
+    """How long a media file runs, from its front and the size the wire declared.
+
+    For a link the page has not fetched (targum-internal#256). ffprobe is given only the
+    bytes already read — a local file, so nothing here reaches the network — and there
+    are two ways an answer comes back:
+
+    Where the container puts its index at the front, ffprobe reads the real duration and
+    that is the answer. Where it does not, a truncated file's own `duration` is the
+    length of the *truncation* and is worse than no answer at all: ffprobe would say four
+    seconds of an hour-long recording with no hint that anything was missing. So it is
+    never taken. What is taken instead is the bit rate, which the first frames do state,
+    against the length the header declared — exact for constant bit rate and close for
+    the rest.
+
+    0.0 where neither works: no ffprobe, an unreadable front, a host that would not say
+    how big the file is. A recording of unknown length is still a recording.
+    """
+    import tempfile
+
+    from . import tools
+
+    if not head:
+        return 0.0
+    with tempfile.TemporaryDirectory() as raw:
+        front = Path(raw) / "front"
+        front.write_bytes(head)
+        try:
+            answer = tools.ffprobe_json(front)
+        except TargumError:
+            return 0.0
+    shape = answer.get("format") or {}
+    # Whole, so its own duration is the file's: the front held the index.
+    if declared and _floated(shape.get("size")) >= declared:
+        return max(0.0, _floated(shape.get("duration")))
+    rate = _floated(shape.get("bit_rate"))
+    if not rate:
+        streams = answer.get("streams") or []
+        rate = next((_floated(one.get("bit_rate")) for one in streams if one.get("bit_rate")), 0.0)
+    if rate <= 0 or declared <= 0:
+        return 0.0
+    return declared * 8 / rate
 
 
 def adopt(source: Path, workspace: Path, *, move: bool = False, allow_video: bool = False) -> Path:

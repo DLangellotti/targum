@@ -282,3 +282,126 @@ def test_a_row_arriving_in_the_catalogue_is_dated_and_an_old_one_keeps_its_date(
         else:
             os.environ["TARGUM_CATALOGUE"] = was
         catalogue_module.reload()
+
+
+# -- a collection is named in the reader's language too (targum-internal#289) -----------
+
+
+def test_a_collection_carries_its_other_languages_the_way_an_entry_does() -> None:
+    """The rows learned their own language in targum#280 and the collections they fold
+    into did not, so a shelf could read "Тора" over a group still called "Torah"."""
+    from targum.catalogue import Collection
+
+    group = Collection(
+        id="torah",
+        title="תורה",
+        english="Torah",
+        blurb="The five books.",
+        named={"ru": "Тора"},
+        blurbs={"ru": "Пять книг."},
+    )
+    assert group.name_in("ru") == "Тора"
+    assert group.name_in("ru-RU") == "Тора", "a regional tag is the language"
+    assert group.name_in("en") == "Torah"
+    assert group.blurb_in("ru") == "Пять книг."
+
+    bare = Collection(id="x", title="ת", english="Torah", blurb="The five books.")
+    assert bare.name_in("ru") == "Torah", "English is the fallback, never wrong only foreign"
+    assert bare.blurb_in("ru") == "The five books."
+
+    # And the page is handed them, or the shelf cannot draw what it was given.
+    said = group.state()
+    assert said["named"] == {"ru": "Тора"} and said["blurbs"] == {"ru": "Пять книг."}
+    assert said["english"] == "Torah", "English stays where it was"
+
+
+def test_a_collection_written_before_this_still_reads() -> None:
+    """Every catalogue on disk predates these two fields."""
+    from targum.catalogue import _collection
+
+    made = _collection({"id": "x", "title": "ת", "english": "Torah", "members": ["a"]})
+    assert made.named == {} and made.blurbs == {}
+    assert made.name_in("ru") == "Torah"
+
+
+# -- a rendering says where its licence was read (targum-internal#355) -------------------
+
+
+def test_a_rendering_records_where_its_licence_was_read() -> None:
+    """LICENSING.md asks for the licence *and* the URL it was read at, and says why: the
+    URL is kept verbatim "precisely so it can be re-checked against the page rather than
+    against somebody's summary of it". A `Rendering` carried only the first half until
+    2026-09-22, so 246 of the 251 on the shelf recorded a claim nobody could re-check.
+    """
+    from targum.catalogue import _entry
+
+    made = _entry(
+        {
+            "id": "x",
+            "title": "ת",
+            "source": "s",
+            "language": "he",
+            "translations": [
+                {
+                    "name": "A rendering",
+                    "source": "published:ru:Genesis",
+                    "licence": "Public Domain",
+                    "licence_url": "https://rusneb.ru/catalog/000199_000009_009682814/",
+                }
+            ],
+        }
+    )
+    (beside,) = made.translations
+    assert beside.licence == "Public Domain"
+    assert beside.licence_url == "https://rusneb.ru/catalog/000199_000009_009682814/"
+
+
+def test_a_rendering_written_before_this_still_reads() -> None:
+    """Every catalogue on disk predates the field, so it is optional and empty — and the
+    emptiness is reported by `targum licences` rather than passed off as a checked
+    licence."""
+    from targum.catalogue import _entry
+
+    made = _entry(
+        {
+            "id": "x",
+            "title": "ת",
+            "source": "s",
+            "language": "he",
+            "translations": [{"name": "A rendering", "source": "s2", "licence": "CC-BY"}],
+        }
+    )
+    (beside,) = made.translations
+    assert beside.licence == "CC-BY" and beside.licence_url == ""
+
+
+# -- a sample is read in the reader's language (targum-internal#188) ---------------------
+
+
+def test_a_sample_line_is_said_in_the_language_the_page_speaks() -> None:
+    """The public text page is where a Russian searcher arrives from a Russian search,
+    and the sample is the only real reading on it — the reason it is worth indexing at
+    all. Its name and blurb have answered in Russian since targum#362; the sample was
+    the last English on the page.
+    """
+    from targum.catalogue import Line
+
+    line = Line(
+        source="בְּרֵאשִׁית בָּרָא אֱלֹהִים",
+        target="In the beginning God created",
+        said={"ru": "В начале сотворил Бог"},
+    )
+    assert line.said_in("ru") == "В начале сотворил Бог"
+    assert line.said_in("ru-RU") == "В начале сотворил Бог", "a regional tag is the language"
+    assert line.said_in("en") == "In the beginning God created"
+    # Never wrong, only foreign: a language nothing has been written for reads the
+    # English, which is what lets this be filled a row at a time.
+    assert line.said_in("fr") == "In the beginning God created"
+
+
+def test_a_sample_written_before_this_still_reads() -> None:
+    """Every sample on disk predates the field."""
+    from targum.catalogue import Line
+
+    line = Line(source="ש", target="A line")
+    assert line.said == {} and line.said_in("ru") == "A line"

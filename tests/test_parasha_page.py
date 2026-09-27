@@ -829,3 +829,82 @@ def test_a_festival_week_lists_what_is_actually_read(
     # The fixture's festival reading is too short to split, so it is one part, read whole.
     assert len(parts) == 2 and parts[0]["data-sections"] == "1"
     assert parts[-1]["href"] == "/parasha/read/haftarah-habakkuk-3-1-19/reader/index.html"
+
+
+def test_the_dateline_is_one_sentence_in_the_readers_language() -> None:
+    """targum-internal#348 names the parasha dateline as the last thing outside the
+    catalogue. It was four fragments of English prose — "is read on", a comma, "verses
+    in" — which can only ever come out in English's word order.
+
+    One key and one sentence now, with the counts through `tn` because Russian has three
+    plural forms, and the date through `said_on` because «читают суббота» is not foreign,
+    it is wrong.
+    """
+    import re
+    from datetime import date
+
+    from targum.parasha.models import Portion as P
+    from targum.render.builder import parasha_page
+
+    def dateline(html: str) -> str:
+        found = re.search(r'<p class="dateline">(.*?)</p>', html, re.S)
+        assert found, "no dateline on the page"
+        return " ".join(re.sub(r"<[^>]+>", " ", found.group(1)).split())
+
+    portion = P(
+        slug="x",
+        name="Nasso",
+        hebrew="נָשֹׂא",
+        numbers=[35],
+        summary="Numbers 4:21-7:89",
+        verses=176,
+        aliyot=7,
+    )
+    when = date(2026, 5, 30)
+
+    english = dateline(parasha_page(portion, schedule=cal.Schedule.diaspora, shabbat=when))
+    assert "is read on Saturday, May 30, 2026" in english
+    assert "176 verses in 7 aliyot" in english, "English is exactly what it was"
+
+    russian = dateline(
+        parasha_page(portion, schedule=cal.Schedule.diaspora, shabbat=when, language="ru")
+    )
+    assert "читают в субботу, 30 мая 2026" in russian, "the accusative, with its preposition"
+    assert "176 стихов" in russian, "many, not the English plural"
+    assert "verses" not in russian and "is read on" not in russian
+
+    # 21 is `one` and 11 is `many`: the pair a page that guessed would get wrong.
+    for count, form in ((21, "21 стих "), (11, "11 стихов"), (22, "22 стиха")):
+        one = P(slug="y", name="N", hebrew="נ", numbers=[35], summary="s", verses=count, aliyot=1)
+        said = dateline(
+            parasha_page(one, schedule=cal.Schedule.diaspora, shabbat=when, language="ru")
+        )
+        assert form.strip() in said, (count, said)
+
+
+def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
+    """targum-internal#348. These were four keys, each a fragment around a link and two of
+    them beginning with a comma — a shape that can only ever be put back in English's
+    order. One key each now, with the links riding in blanks as `Markup`, which
+    `Markup.format` passes through while escaping everything else a blank carries."""
+    import re
+    from datetime import date
+
+    from targum.parasha.models import Portion as P
+    from targum.render.builder import parasha_page
+
+    portion = P(slug="x", name="N", hebrew="נ", numbers=[35], summary="s", verses=1, aliyot=1)
+    when = date(2026, 5, 30)
+
+    for language, expected in (("en", "The scroll at the top is"), ("ru", "Свиток наверху")):
+        html = parasha_page(
+            portion, schedule=cal.Schedule.diaspora, shabbat=when, language=language
+        )
+        found = re.search(r'<p class="made credits">(.*?)</p>', html, re.S)
+        assert found, language
+        credits = found.group(1)
+        assert expected in credits
+        # The links are links, not text that looks like one.
+        assert "&lt;a" not in html, "a link was escaped into the sentence"
+        assert 'href="https://archive.org/details/PockettorahAudioFiles"' in credits
+        assert "</a>, " in credits, "and the sentence closes onto them without a gap"

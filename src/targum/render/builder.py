@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import mimetypes
 import os
 import re
@@ -17,10 +18,11 @@ import shutil
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
+from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -183,7 +185,7 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
 
     The page's language is its first rendering's — the list is sorted so a rendering read
     beside the text never comes first — and English is the code's own, so it ships
-    nothing. Only the `reader.`, `vocab.` and `theme.` keys, and only what it has filled:
+    nothing. Only the `reader.` and `vocab.` keys, and only what it has filled:
     a key it has not is said in English by the script.
     """
     from ..strings import SOURCE, catalogue
@@ -197,7 +199,7 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
     said = {
         key: text
         for key, text in catalogue(code).items()
-        if key.startswith(("reader.", "vocab.", "theme."))
+        if key.startswith(("reader.", "vocab.", "playlist-menu."))
     }
     return {"strings": said, "stringsLanguage": code} if said else {}
 
@@ -303,6 +305,10 @@ def _environment() -> Environment:
     env.globals["scripture_face"] = _scripture_face
     env.globals["chrome_face"] = _chrome_face
     env.globals["legal_is_public"] = legal_is_public
+    # The foot carries the way into Claude and ChatGPT, and only where there is one
+    # to carry (design.md §12, 2026-09-24). A function rather than a value, like the
+    # line above it, so a template cannot be rendered against a stale answer.
+    env.globals["connector_is_open"] = _connector_is_open
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
@@ -316,6 +322,49 @@ def _page_language(language: str) -> str:
 
     code = (language or SOURCE).split("-")[0].lower()
     return code if code in languages() else SOURCE
+
+
+def _commentary_named(name: str) -> bool:
+    """Whether a rendering's name says it is a commentary — "Rashi on Genesis".
+
+    The same shape `align.parallel` keys one by, and the reason the two agree is that
+    they are asking the same question: a commentary is numbered by the book it comments
+    on, and it is drawn as comments rather than as a line of prose.
+    """
+    import re
+
+    return bool(re.match(r"^[A-Z][A-Za-z]+ on .+$", (name or "").strip()))
+
+
+def _addressed_in(base: str, language: str) -> tuple[str, list[tuple[str, str]]]:
+    """A public page's own address and the addresses of its other languages
+    (targum-internal#188).
+
+    `hreflang` needs a URL per language: a crawler cannot be told that two languages of a
+    page exist unless each has one, and a page that serves both by `Accept-Language` at a
+    single address reads as one page that keeps changing. So `?lang=` is the address, the
+    way the front door's switcher already writes it.
+
+    **Each language canonicals to itself.** Pointing the Russian page's canonical at the
+    English one would say "index the English", which is the opposite of the point: the
+    Russian would never be indexed and the card exists to have it indexed.
+
+    English carries no `?lang=`, so every address already published stays exactly what it
+    was and nothing that is indexed today moves.
+    """
+    from ..strings import SOURCE, languages
+
+    if not base:
+        return "", []
+
+    def address(code: str) -> str:
+        return base if code == SOURCE else f"{base}?lang={code}"
+
+    alternates = [(code, address(code)) for code in languages()]
+    # `x-default` is where a crawler sends somebody whose language is neither, and that
+    # is the English: it is the one every other language falls back to already.
+    alternates.append(("x-default", address(SOURCE)))
+    return address(_page_language(language)), alternates
 
 
 def page_words(language: str) -> Callable[..., Markup]:
@@ -339,9 +388,30 @@ def page_words(language: str) -> Callable[..., Markup]:
     return t
 
 
+def page_counts(language: str) -> Callable[..., Markup]:
+    """A template's `tn(key, n, one, other)`: a counted string in the right plural form.
+
+    The scripts have had this since #184 through `Intl.PluralRules`; a server-rendered
+    page had nothing, so anything counted was written in English word order with an
+    English plural (targum-internal#348). Russian has three forms and the teens are the
+    trap — 21 is `one` and 11 is `many` — so a page that guessed would read as broken
+    rather than as foreign.
+
+    The English written at the call is the fallback, the same promise `t` makes, and `{n}`
+    is filled for free because every counted string wants it.
+    """
+    from ..strings import counted
+
+    def tn(key: str, n: int, one: str, other: str, **fill: object) -> Markup:
+        said = counted(key, n, language, {"one": one, "other": other})
+        return Markup(said).format(n=n, **fill)
+
+    return tn
+
+
 #: What the scripts every desk page carries say: the charts, the language menu, the
-#: notices bell, the account panel, the series the nav follows, the palette and the
-#: theme switch — and the nav's own words, which the palette says again.
+#: notices bell, the account panel, the series the nav follows and the palette — and
+#: the nav's own words, which the palette says again.
 SHARED_SCRIPT_KEYS = (
     "charts.",
     "lang.",
@@ -349,7 +419,6 @@ SHARED_SCRIPT_KEYS = (
     "account.",
     "follow.",
     "palette.",
-    "theme.",
     "nav.",
 )
 
@@ -629,6 +698,9 @@ class Spoken(NamedTuple):
     #: by anybody. Only ever seen where `credit` is set, so a dialogue keeps its default
     #: and shows nothing.
     credited: str = "Read by"
+    #: The video cut's shape as a player draws it, `[width, height]`, or `[]`. What lets
+    #: the page stand an upright film upright before the film has loaded.
+    frame: list[int] = []
 
 
 SILENT = Spoken({}, {}, "")
@@ -806,7 +878,7 @@ def _from_manifest(
     """
     from ..audio import PAD
     from ..audio import manifest as manifest_module
-    from ..video import youtube
+    from ..video import hosts
 
     kept = manifest_module.load(folder)
     if kept is None:
@@ -831,6 +903,16 @@ def _from_manifest(
         if segment.id in part.words
     }
     reel = folder / part.video if part.video else None
+    # The manifest's measure where it has one. Every manifest written before 2026-09-20
+    # has none, and those are all the films there are: the cut is on this disk, so it is
+    # asked here, and a reader rendered again gets its shape without being imported
+    # again. Where there is no ffprobe to ask, `[]`, and the page waits for the film as
+    # it always did.
+    frame = list(part.frame)
+    if not frame and reel is not None and reel.is_file():
+        from ..audio import tools
+
+        frame = tools.frame(reel)
     return Spoken(
         speakers,
         spans,
@@ -843,13 +925,14 @@ def _from_manifest(
         str(reel) if reel is not None and reel.is_file() else "",
         # One shape whatever the reader pasted, or nothing: a podcast episode's address
         # is also a home, but not one the page may link to — the reader's outbound
-        # addresses are a closed list, and only YouTube's is on it.
-        youtube.watch_url(kept.home),
+        # addresses are a closed list, and only the video hosts' are on it.
+        hosts.home_url(kept.home),
         # The cut begins a pad before the part does — the same arithmetic the build
         # used to make it, and the one figure that turns a span into a place in the
         # whole video.
         max(0.0, part.start - PAD),
         credited,
+        frame,
     )
 
 
@@ -1078,7 +1161,7 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
             "reader.next.step-up-other", "A step up, in a different Hebrew."
         ),
         "The easiest text on the shelf.": said(
-            "reader.next.easiest", "The easiest text on the shelf."
+            "reader.next.easiest", "The easiest text in the library."
         ),
         "About as hard as this one.": said("reader.next.as-hard", "About as hard as this one."),
         "Easier than this one.": said("reader.next.easier", "Easier than this one."),
@@ -1094,7 +1177,7 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     return out
 
 
-def learn_page(token: str, language: str = "en") -> str:
+def learn_page(token: str, language: str = "en", connector: bool = False) -> str:
     """The page you land on: carry on, what you have, what you know.
 
     In that order on purpose. Most visits are somebody returning to a text rather than
@@ -1115,7 +1198,7 @@ def learn_page(token: str, language: str = "en") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "learn.", "shelf."),
+            strings=script_strings(language, "learn.", "shelf.", "playlist-menu."),
             token=token,
             languages=_language_names(language),
             # Which languages the conversation's "= " lines can be in, for the first
@@ -1149,6 +1232,10 @@ def learn_page(token: str, language: str = "en") -> str:
                 }
                 for entry in everything()
             ],
+            # Whether Learn draws a door to the connector (#80). The page is rendered
+            # once at start-up, so this is read then and not per request — which is the
+            # same thing the switch means: the day it opens is a restart.
+            connector=connector,
         )
     )
 
@@ -1178,7 +1265,9 @@ def list_page(token: str, which: str, language: str = "en") -> str:
             token=token,
             which=which,
             languages=_language_names(language),
-            strings=script_strings(language, "yours.", "lists.", "vocab.", "claim.", "shelf."),
+            strings=script_strings(
+                language, "yours.", "lists.", "vocab.", "claim.", "shelf.", "playlist-menu."
+            ),
         )
     )
 
@@ -1300,7 +1389,7 @@ def about_page(language: str = "en") -> str:
     )
 
 
-def front_page(language: str = "en", address: str = "") -> str:
+def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
     The page `holding_page` stands in for. It is served at `/` only while
@@ -1311,12 +1400,16 @@ def front_page(language: str = "en", address: str = "") -> str:
     the one script are inlined, and nothing on the page fetches anything.
     """
     words = page_words(language)
+    _front_at = _addressed_in(address.rstrip("/") + "/" if address else "", language)
     return (
         _environment()
         .get_template("landing.html.j2")
         .render(
             t=words,
             page_language=_page_language(language),
+            # The language the visitor pressed for, or "" where the browser chose: only a
+            # press is carried on to the sign-in page.
+            asked=asked,
             # The tab and the search result speak the page's language too. They are the
             # two sentences a stranger reads before the page itself.
             title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
@@ -1326,7 +1419,8 @@ def front_page(language: str = "en", address: str = "") -> str:
                 "Vowels on every word, English beside every line, and any word explained "
                 "the moment you tap it.",
             ),
-            canonical=address.rstrip("/") + "/" if address else "",
+            canonical=_front_at[0],
+            alternates=_front_at[1],
             strings=script_strings(language, "landing."),
         )
     )
@@ -1354,7 +1448,7 @@ def not_found_page() -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "29 August 2026"
+LEGAL_CHANGED = "20 September 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -1382,6 +1476,19 @@ LEGAL = {
 }
 
 
+def _connector_is_open() -> bool:
+    """Whether targum can be added to Claude or ChatGPT, for the foot to know.
+
+    Read through `serve` at call time rather than imported at module scope: `serve`
+    imports this module, and the other direction would be a cycle. The switch is one line
+    in `targum.env`, so a value captured at start-up would also be a value that could go
+    stale between a deploy and a restart.
+    """
+    from ..serve import connector_is_open
+
+    return connector_is_open()
+
+
 def legal_is_public() -> bool:
     """Whether the four legal documents are reachable. Off unless the deployment says so.
 
@@ -1407,6 +1514,7 @@ def back_office_page(
     wanted: list[dict[str, Any]] | None = None,
     said: str = "",
     incidents: list[Any] | None = None,
+    balances: dict[str, dict[str, Any]] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -1416,7 +1524,22 @@ def back_office_page(
     in the renderer should need the store.
     """
     from ..catalogue import Kind, Register
+    from ..services import SAID_MAX, SERVICES
 
+    read = balances or {}
+    services = [
+        {
+            "id": service.id,
+            "name": service.name,
+            "used_for": service.used_for,
+            "configured": service.configured(),
+            "console": service.console,
+            "said": read.get(service.id, {}).get("said", ""),
+            # Month first, as every other date in the product is written.
+            "as_of": _as_of(read[service.id]["at"]) if service.id in read else "",
+        }
+        for service in SERVICES
+    ]
     return (
         _environment()
         .get_template("backoffice.html.j2")
@@ -1430,8 +1553,16 @@ def back_office_page(
             incidents=incidents or [],
             registers=[r.value for r in Register if r is not Register.none],
             kinds=[k.value for k in Kind],
+            services=services,
+            said_max=SAID_MAX,
         )
     )
+
+
+def _as_of(stamp_ms: int) -> str:
+    """The day a balance was read, month first: "September 18"."""
+    day = datetime.fromtimestamp(stamp_ms / 1000, tz=UTC)
+    return f"{day.strftime('%B')} {day.day}"
 
 
 def legal_page(which: str, address: str = "") -> str:
@@ -1455,6 +1586,35 @@ def legal_page(which: str, address: str = "") -> str:
     )
 
 
+def _family_at(
+    token: object,
+    families: list[list[list[str]]],
+    family_at: dict[str, int],
+) -> int:
+    """Where this verb's family sits in the page's own list, or 0 for none.
+
+    Keyed on the lemma and its binyan together, which is what the family is worked out
+    from: two verbs spelled alike in different binyanim have different families, and
+    `כתב` is both.
+    """
+    from ..annotate.paradigms import family_of
+
+    lemma = str(getattr(token, "lemma", "") or "")
+    binyan = str(getattr(token, "binyan", "") or "")
+    if not lemma or not binyan or getattr(token, "pos", "") != "VERB":
+        return 0
+    key = f"{lemma}\u0000{binyan}"
+    if key in family_at:
+        return family_at[key]
+    kin = family_of(lemma, binyan)
+    if not kin:
+        family_at[key] = 0
+        return 0
+    families.append([[written, name] for written, name in kin])
+    family_at[key] = len(families) - 1
+    return family_at[key]
+
+
 def _paradigm_at(
     token: object,
     tables: list[list[list[object]]],
@@ -1464,22 +1624,31 @@ def _paradigm_at(
     """Where this word's conjugations sit in the page's own tables, or 0 for none.
 
     Only Hebrew verbs, and only where the lookup is unambiguous — `Table.of` answers None
-    for a spelling two verbs share, because choosing between them without the sentence
+    for a spelling two verbs share that nothing settles, because choosing between them
     would be guessing and a wrong table is worse than no table.
 
-    The same verb twice on a page is one table: `table_at` is keyed on the lemma, which
-    is what the reader's marks are filed under anyway.
+    The binyan goes with it (targum-internal#307). Hebrew writes two binyanim of a root
+    identically without points, so `הלך` is both הָלַךְ and הִלֵּךְ and the source cannot say
+    which; the binyan targum worked out for this word can, and it is what takes the table
+    from 55.4% of the shelf's verb tokens to 72.4%. It is a fact about the lemma's
+    analysis rather than about this occurrence, so it keys the cache beside the lemma.
+
+    The surface is not passed. `Table.of` would take it, but the table is drawn once per
+    lemma for the whole page, and a pointing is per occurrence: the first one on the page
+    would be deciding for all the others.
     """
     from ..annotate.paradigms import table as paradigm_table
 
     lemma = str(getattr(token, "lemma", "") or "")
     if not lemma or getattr(token, "pos", "") != "VERB":
         return 0
-    if lemma in table_at:
-        return table_at[lemma]
-    found = paradigm_table().of(lemma)
+    binyan = str(getattr(token, "binyan", "") or "")
+    key = f"{lemma}\u0000{binyan}"
+    if key in table_at:
+        return table_at[key]
+    found = paradigm_table().of(lemma, binyan=binyan or None)
     if found is None:
-        table_at[lemma] = 0
+        table_at[key] = 0
         return 0
     rows: list[list[object]] = []
     for form in found.forms:
@@ -1490,8 +1659,8 @@ def _paradigm_at(
             codes.append(feature_at[feature])
         rows.append([form.written, codes])
     tables.append(rows)
-    table_at[lemma] = len(tables) - 1
-    return table_at[lemma]
+    table_at[key] = len(tables) - 1
+    return table_at[key]
 
 
 def signin_page(
@@ -1501,6 +1670,7 @@ def signin_page(
     expired: bool = False,
     language: str = "en",
     said: str = "",
+    asked: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -1517,6 +1687,7 @@ def signin_page(
         .render(
             t=page_words(language),
             page_language=_page_language(language),
+            asked=asked,
             landing=landing,
             token=token,
             expired=expired,
@@ -1526,6 +1697,201 @@ def signin_page(
             google=google_module.configured(),
             strings=script_strings(language, "signin."),
         )
+    )
+
+
+def approve_page(
+    *,
+    client: str,
+    scopes: list[dict[str, str]],
+    spends: bool,
+    query: str,
+    redirect: str,
+    language: str = "en",
+) -> str:
+    """Where a reader grants a connector its scopes (targum-internal#80).
+
+    The one press design.md §12 rests on ("The grant is one press, and chatting is
+    included", 2026-09-24): every scope the app asked for, in words, granted together by
+    Connect. Chatting is said to be included rather than costed, because a message rounds
+    to no credits at all.
+
+    `client` is the name the client registered, which is the client's claim about itself
+    and not a fact about who it is — dynamic registration means a stranger wrote it. So
+    the host the reader will be sent back to stands beside the press, in bold: a client
+    that calls itself "targum" still says where it lives.
+
+    `query` is the original authorization request, carried through the form so the press
+    can be read again from it. Nothing on the grant is taken from the form itself; see
+    `serve.Handler._oauth_approve` for why that matters.
+    """
+    parsed = urlparse(redirect)
+    host = parsed.netloc or redirect
+    return (
+        _environment()
+        .get_template("approve.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            client=client,
+            scopes=scopes,
+            spends=spends,
+            query=query,
+            host=Markup('<b class="host">{}</b>').format(host),
+        )
+    )
+
+
+def press_page(job: dict[str, Any], language: str = "en") -> str:
+    """Where a quote made through a connector is pressed (targum-internal#80).
+
+    In the chat a quote becomes a card in the thread and the card's button posts
+    `/build`. Over a connector there is no thread of ours, so the quote comes back
+    carrying a link to this — the same quote, the same press, on a page targum drew.
+    `Handler._build` stays the only path to `Library.claim`.
+
+    `job` is `Job.state()`, so this page and the chat's card are drawn from one shape and
+    cannot drift into saying different things about the same build.
+
+    `tn` because this page counts out loud and got it wrong: a one-minute video read
+    "Uses 1 minutes of your hours" (2026-09-23, §12). Every counted line here goes through
+    it, including the ones the credits vocabulary will replace.
+    """
+    return (
+        _environment()
+        .get_template("press.html.j2")
+        .render(
+            t=page_words(language),
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            job=job,
+            # `press.js` narrates the build and says how much longer, so it says
+            # sentences — and said them in English on a Russian page until this was
+            # passed, because nothing had handed the page a `TargumStrings`.
+            strings=script_strings(language, "press."),
+        )
+    )
+
+
+def credits_of(seconds: float) -> int:
+    """The credits a recording of this many seconds uses: a credit is a minute, and any
+    part of a minute is a whole one, so twenty seconds of audio is never "0 credits"."""
+    return math.ceil(max(0.0, float(seconds or 0)) / 60 - 1e-9)
+
+
+def set_page(
+    playlist: dict[str, Any],
+    jobs: list[dict[str, Any] | None],
+    language: str = "en",
+    refused: str = "",
+) -> str:
+    """Where a set a model quoted is pressed, as one (targum-internal#365).
+
+    `press_page` for a list: each text with what it uses, the total, and one button that
+    claims them all or none (design.md §12). `jobs` runs beside `playlist["items"]` —
+    each item's `Job.state()`, or None where the item was already on the shelf. No
+    script: a text is unticked with a checkbox and the press is a form post, so the page
+    is the same with script off, and the CSP has nothing to hash but the styles.
+    """
+    rows = []
+    total = 0
+    for item, job in zip(playlist.get("items") or [], jobs, strict=False):
+        credits = credits_of(float(job.get("seconds") or 0)) if job and job.get("audio") else 0
+        stage = "ready" if job is None and item.get("reader") else (job or {}).get("stage", "")
+        if item.get("failed"):
+            stage = "failed"
+        if stage == "ready" and job is not None:
+            total += credits
+        rows.append({"item": item, "job": job, "credits": credits, "stage": stage})
+    waiting = [row for row in rows if row["job"] is not None and row["stage"] == "ready"]
+    # Anything claimed and not yet settled is being made, whatever step it is on.
+    making = [
+        row
+        for row in rows
+        if row["job"] is not None
+        and row["stage"] not in ("ready", "done", "failed", "blocked")
+        and not row["item"].get("reader")
+    ]
+    first = next(
+        (
+            row["item"]
+            for row in rows
+            if row["item"].get("reader") and not row["item"].get("failed")
+        ),
+        None,
+    )
+    return (
+        _environment()
+        .get_template("set.html.j2")
+        .render(
+            t=page_words(language),
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            playlist=playlist,
+            rows=rows,
+            waiting=waiting,
+            making=making,
+            first=first,
+            total=total,
+            refused=refused,
+        )
+    )
+
+
+def connect_page(language: str = "en", address: str = "", signed_in: bool = False) -> str:
+    """targum in Claude and ChatGPT: what it does, and how to add it (#80).
+
+    A public page, so §6's selling register applies and the feature names we use inside
+    the team do not. "MCP" is on it once, in the steps, because that is what the menu the
+    reader has to find is called.
+
+    Note 2 of 2026-09-22 is the design: assume this is their first connector of any kind.
+    One block a host, each with its own steps, and nothing detected — a reader in the
+    wrong block can see that they are, which is not true of a page that chose for them.
+
+    `signed_in` only decides whether the hero says that connecting needs an account:
+    accounts come off the waitlist, and a stranger sent to the steps would otherwise
+    meet a sign-in door they cannot get through.
+    """
+    said = page_words(language)
+    # Its own address per language, like every other public page (#188): a crawler
+    # cannot be told two languages of this exist unless each has a URL.
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/connect" if address else "", language)
+    return (
+        _environment()
+        .get_template("connect.html.j2")
+        .render(
+            t=said,
+            page_language=_page_language(language),
+            title=said("connect.head.title", "targum in Claude and ChatGPT"),
+            description=said(
+                "connect.head.description",
+                "Learn Hebrew in Claude, ChatGPT and the AI you already use. It talks to "
+                "you at your level and shows you how to fix each mistake.",
+            ),
+            signed_in=signed_in,
+            canonical=here,
+            alternates=alternates,
+            address=address,
+            # The conversation and the set-up screens say their words through
+            # `strings.js`; the template's own `.page.` keys are said already.
+            strings=script_strings(language, "connect."),
+        )
+    )
+
+
+def connect_refused_page(language: str = "en") -> str:
+    """A Connect that could not be read, said to the reader instead of to the client.
+
+    Its own page rather than a redirect carrying an error: the request that failed is
+    one we could not verify, so the address it asked to be sent back to is an address
+    nobody has checked. The reason is one catalogue line; the client's own description
+    of what was wrong is for the log, not the reader.
+    """
+    return (
+        _environment()
+        .get_template("connect_refused.html.j2")
+        .render(t=page_words(language), page_language=_page_language(language))
     )
 
 
@@ -1594,6 +1960,7 @@ def shelf_page(address: str = "", language: str = "en") -> str:
     from ..catalogue import everything
 
     name, blurb = SHELF
+    _shelf_at = _addressed_in(f"{address}/library" if address else "", language)
     return (
         _environment()
         .get_template("shelf.html.j2")
@@ -1602,7 +1969,8 @@ def shelf_page(address: str = "", language: str = "en") -> str:
             page_language=_page_language(language),
             title=f"{name} — targum",
             description=blurb,
-            canonical=f"{address}/library" if address else "",
+            canonical=_shelf_at[0],
+            alternates=_shelf_at[1],
             shelf_name=name,
             shelf_blurb=blurb,
             entries=everything(),
@@ -1678,6 +2046,7 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     from ..models import direction_for
 
     name = SHELF[0]
+    here, alternates = _addressed_in(f"{address}/library/{entry.id}" if address else "", language)
     return (
         _environment()
         .get_template("text.html.j2")
@@ -1685,14 +2054,30 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             title=f"\u2068{entry.title}\u2069 — {name} — targum",
-            description=entry.blurb,
-            canonical=f"{address}/library/{entry.id}" if address else "",
+            # The name and the blurb in the language this page is speaking
+            # (targum-internal#188). Every catalogue row carries both in Russian, and the
+            # shelf behind the sign-in has shown them since #289 — but this page, the one
+            # a search engine actually reads, said them in English to everybody. Somebody
+            # who found targum by searching in Russian met an English description of the
+            # book they had searched for.
+            named=entry.name_in(language),
+            lede=entry.blurb_in(language),
+            description=entry.blurb_in(language),
+            canonical=here,
+            alternates=alternates,
             og_type="book",
             structured=text_schema(entry, address),
             entry=entry,
             shelf_name=name,
             direction=direction_for(entry.language),
-            sample=entry.sample,
+            # The opening, with its translation in the language this page speaks
+            # (targum-internal#188). The name and the blurb above it have been the
+            # reader's language since targum#362; the sample was the last English on a
+            # page whose whole point is that a Russian searcher can read it.
+            sample=[
+                {"source": line.source, "target": line.said_in(language)} for line in entry.sample
+            ],
+            sample_language=_page_language(language),
             minutes=max(1, round(entry.words / 130)),
         )
     )
@@ -1749,6 +2134,7 @@ def weekly_page(
     said = page_words(language)
     blurb = issue.blurb
     press = _press(issue)
+    _weekly_at = f"{address}/weekly/{issue.id}/{level.value}" if address else ""
     return (
         _environment()
         .get_template("weekly.html.j2")
@@ -1758,7 +2144,8 @@ def weekly_page(
             strings=script_strings(language, "weekly."),
             title=f"\u2068{issue.title}\u2069 — {spec.label} — targum",
             description=blurb,
-            canonical=f"{address}/weekly/{issue.id}/{level.value}" if address else "",
+            canonical=_addressed_in(_weekly_at, language)[0],
+            alternates=_addressed_in(_weekly_at, language)[1],
             issue=issue,
             level=level,
             spec=spec,
@@ -1801,6 +2188,7 @@ def daily_page(
         .get_template("daily.html.j2")
         .render(
             t=page_words(language),
+            tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
             title=f"{day.title} — {cycle.name} — targum",
@@ -1821,25 +2209,35 @@ def daily_page(
             absent=absent or [],
             opens=opens,
             is_today=is_today,
-            translation_said=_translation_said(day),
+            translation_said=_translation_said(day, language),
         )
     )
 
 
-def _translation_said(day: Any) -> str:
+def _translation_said(day: Any, language: str = "en") -> str:
     """Who made the English on a daily page, in a sentence.
 
     Off the catalogue rather than written down here, so a page never credits an edition
-    the shelf has since swapped.
+    the shelf has since swapped. The edition's own name is not translated — it is what it
+    is called — but the words around it are (targum-internal#348).
     """
     from ..daily.cut import entry_for
 
+    said = page_words(language)
     entry = entry_for(day.span.book) if getattr(day, "span", None) else None
     if entry is None or not entry.translations:
-        return "a published translation"
+        return str(said("daily.page.a-published-translation", "a published translation"))
     rendering = entry.translations[0]
-    who = rendering.publisher or rendering.name
-    return f"{rendering.name}" + (f", published by {who}" if rendering.publisher else "")
+    if not rendering.publisher:
+        return str(rendering.name)
+    return str(
+        said(
+            "daily.page.published-by",
+            "{name}, published by {who}",
+            name=rendering.name,
+            who=rendering.publisher,
+        )
+    )
 
 
 def parasha_page(
@@ -1878,8 +2276,9 @@ def parasha_page(
     """
     from ..parasha.build import COLLECTION_ID
     from ..parasha.models import neighbours
+    from ..strings import said_on
 
-    said = shabbat.strftime("%A, %B %-d, %Y") if shabbat is not None else "Shabbat"
+    said = said_on(shabbat, language) if shabbat is not None else "Shabbat"
     previous, following = neighbours(portion, listed or [])
     # The row to point at on the shelf: this portion's own, or — for a doubled week,
     # which is not on the shelf beside its halves — the first of its halves that is.
@@ -1900,6 +2299,7 @@ def parasha_page(
         .get_template("parasha.html.j2")
         .render(
             t=page_words(language),
+            tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
             week=week,
@@ -1961,6 +2361,7 @@ def weekly_note(
     pending: dict[str, str] | None = None,
     heading: str = "the weekly",
     home: str = "/weekly",
+    language: str = "en",
 ) -> str:
     """A sentence back from the weekly's own door — or, since 2026-09-11, from a series'
     (`heading`, `home`): the same furniture, read out of a mail client.
@@ -1968,11 +2369,18 @@ def weekly_note(
     Separate from `weekly_page` because these are read in a mail client, arrived at from
     a link, by somebody who has no account and may never have seen targum. Nothing here
     needs JavaScript and nothing here is behind anything.
+
+    `language` is the reader's (targum-internal#289). `message` and `heading` are the
+    caller's words and are expected in it already; what this settles is the furniture —
+    the page's `lang`, the foot, and the door at the bottom — which took `t` from the
+    environment's English global and so was English on a page that was otherwise not.
     """
     return (
         _environment()
         .get_template("weekly-note.html.j2")
         .render(
+            t=page_words(language),
+            page_language=_page_language(language),
             title="the weekly — targum",
             description="A weekly digest of the news in Modern Hebrew, at three levels.",
             canonical=f"{address}/weekly" if address else "",
@@ -1981,6 +2389,23 @@ def weekly_note(
             pending=pending,
             heading=heading,
             home=home,
+        )
+    )
+
+
+def playlists_page(token: str, language: str = "en") -> str:
+    """Your playlists, and the sheet a shelf row and a reader's ⋯ menu open
+    (targum-internal#364). Built like the other app pages: the server hands over the page
+    and the browser asks for the reader's own playlists."""
+    return (
+        _environment()
+        .get_template("playlists.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            strings=script_strings(language, "playlists."),
+            token=token,
+            languages=_language_names(language),
         )
     )
 
@@ -2203,6 +2628,8 @@ def render(
     nothing stale behind, and a reader someone has open does not have the page they are
     reading deleted from under them for the moment it takes to write the new one.
     """
+    from ..video import hosts as video_hosts
+
     if not translations:
         raise ValueError("a reader needs at least one translation")
 
@@ -2447,6 +2874,12 @@ def render(
                     if translation.target_language in BESIDE
                     else {}
                 ),
+                # Whether this one's lines are several comments joined with a newline
+                # (targum-internal#200). The template can only stamp the rendering it
+                # draws, so on a text carrying both Onkelos and Rashi a reader who
+                # pressed Rashi got the comments run together again — the same shape of
+                # bug as the language and direction three fields up, one press away.
+                **({"commented": True} if _commentary_named(translation.name) else {}),
             }
             for index, translation in enumerate(translations)
         }
@@ -2472,6 +2905,11 @@ def render(
         # word that is not a Hebrew verb, and for the verbs whose root could not be had
         # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
+        # Named `kin` and not `siblings`: on this page a sibling is another level of the
+        # same weekly issue, and the word is taken.
+        kin: list[int] = []
+        families: list[list[list[str]]] = [[]]
+        family_at: dict[str, int] = {"": 0}
         binyanim: list[str] = []
         # The conjugations of each verb on this page (targum-internal#300). A paradigm is
         # thirty-odd forms, so it cannot ride as one string per lemma the way a root
@@ -2519,6 +2957,11 @@ def render(
                         heads.append(token.head)
                         roots.append(token.root or "")
                         binyanim.append(token.binyan or "")
+                        # The other verbs built on this one's root, each with its binyan
+                        # (targum-internal#301). Worked out from the same CC0 table the
+                        # conjugations come from, so nothing is fetched and nothing is
+                        # bought; empty for every word that is not a verb with a root.
+                        kin.append(_family_at(token, families, family_at))
                         registers.append(token.word_register or "")
                         paradigms.append(_paradigm_at(token, tables, table_at, feature_at))
                     # Offsets arrive measured against the segment as ingested, which may
@@ -2592,6 +3035,11 @@ def render(
             for name, table in (
                 ("roots", roots),
                 ("binyanim", binyanim),
+                ("siblings", kin),
+                # The families themselves, and the empty row at 0 that `siblings` means
+                # "none" by — the same shape `conjugations` uses, and for the same
+                # reason: one verb's family is drawn for every occurrence of it.
+                ("families", families),
                 ("paradigms", paradigms),
                 # The tables themselves, and the feature names they point into. Both
                 # left out entirely where no word on the page is a verb with a paradigm,
@@ -2718,6 +3166,11 @@ def render(
             **shared,
             # The page's own words in the language it is read in (targum-internal#184).
             t=page_words(chrome),
+            # And its counted ones. The voice offer counted in raw English with a
+            # hand-rolled `'' if n == 1 else 's'`, so the one line on this page telling
+            # a reader what something costs was the one line not in their language
+            # (2026-09-23).
+            tn=page_counts(chrome),
             page_language=_page_language(chrome),
             plate=plate_uri(covers, chapter_cover) or plate_uri(covers, drawn),
             section=section,
@@ -2766,9 +3219,15 @@ def render(
             spoken_audio=bool(spoken.audio),
             voice_offer=voice_offer,
             spoken_video=spoken_video,
+            # The cut's shape, so the frame is right before the film has loaded.
+            spoken_frame=spoken.frame if spoken_video else [],
             # The video's home, for the one control that leaves the page. Where the
             # source was a file there is none, and the control is not drawn.
             spoken_home=spoken.home,
+            # Which service, for the control's name; and whether its address takes a
+            # time, which only YouTube's does — an Instagram reel opens at its start.
+            spoken_home_named=video_hosts.named(spoken.home),
+            spoken_home_timed=spoken.home.startswith(video_hosts.YOUTUBE.home),
             spoken_label=spoken.label,
             speech_credit=spoken.credit,
             speech_credited=spoken.credited,
@@ -2780,6 +3239,13 @@ def render(
             covered=covered,
             primary=drawing.segments,
             primary_coarse=set(drawing.coarse),
+            # Whether the rendering beside the text is a commentary rather than a
+            # translation (targum-internal#200). A verse of Rashi is several comments
+            # joined with a newline, and a newline in a line of prose is whitespace: they
+            # ran together and read as one comment. Scoped to the rendering rather than
+            # set on every `.tr`, because a translation's line has no such structure and
+            # a stray newline in one should go on collapsing.
+            primary_commentary=_commentary_named(drawing.name),
             data=embed_json(
                 {
                     "schemaVersion": PAYLOAD_VERSION,

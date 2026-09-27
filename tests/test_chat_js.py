@@ -173,7 +173,7 @@ def test_a_quote_is_drawn_as_a_card_and_the_press_posts_to_build() -> None:
     assert card["title"] == "מאמר על הים" and card["english"] == "An article about the sea"
     assert card["meta"] == "40 sentences · Ready in a couple of minutes."
     assert "$" not in json.dumps(card), "never money"
-    assert card["button"] == "Read this"
+    assert card["button"] == "Open this"
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/build"]
     assert page["posted"][1]["body"] == {"id": "j1"}
     assert card["note"].startswith("We're getting it ready.")
@@ -247,9 +247,13 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
             }
         }
     )
-    assert (
-        page["hours"]
-        == "You've used 6 hours 30 minutes of your 8 hours this month. They reset on 1 October."
+    # Credits with the rate beside them, and what is left rather than what is gone
+    # (design.md §12, 2026-09-23). It said "6 hours 30 minutes of your 8 hours" before
+    # that, which is the balance told twice in two units and neither of them the one a
+    # cost is counted in.
+    assert page["hours"] == (
+        "90 credits left this month. That's about 1 hour 30 minutes of audio. "
+        "They reset on 1 October."
     )
     assert not page["hoursHidden"]
     quiet = run(
@@ -420,7 +424,7 @@ def test_a_conversation_opened_again_keeps_its_cards_and_a_card_links_to_its_sou
     )
     assert len(page["cards"]) == 1, "the card the answer quoted is drawn again"
     card = page["cards"][0]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this"
+    assert card["title"] == QUOTE["title"] and card["button"] == "Open this"
     assert card["source"] == {
         "href": quoted["source"],
         "text": "globes.co.il",
@@ -616,7 +620,7 @@ def test_save_as_targum_is_the_reader_s_press_and_draws_the_quote() -> None:
     assert [p["path"] for p in page["posted"]] == ["/chat/say", "/chat/save"]
     assert page["posted"][1]["body"] == {"chat": "abc"}
     (card,) = page["cards"]
-    assert card["title"] == QUOTE["title"] and card["button"] == "Read this", (
+    assert card["title"] == QUOTE["title"] and card["button"] == "Open this", (
         "the same card the model's own save hands the page; the button is the spend"
     )
     assert page["foot"]["save"] is False, "one press; the card stands where it was"
@@ -1066,6 +1070,32 @@ def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
     assert [p["enHidden"] for p in again["pairs"]] == [False, True, True]
 
 
+def test_a_pair_is_reachable_from_a_keyboard_and_enter_opens_it() -> None:
+    """design.md §8 gained an exception on 2026-09-22 (targum-internal#241): a line of
+    text that answers a tap is not a control and does not take the 44px reach, because
+    that floor would space out every line of a conversation.
+
+    The exception rests on this. A tappable line with no keyboard path would be worse
+    than the reach it replaced, so the reach being absent is only safe while Enter works
+    — which is what this pins.
+    """
+    page = said(ledger=KNOWN)
+    # The invariant, and it is the one that matters: whatever answers a tap answers a
+    # key. A pair that folds nothing — the first line is drawn open with no toggle on it
+    # — is not tappable and needs no keyboard path.
+    for pair in page["pairs"]:
+        assert pair["tappable"] == (pair["focusable"] == "0"), pair["he"]
+    assert any(pair["tappable"] for pair in page["pairs"]), "and some of them do fold"
+
+    opened = said(ledger=KNOWN, then=[{"type": "key", "n": 1}])
+    assert [p["enHidden"] for p in opened["pairs"]] == [False, False, True]
+    again = said(ledger=KNOWN, then=[{"type": "key", "n": 1}, {"type": "key", "n": 1}])
+    assert [p["enHidden"] for p in again["pairs"]] == [False, True, True], "and folds again"
+
+    spaced = said(ledger=KNOWN, then=[{"type": "key", "n": 1, "key": " "}])
+    assert spaced["pairs"][1]["enHidden"] is False, "space too, as a control would"
+
+
 def test_show_english_opens_all_of_it_and_is_remembered() -> None:
     page = said(ledger=KNOWN, then=[{"type": "english"}])
     assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
@@ -1194,6 +1224,7 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
         },
     )
     assert page["cards"][0]["known"] == "You know about 7 words in 10 here."
+    assert page["cards"][0]["voice"] == "", "a card says nothing about audio unless it can"
     bare = dict(quote)
     del bare["known_line"]
     page = run(
@@ -1211,6 +1242,19 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
         },
     )
     assert page["cards"][0]["known"] == "", "nothing where it was not measured"
+
+
+def test_a_silent_text_s_card_says_it_can_be_read_aloud_later() -> None:
+    """targum-internal#246, change 5: one line under the facts, and no button — the
+    press is in the reader, beside the section it would read."""
+    quoted = dict(QUOTE, voice_later=True)
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers={"/prepare": quoted, "/build": dict(quoted, stage="working")},
+    )
+    card = page["cards"][0]
+    assert card["voice"] == "Audio can be added in the reader."
+    assert card["button"] == "", "a note, not another thing to press"
 
 
 # -- the page as a viewport (targum-internal#247) -----------------------------------
@@ -1709,3 +1753,153 @@ def test_the_page_says_its_own_words_in_the_readers_language() -> None:
         strings={"language": "ru", "strings": {"chat.doing.still": "Мы ещё работаем…"}},
     )
     assert quiet["turns"][1]["doing"] == ["Мы ещё работаем…"]
+
+
+def test_a_line_handed_over_by_another_page_waits_in_the_box() -> None:
+    """The fold on Your Words sends a reader here with their stuck words named
+    (targum-internal#103). It arrives written and unsent: a turn spends, and what spends
+    is the reader's own press on Send."""
+    drawn = run(stored={"targum:say": "Use these in a sentence each: ספר, דרך"})
+    assert drawn["field"] == "Use these in a sentence each: ספר, דרך"
+    assert drawn["posted"] == [], "nothing was sent"
+
+
+def test_a_handed_line_starts_a_new_conversation() -> None:
+    """The reader came to use those words, not to add them to what they were last
+    talking about: the newest conversation is not opened, and Send makes a new one."""
+    chats = [{"id": "old", "title": "Read me today's news."}]
+    answers = {
+        "/chat/list": {"chats": chats, "usable": True},
+        "/chat/old": {
+            "chat": {"id": "old"},
+            "turns": [{"n": 1, "role": "user", "said": "news", "stage": "done"}],
+        },
+    }
+    handed = run(
+        answers=answers, stored={"targum:say": "Use these phrases in new sentences: לב טוב"}
+    )
+    assert handed["turns"] == [], "the last conversation is not opened"
+    assert handed["field"].endswith("לב טוב")
+    plain = run(answers=answers)
+    assert [t["text"] for t in plain["turns"]] == ["news"], "without one, the newest as before"
+
+
+def test_a_handed_line_is_read_once_and_deleted() -> None:
+    """So a back button, or coming to the conversation again tomorrow, does not refill
+    the box with a line the reader already dealt with."""
+    drawn = run(stored={"targum:say": "Use these in a sentence each: ספר"})
+    assert drawn["field"], "it was read"
+    assert drawn["handed"] is None, "and it is gone"
+
+
+def test_the_conversation_is_the_same_conversation_without_a_handed_line() -> None:
+    """Which is every load but the one after a press on the fold."""
+    drawn = run()
+    assert drawn["field"] == ""
+
+
+# -- a video dropped after a refused link (targum-internal#331) -----------------------
+
+TOK = "https://www.tiktok.com/@kan/video/7312"
+
+
+def test_a_video_dropped_after_a_refused_link_keeps_that_link_as_its_home() -> None:
+    """The chat's + had no memory of a refused link, so a reel the reader downloaded
+    and dropped in came out linking nowhere. The refusal is remembered on the page and
+    rides up with the next file, the way the Add page's does."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "stream", "event": "refused", "data": json.dumps({"url": TOK})},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "We can't fetch it."})},
+            {"type": "file", "file": {"name": "reel.mp4", "size": 10}},
+            {"type": "send"},
+        ],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/upload/begin": {"upload": "u1", "chunk": 5},
+            "/upload/u1/0": {},
+            "/upload/u1/1": {},
+            "/upload/u1": {"upload": "u1"},
+            **BUILT,
+        },
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert prepared["body"]["came_from"] == TOK
+
+
+def test_a_file_dropped_in_a_fresh_conversation_links_nowhere() -> None:
+    page = run(
+        do=[{"type": "file", "file": {"name": "story.txt", "content": "שלום"}}, {"type": "send"}],
+        answers=BUILT,
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert "came_from" not in prepared["body"]
+
+
+def test_a_line_typed_after_the_refusal_forgets_it() -> None:
+    """Typing is starting over, the same rule the Add page keeps: a video dropped after
+    a new question is not the refused link's."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "stream", "event": "refused", "data": json.dumps({"url": TOK})},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "We can't fetch it."})},
+            {"type": "say", "text": "never mind, something else"},
+            {"type": "stream", "event": "done", "data": json.dumps({"text": "Of course."})},
+            {"type": "file", "file": {"name": "story.txt", "content": "שלום"}},
+            {"type": "send"},
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}, **BUILT},
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert "came_from" not in prepared["body"]
+
+
+def test_the_refusal_is_remembered_and_never_said() -> None:
+    """The model's own sentence is the answer; the event is only what the next file
+    needs, so it puts no line of its own in the thread."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "stream", "event": "refused", "data": json.dumps({"url": TOK})},
+            {"type": "stream", "event": "text", "data": "We couldn't fetch that TikTok."},
+            {
+                "type": "stream",
+                "event": "done",
+                "data": json.dumps({"text": "We couldn't fetch that TikTok."}),
+            },
+        ],
+        answers={"/chat/say": {"chat": "abc", "turn": 1}},
+    )
+    assert [t["text"] for t in page["turns"]] == [TOK, "We couldn't fetch that TikTok."]
+
+
+def test_a_turn_read_back_rather_than_streamed_keeps_the_refused_link_too() -> None:
+    """Both roads to a turn's answer carry it: the stream's own event, and the state a
+    page asks for when it polls or when it gives up waiting. Either way the `+` behaves
+    the same."""
+    page = run(
+        do=[
+            {"type": "say", "text": TOK},
+            {"type": "tick", "seconds": 275},
+            {"type": "file", "file": {"name": "reel.mp4", "size": 10}},
+            {"type": "send"},
+        ],
+        answers={
+            "/chat/say": {"chat": "abc", "turn": 1},
+            "/chat/turn/abc/1": {
+                "text": "We couldn't fetch it.",
+                "done": True,
+                "error": "",
+                "refused": TOK,
+            },
+            "/upload/begin": {"upload": "u1", "chunk": 5},
+            "/upload/u1/0": {},
+            "/upload/u1/1": {},
+            "/upload/u1": {"upload": "u1"},
+            **BUILT,
+        },
+    )
+    prepared = next(p for p in page["posted"] if p["path"] == "/prepare")
+    assert prepared["body"]["came_from"] == TOK

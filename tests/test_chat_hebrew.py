@@ -243,6 +243,25 @@ def test_why_a_recast_changed_something_rides_with_the_recast_and_nowhere_else()
     assert all(p.why == "" for p in plain)
 
 
+def test_a_why_line_belonging_to_no_recast_is_counted(  # targum-internal#242
+) -> None:
+    """The page never shows a stray `~ ` — `pairs()` drops it — so nothing could see the
+    contract being broken, and acceptance criterion 3 asks for it counted. `stray_why`
+    answers by difference against the parser itself, so the two cannot drift apart."""
+    said = (
+        "> אֲנִי הָלַכְתִּי אֶתְמוֹל.\n= I went yesterday.\n~ Past tense: הָלַכְתִּי, not הָלַךְ.\n"
+        "יָפֶה.\n= Nice.\n~ stray\nעוֹד.\n= More."
+    )
+    assert hebrew.stray_why(said) == 1, "one belongs to the recast, one to nothing"
+
+    kept = "> שָׁלוֹם.\n= Hello.\n~ A greeting takes no article.\nמָה שְׁלוֹמְךָ?\n= How are you?"
+    assert hebrew.stray_why(kept) == 0, "the one the contract allows is not a breach"
+
+    assert hebrew.stray_why("שָׁלוֹם.\n= Hello.") == 0, "no why line, no breach"
+    assert hebrew.stray_why("~ out of nowhere\nשָׁלוֹם.\n= Hello.") == 1, "before any recast"
+    assert hebrew.stray_why(ITALIAN_REPLY, "it") == 0, "the same rule in the other language"
+
+
 def test_a_reader_with_no_ledger_is_told_once_where_the_common_words_are() -> None:
     """targum-internal#245: a reader who already reads Hebrew arrives with a ledger of
     nothing; the way up is Words you may already know, said once, never a level."""
@@ -279,3 +298,134 @@ def test_the_italian_contract_keeps_the_shape_and_none_of_hebrew_s_own_rules() -
     assert '"> "' in said and '"~ "' in said and "Natural first" in said
     for hebrew_only in ("nikkud", "ktiv male", "maqaf", "Hebrew"):
         assert hebrew_only not in said, hebrew_only
+
+
+# --- the three that landed with the connector (#281–#283) ------------------------
+
+
+def test_a_conversation_never_has_less_than_a_contract() -> None:
+    """The asymmetry, the right way round: a contract may exist for a language that is
+    held back, and a conversation may never exist without one.
+
+    A language in `TALKED` with no contract would be a conversation with no rules. A
+    contract not in `TALKED` is a thing waiting — Yiddish since 2026-09-23, because it
+    was the one of the three that did not earn its place (#359, #360)."""
+    assert set(hebrew.TALKED) <= set(hebrew.CONTRACTS) | {"he"}
+    assert set(hebrew.HELD) <= set(hebrew.CONTRACTS), "held, not deleted"
+    assert not (set(hebrew.HELD) & set(hebrew.TALKED)), "held means not talked"
+
+
+def test_yiddish_is_written_and_held_back() -> None:
+    """Its contract is good — real YIVO, pointed, refusing daytshmerish. What it has not
+    shown is that it answers every time: about a third of its recasts came back with no
+    recast line, against 0 of 200 for French and Russian (#359)."""
+    assert "yi" in hebrew.HELD and "yi" not in hebrew.TALKED
+    assert "yi" in hebrew.CONTRACTS
+    said = hebrew.contract_for("yi")
+    assert said.startswith("This conversation is in Yiddish"), "still written, still right"
+
+
+def test_aramaic_holds_no_conversation() -> None:
+    """#284, deferred 2026-09-22: design.md §12 ruled the parallel case for biblical
+    Hebrew, and Onkelos and the Gemara are that shelf."""
+    assert "arc" not in hebrew.TALKED
+    assert "arc" not in hebrew.CONTRACTS
+    assert hebrew.contract_for("arc") == hebrew.CONTRACT, "it falls back, and is never reached"
+
+
+@pytest.mark.parametrize(
+    ("code", "named", "own"),
+    [
+        ("fr", "French", ("accent", "être", "tu", "calques")),
+        ("ru", "Russian", ("case", "aspect", "ты", "ё")),
+        # Held out of `TALKED` since 2026-09-23 and still written, so still checked.
+        ("yi", "Yiddish", ("YIVO", "Hebrew alphabet", "German in Hebrew letters", "דו")),
+    ],
+)
+def test_each_new_contract_keeps_the_shape_and_says_its_own_language_s_rules(
+    code: str, named: str, own: tuple[str, ...]
+) -> None:
+    said = " ".join(hebrew.contract_for(code, "Russian").split())
+    assert said.startswith(f"This conversation is in {named}")
+    assert 'every "= " line is in Russian' in said
+    assert '"> "' in said and '"~ "' in said and "Natural first" in said
+    assert "never tell the reader they are at a level" in said
+    for rule in own:
+        assert rule in said, rule
+
+
+@pytest.mark.parametrize("code", ["fr", "ru", "yi"])
+def test_a_new_contract_carries_none_of_hebrew_s_own_spelling_rules(code: str) -> None:
+    said = " ".join(hebrew.contract_for(code).split())
+    for hebrew_only in ("nikkud", "ktiv male", "maqaf"):
+        assert hebrew_only not in said, hebrew_only
+
+
+@pytest.mark.parametrize("code", ["fr", "ru", "yi", "it"])
+def test_none_of_them_corrects_the_reader_s_own_gender(code: str) -> None:
+    """The same rule in four languages, because it is the same false correction: a
+    woman's sentence put into the masculine is wrong about her, not about her grammar."""
+    said = " ".join(hebrew.contract_for(code).split())
+    assert "Never change the gender of the reader's own words" in said
+
+
+def test_yiddish_refuses_the_error_it_exists_to_refuse() -> None:
+    """A model asked for Yiddish writes German in Hebrew letters, and it reads as Yiddish
+    to anybody who does not know better."""
+    said = " ".join(hebrew.contract_for("yi").split())
+    assert "Write Yiddish, not German in Hebrew letters" in said
+    assert "pass as German with the letters swapped" in said
+    # And the spelling rule that is the opposite of Hebrew's.
+    assert "YIVO" in said and "takes no points" in said
+
+
+def test_russian_treats_aspect_as_meaning_rather_than_polish() -> None:
+    said = " ".join(hebrew.contract_for("ru").split())
+    assert "Aspect is meaning, not polish" in said
+    assert "correcting a choice that was not wrong" in said
+
+
+FRENCH_REPLY = """> Je suis allé à la mer hier.
+= I went to the sea yesterday.
+~ Aller takes être in the passé composé.
+Elle était comment, l'eau ?
+= What was the water like?"""
+
+RUSSIAN_REPLY = """> Я вчера ходил на море.
+= I went to the sea yesterday.
+~ Ходил is the imperfective: it says you went and came back.
+А вода была тёплая?
+= And was the water warm?"""
+
+YIDDISH_REPLY = """> איך בין געגאַנגען צום ים נעכטן.
+= I went to the sea yesterday.
+~ צו takes the dative.
+װי אַזױ איז געװען דאָס װאַסער?
+= What was the water like?"""
+
+
+@pytest.mark.parametrize(
+    ("code", "reply", "recast", "why"),
+    [
+        ("fr", FRENCH_REPLY, "Je suis allé à la mer hier.", "Aller takes être"),
+        ("ru", RUSSIAN_REPLY, "Я вчера ходил на море.", "Ходил is the imperfective"),
+        ("yi", YIDDISH_REPLY, "איך בין געגאַנגען צום ים נעכטן.", "צו takes the dative."),
+    ],
+)
+def test_a_reply_in_each_is_read_back_as_pairs(
+    code: str, reply: str, recast: str, why: str
+) -> None:
+    said = hebrew.pairs(reply, code)
+    assert len(said) == 2, said
+    assert said[0].hebrew == recast and said[0].recast is True
+    assert said[0].english == "I went to the sea yesterday."
+    assert why in said[0].why
+    assert said[1].recast is False and said[1].english
+
+
+def test_a_french_reply_read_as_hebrew_has_no_lines() -> None:
+    """The script settles it where the script can, which is why Yiddish is in
+    `HEBREW_SCRIPT` and French is not."""
+    assert hebrew.pairs(FRENCH_REPLY) == []
+    assert hebrew.pairs(RUSSIAN_REPLY) == []
+    assert hebrew.pairs(YIDDISH_REPLY, "yi") == hebrew.pairs(YIDDISH_REPLY, "he")

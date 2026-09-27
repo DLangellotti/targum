@@ -1588,8 +1588,8 @@ SEED = ("ruth", "sport-holon-basketball")
 
 
 def seeds() -> list[str]:
-    """Every id `targum seed` builds: the two above, every scene, and the first text of
-    every ordered collection.
+    """Every id `targum seed` builds: the two above, every scene, the first text of
+    every ordered collection, one text per subject, and every member of a swipe set.
 
     The scenes are the modern reader's path — Learn opens a new account on Scene 1 and
     offers the next after each finish — and a path with a gap in it is a row of build
@@ -1629,8 +1629,73 @@ def seeds() -> list[str]:
         if group.ordered and group.members and group.members[0] in hebrew
     ]
     out = [*SEED, *(e.id for e in scenes), *heads]
+
+    # **One text behind every subject the arrival offers** (targum-internal#311). The
+    # arrival asks a new reader which subjects they came for and then hands them a
+    # shelf; measured on 2026-09-17 that shelf was 116 rows of which 100 were the
+    # dialogues, so most doors opened onto a row of build buttons. The heads above fixed
+    # the ordered tracks, which are scripture and the tractates; a subject is not a
+    # track, and history, philosophy and Hebrew-itself had rows in the catalogue and
+    # nothing built.
+    #
+    # The easiest text carrying the tag, not the first: a door is opened by somebody who
+    # has just said this is what they came for, and the cheapest way to lose them is to
+    # open it onto the hardest essay on the shelf. Ties go to catalogue order, so the
+    # list is the same on every machine.
+    covered = {tag for entry_id in out for tag in getattr(hebrew.get(entry_id), "tags", ())}
+    for tag in sorted({tag for entry in hebrew.values() for tag in entry.tags}):
+        if tag in covered:
+            continue
+        easiest = min(
+            (entry for entry in hebrew.values() if tag in entry.tags),
+            key=lambda entry: (entry.difficulty, entry.id),
+        )
+        out.append(easiest.id)
+        covered |= set(easiest.tags)
+
+    # **Every member of targum's own playlists** (targum-internal#368). A swipe set is
+    # offered only where its members are built on the shared shelf, and opening one
+    # spends nothing, so a member left unbuilt is a member nobody is ever shown. Whole
+    # sets, unlike the tracks above, because a playlist is swiped end to end and is
+    # capped at a playlist's worth.
+    from .accounts import MOST_IN_PLAYLIST
+
+    for group in catalogue_module.swipe_sets():
+        out.extend(group.members[:MOST_IN_PLAYLIST])
+
     # Stable, and each id once: a collection's head may be one of the two above.
     return list(dict.fromkeys(out))
+
+
+@app.command()
+def posters(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Give every video import on the shelf its picture: one frame of its own cut.
+
+    New imports get one when they are built. This fills in the ones built before
+    2026-09-24. Free: ffmpeg reads a file already on the disk, and nothing is fetched.
+    Every reader's home and the shared shelf are walked, however deep they sit.
+    """
+    from .audio.manifest import MANIFEST, keeps_video
+    from .video import poster
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums in {root}.", "Build one first: targum build"))
+    made = kept = 0
+    for manifest in sorted(root.rglob(MANIFEST)):
+        folder = manifest.parent
+        if not (folder / "reader" / "index.html").is_file() or not keeps_video(folder):
+            continue
+        had = (folder / "poster.jpg").is_file()
+        if poster.ensure(folder):
+            kept += had
+            made += not had
+    console.print(f"[green]{made}[/green] pictures made[dim], {kept} already there.[/dim]")
 
 
 @app.command()
@@ -1673,12 +1738,25 @@ def seed(
         Path | None,
         typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
     ] = None,
+    to: Annotated[
+        str,
+        typer.Option("--to", help="Which language to read them in. Default: en"),
+    ] = "en",
 ) -> None:
     """Build the shared texts every new reader starts with.
 
     Into `<out>/shared`, which no request can write to: a reader is handed these,
     cannot buy, trash or rebuild them, and gets their own copy the moment they build
-    anything. Free — each has a published translation — and safe to run again.
+    anything. Safe to run again.
+
+    `--to` is which language they are read in (targum-internal#288). It was fixed at
+    English, so the texts a new reader opens first were the one part of the shelf that
+    could not be Russian however much else was. A second run with `--to ru` adds the
+    language beside the English rather than replacing it, the way every other build does.
+
+    **English is free and another language is not**, for most of these: a row with a
+    published English carries it, and nothing else. Run it with `--to` and it buys, so
+    the run is quoted by what the catalogue says each row already has.
     """
     from . import catalogue as catalogue_module
     from .annotate import lemma, model_lemma
@@ -1712,7 +1790,7 @@ def seed(
             shared_lemmatizer = lemmatizers[scripture]
         builder = Build(
             entry.source,
-            target_language="en",
+            target_language=to,
             # The row says what language it is in. Left to the script, every Latin
             # alphabet reads as English, and an Italian row was seeded as one.
             source_language=entry.language,
@@ -1858,6 +1936,13 @@ def build(
             help="For video: keep the pictures beside the reader, or import the sound alone.",
         ),
     ] = True,
+    pictures: Annotated[
+        bool,
+        typer.Option(
+            "--pictures",
+            help="For an Instagram post: read the words in its pictures too. Costs money.",
+        ),
+    ] = False,
     yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask before spending.")] = False,
 ) -> None:
     """Build a targum — one text with its translation beside it."""
@@ -1897,6 +1982,7 @@ def build(
             transcriber_name=transcriber or "",
             transcript=transcript,
             video=video,
+            pictures=pictures,
             notify=lambda message: console.print(f"[dim]{message}[/dim]"),
         )
 
@@ -2184,13 +2270,88 @@ def correct_command(
 def corrections_command(
     stage: Annotated[str, typer.Option("--stage", help="gloss, lemma, pointing…")] = "",
     limit: Annotated[int, typer.Option("--limit", help="How many, newest first.")] = 50,
+    agreed: Annotated[
+        bool,
+        typer.Option("--agreed", help="Only what two kinds of judge reached independently."),
+    ] = False,
+    proposed: Annotated[
+        bool, typer.Option("--proposed", help="Only what readers have offered and nobody settled.")
+    ] = False,
+    export: Annotated[
+        bool,
+        typer.Option("--export", help="As the rows may leave: no context from a shut text."),
+    ] = False,
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write the candidate gold set here, as JSON.")
+    ] = None,
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
-    """The judgements written down so far, newest first (targum-internal#164)."""
+    """The judgements written down so far, newest first (targum-internal#164).
+
+    `--agreed` answers with the candidate gold set instead: one line per judgement two
+    different judges reached independently. A model is not a judge, a deletion is not an
+    answer, and one judge counts once however often they say it — `Store.agreed` says why
+    each of those throws rows away. `--out` writes the set as JSON for the harness.
+
+    `--export` answers with the rows as they may leave. A judgement is a fact about
+    Hebrew and is targum's to give away; the sentence quoted beside it is a piece of
+    somebody's text, so it is dropped where that text's licence does not let it travel.
+    A text nobody has a licence for is treated as shut, which is `licensing.py`'s rule
+    for `unknown` and is the whole reason that standing is not called free.
+    """
     from .accounts import Store
     from .serve import default_store
 
-    rows = Store(store or default_store()).corrections(stage, limit)
+    keeping = Store(store or default_store())
+    if proposed:
+        waiting = keeping.proposed_corrections(limit)
+        if not waiting:
+            console.print("[dim]No proposals waiting.[/dim]")
+            return
+        for row in waiting:
+            console.print(
+                f"#{row['id']} {row['stage']} {row['language']}>{row['target']} "
+                f"[bold]{row['term']}[/bold]: {row['before']!r} -> {row['after']!r} "
+                f"[dim]{row['licence']}[/dim]"
+            )
+        console.print("\n[dim]Settle one with:[/dim] targum settle <id> --accept | --reject")
+        return
+    if export:
+        from .accounts import exportable_corrections
+        from .catalogue import by_id
+        from .licensing import exportable
+
+        def may_leave(text: str) -> bool:
+            entry = by_id(text)
+            return entry is not None and exportable(entry.licence)
+
+        rows = exportable_corrections(keeping.corrections(stage, limit), may_leave)
+        shut = sum(1 for row in rows if row.get("context_withheld"))
+        if out is not None:
+            out.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            console.print(f"[green]Wrote[/green] {len(rows)} judgements to {out}")
+        console.print(
+            f"{len(rows)} judgements, {shut} with the sentence withheld "
+            "because the text it came from may not leave."
+        )
+        return
+    if agreed:
+        found = keeping.agreed(stage)
+        if out is not None:
+            out.write_text(json.dumps(found, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            console.print(f"[green]Wrote[/green] {len(found)} agreed judgements to {out}")
+        if not found:
+            console.print("[dim]Nothing two kinds of judge have agreed on yet.[/dim]")
+            return
+        for one in found:
+            console.print(
+                f"{one['stage']} {one['language']}>{one['target']} "
+                f"[bold]{one['term']}[/bold]: {one['after']!r} "
+                f"[dim]{one['judges']} judges — {one['roles']}[/dim]"
+            )
+        return
+
+    rows = keeping.corrections(stage, limit)
     if not rows:
         console.print("[dim]No corrections yet.[/dim]")
         return
@@ -2200,6 +2361,57 @@ def corrections_command(
             f"[bold]{row['term']}[/bold]: {row['before']!r} -> {row['after']!r}"
             + (f" [dim]{row['reason']}[/dim]" if row["reason"] else "")
         )
+
+
+@app.command(name="settle")
+def settle_command(
+    correction_id: Annotated[
+        int, typer.Argument(help="Which proposal, from `targum corrections --proposed`.")
+    ],
+    accept: Annotated[
+        bool, typer.Option("--accept/--reject", help="Take the reader's meaning, or refuse it.")
+    ],
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Settle a reader's proposed correction (targum-internal#164, door 3).
+
+    A reader's correction is a proposal until somebody with standing accepts it — this
+    card's own words, "not a vote". Accepting applies the meaning and writes the decision
+    down; refusing writes the decision down and changes nothing. Either way the proposal
+    keeps its row, so what was suggested and refused is as much of the record as what
+    was suggested and taken.
+
+    A refused proposal never reaches the gold set: `Store.agreed` counts only what was
+    accepted, because a refusal is a judgement that the suggestion was *wrong*.
+    """
+    from .accounts import Store
+    from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, Sense, set_gloss
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+    waiting = {row["id"]: row for row in keeping.proposed_corrections(limit=1000)}
+    proposal = waiting.get(correction_id)
+    if proposal is None:
+        fail(
+            TargumError(
+                f"No proposal #{correction_id} is waiting.", "Try: targum corrections --proposed"
+            )
+        )
+    if accept and proposal["stage"] == "gloss" and proposal["after"]:
+        set_gloss(
+            str(proposal["term"]),
+            str(proposal["language"]) or "he",
+            str(proposal["target"]) or "en",
+            AnthropicGlosses(GLOSS_MODEL).name,
+            Sense(str(proposal["after"]), grounded=True),
+        )
+    row = keeping.settle_correction(correction_id, accept=accept)
+    word, meaning = proposal["term"], proposal["after"]
+    console.print(
+        f"[green]Accepted[/green] #{correction_id} as #{row}: {word} now {meaning!r}"
+        if accept
+        else f"[yellow]Refused[/yellow] #{correction_id} as #{row}: {word} stays as it was"
+    )
 
 
 @app.command(name="dictionary")
@@ -2386,13 +2598,22 @@ def licences() -> None:
     # (targum-internal#234). Nothing was closed; the count of what is owed was simply
     # short by that many.
     disagree: list[tuple[str, str, str]] = []
+    #: A licence recorded with no URL to re-check it against (targum-internal#355).
+    #: Asked of the rendering's own `licence_url` and never of its row's: the Russian
+    #: Torah is Sefaria's Hebrew under a rendering off a Russian State Library scan, so
+    #: the row's URL is a claim about a different work.
+    unbacked: list[tuple[str, str, str]] = []
     try:
         from .catalogue import everything
 
         for entry in everything():
             rows.append(("text", entry.id, entry.licence))
+            if entry.licence and not entry.licence_url:
+                unbacked.append(("text", entry.id, entry.licence))
             for beside in entry.translations:
                 rows.append(("translation", f"{entry.id} · {beside.name}", beside.licence))
+                if beside.licence and not beside.licence_url:
+                    unbacked.append(("translation", f"{entry.id} · {beside.name}", beside.licence))
                 if _worse(beside.licence, entry.licence):
                     disagree.append(
                         (
@@ -2468,6 +2689,31 @@ def licences() -> None:
             console.print(f"  [dim]{kind}[/dim]  {name}")
         if len(unchecked) > 12:
             console.print(f"  [dim]… and {len(unchecked) - 12} more[/dim]")
+
+    # A licence with no URL behind it (targum-internal#355). Reported apart from the
+    # block above because it is a different complaint: those have nothing written down
+    # at all, these have a claim that cannot be re-checked — which is the reason
+    # LICENSING.md asks for the URL verbatim. Quieter than `unknown`, since the licence
+    # *is* recorded; louder than silence, since a shelf that cannot be re-checked is one
+    # somebody researches a second time.
+    if unbacked:
+        # Split in the heading, because the two halves are different work: a row's URL
+        # is a research question and a rendering's is usually the same page the row was
+        # read off — and until 2026-09-22 a rendering could not carry one at all, so
+        # every rendering on the shelf is in this count by construction rather than by
+        # anybody's omission.
+        kinds: dict[str, int] = {}
+        for kind, _name, _licence in unbacked:
+            kinds[kind] = kinds.get(kind, 0) + 1
+        split = ", ".join(f"{count} {kind}" for kind, count in sorted(kinds.items()))
+        console.print(
+            f"\n[yellow]{len(unbacked)} with a licence and no URL behind it[/yellow] "
+            f"[dim]({split})[/dim]"
+        )
+        for kind, name, licence in unbacked[:12]:
+            console.print(f"  [dim]{kind}[/dim]  {name}  [dim]{licence}[/dim]")
+        if len(unbacked) > 12:
+            console.print(f"  [dim]… and {len(unbacked) - 12} more[/dim]")
 
 
 def _worse(translated: str, source: str) -> bool:
@@ -2851,7 +3097,8 @@ def weekly_announce(
             )
         )
 
-    book = Store(store or default_store())
+    where = store or default_store()
+    book = Store(where)
     report = send(book, from_environment(), issue, address)
     if report.stopped:
         fail(
@@ -2861,7 +3108,18 @@ def weekly_announce(
                 f"picks up where it stopped.",
             )
         )
-    console.print(f"[green]{report}[/green]")
+    if report.nobody:
+        # Named with the database it looked in, because which database is the whole of
+        # the confusion (targum-internal#346): the weekly is written on a laptop and the
+        # people who asked for it signed up on the box, so a run here can publish an
+        # issue, ship it, and tell nobody without anything going wrong.
+        console.print(f"[yellow]{report}[/yellow] [dim]{where}[/dim]")
+        console.print(
+            "[dim]The issue is out; nobody was told. Subscribers live where readers "
+            "signed up.[/dim]"
+        )
+    else:
+        console.print(f"[green]{report}[/green]")
     for who, why in report.failed:
         console.print(f"[yellow]{who}[/yellow] [dim]{why}[/dim]")
 
@@ -3006,7 +3264,7 @@ def models_fetch(
     if language in {"ntrex", "ntrex-128"}:
         from .chat import ntrex
 
-        if ntrex.available():
+        if ntrex.complete():
             console.print("[dim]NTREX-128 is already downloaded.[/dim]")
             return
         console.print(
@@ -3041,9 +3299,9 @@ def models_fetch(
         if embedding.is_downloaded():
             console.print("[dim]The embedding model is already downloaded.[/dim]")
             return
-        console.print(f"[dim]Fetching {embedding.DEFAULT_MODEL}, about 1.8 GB…[/dim]")
+        console.print(f"[dim]Fetching {embedding.DEFAULT_MODEL}, about 1.9 GB…[/dim]")
         try:
-            embedding.SentenceTransformerEncoder().encoder()
+            embedding.fetch()
         except TargumError as error:
             fail(error)
         console.print(f"[green]Downloaded[/green] {embedding.DEFAULT_MODEL}")

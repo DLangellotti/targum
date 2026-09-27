@@ -206,7 +206,45 @@
     modern: t("learn.track.modern", "Modern Hebrew"),
     biblical: t("learn.track.biblical", "Biblical Hebrew"),
   };
+  /* The verb follows the medium (targum-internal#337, 2026-09-19; design.md §6). "Copy of
+     buttons and various features in the app assumes the reader is there to read — but
+     many will be there to listen and watch." A row says what it is — `video` where it
+     kept its pictures, `heard` where it began as a recording — so a control names what
+     the person will do with *this* thing.
+
+     Not `spoken`: that is true of most of the shelf. The Tanakh has a reading attached and
+     every scene is voiced, and both are texts somebody reads with a voice beside them; a
+     first cut keyed on it told a reader halfway through a scene to "Continue listening"
+     (caught by the tests, 2026-09-19). */
+  function mediumOf(reader) {
+    if (reader && reader.video) return "watch";
+    return reader && reader.heard ? "listen" : "read";
+  }
+
   var CONTINUE = t("learn.state.carry", "Continue reading");
+  var CARRY = {
+    read: CONTINUE,
+    listen: t("learn.state.carry-listening", "Continue listening"),
+    watch: t("learn.state.carry-watching", "Continue watching"),
+  };
+  var BEGIN = {
+    read: t("learn.card.read", "Read"),
+    listen: t("learn.card.listen", "Listen"),
+    watch: t("learn.card.watch", "Watch"),
+  };
+  var HERE = {
+    read: t("learn.page.read-here-or-go-full-screen", "Read here, or go full screen."),
+    listen: t("learn.page.listen-here-or-go-full-screen", "Listen here, or go full screen."),
+    watch: t("learn.page.watch-here-or-go-full-screen", "Watch here, or go full screen."),
+  };
+
+  //: What a door says of itself, over the text it leads to.
+  function stateOf(door, reader) {
+    if (door.heading) return door.heading;
+    if (door.state === "carry" || !STATES[door.state]) return CARRY[mediumOf(reader)];
+    return STATES[door.state];
+  }
+
   var STATES = {
     start: t("learn.state.start", "Start here"),
     carry: CONTINUE,
@@ -235,21 +273,21 @@
       if (door.state === "carry" && typeof reader.fresh === "number" && reader.fresh > 0) {
         out.push(tn("learn.words-left", reader.fresh, "{n} word left", "{n} words left"));
       } else if (reader.words) {
-        out.push(tn("learn.words", reader.words, "{n} words", "{n} words"));
+        out.push(tn("learn.words", reader.words, "{n} word", "{n} words"));
       }
     } else if (reader.chapters && reader.chapters.length > 1) {
       // "4 of 4" is a fraction with nothing left to say; "2 of 4 translated" says what
       // the fraction is a fraction of.
       out.push(
         reader.readyChapters === reader.chapters.length
-          ? tn("learn.chapters", reader.chapters.length, "{n} chapters", "{n} chapters")
+          ? tn("learn.chapters", reader.chapters.length, "{n} chapter", "{n} chapters")
           : t("learn.chapters-translated", "{done} of {total} translated", {
               done: reader.readyChapters,
               total: reader.chapters.length,
             })
       );
     } else if (reader.sections > 1) {
-      out.push(tn("learn.parts", reader.sections, "{n} parts", "{n} parts"));
+      out.push(tn("learn.parts", reader.sections, "{n} part", "{n} parts"));
     } else if (reader.minutes && door.state !== "carry") {
       out.push(t("learn.minutes", "{n} min", { n: reader.minutes }));
     }
@@ -326,6 +364,27 @@
   // first: what the phone's cards lead with, since the sheet is not drawn there.
   var sheets = [];
 
+  /* The rail says which of its cards is the one in the sheet (2026-09-18).
+   *
+   * By the reader rather than by the door: the rail draws one card per text and drops
+   * the duplicates, so the card standing for what you are reading is often the one built
+   * from `sheets`, which has no door id on it at all. The reader is the thing both halves
+   * actually agree about.
+   *
+   * Called from `drawCarry` and nowhere else, because that is the one function that runs
+   * every time the sheet changes — including the swaps a rail press makes, which redraw
+   * no cards and would otherwise leave the mark behind on the card you came from. */
+  function markRail(reader) {
+    var list = document.getElementById("learn-cards");
+    if (!list || !reader) return;
+    var here = reader.entry || reader.id || "";
+    Array.prototype.forEach.call(list.querySelectorAll(".learn-card"), function (one) {
+      var mine = one.getAttribute("data-entry");
+      if (here && mine === here) one.setAttribute("aria-current", "true");
+      else one.removeAttribute("aria-current");
+    });
+  }
+
   function drawCarry(reader, door) {
     var sheet = document.getElementById("carry-sheet");
     var panel = document.getElementById("carry");
@@ -338,8 +397,11 @@
     door = door || { state: "carry" };
     sheet.hidden = false;
     showing = reader;
+    markRail(reader);
     var heading = document.getElementById("carry-heading");
-    if (heading) heading.textContent = door.heading || STATES[door.state] || CONTINUE;
+    if (heading) heading.textContent = stateOf(door, reader);
+    var hint = document.getElementById("carry-hint");
+    if (hint) hint.textContent = HERE[mediumOf(reader)];
     markDoor(door.id || "");
     trackLabel("carry-track", door.register);
     panel.classList.toggle("primary", !!door.primary);
@@ -380,7 +442,7 @@
       var share_ = door.state === "carry" && !door.src ? progress(reader) : 0;
       line.hidden = !share_;
       line.style.setProperty("--done", String(share_));
-      line.setAttribute("aria-label", t("learn.read-share", "{share}% read", { share: Math.round(share_ * 100) }));
+      line.setAttribute("aria-label", t("learn.read-share", "{share}% through", { share: Math.round(share_ * 100) }));
     }
     drawFrame(reader, door);
   }
@@ -479,6 +541,9 @@
   ];
   function partOfDay() {
     var hour = new Date().getHours();
+    // The small hours belong to the evening before: half past midnight is not "Boker tov"
+    // to somebody still up studying (found by QA, 2026-09-20).
+    if (hour < 5) return 2;
     return hour < 12 ? 0 : hour < 18 ? 1 : 2;
   }
   function greeting(name, code) {
@@ -700,7 +765,7 @@
   // either menu.
   var doors = [];
   var showing = null;
-  var RECENTLY_READ = t("learn.recent", "Recently read");
+  var RECENTLY_READ = t("learn.recent", "Recently opened");
   var SUBSCRIPTIONS = t("learn.subscriptions", "Subscriptions");
   function kind(one) {
     return one.id.indexOf("series:") === 0 ? "series" : one.id.indexOf("recent:") === 0 ? "recent" : "pill";
@@ -736,8 +801,11 @@
       );
     }
     if (series.length) row.appendChild(menu({ id: "subscriptions", label: SUBSCRIPTIONS, items: series }));
-    markDoor(current);
     drawCards();
+    markDoor(current);
+    // The cards are only now in the page, so the mark the sheet set before they existed
+    // has nothing to sit on. Put it back.
+    if (showing) markRail(showing);
   }
 
   /* --- on a phone, cards (2026-09-14) -------------------------------------------------
@@ -766,7 +834,12 @@
         var href = hrefOf(one.reader, door);
         if (seen[href]) return;
         seen[href] = true;
-        list.appendChild(card(one.reader, door, one));
+        /* The first card is the lead (design.md §12, 2026-09-19). On a phone there is no
+           sheet, and a column of cards "each worth pressing equally" never said which
+           one was next: the lead is across the column with the one filled press on the
+           page, and its verb on it. At a desk the sheet is the lead and the stylesheet
+           leaves this one looking like the rest. */
+        list.appendChild(card(one.reader, door, one, !list.children.length));
       });
     list.hidden = !list.children.length;
     // The way to the whole list, which the Recently read menu carries at a desk.
@@ -779,11 +852,40 @@
     }
   }
 
-  function card(reader, door, one) {
-    var item = el("li", "learn-card-item");
+  function card(reader, door, one, lead) {
+    var item = el("li", lead ? "learn-card-item is-lead" : "learn-card-item");
     var link = el("a", "learn-card");
     link.href = hrefOf(reader, door);
     link.setAttribute("data-entry", reader.entry || reader.id || "");
+    /* Which door this card is, so the rail can say which one the sheet is showing
+       (2026-09-18). A card drawn from `sheets` rather than from a door has none. */
+    if (one && one.id) link.setAttribute("data-door", one.id);
+    /* At a desk the rail took the row of doors' place, so a press has to do what a
+       door did: swap the sheet. It stays an `<a href>` to the reader underneath — that
+       is what it is on a phone, where there is no sheet to swap, and it is what a
+       middle click, a long press and "open in new tab" should still get. So the swap
+       is the click handler and the address is the fallback, which is the order that
+       degrades the right way rather than the convenient way. */
+    if (one && one.reader) {
+      link.addEventListener("click", function (event) {
+        var sheet = document.getElementById("carry-sheet");
+        /* On a phone the stylesheet hides the sheet's column, not the sheet, so
+           `hidden` is false there. Checking only `hidden` swapped a sheet nobody could
+           see and every card on a phone went nowhere (2026-09-18). No boxes means it
+           is not on screen, so the link opens the reader. */
+        if (!sheet || sheet.hidden || !sheet.getClientRects().length) return;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button) return;
+        if (event.preventDefault) event.preventDefault();
+        drawCarry(one.reader, one.door);
+        if (one.id) markDoor(one.id);
+      });
+    }
+    /* At a desk the rail took the row of doors' place, so a press has to do what a
+       door did: swap the sheet. It stays an `<a href>` to the reader underneath —
+       that is what it is on a phone, where there is no sheet to swap, and it is what
+       a middle click, a long press and "open in new tab" should still get. So the
+       swap is the click handler and the address is the fallback, which is the order
+       that degrades the right way rather than the convenient way. */
     var pictured = reader.entry || reader.id || reader.name;
     var cover = el("span", "card-cover");
     cover.setAttribute("aria-hidden", "true");
@@ -799,7 +901,7 @@
     var what = el("span", "learn-card-what");
     var kindOf = one && one.id ? kind(one) : "";
     what.appendChild(
-      el("span", "learn-card-state", door.heading || LABELS[kindOf] || STATES[door.state] || CONTINUE)
+      el("span", "learn-card-state", door.heading || LABELS[kindOf] || stateOf(door, reader))
     );
     var title = el("bdi", "learn-card-title", reader.title);
     title.setAttribute("lang", reader.language || "he");
@@ -814,13 +916,22 @@
     if (meta) what.appendChild(el("span", "learn-card-meta", meta));
     var said = share(reader);
     if (said) what.appendChild(el("span", "learn-card-known", said));
+    if (lead) {
+      what.appendChild(
+        el(
+          "span",
+          "learn-card-go",
+          door.state === "carry" ? t("learn.card.continue", "Continue") : BEGIN[mediumOf(reader)]
+        )
+      );
+    }
     link.appendChild(what);
 
     var done = door.state === "carry" && !door.src ? progress(reader) : 0;
     if (done) {
       var line = el("span", "page-progress");
       line.setAttribute("role", "img");
-      line.setAttribute("aria-label", t("learn.read-share", "{share}% read", { share: Math.round(done * 100) }));
+      line.setAttribute("aria-label", t("learn.read-share", "{share}% through", { share: Math.round(done * 100) }));
       line.style.setProperty("--done", String(done));
       link.appendChild(line);
     }
@@ -828,11 +939,78 @@
     return item;
   }
 
+  /* targum in Claude and ChatGPT, announced once (design.md §12, 2026-09-24).
+
+     A banner above the row rather than a fourth door in it: the row is for things that
+     carry texts, and a door styled like the reading doors competed with the two that get
+     somebody reading. The objection was written down the day that decision was taken and
+     it was right.
+
+     **It stops asking by itself.** Drawn only for a reader with no connection, which the
+     account already knows — so somebody who has connected is never asked again, on any
+     device, with nothing stored to make that true. The cross is for somebody who does not
+     want it *now*; that one is remembered in this browser, because it is a convenience
+     and not a fact about the account. A browser that refuses storage simply sees the
+     banner again, which is the right way round.
+
+     §6: it says what the reader gets. This page does not sell. */
+  var BANNER_SHUT = "targum:connect-banner-shut";
+
+  function shutBanner() {
+    try {
+      return window.localStorage.getItem(BANNER_SHUT) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function drawConnectBanner() {
+    var host = document.getElementById("connect-banner");
+    if (!host || !window.TARGUM_CONNECTOR) return;
+    // `who` is null until `/account/me` answers, and for a reader who is not signed in.
+    // Neither is somebody to invite, so neither draws it.
+    if (!who || !who.signedIn) return;
+    if ((who.connections || []).length) return;
+    if (shutBanner()) return;
+
+    var says = el("p", "connect-says", t("learn.connect.practise-hebrew-in-claude",
+      "Practise Hebrew in Claude or ChatGPT, with the words you know."));
+    var way = el("a", "connect-go", t("learn.connect.connect", "Connect"));
+    way.href = "/connect";
+    way.addEventListener("click", function () {
+      counted("banner-connect");
+    });
+    var shut = el("button", "connect-shut", "\u00d7");
+    shut.type = "button";
+    shut.setAttribute("aria-label", t("learn.connect.not-now", "Not now"));
+    shut.addEventListener("click", function () {
+      try {
+        window.localStorage.setItem(BANNER_SHUT, "1");
+      } catch (e) {}
+      host.hidden = true;
+      counted("banner-shut");
+    });
+    host.appendChild(says);
+    host.appendChild(way);
+    host.appendChild(shut);
+    host.hidden = false;
+  }
+
+  /* What was pressed, and nothing else about it (targum-internal#127). A `control` event
+     carries a name and the window's width — never which text, never where in it, never
+     the time. Learn had no counting at all until today, which is why §12's own request
+     for "a look at whether the reading doors' press rate moves" could not be answered:
+     no door on this page has ever been counted. */
+  function counted(name) {
+    if (window.TargumEvents) window.TargumEvents.note({ kind: "control", control: name });
+  }
+
   function pill(one) {
     var press = el("button", "way", one.label);
     press.type = "button";
     press.setAttribute("data-door", one.id);
     press.addEventListener("click", function () {
+      counted("door:" + one.id);
       drawCarry(one.reader, one.door);
     });
     return press;
@@ -1156,7 +1334,7 @@
         if (!pick && entry.difficulty > level) pick = entry;
       });
       why = pick
-        ? t("learn.why.step-up", "A step up from what you've read")
+        ? t("learn.why.step-up", "A step up from where you are")
         : t("learn.why.about-here", "About where you're reading");
       if (!pick) pick = open[open.length - 1];
     }
@@ -1221,17 +1399,24 @@
   //: How many subjects the reader is held to. Matches `accounts.Store.INTERESTS_WANTED`.
   var WANTED = 3;
 
-  /* The ulpan ladder `level.py` climbs, aleph to vav. Anybody who studied Hebrew in
-     Israel knows which kitah they were in; anybody who did not reads the plain words and
-     ignores the letter.
+  /* **A rung is asked, and kept** (targum-internal#306, 2026-09-19; design.md §12, "The
+     arrival is two questions, a screen each, and the second one is kept").
 
-     **Asked, used once, and thrown away** (targum-internal#306, decided 2026-09-17).
-     Nothing is stored: no column, no key in the browser, nothing posted. It exists to
-     answer the one question the measurement cannot, because the measurement has not
-     happened yet — which of this reader's subjects to open *first*. The claim grid a
-     minute later measures the same ladder off words they have actually marked, and that
-     is what the shelf sorts on from then on. A number nobody keeps is a number nobody
-     can be wrong about later. */
+     This is the fifth state of one question. The arrival asked how much Hebrew a reader
+     had, used the answer once and kept it nowhere (2026-09-17); that was taken out the
+     next day as the worst half of both — a reader stopped on their first visit for an
+     answer thrown away before the page is drawn again — on the ground that every level
+     `design.md` sanctions is measured. David reopened it and chose the variant nobody had
+     built: the answer is **kept on the account**, it **seeds** the three things that have
+     nothing to go on at a first visit (which text opens first, here; the Library's band;
+     how hard the conversation writes), and the first measurement **outvotes** it —
+     `charts.seed` answers "" the moment the reader's own marked words reach aleph. It is
+     never shown back: nothing on any page says "you said gimel".
+
+     The ulpan ladder `level.py` climbs, aleph to vav. Anybody who studied Hebrew in
+     Israel knows which kitah they were in; anybody who did not reads the plain words and
+     ignores the letter. The words say what a person can *follow*, not what they can
+     read: many come to listen and to watch (targum-internal#337). */
   var LEVELS = [
     { id: "aleph", letter: "א" },
     { id: "aleph-plus", letter: "א+" },
@@ -1248,47 +1433,27 @@
       aleph: t("learn.level.aleph", "Just starting"),
       "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
       bet: t("learn.level.bet", "Simple conversations"),
-      "bet-plus": t("learn.level.bet-plus", "I read slowly, with help"),
-      gimel: t("learn.level.gimel", "I read a newspaper with a dictionary"),
-      dalet: t("learn.level.dalet", "I read most things comfortably"),
-      hey: t("learn.level.hey", "I read almost anything"),
+      "bet-plus": t("learn.level.bet-plus", "I follow slow Hebrew with help"),
+      gimel: t("learn.level.gimel", "I follow the news with a dictionary"),
+      dalet: t("learn.level.dalet", "I follow most things comfortably"),
+      hey: t("learn.level.hey", "I follow almost anything"),
       vav: t("learn.level.vav", "Hebrew is a language I live in"),
     };
-  }
-
-  /* The rung the reader just named, for as long as it takes to draw one sheet.
-     Deliberately a variable and not a stored value: `routeBy()` hands it out once and
-     forgets it, so a reload routes by the subjects alone. */
-  var routing = "";
-
-  //: Where on the ladder a rung sits, 0 at aleph and 1 at vav.
-  function ladderFraction(id) {
-    for (var i = 0; i < LEVELS.length; i++) {
-      if (LEVELS[i].id === id) return i / (LEVELS.length - 1);
-    }
-    return 0;
   }
 
   /* Which of the texts a subject can answer to open, given the rung. Sorted by the
      difficulty each row already carries, and the rung says how far along to land: aleph
      takes the easiest of them, vav the hardest, the rest in between. It is a coarse rule
      on purpose — it decides one text, once, and the reader's own marked words decide
-     everything after it. */
+     everything after it. No rung, and the order the shelf already has is the order. */
   function pickByRung(rows, rung) {
     if (!rows.length) return null;
     if (!rung) return rows[0];
     var sorted = rows.slice().sort(function (a, b) {
       return (a.difficulty || 0) - (b.difficulty || 0);
     });
-    var at = Math.round(ladderFraction(rung) * (sorted.length - 1));
+    var at = Math.round(charts.seedFraction(rung) * (sorted.length - 1));
     return sorted[at] || sorted[0];
-  }
-
-  //: The rung, handed over once. Every call after the first gets nothing.
-  function routeBy() {
-    var was = routing;
-    routing = "";
-    return was;
   }
 
   function interestLabels() {
@@ -1359,6 +1524,9 @@
   }
 
   var arrived = readList(ARRIVED);
+  //: Answered or skipped on this visit. A reader who skipped both screens has said
+  //: nothing to keep, and is not asked twice on one page for it.
+  var arrivalOver = false;
 
   function keep(key, value) {
     try {
@@ -1380,10 +1548,186 @@
     });
   }
 
+  /* --- which language they read (2026-09-20) ---------------------------------
+   *
+   * The arrival's first question, and the only one asked in more than one language at
+   * once. `reads` on the account decides two things — the language of the line under
+   * each Hebrew one, and the language this page speaks — and until today a new account
+   * was English in both whatever the person read, with the way out on a profile page or
+   * behind a question the conversation asks once. So a reader is asked, before they are
+   * asked anything they would have to read.
+   *
+   * Asked only of somebody who has never said. Every one of these is an answer already:
+   * the account has rows (its own, or the operator's mark on an invited address), this
+   * page arrived in another language, the browser holds a choice (the reader's picker,
+   * or a press on the front door carried through sign-in), or the conversation asked.
+   * The same two keys `first.js` keeps, so neither asks after the other.
+   */
+  var ASKED_READ = "targum:asked-read";
+  //: This visit's flag: the page is loaded again when the answer changes its language,
+  //: and the arrival has to come back as the second of three and not the first of two.
+  var TONGUE_ASKED = "targum:arrival-tongue";
+  //: Each language in its own name. Not from the page's strings: those are in one
+  //: language, and this is the screen that cannot assume which.
+  var TONGUES = {
+    // "Native language" and not "which do you read" (David, 2026-09-20): it is the
+    // question a person has an answer to without thinking, and what it decides — the
+    // language under each line, and the desk's — is what a native language is for.
+    en: { name: "English", asks: "What is your native language?" },
+    ru: { name: "Русский", asks: "Какой у вас родной язык?" },
+  };
+  //: The last row: neither of them. In every language the question is asked in.
+  var OTHER_TONGUE = "Other · Другой";
+  //: `/account/me`, once it has answered; null until then and for nobody.
+  var who = null;
+
+  function held(key) {
+    try {
+      return localStorage.getItem(key) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function thisVisit(value) {
+    try {
+      if (value === undefined) return window.sessionStorage.getItem(TONGUE_ASKED) || "";
+      window.sessionStorage.setItem(TONGUE_ASKED, value);
+    } catch (e) {
+      /* no session store: the step count starts again, and nothing else is lost */
+    }
+    return "";
+  }
+
+  function offered() {
+    return (window.TARGUM_INTO || []).filter(function (code) {
+      return !!TONGUES[code];
+    });
+  }
+
+  function pageTongue() {
+    var said = (document.documentElement && document.documentElement.lang) || "en";
+    return String(said).split("-")[0].toLowerCase() || "en";
+  }
+
+  function readsInto() {
+    return (lang && lang.into && lang.into()) || "";
+  }
+
+  function asksTongue() {
+    if (offered().length < 2) return false;
+    if (thisVisit()) return true;
+    if (held(ASKED_READ) || readsInto()) return false;
+    if (pageTongue() !== "en") return false;
+    if (who && who.signedIn && who.readsSaid) return false;
+    return true;
+  }
+
+  /* The account hears it the way the profile page's boxes say it: the whole set. Then
+     the page is loaded again where the answer changed the language it should be in,
+     because a desk page is drawn by the server in one language. `then` is what to do
+     where nothing has to be loaded again. */
+  function sayTongue(code, then) {
+    keep(ASKED_READ, "1");
+    if (lang && lang.into) lang.into(code);
+    if (!who || !who.signedIn) return then();
+    ask("/account/languages", { learning: who.learning || ["he"], reads: [code] })
+      .then(function (answer) {
+        if (answer && !answer.error && code !== pageTongue() && window.location.reload) {
+          window.location.reload();
+          return;
+        }
+        then();
+      })
+      .catch(then);
+  }
+
+  /* A choice this browser already holds and the account has never heard: a press on the
+     front door's switcher, carried through sign-in (`signin.js`). Handed over here, at
+     the one moment it is certainly a new reader's, rather than on every page for every
+     account — an account that has said nothing in a browser that reads Russian is not
+     this page's to re-file. */
+  function handOverTongue() {
+    var code = readsInto();
+    if (!who || !who.signedIn || who.readsSaid) return;
+    if (!code || offered().indexOf(code) < 0) return;
+    who.readsSaid = true;
+    sayTongue(code, function () {});
+  }
+
   function remember(ids) {
     arrived = ids.slice();
     keep(ARRIVED, arrived.join(","));
     post("/account/interest", { interest: arrived });
+  }
+
+  //: The rung, kept the way the subjects are: the account has it, the browser holds a copy.
+  function rememberLevel(id) {
+    keep(charts.DECLARED, id);
+    post("/account/level", { level: id });
+  }
+
+  /* The first text for a reader who has opened nothing: the first of their subjects the
+     shelf can answer, and within it the row nearest the rung they named. Most of the
+     nineteen subjects have nothing behind them yet, on purpose — the answer is a profile,
+     not a route — so this looks for the first that does rather than assuming the first
+     named does. A reader who named a rung and no subject gets the modern shelf at that
+     rung, which is what keeps somebody at gimel who skipped the first screen off Scene 1. */
+  /* A first text that can be heard, where the subject has one (targum-internal#335). The
+     second thing a new reader should find out is that the page has a voice, and they
+     cannot find that out on a silent text. Where nothing in the subject is voiced, the
+     subject still wins: it is what they asked for. */
+  function voiced(rows) {
+    var heard = rows.filter(function (reader) {
+      return reader.spoken || reader.video;
+    });
+    return heard.length ? heard : rows;
+  }
+
+  /* A first text with their language under it, where any of their subjects has one. The
+     shelf is English throughout and Russian in places (beta), so a reader who has just
+     said Русский would otherwise open a page in Russian with English under every line.
+     Across all their subjects and not only the first: three were asked for and none was
+     ranked. Where none has it, the ordinary pick below — what they asked for, honestly
+     in the language it exists in. */
+  function inTheirs(rows) {
+    var code = readsInto();
+    if (!code || code === "en") return [];
+    return rows.filter(function (reader) {
+      return (reader.targets || []).indexOf(code) >= 0;
+    });
+  }
+
+  function firstText(handed, code) {
+    var store = charts.collect(charts.meaningLanguage(code))[code];
+    var rung = charts.seed(store && store.words, code);
+    for (var r = 0; r < arrived.length; r++) {
+      var asked = interestOf(arrived[r]);
+      if (!asked) continue;
+      var theirs = inTheirs(
+        handed.filter(function (reader) {
+          return wanted(reader, asked);
+        })
+      );
+      if (theirs.length) return pickByRung(voiced(theirs), rung);
+    }
+    for (var w = 0; w < arrived.length; w++) {
+      var came = interestOf(arrived[w]);
+      if (!came) continue;
+      var rows = handed.filter(function (reader) {
+        return wanted(reader, came);
+      });
+      if (rows.length) return pickByRung(voiced(rows), rung);
+    }
+    if (rung && !arrived.length) {
+      return pickByRung(
+        handed.filter(function (reader) {
+          return reader.register === "modern";
+        }),
+        rung
+      );
+    }
+    return null;
   }
 
   /* The row itself. Shown only to a reader who has opened nothing in Hebrew and
@@ -1396,33 +1740,97 @@
      Nothing is routed on a press now: the reader picks three, says where they are, and
      the sheet underneath is chosen from whichever of their subjects the shelf can
      actually satisfy. */
-  function drawArrival(asking, readers, shared, again) {
+  function drawArrival(asking, readers, shared, again, open) {
     var host = document.getElementById("arrival");
     var row = document.getElementById("arrival-doors");
     var rungs = document.getElementById("arrival-levels");
     var done = document.getElementById("arrival-done");
+    var skip = document.getElementById("arrival-skip");
+    var back = document.getElementById("arrival-back");
     var count = document.getElementById("arrival-count");
-    if (!host || !row || !rungs || !done) return;
+    var where = document.getElementById("arrival-step");
+    var tongues = document.getElementById("arrival-tongues");
+    var asksIn = document.getElementById("arrival-asks-language");
+    var screenOf = {
+      tongue: document.getElementById("arrival-language"),
+      subjects: document.getElementById("arrival-subjects"),
+      level: document.getElementById("arrival-level"),
+    };
+    if (!host || !row || !rungs || !done || !skip || !screenOf.subjects || !screenOf.level) return;
     if (!asking) {
       host.hidden = true;
+      document.body.classList.remove("arriving");
       return;
     }
     var labels = interestLabels();
     var said = levelLabels();
     var picked = [];
-    var standing = "";
+    /* The screens, in order. The language comes first where it is asked at all
+       (2026-09-20), and a visit that has already answered it — the page was loaded again
+       in the language chosen — comes back on the second of three, not the first of two. */
+    var withTongue = !!(screenOf.tongue && tongues && asksIn && asksTongue());
+    var order = withTongue ? ["tongue", "subjects", "level"] : ["subjects", "level"];
+    var step = withTongue && thisVisit() ? 1 : 0;
     row.textContent = "";
     rungs.textContent = "";
+    if (tongues) tongues.textContent = "";
+    if (!withTongue) handOverTongue();
 
+    /* One question a screen (David, 2026-09-19). The step is said in words, in the
+       resting colour; Next belongs to the subjects alone, because on the second screen
+       pressing a row *is* the answer and a second button would be a second question. */
     function settle() {
-      var enough = picked.length >= WANTED && !!standing;
-      done.disabled = !enough;
+      var now = order[step];
+      ["tongue", "subjects", "level"].forEach(function (name) {
+        if (screenOf[name]) screenOf[name].hidden = name !== now;
+      });
+      if (where) {
+        where.textContent = t("learn.arrival.step", "{n} of {of}")
+          .replace("{n}", String(step + 1))
+          .replace("{of}", String(order.length));
+      }
+      done.hidden = now !== "subjects";
+      done.disabled = picked.length < WANTED;
+      if (back) back.hidden = step === 0;
       if (!count) return;
       var short = WANTED - picked.length;
       count.textContent =
-        short > 0
+        now === "subjects" && short > 0
           ? t("learn.arrival.pick-more", "Pick {n} more").replace("{n}", String(short))
           : "";
+    }
+
+    /* The last answer opens the text it chose — the reader, not this page with a card to
+       find (design.md §12). Where the shelf has nothing to open, the page is drawn again
+       and says what it has. */
+    function finish() {
+      host.hidden = true;
+      document.body.classList.remove("arriving");
+      if (open && open()) return;
+      if (again) again();
+    }
+
+    /* A new screen starts at its top. Nineteen subjects scroll on a phone, and the
+       second question was drawn wherever the first had been left — its own words and
+       its first row under the bar (found by opening it, 2026-09-19). Focus goes to the
+       screen's first press without the browser scrolling to it on its own account. */
+    function arrive() {
+      settle();
+      if (window.scrollTo) window.scrollTo(0, 0);
+      var now = order[step];
+      var first =
+        now === "level" ? rungs.children[0] : now === "tongue" ? tongues.children[0] : null;
+      if (now === "subjects") first = done.disabled ? row.children[0] : done;
+      if (first && first.focus) first.focus({ preventScroll: true });
+    }
+
+    function onward() {
+      if (step < order.length - 1) {
+        step += 1;
+        arrive();
+        return;
+      }
+      finish();
     }
 
     INTERESTS.forEach(function (want) {
@@ -1443,45 +1851,84 @@
       row.appendChild(press);
     });
 
+    /* The language, a row each in its own name; pressing one is the answer, as on the
+       ladder. The question is said once in every language offered, a line each and each
+       marked as what it is, so a screen reader reads Russian in a Russian voice. */
+    if (withTongue) {
+      asksIn.textContent = "";
+      offered().forEach(function (code) {
+        var line = document.createElement("span");
+        line.setAttribute("lang", code);
+        line.textContent = TONGUES[code].asks;
+        asksIn.appendChild(line);
+        var tongue = document.createElement("button");
+        tongue.type = "button";
+        tongue.className = "arrival-rung";
+        tongue.setAttribute("lang", code);
+        tongue.textContent = TONGUES[code].name;
+        tongue.addEventListener("click", function () {
+          thisVisit("1");
+          sayTongue(code, onward);
+        });
+        tongues.appendChild(tongue);
+      });
+      /* And a row for everybody else (David, 2026-09-20). "What is your native language?"
+         with two answers is a question most of the world cannot answer, and Skip is not
+         an answer — it says "not now", and this reader means "neither". Said in both
+         languages, since it is the one row that is nobody's own name. What it sets is
+         English, which is the only other language there is to read into; what it is for
+         is that they were asked, answered truly, and are not asked again. */
+      var other = document.createElement("button");
+      other.type = "button";
+      other.className = "arrival-rung";
+      other.textContent = OTHER_TONGUE;
+      other.addEventListener("click", function () {
+        thisVisit("1");
+        sayTongue("en", onward);
+      });
+      tongues.appendChild(other);
+    }
 
-    LEVELS.forEach(function (step) {
-      var press = document.createElement("button");
-      press.type = "button";
-      press.className = "arrival-rung";
-      press.setAttribute("aria-pressed", "false");
+    LEVELS.forEach(function (level) {
+      var rung = document.createElement("button");
+      rung.type = "button";
+      rung.className = "arrival-rung";
       // The letter beside the words, not instead of them: it is the whole label to a
       // reader who did an ulpan and noise to everybody else, so it is the smaller half.
-      press.appendChild(document.createTextNode(said[step.id] || step.id));
+      rung.appendChild(document.createTextNode(said[level.id] || level.id));
       var letter = document.createElement("span");
       letter.className = "arrival-rung-letter";
       letter.setAttribute("lang", "he");
-      letter.textContent = step.letter;
-      press.appendChild(letter);
-      press.addEventListener("click", function () {
-        standing = step.id;
-        Array.prototype.forEach.call(rungs.children, function (other) {
-          other.setAttribute("aria-pressed", "false");
-          other.classList.remove("is-picked");
-        });
-        press.setAttribute("aria-pressed", "true");
-        press.classList.add("is-picked");
-        settle();
+      letter.textContent = level.letter;
+      rung.appendChild(letter);
+      rung.addEventListener("click", function () {
+        rememberLevel(level.id);
+        finish();
       });
-      rungs.appendChild(press);
+      rungs.appendChild(rung);
     });
 
     done.onclick = function () {
-      if (picked.length < WANTED || !standing) return;
-      // The subjects are kept; the rung is not. It lives as long as the next redraw.
-      routing = standing;
+      if (picked.length < WANTED) return;
       remember(picked);
-      host.hidden = true;
-      // Drawn again rather than navigated: the sheet swaps to what they asked for, on
-      // the page they are already looking at.
-      if (again) again();
+      onward();
     };
+    // A question a reader may not decline is a gate, and the arrival is not one.
+    skip.onclick = onward;
+    /* And a question a reader may not go back to is a one-way door (2026-09-20). The
+       subjects are as they were left — what was pressed is still pressed — and Next
+       keeps them again if they change. Focus goes to Next, or to the first subject
+       where Next is asleep because the question was skipped. */
+    if (back) {
+      back.onclick = function () {
+        if (step === 0) return;
+        step -= 1;
+        arrive();
+      };
+    }
     settle();
     host.hidden = false;
+    document.body.classList.add("arriving");
   }
 
   /* --- words you may already know, on the way in (targum-internal#297) ------- */
@@ -1623,6 +2070,81 @@
     return door;
   }
 
+  /* --- what to work on (targum-internal#103, on Learn 2026-09-18) ---------------
+   *
+   * The same fold that stands on Your Words, drawn by the same `lists.js` rather than by
+   * a second copy of it here: two answers to "what is worth going over" eventually
+   * disagree, and the one on Your Words is the one with the tests.
+   *
+   * `lists.js` draws only what it finds. This page carries the fold's markup and none of
+   * the table's, its search field's or its phrases' — so `mount` wires nothing else and
+   * `draw` renders nothing else. That is the same arrangement `claim.js` already has
+   * here, and the reason neither needed a page of its own.
+   *
+   * Five, and the way to the rest. The cap is why this can sit on the front door at all:
+   * twenty rows of things to go over, above the shelf, is a chore list.
+   */
+  var WORK_ON_HERE = 5;
+  var workList = null;
+  //: This load of the page, so a line said once can stay up for the visit it is said on.
+  var VISIT = String(Date.now());
+
+  function drawWorkOn(code, store) {
+    var panel = document.getElementById("work-on");
+    var lists = window.TargumLists;
+    if (!panel || !lists || !lists.mount) return;
+    if (!workList) {
+      lists.mount({ languages: window.TARGUM_LANGUAGES || {} });
+      workList = lists;
+    }
+    lists.draw(code, store || { words: [], phrases: [] }, { workOn: WORK_ON_HERE });
+    // The way to the rest is drawn by `lists.js`, since it follows the open tab.
+    askSlips();
+    sayWhatTheFoldIs(panel);
+  }
+
+  /* The third moment (targum-internal#335): "it remembers you". The first time the fold
+     has anything in it, a line says what it is. Said on one visit and never again — the
+     second time a reader sees their words waiting, they know whose they are. It counts
+     nothing and asks for nothing (`test_the_queue_waits_and_never_chases`). */
+  var TOLD_FOLD = "targum:taught-the-record";
+
+  function sayWhatTheFoldIs(panel) {
+    var line = document.getElementById("work-once");
+    if (!line || panel.hidden) return;
+    var told = "";
+    try {
+      told = localStorage.getItem(TOLD_FOLD) || "";
+    } catch (e) {
+      return;
+    }
+    // Shown for the whole of the visit it is first shown on, so a redraw does not take it
+    // away mid-sentence; the stamp is this page's own, and any other means "already told".
+    if (told && told !== VISIT) return;
+    line.hidden = false;
+    if (!told) keep(TOLD_FOLD, VISIT);
+  }
+
+
+  /* The lines the conversation corrected, for the fold's Phrases tab. Asked once a page
+     and after the fold is drawn, so a slow answer never holds up the words; signed out
+     there are none, and the refusal is swallowed like an empty list. */
+  var slipsAsked = false;
+
+  function askSlips() {
+    var lists = window.TargumLists;
+    if (slipsAsked || !lists || !lists.rewrote || !window.fetch) return;
+    slipsAsked = true;
+    fetch(keyed("/slips"), { headers: keyHeaders() })
+      .then(function (response) {
+        return response.ok ? response.json() : { slips: [] };
+      })
+      .then(function (data) {
+        lists.rewrote((data && data.slips) || []);
+      })
+      .catch(function () {});
+  }
+
   /* --- what you know --------------------------------------------------------- */
 
   //: How many known words the count line waits for before it counts (2026-09-11).
@@ -1637,11 +2159,14 @@
     // only ever about the one the switcher is on.
     // A count under ten is true and deflating on the first line a new reader sees
     // (2026-09-11): until then the line says what to do, which is what makes the count.
+    // The leaf pill is for the count alone: green is progress (§4), and under the floor
+    // this line is an instruction, which wore it too (2026-09-27).
+    line.className = known >= KNOWN_FLOOR ? "known-line is-count" : "known-line";
     line.textContent = known >= KNOWN_FLOOR
       ? tn("learn.known-words", known, "You know {n} {language} words.", "You know {n} {language} words.", {
           language: named(code),
         })
-      : t("learn.known-start", "Read, tap the words you don't know and talk to targum about any line.");
+      : t("learn.known-start", "Open something, tap the words you don't know and talk to targum about any line.");
     // The two facts the offer needs, both of them already here: whether they have opened
     // anything, and how few words they have. A reader who already reads Hebrew looks
     // exactly like a beginner at this line, and this is where they get to say otherwise.
@@ -1652,7 +2177,24 @@
 
   var opened = stored("targum:opened");
 
+  /* Asked beside the shelf and waited for with it (2026-09-20): whether the arrival opens
+     on the language depends on what the account has already said, and a question drawn
+     and then taken away a moment later is a page moving under the hand. One request, as
+     before — `hello` reads this answer rather than asking again. */
+  var whoAsked = ask("/account/me").catch(function () {
+    return null;
+  });
+
   ask("/readers")
+    .then(function (data) {
+      return whoAsked.then(function (me) {
+        who = me;
+        // The banner needs the account's answer and nothing else, so it is drawn the
+        // moment there is one rather than waiting on the shelf behind it.
+        drawConnectBanner();
+        return data;
+      });
+    })
     .then(function (data) {
       var readers = (data && data.readers) || [];
       var shared = (data && data.shared) || [];
@@ -1707,27 +2249,14 @@
           var modern = trackDoor(code, "modern", readers, shared);
           var biblical = trackDoor(code, "biblical", readers, shared);
           var door = biblical.reader && biblical.opened > modern.opened ? biblical : modern;
-          if (arrived.length && !modern.opened && !biblical.opened) {
-            // The subjects in the order they are offered, first one the shelf can
-            // actually answer wins. Most of the nineteen have nothing behind them yet,
-            // on purpose — the answer is a profile, not a route — so this looks for the
-            // first that does rather than assuming the first named does.
+          if (!modern.opened && !biblical.opened) {
+            // What they said on arrival picks the door until they have opened something
+            // of their own: see `firstText`.
             //
             // Not `wanted` as a variable: that is the predicate above, and a local of
             // the same name shadows it for the whole of `show`, which is how the video
             // door once came to call an object as a function and draw no sheet at all.
-            var found = null;
-            var rung = routeBy();
-            for (var w = 0; w < arrived.length && !found; w++) {
-              var came = interestOf(arrived[w]);
-              if (!came) continue;
-              found = pickByRung(
-                handed.filter(function (reader) {
-                  return wanted(reader, came);
-                }),
-                rung
-              );
-            }
+            var found = firstText(handed, code);
             if (found) {
               // The track is read off the text rather than off the subject: "judaism"
               // lands on a biblical row and "sport" on a modern one, and the row itself
@@ -1742,12 +2271,39 @@
           if (latest && latest.opened > Math.max(modern.opened || 0, biblical.opened || 0)) {
             door = { state: "carry", reader: latest, opened: latest.opened, register: latest.register };
           }
-          drawArrival(!arrived.length && !modern.opened && !biblical.opened, readers, shared, function () {
-            show(code);
-          });
+          drawArrival(
+            !arrived.length && !modern.opened && !biblical.opened && !arrivalOver,
+            readers,
+            shared,
+            function () {
+              arrivalOver = true;
+              show(code);
+            },
+            function () {
+              // Straight into the text the answers chose, or the track's own start
+              // where they chose nothing the shelf can answer.
+              var first = firstText(handed, code);
+              var via = first ? { state: "start" } : modern.reader ? modern : biblical;
+              var target = first || via.reader;
+              if (!target) return false;
+              /* Into the text, not onto its contents page. A book's own address is its
+                 list of chapters, and a new reader who has just answered two questions
+                 was landed on a page with a title, a button and four links — one more
+                 press from a line of Hebrew (found by QA, 2026-09-20). The first chapter
+                 that is ready is where "Start reading" on that page goes anyway. */
+              var opening = (target.chapters || []).filter(function (chapter) {
+                return chapter && chapter.ready && chapter.file;
+              })[0];
+              if (opening && !via.path && !via.href && !via.src) {
+                via = { state: via.state, path: target.name + "/reader/" + opening.file };
+              }
+              window.location.href = hrefOf(target, via);
+              return true;
+            }
+          );
           door.primary = true;
           door.id = "main";
-          doors = [{ id: "main", label: STATES[door.state] || CONTINUE, reader: door.reader, door: door }].concat(
+          doors = [{ id: "main", label: stateOf(door, door.reader), reader: door.reader, door: door }].concat(
             recentDoors(mine)
           );
           // Modern first; past the whole modern catalogue, whatever is left in any
@@ -1795,6 +2351,7 @@
         // Meanings in the language this reader last read this one into, for the count.
         var store = charts.collect(charts.meaningLanguage(code))[code];
         drawKnown(code, store);
+        drawWorkOn(code, store);
       }
 
       var waiting = document.getElementById("learn-waiting");
@@ -1824,7 +2381,7 @@
   function hello() {
     var name = window.TargumSync && window.TargumSync.who ? window.TargumSync.who.name : "";
     drawHello(name || "", []);
-    ask("/account/me")
+    whoAsked
       .then(function (me) {
         if (me && me.signedIn && me.name) drawHello(me.name, []);
         // What they answered on arrival, from the account rather than this browser: the
@@ -1842,6 +2399,15 @@
           arrived = theirs.slice();
           keep(ARRIVED, arrived.join(","));
         }
+        // And the rung, on the same terms: adopted, never cleared from here.
+        var rung = (me && me.signedIn && me.declared) || "";
+        var held = "";
+        try {
+          held = localStorage.getItem(charts.DECLARED) || "";
+        } catch (e) {
+          held = "";
+        }
+        if (rung && rung !== held) keep(charts.DECLARED, rung);
       })
       .catch(function () {});
   }

@@ -38,7 +38,7 @@ import secrets
 import sqlite3
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -60,6 +60,51 @@ GRACE_DAYS = 7
 # into somebody else's inbox.
 ASKS_PER_HOUR = 5
 SESSION_DAYS = 90
+
+# The connector's three lifetimes (targum-internal#80). An authorization code is spent
+# within seconds by a client that already has it; a minute would be enough and ten is
+# slack for a slow round trip, not for a code left lying about.
+GRANT_MINUTES = 10
+# An access token is short because a refresh token is the thing that lasts: a leaked
+# access token stops working within the hour, and a leaked refresh token is discovered
+# the next time the real client tries to use it and finds it rotated.
+ACCESS_MINUTES = 60
+# A refresh token does not expire on a clock. It ends when the reader disconnects the
+# client, when they leave, or when it is rotated — a connector that goes unused for a
+# year and then asks is the reader coming back to a machine, not an attack.
+#
+# Rows are swept long after they stop working rather than on expiry, so that "expired"
+# and "never existed" stay tellable apart for as long as that is worth anything.
+TOKEN_SWEEP_DAYS = 30
+
+#: How many prompts one reader may keep, and how long each may be. Enough for somebody
+#: who has worked out a handful of ways they like to be asked; not a place to keep an
+#: essay, because what is here is said to a model on every listing.
+MOST_PROMPTS = 20
+PROMPT_LENGTH = 2000
+
+#: How many playlists one reader may keep, how many texts one may hold, and how long its
+#: name may be (targum-internal#364). Twenty is design.md §12's cap on a set, "A playlist
+#: is swiped, and one press takes the set" (2026-09-23); the number is the build's to
+#: tune, the cap is not.
+MOST_PLAYLISTS = 50
+MOST_IN_PLAYLIST = 20
+PLAYLIST_NAME = 80
+
+#: Who made a playlist. The reader by hand, targum's own chat, a connector on their
+#: behalf, or targum's own set copied onto their account (#368).
+PLAYLIST_MAKERS = ("reader", "chat", "connector", "targum")
+
+#: How many clients may register themselves in an hour, across the whole box. Dynamic
+#: registration is open by definition — a client that has never spoken to us asks for an
+#: id and gets one — so there is nobody to key a limit on, and this is a ceiling on the
+#: act rather than on an asker. Generous against every real burst (a directory's review,
+#: a reader adding targum to three apps at once) and a floor under the one thing an open
+#: endpoint invites, which is somebody filling a table for the sake of it.
+#:
+#: An id on its own is worth nothing: every token behind it needs a reader to have
+#: pressed Approve. What this protects is the disk, not the account.
+REGISTRATIONS_PER_HOUR = 60
 
 # 2: person.leaving, for a deletion that waits out a grace period.
 # 3: job.spent, what a build really cost once the API said so.
@@ -118,15 +163,66 @@ SESSION_DAYS = 90
 #    targum-internal#306 is open and undecided, and until it is answered nothing about
 #    how good a reader says they are is stored.
 #
+# 22: the balance table — what each paid service's console said was left, typed into the
+#    back office with the day it was read (2026-09-18). A new table, so `CREATE TABLE IF
+#    NOT EXISTS` is the whole of it.
+#
+# 23: person.declared — the ulpan rung a reader said they were at, on arrival
+#    (targum-internal#306, reopened and decided for on 2026-09-19). Version 21 says a
+#    level is deliberately not stored; this is the decision it was waiting for. A seed,
+#    read only while nothing about the reader has been measured — see `level.seed`.
+#
+# 24: the event table, and person.events — what a reader did in a text, appended and never
+#    merged (targum-internal#127, decided 2026-09-19). See `EVENTS` below for why it is a
+#    table of its own and not a seventh kind of `/sync`.
+#
+# 25: word.source — how a word came to be in the ledger. '' for the ordinary way, a word
+#    met in a text and marked there, which is everything written before this. 'claimed'
+#    for a row ticked off on "Words you may already know" (targum-internal#245), where
+#    the reader is telling us about a word they never met here. The count is the same
+#    either way; what differs is what the corpus may say about it, and a claim is the
+#    reader's own word rather than evidence from a text.
+#
+# 29: the three oauth tables — client, grant, token (targum-internal#80, 2026-09-22). A
+#    reader adds targum to Claude or ChatGPT by pressing Connect, which needs a token that
+#    names a person rather than a cookie. All three are new tables, so `CREATE TABLE IF
+#    NOT EXISTS` is the whole migration and nothing is added to MIGRATIONS below.
+#
+# 31: slip.source — which surface a mistake was recorded from (targum-internal#80).
+#    '' for targum's own chat, which is every row written before this; 'connector' for a
+#    line checked through Claude or ChatGPT. One judge writes both — `record_turn` recasts
+#    on targum's own model against targum's own contract — so this is not a quality mark.
+#    It is there because two surfaces is a fact worth being able to measure later, and a
+#    column added afterwards could not say anything about the rows already written.
+#
+# 30: the prompt table — what a reader wrote for their own connector to offer
+#    (targum-internal#80, note 17). A new table, so `CREATE TABLE IF NOT EXISTS` is
+#    the whole of it.
+#
+# 31→32: the playlist and playlist_item tables — a list of texts a reader keeps, in an
+#    order, to swipe through (targum-internal#364; design.md §12, 2026-09-23). New tables,
+#    so `CREATE TABLE IF NOT EXISTS` is the whole of it.
+#
+# 32→33: playlist.next_set — the one set a finished playlist offered at its end
+#    (targum-internal#367; design.md §12, 2026-09-23: the end offers more, once, and never
+#    refills itself). Remembered so a second visit to the end shows the same set rather
+#    than quoting another. 0 means one was looked for and none could be made.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 21
+SCHEMA_VERSION = 33
 
 #: What a conversation is for. `find` is the door onto the shelf; `talk` is Hebrew.
 #: `talk` since 2026-09-06, when the two modes became one: every conversation is in
 #: Hebrew. `find` survives on rows written before that and means the same thing now.
 MODES = ("find", "talk")
+
+#: What a reader's correction is held under (targum-internal#164, David 2026-09-22): a
+#: licence to targum rather than the public domain, whose sentence is in CONTRIBUTING.md.
+#: Dated, because if that sentence ever changes, the rows written under the old one must
+#: still say which one they meant.
+CONTRIBUTOR_GRANT = "reader-grant-2026-09-22"
 
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
@@ -176,6 +272,55 @@ CREATE TABLE IF NOT EXISTS reads (
 # something about an address before anybody has signed in, and a preference cannot
 # exist before its owner does. One row per language per kind; the next language is a
 # row. Absent means the default — see `learning` and `reads` on the store.
+# What a reader did in a text (targum-internal#127): a word looked up, a stretch of a
+# recording played, a page turned, a section finished, where a sitting stopped, a control
+# pressed. "It is worthless retroactively", which is the whole argument for keeping it.
+#
+# **Appended, never merged, and never sent back.** Everything else a reader keeps goes
+# through `/sync`, which is last-write-wins on a key — the reason `day.count` is a constant
+# 1, because a real tally written from two browsers is destroyed by the merge. A log has no
+# key to fight over: each row is a thing that happened once. And it is not pulled down
+# again, because a log that synced to every browser would fill `localStorage` without
+# limit; what a page needs is the totals, and `Store.totals` derives those.
+#
+# What is decided (David, 2026-09-19), so nobody has to work it out from the columns: on
+# from a reader's first session, with a switch and an erase on the account page; kept for
+# as long as the account is; an aggregate across readers only per segment, bearing no
+# person, and only over texts whose licence lets them leave — never over an upload. A
+# control pressed carries no document and no segment: a name, a width and a day.
+#
+# And what is *not* decided here: the privacy notice names a legal basis for every
+# category of data it lists, and this is a new category. So the whole of it stands behind
+# `TARGUM_EVENTS`, off unless the deployment says otherwise — see `serve.py`.
+EVENTS = """
+CREATE TABLE IF NOT EXISTS event (
+  id        INTEGER PRIMARY KEY,
+  person    INTEGER NOT NULL,
+  kind      TEXT    NOT NULL,
+  day       TEXT    NOT NULL,
+  at        INTEGER NOT NULL DEFAULT 0,
+  language  TEXT    NOT NULL DEFAULT '',
+  medium    TEXT    NOT NULL DEFAULT '',
+  document  TEXT    NOT NULL DEFAULT '',
+  segment   TEXT    NOT NULL DEFAULT '',
+  amount    REAL    NOT NULL DEFAULT 0,
+  control   TEXT    NOT NULL DEFAULT '',
+  width     TEXT    NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
+CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
+"""
+
+#: What can happen, and what `amount` is for each: seconds for a stretch played, words for
+#: a page or a section, a fraction of the text for where a sitting stopped, nothing else.
+EVENT_KINDS = ("lookup", "play", "replay", "page", "section", "stop", "control")
+#: What a text is, to whoever is at it (targum-internal#337).
+EVENT_MEDIA = ("read", "listen", "watch")
+EVENT_WIDTHS = ("phone", "narrow", "desk")
+#: The most one request may hand over. A sitting is a few hundred events; a page that
+#: sends more than this is broken or is not a page.
+EVENT_BATCH = 500
+
 CHOSEN = """
 CREATE TABLE IF NOT EXISTS chosen (
   person   INTEGER NOT NULL,
@@ -188,6 +333,10 @@ CREATE TABLE IF NOT EXISTS chosen (
 
 MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
+    # Which surface a mistake came from: '' is targum's own chat and is every row
+    # written before 2026-09-22; 'connector' is a line checked through Claude or ChatGPT
+    # (targum-internal#80). Not a quality mark — one judge writes both.
+    "ALTER TABLE slip ADD COLUMN source TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE job ADD COLUMN spent REAL NOT NULL DEFAULT 0",
     "ALTER TABLE job ADD COLUMN chapters INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE person ADD COLUMN name TEXT NOT NULL DEFAULT ''",
@@ -252,9 +401,50 @@ MIGRATIONS: tuple[str, ...] = (
     # two that have a subject keep it; `video` was a format rather than a subject and
     # nothing it meant survives translation, so it goes back to unanswered and the
     # reader is asked again. Idempotent: after the first run no row holds the old words.
+    # When the reader said they know a line they once got wrong (2026-09-18), or 0. It
+    # takes the line out of What to work on and nothing else: the slip is still the
+    # record, still exported and still read by the conversation's recurring rules.
+    "ALTER TABLE slip ADD COLUMN known INTEGER NOT NULL DEFAULT 0",
     "UPDATE person SET interest = 'everyday' WHERE interest = 'spoken'",
     "UPDATE person SET interest = 'judaism' WHERE interest = 'portion'",
     "UPDATE person SET interest = '' WHERE interest = 'video'",
+    # The rung a reader named on arrival. Empty for everybody who was never asked, who
+    # skipped the question, or who arrived while it was not being asked.
+    "ALTER TABLE person ADD COLUMN declared TEXT NOT NULL DEFAULT ''",
+    # Whether this reader has stopped the record of what they do in a text: '' for kept,
+    # 'off' for stopped (targum-internal#127). On from the first session, by decision; the
+    # switch is theirs, on the account page.
+    "ALTER TABLE person ADD COLUMN events TEXT NOT NULL DEFAULT ''",
+    # How a word came to be in the ledger: '' for one met in a text and marked there,
+    # 'claimed' for one ticked off on "Words you may already know". Nothing can recover
+    # this for words marked before it existed, and '' is the honest answer for them —
+    # they were met in a text, because that was the only door there was.
+    "ALTER TABLE word ADD COLUMN source TEXT NOT NULL DEFAULT ''",
+    # Which judge made this correction, as a pseudonym (targum-internal#164, David
+    # 2026-09-22). `who` is a role and stays one; this is what tells two readers agreeing
+    # from one reader twice, which is most of the gold set. Empty on every row written
+    # before, and on the author's own hand, which has no account behind it.
+    "ALTER TABLE correction ADD COLUMN judge TEXT NOT NULL DEFAULT ''",
+    # Where a correction stands (targum-internal#164, door 3). '' for a judgement that
+    # simply happened — a grounding, the author's own hand — and 'proposed', 'accepted'
+    # or 'rejected' for a reader's suggestion and what became of it. A reader's
+    # correction is a proposal until somebody with standing accepts it: this card's own
+    # words, "not a vote".
+    "ALTER TABLE correction ADD COLUMN state TEXT NOT NULL DEFAULT ''",
+    # When this reader accepted the contribution grant, or 0. It gates the control
+    # rather than the recording: no grant, no way to offer a correction at all.
+    "ALTER TABLE person ADD COLUMN granted INTEGER NOT NULL DEFAULT 0",
+    # The language the reader was following in (targum-internal#289), the way
+    # `waiting.language` records the door they came through. A follower is keyed by
+    # address and needs no account, so there is nowhere else to read it from at send
+    # time — and the mail and the page it leads to were English for everybody, beside a
+    # library the same reader had in Russian. Empty means English, which is what every
+    # row written before this held in fact.
+    "ALTER TABLE follow ADD COLUMN language TEXT NOT NULL DEFAULT ''",
+    # The set a finished playlist offered at its end (targum-internal#367): NULL until
+    # the end is reached, then the playlist it quoted, or 0 when none could be made. A
+    # column on a table that exists on the box since #364, so it is added here.
+    "ALTER TABLE playlist ADD COLUMN next_set INTEGER",
 )
 
 SCHEMA = """
@@ -270,7 +460,10 @@ CREATE TABLE IF NOT EXISTS person (
   -- When they asked to be forgotten. Everything goes at the end of the grace period;
   -- until then they are signed out and the account is unusable, so the only thing the
   -- delay buys is the chance to undo a mistake.
-  leaving  INTEGER
+  leaving  INTEGER,
+  -- When they accepted the contribution grant (targum-internal#164, door 3), or 0.
+  -- CONTRIBUTING.md holds the sentence; this holds that they read it.
+  granted  INTEGER NOT NULL DEFAULT 0
 );
 
 -- How often an address has asked for a link. A sign-in endpoint that anyone can call
@@ -307,6 +500,9 @@ CREATE TABLE IF NOT EXISTS word (
   note     TEXT    NOT NULL DEFAULT '',
   band     TEXT    NOT NULL DEFAULT '',
   learned  INTEGER NOT NULL DEFAULT 0,
+  -- How the word got here: '' for one met in a text, 'claimed' for one ticked off on
+  -- "Words you may already know" (targum-internal#245).
+  source   TEXT    NOT NULL DEFAULT '',
   at       INTEGER NOT NULL DEFAULT 0,
   seen     INTEGER NOT NULL DEFAULT 0,
   gone     INTEGER NOT NULL DEFAULT 0,
@@ -518,6 +714,10 @@ CREATE TABLE IF NOT EXISTS follow (
   ended      INTEGER NOT NULL DEFAULT 0,
   sent       INTEGER NOT NULL DEFAULT 0,
   instalment TEXT    NOT NULL DEFAULT '',
+  -- The language they were following in, as `waiting.language` is the door they came
+  -- through. Empty means English. There is no account behind a follow, so this is the
+  -- only place the mail and the stop page can learn which language to be in.
+  language   TEXT    NOT NULL DEFAULT '',
   PRIMARY KEY (email, series)
 );
 
@@ -636,10 +836,68 @@ CREATE TABLE IF NOT EXISTS correction (
   before   TEXT    NOT NULL DEFAULT '',
   after    TEXT    NOT NULL DEFAULT '',
   who      TEXT    NOT NULL,
+  -- Which judge, as a pseudonym: `who` says what kind of judge and this says which one,
+  -- without saying who they are (targum-internal#164). It is what tells two readers
+  -- agreeing from one reader correcting twice. Empty where there is no account behind
+  -- the judgement, which is the author's own hand.
+  judge    TEXT    NOT NULL DEFAULT '',
+  -- '', 'proposed', 'accepted' or 'rejected'. A reader's correction is a proposal until
+  -- somebody with standing settles it; the author's own hand needs no state.
+  state    TEXT    NOT NULL DEFAULT '',
   licence  TEXT    NOT NULL DEFAULT '',
   context  TEXT    NOT NULL DEFAULT '',
   reason   TEXT    NOT NULL DEFAULT ''
 );
+
+-- The secret a judge's pseudonym is made with (targum-internal#164). One row, minted on
+-- first use and never rotated: a rotating salt would give one person a different
+-- pseudonym in each window, and two windows of one reader would then read as two readers
+-- agreeing — manufacturing exactly the false corroboration the pseudonym exists to
+-- prevent. Anonymity here is against what leaves, not against the operator: the salt
+-- never goes out with an export, and without it a pseudonym cannot be tied to a person.
+CREATE TABLE IF NOT EXISTS judging (
+  id   INTEGER PRIMARY KEY CHECK (id = 1),
+  salt TEXT    NOT NULL
+);
+
+-- What a reader got wrong, kept (2026-09-18, targum-internal#290).
+--
+-- Dmitry Z, 2026-09-16, on why a scheduler does not work for him: "anki srs is kinda dumb
+-- in the sense it doesnt really know what you get wrong beyond what you tell it". A
+-- scheduler only knows what you type into it. targum sits in the one place where a
+-- mistake is visible without anybody typing anything — the reader writes a line of Hebrew
+-- in the chat and the model rewrites it — and until now that correction was shown once and
+-- thrown away, which is the same bookkeeping problem moved inside the product.
+--
+-- One row per line the reader wrote that came back changed. A line that was already right
+-- writes nothing, so this is a record of mistakes and not a log of turns.
+--
+-- **Not `correction`.** That table is #164: human judgements about *Hebrew*, where `who`
+-- is a role and never a person, so that what it holds can be reasoned about as evidence
+-- about the language. A learner's own mistakes are a fact about the learner. They stay
+-- here, they are exported by `everything`, they go with the account in `forget`, they
+-- never enter the corpus and they are not one of the four exportable layers —
+-- `private-imports-never-train` holds without amendment.
+CREATE TABLE IF NOT EXISTS slip (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL DEFAULT 'he',
+  at       INTEGER NOT NULL,
+  chat     TEXT    NOT NULL DEFAULT '',
+  turn     INTEGER NOT NULL DEFAULT 0,
+  -- What they wrote and what came back. Both whole: a diff without its sentences is a
+  -- list of words nobody can read later.
+  wrote    TEXT    NOT NULL,
+  recast   TEXT    NOT NULL,
+  -- The tokens that changed, as JSON. The same diff #242 needs for its label.
+  changed  TEXT    NOT NULL DEFAULT '[]',
+  -- The model's own one-sentence reason, where it gave one: the `~ ` line.
+  why      TEXT    NOT NULL DEFAULT '',
+  gone     INTEGER NOT NULL DEFAULT 0,
+  -- When the reader said "I know this" about it in What to work on, or 0.
+  known    INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS slip_person ON slip (person, at);
 
 -- Who is waiting for a way in (2026-09-16, targum-internal#69). The front door takes an
 -- address and nothing else, and this is where it goes.
@@ -674,6 +932,141 @@ CREATE TABLE IF NOT EXISTS waiting (
   language TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
+
+-- What each paid service's console said was left, and when somebody read it there
+-- (`services.py`). Typed in from the back office, never fetched: most of the consoles
+-- say it only to an admin key. Every reading is kept and the newest is the balance, so
+-- a mistyped figure is corrected by typing the right one, not by editing the old.
+--
+-- Schema 22 adds this, so `CREATE TABLE IF NOT EXISTS` is the whole of it.
+CREATE TABLE IF NOT EXISTS balance (
+  service TEXT    NOT NULL,
+  said    TEXT    NOT NULL,
+  at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS balance_service ON balance (service, at);
+
+-- The connector's three tables (targum-internal#80, 2026-09-22). targum is an
+-- authorization server for exactly one resource, its own `/mcp`, so a reader can add
+-- targum to Claude or ChatGPT by pressing Connect.
+--
+-- **Why an authorization server and not an API key.** Both connector directories require
+-- the OAuth flow, and a key pasted into somebody else's client is a bearer credential
+-- with no scopes and no revocation story. `serve.py` already reasons this way about the
+-- start-up key: hosted has none at all, because "a key in the address would only be a
+-- bearer token riding in every URL".
+--
+-- **Nothing here is stored in the clear**, for the reason at the top of this file: codes,
+-- access tokens and refresh tokens are held as digests, exactly as `link` and `session`
+-- are. What a client holds exists only in the client.
+--
+-- Schema 29 adds all three, so `CREATE TABLE IF NOT EXISTS` is the whole migration.
+
+-- A client that registered itself (RFC 7591). The directories expect dynamic
+-- registration, so this is written by strangers and holds nothing that is trusted: the
+-- name is shown to the reader on the approval page as *the client's claim about itself*,
+-- never as a fact about who it is.
+CREATE TABLE IF NOT EXISTS oauth_client (
+  id          TEXT PRIMARY KEY,
+  name        TEXT    NOT NULL DEFAULT '',
+  redirects   TEXT    NOT NULL DEFAULT '[]',
+  made        INTEGER NOT NULL
+);
+
+-- An authorization code, between the reader pressing Approve and the client exchanging
+-- it. Single-use and short-lived: `spent` is stamped rather than the row deleted, so a
+-- replayed code is a code we can recognise as replayed instead of one we have forgotten.
+-- `challenge` is the PKCE S256 challenge; there is no other kind, and a client that sends
+-- no challenge is refused rather than downgraded.
+CREATE TABLE IF NOT EXISTS oauth_grant (
+  hash        TEXT PRIMARY KEY,
+  person      INTEGER NOT NULL,
+  client      TEXT    NOT NULL,
+  scopes      TEXT    NOT NULL DEFAULT '',
+  redirect    TEXT    NOT NULL DEFAULT '',
+  challenge   TEXT    NOT NULL DEFAULT '',
+  resource    TEXT    NOT NULL DEFAULT '',
+  made        INTEGER NOT NULL,
+  spent       INTEGER NOT NULL DEFAULT 0
+);
+
+-- An access or refresh token. One row per token, `kind` saying which, `parent` chaining a
+-- refresh token to the one it replaced so a rotation is a fact and not a deletion.
+--
+-- `scopes` is the whole of what a token may do, and it is read from this row on every
+-- request — never from anything the client sends. That is the same rule `chat/tools.py`
+-- states about ownership: it comes from the context the server built, never from an
+-- argument.
+CREATE TABLE IF NOT EXISTS oauth_token (
+  hash        TEXT PRIMARY KEY,
+  person      INTEGER NOT NULL,
+  client      TEXT    NOT NULL,
+  kind        TEXT    NOT NULL DEFAULT 'access',
+  scopes      TEXT    NOT NULL DEFAULT '',
+  resource    TEXT    NOT NULL DEFAULT '',
+  parent      TEXT    NOT NULL DEFAULT '',
+  made        INTEGER NOT NULL,
+  expires     INTEGER NOT NULL DEFAULT 0,
+  seen        INTEGER NOT NULL DEFAULT 0,
+  revoked     INTEGER NOT NULL DEFAULT 0
+);
+-- A prompt a reader wrote for themselves (targum-internal#80, notes 11 and 17).
+--
+-- MCP prompts appear in the host by name — in effect a slash command targum ships into
+-- Claude or ChatGPT. targum's own set is fixed and lives in `mcp_http.PROMPTS`; this is
+-- where a reader's own go, so what appears beside ours is theirs.
+--
+-- "Enable users to use targum their way" was note 17, and this is the smallest thing
+-- that is actually that rather than a value: a text box, and what they write is in their
+-- host next to ours the moment they save it.
+--
+-- `says` is what the model is told. It is the reader's own words going to a model, which
+-- is a thing they do every time they use the chat, and it can only ever reach their own
+-- record — `prompts/get` reads it through the same `Ctx` every tool does, so a prompt
+-- naming somebody else's shelf is a prompt asking for nothing.
+--
+-- A tombstone rather than a delete, like every other thing a reader keeps, so that one
+-- device removing a prompt does not have another put it back.
+CREATE TABLE IF NOT EXISTS prompt (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  person  INTEGER NOT NULL,
+  name    TEXT    NOT NULL,
+  says    TEXT    NOT NULL,
+  made    INTEGER NOT NULL,
+  gone    INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS prompt_named ON prompt (person, name);
+-- A playlist: texts a reader keeps in an order, to swipe through one after another
+-- (targum-internal#364; design.md §12, "A playlist is swiped, and one press takes the
+-- set", 2026-09-23). The reader's, whoever made it: `made_by` says whose hand, never whose
+-- it is. A tombstone rather than a delete, like everything else a reader keeps.
+CREATE TABLE IF NOT EXISTS playlist (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  person   INTEGER NOT NULL,
+  name     TEXT    NOT NULL,
+  made_by  TEXT    NOT NULL DEFAULT 'reader',
+  made     INTEGER NOT NULL,
+  gone     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS playlist_person ON playlist (person, gone);
+-- One text in a playlist, at a position counted from 0. `reader` is the built reader's
+-- folder name — what `/reader/<name>/reader/index.html` opens — once there is one; `job`
+-- is the build making it until then (#365), and `failed` marks one that could not be
+-- made, which the swipe passes over (#366). `title` is kept so a row can be named before
+-- its text exists.
+CREATE TABLE IF NOT EXISTS playlist_item (
+  playlist INTEGER NOT NULL,
+  position INTEGER NOT NULL,
+  reader   TEXT,
+  job      TEXT,
+  title    TEXT    NOT NULL,
+  failed   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (playlist, position)
+);
+CREATE INDEX IF NOT EXISTS playlist_item_job ON playlist_item (job);
+
+CREATE INDEX IF NOT EXISTS oauth_token_person ON oauth_token (person, kind, revoked);
+CREATE INDEX IF NOT EXISTS oauth_grant_person ON oauth_grant (person);
 """
 
 
@@ -684,6 +1077,17 @@ CHAT_RESTARTED = "We restarted while we were answering. Ask again."
 def now() -> int:
     """Milliseconds, because the client's own timestamps are `Date.now()`."""
     return int(time.time() * 1000)
+
+
+def _prompt_name(name: str) -> str:
+    """A prompt's name, as a host will draw it: one lowercase word, hyphens for spaces.
+
+    A host lists these as things to pick by name, and several draw them as slash
+    commands — where a space is the end of the name and the start of an argument. So a
+    name is narrowed here rather than shown to be wrong later in somebody else's app.
+    """
+    kept = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
+    return kept[:40]
 
 
 def digest(token: str) -> str:
@@ -736,6 +1140,42 @@ class Person:
 NUMERIC = frozenset({"at", "updated", "opened", "done", "span_start", "span_end", "count"})
 
 
+def exportable_corrections(
+    rows: list[dict[str, Any]], may_leave: Callable[[str], bool]
+) -> list[dict[str, Any]]:
+    """Corrections as they may leave targum (targum-internal#164, acceptance 5).
+
+    > Rows about non-exportable texts appear in no export with their context; their spans
+    > and judgements do.
+
+    The judgement is a fact about *Hebrew* — this word, in this position, means that —
+    and it is targum's own to give away whatever the text it was noticed in allows. The
+    sentence quoted beside it is a piece of that text, and a NonCommercial or unknown
+    licence reaches it. So the context is dropped and everything else stays: the term, the
+    span, what stood, what stands, the stage and the judge.
+
+    A row naming no text keeps its context. That is the author's own hand at the lexicon,
+    which was never about a particular text and quotes nobody.
+
+    `may_leave` is asked about the text rather than baked in, so the licence rule lives in
+    `licensing.py` where it is already written and this function can be tested without a
+    catalogue.
+    """
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        text = str(row.get("text") or "")
+        if not text or may_leave(text):
+            out.append(dict(row))
+            continue
+        kept = dict(row)
+        kept["context"] = ""
+        # Said rather than merely missing: an empty context that means "there was none"
+        # and one that means "you may not have this" are different facts about a row.
+        kept["context_withheld"] = True
+        out.append(kept)
+    return out
+
+
 def initials(name: str, email: str) -> str:
     """One or two letters for an avatar, from whatever there is to go on.
 
@@ -765,7 +1205,7 @@ KINDS: dict[str, Kind] = {
     "words": Kind(
         table="word",
         key=("language", "lemma"),
-        fields=("surface", "status", "meaning", "note", "band", "learned", "at"),
+        fields=("surface", "status", "meaning", "note", "band", "learned", "source", "at"),
     ),
     "meanings": Kind(
         table="meaning",
@@ -826,6 +1266,7 @@ class Store:
         self.db.executescript(INVITED)
         self.db.executescript(ADMIN)
         self.db.executescript(CHOSEN)
+        self.db.executescript(EVENTS)
         self._migrate()
         self._adopt_reads()
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
@@ -961,7 +1402,8 @@ class Store:
         they", which two pages need.
         """
         row = self.db.execute(
-            "SELECT email, name, picture, made, address, interest FROM person WHERE id = ?",
+            "SELECT email, name, picture, made, address, interest, declared "
+            "FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
         if row is None:
@@ -976,6 +1418,9 @@ class Store:
             # A list since 2026-09-17, and sent as one: a page that has to split a
             # string on a comma is a page that will one day forget to.
             "interest": list(self.interests_of(str(row["interest"] or ""))),
+            # Handed back so a second browser does not ask again. It is the reader's own
+            # answer going back to the reader's own page; no page prints it.
+            "declared": self.declared_of(str(row["declared"] or "")),
         }
 
     #: What a reader can say they are interested in, asked when they arrive
@@ -1071,6 +1516,216 @@ class Store:
         with self.write() as db:
             db.execute("UPDATE person SET interest = ? WHERE id = ?", (",".join(kept), person.id))
         return kept
+
+    #: The rungs a reader can say they are on, aleph to vav: `level.ULPAN`'s, by the ids
+    #: the arrival uses (targum-internal#306, 2026-09-19).
+    DECLARED = (
+        "aleph",
+        "aleph-plus",
+        "bet",
+        "bet-plus",
+        "gimel",
+        "dalet",
+        "hey",
+        "vav",
+    )
+
+    def declared(self, person_id: int | None) -> str:
+        """The rung they named on arrival, or "" where they named none."""
+        if person_id is None:
+            return ""
+        row = self.db.execute(
+            "SELECT declared FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return self.declared_of(str(row["declared"] or "")) if row is not None else ""
+
+    @classmethod
+    def declared_of(cls, stored: str) -> str:
+        """The stored column read back, dropping a rung this targum does not know."""
+        said = str(stored or "").strip().lower()
+        return said if said in cls.DECLARED else ""
+
+    def set_declared(self, person: Person, rung: str) -> str:
+        """Keep the rung they named; "" takes it back, and anything else is refused.
+
+        Settable again, like the subjects: it is a seed and not a record, and a reader
+        who said bet and meant gimel loses nothing by saying so.
+        """
+        said = str(rung or "").strip().lower()
+        if said and said not in self.DECLARED:
+            raise ValueError("No such choice.")
+        with self.write() as db:
+            db.execute("UPDATE person SET declared = ? WHERE id = ?", (said, person.id))
+        return said
+
+    # -- what a reader did in a text (targum-internal#127) -------------------------
+
+    def collects(self, person_id: int | None) -> bool:
+        """Whether this reader's record is being kept: true until they stop it."""
+        if person_id is None:
+            return False
+        row = self.db.execute(
+            "SELECT events FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return row is not None and str(row["events"] or "") != "off"
+
+    def set_collects(self, person: Person, on: bool) -> bool:
+        with self.write() as db:
+            db.execute(
+                "UPDATE person SET events = ? WHERE id = ?", ("" if on else "off", person.id)
+            )
+        return on
+
+    def add_events(self, person: Person, events: Iterable[dict[str, Any]]) -> int:
+        """Append what happened; answer how many rows were kept.
+
+        Strict about shape and forgiving about content: an event of a kind this targum
+        does not know, or with no day, is dropped rather than refusing the batch — a page
+        cached from a newer build should lose the event it invented, not the sitting. A
+        reader who has stopped the record keeps nothing, whatever their page sends.
+        """
+        if not self.collects(person.id):
+            return 0
+        rows: list[tuple[Any, ...]] = []
+        for raw in list(events)[:EVENT_BATCH]:
+            if not isinstance(raw, dict):
+                continue
+            kind = str(raw.get("kind") or "")
+            day = str(raw.get("day") or "")[:10]
+            if kind not in EVENT_KINDS or len(day) != 10:
+                continue
+            try:
+                amount = max(0.0, float(raw.get("amount") or 0))
+                at = max(0, int(raw.get("at") or 0))
+            except (TypeError, ValueError):
+                continue
+            medium = str(raw.get("medium") or "")
+            width = str(raw.get("width") or "")
+            control = kind == "control"
+            rows.append(
+                (
+                    person.id,
+                    kind,
+                    day,
+                    # A control pressed says which day and nothing finer.
+                    0 if control else at,
+                    "" if control else str(raw.get("language") or "")[:12],
+                    "" if control or medium not in EVENT_MEDIA else medium,
+                    # Nor which text, nor where in it: decided, and enforced here rather
+                    # than trusted to the page.
+                    "" if control else str(raw.get("document") or "")[:80],
+                    "" if control else str(raw.get("segment") or "")[:40],
+                    0.0 if control else min(amount, 86400.0),
+                    str(raw.get("control") or "")[:60] if control else "",
+                    width if control and width in EVENT_WIDTHS else "",
+                )
+            )
+        if not rows:
+            return 0
+        with self.write() as db:
+            db.executemany(
+                "INSERT INTO event (person, kind, day, at, language, medium, document, "
+                "segment, amount, control, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                rows,
+            )
+        return len(rows)
+
+    def totals(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Seconds listened, seconds watched and words read, by day, language and medium.
+
+        Derived, never stored: the figures on Your Progress are a reading of the log, so
+        they are the sum across every device by construction. Listening and watching are
+        one kind of event told apart by whether the picture was up.
+        """
+        if person_id is None:
+            return []
+        found = self.db.execute(
+            "SELECT day, language, medium, "
+            "SUM(CASE WHEN kind = 'play' AND medium != 'watch' THEN amount ELSE 0 END) AS heard, "
+            "SUM(CASE WHEN kind = 'play' AND medium = 'watch' THEN amount ELSE 0 END) AS watched, "
+            "SUM(CASE WHEN kind IN ('page', 'section') THEN amount ELSE 0 END) AS words "
+            "FROM event WHERE person = ? AND kind IN ('play', 'page', 'section') "
+            "GROUP BY day, language, medium ORDER BY day",
+            (int(person_id),),
+        ).fetchall()
+        return [
+            {
+                "day": str(row["day"]),
+                "language": str(row["language"]),
+                "medium": str(row["medium"]),
+                "listened": round(float(row["heard"] or 0)),
+                "watched": round(float(row["watched"] or 0)),
+                "words": round(float(row["words"] or 0)),
+            }
+            for row in found
+        ]
+
+    def forget_events(self, person: Person) -> int:
+        """Erase the record, at the reader's own press. The switch is left as it was."""
+        with self.write() as db:
+            gone = db.execute("DELETE FROM event WHERE person = ?", (person.id,)).rowcount
+        return int(gone or 0)
+
+    def pressed(self) -> list[dict[str, Any]]:
+        """How often each control of the reader is pressed, by width — for the audit of
+        what should be within reach (targum-internal#341). Across everybody, and of nobody:
+        the rows it reads carry no document and no segment, and it returns no person."""
+        found = self.db.execute(
+            "SELECT control, width, COUNT(*) AS presses, COUNT(DISTINCT person) AS readers "
+            "FROM event WHERE kind = 'control' GROUP BY control, width ORDER BY presses DESC"
+        ).fetchall()
+        return [
+            {
+                "control": str(row["control"]),
+                "width": str(row["width"]),
+                "presses": int(row["presses"]),
+                "readers": int(row["readers"]),
+            }
+            for row in found
+        ]
+
+    #: What counts as stalling, and why each one does. A word tapped for a gloss is a
+    #: word that was not known; a segment replayed is one that was not caught; a stop is
+    #: where somebody put the text down. targum-internal#127 names these three.
+    STALL_KINDS = ("lookup", "replay", "stop")
+
+    def stalls(self, document: str) -> list[dict[str, Any]]:
+        """Where readers stall in one text, by segment — targum-internal#127's read path.
+
+        In segment order, so it plots as the text reads rather than as a league table;
+        the counts are there for whoever wants to rank them.
+
+        **Aggregate, and of nobody.** It returns counts and a reader tally and never a
+        person or a day, which is the granularity the privacy notice describes (clause
+        3.7, aggregate records of use) rather than the per-reader log clause 3.6 covers.
+        `readers` is there because a segment ten people looked up is a hard word and a
+        segment one person looked up ten times is one person having a bad morning, and
+        the counts alone cannot tell those apart.
+
+        Keyed on the segment id, so a re-cut that keeps its ids keeps its history — the
+        same property translations and annotations already have.
+        """
+        marks = ", ".join(f"'{kind}'" for kind in self.STALL_KINDS)
+        found = self.db.execute(
+            "SELECT segment, "
+            "SUM(kind = 'lookup') AS lookups, "
+            "SUM(kind = 'replay') AS replays, "
+            "SUM(kind = 'stop') AS stops, "
+            "COUNT(DISTINCT person) AS readers "
+            f"FROM event WHERE document = ? AND segment <> '' AND kind IN ({marks}) "
+            "GROUP BY segment ORDER BY segment",
+            (document,),
+        ).fetchall()
+        return [
+            {
+                "segment": str(row["segment"]),
+                "lookups": int(row["lookups"] or 0),
+                "replays": int(row["replays"] or 0),
+                "stops": int(row["stops"] or 0),
+                "readers": int(row["readers"] or 0),
+            }
+            for row in found
+        ]
 
     #: How the conversation may address somebody in Hebrew: as a man, as a woman, or
     #: without choosing.
@@ -1300,6 +1955,27 @@ class Store:
         ).fetchone()
         return None if row is None else str(row["email"])
 
+    def waiting_language(self, token: str) -> str:
+        """The language behind a waitlist token, for the page and the mail it opens.
+
+        `join_waitlist` has recorded the door somebody came through since
+        targum-internal#292, and until 2026-09-22 only the invitation read it back — so
+        somebody who joined at the Russian front door was answered in English at every
+        step between joining and being invited (targum-internal#288).
+
+        Matched on either token, because one row has two: `confirm` is hashed like a
+        sign-in link, and `stop` is in the clear so it can be minted into a mail. A token
+        that is neither answers English rather than raising: these pages are followed out
+        of a mail client and have to draw for somebody who already pressed once.
+        """
+        if not token:
+            return "en"
+        row = self.db.execute(
+            "SELECT language FROM waiting WHERE confirm = ? OR stop = ?",
+            (digest(token), token),
+        ).fetchone()
+        return str(row["language"] or "en") if row is not None else "en"
+
     def confirm_waiting(self, token: str) -> str | None:
         """Spend a confirmation. Returns the address, or None if it was not one."""
         if not token:
@@ -1360,11 +2036,19 @@ class Store:
 
     # -- series (2026-09-11) ---------------------------------------------------------
 
-    def follow_series(self, email: str, series: str, on: bool = True) -> bool:
-        """Follow, or stop following, one series. Signed in, so nothing is confirmed."""
+    def follow_series(self, email: str, series: str, on: bool = True, language: str = "") -> bool:
+        """Follow, or stop following, one series. Signed in, so nothing is confirmed.
+
+        `language` is the one the reader was reading in when they pressed, kept so the
+        mail and the stop page can be in it (targum-internal#289). It is written on every
+        press rather than only the first, because a reader who changed language and
+        followed again means the new one; and it is never cleared on a stop, so somebody
+        who follows again after stopping keeps what they last said.
+        """
         address = tidy(email)
         if not address or not series:
             raise ValueError("No address or no series given.")
+        code = language.split("-")[0].lower() if language else ""
         with self.write() as db:
             if not on:
                 db.execute(
@@ -1374,11 +2058,20 @@ class Store:
                 return False
             db.execute(
                 """
-                INSERT INTO follow (email, series, state, stop, since)
-                VALUES (?, ?, 'on', ?, ?)
-                ON CONFLICT(email, series) DO UPDATE SET state = 'on', since = ?
+                INSERT INTO follow (email, series, state, stop, since, language)
+                VALUES (?, ?, 'on', ?, ?, ?)
+                ON CONFLICT(email, series)
+                    DO UPDATE SET state = 'on', since = ?, language = ?
                 """,
-                (address, series, secrets.token_urlsafe(TOKEN_BYTES), now(), now()),
+                (
+                    address,
+                    series,
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    now(),
+                    code,
+                    now(),
+                    code,
+                ),
             )
         return True
 
@@ -1389,18 +2082,30 @@ class Store:
         ).fetchall()
         return [str(row["series"]) for row in rows]
 
-    def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str]]:
-        """Everyone to mail about this instalment, with the token that stops it.
+    def followers(self, series: str, not_sent: str = "") -> list[tuple[str, str, str]]:
+        """Everyone to mail about this instalment, with the token that stops it and the
+        language they follow in.
 
         Selected on "has not had this one", as the weekly's are, so a run that died
         halfway resumes and one started twice sends nothing the second time.
         """
         rows = self.db.execute(
-            "SELECT email, stop FROM follow WHERE series = ? AND state = 'on' "
+            "SELECT email, stop, language FROM follow WHERE series = ? AND state = 'on' "
             "AND (? = '' OR instalment != ?) ORDER BY since",
             (series, not_sent, not_sent),
         ).fetchall()
-        return [(str(row["email"]), str(row["stop"])) for row in rows]
+        return [(str(row["email"]), str(row["stop"]), str(row["language"] or "en")) for row in rows]
+
+    def following_language(self, token: str) -> str:
+        """The language behind a stop token, for the page it opens.
+
+        A stop link is followed with no session and no account — that is the whole point
+        of it — so the token is the only thing the page has to go on.
+        """
+        if not token:
+            return "en"
+        row = self.db.execute("SELECT language FROM follow WHERE stop = ?", (token,)).fetchone()
+        return str(row["language"] or "en") if row is not None else "en"
 
     def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
         with self.write() as db:
@@ -1446,6 +2151,17 @@ class Store:
             (not_sent,),
         ).fetchall()
         return [(str(row["email"]), str(row["stop"])) for row in rows]
+
+    def subscribed(self) -> int:
+        """How many people this database could mail at all, whatever issue is being sent.
+
+        `subscribers` answers "who has not had this one", which is empty both when a run
+        has already finished and when there is nobody here to mail. Those are different
+        facts and one of them is a defect (targum-internal#346), so the mailout asks
+        this before calling an empty list a finished job.
+        """
+        row = self.db.execute("SELECT COUNT(*) AS n FROM subscriber WHERE state = 'on'").fetchone()
+        return int(row["n"])
 
     def mark_sent(self, email: str, issue_id: str) -> None:
         with self.write() as db:
@@ -1567,6 +2283,24 @@ class Store:
 
         return self._chosen(person_id, "reading", {code for code, _ in INTO}, "en")
 
+    def said_reading(self, person_id: int | None) -> bool:
+        """Whether this person has ever said what they read, in anybody's hand.
+
+        `reads` answers English for an account that has said nothing, which is the right
+        default and the wrong thing to ask twice about: the arrival asks a new reader
+        which language they read (2026-09-20), and "English because nobody asked" and
+        "English because they said so" have to be told apart. A row is a row whoever
+        wrote it — the profile page, the conversation's question, or the operator who
+        marked an invited address as a Russian reader before it ever signed in.
+        """
+        if not person_id:
+            return False
+        row = self.db.execute(
+            "SELECT 1 FROM chosen WHERE person = ? AND kind = 'reading' LIMIT 1",
+            (int(person_id),),
+        ).fetchone()
+        return row is not None
+
     def language(self, person_id: int | None) -> str:
         """The language this person is in right now: the one the switcher shows.
 
@@ -1633,6 +2367,53 @@ class Store:
                 [(person.id, kind, code, now()) for code in sorted(wanted)],
             )
         return wanted
+
+    def also_learning(self, person_id: int, language: str) -> bool:
+        """Add one language to what a person is learning, keeping the rest.
+
+        `choose` replaces a kind wholesale, which is what a form submitting a set wants
+        and the wrong shape for this: a reader who says, in Claude, that they would like
+        to practise French has said nothing about Hebrew, and a wholesale write would be
+        this deciding what they meant about a language they never mentioned.
+
+        **Written where something is already being kept, and nowhere else** (2026-09-23).
+        An account set to Hebrew alone refused the request outright — "ton compte Targum
+        est configuré pour l'hébreu seulement" — when asking to practise French in your
+        own words is the plainest way there is of saying what you are learning. Talking
+        is free and writes nothing; it is the first line the reader writes and has kept
+        that turns the language on, because that is the first moment anything of theirs
+        is recorded, and it happens under the one scope that says it records.
+
+        False when the language is already there or is not one targum offers to learn, so
+        a caller can tell a change from a no-op without reading the set back.
+        """
+        from .translate.prompts import READING
+
+        code = str(language or "").strip().lower()
+        if not person_id or code not in {offered for offered, _ in READING}:
+            return False
+        # What they are learning *now*, which for almost everybody is the default and not
+        # a row: `_chosen` answers a person with no rows with `{"he"}`. Inserting one row
+        # beside that would turn an implicit Hebrew into an explicit French and drop
+        # Hebrew on the way — silently, for every reader who never opened the picker,
+        # which is most of them. So the effective set is written down whole, the first
+        # time anything is added to it.
+        current = self.learning(person_id)
+        if code in current:
+            return False
+        held = {
+            str(row["language"])
+            for row in self.db.execute(
+                "SELECT language FROM chosen WHERE person = ? AND kind = 'learning'",
+                (int(person_id),),
+            )
+        }
+        with self.write() as db:
+            db.executemany(
+                "INSERT INTO chosen (person, kind, language, at) VALUES (?, 'learning', ?, ?)",
+                [(int(person_id), one, now()) for one in sorted((current | {code}) - held)],
+            )
+        return True
 
     def is_admin(self, email: str) -> bool:
         address = tidy(email)
@@ -1798,6 +2579,20 @@ class Store:
             db.execute("UPDATE person SET leaving = ? WHERE id = ?", (now(), person.id))
             db.execute("DELETE FROM session WHERE person = ?", (person.id,))
             db.execute("DELETE FROM link WHERE person = ?", (person.id,))
+            # And every connector. Signed out of everywhere has to mean everywhere, and
+            # a token left live would be a way into an account that has asked to end —
+            # from a client on somebody else's machine, which is worse than a cookie.
+            db.execute("DELETE FROM oauth_token WHERE person = ?", (person.id,))
+            db.execute("DELETE FROM oauth_grant WHERE person = ?", (person.id,))
+            # And what they wrote for it. Their words, so they go with them.
+            db.execute("DELETE FROM prompt WHERE person = ?", (person.id,))
+            # And the lists they kept. Their choices, so they go with them.
+            db.execute(
+                "DELETE FROM playlist_item WHERE playlist IN"
+                " (SELECT id FROM playlist WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
             # The weekly stops too. A subscription is deliberately not part of the
             # account — it outlives one, and that is the point of keeping it in its own
             # table — but somebody who asked to be forgotten did not mean "keep mailing
@@ -1831,9 +2626,19 @@ class Store:
                     "phrase",
                     "doc",
                     "day",
+                    # Which chapters they finished. Missing from this list until
+                    # 2026-09-20, so those rows outlived the account they belonged to;
+                    # found while adding the one below.
+                    "section",
+                    # And what they did in each text (targum-internal#127).
+                    "event",
                     "chosen",
                     "session",
                     "link",
+                    # What they got wrong is theirs too (targum-internal#290), and it is
+                    # the most personal row in the database: a record of a learner's own
+                    # mistakes, in their own sentences.
+                    "slip",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -1948,7 +2753,9 @@ class Store:
         Complete except for one deliberate omission. Sessions and sign-in links are
         credentials, not data — writing them into a file somebody downloads, mails to
         themselves and leaves in a downloads folder would be handing out live keys to
-        their own account. What is here is everything they wrote or caused.
+        their own account. What is here is everything they wrote or caused. The same
+        line divides a connector: *that* they connected Claude, with which scopes and
+        when, is a fact about them and is here; the token is a credential and is not.
 
         Everything the account keeps goes through `KINDS`, and this loops `KINDS` rather
         than naming tables, so a kind added tomorrow is exported tomorrow without anyone
@@ -1996,6 +2803,11 @@ class Store:
             ).fetchall()
             out[name] = [dict(row) for row in rows]
 
+        # What they got wrong, in their own sentences (targum-internal#290). The most
+        # personal rows in the database, so the first thing that had to be true of them
+        # is that somebody can take them away.
+        out["slips"] = self.slips(person.id, limit=100_000)
+
         # What they said to targum and what it said back. Theirs in the plainest sense.
         out["chats"] = [
             {
@@ -2017,6 +2829,16 @@ class Store:
                 " WHERE owner = ? AND kind = 'build' ORDER BY made DESC",
                 (person.id,),
             )
+        ]
+        # Which clients they connected, and what they let each one do. The digests stay
+        # out, for the reason at the top of this method.
+        out["connections"] = self.connections(person.id)
+        # And what they wrote for those clients to offer. Theirs in the plainest sense:
+        # they typed it.
+        out["prompts"] = self.prompts(person.id)
+        # And the lists they kept, each with what is in it.
+        out["playlists"] = [
+            self.playlist(person.id, int(one["id"])) for one in self.playlists(person.id)
         ]
         return out
 
@@ -2218,6 +3040,17 @@ class Store:
         ).fetchone()
         return dict(row) if row else None
 
+    def chat_said(self, chat_id: str, n: int) -> str:
+        """What was said on one turn, as it was said. Empty where there is no such turn.
+
+        `chat_turns` reads a whole conversation to answer this, which is the right shape
+        for drawing one and the wrong one for asking about a single line as it lands.
+        """
+        row = self.db.execute(
+            "SELECT said FROM chat_turn WHERE chat = ? AND n = ?", (chat_id, n)
+        ).fetchone()
+        return str(row["said"]) if row else ""
+
     def chat_turns(self, chat_id: str) -> list[dict[str, Any]]:
         """Every API message in a conversation, in order, content decoded."""
         rows = self.db.execute(
@@ -2338,6 +3171,107 @@ class Store:
 
     # --- corrections (targum-internal#164, door 1) ---------------------------------
 
+    def grant(self, person_id: int) -> None:
+        """Record that this reader accepted the contribution grant (#164, door 3).
+
+        The sentence lives in `CONTRIBUTING.md`; this records that they met it. It gates
+        the *control* and not the recording: a reader who has not accepted is never shown
+        a way to offer a correction, so there is nothing to refuse later.
+        """
+        with self.write() as db:
+            db.execute("UPDATE person SET granted = ? WHERE id = ?", (now(), person_id))
+
+    def has_granted(self, person_id: int) -> bool:
+        row = self.db.execute("SELECT granted FROM person WHERE id = ?", (person_id,)).fetchone()
+        return bool(row and int(row["granted"] or 0))
+
+    def propose_correction(self, **fields: Any) -> int:
+        """A reader's suggestion, which is a proposal and not yet a judgement.
+
+        Named apart from `propose`, which is the shelf's build proposal and a different
+        feature entirely. Written under `CONTRIBUTOR_GRANT` so the row carries the terms
+        it arrived under, as acceptance 2 asks — the licence is recorded at the moment of
+        the offer, because that is the one moment anybody knows which sentence was shown.
+        """
+        fields.setdefault("licence", CONTRIBUTOR_GRANT)
+        return self.correct(state="proposed", **fields)
+
+    def proposed_corrections(self, limit: int = 100) -> list[dict[str, Any]]:
+        """What readers have offered and nobody has settled, oldest first: a queue.
+
+        Named apart from `proposals`, which is the shelf's — the second time these two
+        features have wanted the same word, and the reason `propose_correction` is not
+        `propose` either.
+        """
+        rows = self.db.execute(
+            "SELECT * FROM correction WHERE state = 'proposed' ORDER BY at, id LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def settle_correction(self, correction_id: int, *, accept: bool, by: str = "author") -> int:
+        """Accept or refuse a reader's proposal, and write the decision down.
+
+        **Acceptance is itself a row** — this card's words. So the proposal keeps its own
+        row and gains a state, and a second row records who decided and which way. The
+        decision row is written `state = 'accepted'` or `'rejected'` too, so it is never
+        mistaken for an ordinary judgement and `agreed` counts only what was accepted.
+
+        Applying the change to the gloss is the caller's: this store does not know what a
+        gloss is, and the same decision may settle a lemma or a pointing later.
+        """
+        state = "accepted" if accept else "rejected"
+        with self.write() as db:
+            row = db.execute(
+                "SELECT * FROM correction WHERE id = ? AND state = 'proposed'", (correction_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"no proposal {correction_id}")
+            db.execute("UPDATE correction SET state = ? WHERE id = ?", (state, correction_id))
+        return self.correct(
+            str(row["stage"]),
+            who=by,
+            term=str(row["term"]),
+            language=str(row["language"]),
+            target=str(row["target"]),
+            text=str(row["text"]),
+            before=str(row["before"]),
+            after=str(row["after"]),
+            state=state,
+            licence="targum",
+            reason=f"{state} a reader's proposal",
+        )
+
+    def judge_for(self, person_id: int) -> str:
+        """One reader's pseudonym as a judge (targum-internal#164, David 2026-09-22).
+
+        `who` says what *kind* of judge made a correction; this says *which one*, without
+        saying who they are. It is the whole of what tells two readers agreeing from one
+        reader correcting the same word twice — and since most rows will be readers'
+        groundings, that is most of the gold set.
+
+        **The salt is minted once and never rotated**, which is a correction to how this
+        was first proposed. A rotating salt gives one person a different pseudonym in each
+        window, so two windows of one reader would read as two readers agreeing — it would
+        manufacture exactly the false corroboration the pseudonym exists to prevent.
+
+        The anonymity that matters here is against what *leaves*. The salt never goes out
+        with an export and is not derivable from one, so a pseudonym cannot be tied to a
+        person by anybody holding only the rows. Inside the store, where the person table
+        already lives, no pseudonym was ever going to hide anybody from the operator.
+        """
+        import hmac
+
+        with self.write() as db:
+            row = db.execute("SELECT salt FROM judging WHERE id = 1").fetchone()
+            if row is None:
+                salt = secrets.token_hex(32)
+                db.execute("INSERT INTO judging (id, salt) VALUES (1, ?)", (salt,))
+            else:
+                salt = str(row["salt"])
+        return hmac.new(
+            salt.encode("utf-8"), str(int(person_id)).encode("utf-8"), hashlib.sha256
+        ).hexdigest()[:16]
+
     def correct(
         self,
         stage: str,
@@ -2350,6 +3284,8 @@ class Store:
         span: str = "",
         before: str = "",
         after: str = "",
+        judge: str = "",
+        state: str = "",
         licence: str = "",
         context: str = "",
         reason: str = "",
@@ -2363,8 +3299,8 @@ class Store:
         with self.write() as db:
             cursor = db.execute(
                 "INSERT INTO correction (at, stage, language, target, term, text, span,"
-                " before, after, who, licence, context, reason)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " before, after, who, judge, state, licence, context, reason)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     now(),
                     stage,
@@ -2376,6 +3312,8 @@ class Store:
                     before,
                     after,
                     who,
+                    judge,
+                    state,
                     licence,
                     context[:500],
                     reason[:300],
@@ -2395,6 +3333,692 @@ class Store:
                 "SELECT * FROM correction ORDER BY at DESC, id DESC LIMIT ?", (limit,)
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def agreed(self, stage: str = "", least: int = 2) -> list[dict[str, Any]]:
+        """Judgements two different kinds of judge reached independently — the candidate
+        gold set of targum-internal#164, acceptance 4.
+
+        Three rules, each of which throws rows away on purpose:
+
+        **`model` is not a judge.** This card is "every *human* judgement about a word",
+        and a sense the model produced agreeing with itself is not corroboration.
+
+        **A deletion is not an answer.** `after = ''` says the old gloss was wrong and
+        offers nothing to stand instead, so it cannot be a gold example. Two judges
+        agreeing to delete is real signal and is a different question.
+
+        **One judge counts once, however many times they say it.** A judge is the
+        pseudonym where there is one (`judge_for`, since David's decision of 2026-09-22)
+        and the role where there is not — the author's own hand has no account behind it,
+        and rows written before the column existed have none either. So two groundings by
+        one reader are one judge, two readers agreeing are two, and the author agreeing
+        with a reader is two. Before the pseudonym this could only be counted by role,
+        which made the set correct but small: reader-corroborating-reader, which is most
+        of it, was uncountable.
+        """
+        # The judge, or the role standing in for one. `who` is never empty, so this is
+        # never null, and a role can never collide with a 16-hex-digit pseudonym.
+        judge = "CASE WHEN judge <> '' THEN judge ELSE who END"
+        # A proposal nobody has accepted is not a judgement yet, and one that was
+        # refused is a judgement that it was *wrong* — counting either would let a reader
+        # put an answer into the gold set by suggesting it, which is the whole thing
+        # "not a vote" is guarding against.
+        where = ["who <> 'model'", "after <> ''", "state IN ('', 'accepted')"]
+        values: list[Any] = []
+        if stage:
+            where.append("stage = ?")
+            values.append(stage)
+        values.append(least)
+        rows = self.db.execute(
+            "SELECT stage, language, target, term, span, after,"
+            f" COUNT(DISTINCT {judge}) AS judges, GROUP_CONCAT(DISTINCT who) AS roles,"
+            " COUNT(*) AS seen, MIN(at) AS first_at, MAX(at) AS last_at"
+            f" FROM correction WHERE {' AND '.join(where)}"
+            " GROUP BY stage, language, target, term, span, after"
+            f" HAVING COUNT(DISTINCT {judge}) >= ?"
+            " ORDER BY judges DESC, last_at DESC",
+            values,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    # --- slips: what the reader got wrong (targum-internal#290) --------------------
+
+    def slip(
+        self,
+        person_id: int,
+        *,
+        wrote: str,
+        recast: str,
+        changed: list[str],
+        language: str = "he",
+        chat: str = "",
+        turn: int = 0,
+        why: str = "",
+        source: str = "",
+    ) -> int:
+        """Write down one line that came back changed. Returns the row's id.
+
+        Only called where the diff is non-empty, so a correct line writes nothing: the
+        table is a record of mistakes and not a log of turns. Keyed to a person, unlike
+        `correct` above, because this is a fact about a learner and not about Hebrew.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "INSERT INTO slip (person, language, at, chat, turn, wrote, recast,"
+                " changed, why, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    person_id,
+                    language,
+                    now(),
+                    chat,
+                    turn,
+                    wrote,
+                    recast,
+                    json.dumps(changed, ensure_ascii=False),
+                    why,
+                    source,
+                ),
+            )
+            return int(cursor.lastrowid or 0)
+
+    def slips(
+        self,
+        person_id: int | None,
+        language: str = "",
+        limit: int = 50,
+        oldest: bool = False,
+        open_only: bool = False,
+    ) -> list[dict[str, Any]]:
+        """One person's slips. Newest first, or oldest for the queue.
+
+        Oldest first is what the queue wants, for the reason the word queue wants it
+        (targum-internal#103): the thing worth coming back to is what has been sitting
+        there longest, and it is the only order the record can honestly support.
+        `open_only` leaves out the lines the reader has said they know, which is what
+        the queue is and nothing else is: the record keeps them.
+        """
+        if person_id is None:
+            return []
+        order = "ASC" if oldest else "DESC"
+        where = "person = ? AND gone = 0"
+        if open_only:
+            where += " AND known = 0"
+        args: list[Any] = [person_id]
+        if language:
+            where += " AND language = ?"
+            args.append(language)
+        args.append(limit)
+        rows = self.db.execute(
+            f"SELECT id, language, at, chat, turn, wrote, recast, changed, why, known, source"
+            f" FROM slip"
+            f" WHERE {where} ORDER BY at {order}, id {order} LIMIT ?",
+            args,
+        ).fetchall()
+        out = []
+        for row in rows:
+            got = dict(row)
+            try:
+                got["changed"] = json.loads(got["changed"] or "[]")
+            except json.JSONDecodeError:
+                got["changed"] = []
+            out.append(got)
+        return out
+
+    def know_slip(self, person_id: int, slip_id: int, known: bool = True) -> bool:
+        """Say a reader knows a line they once got wrong, or take it back.
+
+        Only their own: the id is matched with the person, so another reader's slip is
+        not found rather than changed. Returns whether a row was.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE slip SET known = ? WHERE id = ? AND person = ? AND gone = 0",
+                (now() if known else 0, slip_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    # --- what a reader wrote for their own connector (targum-internal#80) ----------
+
+    def write_prompt(self, person_id: int, name: str, says: str) -> dict[str, Any] | None:
+        """Save a prompt under a name, replacing one of the same name. None if refused.
+
+        The name is what appears in their host, so it is narrowed to what a host will
+        show as one word and what a slash command can be: a name with a space in it reads
+        as two commands in every client that draws them.
+        """
+        name = _prompt_name(name)
+        says = says.strip()[:PROMPT_LENGTH]
+        if not name or not says:
+            return None
+        with self.write() as db:
+            standing = db.execute(
+                "SELECT COUNT(*) AS n FROM prompt WHERE person = ? AND gone = 0 AND name != ?",
+                (person_id, name),
+            ).fetchone()
+            if int(standing["n"]) >= MOST_PROMPTS:
+                return None
+            db.execute(
+                "INSERT INTO prompt (person, name, says, made) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(person, name) DO UPDATE SET"
+                "   says = excluded.says, made = excluded.made, gone = 0",
+                (person_id, name, says, now()),
+            )
+            row = db.execute(
+                "SELECT id, name, says, made FROM prompt WHERE person = ? AND name = ?",
+                (person_id, name),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def prompts(self, person_id: int | None) -> list[dict[str, Any]]:
+        """One reader's own prompts, oldest first — the order they wrote them in."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT id, name, says, made FROM prompt WHERE person = ? AND gone = 0"
+            " ORDER BY made, id",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def drop_prompt(self, person_id: int, name: str) -> bool:
+        """Take one away. A tombstone, like everything else a reader keeps."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE prompt SET gone = ? WHERE person = ? AND name = ? AND gone = 0",
+                (now(), person_id, _prompt_name(name)),
+            )
+            return cursor.rowcount > 0
+
+    # --- playlists: texts a reader keeps in an order (targum-internal#364) -----------
+
+    def make_playlist(
+        self, person_id: int, name: str, made_by: str = "reader"
+    ) -> dict[str, Any] | None:
+        """A new, empty playlist. None if it has no name or they already keep the most."""
+        name = " ".join(name.split())[:PLAYLIST_NAME]
+        if not name or made_by not in PLAYLIST_MAKERS:
+            return None
+        with self.write() as db:
+            standing = db.execute(
+                "SELECT COUNT(*) AS n FROM playlist WHERE person = ? AND gone = 0",
+                (person_id,),
+            ).fetchone()
+            if int(standing["n"]) >= MOST_PLAYLISTS:
+                return None
+            cursor = db.execute(
+                "INSERT INTO playlist (person, name, made_by, made) VALUES (?, ?, ?, ?)",
+                (person_id, name, made_by, now()),
+            )
+            made = int(cursor.lastrowid or 0)
+        return self.playlist(person_id, made)
+
+    def playlists(self, person_id: int | None) -> list[dict[str, Any]]:
+        """One reader's playlists, newest first, each with how many texts it holds and
+        the reader its first built text opens, where there is one."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT p.id, p.name, p.made_by, p.made,"
+            " (SELECT COUNT(*) FROM playlist_item i WHERE i.playlist = p.id) AS count,"
+            " (SELECT i.reader FROM playlist_item i WHERE i.playlist = p.id"
+            "   AND i.reader IS NOT NULL AND i.failed = 0 ORDER BY i.position LIMIT 1) AS first"
+            " FROM playlist p WHERE p.person = ? AND p.gone = 0 ORDER BY p.made DESC, p.id DESC",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def playlists_holding(self, person_id: int | None) -> dict[str, list[str]]:
+        """Which of one reader's playlists hold each text, by reader name: what a shelf
+        row names on its fact line (design.md §12, 2026-09-24). One query for the shelf."""
+        if person_id is None:
+            return {}
+        rows = self.db.execute(
+            "SELECT i.reader, p.name FROM playlist_item i JOIN playlist p ON p.id = i.playlist"
+            " WHERE p.person = ? AND p.gone = 0 AND i.reader IS NOT NULL"
+            " ORDER BY p.made, p.id",
+            (person_id,),
+        ).fetchall()
+        holding: dict[str, list[str]] = {}
+        for row in rows:
+            names = holding.setdefault(str(row["reader"]), [])
+            if row["name"] not in names:
+                names.append(str(row["name"]))
+        return holding
+
+    def playlist(self, person_id: int | None, playlist_id: int) -> dict[str, Any] | None:
+        """One playlist and everything in it, in order. None if it is not theirs — the
+        same answer as one that does not exist, deliberately."""
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT id, name, made_by, made FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+            (playlist_id, person_id),
+        ).fetchone()
+        if row is None:
+            return None
+        items = self.db.execute(
+            "SELECT position, reader, job, title, failed FROM playlist_item"
+            " WHERE playlist = ? ORDER BY position",
+            (playlist_id,),
+        ).fetchall()
+        out = dict(row)
+        out["items"] = [{**dict(item), "failed": bool(item["failed"])} for item in items]
+        return out
+
+    def next_set(self, person_id: int, playlist_id: int) -> int | None:
+        """The set this playlist offered at its end: a playlist id, 0 when one was looked
+        for and none could be made, or None when its end has not been reached yet."""
+        row = self.db.execute(
+            "SELECT next_set FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+            (playlist_id, person_id),
+        ).fetchone()
+        return None if row is None or row["next_set"] is None else int(row["next_set"])
+
+    def offer_next_set(self, person_id: int, playlist_id: int, next_id: int) -> bool:
+        """Remember the one set a playlist's end offered, once. False when it had one
+        already — the first writer keeps it, so two visits at once cannot offer two."""
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE playlist SET next_set = ? WHERE id = ? AND person = ? AND gone = 0"
+                " AND next_set IS NULL",
+                (next_id, playlist_id, person_id),
+            )
+        return done.rowcount > 0
+
+    def add_to_playlist(
+        self,
+        person_id: int,
+        playlist_id: int,
+        title: str,
+        reader: str | None = None,
+        job: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Put a text at the end of a playlist. None if the playlist is not theirs, is
+        full, or was given nothing to hold. A text already in it is not added twice: the
+        item already there comes back."""
+        title = " ".join(title.split())[:200] or (reader or "")
+        if not (reader or job) or not title:
+            return None
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT 1 FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return None
+            if reader:
+                there = db.execute(
+                    "SELECT position, reader, job, title, failed FROM playlist_item"
+                    " WHERE playlist = ? AND reader = ?",
+                    (playlist_id, reader),
+                ).fetchone()
+                if there is not None:
+                    return {**dict(there), "failed": bool(there["failed"])}
+            count = int(
+                db.execute(
+                    "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ?", (playlist_id,)
+                ).fetchone()["n"]
+            )
+            if count >= MOST_IN_PLAYLIST:
+                return None
+            db.execute(
+                "INSERT INTO playlist_item (playlist, position, reader, job, title)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (playlist_id, count, reader, job, title),
+            )
+        return {"position": count, "reader": reader, "job": job, "title": title, "failed": False}
+
+    def move_in_playlist(self, person_id: int, playlist_id: int, position: int, by: int) -> bool:
+        """Move one text up (-1) or down (+1) a place. False if there is no such place."""
+        if by not in (-1, 1):
+            return False
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT 1 FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            other = position + by
+            both = db.execute(
+                "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ? AND position IN (?, ?)",
+                (playlist_id, position, other),
+            ).fetchone()
+            if int(both["n"]) != 2:
+                return False
+            # Through -1, because the key is (playlist, position) and a swap in place
+            # would collide halfway.
+            for old, new in ((position, -1), (other, position), (-1, other)):
+                db.execute(
+                    "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
+                    (new, playlist_id, old),
+                )
+        return True
+
+    def drop_from_playlist(self, person_id: int, playlist_id: int, position: int) -> bool:
+        """Take one text out, closing the gap it leaves."""
+        with self.write() as db:
+            owned = db.execute(
+                "SELECT 1 FROM playlist WHERE id = ? AND person = ? AND gone = 0",
+                (playlist_id, person_id),
+            ).fetchone()
+            if owned is None:
+                return False
+            cursor = db.execute(
+                "DELETE FROM playlist_item WHERE playlist = ? AND position = ?",
+                (playlist_id, position),
+            )
+            if cursor.rowcount == 0:
+                return False
+            later = db.execute(
+                "SELECT position FROM playlist_item WHERE playlist = ? AND position > ?"
+                " ORDER BY position",
+                (playlist_id, position),
+            ).fetchall()
+            for row in later:
+                db.execute(
+                    "UPDATE playlist_item SET position = ? WHERE playlist = ? AND position = ?",
+                    (int(row["position"]) - 1, playlist_id, int(row["position"])),
+                )
+        return True
+
+    def rename_playlist(self, person_id: int, playlist_id: int, name: str) -> bool:
+        name = " ".join(name.split())[:PLAYLIST_NAME]
+        if not name:
+            return False
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET name = ? WHERE id = ? AND person = ? AND gone = 0",
+                (name, playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    def drop_playlist(self, person_id: int, playlist_id: int) -> bool:
+        """Take a playlist away. A tombstone; the texts in it stay on the shelf."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist SET gone = ? WHERE id = ? AND person = ? AND gone = 0",
+                (now(), playlist_id, person_id),
+            )
+            return cursor.rowcount > 0
+
+    def playlist_item_built(self, job: str, reader: str) -> int:
+        """A build a playlist was waiting on has its reader now (#365). Every item
+        naming that job takes it; how many did."""
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE playlist_item SET reader = ?, failed = 0 WHERE job = ?", (reader, job)
+            )
+            return cursor.rowcount
+
+    def playlist_item_failed(self, job: str) -> int:
+        """A build a playlist was waiting on could not be made (#365). The swipe passes
+        over it (#366); the others stand."""
+        with self.write() as db:
+            cursor = db.execute("UPDATE playlist_item SET failed = 1 WHERE job = ?", (job,))
+            return cursor.rowcount
+
+    # --- the connector: clients, grants and tokens (targum-internal#80) -------------
+
+    def register_client(self, name: str, redirects: list[str]) -> str:
+        """Take a client's word for what it is, and give it an id (RFC 7591).
+
+        Dynamic registration means strangers write this row, so nothing in it is trusted.
+        The name is the client's claim about itself and is shown to the reader as one;
+        the redirect list is the only part that has to be right, and it is checked by
+        exact match at both the authorize and the token door.
+        """
+        client_id = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO oauth_client (id, name, redirects, made) VALUES (?, ?, ?, ?)",
+                (client_id, name.strip()[:200], json.dumps(redirects[:16]), now()),
+            )
+        return client_id
+
+    def registering_too_often(self, limit: int = REGISTRATIONS_PER_HOUR) -> bool:
+        """Whether the box has handed out too many client ids in the last hour.
+
+        Keyed on nothing, because there is nothing to key it on: a client registering
+        itself has no account and no name we would believe. So this counts the act, over
+        the same `asked` table and the same hour the sign-in door uses.
+        """
+        return self.asking_too_often("oauth-register", limit)
+
+    def client(self, client_id: str) -> dict[str, Any] | None:
+        """One registered client, with its redirects already parsed."""
+        if not client_id:
+            return None
+        row = self.db.execute(
+            "SELECT id, name, redirects, made FROM oauth_client WHERE id = ?", (client_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        got = dict(row)
+        try:
+            got["redirects"] = json.loads(got["redirects"] or "[]")
+        except json.JSONDecodeError:
+            got["redirects"] = []
+        return got
+
+    def start_grant(
+        self,
+        person_id: int,
+        client_id: str,
+        *,
+        scopes: str,
+        redirect: str,
+        challenge: str,
+        resource: str = "",
+    ) -> str:
+        """Mint an authorization code for a reader who has just pressed Approve.
+
+        The code is returned once and held as a digest, like a sign-in link. What it
+        carries is what the reader agreed to — the scopes are written here, from the
+        approval page, and never read back off anything the client sends later.
+        """
+        code = secrets.token_urlsafe(TOKEN_BYTES)
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO oauth_grant (hash, person, client, scopes, redirect,"
+                " challenge, resource, made) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    digest(code),
+                    person_id,
+                    client_id,
+                    scopes,
+                    redirect,
+                    challenge,
+                    resource,
+                    now(),
+                ),
+            )
+        return code
+
+    def spend_grant(self, code: str, minutes: int = GRANT_MINUTES) -> dict[str, Any] | None:
+        """Spend a code, once. None if it is spent, stale, or not a code.
+
+        Marked rather than deleted: a replayed code should be recognisable as replayed.
+        Whoever calls this must check the PKCE verifier against `challenge` and the
+        client and redirect against what was stored — this only guarantees the code was
+        fresh and is now gone.
+
+        The cutoff is inclusive, so a lifetime of zero refuses everything rather than
+        accepting whatever was minted inside the same millisecond. It reads as a detail
+        and it is the difference between a test that pins the boundary and one that
+        passes whenever the clock happens to tick.
+        """
+        if not code:
+            return None
+        cutoff = now() - minutes * 60 * 1000
+        with self.write() as db:
+            row = db.execute(
+                "SELECT hash, person, client, scopes, redirect, challenge, resource,"
+                " made, spent FROM oauth_grant WHERE hash = ?",
+                (digest(code),),
+            ).fetchone()
+            if row is None or row["spent"] or row["made"] <= cutoff:
+                return None
+            db.execute("UPDATE oauth_grant SET spent = ? WHERE hash = ?", (now(), digest(code)))
+            return dict(row)
+
+    def mint_token(
+        self,
+        person_id: int,
+        client_id: str,
+        *,
+        kind: str = "access",
+        scopes: str,
+        resource: str = "",
+        parent: str = "",
+        minutes: int = ACCESS_MINUTES,
+    ) -> str:
+        """Write one token and hand it back. It exists in the clear only in the reply."""
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        expires = 0 if kind == "refresh" else now() + minutes * 60 * 1000
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO oauth_token (hash, person, client, kind, scopes, resource,"
+                " parent, made, expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    digest(token),
+                    person_id,
+                    client_id,
+                    kind,
+                    scopes,
+                    resource,
+                    parent,
+                    now(),
+                    expires,
+                ),
+            )
+        return token
+
+    def bearer(self, token: str | None) -> tuple[Person, str] | None:
+        """Who is holding this access token, and what they let it do.
+
+        The scopes come off the row, never off the request: that is the same rule
+        `chat/tools.py` states about ownership, and it is what makes the registry safe to
+        expose to a client targum does not control. An account that is leaving is nobody,
+        the way it is nobody to `whoever`.
+
+        Touches `seen`, at most once a minute, so the account page can say when a
+        connector last asked. That is the only thing it decides.
+        """
+        if not token:
+            return None
+        row = self.db.execute(
+            "SELECT oauth_token.person AS id, oauth_token.scopes AS scopes,"
+            " oauth_token.expires AS expires, oauth_token.revoked AS revoked,"
+            " oauth_token.seen AS seen, person.email AS email, person.leaving AS leaving"
+            " FROM oauth_token JOIN person ON person.id = oauth_token.person"
+            " WHERE oauth_token.hash = ? AND oauth_token.kind = 'access'",
+            (digest(token),),
+        ).fetchone()
+        if row is None or row["revoked"] or row["leaving"] is not None:
+            return None
+        if row["expires"] and row["expires"] < now():
+            return None
+        if now() - row["seen"] > 60_000:
+            with self.write() as db:
+                db.execute("UPDATE oauth_token SET seen = ? WHERE hash = ?", (now(), digest(token)))
+        return Person(row["id"], row["email"], self.is_admin(row["email"])), row["scopes"]
+
+    def rotate_refresh(self, token: str) -> dict[str, Any] | None:
+        """Spend a refresh token and say what it was for, so a new pair can be written.
+
+        Rotation, not reuse: the old row is revoked here and the caller chains the new one
+        to it through `parent`. A refresh token presented twice is a token that leaked.
+
+        **And a leaked one takes the whole family down.** Refusing the second use alone
+        would leave whatever was minted from the first still working, which is the wrong
+        half to keep: by the time a rotated token is presented again, one of the two
+        holding it is not the reader, and nothing here can say which. So every token this
+        client holds for this person is revoked, both kinds, and the reader connects
+        again — one press in the app it came from, against an account nobody else is
+        still inside.
+        """
+        if not token:
+            return None
+        with self.write() as db:
+            row = db.execute(
+                "SELECT hash, person, client, scopes, resource, revoked FROM oauth_token"
+                " WHERE hash = ? AND kind = 'refresh'",
+                (digest(token),),
+            ).fetchone()
+            if row is None:
+                return None
+            if row["revoked"]:
+                db.execute(
+                    "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
+                    " AND revoked = 0",
+                    (now(), row["person"], row["client"]),
+                )
+                return None
+            db.execute("UPDATE oauth_token SET revoked = ? WHERE hash = ?", (now(), digest(token)))
+            return dict(row)
+
+    def revoke_token(self, token: str) -> bool:
+        """Revoke one token by its value, whichever kind it is (RFC 7009)."""
+        if not token:
+            return False
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE oauth_token SET revoked = ? WHERE hash = ? AND revoked = 0",
+                (now(), digest(token)),
+            )
+            return cursor.rowcount > 0
+
+    def disconnect(self, person_id: int, client_id: str) -> int:
+        """Revoke everything one client holds for one person — the account page's press.
+
+        Both kinds at once: revoking the access token and leaving the refresh token would
+        be a disconnection that reconnects itself within the hour.
+        """
+        with self.write() as db:
+            cursor = db.execute(
+                "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
+                " AND revoked = 0",
+                (now(), person_id, client_id),
+            )
+            return cursor.rowcount
+
+    def connections(self, person_id: int | None) -> list[dict[str, Any]]:
+        """Which clients this person has connected, and what each may do.
+
+        One row per client rather than per token, because a client holding an access
+        token and the refresh token that will replace it is one connection and reads as
+        two. Never the digests: see `everything`.
+        """
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT oauth_token.client AS client, oauth_client.name AS name,"
+            " MAX(oauth_token.scopes) AS scopes, MIN(oauth_token.made) AS made,"
+            " MAX(oauth_token.seen) AS seen"
+            " FROM oauth_token LEFT JOIN oauth_client ON oauth_client.id = oauth_token.client"
+            " WHERE oauth_token.person = ? AND oauth_token.revoked = 0"
+            " GROUP BY oauth_token.client ORDER BY made DESC",
+            (person_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def sweep_tokens(self, days: int = TOKEN_SWEEP_DAYS) -> int:
+        """Drop rows nothing can use any more: spent grants and long-dead tokens.
+
+        Kept for a while rather than deleted on expiry, so that "this token expired" and
+        "this token never existed" stay different answers for as long as they are useful
+        to tell apart.
+        """
+        cutoff = now() - days * 24 * 60 * 60 * 1000
+        with self.write() as db:
+            gone = db.execute("DELETE FROM oauth_grant WHERE made < ?", (cutoff,)).rowcount
+            gone += db.execute(
+                "DELETE FROM oauth_token WHERE (revoked > 0 AND revoked < ?)"
+                " OR (expires > 0 AND expires < ?)",
+                (cutoff, cutoff),
+            ).rowcount
+            return gone
 
     def want(self, query: str, source: str, standing: str = "") -> None:
         """Count one ask the shelf could not answer. Keyed on the words and the link,
@@ -2455,6 +4079,23 @@ class Store:
             (limit,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    # -- what the services have left ---------------------------------------------
+
+    def balance_read(self, service: str, said: str) -> None:
+        """Record what a service's console said was left, as of now."""
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO balance (service, said, at) VALUES (?, ?, ?)",
+                (service, said, now()),
+            )
+
+    def balances(self) -> dict[str, dict[str, Any]]:
+        """The newest reading for each service, by service."""
+        rows = self.db.execute(
+            "SELECT service, said, MAX(at) AS at FROM balance GROUP BY service"
+        ).fetchall()
+        return {str(row["service"]): {"said": row["said"], "at": row["at"]} for row in rows}
 
     # -- housekeeping -----------------------------------------------------------
 
@@ -2668,6 +4309,57 @@ class Store:
                 "UPDATE job SET claimed = ?, length = ? WHERE id = ?", (amount, length, job_id)
             )
             return ""
+
+    def claim_all(
+        self,
+        claims: list[tuple[str, float, float]],
+        ceiling: float,
+        since: int,
+        *,
+        owner: int | None = None,
+        per_account: float | None = None,
+        month_from: int | None = None,
+        per_month_length: float | None = None,
+    ) -> tuple[str, float]:
+        """Claim a set of builds together, or none of them (#365, design.md §12).
+
+        `claims` is `(job id, amount, length)` for each, and the rails are `claim`'s,
+        checked against the set's totals in one transaction: one press takes the whole
+        set, so the reader is never left holding half of what the page quoted. Returns
+        which rail refused, or "", and — where the monthly seconds refused — how many
+        seconds were left, so the page can say how many credits would fit.
+        """
+        amount = sum(one[1] for one in claims)
+        length = sum(one[2] for one in claims)
+        with self.write() as db:
+            if per_account is not None:
+                mine = db.execute(
+                    "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                    "WHERE claimed > 0 AND made >= ? AND owner IS ?",
+                    (since, owner),
+                ).fetchone()
+                if float(mine["spent"]) + amount > per_account:
+                    return "account", 0.0
+            if per_month_length is not None and month_from is not None and length > 0:
+                used = db.execute(
+                    "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+                    "WHERE length > 0 AND made >= ? AND owner IS ?",
+                    (month_from, owner),
+                ).fetchone()
+                if float(used["used"]) + length > per_month_length:
+                    return "hours", max(0.0, per_month_length - float(used["used"]))
+            row = db.execute(
+                "SELECT COALESCE(SUM(claimed), 0) AS spent FROM job "
+                "WHERE claimed > 0 AND made >= ?",
+                (since,),
+            ).fetchone()
+            if float(row["spent"]) + amount > ceiling:
+                return "everyone", 0.0
+            for job_id, each, seconds in claims:
+                db.execute(
+                    "UPDATE job SET claimed = ?, length = ? WHERE id = ?", (each, seconds, job_id)
+                )
+            return "", 0.0
 
     def settle(
         self,

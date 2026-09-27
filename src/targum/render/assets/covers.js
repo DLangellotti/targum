@@ -39,12 +39,19 @@
     // `drawn: false` is the server saying outright that no picture exists. Asking
     // anyway bought nothing but a 404 in the console on every page that showed the
     // tile; the letter is the resting state, not the error.
+    // Known now to stay a letter, so a layout can size it as one without waiting to see
+    // whether a picture arrives (targum-internal#375).
+    if (!source || settings.drawn === false) box.classList.add("is-letter");
     if (source && settings.drawn !== false) {
       var image = new Image();
       image.onload = function () {
         box.textContent = "";
         image.alt = "";
         box.appendChild(image);
+      };
+      // A picture that never came is a letter after all.
+      image.onerror = function () {
+        box.classList.add("is-letter");
       };
       image.src = source;
     }

@@ -12,9 +12,7 @@ body.words {
      One hue, monotone, four steps, the end nearest the surface clear of it — all as
      before. The hue is what changed: gold on warm paper made every chart on the page
      read brown, and §4 gives "known" to leaf by name, so leaf is what the scale climbs
-     towards. Mixed against --paper rather than named per theme: both --leaf and --paper
-     flip, so one definition now serves the light surface and the dark one, and "known"
-     is the most present step on each. */
+     towards. Mixed against --paper, so "known" is the most present step on it. */
   --step-1: color-mix(in srgb, var(--leaf) 32%, var(--paper));
   --step-2: color-mix(in srgb, var(--leaf) 55%, var(--paper));
   --step-3: color-mix(in srgb, var(--leaf) 78%, var(--paper));
@@ -22,20 +20,6 @@ body.words {
   --off: #c3bdb1;
   --grid: #e7e1d6;
   --axis: #cfc7ba;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .words {
-    --off: #4a453e;
-    --grid: #2a2622;
-    --axis: #3a3530;
-  }
-}
-
-:root[data-theme="dark"] .words {
-    --off: #4a453e;
-    --grid: #2a2622;
-    --axis: #3a3530;
 }
 
 /* --- page furniture ------------------------------------------------------- */
@@ -483,16 +467,21 @@ table.rows tr.editor-row td { padding: 0; border: 0; }
 /* The checklist: the same rows, the check leading, the head kept for its check-all and
    set quiet; the two presses on a glass strip that stays at the foot while the list
    scrolls under it. */
+/* A word and what it means are read as a pair, so they stand together: the word's
+   column is the width of a word, and the list keeps a reading measure. With the two
+   sharing the row evenly, on a wide window the word was at one edge of a 1400px card and
+   its meaning 600px along — fifty rows of looking across and losing the line. */
+table.rows.claim-table { max-inline-size: 44rem; }
 table.rows.claim-table thead { display: block; }
 table.rows.claim-table thead tr {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto 7rem minmax(0, 1fr) auto;
   column-gap: 0.9rem;
   padding: 0.3rem 0.8rem 0.5rem;
 }
 table.rows.claim-table thead th { border: 0; padding: 0; }
 table.rows.claim-table tbody tr {
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: auto 7rem minmax(0, 1fr) auto;
   grid-template-areas: none;
 }
 table.rows.claim-table tbody td { grid-area: auto; }
@@ -503,6 +492,7 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
   position: sticky;
   inset-block-end: 0.75rem;
   z-index: 2;
+  max-inline-size: 44rem;
   padding: 0.6rem 0.8rem;
   border-radius: 999px;
   background: var(--glass);
@@ -516,7 +506,9 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
     grid-template-areas: "term when" "lemma status" "meaning band";
   }
   table.rows.claim-table tbody tr,
-  table.rows.claim-table thead tr { grid-template-columns: auto auto minmax(0, 1fr); }
+  /* A set width for the word, not `auto`: each row is a grid of its own, so `auto` gave
+     every row its own second column and the meanings began wherever the word ended. */
+  table.rows.claim-table thead tr { grid-template-columns: auto 4.5rem minmax(0, 1fr); }
   table.rows.claim-table td:nth-child(4), table.rows.claim-table th:nth-child(4) { display: none; }
 }
 /* On a phone the strip keeps clear of the pill at the foot of the window. */
@@ -525,3 +517,175 @@ table.rows.claim-table tbody td:nth-child(4) { font-size: 0.875rem; color: var(-
 }
 /* Labels in normal case (2026-09-11). */
 table.rows th, .list-controls .section-sub { text-transform: none; letter-spacing: 0; font-size: 0.8125rem; }
+
+/* --- what to work on (targum-internal#103) --------------------------------------------
+   The fold at the top of Your Words: the words flagged and never come back to, oldest
+   first. A list of rows rather than a table — there are three things to say about a word
+   here and six in the table below, and a second grid of the same columns would read as
+   the same list twice.
+
+   Nothing about it counts, ranks or is due. The heading is a question answered and there
+   is no number beside it: "What to work on", never "12 words due". */
+.work-rows { list-style: none; margin: 0; padding: 0; }
+.work-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0.2rem;
+  border-block-end: 1px solid var(--hairline);
+}
+.work-row:last-child { border-block-end: 0; }
+.work-said { display: flex; align-items: baseline; gap: 0.4rem; min-inline-size: 0; }
+/* The word in the reading face, at reading size: it is the thing on the page that is
+   being learned, and the rest of the row is about it. */
+.work-said .term { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.work-lemma { font-family: var(--reading-hebrew); font-size: 0.9375rem; color: var(--ink-soft); }
+.work-meaning { flex: 1 1 10rem; min-inline-size: 0; color: var(--ink-soft); font-size: 0.9375rem; }
+/* The reader's own words, marked the way they are marked in the table. */
+.work-meaning.mine { color: var(--ink); }
+.work-keys { margin-inline-start: auto; display: flex; gap: 0.3rem; flex: none; }
+.work-keys button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  color: var(--ink-soft);
+}
+/* Both write to the ledger now, so the difference is not doing something against doing
+   nothing — it is forward against back. §9 gives a working action the accent, and going
+   up the ramp is the working action: known carries the primary, and stepping a word
+   back down is the quieter of the two and looks it. */
+.work-keys .work-known { background: var(--teal-wash); color: var(--teal); font-weight: 600; }
+.work-keys .work-known:hover { background: var(--teal); color: var(--teal-ink); }
+.work-keys .work-still:hover { color: var(--ink); }
+.work-keys button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .work-keys button { min-height: 44px; }
+}
+
+/* The door out of the fold, at its foot. Quiet and to one end: it is an offer, not the
+   thing the fold is for, and a full-width button under twenty rows would read as the
+   next step in a flow rather than as somewhere else the reader may go. */
+.work-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; margin: 0.9rem 0 0; }
+.work-foot[hidden] { display: none; }
+.work-foot button {
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: none;
+  color: var(--ink-soft);
+}
+.work-foot button:hover { border-color: var(--teal); color: var(--teal); }
+/* Turn the fold over (targum-internal#336): a ghost beside the door, the circling arrow
+   and its word (§7: a glyph says what it does, and carries its word). It says nothing
+   about how much is behind it — "12 more" is how a queue starts chasing. */
+.work-foot .work-more { display: inline-flex; align-items: center; gap: 0.4rem; border-color: transparent; }
+.work-foot .work-more[hidden] { display: none; }
+.work-foot .work-more svg { flex: none; }
+.work-foot button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .work-foot button { min-height: 44px; }
+}
+
+/* Lines that came back changed (targum-internal#290), in the same fold as the words. */
+.work-heading {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.rewrote-row { display: block; }
+/* In the fold a corrected line is a row to work on, with the two answers at its end like
+   any other: the sentence takes the room and wraps before the keys do. */
+.work-slip { align-items: center; }
+.work-slip .rewrote-said { flex: 1 1 16rem; min-inline-size: 0; }
+/* The Phrases and Words tabs sit between the heading and the rows (2026-09-18). The
+   pills are the Library's own (`library.css`), so a tab looks like a tab everywhere. */
+.work-tabs { margin-block: 0.2rem 0.6rem; }
+.work-tabs[hidden] { display: none; }
+/* Against one edge, whichever edge the text begins at: the group carries the slip's own
+   direction and the lines align to it. */
+.rewrote-said { display: flex; flex-direction: column; gap: 0.15rem; align-items: stretch; }
+.rewrote-said > * { text-align: start; }
+/* What they wrote, quieted: it is the thing being corrected, not the thing to read. */
+.rewrote-wrote {
+  font-family: var(--reading-hebrew);
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+}
+.rewrote-recast { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+/* The words the reader did not write. A `mark`, so it is a difference to a screen reader
+   and not only to an eye; leaf, because §4 gives green to what is right. Not a background
+   wash — it would sit behind pointed Hebrew and eat the points. */
+.rewrote-changed {
+  background: none;
+  color: var(--leaf);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* The model's own sentence about it, which is the only thing it says about a mistake. */
+.rewrote-why { font-size: 0.8125rem; color: var(--ink-soft); }
+/* Isolated with its own direction so its punctuation stays put, the reason is still
+   placed against the edge its sentence starts at. `start` read its own `dir="auto"` and
+   put an English reason at the far left of a right-to-left row, away from the Hebrew it
+   is about — wide in the fold, where the row carries its two answers (2026-09-18). */
+.rewrote-said[dir="rtl"] > .rewrote-why { text-align: right; }
+
+/* --- a row's card (2026-09-18) ------------------------------------------------------
+   Every list on these pages opens a word, a phrase or a corrected line as a card. It is
+   the reader's `.gloss-card` (reader.css), placed under the row on a desk and standing
+   at the foot as a sheet on a phone, with the desk's radius for a floating panel. */
+.opens { cursor: pointer; }
+.work-row.opens:hover, table.rows tr.opens:hover { background: var(--teal-wash); }
+.opens:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.list-card {
+  z-index: 40;
+  min-inline-size: min(18rem, calc(100vw - 2rem));
+  padding: 0.9rem 2.6rem 1rem 1.1rem;
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-floating);
+}
+.list-card.sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  max-width: none;
+  width: auto;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding-block-end: max(1rem, env(safe-area-inset-bottom));
+}
+.list-card-close {
+  position: absolute;
+  inset-block-start: 0.5rem;
+  inset-inline-end: 0.5rem;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.list-card-close:hover { background: var(--teal-wash); color: var(--teal); }
+.list-card-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+@media (hover: none) and (pointer: coarse) {
+  .list-card-close { inline-size: 44px; block-size: 44px; }
+}
+
+/* §8 under a thumb (2026-09-27): the box is 17px, so its word is the 44px press, as its
+   label, and the box itself grows a little. */
+@media (hover: none) and (pointer: coarse) {
+  .claim-table label { display: flex; align-items: center; min-block-size: 44px; }
+  .claim-table label.claim-all-reach { justify-content: center; min-inline-size: 44px; }
+  .claim-check { inline-size: 1.5rem; block-size: 1.5rem; }
+}

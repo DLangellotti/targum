@@ -44,6 +44,49 @@ irrevocably, including the one you contributed to.
 If that trade is not one you want to make, please open an issue instead of a pull
 request. A described bug is a real contribution and it costs you nothing.
 
+
+## Correcting a meaning, and what that grants
+
+Decided 2026-09-22 (targum-internal#164). This is the sentence a reader agrees to, once,
+before targum offers them a way to say that a word's meaning is wrong.
+
+A correction is a judgement about Hebrew: this word, in this sentence, means that. It is
+the one thing no model and no general reading app has, and it is worth saying plainly
+what happens to it rather than letting somebody find out later.
+
+By offering a correction you grant David Langellotti a perpetual, worldwide,
+non-exclusive, royalty-free, irrevocable licence to use, reproduce, modify, distribute
+and **sublicense** that correction, for any purpose, including a commercial one and
+including training a model.
+
+**You keep your copyright and every other right in it.** The grant is a licence and not
+an assignment: you may use your own correction anywhere you like, for anything, for ever.
+Nothing here is exclusive.
+
+**Why a licence rather than the public domain.** CC0 would be cleaner for a corpus and it
+was the first proposal on that card. It was not taken, because the corrections are the
+part of targum that is genuinely its own, and placing them in the public domain gives
+them away to everyone including whoever would otherwise pay for them. A licence keeps
+them targum's to decide about, and keeps them yours as well.
+
+**What is recorded with it.** The word, the sentence you saw it in, what the meaning said
+before and what it says after, and which text you were reading. Not your name and not
+your account: corrections are stored under a *role* — reader, editor, author — beside a
+pseudonym that distinguishes one judge from another without identifying either. The
+pseudonym cannot be turned back into an account without a secret that never leaves the
+server, and it is not derivable from anything published.
+
+**It outlives your account, and that is the point of the grant.** Corrections are not
+personal data about you; they are evidence about a language, and a corpus that emptied
+whenever somebody left would not be a corpus. When an account closes, the account and
+everything personal in it goes — and the link between you and the pseudonym goes with it,
+so what remains cannot be traced back. The Data Retention Schedule says this too.
+
+**If you would rather not.** Then do not accept the grant. targum will not show you the
+correction control, and nothing else about the product changes: you can read, mark words,
+ask about a line and look up a meaning exactly as before. A reader who never corrects
+anything is not a lesser reader.
+
 > This page is written by a working developer, not a lawyer, and it has not been
 > reviewed by one. If your employer's policy turns on the exact wording, ask them
 > before you sign off.

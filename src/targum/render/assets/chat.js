@@ -351,8 +351,9 @@
   // של ספר" was two runs, and an English line put the halves in the wrong order.
   var HEBREW = /[֐-׿][֐-׿\s.,:;!?()"'״׳־׀׃–0-9-]*[֐-׿]|[֐-׿]/g;
   // A path the server returned, standing on its own. Nothing else becomes a link.
-  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+)/g;
-  var ONLY_PATH = /^\/(?:reader|library)\/\S+$/;
+  // A set a model quoted (#365) is a door too, to the page where it is pressed.
+  var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+)/g;
+  var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+)$/;
 
   // A path is drawn as a door: the model can say where a text is, and only the reader
   // opens it (design.md §9: the door-opening action is the ink call to action). The
@@ -361,6 +362,10 @@
     var a = document.createElement("a");
     a.className = "chat-door";
     a.href = keyed(path);
+    if (/^\/set\/\d+$/.test(path)) {
+      a.appendChild(document.createTextNode(t("chat.open-set", "See the set")));
+      return a;
+    }
     var name = path;
     try {
       name = decodeURIComponent(path);
@@ -579,6 +584,11 @@
   // was sent, and the reader is left to open from the card or the strip.
   var bring = document.getElementById("chat-bring");
   var file = document.getElementById("chat-file");
+  //: The last film this conversation could not fetch. A reel Instagram refused, or a
+  //: TikTok, downloaded by the reader and dropped into the `+` next, is still that
+  //: film: the link goes up with the file and the page links home to the post
+  //: (targum-internal#331). Forgotten when the reader types a line instead.
+  var cameFrom = "";
   var heldList = document.getElementById("chat-held");
   var held = [];
   function showHeld() {
@@ -625,8 +635,10 @@
     var line = li.querySelector(".chat-line");
     line.textContent = t("chat.uploading", "Thanks. We're uploading it…");
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
+    var from = cameFrom;
+    cameFrom = "";
     return bringing
-      .bring(chosen, { to: into }, function (share) {
+      .bring(chosen, { to: into, cameFrom: from }, function (share) {
         line.textContent = t("chat.uploading-share", "Thanks. We're uploading it… {share}%", { share: share });
       })
       .then(function (job) {
@@ -704,6 +716,9 @@
       return;
     }
     if (!text) return;
+    // A line typed instead of the file is starting over: a video dropped after it is
+    // not the refused link's.
+    cameFrom = "";
     // Kept in the box while an answer is still coming, or while the conversation cannot
     // answer: the line used to be cleared first and then dropped without a word
     // (2026-09-14).
@@ -1115,6 +1130,13 @@
         wantedJob = "";
       }
       if (current) return;
+      // A line handed over from another page starts a conversation of its own
+      // (2026-09-18): the reader came to use those words, not to add them to whatever
+      // they were last talking about. So nothing is opened, and Send makes a new one.
+      if (handedOver) {
+        if (empty) empty.hidden = false;
+        return;
+      }
       var job = wantedJob;
       // Consumed once: `load` runs again when a first line makes a conversation.
       if (job) writeHash(wanted ? "#" + encodeURIComponent(wanted) : "");
@@ -1469,6 +1491,7 @@
       givingUp = true;
       if (source) source.close();
       ask("/chat/turn/" + encodeURIComponent(chat) + "/" + n).then(function (state) {
+        if (state && state.refused) cameFrom = state.refused;
         if (state && state.done && !state.error) {
           if (state.words) words = state.words;
           return finish("done", { text: state.text || text });
@@ -1542,6 +1565,16 @@
         heardNow();
         quoteCard(li, JSON.parse(event.data || "{}"));
       });
+      source.addEventListener("refused", function (event) {
+        // A film we could not fetch. Remembered, not said: the model's own sentence is
+        // the answer, and this is only what the next dropped file needs.
+        heardNow();
+        try {
+          cameFrom = String(JSON.parse(event.data || "{}").url || "");
+        } catch (e) {
+          cameFrom = "";
+        }
+      });
       source.addEventListener("words", function (event) {
         heardNow();
         // The lines read as a text is read: drawn again with their words marked.
@@ -1579,6 +1612,7 @@
         (state.quotes || []).forEach(function (job) {
           if (!li.querySelector('[data-job="' + job.id + '"]')) quoteCard(li, job);
         });
+        if (state.refused) cameFrom = state.refused;
         if (state.done) return finish("done", { text: text });
         setTimeout(poll, 800);
       });
@@ -1622,6 +1656,41 @@
   // all that visit. The page itself works either way — it authenticates server-side with
   // `TARGUM_KEY` — which is why nothing looked wrong (targum-internal#232).
   if (window.TargumSync) window.TargumSync.start();
+
+  /* A line handed over by another page — today only What to work on
+     (targum-internal#103), which sends a reader here with their stuck words named, and
+     into a new conversation rather than the last one (2026-09-18).
+
+     **In the box, and not sent.** The page that wrote it did not press Send and cannot:
+     a turn spends, and what spends is the reader's own press. So this fills the field,
+     grows it to fit and puts the cursor at the end, and then waits like any other line
+     somebody typed. They may edit it, they may send it, they may clear it.
+
+     Read once and deleted, so a back button or a second visit does not refill the box
+     with a line the reader already dealt with. */
+  //: Whether this load was handed a line, which makes it a new conversation.
+  var handedOver = false;
+  try {
+    var handed = localStorage.getItem("targum:say");
+    if (handed) {
+      localStorage.removeItem("targum:say");
+      handedOver = true;
+      remember("");
+      /* Never over something already in the box. The template renders the field
+         empty, so this looks like it can never fire — but Firefox restores what was
+         typed into a textarea when the reader comes back with the back button, and
+         that restored line is theirs. Not covered by a test: the harness has no way
+         to put a value in the field before the script reads it. */
+      if (!field.value) {
+        field.value = handed;
+        grow();
+        field.focus();
+        if (field.setSelectionRange) field.setSelectionRange(handed.length, handed.length);
+      }
+    }
+  } catch (whatever) {
+    // No storage, no handoff. The conversation is the same conversation.
+  }
 
   //: The first load, which a line said from the parent page waits for.
   var booted = load();

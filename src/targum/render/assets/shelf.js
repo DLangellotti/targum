@@ -99,8 +99,20 @@
     var mine = readers.filter(function (reader) {
       return base(reader.language) === code;
     });
+    var going = building(settings.building).filter(function (job) {
+      return base(job.language) === code;
+    });
+    going.forEach(function (job) {
+      list.appendChild(buildingRow(job));
+    });
+    if (!mine.length && going.length) {
+      note.textContent = settings.note || "";
+      return;
+    }
     if (!mine.length) {
-      note.textContent = readers.length
+      note.textContent = settings.empty
+        ? settings.empty
+        : readers.length
         ? t("shelf.empty.language", "Nothing in {language} yet.", { language: named(code) })
         : t("shelf.empty", "Nothing here yet. We'll keep the texts you open here.");
       return;
@@ -115,77 +127,465 @@
       more.textContent = t("shelf.see-all", "See all {n} →", { n: mine.length });
     }
 
+    var docs = stored("targum:docs");
     shown.forEach(function (reader) {
-      var item = document.createElement("li");
-      var link = document.createElement("a");
-      link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
-
-      // A drawn cover where there is one, and the text's own first letter where there
-      // is not — which is most of them. Covers are drawn for the library's own texts, so
-      // a news article somebody pasted in this morning will never have one, and a shelf
-      // of empty frames would be worse than a shelf of letters.
-      link.appendChild(
-        window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
-          title: reader.title,
-          language: reader.language,
-          drawn: reader.drawn,
-        })
-      );
-
-      // One cell for the title and, under it, its English where the catalogue has one.
-      // The link lays its children out as the row's own grid cells, so the two share a
-      // wrapper rather than taking a column each; an upload has no English and the
-      // wrapper holds the Hebrew alone.
-      var what = document.createElement("span");
-      what.className = "book-what";
-      var title = document.createElement("bdi");
-      title.setAttribute("lang", reader.language || "und");
-      title.className = "book-title";
-      title.textContent = reader.title;
-      what.appendChild(title);
-      if (reader.english) {
-        var english = document.createElement("span");
-        english.className = "book-english";
-        english.setAttribute("lang", "en");
-        english.setAttribute("dir", "ltr");
-        english.textContent = reader.english;
-        what.appendChild(english);
-      }
-      link.appendChild(what);
-
-      // A column each, rather than one line of facts separated by dots. "25 of 36" is
-      // the whole of what paying by the chapter looks like from here, and it belongs
-      // under a heading that says so.
-      var bought = document.createElement("span");
-      bought.className = "cell count";
-      // "4 of 4" is a fraction with nothing left to say.
-      bought.textContent = reader.chapters && reader.chapters.length
-        ? reader.readyChapters === reader.chapters.length
-          ? tn("shelf.chapters", reader.chapters.length, "{n} chapter", "{n} chapters")
-          : t("shelf.chapters-translated", "{done} of {total} translated", {
-              done: reader.readyChapters,
-              total: reader.chapters.length,
-            })
-        : reader.sections > 1
-          ? tn("shelf.parts", reader.sections, "{n} part", "{n} parts")
-          : "—";
-      link.appendChild(bought);
-
-      var when = document.createElement("span");
-      when.className = "cell when";
-      when.textContent = reader.opened ? ago(reader.opened) : t("shelf.not-opened", "not opened yet");
-      link.appendChild(when);
-
-      item.appendChild(link);
-
-      var controls = document.createElement("span");
-      controls.className = "row-controls";
-      if (reader.chapters && reader.chapters.length) controls.appendChild(opener(reader, item));
-      controls.appendChild(binButton(reader, item));
-      item.appendChild(controls);
-      list.appendChild(item);
+      list.appendChild(reader.members ? seriesRow(reader, docs, settings.onSeries) : row(reader, docs));
     });
     if (head) head.hidden = false;
+  }
+
+
+  /* --- what is being built (design.md §12, "Yours and everyone's", 2026-09-25) --------
+   *
+   * A build is a row at the top of Your targums from the moment it starts. It was a card
+   * under the Library's Your uploads, which made the Library the one place that could
+   * say "everything of yours is here" while Your targums said the same thing and lacked
+   * it; and the wait page sent a reader to Your targums to find it.
+   *
+   * Neither a link nor a button: there is nothing to open yet and nothing to buy again.
+   * It says the title, how far the build has got, and Building, and it is replaced by
+   * the ordinary row when the build is done. `/jobs` is what the bell polls, so the two
+   * cannot disagree about what is happening. */
+  function building(jobs) {
+    return (jobs || []).filter(function (job) {
+      return job.stage !== "done" && !job.error && job.title;
+    });
+  }
+
+  /* The pipeline narrates itself in its own words; these three are the reader's, the
+     same keys the Library's row uses for its own build. Anything else it says — "Fetching
+     the recording…" — is already a sentence and is said as it came. */
+  function plain(message) {
+    var words = {
+      "Finding each word's dictionary form…": t("library.build.words", "We're reading the words…"),
+      "Adding vowel points…": t("library.build.points", "We're adding vowel points…"),
+      "Building the reader…": t("library.build.page", "We're setting the page…"),
+    };
+    return words[message] || message;
+  }
+
+  function buildingRow(job) {
+    var item = document.createElement("li");
+    item.className = "is-building";
+    // Said aloud when it changes, because a reader watching this is waiting on it.
+    item.setAttribute("role", "status");
+    var box = document.createElement("span");
+    box.className = "building";
+    box.appendChild(
+      window.TargumCovers.tile("", { title: job.title, language: job.language, drawn: false })
+    );
+
+    var what = document.createElement("span");
+    what.className = "book-what";
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", job.language || "und");
+    title.className = "book-title";
+    title.textContent = job.title;
+    what.appendChild(title);
+    if (job.english) {
+      var english = document.createElement("span");
+      english.className = "book-english";
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      english.textContent = job.english;
+      what.appendChild(english);
+    }
+    var line = document.createElement("span");
+    line.className = "book-facts";
+    var said = [];
+    if (job.behind) {
+      said.push(
+        tn("shelf.building.behind", job.behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+      );
+    } else if (job.message) {
+      said.push(plain(job.message));
+    }
+    if (job.total > 1) {
+      said.push(t("shelf.building.share", "{n}% done", { n: Math.floor((job.done / job.total) * 100) }));
+    }
+    said.forEach(function (fact) {
+      var bit = document.createElement("span");
+      bit.className = "fact";
+      bit.textContent = fact;
+      line.appendChild(bit);
+    });
+    // The status again, for a phone, where the pill beside the row folds away.
+    var folded = document.createElement("span");
+    folded.className = "fact fact-status is-building";
+    folded.textContent = t("shelf.status.building", "Building");
+    line.appendChild(folded);
+    what.appendChild(line);
+    box.appendChild(what);
+
+    var pill = document.createElement("span");
+    pill.className = "row-status is-building";
+    pill.textContent = t("shelf.status.building", "Building");
+    box.appendChild(pill);
+    item.appendChild(box);
+    // The controls' column, empty: nothing on a build can be pressed.
+    var controls = document.createElement("span");
+    controls.className = "row-controls";
+    item.appendChild(controls);
+    return item;
+  }
+
+  function stored(name) {
+    try {
+      return JSON.parse(localStorage.getItem(name) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /* --- one row: what a text is at a glance (design.md §12, 2026-09-24) ----------------
+   *
+   * The picture; the title with its English under it; one line of facts (length, level,
+   * how much of it the reader knows, when it came, the playlists it is in); its status;
+   * and Add to playlist with a ⋯ for the rest. A phone keeps the picture and the title,
+   * wraps the facts under them, folds the status into the facts and keeps two keys. */
+  function row(reader, docs) {
+    var item = document.createElement("li");
+    /* The link is the title, and its `::after` stretches over the row, so the whole row
+       is still the press. It wrapped the picture, the words and the status with
+       `display: contents`, which let the row's grid lay them out and left the link with
+       no box: Tab went past every text on the shelf and none could be opened from a
+       keyboard (2026-09-27). */
+    var link = document.createElement("a");
+    link.className = "book-open";
+    link.href = keyed("/reader/" + encodeURIComponent(reader.name) + "/reader/index.html");
+    item.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(reader.entry || reader.name)), {
+        title: reader.title,
+        language: reader.language,
+        drawn: reader.drawn,
+      })
+    );
+
+    var what = document.createElement("span");
+    what.className = "book-what";
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", reader.language || "und");
+    title.className = "book-title";
+    // Inside a series its name is said once, above the rows, and each row says the rest.
+    title.textContent = reader.shownTitle || reader.title;
+    link.appendChild(title);
+    what.appendChild(link);
+    if (reader.english) {
+      var english = document.createElement("span");
+      english.className = "book-english";
+      english.setAttribute("lang", "en");
+      english.setAttribute("dir", "ltr");
+      english.textContent = reader.english;
+      what.appendChild(english);
+    }
+    var state = status(reader, docs);
+    what.appendChild(facts(reader, state));
+    item.appendChild(what);
+
+    var pill = document.createElement("span");
+    pill.className = "row-status is-" + state.kind;
+    if (state.kind === "finished") pill.appendChild(checkMark());
+    pill.appendChild(document.createTextNode(state.said));
+    item.appendChild(pill);
+
+    var controls = document.createElement("span");
+    controls.className = "row-controls";
+    if (!reader.shared) controls.appendChild(listLink(reader));
+    controls.appendChild(more(reader, item));
+    item.appendChild(controls);
+    return item;
+  }
+
+  /* --- a series, folded (design.md §12, "Your targums has tabs", 2026-09-26) ----------
+   *
+   * Two or more texts whose titles share a stem before an episode marker are one row: the
+   * stem, how many there are and how many are finished, over a picture with a stack drawn
+   * behind it. Not a link: pressing it shows those texts alone, which `yours.js` does,
+   * because only the page knows what else it is showing. */
+  function seriesRow(group, docs, onOpen) {
+    var item = document.createElement("li");
+    item.className = "is-series";
+    // The title is the press and stretches over the row, as a text's link does (`row`).
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = "series-press";
+    var newest = group.members.reduce(function (best, one) {
+      return (one.built || 0) > (best.built || 0) ? one : best;
+    }, group.members[0]);
+    var stack = document.createElement("span");
+    stack.className = "series-stack";
+    stack.appendChild(
+      window.TargumCovers.tile(keyed("/thumb/" + encodeURIComponent(newest.entry || newest.name)), {
+        title: group.title,
+        language: group.language,
+        drawn: newest.drawn,
+      })
+    );
+    item.appendChild(stack);
+
+    var what = document.createElement("span");
+    what.className = "book-what";
+    var title = document.createElement("bdi");
+    title.setAttribute("lang", group.language || "und");
+    title.className = "book-title";
+    title.textContent = group.title;
+    press.appendChild(title);
+    what.appendChild(press);
+
+    var finished = 0;
+    var begun = 0;
+    group.members.forEach(function (one) {
+      var state = status(one, docs);
+      if (state.kind === "finished") finished += 1;
+      else if (state.kind === "reading") begun += 1;
+    });
+    var total = group.members.length;
+    var state =
+      finished === total
+        ? { kind: "finished", said: t("shelf.status.finished", "Finished") }
+        : finished
+          ? { kind: "reading", said: t("shelf.status.parts", "{done} of {total}", { done: finished, total: total }) }
+          : begun
+            ? { kind: "reading", said: t("shelf.status.started", "Started") }
+            : { kind: "new", said: t("shelf.status.new", "New") };
+
+    var line = document.createElement("span");
+    line.className = "book-facts";
+    var said = [tn("shelf.series.count", total, "{n} episode", "{n} episodes")];
+    var opened = group.members.reduce(function (most, one) {
+      return Math.max(most, one.opened || 0);
+    }, 0);
+    if (opened) said.push(t("shelf.opened", "Opened {when}", { when: ago(opened) }));
+    said.forEach(function (fact) {
+      var bit = document.createElement("span");
+      bit.className = "fact";
+      bit.textContent = fact;
+      line.appendChild(bit);
+    });
+    var folded = document.createElement("span");
+    folded.className = "fact fact-status is-" + state.kind;
+    folded.textContent = state.said;
+    line.appendChild(folded);
+    what.appendChild(line);
+    item.appendChild(what);
+
+    var pill = document.createElement("span");
+    pill.className = "row-status is-" + state.kind;
+    if (state.kind === "finished") pill.appendChild(checkMark());
+    pill.appendChild(document.createTextNode(state.said));
+    item.appendChild(pill);
+    press.onclick = function () {
+      if (onOpen) onOpen(group);
+    };
+
+    // The controls' column holds the way in, so the row reads as something that opens.
+    var controls = document.createElement("span");
+    controls.className = "row-controls";
+    var chevron = document.createElement("span");
+    chevron.className = "series-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = "›";
+    controls.appendChild(chevron);
+    item.appendChild(controls);
+    return item;
+  }
+
+  // A check in leaf, the mark Recently read already gives a text read through.
+  function checkMark() {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", "M3.5 8.5l3 3 6-7");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function facts(reader, state) {
+    var line = document.createElement("span");
+    line.className = "book-facts";
+    var said = [];
+    var length = lengthOf(reader);
+    if (length) said.push(length);
+    var level = levelOf(reader.level);
+    if (level) said.push(level);
+    if (typeof reader.known === "number" && reader.words) {
+      said.push(t("shelf.known", "You know {share}%", { share: Math.round(reader.known * 100) }));
+    }
+    if (reader.chapters && reader.chapters.length && reader.readyChapters < reader.chapters.length) {
+      said.push(
+        t("shelf.chapters-translated", "{done} of {total} translated", {
+          done: reader.readyChapters,
+          total: reader.chapters.length,
+        })
+      );
+    }
+    // When it came, for a text the reader brought; when they last had it open, for one
+    // from the library, which came to everybody at once.
+    if (!reader.entry && reader.built) {
+      said.push(t("shelf.added", "Added {when}", { when: ago(reader.built * 1000) }));
+    } else if (reader.opened) {
+      said.push(t("shelf.opened", "Opened {when}", { when: ago(reader.opened) }));
+    }
+    if (reader.playlists && reader.playlists.length) {
+      said.push(t("shelf.in-playlists", "In {names}", { names: reader.playlists.join(", ") }));
+    }
+    said.forEach(function (fact) {
+      var bit = document.createElement("span");
+      bit.className = "fact";
+      bit.textContent = fact;
+      line.appendChild(bit);
+
+    });
+    // The status again, for a phone, where the pill beside the row folds away.
+    var folded = document.createElement("span");
+    folded.className = "fact fact-status is-" + state.kind;
+    folded.textContent = state.said;
+    line.appendChild(folded);
+    return line;
+  }
+
+  function lengthOf(reader) {
+    if (reader.seconds > 0) {
+      var minutes = Math.max(1, Math.round(reader.seconds / 60));
+      return reader.video
+        ? t("shelf.length.video", "{n} min video", { n: minutes })
+        : t("shelf.length.audio", "{n} min audio", { n: minutes });
+    }
+    return reader.minutes ? t("shelf.length.read", "{n} min read", { n: reader.minutes }) : "";
+  }
+
+  var RUNGS = {
+    aleph: "Aleph",
+    "aleph plus": "Aleph+",
+    bet: "Bet",
+    "bet plus": "Bet+",
+    gimel: "Gimel",
+    dalet: "Dalet",
+    hey: "Hey",
+    vav: "Vav",
+  };
+
+  // The rung the text needs, never the reader's (design.md §12, 2026-09-24).
+  function levelOf(level) {
+    if (!level || !level.name) return "";
+    var english = RUNGS[level.name];
+    if (!english) return level.cefr || level.name;
+    var name = t("shelf.rung." + level.name.replace(/ /g, "-"), english);
+    return level.cefr ? name + " · " + level.cefr : name;
+  }
+
+  /* New, a part count while reading, or Finished: read off what the reader's own pages
+   * recorded (`targum:docs`), the same record Learn's progress reads. */
+  function status(reader, docs) {
+    var record = (reader.document && docs[reader.document]) || null;
+    var total = (reader.chapters && reader.chapters.length) || reader.sections || 1;
+    var done = 0;
+    if (record && record.sections && typeof record.sections === "object") {
+      Object.keys(record.sections).forEach(function (part) {
+        if (record.sections[part]) done += 1;
+      });
+    }
+    if ((record && record.done) || done >= total) {
+      return { kind: "finished", said: t("shelf.status.finished", "Finished") };
+    }
+    if (done > 0) {
+      return {
+        kind: "reading",
+        said: t("shelf.status.parts", "{done} of {total}", { done: done, total: total }),
+      };
+    }
+    if (reader.opened) return { kind: "reading", said: t("shelf.status.started", "Started") };
+    return { kind: "new", said: t("shelf.status.new", "New") };
+  }
+
+  /* ⋯: the rest of what a row can do, in a small menu, so the row keeps one press of its
+   * own. Chapters for a book, and Delete. */
+  var openMenu = null;
+
+  function more(reader, item) {
+    var press = document.createElement("button");
+    press.type = "button";
+    press.className = "row-more";
+    press.setAttribute("aria-haspopup", "menu");
+    press.setAttribute("aria-expanded", "false");
+    press.setAttribute("aria-label", t("shelf.more", "More for {title}", { title: reader.title }));
+    press.textContent = "⋯";
+    press.onclick = function (event) {
+      event.stopPropagation();
+      if (openMenu && openMenu.press === press) {
+        closeMenu();
+        return;
+      }
+      closeMenu();
+      var menu = document.createElement("div");
+      menu.className = "row-menu";
+      menu.setAttribute("role", "menu");
+      if (reader.chapters && reader.chapters.length) {
+        var chapters = opener(reader, item);
+        chapters.setAttribute("role", "menuitem");
+        chapters.addEventListener("click", closeMenu);
+        menu.appendChild(chapters);
+      }
+      if (!reader.shared) {
+        var bin = binButton(reader, item);
+        bin.setAttribute("role", "menuitem");
+        bin.addEventListener("click", function () {
+          setTimeout(closeMenu, 0);
+        });
+        menu.appendChild(bin);
+      }
+      if (!menu.childNodes.length) return;
+      document.body.appendChild(menu);
+      place(menu, press);
+      press.setAttribute("aria-expanded", "true");
+      openMenu = { press: press, menu: menu };
+      document.addEventListener("click", outsideMenu, true);
+      document.addEventListener("keydown", escapeMenu, true);
+      window.addEventListener("scroll", closeMenu, true);
+      window.addEventListener("resize", closeMenu);
+      var first = menu.querySelector("button");
+      if (first) first.focus();
+    };
+    return press;
+  }
+
+  function place(menu, press) {
+    var at = press.getBoundingClientRect();
+    var gutter = 8;
+    var width = menu.offsetWidth;
+    var rtl = getComputedStyle(press).direction === "rtl";
+    var left = rtl ? at.left : at.right - width;
+    left = Math.max(gutter, Math.min(left, window.innerWidth - width - gutter));
+    var top = at.bottom + 6;
+    if (top + menu.offsetHeight > window.innerHeight - gutter) top = Math.max(gutter, at.top - 6 - menu.offsetHeight);
+    menu.style.left = left + "px";
+    menu.style.top = top + "px";
+  }
+
+  function closeMenu() {
+    if (!openMenu) return;
+    var press = openMenu.press;
+    openMenu.menu.remove();
+    press.setAttribute("aria-expanded", "false");
+    openMenu = null;
+    document.removeEventListener("click", outsideMenu, true);
+    document.removeEventListener("keydown", escapeMenu, true);
+    window.removeEventListener("scroll", closeMenu, true);
+    window.removeEventListener("resize", closeMenu);
+    if (document.body.contains(press)) press.focus();
+  }
+
+  function outsideMenu(event) {
+    if (openMenu && !openMenu.menu.contains(event.target) && event.target !== openMenu.press) closeMenu();
+  }
+
+  function escapeMenu(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu();
+    }
   }
 
   /* A book is one row that opens, not twenty rows.
@@ -286,6 +686,37 @@
     }, 1500);
   }
 
+  /* Into a playlist (targum-internal#364). A link rather than a sheet of its own: the
+   * sheet is `/playlists?add=`, the one a reader's ⋯ menu opens too, so there is one
+   * place that chooses a playlist and it cannot drift into two. */
+  function listLink(reader) {
+    var link = document.createElement("a");
+    link.className = "add-to-list";
+    link.href = keyed(
+      "/playlists?add=" + encodeURIComponent(reader.name) + "&title=" + encodeURIComponent(reader.title || reader.name)
+    );
+    // The words at a desk; on a phone the + alone, with the words still there for a
+    // screen reader.
+    var glyph = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    glyph.setAttribute("class", "add-glyph");
+    glyph.setAttribute("viewBox", "0 0 16 16");
+    glyph.setAttribute("aria-hidden", "true");
+    glyph.setAttribute("focusable", "false");
+    var plus = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    plus.setAttribute("d", "M8 3.5v9M3.5 8h9");
+    glyph.appendChild(plus);
+    link.appendChild(glyph);
+    var words = document.createElement("span");
+    words.className = "add-word";
+    words.textContent = t("shelf.add-to-playlist", "Add to playlist");
+    link.appendChild(words);
+    // A menu in place where the script is here (2026-09-24); the page where it is not.
+    if (window.TargumPlaylistMenu) {
+      window.TargumPlaylistMenu.attach(link, { name: reader.name, title: reader.title || reader.name }, key);
+    }
+    return link;
+  }
+
   /* Throwing one away and getting it back.
    *
    * No confirmation step: the trash is the confirmation, and a dialog asking "are you
@@ -376,7 +807,7 @@
       var back = document.createElement("button");
       back.type = "button";
       back.className = "restore";
-      back.textContent = t("shelf.put-back", "Put back");
+      back.textContent = t("shelf.put-back", "Restore");
       back.onclick = function () {
         back.disabled = true;
         post("/restore", { name: reader.name }).then(reload, function () {
@@ -396,6 +827,10 @@
 
   window.TargumShelf = {
     draw: drawShelf,
+    building: building,
+    status: function (reader) {
+      return status(reader, stored("targum:docs"));
+    },
     trash: drawTrash,
     ago: ago,
     base: base,
