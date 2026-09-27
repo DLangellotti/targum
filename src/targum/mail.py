@@ -22,16 +22,21 @@ from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid, parseaddr
 from typing import Protocol, TextIO
 
 from .strings import text
 
-# Plain text, no HTML, no tracking pixel, no logo. It is a link and a sentence; anything
-# more is a thing to maintain and a reason to land in a spam folder. The words live in the
-# string catalogue (`strings/en.json`) so the email can be sent in the language the person
-# reads (targum-internal#186); these two are the English, kept for what reads them here.
+# Every mail is plain text and the same words drawn as HTML, sent as multipart/alternative
+# (design.md §12, "Mail is drawn, and fetches nothing", 2026-09-27). It was plain text only
+# until then. The HTML carries no image, no remote stylesheet or font, no pixel and no
+# redirecting link; `letters.py` composes both halves from one list of blocks. The subject
+# is the English, kept for what reads it here.
 SUBJECT = text("mail.sign_in.subject")
-BODY = text("mail.sign_in.body")
+
+#: Who a mail is from when nothing says otherwise, and where a reply goes. A reply is
+#: asked for in the invitation, so the address has to be one somebody reads.
+SENDER = "targum <hello@targum.page>"
 
 
 class Mailer(Protocol):
@@ -40,10 +45,16 @@ class Mailer(Protocol):
         ...
 
     def notify(
-        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        headers: Mapping[str, str] | None = None,
+        html: str | None = None,
     ) -> None:
-        """A plain message that is not a sign-in link: a build that finished while
-        the reader was away, or the week's issue. Same delivery, same plain text.
+        """A message that is not a sign-in link: a build that finished while the reader
+        was away, or the week's issue. `body` is the plain text, always sent; `html` is
+        the same words drawn, sent beside it as the alternative where given.
 
         `headers` exists for one thing — RFC 8058's `List-Unsubscribe` pair, which is
         what lets a mail client offer its own unsubscribe button. Without it a reader
@@ -74,8 +85,14 @@ class ConsoleMailer:
         out.flush()
 
     def notify(
-        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        headers: Mapping[str, str] | None = None,
+        html: str | None = None,
     ) -> None:
+        # The console is read in a terminal: the text half is the whole of it.
         out = self.stream if self.stream is not None else sys.stdout
         out.write(f"\n  To {to} — {subject}\n  {body.strip()}\n\n")
         out.flush()
@@ -89,7 +106,9 @@ class SmtpMailer:
     port: int
     user: str
     password: str
-    sender: str
+    sender: str = SENDER
+    #: Where a reply goes. Empty means the sender's own address.
+    reply_to: str = ""
 
     #: The connection a mailout is holding open, if one is. Not a constructor argument:
     #: it is the state of a `session()`, and outside one this is None and every message
@@ -97,16 +116,20 @@ class SmtpMailer:
     _open: smtplib.SMTP | None = field(default=None, repr=False)
 
     def send(self, to: str, link: str, language: str = "en") -> None:
-        self._deliver(
-            to,
-            text("mail.sign_in.subject", language),
-            text("mail.sign_in.body", language, link=link),
-        )
+        from .letters import sign_in
+
+        letter = sign_in(link, language)
+        self._deliver(to, letter.subject, letter.text, letter.headers, letter.html)
 
     def notify(
-        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        headers: Mapping[str, str] | None = None,
+        html: str | None = None,
     ) -> None:
-        self._deliver(to, subject, body, headers)
+        self._deliver(to, subject, body, headers, html)
 
     @contextmanager
     def session(self) -> Iterator[None]:
@@ -129,12 +152,23 @@ class SmtpMailer:
                 server.quit()
 
     def _deliver(
-        self, to: str, subject: str, body: str, headers: Mapping[str, str] | None = None
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        headers: Mapping[str, str] | None = None,
+        html: str | None = None,
     ) -> None:
         note = EmailMessage()
         note["Subject"] = subject
         note["From"] = self.sender
         note["To"] = to
+        note["Reply-To"] = self.reply_to or self.sender
+        # smtplib adds neither, and a message without a Message-ID reads as a script to a
+        # spam filter. The id is under the sender's own domain.
+        note["Date"] = formatdate(usegmt=True)
+        domain = parseaddr(self.sender)[1].rpartition("@")[2] or None
+        note["Message-ID"] = make_msgid(domain=domain)
         for name, value in (headers or {}).items():
             note[name] = value
         # Sent as 7-bit rather than quoted-printable, which is the default and which
@@ -154,6 +188,10 @@ class SmtpMailer:
             note.set_content(body, cte="7bit")
         except (UnicodeEncodeError, ValueError):
             note.set_content(body, cte="base64")
+        if html:
+            # Base64 for the HTML always, for the same reason: its links must arrive
+            # whole, and quoted-printable would break them at 76 characters.
+            note.add_alternative(html, subtype="html", cte="base64")
         if self._open is not None:
             self._open.send_message(note)
             return
@@ -178,5 +216,6 @@ def from_environment() -> Mailer:
         port=int(os.environ.get("TARGUM_SMTP_PORT", "587")),
         user=os.environ.get("TARGUM_SMTP_USER", ""),
         password=os.environ.get("TARGUM_SMTP_PASSWORD", ""),
-        sender=os.environ.get("TARGUM_SMTP_FROM", "targum <no-reply@localhost>"),
+        sender=os.environ.get("TARGUM_SMTP_FROM", "").strip() or SENDER,
+        reply_to=os.environ.get("TARGUM_SMTP_REPLY_TO", "").strip(),
     )

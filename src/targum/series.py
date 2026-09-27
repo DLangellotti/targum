@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .accounts import Store
+    from .letters import Letter
     from .mail import Mailer
 
 log = logging.getLogger(__name__)
@@ -127,6 +128,8 @@ def _daily() -> list[dict[str, Any]]:
             "hebrew": cycle.hebrew,
             "what": cycle.blurb,
             "page": f"/{cycle.slug}",
+            # Daily cycles land on Learn and in the bell and are never mailed (`mailed`).
+            "cadence": "daily",
             "instalment": None,
         }
         day = for_day(cycle, today(), allow_fetch=False)
@@ -202,11 +205,8 @@ def current(
 BATCH = 25
 PAUSE = 2.0
 
-#: The mail, in the catalogue since targum-internal#289 rather than written here. It was
-#: the last thing in this file still English for everybody, on a series whose name and
-#: blurb the same reader already had in their own language.
-SUBJECT = "mail.series.subject"
-BODY = "mail.series.body"
+#: The mail's words are `mail.series.*` in the catalogue (targum-internal#289), drawn by
+#: `letters.series_instalment`.
 
 
 @dataclass
@@ -224,32 +224,28 @@ class Report:
         return line
 
 
-def letter(
-    one: dict[str, Any], address: str, stop_token: str, language: str = "en"
-) -> tuple[str, str]:
-    """The subject and body for one follower, in the language they follow in.
+def letter(one: dict[str, Any], address: str, stop_token: str, language: str = "en") -> Letter:
+    """The mail for one follower, in the language they follow in (`letters.series_instalment`).
 
     `one` is passed through `said_in` here rather than by the caller, because the series
     is read once for everybody and the name in it is the name in *somebody's* language —
     a letter that took it as given would say the Russian name to every English reader as
     soon as one Russian follower came first.
     """
-    from .strings import text
+    from .letters import series_instalment
 
-    said = said_in(one, language)
-    inst = one["instalment"]
-    hebrew = f" · {inst['hebrew']}" if inst.get("hebrew") else ""
-    where = f"{address.rstrip('/')}{one['page']}"
-    body = text(
-        BODY,
-        language,
-        name=said["name"],
-        title=inst["title"],
-        hebrew=hebrew,
-        where=where,
-        stop=f"{address.rstrip('/')}/series/stop?t={stop_token}",
-    )
-    return text(SUBJECT, language, name=said["name"], title=inst["title"]), body
+    return series_instalment(said_in(one, language), address, stop_token, language)
+
+
+def mailed(one: dict[str, Any]) -> bool:
+    """Whether a series' instalments are worth a mail: weekly or slower, never daily.
+
+    A daily cycle is a mail every day, which is the ping a reader deletes an app over
+    (2026-09-27). Its instalment still lands on Learn and in the bell; it is only not
+    mailed. A row that does not say its cadence is weekly: every series but the daily
+    cycles is.
+    """
+    return one.get("cadence") != "daily"
 
 
 def announce(
@@ -266,7 +262,7 @@ def announce(
 
     report = Report()
     for one in found if found is not None else current():
-        if one["id"] == "weekly" or not one.get("instalment"):
+        if one["id"] == "weekly" or not one.get("instalment") or not mailed(one):
             continue
         inst = one["instalment"]
         waiting = store.followers(one["id"], not_sent=str(inst["id"]))
@@ -276,18 +272,10 @@ def announce(
         try:
             with holding:
                 for index, (email, stop_token, language) in enumerate(waiting):
-                    subject, body = letter(one, address, stop_token, language)
-                    unsubscribe = f"<{address.rstrip('/')}/series/stop?t={stop_token}>"
+                    mail = letter(one, address, stop_token, language)
                     try:
-                        mailer.notify(
-                            email,
-                            subject,
-                            body,
-                            {
-                                "List-Unsubscribe": unsubscribe,
-                                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-                            },
-                        )
+                        # The headers carry RFC 8058's one-click stop and a List-Id.
+                        mailer.notify(email, mail.subject, mail.text, mail.headers, mail.html)
                     except Exception as error:  # noqa: BLE001 - one bad address, not the run
                         report.failed.append((email, str(error)))
                         continue

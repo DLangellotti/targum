@@ -347,6 +347,53 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Mail is drawn, and fetches nothing — 2026-09-27
+
+Every mail a reader can receive was plain text until today, on the argument in `mail.py`
+that "it is a link and a sentence; anything more is a thing to maintain and a reason to
+land in a spam folder". That held while the sign-in link was the only mail. There are
+seven now: the sign-in link, two confirmations (the waitlist and the Weekly News
+Digest), the invitation off the waitlist, the digest itself, a followed series'
+instalment, and a build that finished while the reader was away. Several of them go to
+strangers who have never seen the product. David asked for them to be designed, and
+chose HTML for all seven.
+
+- **Every mail is HTML with a plain-text alternative**, sent as multipart/alternative.
+  Both halves are drawn from one list of blocks in `letters.py`, so they cannot say
+  different things. A link in the text half is on a line of its own, and both halves go
+  as base64 wherever they are not plain ASCII, so no encoder breaks the token.
+- **The frame is the desk (§13).** The ground is the desk, the mail is one card of at
+  most 600px on it, the text is ink in the chrome's sans (named, never fetched: the
+  fallback stack is what a mail client shows), links are teal, and the one call to
+  action is an ink-filled pill (§9). A text's own title is in the reading serif, and
+  Hebrew is `dir="rtl"`. In plain text, English leads and a Hebrew title sits in an
+  isolate (see "The Hebrew-first audit" below).
+- **The logo is in the mail, drawn and not loaded.** The mark's two columns are table
+  cells with a background colour, the translation column 3px lower, in the mark's own
+  paper values (`#201e1b`, `#a5824f`). The wordmark beside them is live text in the
+  reading face at 600, lowercase. Gmail and Outlook strip inline SVG. A CID-attached
+  image would fetch nothing, but many clients show it as an attachment, so it is left out.
+- **It fetches nothing.** There are no images, no remote stylesheets or fonts, no
+  tracking pixel and no redirecting links. That is the readers' rule (§13, "What stays
+  the reader's") applied to mail. The provider's open and click tracking stays off,
+  because one adds a pixel and the other rewrites every link. `test_mail.py` pins it.
+- **Light only.** The mail declares `color-scheme: light only`, because there is one look
+  (see "There is one look, and it is light" below). A client that inverts anyway gets a
+  palette that survives it: nothing is an image of text.
+- **The digest and the series are lists, and say so.** They carry `List-Unsubscribe`,
+  RFC 8058's one-click `List-Unsubscribe-Post` and a `List-Id`, a stop link in the foot,
+  and a slot for a postal address that stays empty until one is configured. The other
+  five are transactional or asked for once, and carry none of these.
+- **Daily series are not mailed.** A daily cycle's instalment lands on Learn and in the
+  bell, but a mail every day is the ping a reader deletes an app over (Dmitry,
+  2026-09-16). Weekly or slower is mailed.
+- **The digest has one public name, Weekly News Digest** («Недельный обзор новостей»),
+  in its subjects, pages and strings. "the weekly" is the team's word, which §6 names as
+  the public-page failure mode. מבט השבוע stays as the issue's own Hebrew masthead.
+- **A long build still mails its owner unasked.** After three minutes it mails, in the
+  reader's language, and says why: "your text took more than a few minutes to build".
+  David kept it.
+
 ### What we inferred says so — 2026-09-27
 
 Everywhere targum has an answer it is not sure of, it has picked between two things: say

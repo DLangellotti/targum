@@ -23,10 +23,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from .strings import text
-
 if TYPE_CHECKING:
     from .accounts import Store
+    from .letters import Letter
     from .mail import Mailer
 
 
@@ -44,23 +43,17 @@ class Opened:
         return not self.failed
 
 
-def invitation(address: str, language: str) -> tuple[str, str]:
-    """The subject and body of the mail, in the language they joined in.
-
-    Plain text, no HTML and no tracking pixel, for the reason `mail.py` gives about the
-    sign-in link: it is a sentence and a link, and anything more is a thing to maintain
-    and a reason to land in a spam folder.
+def invitation(address: str, language: str) -> Letter:
+    """The mail, in the language they joined in, drawn by `letters.invitation`.
 
     It carries no sign-in token. The address is on the guest list by the time this is
     written, so the ordinary sign-in page mints them a link the usual way — and a token
     minted here would be one sitting in an inbox for however long it takes them to read
     it, which is longer than a sign-in link is meant to live.
     """
-    where = address.rstrip("/") or ""
-    return (
-        text("mail.invitation.subject", language),
-        text("mail.invitation.body", language).format(link=f"{where}/account/signin"),
-    )
+    from . import letters
+
+    return letters.invitation(address, language)
 
 
 def open_the_door(
@@ -90,8 +83,8 @@ def open_the_door(
     for email, language in waiting:
         try:
             store.invite(email)
-            subject, body = invitation(address, language)
-            mailer.notify(email, subject, body)
+            letter = invitation(address, language)
+            mailer.notify(email, letter.subject, letter.text, None, letter.html)
         except Exception as error:  # noqa: BLE001 — one bad address must not stop the rest
             # Left unstamped on purpose: the next run picks them up again. Reported
             # rather than raised, because a batch of ten in which one address bounces

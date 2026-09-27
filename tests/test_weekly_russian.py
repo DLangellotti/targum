@@ -326,20 +326,22 @@ def test_a_database_from_before_gains_the_column(tmp_path: Path) -> None:
 
 
 def test_a_russian_letter_is_russian_and_points_at_the_russian_edition() -> None:
-    subject, body = letter(_issue(), PUBLIC, "tok", "ru")
-    assert subject.startswith("Новости недели")
-    assert "Лёгкий · 1\u00a0000 слов" in body
+    mail = letter(_issue(), PUBLIC, "tok", "ru")
+    subject, body = mail.subject, mail.text
+    assert subject.startswith("Недельный обзор новостей")
+    assert "Лёгкий (1\u00a0000 слов)" in body
     assert f"{PUBLIC}/weekly/{WEEK}/aleph?lang=ru" in body
     assert "/weekly/stop?t=tok&lang=ru" in body
-    assert "Easy" not in body and "Read it" not in body
+    assert "Easy" not in body and "Read this week" not in body
 
 
 def test_an_english_letter_is_the_letter_it_was() -> None:
-    subject, body = letter(_issue(), PUBLIC, "tok")
-    assert subject == "the weekly — 2026-08-31"
-    assert "Easy · 1,000 words" in body
+    mail = letter(_issue(), PUBLIC, "tok")
+    subject, body = mail.subject, mail.text
+    assert subject == "Weekly News Digest · Monday, August 31, 2026"
+    assert "Easy (1,000 words)" in body
     assert "lang=" not in body
-    assert body.endswith(f"To stop: {PUBLIC}/weekly/stop?t=tok\n")
+    assert f"Unsubscribe: {PUBLIC}/weekly/stop?t=tok\n" in body
 
 
 def test_each_subscriber_is_written_to_in_their_own_language(store: Store) -> None:
@@ -349,7 +351,9 @@ def test_each_subscriber_is_written_to_in_their_own_language(store: Store) -> No
 
         def send(self, to: str, link: str, language: str = "en") -> None: ...
 
-        def notify(self, to: str, subject: str, body: str, headers: object = None) -> None:
+        def notify(
+            self, to: str, subject: str, body: str, headers: object = None, html: object = None
+        ) -> None:
             self.sent[to] = subject
 
     store.follow("ru@example.com", language="ru")
@@ -357,8 +361,8 @@ def test_each_subscriber_is_written_to_in_their_own_language(store: Store) -> No
     mailer = Keeping()
     report = announce(store, mailer, _issue(), PUBLIC, pause=0)  # type: ignore[arg-type]
     assert sorted(report.sent) == ["en@example.com", "ru@example.com"]
-    assert mailer.sent["ru@example.com"].startswith("Новости недели")
-    assert mailer.sent["en@example.com"].startswith("the weekly")
+    assert mailer.sent["ru@example.com"].startswith("Недельный обзор новостей")
+    assert mailer.sent["en@example.com"].startswith("Weekly News Digest")
 
 
 def test_a_russian_shelf_is_told_the_level_in_russian() -> None:
@@ -495,7 +499,7 @@ def test_the_confirm_door_speaks_the_rows_language(site: tuple[int, Store]) -> N
     token = store.subscribe("confirm-ru@example.com", "ru")
     assert token is not None
     page = _ask(port, f"/weekly/confirm?t={token}")[1]
-    assert "Присылать новости недели на confirm-ru@example.com" in page
+    assert "Присылать «Недельный обзор новостей» на confirm-ru@example.com" in page
     assert 'action="/weekly/confirm?lang=ru"' in page
     done = _ask(port, "/weekly/confirm?lang=ru", f"t={token}")[1]
     assert "каждый понедельник" in done
