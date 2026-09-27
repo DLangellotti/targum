@@ -341,3 +341,66 @@ def test_a_text_with_no_words_has_no_rung() -> None:
     from targum.level import ULPAN_LADDER, text_rung
 
     assert text_rung([], ULPAN_LADDER) is None
+
+
+# -- ktiv haser against known ktiv male (targum-internal#349) ------------------------
+
+
+def _page(*words: str) -> str:
+    return " ".join(list(words) * (level.MEASURABLE // len(words) + 1))
+
+
+def test_a_haser_token_counts_when_a_known_male_form_gives_it() -> None:
+    """Points off a pointed page leave ktiv haser; the known side is ktiv male."""
+    assert level.known_share(_page("אֵרוּעִים"), {"אירועים"}) == 1.0
+    assert level.known_share(_page("פִּתּוּחַ"), {"פיתוח"}) == 1.0
+    assert level.known_share(_page("טְוִיטֶר"), {"טוויטר"}) == 1.0
+
+
+def test_a_prefixed_haser_token_counts() -> None:
+    assert level.known_share(_page("וְהָאֵרוּעִים"), {"אירועים"}) == 1.0
+    assert level.known_share(_page("לְפִתּוּחַ"), {"פיתוח"}) == 1.0
+
+
+def test_a_token_that_needs_a_letter_dropped_does_not_count() -> None:
+    """Insertions only: the known form is never shortened to meet the token, and only
+    vav and yod go in, never at the first or last letter."""
+    # The token has a vav the known form lacks: dropping it is not allowed.
+    assert level.known_share(_page("אִירוּעִים"), {"ארעים"}) == 0.0
+    # A letter other than vav or yod is missing.
+    assert level.known_share(_page("מֶלֶךְ"), {"מלאך"}) == 0.0
+    # The first and last letters are the word's own.
+    assert level.known_share(_page("אָח"), {"אחי"}) == 0.0
+    assert level.known_share(_page("לֵד"), {"ילד"}) == 0.0
+    # Same skeleton, but the order of what is left differs.
+    assert level.known_share(_page("אֵרוּעִים"), {"אירעים"}) == 0.0
+
+
+def test_the_haser_rule_is_a_subsequence_not_a_skeleton_match() -> None:
+    assert level._haser_of("ארועים", "אירועים")
+    assert not level._haser_of("איעים", "אירועים"), "a letter other than vav/yod is missing"
+    assert not level._haser_of("אוריעים", "אירועים"), "the token's own vav and yod must fit"
+    assert not level._haser_of("אירועים", "אירועים"), "equal is the direct match's job"
+
+
+def test_the_unpointed_modern_figure_is_unchanged() -> None:
+    """An unpointed page is written male already, so it is measured exactly as before:
+    the rule is tried only on a token that came with points. Unpointed, קם would take
+    credit for a known קיים and פחת for פחות."""
+    forms = {"ילד", "הלך", "בית", "ספר"}
+    text = " ".join(["הילד הלך לבית ספר והספר טוב מאוד"] * 4)
+    assert level.known_share(text, forms) == pytest.approx(5 / 7)
+    assert level.known_share(_page("ארועים"), {"אירועים"}) == 0.0
+    assert level.known_share(_page("קם"), {"קיים"}) == 0.0
+
+
+def test_the_declaration_measures_as_it_did() -> None:
+    """The one real unpointed modern page in the fixtures, against the common words: the
+    count of known tokens is the count the exact rule gives, token for token."""
+    from targum.chat import hebrew
+
+    forms = set(hebrew.common_words())
+    text = (FIXTURE.parent / "texts" / "il-declaration-1948.he.md").read_text(encoding="utf-8")
+    tokens = [t for t in (level._bare(w) for w in level._WORD.findall(text)) if t]
+    exact = sum(1 for t in tokens if any(f in forms for f in level._forms_of(t)))
+    assert level.known_share(text, forms) == pytest.approx(exact / len(tokens))
