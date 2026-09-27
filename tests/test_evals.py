@@ -290,3 +290,37 @@ def test_the_two_ends_of_a_recast_run_never_share_a_ledger_line() -> None:
     assert module.corpus_of("ntrex", "en", "he") == "ntrex-128", "the default keeps its name"
     assert module.corpus_of("ntrex", "ru", "he") == "ntrex-128-ru", "#286's line is unmoved"
     assert module.corpus_of("ntrex", "en", "ru") == "ntrex-128-in-ru"
+
+
+def test_a_recast_keeps_the_reply_it_was_read_from() -> None:
+    """targum-internal#359: 65 of 200 Yiddish turns had no `> ` line, and the run kept
+    only the line, so nothing said why. The reply and its stop reason are kept now, and a
+    missing line is still "" — never a line guessed from the rest."""
+    import importlib.util
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from targum.usage import Usage
+
+    where = Path(__file__).resolve().parents[1] / "scripts" / "eval_recast.py"
+    spec = importlib.util.spec_from_file_location("eval_recast", where)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def client(text: str, stop: str) -> object:
+        reply = SimpleNamespace(
+            content=[SimpleNamespace(text=text)],
+            stop_reason=stop,
+            usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+        )
+        return SimpleNamespace(messages=SimpleNamespace(create=lambda **_: reply))
+
+    marked = "> איך האָב געזען דעם הונט.\n= I saw the dog."
+    turn = module.recast(client(marked, "end_turn"), [], "I seen the dog", Usage(), "yi")
+    assert turn.line == "איך האָב געזען דעם הונט." and turn.stop == "end_turn"
+    assert turn.raw == marked
+
+    cut = "איך האָב געזען"
+    turn = module.recast(client(cut, "max_tokens"), [], "I seen the dog", Usage(), "yi")
+    assert turn.line == "" and turn.raw == cut and turn.stop == "max_tokens"
