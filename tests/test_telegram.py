@@ -100,6 +100,10 @@ def voice(update_id: int, file_id: str = "VOICE1", size: int = 9000) -> dict[str
 
 
 FORWARDED_BY = "Moshe Hidden-Sender"
+#: The forwarder's Telegram id. Long and odd on purpose: the test looks for it in a dump
+#: of the whole database, and a short one ("777") turned up inside a random link token on
+#: CI (2026-09-27), failing a test whose promise had been kept.
+FORWARDER_ID = 5_318_008_271_139
 
 
 def forwarded_text(update_id: int, text: str) -> dict[str, Any]:
@@ -108,10 +112,10 @@ def forwarded_text(update_id: int, text: str) -> dict[str, Any]:
         update_id,
         forward_origin={
             "type": "user",
-            "sender_user": {"id": 777, "is_bot": False, "first_name": FORWARDED_BY},
+            "sender_user": {"id": FORWARDER_ID, "is_bot": False, "first_name": FORWARDED_BY},
             "date": 1789990000,
         },
-        forward_from={"id": 777, "is_bot": False, "first_name": FORWARDED_BY},
+        forward_from={"id": FORWARDER_ID, "is_bot": False, "first_name": FORWARDED_BY},
         forward_date=1789990000,
         text=text,
     )
@@ -372,7 +376,8 @@ def test_a_forward_keeps_its_content_and_never_its_sender(world: World) -> None:
         if path.is_file():
             assert FORWARDED_BY not in path.read_bytes().decode("utf-8", "replace")
     dump = "\n".join(world.store.db.iterdump())
-    assert FORWARDED_BY not in dump and "777" not in dump
+    assert FORWARDED_BY not in dump, "the forwarder's name is never kept"
+    assert str(FORWARDER_ID) not in dump, "nor their id"
 
 
 def test_a_photo_is_read_as_a_page_and_its_caption_is_not_kept(
