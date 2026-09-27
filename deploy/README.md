@@ -10,6 +10,23 @@ scp -r deploy root@box:/tmp/ && ssh root@box bash /tmp/deploy/provision.sh
 
 Then fill in `/etc/targum/targum.env` and point the A record at the box.
 
+Then harden it (targum-internal#9): swap if there is none, unattended security updates,
+SSH by key only, and a firewall that lets in 22, 80 and 443 and nothing else.
+
+```
+scp -r deploy root@box:/tmp/ && ssh root@box bash /tmp/deploy/harden.sh --dry-run
+ssh root@box bash /tmp/deploy/harden.sh
+ssh root@box bash /tmp/deploy/harden.sh --confirm     # from a NEW terminal, within 10 min
+```
+
+The firewall arms a rollback before it goes up: if the new session cannot get in, do
+nothing, and the wall takes itself down after ten minutes. If SSH is lost anyway, the
+Hetzner Cloud console is a root shell that goes through neither sshd nor the firewall;
+`rm /etc/ssh/sshd_config.d/00-targum.conf && systemctl reload ssh` and
+`/usr/local/sbin/targum-wall-rollback` undo the two halves. The script refuses to run
+anywhere but a provisioned targum box, and refuses to turn passwords off while root has
+no key.
+
 Coming back the other way — the box is gone and there is a backup — is
 [`RESTORE.md`](RESTORE.md). It was run once on 2026-09-04 rather than written from
 imagination, and it says what came back.
