@@ -159,6 +159,45 @@ def voiced_frames(levels_db: Sequence[float]) -> list[bool]:
     return [level > line for level in levels_db]
 
 
+def share_the_gap(
+    spans: Sequence[tuple[int, int] | None],
+    spoken: Sequence[int],
+    total: int,
+) -> list[tuple[int, int] | None]:
+    """Place a spoken word the model has no letters for in the gap its neighbours leave.
+
+    `spoken[i]` is how many letters word `i` has that the model cannot spell — a Latin
+    name in a Hebrew text — and 0 for everything else, punctuation included. The CTC path
+    leaves such a word unplaced, but it leaves its sound too: the frames between the
+    placed words either side. A run of them shares that gap by length. Placed, they are
+    boundaries `to_the_voice` stops at, where unplaced the word before would stretch over
+    the name and light while it is said (targum-internal#380, 2026-09-27: "Lubbock" in
+    Ahad Ha'am went from 121.36-121.74 s to a point).
+    """
+    placed = list(spans)
+    index = 0
+    while index < len(placed):
+        if placed[index] is not None or not spoken[index]:
+            index += 1
+            continue
+        run_end = index
+        while run_end < len(placed) and placed[run_end] is None and spoken[run_end]:
+            run_end += 1
+        before = next((placed[i] for i in range(index - 1, -1, -1) if placed[i]), None)
+        after = next((placed[i] for i in range(run_end, len(placed)) if placed[i]), None)
+        low = before[1] if before else 0
+        high = after[0] if after else total
+        weight = sum(spoken[index:run_end])
+        if high - low >= run_end - index and weight:
+            at = float(low)
+            for i in range(index, run_end):
+                width = (high - low) * spoken[i] / weight
+                placed[i] = (round(at), max(round(at) + 1, round(at + width)))
+                at += width
+        index = run_end
+    return placed
+
+
 def to_the_voice(
     spans: Sequence[tuple[int, int] | None],
     voiced: Sequence[bool],
@@ -349,8 +388,19 @@ class CtcAligner:
             edges[1] = span.end
             heard.setdefault(who, []).append(float(span.score))
 
+        # A spoken word with no letters the model knows, counted, for `share_the_gap`.
+        spoken = [
+            0
+            if i in found or any(ch in vocab for ch in spelled[i])
+            else sum(1 for ch in word if ch.isalpha())
+            for i, word in enumerate(words)
+        ]
         frames = to_the_voice(
-            [(found[i][0], found[i][1]) if i in found else None for i in range(len(words))],
+            share_the_gap(
+                [(found[i][0], found[i][1]) if i in found else None for i in range(len(words))],
+                spoken,
+                len(voiced),
+            ),
             voiced,
             lead=round(LEAD_S / per_frame),
             reach_back=round(REACH_BACK_S / per_frame),
@@ -361,7 +411,9 @@ class CtcAligner:
         for index, placed in enumerate(frames):
             if placed is not None:
                 start, end = placed[0] * per_frame, placed[1] * per_frame
-                marks = heard[index]
+                # A word `share_the_gap` placed was never heard by the model: its score
+                # is the floor, as an unplaced word's always was.
+                marks = heard.get(index, [SCORE_FLOOR])
                 clock = end
                 out.append((start, end, sum(marks) / len(marks)))
             else:
