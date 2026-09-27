@@ -2704,10 +2704,14 @@ class Library:
         and the job then carries the one canonical address it found, so the build fetches
         the same video and the reader links home to it.
         """
+        from .ingest.post import posted_from
         from .video import tiktok as tiktok_module
+
+        said: dict[str, Any] = {}
 
         def described(url: str) -> dict[str, Any]:
             info = tiktok_module.describe(url)
+            said.update(info)
             found = tiktok_module.home_url(str(info.get("webpage_url") or ""))
             if found:
                 job.source = found
@@ -2720,6 +2724,20 @@ class Library:
             unavailable=said_in(
                 job.ui, "job.tiktok-unavailable", "We can't fetch from TikTok here."
             ),
+        )
+        if job.stage == "failed":
+            return
+        # A TikTok arrives as a post (targum-internal#158; design.md §12, "A post keeps
+        # its shape"). yt-dlp's TikTok answer is the other way round from Instagram's:
+        # `uploader` is the handle and `channel` the name. It carries no face, so the
+        # disc wears the name's first letter; nothing is fetched to find one.
+        self._keep_film_post(
+            job,
+            platform="tiktok",
+            handle=str(said.get("uploader") or ""),
+            name=str(said.get("channel") or ""),
+            posted_at=posted_from(said.get("timestamp")),
+            caption=str(said.get("description") or ""),
         )
 
     def _prepare_post(self, job: Job) -> bool:

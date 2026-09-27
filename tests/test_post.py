@@ -267,3 +267,75 @@ def test_a_pasted_reel_keeps_what_its_head_draws_and_its_caption_for_the_build(
     build = library._builder(job)
     assert build.caption == "שבת שלום\n#שבת"
     assert build.beside is not None
+
+
+#: The shape of `yt-dlp -J` on a public TikTok, recorded live on 2026-09-27 and trimmed to
+#: the keys the door reads; the values are this test's own, not the post's.
+TIKTOKED = {
+    "id": "7485073076758007056",
+    "title": "חידה: מה יורד בחורף? #עברית",
+    "description": "חידה: מה יורד בחורף?\n#עברית #לשון",
+    "uploader": "someone.teaches",
+    "uploader_id": "6830258860894356486",
+    "channel": "מישהו מלמד",
+    "channel_id": "MS4wLjABAAAA",
+    "timestamp": 1742754427,
+    "duration": 11,
+    "width": 1080,
+    "height": 1920,
+    "webpage_url": "https://www.tiktok.com/@someone.teaches/video/7485073076758007056",
+    "uploader_url": "https://www.tiktok.com/@someone.teaches",
+    "subtitles": {},
+    "formats": [{"acodec": "aac"}],
+}
+
+
+def test_a_pasted_tiktok_arrives_as_a_post(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """TikTok's answer is Instagram's the other way round: `uploader` is the handle and
+    `channel` the name. A short link is followed at the quote, so the post's address is
+    the one canonical shape the page's allowlist pins."""
+    from targum import serve
+    from targum.video import tiktok
+
+    monkeypatch.setattr(tiktok, "describe", lambda url: TIKTOKED)
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    library = serve.Library(tmp_path)
+    job = serve.Job(id="a", source="https://vm.tiktok.com/ZMabc123/")
+    library.prepare(job)
+    assert job.stage in ("ready", "blocked"), job.error
+    said = job.options["post"]
+    assert (said["platform"], said["handle"], said["name"]) == (
+        "tiktok",
+        "someone.teaches",
+        "מישהו מלמד",
+    )
+    assert said["url"] == "https://www.tiktok.com/@/video/7485073076758007056"
+    assert said["posted_at"] == "2025-03-23T18:27:07Z"
+    assert said["avatar"] == "" and said["film"] is True
+    assert library._builder(job).caption == "חידה: מה יורד בחורף?\n#עברית #לשון"
+
+
+def test_a_tiktoks_manifest_asks_nothing_more_of_anybody(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No face to fetch and no embed page to ask: the manifest is written from what the
+    quote kept and the recording's own cut."""
+    from targum import serve
+    from targum.video import instagram
+
+    monkeypatch.setattr(instagram, "backup", lambda url: pytest.fail("not Instagram's page"))
+    monkeypatch.setattr(instagram, "pictures_into", lambda *a: pytest.fail("nothing to fetch"))
+    folder = tmp_path / "tiktok"
+    document = a_built_reel(folder)
+    job = serve.Job(id="j", source="https://www.tiktok.com/@/video/7485073076758007056")
+    serve.Library._keep_film_post(
+        job, platform="tiktok", handle="someone.teaches", name="מישהו מלמד", caption="חידה"
+    )
+    library = SimpleNamespace(incidents=None, _film_items=serve.Library._film_items)
+    serve.Library.keep_post(library, job, folder, document)  # type: ignore[arg-type]
+    got = post.read(folder)
+    assert got is not None
+    assert got["platform"] == "tiktok" and got["author"]["avatar"] == ""
+    assert got["url"] == "https://www.tiktok.com/@/video/7485073076758007056"
+    assert [item["kind"] for item in got["items"]] == ["clip", "caption"]
+    assert got["items"][0]["media"][0]["path"] == "audio/parts/part-001.mp4"

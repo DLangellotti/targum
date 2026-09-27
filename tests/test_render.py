@@ -432,6 +432,39 @@ def test_a_reel_kept_as_a_post_goes_home_from_its_head(tmp_path: Path) -> None:
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
 
+def test_a_tiktok_kept_as_a_post_says_on_tiktok(tmp_path: Path) -> None:
+    """A TikTok is a reel's shape (targum-internal#158): the head goes home "On TikTok" to
+    the one TikTok address the allowlist pins, and with no face the disc is a letter."""
+    from targum.ingest import post as post_module
+
+    home = "https://www.tiktok.com/@/video/7485073076758007056"
+    document, segmented, translation = imported(tmp_path, home)
+    post_module.write(
+        tmp_path,
+        post_module.Manifest(
+            platform="tiktok",
+            author=post_module.Author("someone.teaches", "מישהו מלמד"),
+            items=[
+                post_module.Item(
+                    block_ids=["b0001"],
+                    media=[post_module.Media("video", "audio/parts/part-001.mp4", 270, 480)],
+                    kind="clip",
+                ),
+                post_module.Item(block_ids=["b0002"], kind="caption"),
+            ],
+            url=home,
+            posted_at="2025-03-23T18:27:07Z",
+        ),
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'class="post-home" href="{home}"' in html and ">On TikTok</a>" in html
+    assert 'data-home="' not in html
+    assert 'class="post-face letter"' in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
 def test_every_video_home_the_table_writes_is_pinned_here() -> None:
     from targum.video import hosts
 

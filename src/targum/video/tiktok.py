@@ -17,6 +17,10 @@ and no cookie is ever involved.
 `www.tiktok.com/t/ZT…/`, which name no video until TikTok redirects them. yt-dlp follows
 the redirect; the quote then carries the video's one canonical address (`home_url`) so
 the build fetches, and the reader links home to, the same video.
+
+**And a TikTok arrives as a post** (targum-internal#158): the quote keeps its author, day
+and caption off this door's answer for `post.json` (`Library._prepare_tiktok`), so the
+reader opens under the post's head, "On TikTok", with the film beneath it.
 """
 
 from __future__ import annotations
