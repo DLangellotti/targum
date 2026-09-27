@@ -347,6 +347,30 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A figure on Your Progress that can fall — 2026-09-27
+
+Every figure on Your Progress only rises, because every one counts marks; §12's entry on
+the streak calls that "the property the whole ledger is built on". Dmitry Z asked
+(2026-09-16) for "visible honest progress tracking", and a count that only rises cannot
+say how reading actually went. So one panel, **What you knew of what you read**, draws the
+share of the running words in each month's finished sections that the reader had marked
+known on the day they finished each one — and it is allowed to fall.
+
+What keeps it honest is that nothing recomputes it. A finished section is measured once,
+when its row reaches the account, against the ledger as it stood that moment, and kept (the
+`reading` table); a word marked today does not reach back and lift August. It departs from
+"the server only hands over the page" for the reason Time and words does: it is the
+account's reading of its own record, so it is absent signed out, and absent, not nought.
+
+What it keeps to: said as a count in ten ("In August you knew about 7 words in 10 of what
+you read"), never a percentage, a level or a score (§6); one hue, leaf, whichever way the
+line goes, because a fall drawn in clay would be the verdict the page refuses to give. When
+the latest month is lower, one sentence names the reason — the text had more words new to
+the reader — without apology or encouragement. Under three months there is no line, and
+the page says what would draw one. Nothing before it shipped is backfilled: the line starts
+the day it lands, and the note says so. targum-internal#291.
+
+
 ### A post keeps its shape — 2026-09-27
 
 A post pasted from Instagram arrives as a post, not as three paragraphs with a title

@@ -787,6 +787,236 @@
       });
   }
 
+  /* --- what you knew of what you read (targum-internal#291) -----------------------
+   *
+   * One line: of the running words in the sections finished each month, the share the
+   * reader had marked known on the day they finished each one. Measured on the server
+   * when a finished section arrives and kept as it was (`reading` rows), so a word marked
+   * today does not reach back and lift August — which is what makes this a record and
+   * not a second copy of the known count.
+   *
+   * It is the one figure on this page that can fall, and it is allowed to: moving from a
+   * graded dialogue to Agnon is a drop, and that is the truthful picture. When the latest
+   * month is lower, one sentence says why — harder text, not lost ground — and nothing
+   * else: no apology, no encouragement. Said as a count in ten, the way the quote says
+   * it, never as a percentage, a level or a score (§6). Under three months there is no
+   * line, and the page says what would draw one. Absent signed out, like Time and words.
+   */
+  var readingSeries = null;
+
+  function tenths(point) {
+    return Math.max(0, Math.min(10, Math.round((point.known / Math.max(1, point.tokens)) * 10)));
+  }
+
+  function monthName(month, withYear) {
+    var parts = String(month).split("-");
+    var when = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, 15));
+    var options = { month: "long", timeZone: "UTC" };
+    if (withYear) options.year = "numeric";
+    try {
+      return when.toLocaleDateString(words.language || "en", options);
+    } catch (e) {
+      return month;
+    }
+  }
+
+  function inTen(point, month) {
+    var n = tenths(point);
+    if (n >= 10) {
+      return t("progress.reading.said-all", "In {month} you knew nearly every word of what you read.", { month: month });
+    }
+    if (n <= 0) {
+      return t("progress.reading.said-none", "In {month} you knew almost none of the words in what you read.", {
+        month: month,
+      });
+    }
+    return tn(
+      "progress.reading.said",
+      n,
+      "In {month} you knew about {n} word in 10 of what you read.",
+      "In {month} you knew about {n} words in 10 of what you read.",
+      { month: month }
+    );
+  }
+
+  function drawReading(code) {
+    if (!readingSeries) return;
+    var panel = document.getElementById("reading");
+    var host = document.getElementById("reading-line");
+    var said = document.getElementById("reading-said");
+    if (!panel || !host || !said) return;
+    panel.hidden = false;
+    host.textContent = "";
+    said.textContent = "";
+    var mine = readingSeries[code] || { line: [], months: 0, sections: 0 };
+    var points = mine.line || [];
+    if (points.length < 3) {
+      said.appendChild(
+        el(
+          "p",
+          "reading-waiting",
+          mine.months
+            ? t(
+                "progress.reading.so-far",
+                "We'll draw this once you've finished sections in three different months. So far: {n}.",
+                { n: mine.months }
+              )
+            : t("progress.reading.waiting", "We'll draw this once you've finished sections in three different months.")
+        )
+      );
+      return;
+    }
+
+    var thisYear = new Date().getUTCFullYear();
+    var last = points[points.length - 1];
+    var before = points[points.length - 2];
+    var lastYear = Number(String(last.month).slice(0, 4));
+    said.appendChild(el("p", "reading-said", inTen(last, monthName(last.month, lastYear !== thisYear))));
+    // Compared as the page says it, in tenths: a line that dipped inside the same count
+    // is not a fall anybody was told about, and a sentence about it would be louder than
+    // the change.
+    if (tenths(last) < tenths(before)) {
+      said.appendChild(
+        el(
+          "p",
+          "reading-fell",
+          t(
+            "progress.reading.fell",
+            "It fell because what you read in {month} had more words new to you, not because you lost any.",
+            { month: monthName(last.month, lastYear !== thisYear) }
+          )
+        )
+      );
+    }
+
+    var W = 320;
+    var H = 150;
+    var pad = { top: 10, right: 10, bottom: 22, left: 44 };
+    var plotW = W - pad.left - pad.right;
+    var plotH = H - pad.top - pad.bottom;
+    function share(point) {
+      return point.known / Math.max(1, point.tokens);
+    }
+    function px(index) {
+      return pad.left + (index / (points.length - 1)) * plotW;
+    }
+    function py(value) {
+      return pad.top + plotH - value * plotH;
+    }
+
+    var wrap = el("div", "chart");
+    var picture = svg("svg", {
+      viewBox: "0 0 " + W + " " + H,
+      role: "img",
+      "aria-label": t("progress.reading.label", "What you knew of what you read, {first} to {last}", {
+        first: monthName(points[0].month, true),
+        last: monthName(last.month, true),
+      }),
+    });
+    var grid = svg("g", { class: "grid" });
+    [0, 5, 10].forEach(function (n) {
+      grid.appendChild(svg("line", { x1: pad.left, y1: py(n / 10), x2: W - pad.right, y2: py(n / 10) }));
+      var tick = svg("text", { x: pad.left - 6, y: py(n / 10) + 3, "text-anchor": "end" });
+      tick.textContent = t("progress.reading.tick", "{n} in 10", { n: n });
+      grid.appendChild(tick);
+    });
+    picture.appendChild(grid);
+
+    var line = points
+      .map(function (point, index) {
+        return (index ? "L" : "M") + px(index) + " " + py(share(point));
+      })
+      .join(" ");
+    // Leaf, one hue, whichever way it goes: §4 gives progress to leaf, and a fall drawn in
+    // clay would be the verdict the sentence under it refuses to give.
+    picture.appendChild(svg("path", { class: "reading-path", d: line, fill: "none", stroke: "var(--leaf)", "stroke-width": 2 }));
+
+    // Every point carries its month, its count in ten and how many sections are behind
+    // it — on the point itself, as a title a screen reader and a long press both reach.
+    var dots = [];
+    points.forEach(function (point, index) {
+      var about = t("progress.reading.point", "{month}: about {n} in 10", {
+        month: monthName(point.month, true),
+        n: tenths(point),
+      });
+      var behind = tn("progress.reading.sections", point.sections, "{n} section", "{n} sections");
+      var dot = svg("circle", {
+        class: "reading-point",
+        cx: px(index),
+        cy: py(share(point)),
+        r: 4,
+        fill: "var(--leaf)",
+        stroke: "var(--paper)",
+        "stroke-width": 2,
+        tabindex: "0",
+        "aria-label": about + " · " + behind,
+      });
+      var title = svg("title", {});
+      title.textContent = about + " · " + behind;
+      dot.appendChild(title);
+      dots.push({ node: dot, about: about, behind: behind });
+      picture.appendChild(dot);
+    });
+
+    var ends = svg("g", { class: "axis" });
+    var first = svg("text", { x: pad.left, y: H - 6 });
+    first.textContent = monthName(points[0].month, true);
+    var end = svg("text", { x: W - pad.right, y: H - 6, "text-anchor": "end" });
+    end.textContent = monthName(last.month, true);
+    ends.appendChild(first);
+    ends.appendChild(end);
+    picture.appendChild(ends);
+
+    wrap.appendChild(picture);
+    host.appendChild(wrap);
+    var tip = tipFor(wrap);
+
+    function point(index) {
+      var hostBox = wrap.getBoundingClientRect();
+      tip.show(
+        dots[index].about + "<br>" + dots[index].behind,
+        (px(index) / W) * hostBox.width,
+        (py(share(points[index])) / H) * hostBox.height
+      );
+    }
+    function nearest(event) {
+      var box = picture.getBoundingClientRect();
+      var atX = (event.clientX - box.left) * (W / box.width);
+      var index = Math.round(((atX - pad.left) / plotW) * (points.length - 1));
+      point(Math.max(0, Math.min(points.length - 1, index)));
+    }
+    // A mouse finds the nearest month; a thumb taps for it; a keyboard focuses a point.
+    picture.addEventListener("mousemove", nearest);
+    picture.addEventListener("click", nearest);
+    picture.addEventListener("mouseleave", function () {
+      tip.hide();
+    });
+    dots.forEach(function (dot, index) {
+      dot.node.addEventListener("focus", function () {
+        point(index);
+      });
+      dot.node.addEventListener("blur", function () {
+        tip.hide();
+      });
+    });
+  }
+
+  function askReading() {
+    if (!window.fetch) return;
+    fetch(keyed("/account/reading"), { credentials: "same-origin" })
+      .then(function (answer) {
+        return answer.json();
+      })
+      .then(function (said) {
+        if (!said || !said.signedIn) return;
+        readingSeries = said.reading || {};
+        drawReading(currentCode);
+      })
+      .catch(function () {
+        /* no account to read is no panel, which is how the page already stood */
+      });
+  }
+
   function show(code) {
     currentCode = code;
     // A language the reader learns and has kept nothing in yet is a page this can be:
@@ -814,10 +1044,12 @@
     drawGrowth(document.getElementById("growth"), data[code].words);
     drawBands(document.getElementById("bands"), data[code].words);
     drawSpent(code);
+    drawReading(code);
   }
 
   show(currentCode);
   askSpent();
+  askReading();
 
   // If the account turns out to hold words this browser had not seen — kept on a phone,
   // or kept here before signing in on another machine — everything is gathered again

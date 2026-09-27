@@ -57,6 +57,18 @@
   </section>
   <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "Time and words aren't shown because recording is stopped. You can start it again on your account page.") }}</p>
 
+  {#- What the reader knew of what they read, a point a month (targum-internal#291): the
+      share of the running words in each finished section that were marked known on the
+      day it was finished, kept then and never recomputed. The one figure here allowed to
+      fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
+      the account, so absent signed out, like Time and words. Drawn by `progress.js`. -#}
+  <section class="panel reading" id="reading" hidden>
+    <h2>{{ t("progress.reading.title", "What you knew of what you read") }}</h2>
+    <p class="note">{{ t("progress.reading.note", "Each section you finish, measured against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
+    <div id="reading-line"></div>
+    <div class="reading-words" id="reading-said"></div>
+  </section>
+
   {#- The day strip is seven rows tall and the milestones are two, so the milestones
       share their column with the ladder rather than leaving a hole beside it. -#}
   <div class="panels paired">
