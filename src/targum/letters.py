@@ -145,6 +145,24 @@ class Hebrew:
 
 
 @dataclass(frozen=True)
+class HebrewLine:
+    """A sentence in Hebrew at reading size: the digest's standfirst, which the weekly's
+    writer is told to write in Hebrew whatever language the mail is in."""
+
+    words: str
+
+    def as_text(self) -> str:
+        return isolate(self.words)
+
+    def as_html(self) -> str:
+        return (
+            f'<p dir="rtl" lang="he" style="margin:0 0 16px 0;text-align:right;'
+            f"font-family:{HEBREW};font-size:19px;line-height:30px;"
+            f'color:{INK};">{_e(self.words)}</p>'
+        )
+
+
+@dataclass(frozen=True)
 class Para:
     words: str
     muted: bool = False
@@ -242,7 +260,7 @@ class Rule:
         )
 
 
-Block = Label | Heading | Title | Hebrew | Para | Button | Fallback | Rows | Rule
+Block = Label | Heading | Title | Hebrew | HebrewLine | Para | Button | Fallback | Rows | Rule
 
 
 @dataclass(frozen=True)
@@ -522,7 +540,7 @@ def weekly_issue(issue: Issue, address: str, stop_token: str, language: str = "e
     ]
     blocks: list[Block] = [Label(dated), Hebrew(issue.title)]
     if issue.blurb:
-        blocks.append(Para(issue.blurb))
+        blocks.append(HebrewLine(issue.blurb))
     blocks.append(Button(text("mail.weekly.button", code), where + asked))
     if levels:
         blocks += [Label(text("mail.weekly.levels", code)), Rows(levels)]

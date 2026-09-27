@@ -40,7 +40,7 @@ TEHILLIM = {
 }
 
 
-def issue(blurb: str = "The Knesset is back, and a heatwave closes schools.") -> Issue:
+def issue(blurb: str = "הכנסת חזרה, וגל חום סוגר בתי ספר.") -> Issue:
     return Issue(
         id=WEEK,
         dated="2026-09-28",
@@ -148,7 +148,7 @@ def test_the_postal_address_is_drawn_only_when_there_is_one(
 def test_the_digest_is_named_and_says_what_this_week_is() -> None:
     english = letters.weekly_issue(issue(), SITE, "tok")
     assert english.subject == "Weekly News Digest · Monday, September 28, 2026"
-    assert "The Knesset is back" in english.text, "the issue's own blurb"
+    assert "הכנסת חזרה" in english.text, "the issue's own blurb"
     assert "Five sections" not in english.text
     assert f"{SITE}/weekly/{WEEK}/aleph" in english.text
     assert "Easy" in english.text and "1,000 words" in english.text
