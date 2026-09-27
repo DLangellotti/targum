@@ -96,7 +96,7 @@
     <a href="/weekly/{{ issue.id }}/{{ other.value }}" data-level="{{ other.value }}"
        data-what="{{ explained[other] }}"{% if other == level %} class="here" aria-current="page"{% endif %}>
       <b>{{ level_names[other] }}</b>
-      <span class="figure"><span class="for">{{ t("weekly.page.for", "for") }} </span>{{ t("weekly.page.figure-words", "{figure} words", figure=other_spec.figure) }}</span>
+      <span class="figure"><span class="for">{{ t("weekly.page.for", "for") }} </span>{{ t("weekly.page.figure-words", "{figure} words", figure=other_spec.figure_in(page_language|default("en"))) }}</span>
       <span class="what">{{ explained[other] }}</span>
     </a>
     {%- endfor %}
@@ -121,7 +121,7 @@
     <button type="button" class="handle" id="embed-handle" aria-expanded="false">{{ t("weekly.page.full-screen", "Full screen") }}</button>
     <iframe
       src="/weekly/read/{{ folder }}/reader/index.html"
-      title="{{ issue.title }} — {{ level_names[level] }} · {{ t("weekly.page.figure-words", "{figure} words", figure=spec.figure) }}"
+      title="{{ issue.title }} — {{ level_names[level] }} · {{ t("weekly.page.figure-words", "{figure} words", figure=spec.figure_in(page_language|default("en"))) }}"
       loading="lazy"></iframe>
   </div>
 

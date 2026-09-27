@@ -21,6 +21,19 @@
 #
 # It is safe to run twice. Every step asks what has already happened and skips what has:
 # a re-run after a failed ship ships, and does not rewrite the issue.
+#
+# **Every issue has a Russian edition too** (David, 2026-09-27, targum-internal#288). It
+# is the same Hebrew — the same three levels the guards measured — with Russian beside it
+# instead of English, built into folders of its own after `publish` has said yes. That
+# order is the point: an issue the guards refuse spends nothing on Russian, and a Russian
+# build that stops cannot hold back an English issue that passed. A run whose Russian
+# stopped still announces and ships the English, then ends non-zero and says so; running
+# it again builds only the Russian that is missing (the translation cache keeps whatever
+# it already bought) and ships it. Until then a Russian subscriber is mailed in Russian
+# and lands on a Russian page with the English reader in it, which is the most there is.
+#
+# TARGUM_WEEKLY_LANGUAGES names the editions beside English, space-separated. Unset is
+# "ru"; set it empty to build English alone.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -98,6 +111,18 @@ print(issue.state.value if issue is not None else "missing")
 PY
 }
 
+# Whether every level of this issue has been built into a language. `weekly build --to`
+# writes the language onto the issue only once all three have, so this is never true of
+# a half-built one.
+speaks() {
+  WEEK="$1" LANGUAGE="$2" "$ROOT/.venv/bin/python" - <<'PY' 2>/dev/null
+import os, sys
+from targum.weekly import index as weekly_index
+issue = weekly_index.by_week(os.environ["WEEK"])
+sys.exit(0 if issue is not None and os.environ["LANGUAGE"] in issue.languages else 1)
+PY
+}
+
 STATE="$(state_of "$WEEK")"
 say "it is currently: $STATE"
 
@@ -123,6 +148,27 @@ fi
 # here is worth saying loudly and is not worth stopping the world for.
 FAILED=""
 
+# The other editions, after publish and before the mail. After publish, so an issue the
+# guards refused has spent nothing on them — and the guards need nothing of their own
+# here: the Hebrew is the one they just measured, and `--anyway` is not passed here any
+# more than above. Before the mail, so the letters can point at a finished edition.
+#
+# A failure is said and carried to the end, never fatal: the English passed every guard
+# and is not held back by a translation into another language. (Draft and the English
+# build above stay fatal: without them there is no issue.)
+MISSING=""
+for language in ${TARGUM_WEEKLY_LANGUAGES-ru}; do
+  [ "$language" = "en" ] && continue
+  if speaks "$WEEK" "$language"; then
+    continue
+  fi
+  say "building the three levels in $language (this spends)"
+  if ! "$TARGUM" weekly build "$WEEK" --to "$language"; then
+    say "the $language edition stopped; the English goes out without it"
+    MISSING="$MISSING $language"
+  fi
+done
+
 if [ -n "${TARGUM_PUBLIC_ADDRESS:-}" ]; then
   say "telling everybody who asked"
   "$TARGUM" weekly announce "$WEEK" || FAILED="$FAILED announce"
@@ -141,8 +187,14 @@ else
 fi
 
 if [ -n "$FAILED" ]; then
-  die "$WEEK is published, and this did not finish:$FAILED. Run this again — it picks up
-   where it stopped and re-does nothing."
+  die "$WEEK is published, and this did not finish:$FAILED${MISSING:+, and no edition in$MISSING}.
+   Run this again — it picks up where it stopped and re-does nothing."
+fi
+
+if [ -n "$MISSING" ]; then
+  die "$WEEK is out in English, without its edition in$MISSING: that build stopped (read what
+   it said above). Subscribers who asked in it were mailed and land on the English reader.
+   Run this again — it builds only what is missing, then ships it."
 fi
 
 say "$WEEK is out"

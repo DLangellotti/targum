@@ -24,6 +24,12 @@ INDEX="$LOCAL/index.json"
 # Which folders this issue is, and whether it may go at all. Asked of the index rather
 # than of the directory: a folder on disk proves a build happened, not that a person
 # read it and pressed publish.
+#
+# Every language the issue lists, not only English (targum-internal#288). A language is
+# listed only once all three levels were built into it, so a Russian build that stopped
+# halfway leaves its folders here and nothing is carried; the English goes regardless.
+# Another language's folder is the English one with its code on the end — the rule
+# `weekly.models.folder` writes down — because this reads the index with no targum.
 FOLDERS="$(
   WEEK="$WEEK" INDEX="$INDEX" python3 - <<'PY'
 import json, os, sys
@@ -36,7 +42,11 @@ if issue.get("state") != "published":
 bad = [e for e in issue["editions"] if e.get("lifted")]
 if bad:
     sys.exit(f"{len(bad)} level(s) still carry a source's wording; this one does not go out")
-print("\n".join(e["folder"] for e in issue["editions"]))
+languages = [code for code in issue.get("languages") or ["en"] if code != "en"]
+for edition in issue["editions"]:
+    print(edition["folder"])
+    for code in languages:
+        print(f"{edition['folder']}-{code}")
 PY
 )"
 [ -n "$FOLDERS" ] || { echo "no editions to send" >&2; exit 1; }

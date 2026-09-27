@@ -298,12 +298,12 @@
     <div class="group levels" role="group" aria-label="{{ t("reader.page.level", "Level") }}" data-what="Level">
       {%- for other in siblings %}
       {%- if other.current %}
-      <span class="level here" aria-current="page" title="Written for {{ other.figure }}">{{ other.name }}</span>
+      <span class="level here" aria-current="page" title="{{ t("contents.page.written-for", "Written for {figure}", figure=other.figure) }}">{{ other.name }}</span>
       {%- else %}
       {#- The same section, not the other level's front. A reader who finds Sport too
           hard wants Sport again in easier Hebrew, not to be put back at the top of the
           issue and made to find their way down to it. -#}
-      <a class="level" href="../../{{ other.folder }}/reader/{{ 'index.html' if standalone else section.filename }}" title="Written for {{ other.figure }}">{{ other.name }}</a>
+      <a class="level" href="../../{{ other.folder }}/reader/{{ 'index.html' if standalone else section.filename }}" title="{{ t("contents.page.written-for", "Written for {figure}", figure=other.figure) }}">{{ other.name }}</a>
       {%- endif %}
       {%- endfor %}
     </div>

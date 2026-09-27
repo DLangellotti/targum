@@ -219,10 +219,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    TABLE IF NOT EXISTS` is the whole of it. Nothing is backfilled: the line on Your
 #    Progress starts the day this lands, and the page says so.
 #
+# 35→36: subscriber.language — the language somebody asked for the weekly in
+#    (targum-internal#288), so the digest, the confirmation and the pages they lead to are
+#    in it, and so a Russian reader is sent the Russian edition. On a table every box has,
+#    so it is in MIGRATIONS; empty means English, which every row before it was.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 35
+SCHEMA_VERSION = 36
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -465,6 +470,11 @@ MIGRATIONS: tuple[str, ...] = (
     # What a link is for (targum-internal#328): 'sign-in', which every row written before
     # this was, or 'telegram', which binds a chat and signs nobody in.
     "ALTER TABLE link ADD COLUMN purpose TEXT NOT NULL DEFAULT 'sign-in'",
+    # The language somebody asked for the weekly in (targum-internal#288), the way
+    # `follow.language` is a series'. The weekly went out in English to everybody, and
+    # since 2026-09-27 there is a Russian edition every issue to send instead. Empty
+    # means English, which is what every row written before this was sent.
+    "ALTER TABLE subscriber ADD COLUMN language TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -746,7 +756,10 @@ CREATE TABLE IF NOT EXISTS subscriber (
   -- the failure that costs a sending domain its reputation.
   sent    INTEGER NOT NULL DEFAULT 0,
   issue   TEXT    NOT NULL DEFAULT '',
-  bounces INTEGER NOT NULL DEFAULT 0
+  bounces INTEGER NOT NULL DEFAULT 0,
+  -- The language they asked in, and so the one they are written to and sent the
+  -- edition in (targum-internal#288). Empty means English.
+  language TEXT   NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS subscriber_state ON subscriber (state);
 
@@ -1142,6 +1155,11 @@ def _prompt_name(name: str) -> str:
 
 def digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _language_code(language: str) -> str:
+    """`ru-RU` as `ru`, and nothing as nothing: what a language column holds."""
+    return (language or "").strip().split("-")[0].lower()
 
 
 def tidy(email: str) -> str:
@@ -1841,11 +1859,15 @@ class Store:
         row = self.db.execute("SELECT state FROM subscriber WHERE email = ?", (address,)).fetchone()
         return row is not None and str(row["state"]) == "on"
 
-    def subscribe(self, email: str) -> str | None:
+    def subscribe(self, email: str, language: str = "") -> str | None:
         """The public door. Mint a token to confirm this address, or None if it is on.
 
         Idempotent: asking twice re-mints rather than making a second row, because
         asking twice is what somebody does when the first mail did not arrive.
+
+        `language` is the one the page was in when they asked (targum-internal#288). A
+        second ask overwrites it, as a second ask at the waitlist does: the door they came
+        through most recently is the better guess at what they read.
         """
         address = tidy(email)
         if not address:
@@ -1853,34 +1875,42 @@ class Store:
         if self.following(address):
             return None
         token = secrets.token_urlsafe(TOKEN_BYTES)
+        spoken = _language_code(language)
         with self.write() as db:
             db.execute(
                 """
-                INSERT INTO subscriber (email, state, confirm, stop, asked)
-                VALUES (?, 'pending', ?, ?, ?)
-                ON CONFLICT(email) DO UPDATE SET state = 'pending', confirm = ?, asked = ?
+                INSERT INTO subscriber (email, state, confirm, stop, asked, language)
+                VALUES (?, 'pending', ?, ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET
+                    state = 'pending', confirm = ?, asked = ?, language = ?
                 """,
                 (
                     address,
                     digest(token),
                     secrets.token_urlsafe(TOKEN_BYTES),
                     now(),
+                    spoken,
                     digest(token),
                     now(),
+                    spoken,
                 ),
             )
         return token
 
-    def follow(self, email: str, on: bool = True) -> bool:
+    def follow(self, email: str, on: bool = True, language: str = "") -> bool:
         """The signed-in door, and it confirms nothing.
 
         Somebody with a session proved they control this address by following a link to
         get in. Mailing them to ask whether they control it would be asking them to
         confirm what they confirmed at the door.
+
+        `language` is the one they were reading targum in as they pressed, written on
+        every press for the reason `follow_series` gives, and left alone on a stop.
         """
         address = tidy(email)
         if not address:
             raise ValueError("No address given.")
+        spoken = _language_code(language)
         with self.write() as db:
             if not on:
                 db.execute(
@@ -1890,13 +1920,38 @@ class Store:
                 return False
             db.execute(
                 """
-                INSERT INTO subscriber (email, state, confirm, stop, asked, joined)
-                VALUES (?, 'on', NULL, ?, ?, ?)
-                ON CONFLICT(email) DO UPDATE SET state = 'on', confirm = NULL, joined = ?
+                INSERT INTO subscriber (email, state, confirm, stop, asked, joined, language)
+                VALUES (?, 'on', NULL, ?, ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET
+                    state = 'on', confirm = NULL, joined = ?, language = ?
                 """,
-                (address, secrets.token_urlsafe(TOKEN_BYTES), now(), now(), now()),
+                (
+                    address,
+                    secrets.token_urlsafe(TOKEN_BYTES),
+                    now(),
+                    now(),
+                    spoken,
+                    now(),
+                    spoken,
+                ),
             )
         return True
+
+    def subscription_language(self, token: str) -> str:
+        """The language behind a weekly token, for the page it opens.
+
+        Matched on either token, as `waiting_language` is: `confirm` is hashed and `stop`
+        is in the clear. A token that is neither answers English. Only the confirm door
+        may use this — the stop door has to answer the same for a real token and a
+        made-up one, so it takes the request's language instead.
+        """
+        if not token:
+            return "en"
+        row = self.db.execute(
+            "SELECT language FROM subscriber WHERE confirm = ? OR stop = ?",
+            (digest(token), token),
+        ).fetchone()
+        return str(row["language"] or "en") if row is not None else "en"
 
     def peek_subscription(self, token: str) -> str | None:
         """Whose address this token would confirm, without spending it.
@@ -2178,8 +2233,9 @@ class Store:
             )
             return True
 
-    def subscribers(self, not_sent: str = "") -> list[tuple[str, str]]:
-        """Everyone to mail about this issue, with the token that stops it.
+    def subscribers(self, not_sent: str = "") -> list[tuple[str, str, str]]:
+        """Everyone to mail about this issue, with the token that stops it and the
+        language they asked for it in ("en" where they said nothing).
 
         Selecting on "has not had this one" rather than on "is subscribed" is what makes
         a mailout safe to resume: a run that died halfway picks up where it stopped, and
@@ -2190,7 +2246,7 @@ class Store:
         one" would post last week's issue to everybody who already had this week's.
         """
         rows = self.db.execute(
-            "SELECT email, stop FROM subscriber WHERE state = 'on' "
+            "SELECT email, stop, language FROM subscriber WHERE state = 'on' "
             # Not this issue, and not one already past it. The column holds the last
             # issue sent rather than a history, so "not this one" alone would re-send
             # last week to everybody the moment somebody typed the wrong week — and an
@@ -2200,7 +2256,7 @@ class Store:
             "ORDER BY joined",
             (not_sent,),
         ).fetchall()
-        return [(str(row["email"]), str(row["stop"])) for row in rows]
+        return [(str(row["email"]), str(row["stop"]), str(row["language"] or "en")) for row in rows]
 
     def subscribed(self) -> int:
         """How many people this database could mail at all, whatever issue is being sent.

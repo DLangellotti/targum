@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ..mail import Mailer, SmtpMailer
-from .models import LEVELS, Issue, Level
+from .models import Issue, Level, label_in
 
 if TYPE_CHECKING:
     from ..accounts import Store
@@ -28,18 +28,9 @@ if TYPE_CHECKING:
 BATCH = 25
 PAUSE = 2.0
 
-SUBJECT = "the weekly — {dated}"
-
-BODY = """This week's issue, for the week of {dated}: \u2068{title}\u2069.
-
-Five sections in Modern Hebrew, written at three levels:
-
-{levels}
-
-Read it: {where}
-
-You are getting this because you asked for it. To stop: {stop}
-"""
+#: The subject and body are `mail.weekly.subject` and `mail.weekly.body` in the strings
+#: catalogue, in the language the subscriber asked in (targum-internal#288). They were
+#: constants here, in English, for everybody.
 
 
 @dataclass
@@ -66,21 +57,39 @@ class Report:
         return line
 
 
-def letter(issue: Issue, address: str, stop_token: str) -> tuple[str, str]:
-    where = f"{address.rstrip('/')}/weekly/{issue.id}"
+def letter(issue: Issue, address: str, stop_token: str, language: str = "en") -> tuple[str, str]:
+    """One subscriber's mail, in the language they asked in.
+
+    A language the issue was built into links to its own edition: the addresses carry
+    `?lang=`, which is what the weekly's pages answer in, and a page in Russian frames the
+    Russian reader. Where the issue has no edition in it — a Russian build that stopped —
+    the page still speaks Russian and frames the English, which is the most it has.
+
+    The stop link carries it too, because the stop page must not read it off the token:
+    that page answers the same for a real token and a made-up one.
+    """
+    from ..strings import text
+
+    code = (language or "en").split("-")[0].lower()
+    base = address.rstrip("/")
+    asked = "" if code == "en" else f"?lang={code}"
+    where = f"{base}/weekly/{issue.id}"
     levels = "\n".join(
-        f"  {LEVELS[level].label} — {where}/{level.value}"
+        f"  {label_in(level, code)} — {where}/{level.value}{asked}"
         for level in Level
         if issue.edition(level) is not None
     )
-    body = BODY.format(
+    stop = f"{base}/weekly/stop?t={stop_token}" + (f"&lang={code}" if asked else "")
+    body = text(
+        "mail.weekly.body",
+        code,
         title=issue.title,
         dated=issue.dated,
         levels=levels,
-        where=where,
-        stop=f"{address.rstrip('/')}/weekly/stop?t={stop_token}",
+        where=where + asked,
+        stop=stop,
     )
-    return SUBJECT.format(dated=issue.dated), body
+    return text("mail.weekly.subject", code, dated=issue.dated), body
 
 
 def announce(
@@ -111,8 +120,8 @@ def announce(
     holding = mailer.session() if isinstance(mailer, SmtpMailer) else contextlib.nullcontext()
     try:
         with holding:
-            for index, (email, stop_token) in enumerate(waiting):
-                subject, body = letter(issue, address, stop_token)
+            for index, (email, stop_token, language) in enumerate(waiting):
+                subject, body = letter(issue, address, stop_token, language)
                 unsubscribe = f"<{address.rstrip('/')}/weekly/stop?t={stop_token}>"
                 try:
                     mailer.notify(
