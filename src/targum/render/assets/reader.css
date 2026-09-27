@@ -288,6 +288,10 @@ a.bar-brand:hover { color: var(--accent); }
 @media (min-width: 60.01rem) and (max-width: 75rem) {
   .bar-english,
   .bar-title .known { display: none; }
+  /* "No recording" beside a button that says "Hear this section" is said twice, and
+     the voice's row was what wrapped the bar again (2026-09-27). The cost stays: it is
+     what the press is agreed to. */
+  .bar-more .voice-offer .label { display: none; }
 }
 
 /* Said rather than shown. Marking a word from the keyboard changes a count in the far
@@ -1485,7 +1489,11 @@ body[data-case="Loc"] .w.case-Loc {
    costs the reader no width. Below that, it becomes a tab you pull open. */
 .list {
   position: fixed;
-  inset-block: 4.5rem 0;
+  /* Under the bar, wherever it ends. 4.5rem is one row of it; a window between the
+     phone's bar and the wide one can wrap it to two or three (the Mishnah Yomit frame,
+     2026-09-27, whose rows stood over this panel's head), and `reader.js` says its
+     height as `--bar-foot`. */
+  inset-block: max(4.5rem, var(--bar-foot, 0px)) 0;
   inset-inline-end: 0;
   z-index: 15;
   width: 15rem;
@@ -3477,8 +3485,8 @@ html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: 
    before the first measurement and for a browser without a ResizeObserver. */
 .video.dock-bottom-end { inset-block: auto calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 0.75rem); inset-inline: auto 1.25rem; }
 .video.dock-bottom-start { inset-block: auto calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 0.75rem); inset-inline: 1.25rem auto; }
-.video.dock-top-end { inset-block: 4.5rem auto; inset-inline: auto 1.25rem; }
-.video.dock-top-start { inset-block: 4.5rem auto; inset-inline: 1.25rem auto; }
+.video.dock-top-end { inset-block: max(4.5rem, var(--bar-foot, 0px)) auto; inset-inline: auto 1.25rem; }
+.video.dock-top-start { inset-block: max(4.5rem, var(--bar-foot, 0px)) auto; inset-inline: 1.25rem auto; }
 
 /* --- watching --------------------------------------------------------------
    A text carrying a video sidecar opens as video (§12, 2026-09-03): the picture fills
@@ -4258,7 +4266,7 @@ html:fullscreen { background: var(--paper); }
 .bar .talk-cta[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
 .talk-drawer {
   position: fixed;
-  inset-block: 4.5rem 1rem;
+  inset-block: max(4.5rem, var(--bar-foot, 0px)) 1rem;
   inset-inline-end: 1rem;
   z-index: 31;
   display: grid;
