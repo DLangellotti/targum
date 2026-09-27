@@ -1225,6 +1225,7 @@
   "suggest.looked-up": "A learner looks up {share}% of its words.",
   "suggest.modern-hebrew": "Modern Hebrew.",
   "suggest.biblical-hebrew": "Biblical Hebrew.",
+  "suggest.passage": "{title} reads at your level, though the whole text is harder.",
   "suggest.unmeasured": "Not measured yet.",
   "reader.next.sequence": "Next in the sequence.",
   "reader.next.step-up": "A step up from this one.",

@@ -111,6 +111,15 @@ if [ -f "$SOURCES" ]; then
 else
   echo "no sources.json at $SOURCES — the chat will have no publishers to search" >&2
 fi
+# How hard each sentence of the library is (targum-internal#320), asked on this machine by
+# scripts/sentence_levels.py and private for the same reason as the catalogue. Optional:
+# a box without it suggests whole texts only, as it did before.
+SENTENCE_LEVELS="${TARGUM_SENTENCE_LEVELS:-$HOME/.targum/sentence-difficulty/sentence-levels.json}"
+if [ -f "$SENTENCE_LEVELS" ]; then
+  scp -q "$SENTENCE_LEVELS" "$HOST:/tmp/sentence-levels.json"
+else
+  echo "no sentence levels at $SENTENCE_LEVELS — suggestions will not point into a text" >&2
+fi
 # Published translations held as files of verses (ingest/fetch/published.py) — the 1875
 # Russian Torah is the first — are content in the same way, and optional the same way: a
 # box without them builds every text as before, with only those renderings missing.
@@ -178,6 +187,10 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   if [ -f /tmp/sources.json ]; then
     install -o root -g targum -m 0640 /tmp/sources.json /etc/targum/sources.json
     rm -f /tmp/sources.json
+  fi
+  if [ -f /tmp/sentence-levels.json ]; then
+    install -o root -g targum -m 0640 /tmp/sentence-levels.json /etc/targum/sentence-levels.json
+    rm -f /tmp/sentence-levels.json
   fi
   install -d -o root -g targum -m 0750 /etc/targum/published
   for held in /tmp/targum-published/*.json; do

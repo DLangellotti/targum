@@ -54,6 +54,7 @@ from urllib.parse import quote, unquote, urlparse
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
 from .. import level as level_module
+from .. import sentence_level
 from ..level import Level
 from ..translate.prompts import INTO, language_name
 from ..usage import Usage
@@ -650,6 +651,11 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # of an equal text in another (2026-09-11: "a text that fits your level and
     # interests, without needing to chat").
     liked = {str(row.get("register") or "") for row in mine if row.get("register")}
+    # Where one is kept, how hard each sentence is (targum-internal#320), so a text too
+    # hard as a whole can still be offered by the one section that reads at the reader's
+    # rung. Hebrew only: the answers are on the ulpan ladder.
+    rung = _rung(ctx.level) if language.split("-")[0] == "he" else None
+    levels = sentence_level.load() if rung is not None else {}
     candidates: list[tuple[tuple[float, float], dict[str, Any]]] = []
     for entry in catalogue_module.everything():
         key = catalogue_module._key(entry.source)
@@ -692,9 +698,61 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             row["because"] = "Not measured yet."
             row["reason"] = {"key": "suggest.unmeasured"}
             rank = (2.0, 0.0)
+        if levels and rung is not None and key in built and row["on_shelf"]:
+            _passage(ctx, row, built[key], rung, levels)
         candidates.append((rank, row))
     candidates.sort(key=lambda pair: pair[0])
-    return {"suggestions": [row for _, row in candidates[:limit]]}
+    chosen = [row for _, row in candidates[:limit]]
+    # One slot for a passage. Whole texts are ranked gentlest first, so a hard book whose
+    # third chapter reads at the reader's rung would never reach the cut on its whole-text
+    # number — which is the point of asking per sentence. Where nothing chosen carries a
+    # passage and something further down does, the best of those takes the last place.
+    if len(chosen) > 1 and not any("passage" in row for row in chosen):
+        waiting = [row for _, row in candidates[limit:] if "passage" in row]
+        if waiting:
+            chosen[-1] = max(waiting, key=lambda row: row["passage"]["readable"])
+    return {"suggestions": chosen}
+
+
+def _rung(level: Level) -> int:
+    """The reader's rung on the ulpan ladder as an index: measured, else the one they said
+    on arrival (`level.seed`), else the first."""
+    here = level.here or level_module.seed(level)
+    if here is None:
+        return 0
+    names = [one.name for one in level_module.ULPAN]
+    return names.index(here.name) if here.name in names else 0
+
+
+def _passage(
+    ctx: Ctx,
+    row: dict[str, Any],
+    built: dict[str, Any],
+    rung: int,
+    levels: dict[str, sentence_level.Level],
+) -> None:
+    """Give a suggestion the section of it that reads at `rung`, where the whole does not.
+
+    Counted here, off the kept per-sentence answers: how many of a section's sentences a
+    reader at this rung follows. The model was only ever asked about one sentence at a
+    time. `because` says it without a number, the way every suggestion's reason is said.
+    """
+    folder = ctx.library.shared / str(built.get("name") or "")
+    found = sentence_level.best_passage(folder, rung, levels)
+    if found is None:
+        return
+    best, whole = found
+    reader = str(row.get("reader") or "")
+    row["passage"] = {
+        "section": best.number,
+        "title": best.title,
+        "reader": reader.rsplit("/", 1)[0] + "/" + best.file if reader else "",
+        # Shares for the page and the ranking, never for `because`.
+        "readable": round(best.share, 2),
+        "whole": round(whole, 2),
+    }
+    row["because"] = f"{best.title} reads at your level, though the whole text is harder."
+    row["reason"] = {"key": "suggest.passage", "title": best.title}
 
 
 def because_in(row: dict[str, Any], language: str) -> str:
@@ -721,6 +779,13 @@ def because_in(row: dict[str, Any], language: str) -> str:
         elif register == "biblical":
             said += " " + said_in(language, "suggest.biblical-hebrew", "Biblical Hebrew.")
         return said
+    if key == "suggest.passage":
+        return said_in(
+            language,
+            "suggest.passage",
+            "{title} reads at your level, though the whole text is harder.",
+            title=reason.get("title") or "",
+        )
     if key == "suggest.unmeasured":
         return said_in(language, "suggest.unmeasured", "Not measured yet.")
     return str(row.get("because") or "")
@@ -2193,7 +2258,8 @@ REGISTRY: tuple[Tool, ...] = (
         "straight away (`on_shelf`, with a `reader` link); the rest need getting ready "
         "first. Ranked gentlest first, by how much of each they know where that is "
         "measured and by how much a learner looks up otherwise, each with one reason you "
-        "can say as it is. Read only.",
+        "can say as it is. Where a harder text has a section that reads at the reader's "
+        "level, it carries `passage` with that section's own `reader` link. Read only.",
         _schema(
             {
                 "language": {"type": "string"},

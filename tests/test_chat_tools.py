@@ -1509,3 +1509,44 @@ def test_suggest_next_says_what_it_does() -> None:
     straight away; the description said "not built yet" and hosts were handed on_shelf."""
     said = tools.BY_NAME["suggest_next"].description
     assert "not built" not in said and "on_shelf" in said
+
+
+def test_suggest_next_points_into_a_harder_text_where_a_section_reads(
+    world, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#320. Psalms is the hardest text in the fixture catalogue and ranks
+    last on its whole-text number; its second section reads at the reader's rung, so it
+    takes the last place in the cut and says which section, with that section's own
+    link — and no percentage, like every other reason."""
+    from test_sentence_level import EASY, HARD, built_with_sections, kept_levels
+
+    from targum import sentence_level
+
+    library, store, person, home = world
+    folder = library.shared / "psalms-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps({"title": "תהילים", "language": "he", "source": "test:psalms"}),
+        encoding="utf-8",
+    )
+    built_with_sections(folder, [HARD, EASY])
+    where = tmp_path / "levels.json"
+    sentence_level.write(kept_levels(), where, "jev-test")
+    monkeypatch.setenv(sentence_level.ENV, str(where))
+    ctx = context(library, store, person, home)
+
+    got = tools.suggest_next(ctx, {"limit": 3})["suggestions"]
+    assert got[0]["id"] == "esther", "measured coverage still ranks first"
+    last = got[-1]
+    assert last["id"] == "psalms"
+    assert last["passage"]["section"] == 2
+    assert last["passage"]["reader"].endswith("/psalms-he/reader/sec-0002.html")
+    assert "%" not in last["because"] and "פרק 2" in last["because"]
+    assert tools.because_in(last, "en") == last["because"]
+
+    # Without the kept file, nothing points into anything and the cut is as it was.
+    monkeypatch.setenv(sentence_level.ENV, str(tmp_path / "absent.json"))
+    plain = tools.suggest_next(ctx, {"limit": 3})["suggestions"]
+    assert all("passage" not in row for row in plain)
+    assert "psalms" not in [row["id"] for row in plain]
