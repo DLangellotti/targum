@@ -1502,6 +1502,14 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(14.5rem, 1fr));
     gap: 1rem;
+    /* The end column's + and ⋯ sit at the card's foot, at the grid's end edge, and each
+       one scrolled under the Talk to targum pill until the window was wide enough for the
+       page's margin to hold it (targum-internal#379). The grid gives up only as much of
+       that edge as the pill reaches past the margin, plus a gap: `--talk-room` is measured
+       by `talk.js`, and `(100vw - 100%) / 2` is the margin, `100%` being the page's width
+       here. The band `room()` keeps at a reader's foot, on its side; a wide window gives
+       up nothing. */
+    padding-inline-end: max(0px, var(--talk-room, 0px) + 0.75rem - (100vw - 100%) / 2);
   }
   .books.shelf-cards li {
     grid-template-columns: minmax(0, 1fr) auto;
