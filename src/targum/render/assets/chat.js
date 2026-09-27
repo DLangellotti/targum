@@ -254,13 +254,13 @@
   // What the reader's ledger says about one dictionary form: "known", "learning", or
   // "new" — and nothing for a name or a number, which are not vocabulary. Where the NER
   // read the word its label decides a name, not the tag (targum-internal#149).
-  function named(word) {
+  function isNameWord(word) {
     if (word.entity) return /^[BI]-(PER|GPE|LOC)$/.test(word.entity);
     return word.pos === "PROPN";
   }
 
   function stateOf(word, kept) {
-    if (!word.lemma || word.pos === "NUM" || named(word)) return "";
+    if (!word.lemma || word.pos === "NUM" || isNameWord(word)) return "";
     var row = kept[word.lemma];
     if (!row) return "new";
     if (row.status === 9) return "known";
