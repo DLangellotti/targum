@@ -49,6 +49,11 @@ from .models import Row
 BEFORE_S = 0.3
 AFTER_S = 0.6
 
+#: The longest stretch heard in one pass. `forced_align` on a 34-minute part (3,115 words)
+#: died with a segfault after eight minutes on the laptop, and a 21-minute part aligned
+#: in one pass. Every part that aligned whole is under this, so its result does not change.
+LONGEST_S = 1500.0
+
 RATE = 16000
 
 
@@ -72,6 +77,47 @@ def _write_wav(path: Path, pcm: Sequence[float]) -> None:
         out.writeframes(frames.tobytes())
 
 
+def pieces(rows: list[Row], duration: float) -> list[tuple[int, int, float, float]]:
+    """How to hear a part: (first word, past the last word, from, to) per window.
+
+    One window where the stored words span no more than `LONGEST_S`. A longer part is cut
+    at the widest pause the old clocks show in the back half of each window, so no word is
+    split. Each side of the cut gets the same margins a part's own edges get.
+    """
+    last = len(rows)
+    lo = max(0.0, float(rows[0][1]) - BEFORE_S)
+    first = 0
+    out: list[tuple[int, int, float, float]] = []
+    while True:
+        if float(rows[-1][2]) + AFTER_S - lo <= LONGEST_S:
+            out.append((first, last, lo, min(duration, float(rows[-1][2]) + AFTER_S)))
+            return out
+        fits = [
+            k
+            for k in range(first, last - 1)
+            if float(rows[k + 1][1]) - lo <= LONGEST_S and float(rows[k][2]) - lo >= LONGEST_S / 2
+        ]
+        if not fits:
+            # No pause in the back half: cut at the last word that still fits, and
+            # always move on by at least one word.
+            fits = [k for k in range(first, last - 1) if float(rows[k + 1][1]) - lo <= LONGEST_S][
+                -1:
+            ] or [first]
+        # The widest pause, and the latest of equals, so the windows stay few.
+        k = max(fits, key=lambda k: (float(rows[k + 1][1]) - float(rows[k][2]), k))
+        before, after = float(rows[k][2]), float(rows[k + 1][1])
+        if after - before >= BEFORE_S + AFTER_S:
+            # A wide pause is often not a pause: a LibriVox reading that spans discs says
+            # "end of section" and "section two of" there. Cut through its middle and
+            # both sides would have to find words for that speech, so the pause is heard
+            # by neither: each side keeps its usual margin and the rest is skipped.
+            hi, next_lo = before + AFTER_S, after - BEFORE_S
+        else:
+            hi = next_lo = max(lo, (before + after) / 2)
+        out.append((first, k + 1, lo, hi))
+        first, lo = k + 1, next_lo
+
+
 def realigned(
     audio: Path,
     rows: list[Row],
@@ -85,28 +131,30 @@ def realigned(
     words = [str(row[0]) for row in rows]
     pcm = read(audio, RATE)
     duration = len(pcm) / RATE
-    lo = max(0.0, float(rows[0][1]) - BEFORE_S)
-    hi = min(duration, float(rows[-1][2]) + AFTER_S)
-    window = pcm[int(lo * RATE) : int(hi * RATE)]
-    offset = int(lo * RATE) / RATE
-    del pcm
-    with tempfile.TemporaryDirectory() as scratch:
-        heard = Path(scratch) / "window.wav"
-        _write_wav(heard, window)
-        del window
-        timed = aligner.align(heard, words, language)
-    if len(timed) != len(words):
-        raise TargumError(
-            f"The aligner returned {len(timed)} clocks for {len(words)} words in {audio.name}."
+    fresh: list[Row] = []
+    for first, past, lo, hi in pieces(rows, duration):
+        start_at = int(lo * RATE)
+        offset = start_at / RATE
+        mine = words[first:past]
+        with tempfile.TemporaryDirectory() as scratch:
+            heard = Path(scratch) / "window.wav"
+            _write_wav(heard, pcm[start_at : int(hi * RATE)])
+            timed = aligner.align(heard, mine, language)
+        if len(timed) != len(mine):
+            raise TargumError(
+                f"The aligner returned {len(timed)} clocks for {len(mine)} words in {audio.name}."
+            )
+        ceiling = min(duration, hi)
+        fresh.extend(
+            [
+                word,
+                round(min(max(0.0, start + offset), ceiling), 3),
+                round(min(max(0.0, end + offset), ceiling), 3),
+                round(score, 3),
+            ]
+            for word, (start, end, score) in zip(mine, timed, strict=True)
         )
-
-    def clock(at: float) -> float:
-        return round(min(max(0.0, at + offset), duration), 3)
-
-    return [
-        [word, clock(start), clock(end), round(score, 3)]
-        for word, (start, end, score) in zip(words, timed, strict=True)
-    ]
+    return fresh
 
 
 def realign_folder(
