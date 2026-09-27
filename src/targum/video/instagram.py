@@ -201,6 +201,10 @@ def described_from(post: Post) -> dict[str, Any]:
         "title": post.title or f"Video by {post.author}",
         "duration": post.duration,
         "uploader": post.author,
+        # yt-dlp's own keys for the handle and the caption, so the post's head and its
+        # caption are read the same way whichever door answered (targum-internal#158).
+        "channel": post.author,
+        "description": post.caption,
         "webpage_url": hosts.home_url(f"https://www.instagram.com/reel/{post.code}/"),
         "formats": [{"url": post.video}],
     }

@@ -2617,14 +2617,26 @@ class Library:
         if job.stage != "failed":
             job.options["youtube"] = True
 
-    def _prepare_reel(self, job: Job) -> None:
-        """An Instagram reel, priced through `_prepare_video` (targum-internal#255)."""
+    def _prepare_reel(self, job: Job, post: Any = None) -> None:
+        """An Instagram reel, priced through `_prepare_video` (targum-internal#255).
+
+        `post` is the embed page's reading where the `/p/` door already made one; a reel
+        pasted as `/reel/` is read off yt-dlp's answer, and its face at the build.
+        """
+        from .ingest.post import posted_from
         from .video import instagram as instagram_module
+
+        said: dict[str, Any] = {}
+
+        def described(url: str) -> dict[str, Any]:
+            info = instagram_module.describe(url)
+            said.update(info)
+            return info
 
         self._prepare_video(
             job,
             vetted=instagram_module.is_reel,
-            described=instagram_module.describe,
+            described=described,
             unavailable=said_in(
                 job.ui, "job.instagram-unavailable", "We can't fetch from Instagram here."
             ),
@@ -2633,6 +2645,57 @@ class Library:
             # live stream, which a reel never is.
             unmeasured=instagram_module.GUESS_S,
         )
+        if job.stage == "failed":
+            return
+        if post is not None:
+            self._keep_film_post(
+                job,
+                platform="instagram",
+                handle=post.author,
+                name=post.name,
+                posted_at=post.posted,
+                avatar=post.avatar,
+                caption=post.caption,
+            )
+        else:
+            # yt-dlp's Instagram answer: `channel` is the handle, `uploader` the name.
+            self._keep_film_post(
+                job,
+                platform="instagram",
+                handle=str(said.get("channel") or said.get("uploader") or ""),
+                name=str(said.get("uploader") or ""),
+                posted_at=posted_from(said.get("timestamp")),
+                caption=str(said.get("description") or ""),
+            )
+
+    @staticmethod
+    def _keep_film_post(
+        job: Job,
+        *,
+        platform: str,
+        handle: str,
+        name: str = "",
+        posted_at: str = "",
+        avatar: str = "",
+        caption: str = "",
+    ) -> None:
+        """What a reel's or a TikTok's post card draws, kept for the build to write beside
+        the reader as `post.json` (targum-internal#158; design.md §12, "A post keeps its
+        shape"). The film is the recording's own cut, so nothing here is fetched; the
+        caption rides to the build, which puts it after the transcript."""
+        handle = handle.strip().lstrip("@")
+        job.options["post"] = {
+            "platform": platform,
+            "url": job.source,
+            "handle": handle,
+            # A name that only repeats the handle says nothing the handle does not.
+            "name": "" if name.strip().lstrip("@") == handle else name.strip(),
+            "posted_at": posted_at,
+            "avatar": avatar,
+            "pictures": [],
+            "film": True,
+            "caption": caption,
+        }
 
     def _prepare_tiktok(self, job: Job) -> None:
         """A TikTok video, priced through `_prepare_video` (targum-internal#255).
@@ -2680,7 +2743,7 @@ class Library:
         post = instagram_module.backup(job.source)
         if post is None or post.video:
             # A film, or a page that would not say: yt-dlp's door, with its own backup.
-            self._prepare_reel(job)
+            self._prepare_reel(job, post=post)
             return True
         address = job.source
         job.options["came_from"] = address
@@ -3150,11 +3213,24 @@ class Library:
         from .ingest import post as post_module
         from .video import instagram as instagram_module
 
+        film = bool(said.get("film"))
+        platform = str(said.get("platform") or "instagram")
         try:
             media: list[post_module.Media] = []
             avatar = ""
             wanted = [str(address) for address in said.get("pictures") or []]
             face = str(said.get("avatar") or "")
+            if film and platform == "instagram" and not face:
+                # yt-dlp says nothing of a face. The embed page does, and is asked once,
+                # here, where the build is already fetching: quietly, because a post with
+                # no face wears its first letter.
+                found = instagram_module.backup(str(said.get("url") or ""))
+                if found is not None:
+                    face = found.avatar
+                    same = found.name.lstrip("@") == str(said.get("handle") or "")
+                    if not said.get("name") and not same:
+                        said["name"] = found.name
+                    said["posted_at"] = said.get("posted_at") or found.posted
             if wanted or face:
                 with tempfile.TemporaryDirectory() as raw:
                     fetched = instagram_module.pictures_into(
@@ -3169,16 +3245,19 @@ class Library:
                     if face:
                         avatar = post_module.keep_avatar(fetched.pop(), folder)
                     media = post_module.keep_pictures(fetched, folder)
+            items = [
+                post_module.Item(block_ids=[block.id for block in document.blocks], media=media)
+            ]
+            if film:
+                items = self._film_items(folder, document)
             manifest = post_module.Manifest(
-                platform=str(said.get("platform") or "instagram"),
+                platform=platform,
                 author=post_module.Author(
                     handle=str(said.get("handle") or ""),
                     name=str(said.get("name") or ""),
                     avatar=avatar,
                 ),
-                items=[
-                    post_module.Item(block_ids=[block.id for block in document.blocks], media=media)
-                ],
+                items=items,
                 fetched_by="paste",
                 url=str(said.get("url") or "") or None,
                 posted_at=str(said.get("posted_at") or ""),
@@ -3187,6 +3266,41 @@ class Library:
         except Exception as error:  # noqa: BLE001 - the card's business, not the build's
             traceback.print_exc()
             incidents_module.record(self.incidents, "post", error, job=job.id)
+
+    @staticmethod
+    def _film_items(folder: Path, document: Document) -> list[Any]:
+        """A film's items (targum-internal#158, rule 7): the clip, whose text is its
+        transcript and whose media is the recording's own cut as the audio manifest names
+        it — never a copy — and the caption the author typed, a separate item's text,
+        where there is one. The title and byline above them are the head's."""
+        from .audio import manifest as manifest_module
+        from .ingest import post as post_module
+        from .ingest.audio import CAPTION_REF
+
+        def ref(block: Any) -> str:
+            return str(getattr(block, "ref", "") or "")
+
+        kept = manifest_module.load(folder)
+        films = [
+            post_module.Media(
+                "video",
+                part.video,
+                *(part.frame if len(part.frame) == 2 else (0, 0)),
+            )
+            for part in (kept.parts if kept is not None else [])
+            if part.video
+        ]
+        items = [
+            post_module.Item(
+                block_ids=[block.id for block in document.blocks if ref(block).startswith("part ")],
+                media=films,
+                kind="clip",
+            )
+        ]
+        caption = [block.id for block in document.blocks if ref(block).startswith(CAPTION_REF)]
+        if caption:
+            items.append(post_module.Item(block_ids=caption, kind="caption"))
+        return items
 
     def propose(self, job: Job) -> None:
         """Offer a finished build to the shelf, if its licence allows a public copy.
@@ -3676,8 +3790,11 @@ class Library:
 
         if urlparse(job.source).scheme not in ("http", "https"):
             build.home = hosts_module.home_url(str(options.get("came_from") or ""))
-        if isinstance(job.options.get("post"), dict):
+        said = job.options.get("post")
+        if isinstance(said, dict):
             build.beside = lambda folder, document: self.keep_post(job, folder, document)
+            if said.get("film"):
+                build.caption = str(said.get("caption") or "")
         return build
 
 

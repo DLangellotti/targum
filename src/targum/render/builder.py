@@ -2584,6 +2584,17 @@ def post_card(
         else:
             day, stamp = said_date(when.date(), language), when.date().isoformat()
     pictures: list[dict[str, Any]] = []
+    # Where a film's caption starts (#158, rule 7: a separate item's text, drawn under
+    # the video), so the page can say that what follows is what the author typed.
+    caption_blocks = {
+        str(block)
+        for item in manifest.get("items") or []
+        if item.get("kind") == "caption"
+        for block in item.get("block_ids") or []
+    }
+    caption_from = next(
+        (segment.id for segment in segmented.segments if segment.block_id in caption_blocks), ""
+    )
     for item in manifest.get("items") or []:
         for media in item.get("media") or []:
             # A film is the film panel's (§12, 2026-08-31), which already draws it at
@@ -2610,6 +2621,7 @@ def post_card(
         "pictures": pictures,
         "home": home,
         "home_named": video_hosts.named(home) or platform.title(),
+        "caption_from": caption_from,
     }
     # The rows the head stands in for: the title and the byline the front matter put at
     # the top, and only while they are at the top — a heading further down is the
@@ -3380,6 +3392,8 @@ def render(
             segments=[segment for segment in segments if segment.id not in post_covers],
             # The post's card, on the page that opens the text (a post is one page).
             post=post if section.number == 1 else None,
+            # And where a film's caption starts, on whichever page it falls.
+            post_caption=post["caption_from"] if post else "",
             verses=verses,
             languages=languages,
             switches=switches,

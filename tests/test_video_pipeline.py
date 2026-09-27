@@ -326,3 +326,26 @@ def test_whether_an_import_kept_its_pictures_is_the_manifests_word(tmp_path: Pat
         ),
     )
     assert manifest_module.keeps_video(tmp_path)
+
+
+def test_a_clip_with_a_caption_reads_it_after_its_transcript(fake_audio, tmp_path) -> None:
+    """A reel's or a TikTok's caption (targum-internal#158, rule 7), handed to the build
+    by the door: kept beside the recording and read after the transcript, one paragraph a
+    line, on the same page as the film — and the hook that writes `post.json` sees it."""
+    fake_audio.video = True
+    fake_audio.duration = 40.0
+    build = builder(tmp_path, film(tmp_path))
+    build.caption = "a caption line.\n\nand a second."
+    seen: list[list[str]] = []
+    build.beside = lambda folder, document: seen.append([block.ref for block in document.blocks])
+    result = build.run()
+
+    assert (result.out_dir / "audio" / "caption.txt").is_file()
+    refs = seen[0]
+    assert refs[-2:] == ["caption:1", "caption:2"]
+    assert max(n for n, ref in enumerate(refs) if ref.startswith("part 1:")) < refs.index(
+        "caption:1"
+    )
+    # One section is one page, and a caption that opened a second would make two.
+    assert [page.name for page in result.pages] == ["index.html"]
+    assert "a caption line." in result.pages[0].read_text(encoding="utf-8")

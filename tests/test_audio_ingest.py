@@ -272,3 +272,33 @@ def test_a_corrected_title_tag_reaches_the_page_rather_than_reading_as_a_hand_ed
     after = AudioIngester().load(str(workspace / "source.mp3"))
     assert after.title == "A Proper Name"
     assert after.source_hash != before.source_hash
+
+
+def test_a_clips_caption_follows_its_transcript_as_its_own_paragraphs(
+    fake_audio, tmp_path: Path
+) -> None:
+    """A reel's or a TikTok's caption (targum-internal#158, rule 7): a line a paragraph,
+    after the transcript and numbered past every part, so it never opens a page of its own
+    ahead of the transcript and no part's growth moves it. A recording with no caption
+    keeps the document and the hash it always had."""
+    from targum.ingest.audio import CAPTION_REF, write_caption
+
+    fake_audio.duration = 40.0
+    workspace = workspace_with(tmp_path, fake_audio, language="he")
+    heard(workspace, 1, "what was said.")
+    plain = AudioIngester().load(str(workspace / "source.mp3"))
+
+    write_caption(workspace, "⁦שבת שלום⁩\n\n#שבת @kan_news\n")
+    captioned = AudioIngester().load(str(workspace / "source.mp3"))
+    tail = captioned.blocks[len(plain.blocks) :]
+    assert captioned.blocks[: len(plain.blocks)] == plain.blocks
+    assert [(block.kind, block.text, block.ref) for block in tail] == [
+        (BlockKind.paragraph, "שבת שלום", f"{CAPTION_REF}:1"),
+        (BlockKind.paragraph, "#שבת @kan_news", f"{CAPTION_REF}:2"),
+    ]
+    assert [block.id for block in tail] == ["b10000000", "b10000001"]
+    assert captioned.source_hash != plain.source_hash, "a caption is a changed source"
+
+    (workspace / "caption.txt").unlink()
+    again = AudioIngester().load(str(workspace / "source.mp3"))
+    assert again.source_hash == plain.source_hash, "no caption, no change"

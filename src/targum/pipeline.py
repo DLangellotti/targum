@@ -207,6 +207,10 @@ class Build:
         #: written, for whatever the source keeps beside the reader (a post's `post.json`).
         #: Set by the server; None for every other build.
         self.beside: Callable[[Path, Document], None] | None = None
+        #: What the author typed under a reel or a TikTok, which the door read at the
+        #: quote. Kept beside the recording for the ingester, which puts it after the
+        #: transcript as its own paragraphs (targum-internal#158). Set by the server.
+        self.caption = ""
         self.target_language = target_language
         self.source_language = source_language
         self.style = style
@@ -1330,6 +1334,10 @@ class Build:
             root = self._out_root or (Path.cwd() / "targum-out")
             self._resolved_out = self._out or (root / f"{name}-{language}")
         workspace = self._audio_workspace()
+        if self.caption:
+            from .ingest.audio import write_caption
+
+            write_caption(workspace, self.caption)
         if address:
             from .ingest.url import download
 

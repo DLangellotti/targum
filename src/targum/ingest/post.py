@@ -55,6 +55,8 @@ AVATAR_EDGE = 96
 
 @dataclass(frozen=True)
 class Media:
+    #: `image`, kept as webp under `post/`; or `video`, which is the recording's own cut
+    #: named by the audio manifest and never a copy of it.
     kind: str
     #: Relative to the reader's folder.
     path: str
@@ -78,6 +80,9 @@ class Item:
 
     block_ids: list[str]
     media: list[Media] = field(default_factory=list)
+    #: `post`: a post's own text and pictures. A film is two items (#158's rule 7): the
+    #: `clip`, whose text is its transcript and whose media is the film, and the `caption`
+    #: the author typed, which is a separate item's text drawn under it.
     kind: str = "post"
     #: None where the item is the thread's author's own; a reply by another account
     #: carries its own.
@@ -139,6 +144,29 @@ UNWORDLY = re.compile(
     r"|#[\w\u0591-\u05c7\u05f3\u05f4]+"
     r"|@[\w.]*\w"
 )
+
+
+def posted_from(stamp: object) -> str:
+    """A Unix time a platform gave, as ISO 8601 in UTC, or "" for anything that is not
+    one — `posted_at`'s own form."""
+    try:
+        seconds = int(stamp)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return ""
+    if seconds <= 0:
+        return ""
+    return datetime.fromtimestamp(seconds, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+#: Directional isolates and marks a platform wraps a caption's lines in, and the tabs and
+#: spaces beside them.
+_MARKS = "\u2066\u2067\u2068\u2069\u200e\u200f\t "
+
+
+def lines_of(caption: str) -> list[str]:
+    """A caption's lines, each a paragraph (#158's rule 1: a line is how it was written),
+    with the marks a platform wraps them in taken off and the blank ones left out."""
+    return [kept for line in caption.splitlines() if (kept := line.strip(_MARKS))]
 
 
 def unwordly(text: str) -> list[tuple[int, int]]:
@@ -241,6 +269,8 @@ __all__ = [
     "keep_avatar",
     "keep_pictures",
     "left_out",
+    "lines_of",
+    "posted_from",
     "read",
     "unwordly",
     "without_unwordly",

@@ -221,7 +221,9 @@
         on a plane and this does not. No referrer on the way out: the page fetches
         nothing, and hands nothing over either. The drawing is a screen with the arrow
         leaving it. -#}
-    {% if spoken_home %}
+    {#- A post's film goes home from the post's head, "On Instagram", and not from here
+        as well: one way home, not two (design.md §12, "A post keeps its shape"). -#}
+    {% if spoken_home and not (post and post.home) %}
     {#- Only YouTube's address takes a time; any other home opens at the video's start, so
         its control does not promise the line. -#}
     {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
@@ -400,8 +402,8 @@
           page keep their own order, and a narrow window wraps between them, not inside. -#}
       <span class="post-meta"><bdi class="post-handle{% if not post.name %} alone{% endif %}" dir="ltr">@{{ post.handle }}</bdi>{% if post.day %}<span aria-hidden="true">·</span><time datetime="{{ post.stamp }}" dir="auto">{{ post.day }}</time>{% endif %}</span>
     </span>
-    {#- Not where the film's own home already stands in the bar: one way home, not two. -#}
-    {% if post.home and not spoken_home %}
+    {#- The one way home. A film's stands here too, and the bar's gives way to it. -#}
+    {% if post.home %}
     <a class="post-home" href="{{ post.home }}" target="_blank" rel="noreferrer noopener">{{ t("reader.post.on-service", "On {service}", service=post.home_named) }}</a>
     {% endif %}
   </header>
@@ -615,6 +617,9 @@
 <button type="button" class="say" data-id="{{ id }}" aria-label="{{ t("reader.page.play-this-line", "Play this line") }}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path><rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect></svg></button>
 {%- endmacro -%}
 {% for segment in segments %}
+  {#- Under a film, what its author typed: a separate item's text (targum-internal#158,
+      rule 7), named once where it starts so it is not read as more of what was said. -#}
+  {% if post_caption and segment.id == post_caption %}<p class="post-caption" id="caption">{{ t("reader.post.the-caption", "The caption") }}</p>{% endif %}
   {% if segment.kind.value == 'heading' %}
   {% set level = segment.level|default(2, true) %}
   <div class="pair head{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in machine %} machine{% endif %}" data-id="{{ segment.id }}" tabindex="-1">
