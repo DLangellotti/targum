@@ -359,3 +359,22 @@ def test_a_language_with_no_word_list_is_still_scored_as_a_reader_who_knows_word
     assert known == ["דער", "איז"], known  # a tie goes to the spelling, so it is stable
     assert asked == [(["yi"], "dev")], "the dev split, never the one scored"
     assert module.stand_in_known("arc", 300) == [], "nothing to stand in with"
+
+
+def test_the_judge_is_asked_about_the_conversation_s_language() -> None:
+    """targum-internal#358: the template said Hebrew four times and never used `named`,
+    so a French recast was judged as Hebrew and marked wrong for being French."""
+    import importlib.util
+    from pathlib import Path
+
+    where = Path(__file__).resolve().parents[1] / "scripts" / "eval_recast.py"
+    spec = importlib.util.spec_from_file_location("eval_recast", where)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    said = dict(language="English", said="s", reference="r", candidate="c")
+    french = module.JUDGE.format(named="French", **said)
+    assert "Hebrew" not in french and french.count("French") == 4
+    hebrew = module.JUDGE.format(named="Hebrew", **said)
+    assert hebrew.startswith("You are checking one line of Hebrew written by")
