@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -324,3 +325,37 @@ def test_a_recast_keeps_the_reply_it_was_read_from() -> None:
     cut = "איך האָב געזען"
     turn = module.recast(client(cut, "max_tokens"), [], "I seen the dog", Usage(), "yi")
     assert turn.line == "" and turn.raw == cut and turn.stop == "max_tokens"
+
+
+def test_a_language_with_no_word_list_is_still_scored_as_a_reader_who_knows_words(
+    monkeypatch: Any,
+) -> None:
+    """targum-internal#359. With no wordfreq list, the Yiddish reader had marked nothing,
+    the ledger said it was their first day and to offer a text, and with no tools the
+    model wrote the call out instead of the recast: 13 of 14 empty turns. The stand-in
+    ledger is FLORES-200's `dev` split, disjoint from the `devtest` being scored."""
+    import importlib.util
+    from pathlib import Path
+
+    from targum.chat import flores200
+
+    where = Path(__file__).resolve().parents[1] / "scripts" / "eval_recast.py"
+    spec = importlib.util.spec_from_file_location("eval_recast", where)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    asked: list[tuple[list[str], str]] = []
+    monkeypatch.setattr(
+        flores200, "fetch", lambda languages, split="devtest", **_: asked.append((languages, split))
+    )
+    lines = ["דער הונט איז גרויס", "דער קאַץ איז קליין", "דער הונט לויפט"]
+    monkeypatch.setattr(
+        flores200,
+        "load",
+        lambda language, split: [flores200.Pair(str(n), "x", line) for n, line in enumerate(lines)],
+    )
+    known = module.stand_in_known("yi", 2)
+    assert known == ["דער", "איז"], known  # a tie goes to the spelling, so it is stable
+    assert asked == [(["yi"], "dev")], "the dev split, never the one scored"
+    assert module.stand_in_known("arc", 300) == [], "nothing to stand in with"
