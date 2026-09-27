@@ -8504,6 +8504,17 @@ var targumReader = function () {
     : null;
   var bar = document.querySelector(".bar");
 
+  // Where the bar ends, said to the stylesheet as `--bar-foot`: the word list, the
+  // talk drawer and a docked video open under it, and a bar that wraps to a second row
+  // — a window between the phone's bar and the wide one — stood over their heads.
+  if (bar && window.ResizeObserver) {
+    new ResizeObserver(function () {
+      document.documentElement.style.setProperty(
+        "--bar-foot", Math.round(bar.getBoundingClientRect().height) + "px"
+      );
+    }).observe(bar);
+  }
+
   function behaviour() {
     // §8: everything honours prefers-reduced-motion, and a page that slides under
     // somebody who asked it not to is the least forgivable way to break that.
