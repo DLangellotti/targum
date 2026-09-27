@@ -1383,11 +1383,15 @@ def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[di
     ]
 
 
-def about_page(language: str = "en") -> str:
+def about_page(language: str = "en", address: str = "") -> str:
     """That targum is under construction, and how much has landed lately.
 
     Nothing here is written by hand: the count and the calendar both come from `git
     log`, and the rest of what this page used to say is on GitHub.
+
+    Indexed, and in the sitemap, so it names its own address like every other page a
+    crawler is sent to. One address for every language: this page reads the browser's
+    language rather than `?lang=`, so there is no second address to name.
     """
     from ..about import DAYS, work
 
@@ -1406,6 +1410,7 @@ def about_page(language: str = "en") -> str:
             work=work(),
             days=DAYS,
             level=level,
+            canonical=f"{address.rstrip('/')}/about" if address else "",
         )
     )
 
