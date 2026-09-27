@@ -1646,6 +1646,7 @@ def _paradigm_at(
     table_at: dict[str, int],
     feature_at: dict[str, int],
     written: tuple[str, ...] = (),
+    said: tuple[tuple[str, str, str], ...] = (),
 ) -> int:
     """Where this word's conjugations sit in the page's own tables, or 0 for none.
 
@@ -1669,6 +1670,13 @@ def _paradigm_at(
     each form elsewhere on the shelf — and one form read as a different verb refuses the
     table for all of them. It keys the cache with the lemma, because two words with the
     same lemma can be written differently on one page.
+
+    `said` is the same forms with the grammar each occurrence was tagged with, and it is
+    asked whatever the binyan: a participle tagged present names its verb where the
+    source has two spelled alike, and refuses a binyan that says otherwise
+    (targum-internal#307). Every occurrence has its say, as with `written`, so it keys
+    the cache too. Its surface rides along only for the dot on a ש, which is a letter
+    and not a pointing: shin against sin is the same for every occurrence of a word.
     """
     from ..annotate.paradigms import table as paradigm_table
 
@@ -1679,9 +1687,11 @@ def _paradigm_at(
     key = f"{lemma}\u0000{binyan}"
     if not binyan and written:
         key += "\u0000" + "|".join(sorted(set(written)))
+    if said:
+        key += "\u0000" + "|".join(sorted({"\u0001".join(one) for one in said}))
     if key in table_at:
         return table_at[key]
-    found = paradigm_table().of(lemma, binyan=binyan or None, written=written)
+    found = paradigm_table().of(lemma, binyan=binyan or None, written=written, said=said)
     if found is None:
         table_at[key] = 0
         return 0
@@ -3123,14 +3133,19 @@ def render(
         # Every form each verb is written in on this page, so the conjugation table a
         # word gets is one all of them agree on and not the first one's (#307).
         verb_forms: dict[tuple[str, str], list[str]] = {}
+        # And the grammar each of those forms was tagged with, which is what tells a
+        # participle's verb from a verb spelled like it (#307).
+        verb_said: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
         if annotation is not None:
             from ..annotate.paradigms import written_form
 
             for sid in section.segment_ids:
                 for token in chips(annotation.tokens.get(sid) or ()):
                     if token.pos == "VERB":
-                        verb_forms.setdefault((token.lemma, token.head), []).append(
-                            written_form(token.surface, token.built)
+                        form = written_form(token.surface, token.built)
+                        verb_forms.setdefault((token.lemma, token.head), []).append(form)
+                        verb_said.setdefault((token.lemma, token.head), []).append(
+                            (form, token.feats or "", token.surface)
                         )
         if annotation is not None:
             for sid in section.segment_ids:
@@ -3163,6 +3178,7 @@ def render(
                                 table_at,
                                 feature_at,
                                 tuple(verb_forms.get(word, ())),
+                                tuple(verb_said.get(word, ())),
                             )
                         )
                     # Offsets arrive measured against the segment as ingested, which may
