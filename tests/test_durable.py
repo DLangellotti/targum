@@ -195,6 +195,8 @@ def test_a_refusing_site_is_said_plainly() -> None:
         said = unreadable(error)
         assert words in said and "http" not in said, said
     assert "couldn't read" in unreadable(ValueError("a stack of detail"))
+    # And in the reader's language: it reached a Russian bell in English (#377).
+    assert unreadable(ValueError("x"), "ru").startswith("Не удалось")
 
 
 def test_jobs_come_back_with_what_the_page_needs(tmp_path: Path) -> None:

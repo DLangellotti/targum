@@ -41,7 +41,7 @@ MINE = [
     _text("e63", "עברית אנפלאגד - פרק 63 | שחושבת"),
     _text("e61", "עברית אנפלאגד - פרק 61 | תינוקות"),
     _text("e60", "עברית אנפלאגד - פרק 60 | לעגל פינות"),
-    _text("own", "כתבה שהבאתי", english="An article I brought"),
+    _text("own", "כתבה שהבאתי", english="An article I brought", drawn=False),
     _text("own2", "עוד כתבה", english="Another article"),
     _text("lib", "משנה ברכות", english="Mishnah Berakhot", entry="mishnah-berakhot-1"),
 ]
@@ -298,3 +298,66 @@ def test_a_reader_with_nothing_still_sees_what_a_targum_is_and_the_tabs(
     shelf_shown = page.locator("#shelf-panel").is_visible()
     context.close()
     assert defined and tabs and not shelf_shown
+
+
+def test_what_a_targum_is_folds_once_one_is_finished(browser, tmp_path: Path) -> None:
+    """Whole until a text is finished, then one line that opens it (David, 2026-09-27,
+    targum-internal#374). The default fixture has two finished episodes."""
+    context, page, _ = shelf(browser, tmp_path, width=390)
+    folded = page.locator(".defined").get_attribute("class") or ""
+    example = page.locator(".defined-example").is_visible()
+    line = page.locator("#defined-open").is_visible()
+    page.click("#defined-open")
+    opened = page.locator(".defined-example").is_visible()
+    expanded = page.get_attribute("#defined-open", "aria-expanded")
+    context.close()
+    assert "is-folded" in folded and not example and line
+    assert opened and expanded == "true"
+
+    global DOCS
+    kept, DOCS = DOCS, {}
+    try:
+        context, page, _ = shelf(browser, tmp_path, width=390)
+        whole = page.locator(".defined-example").is_visible()
+        no_line = page.locator("#defined-open").is_hidden()
+        context.close()
+    finally:
+        DOCS = kept
+    assert whole and no_line, "nothing finished: the definition is whole"
+
+
+def test_a_letter_tile_is_a_strip_and_a_picture_keeps_its_frame(browser, tmp_path: Path) -> None:
+    """At a desk a card with no picture was mostly an empty 16:9 box (targum-internal#375)."""
+    context, page, _ = shelf(browser, tmp_path, width=1280)
+    box = page.locator("#library-list li:not(.is-series) .thumb.is-letter").first.bounding_box()
+    context.close()
+    assert box is not None
+    assert abs(box["height"] / box["width"] - 5 / 16) < 0.03
+
+
+def test_a_series_is_read_through_pointing_marks_and_hebrew_numerals(
+    browser, tmp_path: Path
+) -> None:
+    """פֶּרֶק is a marker, an RLM does not split a series, כג is 23, and "The" before
+    "Chapter 11" is no series (targum-internal#376)."""
+    global MINE
+    kept = MINE
+    MINE = [
+        _text("a", "סיפורי חז״ל - פרק כג"),
+        _text("b", "סיפורי חז״ל‏ - פֶּרֶק ב"),
+        _text("c", "סיפורי חז״ל - פרק י"),
+        _text("d", "The Chapter 11 story"),
+        _text("e", "The Chapter 7 again"),
+    ]
+    try:
+        context, page, thrown = shelf(browser, tmp_path)
+        folded = titles(page)
+        page.click("#library-list .series-press")
+        opened = titles(page)
+        context.close()
+    finally:
+        MINE = kept
+    assert folded.count("סיפורי חז״ל") == 1
+    assert "The Chapter 11 story" in folded and "The Chapter 7 again" in folded
+    assert [t.split()[-1] for t in opened] == ["ב", "י", "כג"]
+    assert not thrown

@@ -146,15 +146,51 @@
 
   /* An episode is read off its title, because nothing else says what a series is: a stem,
      then a separator and a marker with a number — "עברית אנפלאגד - פרק 63 | …", "Part 2",
-     "глава 3", "#4". A title that does not follow the pattern is its own row. */
-  var EPISODE =
-    /^(.*?\S)(?:[\s\-–—|:,.]+(?:פרק|חלק|שיעור|episode|ep\.?|part|chapter|lesson|глава|часть|серия|выпуск|урок)\s*|\s*#)(\d+)/i;
+     "глава 3", "#4", "S01E02", "פרק כג". A title that does not follow the pattern is its
+     own row. Read with pointing and direction marks left out, so "פֶּרֶק" is a marker and
+     a stray RLM does not split one series in two (targum-internal#376). */
+  var MARKER = "(?:פרק|חלק|שיעור|episode|ep\\.?|part|pt\\.?|chapter|lesson|глава|часть|серия|выпуск|урок)";
+  var NUMBER = "(\\d+|[א-ת]{1,2}(?![א-ת])|[א-ת]{1,3}[״\"][א-ת]|[א-ת][׳'])";
+  var EPISODE = new RegExp(
+    "^(.*?\\S)(?:[\\s\\-–—|:,.]+(?:" + MARKER + "\\s*" + NUMBER + "|s(\\d+)\\s*e(\\d+))|\\s*#(\\d+))",
+    "i"
+  );
+  var SECOND = new RegExp(MARKER + "\\s*(\\d+)", "i");
+  var GEMATRIA = { א: 1, ב: 2, ג: 3, ד: 4, ה: 5, ו: 6, ז: 7, ח: 8, ט: 9, י: 10, כ: 20, ך: 20,
+    ל: 30, מ: 40, ם: 40, נ: 50, ן: 50, ס: 60, ע: 70, פ: 80, ף: 80, צ: 90, ץ: 90, ק: 100,
+    ר: 200, ש: 300, ת: 400 };
+
+  function counted(said) {
+    if (/^\d+$/.test(said)) return parseInt(said, 10);
+    var total = 0;
+    said.replace(/[^א-ת]/g, "").split("").forEach(function (letter) {
+      total += GEMATRIA[letter] || 0;
+    });
+    return total;
+  }
+
+  function plainTitle(title) {
+    return String(title || "")
+      .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+      .replace(/[\u0591-\u05bd\u05bf-\u05c7]/g, "");
+  }
+
+  // A stem is a name: two words, or one long one. "The" before "Chapter 11" is not.
+  function aName(stem) {
+    return stem.split(/\s+/).length >= 2 || stem.replace(/\s/g, "").length >= 8;
+  }
 
   function episode(title) {
-    var found = EPISODE.exec(title || "");
+    var plain = plainTitle(title);
+    var found = EPISODE.exec(plain);
     if (!found) return null;
     var stem = found[1].replace(/[\s\-–—|:,.]+$/, "");
-    return stem ? { stem: stem, n: parseInt(found[2], 10) } : null;
+    if (!stem || !aName(stem)) return null;
+    var n = found[2] ? counted(found[2]) : found[3] ? parseInt(found[3], 10) * 1000 + parseInt(found[4], 10) : parseInt(found[5], 10);
+    // A second marker after the first orders the texts that share it: Part 2, Chapter 3
+    // before Part 2, Chapter 10.
+    var after = SECOND.exec(plain.slice(found[0].length));
+    return { stem: stem, n: n, m: after ? parseInt(after[1], 10) : 0, plain: plain };
   }
 
   function seriesKey(reader) {
@@ -289,6 +325,22 @@
       });
       codes = lang.order(codes, names);
 
+      /* What a targum is, folded to one line once the reader has finished one: they
+         know by then (targum-internal#374). Opened again for this visit by its line. */
+      var defined = document.getElementById("defined");
+      var definedOpen = document.getElementById("defined-open");
+      var finishedOne = readers.some(function (reader) {
+        return shelf.status(reader).kind === "finished";
+      });
+      if (defined && definedOpen && finishedOne) {
+        defined.classList.add("is-folded");
+        definedOpen.hidden = false;
+        definedOpen.onclick = function () {
+          var folded = defined.classList.toggle("is-folded");
+          definedOpen.setAttribute("aria-expanded", String(!folded));
+        };
+      }
+
       // Nothing yet: the page still says what a targum is and where the tabs go, which is
       // what the reader with nothing needs most; only the shelf's panel stays shut.
       if (!readers.length && !building.length) {
@@ -366,11 +418,13 @@
             rows = members
               .slice()
               .sort(function (a, b) {
-                return episode(a.title).n - episode(b.title).n;
+                var one = episode(a.title);
+                var two = episode(b.title);
+                return one.n - two.n || one.m - two.m;
               })
               .map(function (reader) {
                 var found = episode(reader.title);
-                var rest = reader.title.slice(found.stem.length).replace(/^[\s\-–—|:,.]+/, "");
+                var rest = found.plain.slice(found.stem.length).replace(/^[\s\-–—|:,.]+/, "");
                 return Object.assign({}, reader, { shownTitle: rest || reader.title });
               });
           } else {
