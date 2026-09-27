@@ -265,3 +265,128 @@ def write_index(path: Path, index: Index) -> None:
             ensure_ascii=False,
         ),
     )
+
+
+# -- what a reader knew of what they read (targum-internal#291) -----------------------
+#
+# Everything above asks how much of a *text* somebody knows, which is a question about
+# choosing. This asks it about a section they have finished, at the moment they finish
+# it, and keeps the answer: one row a section, never recomputed. A row is a fact about a
+# day. Recomputed against today's ledger, the whole history would rise every time a word
+# was marked, and the line drawn from it would be a second copy of the known count rather
+# than a record of what reading was like.
+#
+# Running words rather than distinct ones. "You knew about 7 words in 10 of what you
+# read" is a claim about the page as it was read, where the commonest words come round
+# again and again; a share of distinct forms would weigh a word met once the same as one
+# met on every line, and read as harder than the page was.
+
+
+@dataclass(frozen=True)
+class Reading:
+    """One finished section measured against the ledger as it stood: how many running
+    words it had, names and numbers left out, and how many of them were known."""
+
+    tokens: int
+    known: int
+
+
+def section_lemmas(folder: Path, number: int) -> list[str] | None:
+    """The dictionary form of every running word in one section of a built text.
+
+    The section is the one the reader's page names (`data.section`, the `sec-NNNN.html`
+    it was written to), found the way the build found it. A text rendered whole is one
+    section of everything. None where there is no annotation or no such section: not
+    measured, which is a different claim from a section of no words.
+    """
+    from .annotate.base import not_vocabulary
+    from .ingest import post as post_module
+    from .models import SegmentedDocument, read_artifact
+    from .render.builder import split_sections
+
+    annotation = folder / ANNOTATION
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if segmented is None or not annotation.is_file():
+        return None
+    parts = split_sections(segmented)
+    written = len(list((folder / "reader").glob("sec-*.html")))
+    # A text rendered whole (`build(whole=True)`) writes one page, not the split the
+    # headings would give it, and its one section is every segment.
+    if written <= 1 and number == 1:
+        wanted = {segment.id for segment in segmented.segments}
+    else:
+        found = next((part for part in parts if part.number == number), None)
+        if found is None:
+            return None
+        wanted = set(found.segment_ids)
+    try:
+        loaded = json.loads(annotation.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    unwordly = post_module.left_out(folder) or {}
+    out: list[str] = []
+    for sid, tokens in (loaded.get("tokens") or {}).items():
+        if sid not in wanted:
+            continue
+        for token in tokens:
+            lemma = str(token.get("lemma") or "")
+            if not lemma or not_vocabulary(token.get("pos"), token.get("entity")):
+                continue
+            if sid in unwordly and post_module.inside(
+                int(token.get("start") or 0), int(token.get("end") or 0), unwordly[sid]
+            ):
+                continue
+            out.append(lemma)
+    return out
+
+
+def section_reading(folder: Path, number: int, marked: dict[str, int]) -> Reading | None:
+    """One section measured against what one person has marked, now.
+
+    None where the section cannot be measured or has no words in it: a row of nothing
+    would be a point on the line at zero, and "knew none of it" is not what happened.
+    """
+    words = section_lemmas(folder, number)
+    if not words:
+        return None
+    return Reading(tokens=len(words), known=sum(1 for w in words if marked.get(w) == KNOWN))
+
+
+#: Under this many points the line is not drawn, and the page says what would draw it:
+#: two months make a slope out of anything.
+POINTS = 3
+
+#: Under this many running words a month is a guess and not a point — the same floor
+#: `level.known_share` keeps (its `MEASURABLE`), for the same reason.
+MEASURABLE = 20
+
+
+def by_month(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
+    """The reading rows of one language, a point a month, oldest first.
+
+    Each point is the month's running words added up and the known ones among them — so
+    a long chapter counts for more than a short one, as it did on the page — and how many
+    sections are behind it. Months are UTC, which is what `at` is. A month under
+    `MEASURABLE` words is left out.
+    """
+    from datetime import UTC, datetime
+
+    months: dict[str, dict[str, int | str]] = {}
+    for row in rows:
+        at = int(row.get("at") or 0)
+        tokens = int(row.get("tokens") or 0)
+        if at <= 0 or tokens <= 0:
+            continue
+        month = datetime.fromtimestamp(at / 1000, tz=UTC).strftime("%Y-%m")
+        point = months.setdefault(month, {"month": month, "tokens": 0, "known": 0, "sections": 0})
+        point["tokens"] = int(point["tokens"]) + tokens
+        point["known"] = int(point["known"]) + int(row.get("known") or 0)
+        point["sections"] = int(point["sections"]) + 1
+    return [months[m] for m in sorted(months) if int(months[m]["tokens"]) >= MEASURABLE]
+
+
+def monthly(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
+    """`by_month`, as a line: nothing under `POINTS` points, so the caller says what is
+    missing rather than drawing a slope out of two."""
+    points = by_month(rows)
+    return points if len(points) >= POINTS else []

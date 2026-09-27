@@ -39,7 +39,10 @@ def vocab(known: int = 0, learning: int = 0) -> dict[str, Any]:
 
 
 def draw(
-    stored: dict[str, Any], chosen: str = "", strings: dict[str, Any] | None = None
+    stored: dict[str, Any],
+    chosen: str = "",
+    strings: dict[str, Any] | None = None,
+    reading: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -50,6 +53,7 @@ def draw(
                     "stored": {k: json.dumps(v) for k, v in stored.items()},
                     "chosen": chosen,
                     "strings": strings,
+                    "reading": reading,
                 }
             ),
             encoding="utf-8",
@@ -660,3 +664,96 @@ def test_a_language_with_no_words_in_it_yet_draws_an_empty_ledger() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)}, chosen="arc")
     assert drawn["nothing"] is False
     assert all(not any(ch.isdigit() and ch != "0" for ch in label) for label in drawn["counts"])
+
+
+# -- what you knew of what you read (targum-internal#291) -----------------------------
+
+
+def month(name: str, known: int, tokens: int = 100, sections: int = 2) -> dict[str, Any]:
+    return {"month": name, "known": known, "tokens": tokens, "sections": sections}
+
+
+def test_three_months_of_reading_draw_a_line_said_as_a_count_in_ten() -> None:
+    """One point a month, each carrying its month, its count in ten and the sections
+    behind it; the latest said in a sentence. Never a percentage, never a score."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading={
+            "he": {
+                "line": [
+                    month("2026-06", 52),
+                    month("2026-07", 61, sections=1),
+                    month("2026-08", 70, sections=4),
+                ],
+                "months": 3,
+                "sections": 7,
+            }
+        },
+    )["reading"]
+
+    assert drawn["shown"] and drawn["drawn"]
+    assert drawn["said"] == ["In August you knew about 7 words in 10 of what you read."]
+    assert drawn["points"] == [
+        "June 2026: about 5 in 10 · 2 sections",
+        "July 2026: about 6 in 10 · 1 section",
+        "August 2026: about 7 in 10 · 4 sections",
+    ]
+    assert drawn["ticks"] == ["0 in 10", "5 in 10", "10 in 10"]
+    assert "%" not in json.dumps(drawn)
+
+
+def test_a_line_that_falls_says_why_and_nothing_else() -> None:
+    """Graded dialogue in July, Agnon in August: the line drops, and one sentence names
+    the reason — the text, not lost ground — with no apology and no encouragement."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading={
+            "he": {
+                "line": [month("2026-06", 70), month("2026-07", 80), month("2026-08", 55)],
+                "months": 3,
+                "sections": 6,
+            }
+        },
+    )["reading"]
+
+    assert drawn["said"] == [
+        "In August you knew about 6 words in 10 of what you read.",
+        "It fell because what you read in August had more words new to you, not because you "
+        "lost any.",
+    ]
+    for said in drawn["said"]:
+        assert "!" not in said and "don't worry" not in said.lower() and "keep" not in said
+
+    # A dip inside the same count in ten is not a fall anybody was told about.
+    level = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading={
+            "he": {
+                "line": [month("2026-06", 70), month("2026-07", 72), month("2026-08", 68)],
+                "months": 3,
+                "sections": 6,
+            }
+        },
+    )["reading"]
+    assert len(level["said"]) == 1
+
+
+def test_two_months_draw_no_line_and_say_what_would() -> None:
+    """Under three points the line is not drawn, the way `known_share` says "not
+    measured" rather than a zero; the page says what would have to happen."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading={"he": {"line": [], "months": 2, "sections": 5}},
+    )["reading"]
+    assert drawn["shown"] and not drawn["drawn"]
+    assert drawn["said"] == [
+        "We'll draw this once you've finished sections in three different months. So far: 2."
+    ]
+
+    nothing = draw({"targum:vocab:he": vocab(known=3)}, reading={})["reading"]
+    assert nothing["said"] == [
+        "We'll draw this once you've finished sections in three different months."
+    ]
+
+    signed_out = draw({"targum:vocab:he": vocab(known=3)})["reading"]
+    assert not signed_out["shown"], "absent signed out, not nought"

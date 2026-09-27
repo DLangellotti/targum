@@ -214,10 +214,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    box has, so it is in MIGRATIONS, and every row written before it is a sign-in link,
 #    which is what its default says.
 #
+# 34→35: the reading table — one row a finished section, measured against the ledger as
+#    it stood that moment and never again (targum-internal#291). A new table, so `CREATE
+#    TABLE IF NOT EXISTS` is the whole of it. Nothing is backfilled: the line on Your
+#    Progress starts the day this lands, and the page says so.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 34
+SCHEMA_VERSION = 35
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -644,6 +649,23 @@ CREATE TABLE IF NOT EXISTS section (
   seen     INTEGER NOT NULL DEFAULT 0,
   gone     INTEGER NOT NULL DEFAULT 0,
   revision INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (person, hash, section)
+);
+
+-- What a reader knew of a section, the moment they finished it (targum-internal#291):
+-- its running words, names and numbers left out, and how many of them their ledger held
+-- as known right then. Written once, when the section's row first arrives on a push, and
+-- never recomputed — a row is a fact about a day, and the line on Your Progress is only
+-- honest because the words marked since cannot reach back into it. Not a sync kind: the
+-- browser never writes it, and a section finished again finds its row already here.
+CREATE TABLE IF NOT EXISTS reading (
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL,
+  at       INTEGER NOT NULL,
+  hash     TEXT    NOT NULL,
+  section  TEXT    NOT NULL,
+  tokens   INTEGER NOT NULL,
+  known    INTEGER NOT NULL,
   PRIMARY KEY (person, hash, section)
 );
 
@@ -2664,6 +2686,8 @@ class Store:
                     # 2026-09-20, so those rows outlived the account they belonged to;
                     # found while adding the one below.
                     "section",
+                    # And what they knew of each one (targum-internal#291).
+                    "reading",
                     # And what they did in each text (targum-internal#127).
                     "event",
                     "chosen",
@@ -2871,6 +2895,10 @@ class Store:
         # And what they wrote for those clients to offer. Theirs in the plainest sense:
         # they typed it.
         out["prompts"] = self.prompts(person.id)
+        # And what they knew of each section they finished, as it was measured then
+        # (targum-internal#291). Derived, but not derivable later: the ledger it was
+        # measured against has moved on since.
+        out["readings"] = self.readings(person.id)
         # And the Telegram chats they bound (targum-internal#328): which, and since when.
         out["telegram"] = self.telegram_chats(person.id)
         # And the lists they kept, each with what is in it.
@@ -2878,6 +2906,72 @@ class Store:
             self.playlist(person.id, int(one["id"])) for one in self.playlists(person.id)
         ]
         return out
+
+    # -- what a reader knew of what they read (targum-internal#291) ----------------
+
+    def unmeasured(self, person: Person, rows: list[dict[str, Any]]) -> list[tuple[str, str]]:
+        """Which finished sections in a push have no reading row yet, as (hash, section).
+
+        A section un-finished travels as a `gone` row and is not a finish; one finished
+        before, and finished again, already has its row and is left alone.
+        """
+        out: list[tuple[str, str]] = []
+        for row in rows:
+            hash_, section = str(row.get("hash") or ""), str(row.get("section") or "")
+            if not hash_ or not section or row.get("gone") or (hash_, section) in out:
+                continue
+            had = self.db.execute(
+                "SELECT 1 FROM reading WHERE person = ? AND hash = ? AND section = ?",
+                (person.id, hash_, section),
+            ).fetchone()
+            if had is None:
+                out.append((hash_, section))
+        return out
+
+    def keep_reading(
+        self,
+        person: Person,
+        language: str,
+        at: int,
+        hash_: str,
+        section: str,
+        tokens: int,
+        known: int,
+    ) -> bool:
+        """Keep one finished section's measurement, unless it is already kept.
+
+        `INSERT OR IGNORE`, never a replace: the first measurement is the one that was
+        true that day, and a later one would be today's ledger passed off as then's.
+        Whether a row was written, so the caller can tell a first finish from another.
+        """
+        with self.write() as db:
+            done = db.execute(
+                "INSERT OR IGNORE INTO reading"
+                " (person, language, at, hash, section, tokens, known)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    person.id,
+                    language.split("-")[0].lower(),
+                    int(at),
+                    hash_,
+                    section,
+                    int(tokens),
+                    int(known),
+                ),
+            )
+            return bool(done.rowcount)
+
+    def readings(self, person_id: int | None, language: str = "") -> list[dict[str, Any]]:
+        """Every kept measurement, oldest first; one language's where one is named."""
+        if person_id is None:
+            return []
+        query = "SELECT language, at, hash, section, tokens, known FROM reading WHERE person = ?"
+        values: list[Any] = [person_id]
+        if language:
+            query += " AND language = ?"
+            values.append(language.split("-")[0].lower())
+        rows = self.db.execute(query + " ORDER BY at", values).fetchall()
+        return [dict(row) for row in rows]
 
     def marked(self, person: Person, language: str) -> dict[str, int]:
         """Every dictionary form this person has marked in one language, and how well.

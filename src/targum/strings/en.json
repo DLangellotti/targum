@@ -2265,5 +2265,19 @@
   "x.one-post.hint": "Paste the address of a single post.",
   "x.not-shown": "X wouldn't show us that post.",
   "x.not-shown.hint": "It may be deleted, private or age-restricted. Copy its words and paste them here.",
-  "reader.post.thread-in-part": "Some of this thread may be missing. The rest is on {service}."
+  "reader.post.thread-in-part": "Some of this thread may be missing. The rest is on {service}.",
+  "progress.reading.title": "What you knew of what you read",
+  "progress.reading.note": "Each section you finish, measured against the words you'd marked known that day. Sections finished before we began measuring aren't in it.",
+  "progress.reading.said-all": "In {month} you knew nearly every word of what you read.",
+  "progress.reading.said-none": "In {month} you knew almost none of the words in what you read.",
+  "progress.reading.said.one": "In {month} you knew about {n} word in 10 of what you read.",
+  "progress.reading.said.other": "In {month} you knew about {n} words in 10 of what you read.",
+  "progress.reading.so-far": "We'll draw this once you've finished sections in three different months. So far: {n}.",
+  "progress.reading.waiting": "We'll draw this once you've finished sections in three different months.",
+  "progress.reading.fell": "It fell because what you read in {month} had more words new to you, not because you lost any.",
+  "progress.reading.label": "What you knew of what you read, {first} to {last}",
+  "progress.reading.tick": "{n} in 10",
+  "progress.reading.point": "{month}: about {n} in 10",
+  "progress.reading.sections.one": "{n} section",
+  "progress.reading.sections.other": "{n} sections"
 }

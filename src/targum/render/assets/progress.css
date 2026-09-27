@@ -258,3 +258,12 @@
 .spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
 .spent .note { margin-block-start: 1rem; }
 
+
+/* --- what you knew of what you read (targum-internal#291) ---------------------------
+   The growth line's kit, one hue, leaf, whichever way the line goes. Held to a reading
+   width on the desk — about the growth line's own, in its half of the row — where a
+   full-width viewBox would stand as tall as the page and its labels at twice their size. The
+   sentence under it is ink: it is the figure, said in words, and not a caption. */
+.reading .chart { max-inline-size: 30rem; }
+.reading .reading-point { cursor: default; }
+.reading-words p { margin: 0.75rem 0 0; max-inline-size: 40rem; color: var(--ink); }

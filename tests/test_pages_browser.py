@@ -752,7 +752,7 @@ def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -
     assert got["pillClear"] and not got["sideways"], got
 
 
-def _progress_with(browser, totals: dict):
+def _progress_with(browser, totals: dict, reading: dict | None = None, width: int = 390):
     from datetime import date, timedelta
 
     from targum.render.builder import progress_page
@@ -776,9 +776,11 @@ def _progress_with(browser, totals: dict):
         if request.resource_type == "document":
             return route.fulfill(status=200, content_type="text/html", body=html)
         body = said if "/account/totals" in request.url else {}
+        if "/account/reading" in request.url and reading is not None:
+            body = {"signedIn": True, "reading": reading}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
-    context = browser.new_context(viewport={"width": 390, "height": 844})
+    context = browser.new_context(viewport={"width": width, "height": 844})
     page = context.new_page()
     page.add_init_script(
         "localStorage.setItem('targum:vocab:he', JSON.stringify({a: {surface: 'a', status: 9,"
@@ -834,6 +836,69 @@ def test_progress_draws_no_such_figures_where_there_is_no_record(browser) -> Non
     stopped = page.evaluate(SPENT)
     context.close()
     assert not stopped["shown"] and stopped["off"]
+
+
+READING = """() => {
+  const panel = document.getElementById('reading');
+  const svg = panel.querySelector('svg');
+  const box = svg ? svg.getBoundingClientRect() : null;
+  return {
+    shown: !panel.hidden && panel.getBoundingClientRect().height > 0,
+    points: panel.querySelectorAll('.reading-point').length,
+    said: [...panel.querySelectorAll('.reading-words p')].map((p) => p.textContent),
+    width: box ? box.width : 0,
+    height: box ? box.height : 0,
+    panelWidth: panel.getBoundingClientRect().width,
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+    text: panel.textContent,
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [390, 1280])
+def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
+    browser, width: int
+) -> None:
+    """targum-internal#291. Three months draw one line that fits the panel at a phone's
+    width and stays a reading width on the desk; a fall is said in one sentence; nothing
+    in the block is a percentage."""
+    import os
+
+    line = [
+        {"month": "2026-06", "known": 70, "tokens": 100, "sections": 3},
+        {"month": "2026-07", "known": 80, "tokens": 100, "sections": 5},
+        {"month": "2026-08", "known": 55, "tokens": 100, "sections": 2},
+    ]
+    context, page = _progress_with(
+        browser, {}, reading={"he": {"line": line, "months": 3, "sections": 10}}, width=width
+    )
+    got = page.evaluate(READING)
+    shots = os.environ.get("TARGUM_SHOTS")
+    if shots:
+        page.locator("#reading").screenshot(path=f"{shots}/reading-{width}.png")
+    context.close()
+
+    assert got["shown"] and got["points"] == 3, got
+    assert got["said"][0] == "In August you knew about 6 words in 10 of what you read."
+    assert got["said"][1].startswith("It fell because"), got
+    assert "%" not in got["text"]
+    assert not got["sideways"], got
+    assert 0 < got["width"] <= got["panelWidth"], got
+    # 30rem, and the rem is §13's clamped one rather than 16px.
+    assert got["width"] <= 30 * got["rem"] + 1, "held to a reading width on the desk"
+
+
+def test_progress_says_what_would_draw_the_line_under_three_months(browser) -> None:
+    context, page = _progress_with(
+        browser, {}, reading={"he": {"line": [], "months": 1, "sections": 2}}
+    )
+    got = page.evaluate(READING)
+    context.close()
+    assert got["shown"] and got["points"] == 0, got
+    assert got["said"] == [
+        "We'll draw this once you've finished sections in three different months. So far: 1."
+    ]
 
 
 def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(

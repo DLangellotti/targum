@@ -60,6 +60,19 @@ global.localStorage = {
    until a page draws a chart. Same plain element: nothing here reads a namespace. */
 global.document.createElementNS = (namespace, tag) => element(tag);
 
+/* What the account says of the reading line (targum-internal#291), when a test hands one
+   over; every other fetch the page makes answers as a server with nothing to say. Settled
+   in microtasks, so the report below waits a turn for them. */
+global.fetch = global.window.fetch = (url) =>
+  Promise.resolve({
+    json: () =>
+      Promise.resolve(
+        String(url).indexOf("/account/reading") === 0 && payload.reading
+          ? { signedIn: true, reading: payload.reading }
+          : { signedIn: false }
+      ),
+  });
+
 require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
 /* After charts.js and before the page, so the page binds these rather than the real
@@ -110,8 +123,32 @@ const rung = at("rung-standing");
 const standing = rung.children.length ? rung : at("standing");
 const strip = at("days").children[0];
 
-process.stdout.write(
+/** The reading panel: whether it is shown, what it says, and the line it drew. */
+function reading() {
+  const panel = at("reading");
+  const line = at("reading-line").children[0];
+  const picture = line ? line.children[0] : null;
+  const points = picture
+    ? picture.children.filter((node) => String(node.getAttribute && node.getAttribute("class")) === "reading-point")
+    : [];
+  const ticks = picture
+    ? (picture.children.find((node) => node.getAttribute && node.getAttribute("class") === "grid") || { children: [] })
+        .children.filter((node) => node.tagName === "text")
+        .map((node) => node.textContent)
+    : [];
+  return {
+    shown: panel.hidden === false,
+    drawn: Boolean(picture),
+    said: at("reading-said").children.map((node) => node.textContent),
+    points: points.map((node) => node.getAttribute("aria-label")),
+    ticks: ticks,
+    label: picture ? picture.getAttribute("aria-label") : "",
+  };
+}
+
+setImmediate(() => process.stdout.write(
   JSON.stringify({
+    reading: reading(),
     nothing: at("nothing").hidden === false,
     counts: counts(),
     reached: (standing.children.find((c) => String(c.className) === "reached") || { textContent: "" })
@@ -163,4 +200,4 @@ process.stdout.write(
       said: (at("days").children[1] || { textContent: "" }).textContent,
     },
   })
-);
+));

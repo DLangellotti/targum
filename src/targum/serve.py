@@ -2237,6 +2237,32 @@ class Library:
         found.sort(key=lambda reader: reader["built"], reverse=True)
         return found
 
+    def document_folder(self, homes: list[Path], document_hash: str) -> tuple[Path, str] | None:
+        """The built folder a reader's page names as its `document`, and its language.
+
+        A finished section arrives as (document hash, section) and nothing else — the
+        page has no business telling the server where its files are — so the folder is
+        found here: the reader's own home first, then the shelves everybody reads. Read
+        through `remembered`, the same answers the shelf already keeps. None where no
+        built folder carries that hash, which is a parasha or daily page cut outside the
+        library, or a text since deleted.
+        """
+        if not document_hash:
+            return None
+        for home in homes:
+            if not home.is_dir():
+                continue
+            for folder in home.iterdir():
+                document = folder / "document.json"
+                if not document.is_file():
+                    continue
+                facts = self.remembered.get(
+                    folder, "document", [document], partial(self._document_facts, document)
+                )
+                if facts.get("content_hash") == document_hash:
+                    return folder, str(facts.get("language") or "")
+        return None
+
     @staticmethod
     def _recording_seconds(folder: Path) -> int:
         """How long a text's recording runs, in whole seconds, or 0 for a text with none."""
@@ -5867,6 +5893,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._me()
         if route == "/account/totals":
             return self._totals()
+        if route == "/account/reading":
+            return self._reading()
         if route == "/suggest":
             return self._suggest()
         if route == "/account/follows":
@@ -8369,17 +8397,96 @@ class Handler(BaseHTTPRequestHandler):
         # rather than a hole, but a 500 where a quiet skip belongs.
         changes = {
             name: [row for row in payload[name] if isinstance(row, dict)]
-            for name in ("words", "meanings", "phrases", "docs", "days")
+            # `sections` since 2026-09-27: `sync.js` has pushed a row per finished chapter
+            # since targum-internal#173, and this list dropped every one of them, so a
+            # chapter finished on a phone never reached the laptop (found building #291).
+            for name in ("words", "meanings", "phrases", "docs", "days", "sections")
             if isinstance(payload.get(name), list)
         }
+        # Asked before the push, when a section with no row is one being finished now.
+        fresh = self.store.unmeasured(person, changes.get("sections", []))
         if changes:
             self.store.push(person, changes)
+        # After it, so a word marked known on the last page of the section counts.
+        if fresh:
+            self._measure_finished(person, fresh, changes["sections"])
         # The counts go back with the answer because the page asked for them before it
         # pushed, and a panel that says "nothing kept yet" to somebody who has just had
         # eight hundred words claimed is worse than saying nothing at all.
         answer = {"signedIn": True, "counts": self.store.counts(person)}
         answer.update(self.store.pull(person, since))
         self._json(answer)
+
+    def _measure_finished(
+        self, person: Person, fresh: list[tuple[str, str]], rows: list[dict[str, Any]]
+    ) -> None:
+        """Keep what the reader knew of each section they have just finished
+        (targum-internal#291): its running words against the ledger as it stands at this
+        moment, once. A section that cannot be measured — no build here, no annotation —
+        keeps no row, and the sync it rode in on is never failed for it.
+        """
+        from . import coverage as coverage_module
+
+        when = {
+            (str(row.get("hash") or ""), str(row.get("section") or "")): int(
+                row.get("at") or row.get("seen") or 0
+            )
+            for row in rows
+        }
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        ledgers: dict[str, dict[str, int]] = {}
+        for hash_, section in fresh:
+            try:
+                number = int(section)
+                found = self.library.document_folder(homes, hash_)
+                if found is None:
+                    continue
+                folder, language = found
+                language = language.split("-")[0].lower()
+                if not language:
+                    continue
+                if language not in ledgers:
+                    ledgers[language] = self.store.marked(person, language)
+                measured = coverage_module.section_reading(folder, number, ledgers[language])
+                if measured is None:
+                    continue
+                self.store.keep_reading(
+                    person,
+                    language,
+                    when.get((hash_, section)) or now(),
+                    hash_,
+                    section,
+                    measured.tokens,
+                    measured.known,
+                )
+            except Exception:  # noqa: BLE001 - a measurement never costs the reader a sync
+                log.exception("could not measure section %s of %s", section, hash_)
+
+    def _reading(self) -> None:
+        """What the reader knew of what they read, a point a month, per language
+        (targum-internal#291). `line` is empty under three points, and `months` says how
+        many there are so far, so the page can say what would draw it."""
+        from . import coverage as coverage_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        by_language: dict[str, list[dict[str, Any]]] = {}
+        for row in self.store.readings(person.id):
+            by_language.setdefault(str(row["language"]), []).append(row)
+        self._json(
+            {
+                "signedIn": True,
+                "reading": {
+                    language: {
+                        "line": coverage_module.monthly(rows),
+                        "months": len(coverage_module.by_month(rows)),
+                        "sections": len(rows),
+                    }
+                    for language, rows in by_language.items()
+                },
+            }
+        )
 
     def _already(self, payload: dict[str, Any]) -> None:
         """Whether the library already has what is in the Add box (targum-internal#251).
