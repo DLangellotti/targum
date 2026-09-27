@@ -134,7 +134,7 @@ body {
   /* Russian names the place «Ваши тексты», and «Тексты» alone: «targum» alone was the
      wordmark's own word beside it (targum-internal#373, David, 2026-09-27). The
      capital is Russian's; English keeps its lowercase targums, which the brand needs. */
-  html:lang(ru) .site-nav a[data-nav="texts"] > span { text-transform: capitalize; }
+  html:lang(ru) .site-nav .nav-many { text-transform: capitalize; }
   .lang-menu .lang-open:has(.lang-flag:not(.none)) .lang-name { display: none; }
 }
 
