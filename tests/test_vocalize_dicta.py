@@ -148,13 +148,18 @@ class TestDownloaded:
     ) -> None:
         monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
         assert not dicta.downloaded()
-        snapshot = dicta.snapshot_dir() / "abc123"
+        other = dicta.snapshot_dir() / "abc123"
+        other.mkdir(parents=True)
+        (other / "model.safetensors").write_bytes(b"0" * 10)
+        (other / "tokenizer.json").write_text("{}")
+        assert not dicta.downloaded(), "another revision is not the pinned model (2026-09-27)"
+        snapshot = dicta.snapshot_dir() / dicta.REVISION
         snapshot.mkdir(parents=True)
         (snapshot / "model.safetensors").write_bytes(b"0" * 10)
         assert not dicta.downloaded(), "weights without the tokenizer are not a model"
         (snapshot / "tokenizer.json").write_text("{}")
         assert dicta.downloaded()
-        assert dicta.size() == 12
+        assert dicta.size() == 24
         assert dicta.hub_root() == tmp_path / "hf"
 
 
@@ -396,3 +401,16 @@ class TestTheCredit:
 def test_the_segment_kinds_a_label_is_are_still_never_pointed() -> None:
     """Nothing about the swap reaches the labels: a heading is not prose."""
     assert BlockKind.heading in vocalize.LABELS
+
+
+def test_both_dicta_models_load_at_their_pinned_revision() -> None:
+    """Both are loaded with `trust_remote_code`: an unpinned load runs whatever modeling
+    code the publisher pushed last, and upstream had already moved past the menaked the
+    box runs (2026-09-27). Every load names the revision."""
+    import inspect
+
+    from targum.annotate import dicta as annotator
+
+    assert len(dicta.REVISION) == 40 and len(annotator.REVISION) == 40
+    assert inspect.getsource(dicta.DictaVocalizer.load).count("revision=REVISION") == 2
+    assert inspect.getsource(annotator.DictaLemmatizer._load).count("revision=pinned") == 2

@@ -55,6 +55,11 @@ LOG = logging.getLogger(__name__)
 
 #: Named in full because the name rides into every vocalization and onto the credit.
 MODEL = "dicta-il/dictabert-large-char-menaked"
+#: The commit of `MODEL` this code runs, pinned (2026-09-27): loaded with
+#: `trust_remote_code`, and upstream has already moved past it (4dfc20b, 2026-09-15), so an
+#: unpinned fetch on a fresh cache would run different code and weights from the ones the
+#: box re-pointed the shelf with. The revision the box and the laptop hold.
+REVISION = "d311fbf7c403e50b040440e4859ac78064d025d0"
 CREDIT = "DICTA"
 LICENCE = "CC BY 4.0"
 LICENCE_URL = "https://creativecommons.org/licenses/by/4.0/"
@@ -91,8 +96,10 @@ def snapshot_dir() -> Path:
 def downloaded() -> bool:
     """Whether the weights and the tokenizer are on disk. A filesystem question, asked
     without importing anything, because a build asks it for every Hebrew text."""
-    snapshots = snapshot_dir()
-    return any(snapshots.glob("*/model.safetensors")) and any(snapshots.glob("*/tokenizer.json"))
+    # The pinned snapshot, not any: a cache holding only another revision would answer
+    # "downloaded" and then fail the pinned, offline load.
+    pinned = snapshot_dir() / REVISION
+    return (pinned / "model.safetensors").exists() and (pinned / "tokenizer.json").exists()
 
 
 def size() -> int:
@@ -212,7 +219,11 @@ class DictaVocalizer:
             tokenizer = PreTrainedTokenizerFast(  # type: ignore[no-untyped-call]
                 tokenizer_object=Tokenizer.from_file(
                     hf_hub_download(
-                        MODEL, "tokenizer.json", cache_dir=hub, local_files_only=offline
+                        MODEL,
+                        "tokenizer.json",
+                        cache_dir=hub,
+                        local_files_only=offline,
+                        revision=REVISION,
                     )
                 ),
                 model_max_length=MAX_CHARS,
@@ -223,7 +234,11 @@ class DictaVocalizer:
                 mask_token="[MASK]",
             )
             model = AutoModel.from_pretrained(
-                MODEL, trust_remote_code=True, cache_dir=hub, local_files_only=offline
+                MODEL,
+                trust_remote_code=True,
+                cache_dir=hub,
+                local_files_only=offline,
+                revision=REVISION,
             )
         except Exception as error:  # noqa: BLE001 — the loader raises whatever it likes
             raise TargumError(
