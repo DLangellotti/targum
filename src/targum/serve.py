@@ -2210,7 +2210,13 @@ class Library:
                         # Named for the threshold, so a change of it is a recount
                         # rather than a stale answer kept in shelf.json (#372).
                         f"level90:{language}",
-                        [folder / "annotation.json"],
+                        # A post's manifest too, since its hashtags and mentions are
+                        # not counted once it is there; only where there is one, so
+                        # every other row keeps the answer it already has.
+                        [
+                            folder / "annotation.json",
+                            *([folder / "post.json"] if (folder / "post.json").is_file() else []),
+                        ],
                         partial(self._text_level, folder / "annotation.json", language),
                     ),
                     "sections": sections or 1,
@@ -2265,11 +2271,18 @@ class Library:
         loaded = read_artifact(Annotation, annotation)
         if loaded is None:
             return None
+        from .ingest import post as post_module
+
+        # A post's hashtags, mentions and addresses are names and are not counted, as the
+        # page does not count them (design.md §12, "A post keeps its shape").
+        unwordly = post_module.left_out(annotation.parent) or {}
         seen: dict[str, int | None] = {}
         running: list[int | None] = []
-        for tokens in loaded.tokens.values():
+        for sid, tokens in loaded.tokens.items():
             for token in tokens:
                 if token.pos in NOT_VOCABULARY or not token.lemma:
+                    continue
+                if sid in unwordly and post_module.inside(token.start, token.end, unwordly[sid]):
                     continue
                 if token.lemma not in seen:
                     seen[token.lemma] = rank(token.lemma, language)
@@ -2487,6 +2500,11 @@ class Library:
 
         forms = self.store.known_forms(job.owner, "he") | set(hebrew_module.common_words())
         text = "\n".join(str(getattr(block, "text", "") or "") for block in document.blocks)
+        if isinstance(job.options.get("post"), dict):
+            # A post's hashtags, mentions and addresses are names, not words to know.
+            from .ingest.post import without_unwordly
+
+            text = without_unwordly(text)
         return level_module.known_share(text, forms)
 
     def _read_pages(self, job: Job) -> str:

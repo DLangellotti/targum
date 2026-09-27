@@ -759,6 +759,109 @@ html[dir="rtl"] #reader > .english { text-align: end; }
   display: block;
 }
 
+/* --- a post ------------------------------------------------------------- */
+
+/* A post read as a post (design.md §12, "A post keeps its shape", 2026-09-27;
+   targum-internal#159). The head takes the title's place at the top of the page, the
+   pictures follow as a row, and the caption is the rows under them, drawn as any text.
+   Nothing here is the platform's: no mark, no colour, no count. It sits on the page and
+   not on a raised card, because the rows under it raise themselves under the pointer and
+   one raised layer is the ration (§9). Its inline padding is the rows' own, so the disc,
+   the first picture and the first word stand on one edge. */
+.post { margin-block-end: 1.5rem; padding-inline: 0.6rem; }
+.post-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-block-end: 1rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.35;
+}
+/* The author's own picture, small, in a disc; their first letter where the post gave
+   none, as a text with no picture wears its letter on the shelf. */
+.post-face {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 48px;
+  block-size: 48px;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-family: var(--reading);
+  font-weight: 600;
+  font-size: 1.5em;
+}
+.post-face img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.post-who { display: flex; flex-direction: column; min-inline-size: 0; }
+.post-name { color: var(--ink); font-size: 0.9375rem; font-weight: 600; }
+/* Muted, and never under 13px (§9). */
+.post-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.4rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.post-meta time { white-space: nowrap; }
+/* On a phone the handle and the day are a line each, rather than a dot left hanging at
+   the end of a line the day wrapped from. */
+@media (max-width: 40rem) {
+  .post-meta { flex-direction: column; align-items: flex-start; }
+  .post-meta > [aria-hidden="true"] { display: none; }
+}
+.post-handle { overflow-wrap: anywhere; }
+.post-handle.alone { color: var(--ink); font-size: 0.9375rem; font-weight: 600; }
+/* The one way home: a link, in the accent a link takes, and words rather than the
+   platform's mark. */
+.post-home {
+  margin-inline-start: auto;
+  flex: none;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  text-decoration: none;
+}
+.post-home:hover, .post-home:focus-visible { text-decoration: underline; }
+@media (hover: none) and (pointer: coarse) {
+  .post-home { display: inline-flex; align-items: center; min-block-size: 44px; }
+}
+/* The pictures, a row the reader swipes, each at the shape it was posted in: its width
+   is the row's and its height follows from the width and height the page carries, so a
+   4:5 picture is 4:5 and nothing is cropped to a card. Where there are several the next
+   one shows at the edge, which is how a row says it goes on. Snapping is the browser's
+   own and carries no animation of ours; a keyboard scrolls it once it has focus. */
+.post-pictures {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  max-inline-size: 100%;
+  margin-block-end: 1.25rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: inline mandatory;
+  scrollbar-width: thin;
+}
+.post-picture {
+  flex: none;
+  inline-size: min(100%, 30rem);
+  margin: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--paper-raised);
+  scroll-snap-align: start;
+}
+.post-pictures.several .post-picture { inline-size: min(88%, 30rem); }
+.post-picture img { display: block; inline-size: 100%; block-size: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  .post-pictures { scroll-behavior: smooth; }
+}
+/* An address the author wrote is text, and a long one breaks rather than widening the
+   page. */
+body.is-post .pair .src { overflow-wrap: anywhere; }
+
 /* --- what you kept -------------------------------------------------------- */
 
 .method { display: none; }

@@ -331,6 +331,8 @@ THUMBED = (
     ".filters > summary",
     ".claim-table label",
     ".chat-claim label",
+    # A post's one way home (design.md §12, "A post keeps its shape", 2026-09-27).
+    ".post-home",
 )
 
 

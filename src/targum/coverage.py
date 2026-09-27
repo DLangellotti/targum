@@ -64,11 +64,20 @@ def lemmas(folder: Path) -> list[str]:
     # rewritten in place when the annotator learns something — every word became a
     # token on 2026-08-28 — and a cache that outlived that would go on reporting a
     # denominator a tenth too small, for half the shelf, with nothing to say so.
+    from .ingest import post as post_module
+
     try:
         stat = annotation.stat()
         stamp = [stat.st_mtime_ns, stat.st_size]
     except OSError:
         return []
+    # A post's hashtags, mentions and addresses are names, not words (design.md §12, "A
+    # post keeps its shape"), and are left out here as the page leaves them out. The
+    # stamp says so, because a count cached before the post's manifest was there counted
+    # them.
+    unwordly = post_module.left_out(folder)
+    if unwordly is not None:
+        stamp.append(1)
     cached = folder / LEMMAS
     if cached.is_file():
         try:
@@ -89,9 +98,16 @@ def lemmas(folder: Path) -> list[str]:
     # know either: left out of the denominator, or a book of names could never be read.
     distinct = {
         str(token.get("lemma") or "")
-        for tokens in (loaded.get("tokens") or {}).values()
+        for sid, tokens in (loaded.get("tokens") or {}).items()
         for token in tokens
         if token.get("pos") not in NOT_VOCABULARY
+        and not (
+            unwordly
+            and sid in unwordly
+            and post_module.inside(
+                int(token.get("start") or 0), int(token.get("end") or 0), unwordly[sid]
+            )
+        )
     }
     distinct.discard("")
     out = sorted(distinct)
