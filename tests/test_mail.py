@@ -139,13 +139,16 @@ def test_a_mail_names_its_date_its_id_and_where_a_reply_goes() -> None:
     assert note["List-Unsubscribe"] is None, "a sign-in link is not a list"
 
 
-def test_the_sender_is_hello_at_targum_page_unless_told(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+def test_the_sender_is_the_mail_subdomain_and_a_reply_reaches_the_root(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """mail.targum.page is what Resend sends for and has no MX, so a reply to it would
+    bounce: unless told otherwise, the reply goes to the root's mailbox."""
     monkeypatch.setenv("TARGUM_SMTP_HOST", "smtp.resend.com")
     monkeypatch.delenv("TARGUM_SMTP_FROM", raising=False)
     monkeypatch.delenv("TARGUM_SMTP_REPLY_TO", raising=False)
     mailer = from_environment()
     assert isinstance(mailer, SmtpMailer)
-    assert mailer.sender == "targum <hello@targum.page>"
+    assert mailer.sender == "targum <hello@mail.targum.page>"
+    assert mailer.reply_to == "targum <hello@targum.page>"
     assert "localhost" not in mailer.sender
     monkeypatch.setenv("TARGUM_SMTP_REPLY_TO", "david@targum.page")
     mailer = from_environment()

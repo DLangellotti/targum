@@ -34,9 +34,14 @@ from .strings import text
 # is the English, kept for what reads it here.
 SUBJECT = text("mail.sign_in.subject")
 
-#: Who a mail is from when nothing says otherwise, and where a reply goes. A reply is
-#: asked for in the invitation, so the address has to be one somebody reads.
-SENDER = "targum <hello@targum.page>"
+#: Who a mail is from when nothing says otherwise: the subdomain Resend sends for, so
+#: the root's own mail (Fastmail) keeps its reputation apart (David, 2026-09-27).
+SENDER = "targum <hello@mail.targum.page>"
+
+#: Where a reply goes when nothing says otherwise. `mail.targum.page` has no MX, so a
+#: reply to the sender would bounce; the invitation asks for one, and the root's mailbox
+#: is the address the legal pages already give.
+REPLY_TO = "targum <hello@targum.page>"
 
 
 class Mailer(Protocol):
@@ -217,5 +222,5 @@ def from_environment() -> Mailer:
         user=os.environ.get("TARGUM_SMTP_USER", ""),
         password=os.environ.get("TARGUM_SMTP_PASSWORD", ""),
         sender=os.environ.get("TARGUM_SMTP_FROM", "").strip() or SENDER,
-        reply_to=os.environ.get("TARGUM_SMTP_REPLY_TO", "").strip(),
+        reply_to=os.environ.get("TARGUM_SMTP_REPLY_TO", "").strip() or REPLY_TO,
     )
