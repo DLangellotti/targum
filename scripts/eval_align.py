@@ -56,9 +56,13 @@ so what is compared is where each word *begins*:
 - `onset_ms_lag_median`: the same, signed — positive where the aligner starts a word
   after the hand does. An error that is mostly one constant lag is a different problem
   from scatter, with a different fix, and the unsigned numbers cannot tell them apart.
-  (Measured 2026-09-27: it is mostly lag, 100–400 ms depending on the aliyah. Whether
-  the lag is the aligner's or the labellers' — a highlight set to lead the voice a
-  little would read exactly like this — is not something this gold can settle.)
+  (Measured 2026-09-27: it is mostly lag, 100–400 ms depending on the aliyah, and
+  constant within each one. **Most of it is the labels'.** At words that follow a pause,
+  where the voice's own onset can be read off the waveform, the hand marks sit 200–420 ms
+  *before* the voice, and 14–36% of them fall where the next 50 ms is still silent; the
+  aligner's starts sat 15–70 ms *after* it. The labels light a word ahead of the voice,
+  as a follow-along app sensibly would, so a perfect aligner still scores a lag here.
+  The aligner's own share was fixed by `to_the_voice` in `targum.audio.align`.)
 - `onset_within_100ms` and `onset_within_250ms`: the share of words close enough. 100 ms
   is about the grain of the hand marks themselves — a label dropped by eye on a waveform
   is rarely better — so it is as tight as this gold can honestly be read. 250 ms is about

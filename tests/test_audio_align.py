@@ -25,8 +25,9 @@ from targum.errors import TargumError
 def test_the_name_says_which_model_made_a_span() -> None:
     """A stored span carries the aligner's name, so a rename is what makes a recording
     align again. The old name was `ctc-mms-fa/1`; anything holding that was timed by the
-    NonCommercial model and has to be re-derived."""
-    assert NAME == "ctc-xlsr-he/1"
+    NonCommercial model and has to be re-derived. `/2` since spans are moved to the voice
+    (2026-09-27): a cached `/1` span is the narrower CTC path and is not reused."""
+    assert NAME == "ctc-xlsr-he/2"
     assert CtcAligner.name == NAME
     assert "mms" not in NAME, "the MMS model is gone and the name must not claim it"
 
@@ -86,7 +87,7 @@ def test_each_language_has_its_own_permissive_model_and_name() -> None:
     assert align_module.MODELS["he"] == (MODEL, NAME)
     for code in ("fr", "ru", "it"):
         model, name = align_module.MODELS[code]
-        assert name == f"ctc-xlsr-{code}/1" and "mms" not in model.lower()
+        assert name == f"ctc-xlsr-{code}/2" and "mms" not in model.lower()
         aligner = CtcAligner(code)
         assert aligner.name == name and aligner.model == model
     assert CtcAligner("he-IL").name == NAME
@@ -161,3 +162,64 @@ def test_a_word_the_model_cannot_spell_does_not_count_against_the_match() -> Non
     assert matched is not None and matched == -1.375
     assert match_score(["MIT", "2024"], [SCORE_FLOOR, SCORE_FLOOR], "he") is None
     assert match_score(["rivière"], [-2.0], "fr") == -2.0, "a French word is French's"
+
+
+# -- spans moved to the voice (2026-09-27) ----------------------------------------------
+
+
+def test_a_frame_is_voiced_relative_to_its_own_recording() -> None:
+    """A quiet studio and a loud car differ by tens of dB; the line is drawn between each
+    recording's own quiet and loud, so the same shape of speech reads the same in both."""
+    from targum.audio.align import voiced_frames
+
+    quiet = [-60.0] * 10 + [-20.0] * 10
+    assert voiced_frames(quiet) == [False] * 10 + [True] * 10
+    assert voiced_frames([level + 30 for level in quiet]) == voiced_frames(quiet)
+    assert voiced_frames([]) == []
+
+
+def _moved(spans: list[tuple[int, int] | None], voiced: str) -> list[tuple[int, int] | None]:
+    from targum.audio.align import to_the_voice
+
+    return to_the_voice(spans, [v == "1" for v in voiced], lead=2, reach_back=10, reach_on=25)
+
+
+def test_a_word_after_a_pause_starts_where_the_voice_does() -> None:
+    """CTC places the first letter a few frames into the sound. After a silence the
+    voice's own onset is plain, and the start walks back to it and no further."""
+    voiced = "1111" + "000000" + "11111111111" + "0000"
+    #         word 0   pause     word 1 voiced from frame 10
+    got = _moved([(0, 3), (13, 18)], voiced)
+    assert got[1] == (10, 21), "starts on the first voiced frame, ends where the voice stops"
+    assert got[0] == (0, 4)
+
+
+def test_words_run_together_move_by_the_measured_lead_and_tile() -> None:
+    """With no quiet between two words the voice cannot say where one ends, so the start
+    moves back by the measured lag alone and the earlier word runs up to it: nothing
+    goes unlit in the middle of a phrase."""
+    voiced = "1" * 30
+    got = _moved([(0, 8), (14, 20)], voiced)
+    assert got[1][0] == 12
+    assert got[0] == (0, 12)
+
+
+def test_a_start_never_crosses_the_word_before_it() -> None:
+    voiced = "1" * 30
+    got = _moved([(0, 10), (11, 20)], voiced)
+    assert got[1][0] == 10 and got[0][1] == 10
+
+
+def test_the_walks_are_bounded() -> None:
+    """A hum above the line before a word, or a noise after it, is not the word."""
+    voiced = "0" + "1" * 60
+    got = _moved([(40, 45)], voiced)
+    assert got[0] == (38, 61), "no quiet within reach: the lead alone"
+    long_tail = "1" * 100
+    assert _moved([(0, 5)], long_tail)[0] == (0, 30)
+
+
+def test_a_word_the_path_did_not_place_stays_unplaced() -> None:
+    got = _moved([(2, 4), None, (10, 12)], "0011111111110000")
+    assert got[1] is None
+    assert got[0] == (2, 8) and got[2] == (8, 12)
