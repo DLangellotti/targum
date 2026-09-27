@@ -105,6 +105,11 @@ class Post:
     duration: float = 0.0
     #: Every picture's address on Meta's CDN, in the post's own order, where it is not.
     pictures: tuple[str, ...] = ()
+    #: The author's display name and the moment it was posted (ISO 8601, UTC), where the
+    #: page's data carries them; "" where it does not, which the markup form never does.
+    #: Kept for the post card (targum-internal#158).
+    name: str = ""
+    posted: str = ""
 
     @property
     def title(self) -> str:
@@ -307,6 +312,8 @@ def _from_data(media: dict[str, Any], code: str) -> Post:
     edges = (media.get("edge_media_to_caption") or {}).get("edges") or []
     caption = str(((edges[0] if edges else {}).get("node") or {}).get("text") or "")
     author = str((media.get("owner") or {}).get("username") or "")
+    name = str((media.get("owner") or {}).get("full_name") or "")
+    posted = _when(media.get("taken_at_timestamp"))
     if media.get("is_video") and on_the_cdn(str(media.get("video_url") or "")):
         return Post(
             code,
@@ -314,6 +321,8 @@ def _from_data(media: dict[str, Any], code: str) -> Post:
             caption,
             video=str(media["video_url"]),
             duration=float(media.get("video_duration") or 0.0),
+            name=name,
+            posted=posted,
         )
     slides = [
         edge.get("node") or {}
@@ -324,7 +333,20 @@ def _from_data(media: dict[str, Any], code: str) -> Post:
         for slide in slides
         if not slide.get("is_video") and on_the_cdn(str(slide.get("display_url") or ""))
     )
-    return Post(code, author, caption, pictures=pictures)
+    return Post(code, author, caption, pictures=pictures, name=name, posted=posted)
+
+
+def _when(stamp: object) -> str:
+    """A Unix time off the page, as ISO 8601 in UTC, or "" for anything that is not one."""
+    from datetime import UTC, datetime
+
+    try:
+        seconds = int(stamp)  # type: ignore[call-overload]
+    except (TypeError, ValueError):
+        return ""
+    if seconds <= 0:
+        return ""
+    return datetime.fromtimestamp(seconds, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 _CAPTION = re.compile(

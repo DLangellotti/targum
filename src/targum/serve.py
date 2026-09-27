@@ -2666,6 +2666,16 @@ class Library:
         address = job.source
         job.options["came_from"] = address
         job.options["post_pictures"] = len(post.pictures)
+        # What the post card draws, kept for the build to write beside the reader as
+        # `post.json` (targum-internal#158). Nothing here is fetched yet.
+        job.options["post"] = {
+            "platform": "instagram",
+            "url": address,
+            "handle": post.author,
+            "name": post.name,
+            "posted_at": post.posted,
+            "pictures": list(post.pictures),
+        }
         wanted = bool(job.options.get("pictures")) and bool(post.pictures)
         if not post.caption.strip() and not wanted:
             job.error = said_in(
@@ -3067,6 +3077,7 @@ class Library:
                 # Looking up word meanings carries on in this thread afterwards, into a
                 # reader that is already open.
                 job.reader = f"{result.out_dir.name}/reader/index.html"
+                self.keep_post(job, result)
                 job.stage = "done"
                 job.message = ""
                 self.remember(job)
@@ -3103,6 +3114,53 @@ class Library:
                 job,
                 "Something went wrong on our side. The Terminal has the detail.",
             )
+
+    def keep_post(self, job: Job, result: Result) -> None:
+        """Write `post.json` beside a post's reader, with its pictures kept as webp
+        (targum-internal#158; design.md §12, "A post keeps its shape").
+
+        Never a reason for the build to fail: the caption is the reader's text whatever
+        happens here, and a post without its manifest is drawn as the plain text it was
+        before this existed. So whatever goes wrong is printed for the operator.
+        """
+        said = job.options.get("post")
+        if not isinstance(said, dict):
+            return
+        import tempfile
+
+        from .ingest import post as post_module
+        from .video import instagram as instagram_module
+
+        try:
+            folder = result.out_dir
+            media: list[post_module.Media] = []
+            if said.get("pictures"):
+                with tempfile.TemporaryDirectory() as raw:
+                    fetched = instagram_module.pictures_into(
+                        instagram_module.Post(
+                            code="", author="", caption="", pictures=tuple(said["pictures"])
+                        ),
+                        Path(raw),
+                    )
+                    media = post_module.keep_pictures(fetched, folder)
+            manifest = post_module.Manifest(
+                platform=str(said.get("platform") or "instagram"),
+                author=post_module.Author(
+                    handle=str(said.get("handle") or ""), name=str(said.get("name") or "")
+                ),
+                items=[
+                    post_module.Item(
+                        block_ids=[block.id for block in result.document.blocks], media=media
+                    )
+                ],
+                fetched_by="paste",
+                url=str(said.get("url") or "") or None,
+                posted_at=str(said.get("posted_at") or ""),
+            )
+            post_module.write(folder, manifest)
+        except Exception as error:  # noqa: BLE001 - the card's business, not the build's
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "post", error, job=job.id)
 
     def propose(self, job: Job) -> None:
         """Offer a finished build to the shelf, if its licence allows a public copy.
