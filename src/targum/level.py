@@ -465,11 +465,14 @@ def ceiling_for(level: Level) -> int | None:
     return None
 
 
-#: The share of a text's running words a reader has to know to read it without a
-#: dictionary: the comprehension threshold in the vocabulary research (Laufer 1989;
-#: Hu and Nation 2000 put adequate unassisted reading at 95–98%). The lower edge, because
-#: a learner's text is read with a dictionary one tap away.
-TEXT_COVERAGE = 0.95
+#: The share of a text's running words a reader has to know to read it. The research
+#: puts adequate unassisted reading at 95–98% (Laufer 1989; Hu and Nation 2000), and
+#: this was 0.95 until 2026-09-27. Measured against wordfreq, 95% fell past the list for
+#: nearly every real text: 153 of 186 on the live shelf read Vav · C2, and a 17-word
+#: scene read C1, because a list of spellings misses what a reader's lemmas are. At 90%
+#: the scenes land at gimel and the shelf spreads. David's call (targum-internal#372):
+#: a reader here reads with a dictionary one tap away, which is what the other 10% is.
+TEXT_COVERAGE = 0.90
 
 
 def text_rung(

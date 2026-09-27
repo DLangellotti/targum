@@ -1045,18 +1045,31 @@ class Drawable:
     language: str
 
 
-def unreadable(error: Exception) -> str:
+def unreadable(error: Exception, ui: str = "en") -> str:
     """What a reader is told when bringing something in failed for a reason nobody wrote a
-    sentence for. A web page's refusal carries its status, and the status says what to do."""
+    sentence for. A web page's refusal carries its status, and the status says what to do.
+    In the reader's language: it reached a Russian bell in English (targum-internal#377)."""
     response = getattr(error, "response", None)
     status = getattr(response, "status_code", None)
     if status in (401, 403, 451):
-        return "That site won't let us read the page. Copy the text and paste it here instead."
+        return said_in(
+            ui,
+            "job.unreadable.refused",
+            "That site won't let us read the page. Copy the text and paste it here instead.",
+        )
     if status in (404, 410):
-        return "That page isn't there. Check the link and try again."
+        return said_in(
+            ui, "job.unreadable.missing", "That page isn't there. Check the link and try again."
+        )
     if isinstance(status, int) and status >= 400:
-        return "That site didn't answer properly. Try again, or paste the text itself."
-    return "We couldn't read that. Try again, or paste the text itself."
+        return said_in(
+            ui,
+            "job.unreadable.broken",
+            "That site didn't answer properly. Try again, or paste the text itself.",
+        )
+    return said_in(
+        ui, "job.unreadable.other", "We couldn't read that. Try again, or paste the text itself."
+    )
 
 
 class Jobs(dict[str, Job]):
@@ -2194,7 +2207,9 @@ class Library:
                     ),
                     "level": remember(
                         folder,
-                        f"level:{language}",
+                        # Named for the threshold, so a change of it is a recount
+                        # rather than a stale answer kept in shelf.json (#372).
+                        f"level90:{language}",
                         [folder / "annotation.json"],
                         partial(self._text_level, folder / "annotation.json", language),
                     ),
@@ -2394,9 +2409,12 @@ class Library:
                 # built: the door that checks a chosen language cannot check a guess.
                 from .translate.prompts import language_name
 
-                job.error = (
-                    f"This looks like {language_name(job.language)}, and we can't read that "
-                    "yet. Choose the language it's in."
+                job.error = said_in(
+                    job.ui,
+                    "job.unreadable.language",
+                    "This looks like {language}, and we can't read that yet. Choose the "
+                    "language it's in.",
+                    language=language_name(job.language),
                 )
                 job.stage = "failed"
                 return
@@ -2445,7 +2463,7 @@ class Library:
             # url …, For more information check: developer.mozilla.org" (2026-09-14).
             traceback.print_exc()
             incidents_module.record(self.incidents, "prepare", error, job=job.id)
-            job.error = unreadable(error)
+            job.error = unreadable(error, job.ui)
             job.stage = "failed"
 
     @staticmethod

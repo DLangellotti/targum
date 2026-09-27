@@ -2219,5 +2219,10 @@
   "add.page.it-may-already-be-in-the-library": "It may already be in the Library.",
   "learn.page.find-something-in-the-library": "Find something in the Library.",
   "progress.page.nothing-yet": "Nothing yet.",
-  "progress.page.open-something-from-the-library": "Open something from the Library."
+  "progress.page.open-something-from-the-library": "Open something from the Library.",
+  "job.unreadable.refused": "That site won't let us read the page. Copy the text and paste it here instead.",
+  "job.unreadable.missing": "That page isn't there. Check the link and try again.",
+  "job.unreadable.broken": "That site didn't answer properly. Try again, or paste the text itself.",
+  "job.unreadable.other": "We couldn't read that. Try again, or paste the text itself.",
+  "job.unreadable.language": "This looks like {language}, and we can't read that yet. Choose the language it's in."
 }

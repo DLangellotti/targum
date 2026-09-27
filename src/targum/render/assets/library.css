@@ -1411,11 +1411,33 @@
 @media (max-width: 40rem) { .sift-shelf .find { max-inline-size: none; } }
 .sift-shelf .pick select { min-block-size: 2.25rem; font-size: 0.8125rem; }
 
+/* Folded, once a text has been finished (targum-internal#374): one ghost line that
+   opens it, and nothing else of the block. Open again, the line stays as its close. */
+.defined-open {
+  grid-column: 1 / -1;
+  justify-self: start;
+  padding: 0.3rem 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.defined-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.defined.is-folded { gap: 0; }
+.defined.is-folded .defined-words,
+.defined.is-folded .defined-example { display: none; }
+.defined:not(.is-folded) .defined-open:not([hidden]) + .defined-words h2 { display: none; }
+
 /* §8 under a thumb (2026-09-27): the tabs, the chips, the search, the order and the way
    back out of a series were 30-36px, and none was in the registry. The Library's Filters
    too. */
 @media (hover: none) and (pointer: coarse) {
   .yours-tabs .tab,
+  .defined-open,
   .sift-shelf .chip,
   .series-back,
   .filters > summary { min-block-size: 44px; display: inline-flex; align-items: center; }
@@ -1504,6 +1526,12 @@
     border-radius: var(--radius-row);
   }
   .shelf-cards .series-stack .thumb { block-size: 100%; }
+  /* A letter says less than a picture and takes a strip, not a screen: on a shelf of
+     uploads most of the desk was beige boxes with one letter in each (David, 2026-09-27,
+     targum-internal#375). A picture keeps 16:9. */
+  .shelf-cards .thumb.is-letter,
+  .shelf-cards .series-stack:has(.is-letter) { aspect-ratio: 16 / 5; }
+  .shelf-cards .thumb.is-letter .glyph { font-size: 1.75rem; }
   .shelf-cards .series-stack::before,
   .shelf-cards .series-stack::after { border-radius: var(--radius-row); }
   .shelf-cards .series-stack::before,

@@ -326,12 +326,13 @@ def test_a_text_full_of_rare_words_is_high() -> None:
     assert text_rung([None] * 50, ULPAN_LADDER) == ULPAN[-1], "past the list is past every rung"
 
 
-def test_the_rung_is_read_at_ninety_five_percent_of_the_running_words() -> None:
-    """Five rare words in a hundred are what a dictionary is for; six are not."""
+def test_the_rung_is_read_at_ninety_percent_of_the_running_words() -> None:
+    """Ten rare words in a hundred are what the dictionary one tap away is for; eleven
+    are not (targum-internal#372: at 95% nearly every text read Vav · C2)."""
     from targum.level import ULPAN_LADDER, text_rung
 
-    easy = [100] * 95 + [8_000] * 5
-    harder = [100] * 94 + [8_000] * 6
+    easy = [100] * 90 + [8_000] * 10
+    harder = [100] * 89 + [8_000] * 11
     assert text_rung(easy, ULPAN_LADDER).name == "aleph"  # type: ignore[union-attr]
     assert text_rung(harder, ULPAN_LADDER).name == "hey"  # type: ignore[union-attr]
 

@@ -45,7 +45,11 @@
       sentence, and a line of Hebrew with its translation under it and one word tapped.
       Type and the palette, no picture file. Hebrew whatever the shelf's language: it is
       the word the product is named for. -#}
-  <section class="defined" aria-labelledby="defined-head">
+  {#- Drawn whole until the reader has finished a text; after that one line, pressed to
+      open it again (David, 2026-09-27, targum-internal#374): a phone's first screen was
+      the definition on every visit to a shelf of seventy. `yours.js` folds it. -#}
+  <section class="defined" id="defined" aria-labelledby="defined-head">
+    <button type="button" class="defined-open" id="defined-open" aria-expanded="false" aria-controls="defined" hidden>{{ t("yours.defined.head", "What's a targum?") }}</button>
     <div class="defined-words">
       <h2 id="defined-head">{{ t("yours.defined.head", "What's a targum?") }}</h2>
       <p>{{ t("yours.defined.body", "A text you read in the language you're learning, with its translation held line by line under it. Tap any word for what it means.") }}</p>

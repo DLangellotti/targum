@@ -347,6 +347,33 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
+
+A design and QA pass (targum#435) measured four things on the live shelf and put them to
+David, who chose each (targum-internal#372–#375).
+
+- **A text's level is read at 90% of its running words, not 95%.** At 95% the rung fell
+  past wordfreq's list for nearly every real text: 153 of 186 levelled Hebrew texts read
+  Vav · C2 and "On the bus", seventeen words, read Hey · C1. A list of spellings misses
+  what a reader's lemmas are, and a label that says C2 of everything says nothing. At 90%
+  the scenes land at gimel. The other tenth is what the dictionary one tap away is for.
+  This amends "The shelf says what a text is at a glance" (2026-09-24).
+- **In Russian the place is «Ваши тексты», and «Тексты» where «Ваши» drops.** «targum»
+  alone, on a phone, was the wordmark's own word two inches from it, because targum is not
+  declined. English keeps Your targums and targums. This amends "One name" (2026-09-25)
+  for Russian only: one name in each language, not one name across them.
+- **What's a targum? is whole until the reader has finished a text,** then one line that
+  opens it. On a phone it was the first screen of every visit to a shelf of seventy.
+  This amends "A targum is shown" (2026-09-26), which drew it always.
+- **At a desk a letter tile is a strip (16:5); a picture keeps 16:9.** On a shelf of
+  uploads most of the desk was beige boxes with one letter in each. This amends "At a
+  desk the shelf is cards" (2026-09-26), whose letter still stands, smaller.
+
+The series fold reads its title with pointing and direction marks left out, counts a
+Hebrew numeral (פרק כג), knows S01E02 and a second marker ("Part 2 – Chapter 3"), and
+asks a stem to be a name, two words or eight letters: "The" before "Chapter 11" is none.
+
+
 ### Your targums has tabs, says what a targum is, and folds a series — 2026-09-26
 
 David, on Your targums at a desk: "I want this page to be designed more delightfully, and
@@ -576,9 +603,9 @@ no cards, and from ⌘K.
 - **Length is what the text takes:** minutes to read, or the recording's own length for a
   video or a recording ("4 min video"), read from the manifest.
 - **A text has a level, and it is the text's, never the reader's.** It is the ulpan rung,
-  with CEFR beside it, whose vocabulary covers 95% of the text's running words, measured
-  from word frequency. That is the standard comprehension threshold, not the tier count
-  the library's Easier/Harder chips use. "Never tell the reader they are at a level" stands:
+  with CEFR beside it, whose vocabulary covers 90% of the text's running words, measured
+  from word frequency (95%, the research's unassisted threshold, until 2026-09-27: see
+  the entry of that date). It is not the tier count the library's Easier/Harder chips use. "Never tell the reader they are at a level" stands:
   the label says what the text needs, not where the reader is. A band is still not a CEFR
   level; a whole text's coverage is.
 - **Known share is a percentage on the shelf**, as it already is on the library's cards
