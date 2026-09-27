@@ -129,6 +129,9 @@ body.about {
   margin: 1.5rem auto 0;
   padding-inline: 0.25rem;
   display: flex;
+  /* A row, like the foot everywhere else: reader.css, loaded first, stands a reader's
+     own .foot in a column, and it stacked this one link over the next (2026-09-27). */
+  flex-direction: row;
   flex-wrap: wrap;
   gap: 0.4rem 1.2rem;
   color: var(--ink-soft);

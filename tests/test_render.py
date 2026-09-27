@@ -4088,6 +4088,20 @@ def test_the_about_page_is_not_a_list_of_commits() -> None:
         assert inside_baseball not in words, f"{inside_baseball!r} is for maintainers"
 
 
+def test_both_feet_link_targums_own_accounts() -> None:
+    """The app's foot and the one every public page wears carry the same accounts, from
+    one list (`builder.SOCIAL`), so adding an account is one line and neither foot drifts."""
+    from targum.render.builder import SOCIAL, _environment
+
+    env = _environment()
+    for foot in ("_foot.html.j2", "_public_foot.html.j2"):
+        html = env.get_template(foot).render()
+        for name, address in SOCIAL:
+            assert f'<a href="{address}" rel="me">{name}</a>' in html, (foot, name)
+        # Beside the source, which stays last but for the licence.
+        assert html.index(SOCIAL[-1][1]) < html.index("github.com/DLangellotti/targum")
+
+
 def test_the_about_page_says_targum_is_under_construction_and_little_else() -> None:
     """It described targum at length — what it does, what had shipped, what it could not
     do yet — and none of that is what somebody arriving early needs to be told. What is
