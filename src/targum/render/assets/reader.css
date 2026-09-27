@@ -1102,11 +1102,11 @@ body.marking .w.here,
   letter-spacing: 0.01em;
 }
 
-/* "probably", after a reading we guessed part of (design.md §12, 2026-09-27): one word in
+/* "inferred", after a reading we guessed part of (design.md §12, 2026-09-27): one word in
    muted ink at the line's own size, outside the reading. No hue, no icon, no italic, no
    question mark — a word in a sentence, not a state. It is a button, so a hairline under
    it in muted ink says it can be tapped without lending it the accent. */
-.gloss-card .probably {
+.gloss-card .inferred {
   padding: 0;
   background: none;
   border: 0;
@@ -1768,9 +1768,9 @@ body[data-case="Loc"] .w.case-Loc {
     .video-grip, .video-size,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
     .player-first,
-    /* "probably" after a reading (design.md §12, 2026-09-27): a word-sized button whose
+    /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
-    .gloss-card .probably
+    .gloss-card .inferred
   ) {
     position: relative;
   }
@@ -1788,9 +1788,9 @@ body[data-case="Loc"] .w.case-Loc {
     .video-grip, .video-size,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
     .player-first,
-    /* "probably" after a reading (design.md §12, 2026-09-27): a word-sized button whose
+    /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
-    .gloss-card .probably
+    .gloss-card .inferred
   )::after {
     content: "";
     position: absolute;

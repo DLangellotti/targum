@@ -2308,8 +2308,8 @@
   "weekly.note.stop-it": "Should we stop sending you the weekly?",
   "weekly.note.stop-it.button": "Yes, stop",
   "weekly.note.stopped": "We won't send you the weekly again.",
-  "reader.card.probably": "probably",
-  "reader.card.guessed-stress": "We guessed where the stress falls.",
-  "reader.card.guessed-vowels": "We guessed the vowels.",
-  "reader.card.guessed-both": "We guessed the vowels and where the stress falls."
+  "reader.card.inferred": "inferred",
+  "reader.card.inferred-stress": "The text doesn't mark the stress, so we inferred it.",
+  "reader.card.inferred-vowels": "The text has no vowels here, so we inferred them.",
+  "reader.card.inferred-both": "The text marks neither the vowels nor the stress, so we inferred both."
 }

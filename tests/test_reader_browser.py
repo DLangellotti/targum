@@ -7251,9 +7251,9 @@ def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_
     context.close()
 
 
-# -- "probably" ---------------------------------------------------------------------
+# -- "inferred" ---------------------------------------------------------------------
 #
-# design.md §12, "What we guessed says 'probably'" (2026-09-27): after a reading we
+# design.md §12, "What we inferred says so" (2026-09-27): after a reading we
 # guessed part of, one muted word; tapped, the sentence it stands for, under the reading.
 
 
@@ -7310,7 +7310,7 @@ def guessing(out: Path) -> Path:
 
 @pytest.fixture(scope="module")
 def guessed_reader(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    return guessing(tmp_path_factory.mktemp("probably") / "reader")
+    return guessing(tmp_path_factory.mktemp("inferred") / "reader")
 
 
 TAP_NTH = """
@@ -7321,7 +7321,7 @@ PROBABLY = """
 () => {
   const card = document.getElementById('gloss-card');
   if (!card || card.hidden) return null;
-  const word = card.querySelector('.copy-line .probably');
+  const word = card.querySelector('.copy-line .inferred');
   const line = card.querySelector('.guessed');
   if (!word) return { word: null };
   const style = getComputedStyle(word);
@@ -7347,7 +7347,7 @@ PROBABLY = """
 
 
 @pytest.mark.parametrize("size", [WINDOW, PHONE], ids=["desk", "phone"])
-def test_a_guessed_reading_says_probably_and_what_was_guessed(
+def test_an_inferred_reading_says_so_and_what_was_inferred(
     browser, guessed_reader: Path, size: dict[str, int]
 ) -> None:
     context, page = open_reader(browser, guessed_reader, viewport=size)
@@ -7355,8 +7355,8 @@ def test_a_guessed_reading_says_probably_and_what_was_guessed(
     page.evaluate(TAP_NTH, 0)
     page.wait_for_timeout(150)
     card = page.evaluate(PROBABLY)
-    assert card["word"] == "probably", card
-    assert card["name"] == "We guessed where the stress falls."
+    assert card["word"] == "inferred", card
+    assert card["name"] == "The text doesn't mark the stress, so we inferred it."
     assert card["outside"] and card["after"], "after the reading, and outside it"
     assert card["color"] == "rgb(107, 100, 92)", "muted ink, and no hue"
     assert card["italic"] == "normal"
@@ -7364,19 +7364,21 @@ def test_a_guessed_reading_says_probably_and_what_was_guessed(
     assert not card["lineShown"] and card["expanded"] == "false"
     width = card["width"]
 
-    page.click("#gloss-card .probably")
+    page.click("#gloss-card .inferred")
     page.wait_for_timeout(100)
     card = page.evaluate(PROBABLY)
     assert card is not None, "the tap stayed on the card"
     assert card["lineShown"] and card["lineBelow"], card
-    assert card["line"] == "We guessed where the stress falls."
+    assert card["line"] == "The text doesn't mark the stress, so we inferred it."
     assert card["expanded"] == "true"
     assert abs(card["width"] - width) < 1, "the line wraps to the card; it does not widen it"
 
     page.evaluate(TAP_NTH, 1)
     page.wait_for_timeout(150)
     card = page.evaluate(PROBABLY)
-    assert card["name"] == "We guessed the vowels and where the stress falls.", card
+    assert (
+        card["name"] == "The text marks neither the vowels nor the stress, so we inferred both."
+    ), card
 
     page.evaluate(TAP_NTH, 2)
     page.wait_for_timeout(150)
@@ -7385,7 +7387,7 @@ def test_a_guessed_reading_says_probably_and_what_was_guessed(
     context.close()
 
 
-def test_probably_answers_a_thumb_over_44px(browser, guessed_reader: Path) -> None:
+def test_inferred_answers_a_thumb_over_44px(browser, guessed_reader: Path) -> None:
     """§8 on a touch screen: the word keeps its size and its line, and its reach is 44px.
 
     Measured where a thumb lands rather than read off the stylesheet: a point 20px above
@@ -7402,7 +7404,7 @@ def test_probably_answers_a_thumb_over_44px(browser, guessed_reader: Path) -> No
     page.wait_for_timeout(200)
     reach = page.evaluate(
         """() => {
-      const word = document.querySelector('#gloss-card .probably');
+      const word = document.querySelector('#gloss-card .inferred');
       const box = word.getBoundingClientRect();
       const x = box.left + box.width / 2;
       const y = box.top + box.height / 2;

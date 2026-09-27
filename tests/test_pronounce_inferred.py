@@ -1,6 +1,6 @@
-"""What a card says "probably" about: the stress we guessed and the vowels we supplied.
+"""What a card says "inferred" about: the stress we guessed and the vowels we supplied.
 
-design.md §12, "What we guessed says 'probably'" (2026-09-27). The rule is guessed
+design.md §12, "What we inferred says so" (2026-09-27). The rule is guessed
 against read: a stress read off a mark and vowels the source carried are never
 qualified, and everything phonikud or the menaked had to supply is. None of this needs
 phonikud installed — it reads the word as written and the reading already stored.
@@ -9,8 +9,8 @@ phonikud installed — it reads the word as written and the reading already stor
 from __future__ import annotations
 
 from targum.annotate.pronounce import (
+    CONFIDENCE_BAR,
     HATAMA,
-    PROBABLY_BAR,
     STRESS_GUESSED,
     VOWELS_GUESSED,
     guessed,
@@ -63,7 +63,7 @@ def test_a_calibrated_answer_over_the_bar_is_shown_plainly() -> None:
     assert (
         guessed(POINTED, "batsˈal", stress_confidence=0.8, stress_threshold=0.9) == STRESS_GUESSED
     )
-    assert PROBABLY_BAR == 0.95
+    assert CONFIDENCE_BAR == 0.95
 
 
 def test_syllables_are_runs_of_vowels() -> None:

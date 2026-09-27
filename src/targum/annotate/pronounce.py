@@ -94,16 +94,16 @@ def stressed(word: str) -> str | None:
     return "".join(out)
 
 
-# What a card says "probably" about, as bits on a reading (design.md §12, "What we guessed
-# says 'probably'", 2026-09-27). Worked out at render from what the build already stored —
+# What a card says "inferred" about, as bits on a reading (design.md §12, "What we guessed
+# says so", 2026-09-27). Worked out at render from what the build already stored —
 # the word as the source wrote it, and its reading — so nothing is annotated again.
 STRESS_GUESSED = 1
 VOWELS_GUESSED = 2
 
 # The one bar for every stage: a calibrated confidence is shown plainly at or above the
-# point where its measured precision reaches this, and says "probably" below it. The
+# point where its measured precision reaches this, and says "inferred" below it. The
 # thresholds themselves are recorded beside `evals/ledger.jsonl`, never on the page.
-PROBABLY_BAR = 0.95
+CONFIDENCE_BAR = 0.95
 
 # A syllable is a vowel, however phonikud spells it; a diphthong's glide is a consonant.
 _VOWELS = frozenset("aeiouəɛɔ")
@@ -141,7 +141,7 @@ def guessed(
 
     `stress_confidence` and `stress_threshold` are the hook for a calibrated stress
     source (#318 measured one and did not adopt it): at or above the confidence where
-    its precision reaches `PROBABLY_BAR`, its answer is shown plainly. No source passes
+    its precision reaches `CONFIDENCE_BAR`, its answer is shown plainly. No source passes
     them today, so every defaulted stress is a guess.
     """
     if not reading:

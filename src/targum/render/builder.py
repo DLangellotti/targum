@@ -3121,7 +3121,7 @@ def render(
         # stored once.
         sounds: list[str] = [""]
         # Beside each sound, what of it we guessed (`pronounce.guessed`), so the card can
-        # say "probably" (design.md §12, 2026-09-27). Keyed by the pair rather than the
+        # say "inferred" (design.md §12, 2026-09-27). Keyed by the pair rather than the
         # reading: the same reading can be read off a mark in one place and guessed in
         # another. Nothing on the word rows grows; one small number per distinct sound.
         guesses: list[int] = [0]

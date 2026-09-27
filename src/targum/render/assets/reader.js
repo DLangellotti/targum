@@ -274,7 +274,7 @@ var targumReader = function () {
   // anything to read the vowels with.
   var sounds = data.sounds || [];
   // Beside each sound, what of it we guessed: 1 the stress, 2 the vowels, 3 both
-  // (design.md §12, "What we guessed says 'probably'"). Absent where nothing was.
+  // (design.md §12, "What we inferred says so"). Absent where nothing was.
   var guesses = data.guessed || [];
   // How split words are put together and how each occurrence is conjugated or declined
   // — tables of distinct strings, like the sounds, with an index on each token. Absent
@@ -4294,13 +4294,13 @@ var targumReader = function () {
     return row ? guesses[row[5]] || 0 : 0;
   }
 
-  // The sentence "probably" stands for: said on the line under the reading when it is
+  // The sentence "inferred" stands for: said on the line under the reading when it is
   // tapped, and its accessible name, so a screen reader hears it without the tap.
   function whyGuessed(guess) {
     if ((guess & 3) === 3)
-      return t("reader.card.guessed-both", "We guessed the vowels and where the stress falls.");
-    if (guess & 2) return t("reader.card.guessed-vowels", "We guessed the vowels.");
-    return t("reader.card.guessed-stress", "We guessed where the stress falls.");
+      return t("reader.card.inferred-both", "The text marks neither the vowels nor the stress, so we inferred both.");
+    if (guess & 2) return t("reader.card.inferred-vowels", "The text has no vowels here, so we inferred them.");
+    return t("reader.card.inferred-stress", "The text doesn't mark the stress, so we inferred it.");
   }
 
   function readingOf(word) {
@@ -4880,22 +4880,22 @@ var targumReader = function () {
         var guess = guessOf(word);
         if (guess) {
           var why = whyGuessed(guess);
-          var probably = document.createElement("button");
-          probably.type = "button";
-          probably.className = "probably";
-          probably.textContent = t("reader.card.probably", "probably");
-          probably.setAttribute("aria-label", why);
-          probably.setAttribute("aria-expanded", "false");
+          var inferred = document.createElement("button");
+          inferred.type = "button";
+          inferred.className = "inferred";
+          inferred.textContent = t("reader.card.inferred", "inferred");
+          inferred.setAttribute("aria-label", why);
+          inferred.setAttribute("aria-expanded", "false");
           var guessedLine = document.createElement("span");
           guessedLine.className = "guessed";
           guessedLine.textContent = why;
           guessedLine.hidden = true;
-          probably.onclick = function (event) {
+          inferred.onclick = function (event) {
             event.stopPropagation();
             guessedLine.hidden = !guessedLine.hidden;
-            probably.setAttribute("aria-expanded", guessedLine.hidden ? "false" : "true");
+            inferred.setAttribute("aria-expanded", guessedLine.hidden ? "false" : "true");
           };
-          saying.appendChild(probably);
+          saying.appendChild(inferred);
         }
       }
       if (hear) saying.appendChild(hear);

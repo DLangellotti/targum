@@ -2304,7 +2304,7 @@ def test_the_readings_ride_in_a_table_of_their_own(tmp_path: Path) -> None:
 
 
 def test_what_we_guessed_rides_beside_the_sounds(tmp_path: Path) -> None:
-    """design.md §12, "What we guessed says 'probably'": one number per distinct sound.
+    """design.md §12, "What we inferred says so": one number per distinct sound.
 
     The source pointed the first word and left the second bare, so the menaked supplied
     its vowels; neither carries a stress mark, so phonikud guessed both stresses. The
