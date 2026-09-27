@@ -4191,7 +4191,20 @@ def test_the_stamp_is_packed_into_the_wheel() -> None:
     root = Path(__file__).resolve().parents[1]
     assert "src/targum/activity.json" in (root / ".gitignore").read_text(encoding="utf-8")
     packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'artifacts = ["/src/targum/activity.json"]' in packaging
+    artifacts = re.search(r"^artifacts = \[(.*)\]$", packaging, re.M)
+    assert artifacts is not None and '"/src/targum/activity.json"' in artifacts.group(1)
+
+
+def test_the_verb_readings_are_private_and_packed_into_the_wheel() -> None:
+    """targum-internal#307, decided 2026-09-27: the readings are counted off the library,
+    so they stay out of git like the catalogue — and are packed into the wheel like the
+    stamp, and put in place by the deploy, or the box silently draws fewer tables."""
+    root = Path(__file__).resolve().parents[1]
+    assert "src/targum/annotate/binyans.json" in (root / ".gitignore").read_text(encoding="utf-8")
+    packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
+    artifacts = re.search(r"^artifacts = \[(.*)\]$", packaging, re.M)
+    assert artifacts is not None and '"/src/targum/annotate/binyans.json"' in artifacts.group(1)
+    assert "binyans.json" in (root / "deploy" / "deploy.sh").read_text(encoding="utf-8")
 
 
 # --- what gets baked in ------------------------------------------------------
@@ -5567,6 +5580,79 @@ def test_a_verb_ships_the_other_verbs_built_on_its_root(tmp_path: Path) -> None:
     assert "נִפְגַּשׁ" not in family, "a verb is not its own sibling"
     # The empty row at 0 is kept, because `siblings` indexes into this and 0 means none.
     assert extensions["families"][0] == []
+
+
+@pytest.fixture
+def read_as_said(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The shipped verbs with the one reading these tests need. The real readings are
+    private (#307) and absent from CI's checkout, so the tests bring their own."""
+    from targum.annotate import paradigms
+
+    shipped = paradigms.table()
+    shelf = paradigms.Table(
+        verbs=shipped.verbs,
+        by_form=shipped.by_form,
+        readings={"אומר": ("אמר", "פעל"), "אומרים": ("אמר", "פעל")},
+    )
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+
+def _conjugated(tmp_path: Path, surfaces: list[str]) -> dict[str, Any]:
+    """A page whose only verb is `אומר`, untagged, written in each of these forms."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(start=at, end=at + 1, surface=surface, lemma="אומר", band=1, pos="VERB")
+                for at, surface in enumerate(surfaces)
+            ]
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    return dict(data.get("extensions") or {})
+
+
+def test_a_verb_with_no_binyan_takes_the_table_the_shelf_reads_it_as(
+    tmp_path: Path, read_as_said: None
+) -> None:
+    """targum-internal#307. `אוֹמֵר` is the Mishnah's commonest verb, filed under `אומר`
+    with no binyan — a form of both `אָמַר` and `הוּמַר` — and it drew no table. Everywhere
+    the annotator did tag it, it was the פעל of `אמר`, and every form of it on the page
+    agrees, so the page draws `אָמַר`'s."""
+    extensions = _conjugated(tmp_path / "a", ["אוֹמֵר", "אוֹמְרִים"])
+    assert extensions["paradigms"] == [1]
+    written = {form for form, _codes in extensions["conjugations"][1]}
+    assert {"אמרתי", "יאמרו", "אומרים"} <= written, "אָמַר's own forms"
+    assert "הומרתי" not in written, "and not הוּמַר's"
+
+
+def test_one_form_the_other_verb_spells_refuses_the_table(
+    tmp_path: Path, read_as_said: None
+) -> None:
+    """The table is drawn once for every form of the word on the page. `נוּמַר` is the
+    הופעל's and not the פעל's, so no table is right for all of them, and none is drawn."""
+    extensions = _conjugated(tmp_path / "b", ["אוֹמֵר", "נוּמַר"])
+    assert extensions.get("paradigms", [0]) == [0]
 
 
 # -- a commentary's comments are separated (targum-internal#200) ------------------------

@@ -33,12 +33,20 @@ from __future__ import annotations
 import gzip
 import json
 import unicodedata
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
 #: Beside this module, so the wheel carries it and a reader never fetches it.
 TABLE = Path(__file__).parent / "paradigms.json.gz"
+
+#: How targum's own tagging reads a written verb form, counted off its exportable shelf by
+#: `scripts/count_binyans.py` (targum-internal#307). Private: gitignored, and packed into
+#: the wheel by `artifacts` the way `activity.json` is (decided 2026-09-27). Absent from
+#: CI and from every worktree, where `readings()` is empty and the card draws only what
+#: the binyan and the pointing settle.
+READINGS = Path(__file__).parent / "binyans.json"
 
 #: The most forms a card will draw for one verb. A Hebrew verb has about thirty-three,
 #: and a lexeme with far more than that is carrying something a learner did not ask for.
@@ -53,7 +61,15 @@ _POINTS = frozenset(
 _SHVA, _HIRIQ, _TSERE, _PATACH, _QAMATS = "\u05b0", "\u05b4", "\u05b5", "\u05b7", "\u05b8"
 #: Qubuts and qamats qatan, the two ways the passive binyanim point their first letter.
 _QUBUTS, _QATAN = "\u05bb", "\u05c7"
-_HE, _TAV, _NUN = "\u05d4", "\u05ea", "\u05e0"
+_SEGOL, _HOLAM, _DAGESH = "\u05b6", "\u05b9", "\u05bc"
+#: The reduced vowels a guttural takes where any other letter would take a shva. For
+#: the question "is the letter after the prefix quiescent" they are the shva.
+_HATAF = frozenset("\u05b1\u05b2\u05b3")
+_HE, _TAV, _NUN, _VAV = "\u05d4", "\u05ea", "\u05e0", "\u05d5"
+#: The letters that trade places with a הִתְפַּעֵל's ת: הִסְתַּכֵּל, הִשְׁתַּמֵּשׁ, הִצְטָרֵף,
+#: הִזְדַּקֵּן. The ת comes after them, and is a ט after צ and a ד after ז.
+_SIBILANTS = frozenset("\u05e1\u05e9\u05e6\u05d6")
+_SWAPPED_TAV = frozenset("\u05ea\u05d8\u05d3")
 
 #: How few of a lemma's letters may be pointed before it is not a pointed lemma. The
 #: dump carries both — `הָלַךְ` and `אוחזר` sit side by side — and an unpointed one says
@@ -93,14 +109,37 @@ def binyan_of(lemma: str) -> str | None:
     if len(units) < 2 or sum(1 for _, points in units if points) < _LEAST_POINTED:
         return None
     (first, points), (second, after) = units[0], units[1]
+    third = units[2] if len(units) > 2 else ("", "")
     # A prefix is a prefix only when the letter after it is quiescent. הִפְעִיל and
     # נִפְעַל both put a shva there, and it is the whole of what separates them from a
     # root whose own first letter is ה or נ: הִלֵּךְ is פיעל of ה־ל־ך and נִסָּה is פיעל
     # of נ־ס־ה, and both were read as prefixed until this asked.
-    quiescent = _SHVA in after
+    #
+    # A guttural takes a hataf where any other letter takes a shva, and is quiescent all
+    # the same: נֶאֱמַר, נַעֲשָׂה, הֶעֱמִיד. Those read as no binyan at all until
+    # 2026-09-27, and נֶאֱמַר alone is 1,815 verb tokens on the shelf.
+    quiescent = _SHVA in after or any(mark in _HATAF for mark in after)
     if first == _HE and _HIRIQ in points and quiescent:
-        # הִתְפַּעֵל keeps its ת; הִפְעִיל has the root's own letter there.
-        return "התפעל" if second == _TAV else "הפעיל"
+        if second == _TAV:
+            # הִתְפַּעֵל keeps its ת — but so does the הִפְעִיל of a root that begins with
+            # one: הִתְקִין is ת־ק־ן, not a reflexive, and was read as one until
+            # 2026-09-27. The letter after the ת parts them the way it parts every
+            # הִפְעִיל from a הִתְפַּעֵל: a hiriq for the one, the root's vowel for the other.
+            return "הפעיל" if _HIRIQ in third[1] else "התפעל"
+        if second in _SIBILANTS and third[0] in _SWAPPED_TAV:
+            # הִסְתַּכֵּל: the ת has traded places with the root's first letter, and was
+            # read as a הִפְעִיל. The same vowel test keeps הִסְתִּיר — the הִפְעִיל of
+            # ס־ת־ר — where it belongs, and a vowel that is neither says nothing.
+            if _PATACH in third[1] or _QAMATS in third[1]:
+                return "התפעל"
+            if len(units) > 3 and units[3][0] == _VAV and _HOLAM in units[3][1]:
+                # A doubled or hollow root's, whose vowel rides on a vav: הִשְׁתּוֹלֵל,
+                # הִסְתּוֹבֵב.
+                return "התפעל"
+            if _HIRIQ in third[1]:
+                return "הפעיל"
+            return None
+        return "הפעיל"
     if first == _HE and _HIRIQ in points:
         # A weak root's הִפְעִיל has no shva to give — הִגִּיד, הִתִּיר — and neither has the
         # פיעל of a root beginning with ה. They part on the vowel the second letter
@@ -110,15 +149,61 @@ def binyan_of(lemma: str) -> str | None:
         if _TSERE in after:
             return "פיעל"
         return None
-    if first == _HE and (_QUBUTS in points or _QATAN in points) and quiescent:
+    if first == _HE and _TSERE in points and _HIRIQ in after:
+        # A hollow root's הִפְעִיל: הֵבִיא, הֵקִים, הֵשִׁיב. No other binyan puts a tsere
+        # under a first ה and a hiriq after it.
+        return "הפעיל"
+    if first == _HE and _SEGOL in points and quiescent:
+        # A guttural's הִפְעִיל: הֶעֱמִיד, הֶחְלִיט, הֶרְאָה.
+        return "הפעיל"
+    if first == _HE and quiescent and (_QUBUTS in points or _QATAN in points or _QAMATS in points):
+        # A qamats here is a qamats qatan written as a plain one — הָחְלַט, הָעֳמַד — which
+        # the dump does as often as not. No פעל puts a shva on its second letter, so the
+        # quiescent letter after it is what tells this from הָלַךְ.
         return "הופעל"
-    if first == _NUN and _HIRIQ in points and quiescent:
-        # נִפְעַל, and not נָתַן — which is פעל and carries a qamats, not a hiriq.
+    if first == _HE and not points and second == _VAV:
+        # A root beginning with י writes its הִפְעִיל and its הֻפְעַל with the vowel on a
+        # vav: הוֹלִיךְ, הוֹשִׁיב against הוּצָא, הוּשַׁב. A holam is the one; a shuruk,
+        # which is a vav with a dagesh and no vowel, is the other.
+        if _HOLAM in after and _HIRIQ in third[1]:
+            return "הפעיל"
+        if after == _DAGESH and (_QAMATS in third[1] or _PATACH in third[1]):
+            return "הופעל"
+        return None
+    if first == _NUN and quiescent and (_HIRIQ in points or _SEGOL in points or _PATACH in points):
+        # נִפְעַל, and not נָתַן — which is פעל and carries a qamats, not a hiriq. A
+        # guttural's takes a segol or a patach instead: נֶאֱמַר, נַעֲשָׂה, נֶחְבָּא.
         return "נפעל"
+    if first == _NUN and not points and second == _VAV and _HOLAM in after:
+        # A root beginning with י: נוֹלַד, נוֹדַע, נוֹסַד. Its own vowel follows the vav;
+        # a tsere there is a hollow root's נוֹפֵף, which is not a נִפְעַל at all.
+        if _PATACH in third[1] or _QAMATS in third[1]:
+            return "נפעל"
+        return None
+    if first == _NUN and _HIRIQ in points and _TSERE not in after:
+        # Refused, 2026-09-27. A root beginning with נ loses it in the נִפְעַל, and what is
+        # left is spelled exactly like the פיעל of a root whose own first letter is נ:
+        # נִתַּן is the נִפְעַל of נ־ת־ן and נִסָּה the פיעל of נ־ס־ה, letter for letter and
+        # point for point. This read נִתַּן as a פיעל until it was asked. Only a tsere —
+        # the פיעל's own vowel, נִהֵל — says which it is.
+        return None
     if _QUBUTS in points or _QATAN in points:
         return "פועל"
     if _HIRIQ in points and (_TSERE in after or _PATACH in after):
         return "פיעל"
+    if _HIRIQ in points and _QAMATS in after and first != _HE:
+        # A root ending in ה writes its פיעל with a qamats where the rest take a tsere:
+        # צִוָּה, גִּלָּה, שִׁנָּה. No פעל puts a hiriq under its first letter, and the one
+        # other binyan that could — a נִפְעַל that has lost its נ — is refused above.
+        return "פיעל"
+    if _TSERE in points and _TSERE in after and first != _HE:
+        # A guttural or ר cannot be doubled, so the פיעל lengthens the vowel before it
+        # instead: בֵּרֵךְ, קֵרֵב, גֵּרֵשׁ, מֵאֵן. Not under a first ה, where the same two
+        # tseres are a doubled root's הִפְעִיל — הֵפֵר, הֵעֵז, הֵגֵן — and are left alone.
+        return "פיעל"
+    if _HOLAM in points and (_PATACH in after or _QAMATS in after):
+        # And the פועל the same way: בֹּרַךְ, קֹרַב, גֹּרַשׁ.
+        return "פועל"
     if _QAMATS in points:
         return "פעל"
     return None
@@ -140,8 +225,9 @@ def _families() -> dict[str, tuple[tuple[str, str], ...]]:
 
     A verb whose lemma is unpointed says no binyan, and one whose root will not come out
     at three letters says no root; both are left out rather than guessed at, which is the
-    same guard every rule in `hebrew.py` ends at. Of the table's 4,703 verbs, 2,613 have
-    a root and 2,071 of those have at least one sibling.
+    same guard every rule in `hebrew.py` ends at. Of the table's 4,703 verbs, 3,019 have
+    a root and 2,579 of those have at least one sibling (2,613 and 2,071 before
+    `binyan_of` learned the guttural and weak patterns, 2026-09-27).
     """
     from .hebrew import root_of
 
@@ -198,6 +284,28 @@ def bare(text: str) -> str:
     )
 
 
+def _letters(text: str) -> str:
+    """The Hebrew letters and nothing else: no points, no cantillation, no maqaf, no `!`
+    the source puts after an imperative and no `-` it puts after a construct form."""
+    return "".join(ch for ch in bare(text) if "\u05d0" <= ch <= "\u05ea")
+
+
+def written_form(surface: str, built: str | None = None) -> str:
+    """The verb as it was written in the text, without the letters clinging to it.
+
+    `Token.built` says how a split word is put together — "ו and + יאמר", "ש that +
+    נצטרף" — and the verb is the one piece that is Hebrew and nothing else: a clitic
+    carries its gloss, and a suffix is said in English. Where there is nothing to split,
+    the surface is the verb. Compared on letters alone, like everything else here.
+    """
+    if built:
+        pieces = [piece.strip() for piece in built.split(" + ")]
+        hebrew = [piece for piece in pieces if piece and _letters(piece) == bare(piece)]
+        if hebrew:
+            return _letters(max(hebrew, key=len))
+    return _letters(surface)
+
+
 @dataclass(frozen=True)
 class Form:
     """One inflected form: how it is written, and what it is."""
@@ -224,8 +332,17 @@ class Table:
 
     verbs: dict[str, Paradigm]
     by_form: dict[str, tuple[str, ...]]
+    #: A written form, and the verb targum's own tagging reads it as: the bare lemma and
+    #: the binyan. See `readings`.
+    readings: dict[str, tuple[str, str]] = field(default_factory=dict)
 
-    def of(self, word: str, seen: str = "", binyan: str | None = None) -> Paradigm | None:
+    def of(
+        self,
+        word: str,
+        seen: str = "",
+        binyan: str | None = None,
+        written: Iterable[str] = (),
+    ) -> Paradigm | None:
         """The paradigm for a lemma or any inflected form of it.
 
         `seen` is a pointed spelling the word actually wore in the text, and it is what
@@ -249,6 +366,11 @@ class Table:
         tokens and they are real conflicts — a נִפְעַל lemma whose surface form is spelled
         the way its פָּעַל cousin spells one — so the honest answer is the one the card
         has always given for a root it could not work out.
+
+        `written` is the forms the word was written in on the page. Where the occurrence
+        has no binyan of its own — 30% of verb tokens in the shelf's current builds on
+        2026-09-27 — it can settle the tie (`_by_reading`); wherever anything settles it,
+        a form read as one of the other verbs refuses it (`_read_otherwise`).
 
         None where nothing matches at all, and None where nothing settles it: a wrong
         conjugation table is worse than no table, and the way out to Pealim is still on
@@ -277,16 +399,149 @@ class Table:
                 for lid in found
                 if (verb := self.verbs.get(lid)) and binyan_of(verb.lemma) == binyan
             ]
+        written = tuple(written)
+        chosen: str | None = None
         if len(pointed) == 1 and len(built) == 1:
-            return self.verbs.get(pointed[0]) if pointed[0] == built[0] else None
-        if len(built) == 1:
-            return self.verbs.get(built[0])
-        if len(pointed) == 1:
-            return self.verbs.get(pointed[0])
-        return None
+            chosen = pointed[0] if pointed[0] == built[0] else None
+        elif len(built) == 1:
+            chosen = built[0]
+        elif len(pointed) == 1:
+            chosen = pointed[0]
+        elif not binyan and self.readings:
+            return self._by_reading(found, written)
+        if chosen is None or self._read_otherwise(found, chosen, written):
+            return None
+        return self.verbs.get(chosen)
+
+    def _named(self, found: tuple[str, ...], form: str) -> str | None:
+        """The one candidate targum's own tagging reads this written form as, if any."""
+        reading = self.readings.get(_letters(form))
+        if reading is None:
+            return None
+        lemma, binyan = reading
+        hits = [
+            lid
+            for lid in found
+            if (verb := self.verbs.get(lid))
+            and bare(verb.lemma) == lemma
+            and binyan_of(verb.lemma) == binyan
+        ]
+        return hits[0] if len(hits) == 1 else None
+
+    def _read_otherwise(
+        self, found: tuple[str, ...], chosen: str, written: tuple[str, ...]
+    ) -> bool:
+        """Whether a form of this word on the page is read as one of the *other* verbs.
+
+        The binyan decides for the whole page, but it is the first occurrence's binyan,
+        and the annotator files more than one verb under one lemma: `נעשה` tagged נִפְעַל
+        on a page that also writes `עָשְׂתָה` and `לַעֲשׂוֹת`, which are the פעל. Drawing the
+        נִפְעַל table over those is the wrong table the card exists not to draw. Measured
+        2026-09-27 over the shelf's current builds, this refuses 585 tokens' tables, and
+        the rows it refuses are that shape — `נעשה`, `נשמע`, `ענה` under a פיעל beside
+        `וַיַּעַן` (targum-internal#307).
+        """
+        for form in written:
+            named = self._named(found, form)
+            if named is not None and named != chosen:
+                return True
+        return False
+
+    def _by_reading(self, found: tuple[str, ...], written: Iterable[str]) -> Paradigm | None:
+        """The verb every form on the page is read as, where targum's own tagging says.
+
+        targum-internal#307 decided (2026-09-27) to break the ties Wikidata cannot from
+        targum's own `Token.binyan`: the annotator tags a binyan on most verbs, and what
+        it tags a written form as, counted over the shelf, is evidence about the same form
+        where it tagged nothing. `אוֹמֵר` is the commonest verb in the Mishnah; the annotator
+        files it under `אומר` with no binyan, which is both `אָמַר` and `הוּמַר`, and so it
+        drew no table. Everywhere it *was* tagged, `אומר` was the פעל of `אמר`.
+
+        **Keyed on the written form, and not on the lemma.** Measured first, keying on the
+        lemma was tried and dropped: an untagged occurrence is exactly where the old
+        lemmatizer most often filed a word under the wrong lemma — `ויאמר` under `נאמר` —
+        so the lemma's usual binyan picked a נִפְעַל for "and he said", and checked
+        against the Open Scriptures hand tagging of the same tokens it was right 86% of
+        the time. The form is the thing the reader is looking at, and it does not lie.
+
+        **And both halves of a reading must name the same candidate** — the lemma and the
+        binyan — so a reading that points outside this word's candidates refuses rather
+        than landing on a neighbour: `אוֹכֵל` "eats" is read as `אכל`, and `יָכֹל` "can",
+        which also spells a form `אוכל`, is not taken for it.
+
+        **One table per word on the page**, so every form of it on the page has a say. A
+        form read as another verb refuses; a form with no reading must be one of the
+        chosen verb's own forms and none of the other candidates'.
+
+        Checked against the Open Scriptures hand tagging of the same tokens in an older
+        build of the Tanakh, each document's own counts held out, this answer is right
+        97.9% of the time (737 of 753), against 95.8% for the tables the binyan already
+        settles. Read by hand over the shelf's current builds: 3,155 of the 3,245 tokens
+        it settles are `אוֹמֵר`, `אוֹמְרִים`, `לֵאמֹר` and the rest of the פעל of `אמר`, all
+        right, and three of the other ninety are wrong.
+        """
+        named: set[str] = set()
+        quiet: list[str] = []
+        for form in written:
+            spelled = _letters(form)
+            if not spelled:
+                continue
+            if spelled not in self.readings:
+                quiet.append(spelled)
+                continue
+            hit = self._named(found, spelled)
+            if hit is None:
+                # Read as a verb that is not one of this word's candidates, or as two.
+                return None
+            named.add(hit)
+        if len(named) != 1:
+            return None
+        chosen = named.pop()
+        verb = self.verbs.get(chosen)
+        if verb is None:
+            return None
+        # A form with no reading of its own may ride along only where it could be no
+        # other candidate: spelled by the chosen verb, and by none of the others. The
+        # annotator files `שֶׁנֶּאֱמַר` and `אָמְרוּ` under one lemma, `נאמר`, and `אָמְרוּ`
+        # is read as `אָמַר` — but `נאמר` is also a form of `אָמַר`, "we shall say", so a
+        # looser test drew the פעל table over "as it is said" 218 times on the shelf.
+        others: set[str] = set()
+        for lid in found:
+            if lid != chosen and (other := self.verbs.get(lid)):
+                others |= _spellings(other)
+        mine = _spellings(verb)
+        if any(spelled not in mine or spelled in others for spelled in quiet):
+            return None
+        return verb
+
+
+def _spellings(verb: Paradigm) -> set[str]:
+    """Every way a verb is written, on letters alone, its dictionary form included."""
+    return {_letters(form.written) for form in verb.forms} | {_letters(verb.lemma)}
 
 
 EMPTY = Table(verbs={}, by_form={})
+
+
+@lru_cache(maxsize=1)
+def readings(path: Path | None = None) -> dict[str, tuple[str, str]]:
+    """The shipped readings, read once: a written form, and the verb it is read as.
+
+    Empty where the file is absent or unreadable, which is the state before #307: the
+    binyan and the pointing still settle what they settled.
+    """
+    where = path or READINGS
+    try:
+        loaded = json.loads(where.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(loaded, dict) or not isinstance(loaded.get("forms"), dict):
+        return {}
+    out: dict[str, tuple[str, str]] = {}
+    for form, row in loaded["forms"].items():
+        if isinstance(row, list) and len(row) >= 2:
+            out[str(form)] = (str(row[0]), str(row[1]))
+    return out
 
 
 @lru_cache(maxsize=1)
@@ -326,4 +581,4 @@ def table(path: Path | None = None) -> Table:
         str(form): tuple(str(lid) for lid in ids)
         for form, ids in (loaded.get("by_form") or {}).items()
     }
-    return Table(verbs=verbs, by_form=by_form)
+    return Table(verbs=verbs, by_form=by_form, readings=readings())
