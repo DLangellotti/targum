@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from targum.annotate import closed
 
 
@@ -53,3 +55,34 @@ def test_every_gloss_reads_as_a_gloss() -> None:
             assert not gloss.endswith("."), f"{key}: {gloss}"
             assert len(gloss) <= 48, f"{key} is too long for a card: {gloss}"
             assert gloss[0].islower() or gloss[0] in "[I", f"{key}: {gloss}"
+
+
+def test_the_commonest_words_read_in_the_sense_a_learner_meets_first() -> None:
+    """targum-internal#378: "Words you may already know" glossed `עם` as "people; nation"
+    and left `היא`, `הם` and `להיות` bare."""
+    assert closed.common_gloss("עם") == "with"
+    assert closed.common_gloss("עם", "ru") == "с"
+    assert closed.common_gloss("מי") == "who"
+    for bare in ("היא", "הם", "זו", "להיות"):
+        assert closed.common_gloss(bare), bare
+    assert closed.common_gloss("ספר") == "", "a word the glossary has right is left to it"
+    assert closed.common_gloss("עם", "fr") == "", "no French here: the glossary answers"
+
+
+def test_the_modern_table_keeps_the_house_style_in_both_languages() -> None:
+    for form, pair in closed.MODERN.items():
+        for gloss in pair:
+            assert gloss == gloss.strip() and gloss, form
+            assert not gloss.endswith("."), f"{form}: {gloss}"
+            assert len(gloss) <= 48, f"{form} is too long for a card: {gloss}"
+            assert gloss[0].islower() or gloss[0] in "[I", f"{form}: {gloss}"
+
+
+def test_the_modern_table_is_the_top_of_the_list_and_nothing_else() -> None:
+    """Every row is a word the list reaches in its first two hundred: a row past it is a
+    row nobody is shown, and a sign the table has drifted from what it is for."""
+    pytest.importorskip("wordfreq")
+    from targum.chat import hebrew
+
+    top = set(hebrew.common_words(n=200))
+    assert set(closed.MODERN) <= top, sorted(set(closed.MODERN) - top)
