@@ -52,7 +52,7 @@ from .accounts import (
 from .audio.manifest import POSTER
 from .errors import TargumError, UnsupportedSource
 from .mail import Mailer
-from .models import Segment, SegmentedDocument, Style, glossary_path, is_biblical
+from .models import Document, Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
 from .remembered import Remembered
 from .render.builder import (
@@ -2666,6 +2666,17 @@ class Library:
         address = job.source
         job.options["came_from"] = address
         job.options["post_pictures"] = len(post.pictures)
+        # What the post card draws, kept for the build to write beside the reader as
+        # `post.json` (targum-internal#158). Nothing here is fetched yet.
+        job.options["post"] = {
+            "platform": "instagram",
+            "url": address,
+            "handle": post.author,
+            "name": post.name,
+            "posted_at": post.posted,
+            "avatar": post.avatar,
+            "pictures": list(post.pictures),
+        }
         wanted = bool(job.options.get("pictures")) and bool(post.pictures)
         if not post.caption.strip() and not wanted:
             job.error = said_in(
@@ -3103,6 +3114,60 @@ class Library:
                 job,
                 "Something went wrong on our side. The Terminal has the detail.",
             )
+
+    def keep_post(self, job: Job, folder: Path, document: Document) -> None:
+        """Write `post.json` beside a post's reader, with its pictures kept as webp
+        (targum-internal#158; design.md §12, "A post keeps its shape").
+
+        Never a reason for the build to fail: the caption is the reader's text whatever
+        happens here, and a post without its manifest is drawn as the plain text it was
+        before this existed. So whatever goes wrong is printed for the operator.
+        """
+        said = job.options.get("post")
+        if not isinstance(said, dict):
+            return
+        import tempfile
+
+        from .ingest import post as post_module
+        from .video import instagram as instagram_module
+
+        try:
+            media: list[post_module.Media] = []
+            avatar = ""
+            wanted = [str(address) for address in said.get("pictures") or []]
+            face = str(said.get("avatar") or "")
+            if wanted or face:
+                with tempfile.TemporaryDirectory() as raw:
+                    fetched = instagram_module.pictures_into(
+                        instagram_module.Post(
+                            code="",
+                            author="",
+                            caption="",
+                            pictures=(*wanted, *([face] if face else [])),
+                        ),
+                        Path(raw),
+                    )
+                    if face:
+                        avatar = post_module.keep_avatar(fetched.pop(), folder)
+                    media = post_module.keep_pictures(fetched, folder)
+            manifest = post_module.Manifest(
+                platform=str(said.get("platform") or "instagram"),
+                author=post_module.Author(
+                    handle=str(said.get("handle") or ""),
+                    name=str(said.get("name") or ""),
+                    avatar=avatar,
+                ),
+                items=[
+                    post_module.Item(block_ids=[block.id for block in document.blocks], media=media)
+                ],
+                fetched_by="paste",
+                url=str(said.get("url") or "") or None,
+                posted_at=str(said.get("posted_at") or ""),
+            )
+            post_module.write(folder, manifest)
+        except Exception as error:  # noqa: BLE001 - the card's business, not the build's
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "post", error, job=job.id)
 
     def propose(self, job: Job) -> None:
         """Offer a finished build to the shelf, if its licence allows a public copy.
@@ -3592,6 +3657,8 @@ class Library:
 
         if urlparse(job.source).scheme not in ("http", "https"):
             build.home = hosts_module.home_url(str(options.get("came_from") or ""))
+        if isinstance(job.options.get("post"), dict):
+            build.beside = lambda folder, document: self.keep_post(job, folder, document)
         return build
 
 
