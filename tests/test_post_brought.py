@@ -293,3 +293,44 @@ def test_a_brought_post_without_a_link_draws_no_way_home_and_wears_its_letter(
     assert card is not None
     assert card["home"] == "" and card["avatar"] == "" and card["letter"] == "א"
     assert card["day"] == ""
+
+
+def test_a_brought_posts_card_says_only_what_it_knows(served, reading, tmp_path: Path) -> None:
+    """The quotes the server really makes for a brought post — words, pictures read,
+    pictures alone, and a film — drawn by the Add page's own script: every fact on the
+    card is a real one, and none is "undefined" or "NaN" (targum-internal#158)."""
+    import shutil
+
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    from test_add_post_js import run as draw
+
+    from targum import serve
+
+    port, token, _out, _library = served
+    for part in ("a", "b"):
+        (tmp_path / part).mkdir()
+    _, words = bring(port, token)
+    assert words["segments"] > 0 and words["language"] == "he", words
+    _, pictures = bring(port, token, uploads=pictures_up(port, token, tmp_path / "a"))
+    _, read = bring(port, token, again=pictures["id"], pictures=True)
+    _, alone = bring(port, token, text="", uploads=pictures_up(port, token, tmp_path / "b"))
+    film = serve.Job(
+        id="f1", source="clip.mp4", title="clip", language="he", audio=True, seconds=41.5, parts=1
+    )
+    film.stage = "ready"
+    for quote, expect in (
+        (words, f"{words['segments']} sentences"),
+        (pictures, f"{pictures['segments']} sentences"),
+        (read, "sentences"),
+        (alone, "in its pictures"),
+        (film.state(), "0:42"),
+    ):
+        got = draw(
+            fields={"handle": "h", "words": "שורה"},
+            files=["a.jpg"],
+            answers={"/prepare": quote},
+        )
+        text = " ".join(got["status"])
+        assert expect in text, (expect, text)
+        assert "undefined" not in text and "NaN" not in text, text

@@ -149,3 +149,32 @@ def test_a_refused_article_offers_no_form() -> None:
         },
     )
     assert not got["offered"]
+
+
+def said_whole(got: dict[str, Any]) -> str:
+    return " ".join(got["status"] + got.get("after", []))
+
+
+@pytest.mark.parametrize(
+    "quote",
+    [
+        {"id": "j1", "title": "הופעות הקיץ", "stage": "ready"},
+        {"id": "j1", "stage": "ready", "pictures_offered": 2},
+        {"id": "j1", "title": "A clip", "stage": "ready", "audio": True},
+        {"id": "j1", "title": "A clip", "stage": "ready", "audio": True, "parts": 2},
+        {"id": "j1", "stage": "blocked", "blocked": ""},
+    ],
+)
+def test_a_quote_missing_a_fact_leaves_it_out_rather_than_saying_undefined(
+    quote: dict[str, Any],
+) -> None:
+    """The card read `job.segments` and `job.seconds` as though every quote had them,
+    and printed "undefined sentences" when one did not (targum-internal#158). Whatever
+    the quote leaves out, the card says nothing about it."""
+    got = run(
+        fields={"handle": "h", "words": "שורה"},
+        files=["a.jpg"],
+        answers={"/prepare": quote},
+    )
+    text = said_whole(got)
+    assert "undefined" not in text and "NaN" not in text and "null" not in text, text

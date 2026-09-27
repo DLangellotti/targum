@@ -67,21 +67,6 @@ install({
     switcher: () => {},
     onChange: () => {},
   },
-  // The upload and the wait are bring.js's. Stood in: the upload names what went up and
-  // answers as the chunked door does — `uploads` for pictures, `upload` for one video.
-  TargumBring: {
-    isPicture: (file) => /\.(png|jpe?g|webp|heic|heif)$/i.test(file.name),
-    isPdf: () => false,
-    upload(files) {
-      uploaded.push(files.map((file) => file.name));
-      const pictures = files.filter((file) => /\.(png|jpe?g|webp)$/i.test(file.name));
-      return Promise.resolve(
-        pictures.length ? { uploads: pictures.map((_, n) => "u" + n) } : { upload: "v0" }
-      );
-    },
-    wait: () => "About a minute.",
-    plain: (message) => message,
-  },
   TARGUM_KEY: "test-key",
   TARGUM_LANGUAGES: { he: "Hebrew", en: "English" },
   location: { href: "http://localhost/add", search: "" },
@@ -144,6 +129,18 @@ for (const platform of ["instagram", "tiktok", "x"]) {
   document.getElementById("post-where").appendChild(segment);
 }
 document.getElementById("post-form").hidden = true;
+
+/* bring.js as it is — the wait the card says is its — with only the upload stood in: it
+   names what went up and answers as the chunked door does, `uploads` for pictures and
+   `upload` for one video. */
+require(path.join(assets, "bring.js"));
+window.TargumBring.upload = (files) => {
+  uploaded.push(files.map((file) => file.name));
+  const pictures = files.filter((file) => /\.(png|jpe?g|webp)$/i.test(file.name));
+  return Promise.resolve(
+    pictures.length ? { uploads: pictures.map((_, n) => "u" + n) } : { upload: "v0" }
+  );
+};
 
 require(path.join(assets, "add.js"));
 

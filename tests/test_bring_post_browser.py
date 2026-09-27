@@ -27,6 +27,7 @@ QUOTE = {
     "id": "j1",
     "title": "הופעות הקיץ",
     "language": "he",
+    "segments": 3,
     "stage": "ready",
     "pictures_offered": 2,
 }
@@ -127,6 +128,8 @@ def test_the_form_fits_takes_the_boxs_place_and_quotes_what_was_brought(
 
     page.click("#post-go")
     page.wait_for_selector("#status .filled")
+    card = page.inner_text("#status")
+    assert "3 sentences" in card and "undefined" not in card and "NaN" not in card, card
     if SHOTS:
         page.screenshot(path=str(Path(SHOTS) / f"bring-a-post-quoted-{width}.png"), full_page=True)
     context.close()

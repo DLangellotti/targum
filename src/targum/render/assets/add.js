@@ -1468,25 +1468,35 @@
     return parts.join(" ");
   }
 
+  /* The card's line of facts. Each is said only where the quote carries it: a state that
+     arrived without one leaves it out rather than printing "undefined sentences" or
+     "NaN:NaN" (targum-internal#158, where a brought post's card was the first to try). */
   function describe(job) {
+    var facts = [];
+    if (job.language) facts.push(named(job.language));
     if (job.audio) {
       var box = document.createDocumentFragment();
-      box.appendChild(document.createTextNode(named(job.language) + " · "));
-      var when = document.createElement("span");
-      when.className = "clock";
-      when.textContent = clock(job.seconds);
-      box.appendChild(when);
+      box.appendChild(document.createTextNode(facts.join(" · ")));
+      var seconds = Number(job.seconds);
+      if (isFinite(seconds) && seconds > 0) {
+        if (facts.length) box.appendChild(document.createTextNode(" · "));
+        var when = document.createElement("span");
+        when.className = "clock";
+        when.textContent = clock(seconds);
+        box.appendChild(when);
+      }
       if (job.parts > 1) {
         box.appendChild(document.createTextNode(" · " + tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
       }
       return box;
     }
-    var what =
-      job.chapters > 1
-        ? tn("add.job.chapters", job.chapters, "{n} chapter", "{n} chapters")
-        : (job.pages > 1 ? tn("add.job.pages", job.pages, "{n} page", "{n} pages") + " · " : "") +
-          tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences");
-    return document.createTextNode(named(job.language) + " · " + what);
+    if (job.chapters > 1) {
+      facts.push(tn("add.job.chapters", job.chapters, "{n} chapter", "{n} chapters"));
+    } else {
+      if (job.pages > 1) facts.push(tn("add.job.pages", job.pages, "{n} page", "{n} pages"));
+      if (job.segments > 0) facts.push(tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences"));
+    }
+    return document.createTextNode(facts.join(" · "));
   }
 
   //: What `/describe` said about the link now in the box, or null. Kept so the price,
@@ -1650,19 +1660,27 @@
     say(box);
   }
 
-  // Too long or too expensive to translate, said plainly rather than by failing.
-  function refuse(job) {
-    var box = document.createDocumentFragment();
+  // The card's first line: the title in bold, then its facts, with nothing said for a
+  // part the quote did not carry.
+  function titled(job) {
     var head = document.createElement("p");
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title;
-    head.appendChild(document.createTextNode(" · "));
-    head.appendChild(describe(job));
+    head.querySelector("b").textContent = job.title || "";
+    var facts = describe(job);
+    if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
+    head.appendChild(facts);
+    return head;
+  }
+
+  // Too long or too expensive to translate, said plainly rather than by failing.
+  function refuse(job) {
+    var box = document.createDocumentFragment();
+    var head = titled(job);
     box.appendChild(head);
     var why = document.createElement("span");
     why.className = "cost";
-    why.textContent = job.blocked;
+    why.textContent = job.blocked || "";
     box.appendChild(why);
     say(box, true);
   }
@@ -1674,12 +1692,7 @@
     // being worked out, and it should not vanish the moment the price lands.
     var was = foundBlock(found);
     if (was) box.appendChild(was);
-    var head = document.createElement("p");
-    head.style.margin = "0";
-    head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title;
-    head.appendChild(document.createTextNode(" · "));
-    head.appendChild(describe(job));
+    var head = titled(job);
     box.appendChild(head);
 
     // A text that arrived as pages: its first lines as read, and how many it could
