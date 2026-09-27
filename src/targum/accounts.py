@@ -3033,6 +3033,17 @@ class Store:
         rows = self.db.execute(query + " ORDER BY at", values).fetchall()
         return [dict(row) for row in rows]
 
+    def finished(self, person_id: int | None) -> list[tuple[str, str, int]]:
+        """Every section this person has finished and not un-finished, as (document hash,
+        section, at), oldest first — what `occurrences.met` calls meeting a word."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT hash, section, at FROM section WHERE person = ? AND gone = 0 ORDER BY at",
+            (person_id,),
+        ).fetchall()
+        return [(str(row["hash"]), str(row["section"]), int(row["at"] or 0)) for row in rows]
+
     def marked(self, person: Person, language: str) -> dict[str, int]:
         """Every dictionary form this person has marked in one language, and how well.
 
