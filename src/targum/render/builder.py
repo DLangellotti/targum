@@ -1640,6 +1640,7 @@ def _paradigm_at(
     tables: list[list[list[object]]],
     table_at: dict[str, int],
     feature_at: dict[str, int],
+    written: tuple[str, ...] = (),
 ) -> int:
     """Where this word's conjugations sit in the page's own tables, or 0 for none.
 
@@ -1656,6 +1657,13 @@ def _paradigm_at(
     The surface is not passed. `Table.of` would take it, but the table is drawn once per
     lemma for the whole page, and a pointing is per occurrence: the first one on the page
     would be deciding for all the others.
+
+    `written` is every form this word takes on the page, which is the other way round:
+    all of them have a say, so none decides for the rest (targum-internal#307, 2026-09-27).
+    It is asked only where the word has no binyan, against how targum's own tagging reads
+    each form elsewhere on the shelf — and one form read as a different verb refuses the
+    table for all of them. It keys the cache with the lemma, because two words with the
+    same lemma can be written differently on one page.
     """
     from ..annotate.paradigms import table as paradigm_table
 
@@ -1664,12 +1672,19 @@ def _paradigm_at(
         return 0
     binyan = str(getattr(token, "binyan", "") or "")
     key = f"{lemma}\u0000{binyan}"
+    if not binyan and written:
+        key += "\u0000" + "|".join(sorted(set(written)))
     if key in table_at:
         return table_at[key]
-    found = paradigm_table().of(lemma, binyan=binyan or None)
+    found = paradigm_table().of(lemma, binyan=binyan or None, written=written)
     if found is None:
         table_at[key] = 0
         return 0
+    # One verb reached from two words — `אומר` and `אמר` both read as אָמַר — ships once.
+    drawn = f"\u0001{id(found)}"
+    if drawn in table_at:
+        table_at[key] = table_at[drawn]
+        return table_at[key]
     rows: list[list[object]] = []
     for form in found.forms:
         codes = []
@@ -1679,7 +1694,7 @@ def _paradigm_at(
             codes.append(feature_at[feature])
         rows.append([form.written, codes])
     tables.append(rows)
-    table_at[key] = len(tables) - 1
+    table_at[key] = table_at[drawn] = len(tables) - 1
     return table_at[key]
 
 
@@ -3072,6 +3087,18 @@ def render(
         grammar: list[str] = [""]
         grammar_at: dict[str, int] = {"": 0}
         words: dict[str, list[list[int]]] = {}
+        # Every form each verb is written in on this page, so the conjugation table a
+        # word gets is one all of them agree on and not the first one's (#307).
+        verb_forms: dict[tuple[str, str], list[str]] = {}
+        if annotation is not None:
+            from ..annotate.paradigms import written_form
+
+            for sid in section.segment_ids:
+                for token in chips(annotation.tokens.get(sid) or ()):
+                    if token.pos == "VERB":
+                        verb_forms.setdefault((token.lemma, token.head), []).append(
+                            written_form(token.surface, token.built)
+                        )
         if annotation is not None:
             for sid in section.segment_ids:
                 tokens = annotation.tokens.get(sid)
@@ -3096,7 +3123,15 @@ def render(
                         # bought; empty for every word that is not a verb with a root.
                         kin.append(_family_at(token, families, family_at))
                         registers.append(token.word_register or "")
-                        paradigms.append(_paradigm_at(token, tables, table_at, feature_at))
+                        paradigms.append(
+                            _paradigm_at(
+                                token,
+                                tables,
+                                table_at,
+                                feature_at,
+                                tuple(verb_forms.get(word, ())),
+                            )
+                        )
                     # Offsets arrive measured against the segment as ingested, which may
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the

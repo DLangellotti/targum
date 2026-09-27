@@ -16,6 +16,12 @@ build/
 # committing a number that is wrong by the next commit. See `about.stamp()`.
 src/targum/activity.json
 
+# How targum's own tagging reads each written verb form (targum-internal#307). Counted
+# off the library, so it is private like the catalogue (decided 2026-09-27), and packed
+# into the wheel the way activity.json is: `artifacts` in pyproject.toml. The copy that
+# lasts is ~/.targum/binyans.json; deploy/deploy.sh puts it here before `uv build`.
+src/targum/annotate/binyans.json
+
 # Runtime output and secrets
 targum-out/
 .env

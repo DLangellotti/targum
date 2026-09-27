@@ -74,6 +74,16 @@ rm -rf dist
 # The about page reads `git log`, and a wheel has no repository to read. The counts are
 # written into the package here, from this tree, and served from there on the box.
 uv run python -c "from targum.about import stamp; stamp()"
+# How targum's own tagging reads each written verb form (targum-internal#307): private,
+# gitignored, and packed into the wheel like the stamp. Kept beside the catalogue so a
+# deploy from a fresh worktree carries it too. Optional: a wheel without it draws the
+# conjugation tables the binyan settles, and none of the ones only the readings settle.
+BINYANS="${TARGUM_BINYANS:-$HOME/.targum/binyans.json}"
+if [ -f "$BINYANS" ]; then
+  cp "$BINYANS" src/targum/annotate/binyans.json
+else
+  echo "   no binyans.json at $BINYANS — fewer verbs will get a conjugation table" >&2
+fi
 uv build --wheel >/dev/null
 WHEEL="$(ls -t dist/*.whl | head -1)"
 echo "   $(basename "$WHEEL")"

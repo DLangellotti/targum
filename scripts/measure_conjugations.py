@@ -12,11 +12,16 @@ and nothing bought. Every verb token is put in one bucket:
                         for this word matches exactly one of them (#307)
   settled by pointing   several; the pointed form the reader saw belongs to one
   settled, both agree   both signals decide and name the same verb
+  settled by reading    several, and no binyan; every form the word is written in on
+                        the page is read as the same one of them by targum's own
+                        tagging elsewhere on the shelf (#307, `paradigms.READINGS`)
   refused: conflict     both decide and disagree, so neither is taken
+  refused: read         one of the first three decided, and a form of the same word
+    otherwise           on the page is read as one of the other verbs (#307)
   still ambiguous       several, and nothing settles it — the card draws no table
   no candidate          the source has never heard of this verb
 
-The first four are coverage. The last three are the honest gaps, and `Table.of` answers
+The first five are coverage. The last three are the honest gaps, and `Table.of` answers
 None for all of them, because a wrong conjugation table is worse than none: the reader
 has no way to tell.
 
@@ -33,10 +38,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from targum.annotate.paradigms import Table, bare, binyan_of, table  # noqa: E402
+from targum.annotate.paradigms import (  # noqa: E402
+    Table,
+    bare,
+    binyan_of,
+    table,
+    written_form,
+)
 
 #: The buckets that mean the reader gets a table.
-COVERED = ("unique", "settled by binyan", "settled by pointing", "settled, both agree")
+COVERED = (
+    "unique",
+    "settled by binyan",
+    "settled by pointing",
+    "settled, both agree",
+    "settled by reading",
+)
 
 
 def measure(
@@ -64,23 +81,41 @@ def measure(
         if not str(found.get("language") or "").startswith(language):
             skipped += 1
             continue
-        for tokens in (found.get("tokens") or {}).values():
-            for token in tokens:
-                if not isinstance(token, dict) or token.get("pos") != "VERB":
-                    continue
-                lemma = str(token.get("lemma") or "")
-                if not lemma:
-                    continue
-                where = bucket(verbs, lemma, str(token.get("surface") or ""), token.get("binyan"))
-                tally[where] += 1
-                lemmas[where].add(lemma)
+        verbs_here = [
+            token
+            for tokens in (found.get("tokens") or {}).values()
+            for token in tokens
+            if isinstance(token, dict) and token.get("pos") == "VERB" and token.get("lemma")
+        ]
+        # Every form each word is written in, as the builder gathers them for a page.
+        # A page is a section and this is the whole document, so a word here has more
+        # forms to agree on than it has on any one page: a lower bound, not the number.
+        written: dict[tuple[str, str], list[str]] = collections.defaultdict(list)
+        for token in verbs_here:
+            written[(str(token["lemma"]), str(token.get("headword") or ""))].append(
+                written_form(str(token.get("surface") or ""), token.get("built"))
+            )
+        for token in verbs_here:
+            lemma = str(token["lemma"])
+            where = bucket(
+                verbs,
+                lemma,
+                str(token.get("surface") or ""),
+                token.get("binyan"),
+                tuple(written[(lemma, str(token.get("headword") or ""))]),
+            )
+            tally[where] += 1
+            lemmas[where].add(lemma)
     return tally, lemmas, skipped
 
 
-def bucket(verbs: Table, lemma: str, surface: str, binyan: object) -> str:
-    """Which bucket one verb token falls in. The same three questions `Table.of` asks,
-    kept apart here so the answer says *why* rather than only yes or no."""
+def bucket(
+    verbs: Table, lemma: str, surface: str, binyan: object, written: tuple[str, ...] = ()
+) -> str:
+    """Which bucket one verb token falls in. The same questions `Table.of` asks, kept
+    apart here so the answer says *why* rather than only yes or no."""
     candidates = verbs.by_form.get(bare(lemma)) or ()
+    written = tuple(written)
     if not candidates:
         return "no candidate"
     if len(candidates) == 1:
@@ -95,12 +130,20 @@ def bucket(verbs: Table, lemma: str, surface: str, binyan: object) -> str:
     ]
     built = [lid for lid in candidates if binyan and binyan_of(known[lid].lemma) == str(binyan)]
     if len(pointed) == 1 and len(built) == 1:
-        return "settled, both agree" if pointed[0] == built[0] else "refused: conflict"
-    if len(built) == 1:
-        return "settled by binyan"
-    if len(pointed) == 1:
-        return "settled by pointing"
-    return "still ambiguous"
+        if pointed[0] != built[0]:
+            return "refused: conflict"
+        chosen, where = pointed[0], "settled, both agree"
+    elif len(built) == 1:
+        chosen, where = built[0], "settled by binyan"
+    elif len(pointed) == 1:
+        chosen, where = pointed[0], "settled by pointing"
+    elif not binyan and written and verbs._by_reading(candidates, written) is not None:
+        return "settled by reading"
+    else:
+        return "still ambiguous"
+    if verbs._read_otherwise(candidates, chosen, written):
+        return "refused: read otherwise"
+    return where
 
 
 def main() -> None:

@@ -15,11 +15,13 @@ import gzip
 import importlib.util
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from targum.annotate.paradigms import (
     BINYAN_ORDER,
+    READINGS,
     SIBLINGS,
     TABLE,
     Form,
@@ -28,7 +30,9 @@ from targum.annotate.paradigms import (
     bare,
     binyan_of,
     family_of,
+    readings,
     table,
+    written_form,
 )
 
 
@@ -143,6 +147,24 @@ def test_object_suffix_forms_are_not_in_the_shipped_table(shipped: Table) -> Non
         ("הִגִּיד", "הפעיל"),
         ("הֻפְעַל", "הופעל"),
         ("הִתְלַבֵּשׁ", "התפעל"),
+        # The guttural and weak patterns, which read as nothing until 2026-09-27.
+        ("נֶאֱמַר", "נפעל"),
+        ("נַעֲשָׂה", "נפעל"),
+        ("נוֹלַד", "נפעל"),
+        ("הֵבִיא", "הפעיל"),
+        ("הֶעֱמִיד", "הפעיל"),
+        ("הוֹלִיךְ", "הפעיל"),
+        ("הוּצָא", "הופעל"),
+        ("הָחְלַט", "הופעל"),
+        ("צִוָּה", "פיעל"),
+        ("בֵּרֵךְ", "פיעל"),
+        ("בֹּרַךְ", "פועל"),
+        # And three the rule had wrong: a ת that is the root's, and a ת that has traded
+        # places with the root's first letter.
+        ("הִתְקִין", "הפעיל"),
+        ("הִסְתַּכֵּל", "התפעל"),
+        ("הִשְׁתּוֹלֵל", "התפעל"),
+        ("הִסְתִּיר", "הפעיל"),
     ],
 )
 def test_a_pointed_lemma_says_which_binyan_it_is_built_in(lemma: str, expected: str) -> None:
@@ -160,11 +182,15 @@ def test_an_unpointed_lemma_is_refused_rather_than_read_as_paal(lemma: str) -> N
     assert binyan_of(lemma) is None
 
 
-@pytest.mark.parametrize("lemma", ["נִסָּה", "הֵבִיא"])
+@pytest.mark.parametrize("lemma", ["נִסָּה", "נִתַּן", "נִכָּה", "הֵפֵר", "נוֹפֵף"])
 def test_a_pattern_that_is_not_one_of_the_seven_is_refused(lemma: str) -> None:
     """נִסָּה is the פיעל of נ־ס־ה and not a נפעל: its second letter carries no shva, so
-    the נ is a radical and not a prefix. Where the shape does not settle it, nothing is
-    claimed — the same guard every rule in `hebrew.py` ends at."""
+    the נ is a radical and not a prefix. But נִתַּן is the נפעל of נ־ת־ן, spelled point
+    for point the same way, and was read as a פיעל until 2026-09-27 — so the shape is
+    refused rather than guessed. הֵפֵר is a doubled root's הפעיל wearing a פיעל's two
+    tseres, and נוֹפֵף is not the נפעל its first two letters look like. Where the shape
+    does not settle it, nothing is claimed — the same guard every rule in `hebrew.py`
+    ends at."""
     assert binyan_of(lemma) is None
 
 
@@ -301,3 +327,224 @@ def test_the_coverage_measurement_counts_only_the_language_the_table_is_for(
     assert skipped == 2, "the Italian and the Russian are left out, not counted as misses"
     assert sum(tally.values()) == 1
     assert tally["no candidate"] == 0, "and no foreign verb is reported as an unknown Hebrew one"
+
+
+# -- how targum's own tagging reads a written form (targum-internal#307, 2026-09-27) --
+
+
+def said() -> Table:
+    """`אומר` as the Mishnah writes it: a form of the פעל `אָמַר` and of the הופעל
+    `הוּמַר`, which the source cannot tell apart and the annotator tags no binyan on."""
+    paal = Paradigm(
+        lemma="אָמַר",
+        forms=(
+            Form(written="אוֹמֵר", features=("participle",)),
+            Form(written="אוֹמְרִים", features=("participle",)),
+            Form(written="נֹאמַר", features=("future", "1st")),
+        ),
+    )
+    hufal = Paradigm(
+        lemma="הוּמַר",
+        forms=(
+            Form(written="אוּמַר", features=("future", "1st")),
+            Form(written="נוּמַר", features=("future", "1st")),
+        ),
+    )
+    return Table(
+        verbs={"a": paal, "h": hufal},
+        by_form={"אומר": ("a", "h")},
+        readings={"אומר": ("אמר", "פעל"), "אומרים": ("אמר", "פעל")},
+    )
+
+
+def test_how_the_shelf_reads_a_form_settles_a_word_with_no_binyan() -> None:
+    """Everywhere the annotator did tag `אומר`, it was the פעל of `אמר`; so where it did
+    not, the table is `אָמַר`'s."""
+    shelf = said()
+    assert shelf.of("אומר") is None, "nothing on the page to go on"
+    found = shelf.of("אומר", written=("אוֹמֵר", "אוֹמְרִים"))
+    assert found is not None and found.lemma == "אָמַר"
+
+
+def test_a_word_s_own_binyan_is_asked_before_the_shelf() -> None:
+    """The reading settles a word with no binyan. One that has its own is settled by it,
+    and the reading can only refuse — never overrule it into the other verb."""
+    shelf = said()
+    found = shelf.of("אומר", binyan="פעל", written=("אוֹמֵר",))
+    assert found is not None and found.lemma == "אָמַר"
+    assert shelf.of("אומר", binyan="הופעל") is not None, "nothing on the page says otherwise"
+    assert shelf.of("אומר", binyan="הופעל", written=("אוֹמֵר",)) is None
+
+
+def test_a_reading_that_names_no_candidate_refuses() -> None:
+    """`אוֹכֵל` "eats" is read as `אכל`. The word's candidates were `יָכֹל` and others,
+    and a reading that points outside them is not a reason to take the nearest."""
+    shelf = Table(
+        verbs=said().verbs,
+        by_form={"אומר": ("a", "h")},
+        readings={"אומר": ("אכל", "פעל")},
+    )
+    assert shelf.of("אומר", written=("אומר",)) is None
+
+
+def test_every_form_on_the_page_has_a_say() -> None:
+    """One table is drawn per word per page, so it must be right for all of them: a form
+    read as the other verb refuses it, and a form with no reading that the other verb
+    also spells refuses it too."""
+    shelf = said()
+    both = Table(
+        verbs=shelf.verbs,
+        by_form=shelf.by_form,
+        readings={**shelf.readings, "אומר": ("הומר", "הופעל")},
+    )
+    assert both.of("אומר", written=("אומר", "אומרים")) is None, "read two ways"
+    # `נומר` is a form of the הופעל and not of the פעל: it cannot ride along.
+    assert shelf.of("אומר", written=("אומר", "נוּמַר")) is None
+    # `אומרים` belongs to the פעל alone and has its own reading; `נאמר` is spelled by the
+    # פעל alone and has none, so it may ride along.
+    found = shelf.of("אומר", written=("אומרים", "נֹאמַר"))
+    assert found is not None and found.lemma == "אָמַר"
+
+
+def test_a_form_read_as_the_other_verb_refuses_what_the_binyan_settled() -> None:
+    """The first occurrence's binyan decides for the page, and the annotator files more
+    than one verb under one lemma. Where another form of the word on the page is read as
+    the other candidate, the table is refused rather than drawn over it."""
+    shelf = two_candidates()
+    read = Table(
+        verbs=shelf.verbs,
+        by_form=shelf.by_form,
+        readings={"הלכתי": ("הלך", "פיעל")},
+    )
+    assert read.of("הלך", binyan="פעל") is not None, "nothing on the page says otherwise"
+    assert read.of("הלך", binyan="פעל", written=("הִלַּכְתִּי",)) is None
+    found = read.of("הלך", binyan="פיעל", written=("הִלַּכְתִּי",))
+    assert found is not None and found.lemma == "הִלֵּךְ"
+
+
+def test_the_form_is_the_verb_without_what_clings_to_it() -> None:
+    """Keyed on letters, and on the verb alone: `built` says how a word is put together,
+    and the clitics carry their gloss while a suffix is said in English."""
+    assert written_form("וַיֹּ֨אמֶר", "ו and + יֹּאמֶר") == "יאמר"
+    assert written_form("שנצטרף", "ש that + נצטרף") == "נצטרף"
+    assert written_form("וּלְבֵיתוֹ", "ו and + ל to + בית + his") == "בית"
+    assert written_form("אוֹמֵר") == "אומר"
+    assert written_form("כָּל־אֲשֶׁ֥ר") == "כלאשר", "maqaf and cantillation are not letters"
+
+
+def test_without_the_readings_the_card_draws_what_it_drew_before(tmp_path: Path) -> None:
+    """The readings are private (decided 2026-09-27): gitignored, packed into the wheel,
+    and absent from CI's checkout and from every worktree. There, nothing is read and
+    nothing fails — the binyan and the pointing settle what they settled before #307."""
+    assert readings(tmp_path / "not-here.json") == {}
+    broken = tmp_path / "broken.json"
+    broken.write_text("not json", encoding="utf-8")
+    assert readings(broken) == {}
+    bare_shelf = Table(verbs=said().verbs, by_form=said().by_form)
+    assert bare_shelf.of("אומר", written=("אוֹמֵר", "אוֹמְרִים")) is None
+    found = bare_shelf.of("אומר", binyan="פעל", written=("אוֹמֵר",))
+    assert found is not None and found.lemma == "אָמַר"
+
+
+needs_readings = pytest.mark.skipif(
+    not READINGS.is_file(),
+    reason="binyans.json is private and lives only in the main checkout and the wheel",
+)
+
+
+@needs_readings
+def test_the_readings_say_what_they_were_counted_over() -> None:
+    """Where the private file is present: counted only over texts that may leave targum
+    (#161), and every one of them names exactly one verb in the shipped table — one that
+    named none could never settle anything."""
+    loaded = json.loads(READINGS.read_text(encoding="utf-8"))
+    assert "exportable" in loaded["counted"]["over"]
+    assert loaded["least"] >= 20 and loaded["share"] >= 0.95
+    lemmas = [(bare(verb.lemma), binyan_of(verb.lemma)) for verb in table().verbs.values()]
+    for form, (lemma, binyan, agree, tagged) in loaded["forms"].items():
+        assert tagged >= loaded["least"] and agree / tagged >= loaded["share"], form
+        assert lemmas.count((lemma, binyan)) == 1, form
+
+
+@needs_readings
+def test_the_readings_lift_the_mishnah_s_commonest_verb(shipped: Table) -> None:
+    """`אוֹמֵר` drew no table before #307 took the shelf's own reading of it."""
+    assert shipped.of("אומר") is None
+    found = shipped.of("אומר", written=("אוֹמֵר", "אוֹמְרִים"))
+    assert found is not None and found.lemma == "אָמַר"
+
+
+def read_as_said(shelf: Table) -> Table:
+    """The shipped verbs with the one reading these tests need, so they run the same on
+    a checkout that has the private file and one that has not."""
+    return Table(
+        verbs=shelf.verbs,
+        by_form=shelf.by_form,
+        readings={"אומר": ("אמר", "פעל"), "אומרים": ("אמר", "פעל")},
+    )
+
+
+def load_script(name: str) -> object:
+    spec = importlib.util.spec_from_file_location(
+        name, Path(__file__).parent.parent / "scripts" / f"{name}.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_readings_are_counted_once_per_text_and_only_where_it_may_leave(
+    tmp_path: Path,
+) -> None:
+    """The same text is built on several shelves, some by an older annotator; one build
+    stands for it, the one with the most tagged verbs. And a text whose licence does not
+    let derived data leave is not counted at all."""
+    count_binyans: Any = load_script("count_binyans")
+
+    def build(folder: str, source: str, digest: str, tokens: list[dict[str, object]]) -> None:
+        path = tmp_path / folder
+        path.mkdir(parents=True)
+        (path / "document.json").write_text(json.dumps({"source": source}), encoding="utf-8")
+        (path / "annotation.json").write_text(
+            json.dumps(
+                {"language": "he", "document_hash": digest, "tokens": {"s": tokens}},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+
+    said_it = {"pos": "VERB", "lemma": "אמר", "binyan": "פעל", "surface": "אוֹמֵר"}
+    untagged = {"pos": "VERB", "lemma": "אומר", "surface": "אוֹמֵר"}
+    build("new", "sefaria:Mishnah Berakhot", "h1", [said_it, said_it])
+    build("old", "sefaria:Mishnah Berakhot", "h1", [said_it, untagged])
+    build("closed", "https://news.example/1", "h2", [said_it] * 5)
+
+    counts, tally = count_binyans.count(tmp_path, may_leave=lambda source: "sefaria" in source)
+    assert counts["אומר"][("אמר", "פעל")] == 2, "one build of h1, and none of h2"
+    assert tally["documents"] == 1 and tally["builds left out: licence"] == 1
+
+    decided = count_binyans.decided(counts, table(), least=2, share=0.95)
+    assert decided["אומר"] == ["אמר", "פעל", 2, 2]
+    assert count_binyans.decided(counts, table(), least=3) == {}, "too few to believe"
+
+
+def test_the_coverage_measurement_counts_what_the_readings_settle(tmp_path: Path) -> None:
+    """The measurement asks what the builder asks: every form a word takes in the text,
+    read the way the shelf reads it. Measured over a whole document rather than a page,
+    so a word has more forms to agree on than the builder gives it — a lower bound."""
+    measure_conjugations: Any = load_script("measure_conjugations")
+    path = tmp_path / "mishnah"
+    path.mkdir()
+    tokens = [
+        {"pos": "VERB", "lemma": "אומר", "surface": surface} for surface in ("אוֹמֵר", "אוֹמְרִים")
+    ]
+    (path / "annotation.json").write_text(
+        json.dumps({"language": "he", "tokens": {"s": tokens}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    shelf = read_as_said(table())
+    measure_conjugations.table = lambda: shelf
+    tally, _lemmas, _skipped = measure_conjugations.measure(tmp_path)
+    assert tally["settled by reading"] == 2
+    assert "settled by reading" in measure_conjugations.COVERED
