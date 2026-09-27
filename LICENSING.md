@@ -457,6 +457,30 @@ If that ever stops being true — if a model is tuned on them, or a table derive
 ships — the ShareAlike term reaches the corpus and this paragraph is wrong. It is written
 down here so that would have to be a decision rather than a drift.
 
+### The Knesset Corpus, which may give a frequency table and never a sentence — 2026-09-09
+
+`HaifaCLGroup/KnessetCorpus` is over 35 million sentences from Knesset plenary and
+committee protocols, 1992 to 2024: the largest body of transcribed spoken formal Hebrew
+there is. It is **CC BY-SA 4.0**, so its sentences stay behind the door the treebanks do —
+held-out evaluation on a developer's machine, never the shelf, never a prompt, never an
+exemplar pool, and nothing trained on it (targum-internal#161).
+
+**A table of how often a word, or a pair of words, occurs in it may ship** (decided
+2026-09-09, targum-internal#224). ShareAlike attaches only to Adapted Material, which the
+licence defines (§1(a)) as material modified "in a manner requiring permission under the
+Copyright and Similar Rights"; counting words needs no such permission, and a table of
+counts reproduces no sentence, phrase or arrangement of the corpus. It reports facts about
+it, the way a scorecard does. The database right (§4(b)) reaches a database only when it
+takes in all or a substantial part of the contents, and a table of counts takes in none.
+Nothing is owed under §3(a), since neither the corpus nor an adaptation is shared; the
+table's provenance line names the Knesset Corpus and its licence anyway, which is what
+keeps this argument checkable.
+
+If that ever stops being true — if the table grows to strings long enough to be the corpus
+with the spaces moved (anything past a bigram comes back to #224 first), or a sentence
+reaches anything a reader sees — the ShareAlike term reaches targum and this paragraph is
+wrong.
+
 ### FLORES+, which the chat's recast is scored against, and which never ships
 
 The chat opens every reply with the reader's line recast into Hebrew, and since
