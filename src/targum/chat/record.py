@@ -118,8 +118,15 @@ class Recorder:
                 if spent is not None:
                     spent.merge(reader.spent)
         else:
+            from ..annotate import lemma
+
             with self.lock:
-                read = self.lemmatizer().lemmas(segments, language)
+                chain = self.lemmatizer()
+                # Russian is read by its own reader where this machine has one; every
+                # other language keeps the chain it always had.
+                if language.split("-")[0].lower() == "ru":
+                    chain = lemma.for_language(chain, language)
+                read = chain.lemmas(segments, language)
         rated = self.bands.supports(language)
         meanings: dict[str, str] = {}
         bands: dict[str, int] = {}

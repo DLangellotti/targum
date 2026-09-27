@@ -3480,6 +3480,31 @@ def models_fetch(
     code = segment_module.stanza_code(language)
     from .annotate.lemma import PROCESSORS, StanzaLemmatizer
 
+    # Russian's words are read here where the `russian` extra is installed
+    # (annotate/russian.py): spaCy's model arrives with the extra, and Stanza's Russian
+    # lemmatizer, 4 MB, is the one file fetched. Nothing else of Stanza's for Russian.
+    if code == "ru":
+        from .annotate import russian
+
+        if not russian.available():
+            fail(
+                TargumError(
+                    "Russian words are read by the model on this machine.",
+                    "Install targum with the russian extra to read them here.",
+                )
+            )
+        if russian.is_fetched():
+            console.print("[dim]The Russian lemmatizer is already downloaded.[/dim]")
+            return
+        try:
+            russian.fetch()
+        except TargumError as error:
+            fail(error)
+        console.print(
+            f"[green]Downloaded[/green] Stanza's Russian lemmatizer, {russian.LEMMA_PACKAGE}"
+        )
+        return
+
     # Hebrew's words come from DICTA rather than from Stanza (targum-internal#116), and
     # the point of fetching ahead is that a build reaches for nothing — so the weights
     # come down here, where a box is asking for them, and not in the middle of a job.

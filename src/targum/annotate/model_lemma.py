@@ -164,8 +164,17 @@ first; a noun after a preposition is in the case that preposition takes here (в
 
 
 def reads(language: str) -> bool:
-    """Whether a language's words are read by this lemmatizer."""
-    return (language or "").split("-")[0].lower() in LANGUAGES
+    """Whether a language's words are read by this lemmatizer.
+
+    Russian only where this machine cannot read it itself (`annotate/russian.py`, since
+    2026-09-27): with the `russian` extra installed its words are read here for nothing,
+    and without it they are read by the model exactly as before."""
+    code = (language or "").split("-")[0].lower()
+    if code == "ru":
+        from . import russian
+
+        return not russian.available()
+    return code in LANGUAGES
 
 
 def provider_name(model: str = MODEL, version: int = PROMPT_VERSION) -> str:

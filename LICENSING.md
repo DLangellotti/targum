@@ -50,7 +50,7 @@ building on targum is entitled to know about.
 | anthropic | MIT | client only; the API behind it is a paid service |
 | nakdimon | MIT | Copyright 2022 Elazar Gershuni; the weights ship in the wheel under the same licence — see below |
 | tokenizers, huggingface_hub | Apache-2.0 | load the menaked's and LaBSE's tokenizers and fetch their weights |
-| **stanza** | Apache-2.0 (code) | installed, and loads no model: nothing is audited — see below |
+| **stanza** | Apache-2.0 (code) | installed, and loads one model: Russian's lemmatizer, with the `russian` extra — see below |
 | transformers | Apache-2.0 | loads the DICTA weights |
 
 ### Optional extras
@@ -64,6 +64,8 @@ building on targum is entitled to know about.
 | `bring` | **pymupdf** | **AGPL-3.0** | a scanned PDF's pages as pictures — see below |
 | `difficulty` | wordfreq | Apache-2.0 | the code; its data files are CC BY-SA 4.0 — see below |
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
+| `russian` | spacy, ru_core_news_lg | MIT, MIT | the model trained on Nerus and Navec, both MIT — see "Russian" below |
+| `russian` | pymorphy3, pymorphy3-dicts-ru | MIT (code) | the dictionary is OpenCorpora, CC BY-SA 3.0 — see "Russian" below |
 | `browser` | playwright | Apache-2.0 | test-only |
 
 `torch` arrives transitively with stanza; its metadata reports
@@ -217,6 +219,25 @@ as DICTA is, with its training data written here. A Stanza Russian build is stil
 to `AUDITED` by name, after its downloads are checked against the first point above. And
 RUAccent, which the silero section records as refused for having been trained on the
 Russian National Corpus and Wikipedia, is no longer refused on that ground.
+
+**Taken under it so far: Russian's words** (targum-internal#310, 2026-09-27). With the
+`russian` extra installed, a Russian text's dictionary forms, parts of speech and grammar
+are read on the machine (`annotate/russian.py`) instead of being bought from the model,
+by three things, each checked against the first point above:
+
+| What | Its own licence | Trained on, or made from |
+| --- | --- | --- |
+| spaCy's `ru_core_news_lg` 3.8.0 — tokens, parts of speech, grammar, the parse | MIT | Nerus (MIT; news text machine-annotated by Slovnet) and Navec's vectors (MIT) |
+| Stanza's Russian lemmatizer, `syntagrus_nocharlm` — the dictionary form | Apache-2.0 | UD Russian-SynTagRus, CC BY-NC-SA 4.0 — what the carve-out covers |
+| pymorphy3 — which cases a form can be in, a verb's aspect, a ё | MIT; its dictionary CC BY-SA 3.0 | OpenCorpora |
+
+The Stanza build is the one `AUDITED` lists, and it is the lemmatizer alone: it loads no
+character model and not the `conll17` vectors, which were checked by loading it from a
+model folder holding nothing else. Russian's tokenizer is not listed, so Russian sentences
+are still drawn by rule. spaCy's Russian models have no NonCommercial file in them. The
+readers it read name all three at the foot, with OpenCorpora's licence linked, keyed to
+the annotator that ran, as DICTA's credit is. The SynTagRus dev set it was scored against
+stayed on the laptop, as below.
 
 ### DICTA's annotator — CC BY 4.0 weights, trained on the treebank Stanza was dropped for (asked, awaiting answer — 2026-09-27)
 

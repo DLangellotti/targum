@@ -37,6 +37,12 @@ written to the production cache: the question is what the model does today.
 
     op run --env-file op.env -- \\
       .venv/bin/python scripts/eval_lemma.py --sentences 120
+
+**And the Russian reader that runs here** (`--system ru-local`, `annotate/russian.py`),
+scored on the same sentences the same way, for nothing. `--sentences 0` reads the whole
+dev set, which only a system that spends nothing should be asked to do.
+
+    .venv/bin/python scripts/eval_lemma.py --system ru-local --languages ru --sentences 120
 """
 
 from __future__ import annotations
@@ -53,9 +59,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import evals  # noqa: E402
 from targum.annotate import model_lemma  # noqa: E402
+from targum.annotate.russian import RussianLemmatizer  # noqa: E402
 from targum.cache import Cache  # noqa: E402
 from targum.models import BlockKind, Segment  # noqa: E402
 from targum.paths import model_dir  # noqa: E402
+from targum.usage import Usage  # noqa: E402
 
 #: Language, treebank name in the ledger, and the raw dev file.
 TREEBANKS = {
@@ -171,9 +179,16 @@ def curled(text: str) -> str:
     return text.replace("'", "\u2019")
 
 
-def score(language: str, count: int, model: str, curly: bool = False) -> list[evals.Row]:
+#: The systems scored, by the name written in the ledger's `system` column. `ru-local` is
+#: the Russian reader that runs here (`annotate/russian.py`) and spends nothing.
+SYSTEMS = ("model-lemma", "ru-local")
+
+
+def score(
+    language: str, count: int, model: str, curly: bool = False, system: str = "model-lemma"
+) -> list[evals.Row]:
     corpus, _ = TREEBANKS[language]
-    picked = sentences(fetch(language))[:count]
+    picked = sentences(fetch(language))[: count or None]
     if curly:
         corpus = f"{corpus}-curly"
         picked = [
@@ -191,9 +206,17 @@ def score(language: str, count: int, model: str, curly: bool = False) -> list[ev
         )
         for n, (text, _) in enumerate(picked)
     ]
+    spent: Usage | None = None
     with tempfile.TemporaryDirectory() as scratch:
-        reader = model_lemma.ModelLemmatizer(model, buy=True, cache=Cache(Path(scratch)))
-        read = reader.lemmas(segments, language)
+        if system == "ru-local":
+            local = RussianLemmatizer()
+            version = local.name
+            read = local.lemmas(segments, language)
+        else:
+            reader = model_lemma.ModelLemmatizer(model, buy=True, cache=Cache(Path(scratch)))
+            version = model_lemma.provider_name(model)
+            read = reader.lemmas(segments, language)
+            spent = reader.spent
     gold_words = found = lemma_right = upos_right = 0
     marked = dict.fromkeys(SCORED, 0)
     agreed = dict.fromkeys(SCORED, 0)
@@ -218,16 +241,17 @@ def score(language: str, count: int, model: str, curly: bool = False) -> list[ev
                     marked[name] += 1
                     agreed[name] += feature(token.feats or "", name) == gold_value
     today = date.today().isoformat()
-    version = model_lemma.provider_name(model)
     words_in = sum(len(text.split()) for text, _ in picked)
-    per_word = reader.spent.output_tokens / max(1, words_in)
-    note = f"sentences={len(picked)} spent=${reader.spent.cost():.3f}"
-    print(f"{language}  output tokens per word {per_word:.1f}", flush=True)
+    cost = spent.cost() if spent is not None else 0.0
+    note = f"sentences={len(picked)} spent=${cost:.3f}"
+    if spent is not None:
+        per_word = spent.output_tokens / max(1, words_in)
+        print(f"{language}  output tokens per word {per_word:.1f}", flush=True)
     rows = [
         evals.Row(
             today,
             "lemma",
-            "model-lemma",
+            system,
             version,
             "token_recall",
             round(found / max(1, gold_words), 4),
@@ -238,7 +262,7 @@ def score(language: str, count: int, model: str, curly: bool = False) -> list[ev
         evals.Row(
             today,
             "lemma",
-            "model-lemma",
+            system,
             version,
             "lemma_accuracy",
             round(lemma_right / max(1, found), 4),
@@ -249,7 +273,7 @@ def score(language: str, count: int, model: str, curly: bool = False) -> list[ev
         evals.Row(
             today,
             "lemma",
-            "model-lemma",
+            system,
             version,
             "upos_accuracy",
             round(upos_right / max(1, found), 4),
@@ -262,7 +286,7 @@ def score(language: str, count: int, model: str, curly: bool = False) -> list[ev
         evals.Row(
             today,
             "lemma",
-            "model-lemma",
+            system,
             version,
             metric,
             round(agreed[name] / marked[name], 4),
@@ -284,10 +308,16 @@ def main() -> None:
     parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
     parser.add_argument("--curly", action="store_true", help="the sentences written with ’")
     parser.add_argument("--dry", action="store_true", help="print, and append nothing")
+    parser.add_argument(
+        "--system",
+        choices=SYSTEMS,
+        default="model-lemma",
+        help="ru-local: the Russian reader that runs here, which spends nothing",
+    )
     args = parser.parse_args()
     rows: list[evals.Row] = []
     for language in args.languages:
-        found = score(language, args.sentences, args.model, args.curly)
+        found = score(language, args.sentences, args.model, args.curly, args.system)
         rows.extend(found)
         for row in found:
             print(f"{language}  {row.metric:15} {row.score:.4f}  n={row.n}  {row.note}", flush=True)
