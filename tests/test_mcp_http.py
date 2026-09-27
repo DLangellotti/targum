@@ -17,7 +17,8 @@ import time
 from collections.abc import Callable
 from http.client import HTTPConnection
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode, urlparse
+from typing import Any
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 import pytest
 
@@ -972,3 +973,124 @@ def test_a_box_that_follows_no_publishers_does_not_offer_the_search(
 
     monkeypatch.setenv("TARGUM_SOURCES", str(Path(str(tmp_path)) / "none.json"))
     assert "search_sources" not in {tool.name for tool in connector.exposed("library")}
+
+
+# --- the walk: quote, press, build, open ------------------------------------------
+
+
+def _walk_prepare(self: object, job: Any) -> None:
+    """The free half, without a fetch: priced and ready, as `Library.prepare` leaves a
+    pasted article it has read."""
+    job.title = "שיר השירים"
+    job.language = "he"
+    job.segments = 3
+    job.total = 3
+    job.estimate = 0.0
+    job.stage = "ready"
+
+
+def _walk_builder(self: Any, job: Any) -> Any:
+    """The paid half, without a model: a reader written where a real build writes one,
+    under a Hebrew folder name, and handed to `Library.run`'s own `ready` — so the shape
+    of `job.reader` is serve.py's and not this test's."""
+    from types import SimpleNamespace
+
+    from targum.usage import Usage
+
+    root = Path(job.home or self.out)
+
+    def run(on_progress: Callable[[int], None], on_ready: Callable[[Any], None], **_: Any) -> Any:
+        folder = root / f"שיר-{job.id}"
+        (folder / "reader").mkdir(parents=True)
+        (folder / "reader" / "index.html").write_text(
+            '<!doctype html><html lang="he"><p>שִׁיר הַשִּׁירִים אֲשֶׁר לִשְׁלֹמֹה</p></html>',
+            encoding="utf-8",
+        )
+        on_progress(3)
+        result = SimpleNamespace(out_dir=folder, spent=Usage())
+        on_ready(result)
+        return result
+
+    return SimpleNamespace(notify=None, run=run)
+
+
+def _as_given(link: str) -> str:
+    """The path of a link a host was handed, having checked it is a whole address on
+    targum's own origin — which is the only way a host can follow it."""
+    parsed = urlparse(link)
+    assert f"{parsed.scheme}://{parsed.netloc}" == PUBLIC, f"not a link a host can open: {link}"
+    return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
+
+def test_the_walk_from_a_quote_to_an_open_reader(
+    box: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#371. Three bugs David met in an hour on the live connector had never
+    worked, and shipped green, because each file was tested against its own assumptions:
+    every finished build 404'd between `serve.py` and the press, and every reader link
+    came back as a path no host could follow. This walks the one path a connector has,
+    over the real server, following each link exactly as it was handed out. Only the two
+    halves that fetch and spend are stood in; everything between them is the real thing.
+    """
+    port, session = box
+    monkeypatch.setattr(serve.Library, "prepare", _walk_prepare)
+    monkeypatch.setattr(serve.Library, "_builder", _walk_builder)
+    token = a_token(port, "library record check")
+
+    # 1. A quote, carrying a whole address for the press.
+    said = rpc(
+        port,
+        token,
+        "tools/call",
+        {"name": "quote_build", "arguments": {"source": "https://example.com/shir"}},
+    )["result"]
+    quoted = json.loads(said["content"][0]["text"])
+    assert quoted["quote"]["stage"] == "ready", quoted
+    press = _as_given(quoted["quote"]["open"])
+    job_id = quoted["quote"]["id"]
+    assert press == f"/build/{job_id}"
+
+    # 2. The press page, reached by that link.
+    status, body, _ = send(port, "GET", press, session=session)
+    assert status == 200, body[:300]
+    assert f'action="/build/{job_id}"' in body.decode("utf-8")
+
+    # 3. The press: a form post, as the page makes it with script off.
+    status, _, headers = send(
+        port, "POST", press, "", kind="application/x-www-form-urlencoded", session=session
+    )
+    assert status in (302, 303), status
+    assert headers["location"].endswith(press)
+
+    # 4. The build runs, and the job says where its reader is.
+    state: dict[str, Any] = {}
+    for _ in range(100):
+        status, body, _ = send(port, "GET", f"/job/{job_id}", session=session)
+        assert status == 200, body[:300]
+        state = json.loads(body)
+        if state["stage"] in ("done", "failed", "blocked"):
+            break
+        time.sleep(0.05)
+    assert state["stage"] == "done", state
+    assert state["reader"], state
+
+    # 5a. The link the connector hands over, followed as given.
+    checked = json.loads(
+        rpc(port, token, "tools/call", {"name": "check_job", "arguments": {"id": job_id}})[
+            "result"
+        ]["content"][0]["text"]
+    )
+    status, body, _ = send(port, "GET", _as_given(checked["open"]), session=session)
+    assert status == 200, (checked["open"], body[:300])
+    assert "שִׁיר הַשִּׁירִים" in body.decode("utf-8")
+
+    # 5b. And the press page, visited again once the text is ready: its one press is the
+    # way in, and it opens the same reader.
+    status, body, _ = send(port, "GET", press, session=session)
+    page = body.decode("utf-8")
+    opens = page.split('action="/reader/', 1)[1].split('"', 1)[0]
+    # Percent-encoded as a browser does before it sends an address; a separator escaped
+    # into the name, as the press once did, stays escaped and does not resolve.
+    status, body, _ = send(port, "GET", f"/reader/{quote(opens, safe='/%')}", session=session)
+    assert status == 200, (opens, body[:300])
+    assert "שִׁיר הַשִּׁירִים" in body.decode("utf-8")
