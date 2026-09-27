@@ -41,6 +41,9 @@ dependencies = [
   "httpx>=0.27",
   "nakdimon>=0.1",
   "curl-cffi>=0.16.3",
+  # Reads DB-IP's country file for the back office's visitor counts (`visits.py`), on
+  # the box and never on a reader. Apache-2.0.
+  "maxminddb>=2.6",
 ]
 
 [project.optional-dependencies]

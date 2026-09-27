@@ -5597,6 +5597,7 @@ class Handler(BaseHTTPRequestHandler):
         one of them is not the operator, and "you may not" is a thing to tell a stranger,
         not the person you live with.
         """
+        from . import visits
         from .backoffice import DAYS, survey_store
 
         person = self._person()
@@ -5624,6 +5625,8 @@ class Handler(BaseHTTPRequestHandler):
             said=said,
             incidents=incidents_module.recent(self.library.incidents),
             balances=self.store.balances(),
+            # Counted off the access log by `targum roll-visits`, beside the store.
+            visits=visits.survey(self.store.path.parent / visits.FILE, days=DAYS),
         )
         self._send(200, page.encode("utf-8"), HTML)
 

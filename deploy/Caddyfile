@@ -41,7 +41,11 @@ targum.page {
 	}
 
 	log {
-		output file /var/log/caddy/targum.log
+		# Readable by the caddy group, which targum-visits.service joins to count
+		# visitors off it (`visits.py`). Nobody else on the box.
+		output file /var/log/caddy/targum.log {
+			mode 0640
+		}
 		# The sign-in link is a bearer token in a query string. Do not write it down.
 		format filter {
 			request>uri query {

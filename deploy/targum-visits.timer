@@ -1,0 +1,12 @@
+# /etc/systemd/system/targum-visits.timer — installed and enabled by deploy.sh.
+
+[Unit]
+Description=targum visitor counts, every hour
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
