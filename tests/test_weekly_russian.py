@@ -252,7 +252,7 @@ def test_the_run_builds_russian_after_publish_and_never_waves_it_through() -> No
     assert "--anyway" not in code
     publish = code.index('"$TARGUM" weekly publish')
     russian = code.index('weekly build "$WEEK" --to "$language"')
-    announce_at = code.index('"$TARGUM" weekly announce')
+    announce_at = code.index("targum weekly announce")
     assert publish < russian < announce_at, "guards first, then Russian, then the mail"
     # A Russian that stops is carried to the end, not fatal where it happens.
     tail = code[russian : russian + 400]
@@ -526,3 +526,18 @@ def test_the_stop_door_says_the_same_for_a_real_token_and_a_made_up_one(
     fake = _ask(port, "/weekly/stop?lang=ru", "t=made-up-token")[1]
     assert pressed == fake and "больше не будем" in pressed
     assert not store.following("stop-ru@example.com")
+
+
+def test_the_mail_goes_out_from_the_box_after_the_ship() -> None:
+    """targum-internal#346, David 2026-09-27: the site's subscribers are rows in the box's
+    database, and the laptop's announce never saw them. The mail is sent on the box, from
+    the database the service serves, and only once the issue it links to is there."""
+    script = (ROOT / "deploy" / "weekly-run.sh").read_text(encoding="utf-8")
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert '"$TARGUM" weekly announce' not in code, "never from the laptop's store"
+    ship = code.index("./deploy/ship-weekly.sh")
+    announce_at = code.index("targum weekly announce")
+    assert ship < announce_at, "shipped first, so every letter's link is live"
+    line = code[announce_at : announce_at + 120]
+    assert "--store /var/lib/targum/targum.db" in line, "the service's database, named"
+    assert "grep -q ship" in code, "a failed ship tells nobody"
