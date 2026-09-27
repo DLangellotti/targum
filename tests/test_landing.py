@@ -97,10 +97,23 @@ def test_the_page_fetches_nothing() -> None:
     outbound = set(re.findall(r'(?:src|href)="(https?://[^"]+)', html))
     assert outbound == {
         "https://github.com/DLangellotti/targum",  # the foot, a link to press
+        "https://www.instagram.com/targum.page/",  # and targum's own accounts beside it
+        "https://www.linkedin.com/company/targum-page/",
         f"{ADDRESS}/",  # its own canonical
         f"{ADDRESS}/?lang=ru",  # and the same page in the other language
     }
     assert not re.search(r"url\(\s*['\"]?https?:", html), "a stylesheet fetches something"
+
+
+def test_the_foot_links_targums_own_accounts_in_both_languages() -> None:
+    """The accounts are the brand's, not the page's language: the Russian door links the
+    same ones, under their own names, marked as this site's own."""
+    from targum.render.builder import SOCIAL
+
+    for language in ("en", "ru"):
+        html = front_page(language, ADDRESS)
+        for name, address in SOCIAL:
+            assert f'<a href="{address}" rel="me">{name}</a>' in html, (language, name)
 
 
 def test_the_page_says_what_it_is_to_a_crawler() -> None:

@@ -1,0 +1,6 @@
+{#- targum's own accounts (`builder.SOCIAL`), in both feet: the app's and the one every
+    public page wears, so the two cannot drift apart. The names are the platforms' own and
+    are not translated. `rel="me"` says the account is this site's, for anyone checking. -#}
+{%- for name, address in social %}
+<a href="{{ address }}" rel="me">{{ name }}</a>
+{%- endfor %}

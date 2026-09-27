@@ -288,6 +288,15 @@ def section_minutes(sections: list[Section], by_id: Mapping[str, Segment]) -> di
     }
 
 
+#: targum's own accounts, linked from the foot of every page in the app and every page a
+#: stranger can reach (2026-09-27). The handle is the domain wherever plain "targum" was
+#: taken. Only accounts that exist: a link to a page nobody made is worse than none.
+SOCIAL: tuple[tuple[str, str], ...] = (
+    ("Instagram", "https://www.instagram.com/targum.page/"),
+    ("LinkedIn", "https://www.linkedin.com/company/targum-page/"),
+)
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(TEMPLATES),
@@ -309,6 +318,7 @@ def _environment() -> Environment:
     # to carry (design.md §12, 2026-09-24). A function rather than a value, like the
     # line above it, so a template cannot be rendered against a stale answer.
     env.globals["connector_is_open"] = _connector_is_open
+    env.globals["social"] = SOCIAL
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
