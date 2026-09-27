@@ -120,8 +120,9 @@ TALKED = frozenset({"he", "it", "fr", "ru"})
 #: about a third of its recasts came back with no `> ` line at all, against 0 of 200 for
 #: each of the others, and the rule that closes it tells the model to prefer "the common
 #: words listed below" when wordfreq has no Yiddish list and there are none
-#: (targum-internal#359, #360). French scored 41.5% and Russian 35.0% against Hebrew's
-#: 9.0% on the same corpus; Yiddish has no judge number at all.
+#: (targum-internal#359, #360; the rule is now left out where the list is empty, and
+#: Yiddish gets no list of its own, both decided 2026-09-27). French scored 41.5% and
+#: Russian 35.0% against Hebrew's 9.0% on the same corpus; Yiddish has no judge number at all.
 #:
 #: The contract stays because it is good — it writes real YIVO, pointed, and refuses
 #: daytshmerish, which is the hard part. What it has not shown is that it answers every
@@ -697,6 +698,10 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
 #: Every language with a contract of its own, by code. Hebrew is not here: it is the
 #: fallback, and `contract` is what a Hebrew turn's prompt was before any other language
 #: talked — word for word, so that adding a language never changed Hebrew's.
+#: The half of "Natural first" that points at `ledger_block`'s common words. Every
+#: contract words it the same, and `contract_for` takes it out where the list is empty.
+COMMON_CLAUSE = "Prefer the reader's known words and the common words listed below\n"
+
 CONTRACTS: dict[str, Callable[[str], str]] = {
     "it": italian_contract,
     "fr": french_contract,
@@ -715,8 +720,16 @@ def contract_for(language: str, gloss: str = "English") -> str:
     language in one and not the other is either a conversation with no rules or a
     contract nothing uses.
     """
-    written = CONTRACTS.get((language or "he").split("-")[0].lower())
-    return written(gloss) if written else contract(gloss)
+    code = (language or "he").split("-")[0].lower()
+    written = CONTRACTS.get(code)
+    text = written(gloss) if written else contract(gloss)
+    # A contract names a list only where there is one (targum-internal#360, decided
+    # 2026-09-27). wordfreq has none for Yiddish or Aramaic, and a rule pointing at a list
+    # that is not in the prompt teaches the model to ignore one of its own rules — the
+    # cheapest way to weaken every other rule in the file.
+    if not common_words(language=code):
+        text = text.replace(COMMON_CLAUSE, "Prefer the reader's known words\n")
+    return text
 
 
 @dataclass(frozen=True)
@@ -1065,7 +1078,9 @@ def ledger_block(
     if not shared:
         parts = [
             f"The reader is learning {named}. This connection doesn't share the reader's "
-            "word list. Grade to the common words below, and don't ask what they know. "
+            "word list. "
+            + ("Grade to the common words below, " if common else "Keep to plain, everyday words, ")
+            + "and don't ask what they know. "
             "Never tell the reader they are at a level."
         ]
         if common:

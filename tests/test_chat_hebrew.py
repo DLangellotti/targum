@@ -330,7 +330,33 @@ def test_aramaic_holds_no_conversation() -> None:
     Hebrew, and Onkelos and the Gemara are that shelf."""
     assert "arc" not in hebrew.TALKED
     assert "arc" not in hebrew.CONTRACTS
-    assert hebrew.contract_for("arc") == hebrew.CONTRACT, "it falls back, and is never reached"
+    fallen = hebrew.contract_for("arc")
+    assert fallen.startswith(hebrew.CONTRACT[:40]), "it falls back, and is never reached"
+
+
+def test_a_contract_names_the_common_words_only_where_there_are_some() -> None:
+    """targum-internal#360, decided 2026-09-27. Every Yiddish prompt told the model to
+    prefer "the common words listed below", and wordfreq has no Yiddish list, so none were
+    listed. A rule pointing at nothing teaches the model to ignore its rules."""
+    for code in ("yi", "arc"):
+        assert hebrew.common_words(language=code) == [], code
+        said = hebrew.contract_for(code)
+        assert "common words listed below" not in said, code
+        assert "Prefer the reader's known words\n  wherever" in said, code
+    if hebrew.common_words(5):
+        for code in ("he", "it", "fr", "ru"):
+            assert hebrew.COMMON_CLAUSE in hebrew.contract_for(code), code
+        assert hebrew.contract_for("he") == hebrew.CONTRACT
+
+
+def test_a_host_without_the_record_is_not_pointed_at_an_empty_list() -> None:
+    from dataclasses import replace
+
+    from targum import level
+
+    said = hebrew.ledger_block(replace(level.EMPTY, language="yi"), [], [], shared=False)
+    assert "common words below" not in said
+    assert "plain, everyday words" in said
 
 
 @pytest.mark.parametrize(
