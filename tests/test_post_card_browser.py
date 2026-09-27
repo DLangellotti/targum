@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -107,7 +108,10 @@ def test_the_post_reads_as_a_post(browser, built: Path, window: str) -> None:  #
     # Nothing leaves the page's own origin, and no picture is asked for at all: every one
     # was in the page. (A served reader asks its own server who is reading, which is
     # the reader's and not the card's.)
-    origin = address(built).split("/private")[0]
+    # Parsed, not split at "/private": that is where a temporary folder starts on a Mac
+    # and nowhere else, so on Linux the "origin" was the whole address.
+    served = urlparse(address(built))
+    origin = f"{served.scheme}://{served.netloc}"
     fetched = [url for url in asked if not url.startswith("data:")]
     assert fetched[0] == address(built)
     assert all(url.startswith(origin + "/") for url in fetched), fetched
