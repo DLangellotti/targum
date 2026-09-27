@@ -426,3 +426,20 @@ def test_the_way_out_cannot_be_used_to_ask_who_is_waiting(
     # the sameness of two English pages.
     _, said = post(port, "/waitlist/stop?lang=ru", {"t": "not-a-token"})
     assert "Мы убрали вас из списка ожидания." in said
+
+
+def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None:
+    """targum-internal#158: X is a door the deployment arms. The list says so only where
+    it is: 'Posts from X' on its own line when the switch is on, and inside the 'soon'
+    line when it is off. Facebook and Reddit stay 'soon' either way."""
+    from targum.ingest import x as x_door
+    from targum.render.builder import front_page
+
+    monkeypatch.delenv(x_door.ENV, raising=False)
+    shut = front_page()
+    assert "Posts from X, Facebook and Reddit" in shut and ">Posts from X<" not in shut
+    monkeypatch.setenv(x_door.ENV, "1")
+    armed = front_page()
+    assert "Posts from X</li>" in armed
+    assert "Posts from Facebook and Reddit" in armed
+    assert "Posts from X, Facebook and Reddit" not in armed
