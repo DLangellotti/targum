@@ -68,7 +68,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -254,13 +254,25 @@ def jaccard(a: set[str], b: set[str]) -> float:
     return len(a & b) / len(a | b)
 
 
+class Turn(NamedTuple):
+    """One recast as it came back: the `> ` line the contract asks for, or "", and what
+    it was read from. The reply and why it stopped are kept because a missing line cannot
+    be explained afterwards from the line alone: 65 of 200 Yiddish turns came back with
+    none, and the run that bought them kept nothing to say whether the model ran out of
+    room, dropped the marker, or never recast (targum-internal#359)."""
+
+    line: str
+    raw: str
+    stop: str
+
+
 def recast(
     client: object,
     system: list[dict[str, str]],
     said: str,
     usage: Usage,
     into: str = "he",
-) -> str:
+) -> Turn:
     reply = client.messages.create(  # type: ignore[attr-defined]
         model=CHAT_MODEL,
         # What the chat gives a turn. It was 600, which fitted Hebrew, French and
@@ -274,10 +286,11 @@ def recast(
     )
     usage.add(CHAT_MODEL, reply.usage.input_tokens, reply.usage.output_tokens)
     text = "".join(getattr(block, "text", "") for block in reply.content)
+    stop = str(getattr(reply, "stop_reason", "") or "")
     for pair in hebrew.pairs(text, into):
         if pair.recast:
-            return pair.hebrew
-    return ""
+            return Turn(pair.hebrew, text, stop)
+    return Turn("", text, stop)
 
 
 def judge(
@@ -431,6 +444,8 @@ def main() -> None:
     if earlier:
         print(f"  {len(earlier)} recasts kept from an earlier run", flush=True)
     candidates: list[str] = []
+    #: What each turn bought in this run came back as, for `--save`.
+    replies: dict[int, Turn] = {}
     for n, row in enumerate(chosen):
         if int(row["id"]) in earlier:
             candidates.append(earlier[int(row["id"])])
@@ -444,7 +459,9 @@ def main() -> None:
             {"type": "text", "text": prompts.SYSTEM + "\n\n" + hebrew.contract_for(into)},
             {"type": "text", "text": block},
         ]
-        candidates.append(recast(client, system, str(row["said"]), usage, into))
+        turn = recast(client, system, str(row["said"]), usage, into)
+        replies[int(row["id"])] = turn
+        candidates.append(turn.line)
         if args.save:
             args.save.parent.mkdir(parents=True, exist_ok=True)
             with args.save.open("a", encoding="utf-8") as out:
@@ -454,7 +471,9 @@ def main() -> None:
                             "id": row["id"],
                             "said": row["said"],
                             "ref": row["he"],
-                            "got": candidates[-1],
+                            "got": turn.line,
+                            "raw": turn.raw,
+                            "stop": turn.stop,
                         },
                         ensure_ascii=False,
                     )
@@ -512,6 +531,16 @@ def main() -> None:
                             "verdict": verdict,
                             "why": why,
                             "overlap": round(score, 3),
+                            # Only for a turn bought in this run: one kept from an earlier
+                            # run was kept for its line, and its reply is in that run's file.
+                            **(
+                                {
+                                    "raw": replies[int(row["id"])].raw,
+                                    "stop": replies[int(row["id"])].stop,
+                                }
+                                if int(row["id"]) in replies
+                                else {}
+                            ),
                         },
                         ensure_ascii=False,
                     )
