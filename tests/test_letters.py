@@ -171,6 +171,10 @@ def test_a_ready_mail_says_why_it_came_in_the_readers_language() -> None:
     asked = letters.build_ready("Ruth", f"{SITE}/r", SITE, "en", asked=True, listen=True)
     assert asked.subject == "Ready to listen: ⁨Ruth⁩"
     assert "you asked us to email you" in asked.text
+    film = letters.build_ready(
+        "Ruth", f"{SITE}/r", SITE, "ru", asked=False, listen=True, watch=True
+    )
+    assert film.subject == "Можно смотреть: ⁨Ruth⁩", "a film is watched before it is heard"
 
 
 def test_a_daily_series_is_never_mailed(tmp_path: Any) -> None:

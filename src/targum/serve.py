@@ -1417,10 +1417,24 @@ class Library:
                 job.ui or "en",
                 asked=bool(job.options.get("mail")),
                 listen=job.audio,
+                watch=self._is_film(job, person),
             )
             self.mailer.notify(
                 person.email, letter.subject, letter.text, letter.headers or None, letter.html
             )
+
+    def _is_film(self, job: Job, person: Person) -> bool:
+        """Whether a finished build kept its pictures: a video address, or an import
+        whose manifest says a part kept its cut — the manifest is the claim, as on the
+        shelf, and not the `video/` sidecar the build remakes."""
+        from . import spoken
+        from .audio import manifest as manifest_module
+
+        if spoken.is_video(job.source):
+            return True
+        if not job.reader:
+            return False
+        return manifest_module.keeps_video(self.home(person) / job.reader.split("/")[0])
 
     def enqueue(self, job: Job) -> None:
         job.stage = "queued"

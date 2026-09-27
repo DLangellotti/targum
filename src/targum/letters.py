@@ -595,12 +595,20 @@ def series_instalment(
 
 
 def build_ready(
-    title: str, link: str, address: str, language: str = "en", *, asked: bool, listen: bool
+    title: str,
+    link: str,
+    address: str,
+    language: str = "en",
+    *,
+    asked: bool,
+    listen: bool,
+    watch: bool = False,
 ) -> Letter:
     """A build finished while its reader was away. `asked` is whether they put the strip
-    away and were promised this; otherwise the build simply took long enough."""
+    away and were promised this; otherwise the build simply took long enough. A film is
+    watched before it is listened to, so `watch` wins over `listen`."""
     code = _code(language)
-    verb = "listen" if listen else "read"
+    verb = "watch" if watch else "listen" if listen else "read"
     return compose(
         code,
         text(f"mail.ready.subject.{verb}", code, title=isolate(title)),
