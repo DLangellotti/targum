@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
+  text with its vowels, and its te'amim where it is scripture; the translation beside
+  each line as the parallel mode sets it, or under it with `--under`; and after each
+  chapter the words worth having on the page, with their first sense — the hard words,
+  or with `--for` the ones an account has not marked known. Set from the folder alone,
+  in the reader's own carried Hebrew face, by WeasyPrint through Pango and HarfBuzz so
+  the marks sit where a browser would put them. An extra, `print`, because it needs
+  Pango on the machine; design.md §12 (2026-09-27) says what paper keeps of the reader.
 - targum in Claude and ChatGPT: the connector, with a token that names a person
   (targum-internal#80). A reader adds targum by pasting one address and pressing Connect,
   and the tools they already had in the chat answer about their own shelf, their own

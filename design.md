@@ -347,6 +347,34 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A text can be printed, and the page is the reader's — 2026-09-27
+
+`targum export pdf <folder>` sets a reader's edition on paper (targum-internal#105). The
+readers who most want the weekly portion cannot use a screen on Shabbat, and paper is the
+one form of the product that does not ask them to. Nothing in this file spoke of print
+beyond the mark's minimum size, so what paper takes from the rules above is written here.
+
+- **The page is the reader's, not a new design.** §5's faces, sizes and leading, §4's
+  paper and ink, the parallel mode's two columns and 2.5rem gutter, the verse number in
+  the margin in the detail face. Under rather than beside is the interlinear mode's rule.
+  The values live in `assets/print.css`, which `test_brand.py` reads like every other
+  stylesheet.
+- **The Hebrew face is carried, as the reader carries it, and chosen by the same rule:**
+  what the text holds, not the shelf and not the switches. Scripture prints with its
+  te'amim, because the reader shows them until they are turned off; `--no-accents` and
+  `--no-vowels` are the reader's two switches, set once.
+- **Paper keeps nothing the reader presses.** No bar, no card, no player, no colour for a
+  kept word — a hue on paper is a hue with nothing to answer it. The one thing added is
+  what a card would have said: after each chapter, its words and their first sense, each
+  word once, where it first appears. The words a reader has not marked known where the
+  command is told whose edition it is (`--for`), and the looked-up bands where it is not.
+  A word with no meaning yet is left off, because paper cannot offer to look one up.
+- **Chapters run on.** A reader turns a chapter at a time; a printer should not spend a
+  sheet on a title and a byline.
+- **No Print button yet.** A control belongs in the ⋯ menu and asks for a server that can
+  set the page; the box has no Pango and the extra is off it. The command line is the
+  door until a reader asks for one on the page.
+
 ### Mail is drawn, and fetches nothing — 2026-09-27
 
 Every mail a reader can receive was plain text until today, on the argument in `mail.py`
