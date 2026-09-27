@@ -227,7 +227,8 @@
     var seen = measured(job);
     if (job.audio && job.parts > 0) {
       // The wait is the first part's: hearing it, then translating it.
-      var spoken = job.seconds / job.parts / 60;
+      // Numbers or nought: a quote without one says "about a minute", never "NaN".
+      var spoken = (Number(job.seconds) || 0) / job.parts / 60;
       var listening = Math.max(1, Math.round(spoken / 6));
       var translating = Math.max(1, Math.round((job.total || 25) / 25));
       var minutes = seen || listening + translating;
@@ -249,7 +250,7 @@
     if (!job.estimate) return t("bring.wait.moment", "Ready in a moment.");
     // A book opens on its first chapter, so the wait is that chapter's — not the
     // novel's. `total` is what is being translated now.
-    var mins = seen || Math.max(1, Math.round((job.total || job.segments) / 25));
+    var mins = seen || Math.max(1, Math.round((Number(job.total || job.segments) || 0) / 25));
     var chapter = job.chapters > 1;
     if (mins <= 1) {
       return chapter
