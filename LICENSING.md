@@ -66,6 +66,8 @@ building on targum is entitled to know about.
 | `phonetics` | phonikud | CC BY 4.0 | permissive, attribution required |
 | `russian` | spacy, ru_core_news_lg | MIT, MIT | the model trained on Nerus and Navec, both MIT — see "Russian" below |
 | `russian` | pymorphy3, pymorphy3-dicts-ru | MIT (code) | the dictionary is OpenCorpora, CC BY-SA 3.0 — see "Russian" below |
+| `print` | weasyprint, pydyf, tinycss2, cssselect2, tinyhtml5 | BSD-3, BSD-3, BSD-3, BSD-3, MIT | `targum export pdf`; needs Pango on the machine |
+| `print` | pyphen | GPL-2.0+ / LGPL-2.1+ / MPL-1.1, at our choice | hyphenation; taken under the LGPL, which AGPL-3.0 can carry |
 | `browser` | playwright | Apache-2.0 | test-only |
 
 `torch` arrives transitively with stanza; its metadata reports

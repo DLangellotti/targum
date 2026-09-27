@@ -1,0 +1,180 @@
+/* targum on paper (targum-internal#105; design.md §12, 2026-09-27).
+   The reader's values, set once: §5's faces, sizes and leading, §4's paper and ink,
+   the parallel mode's two columns and 2.5rem gutter, the verse number where a printed
+   edition sets it. Nothing here moves, glows or answers a press, because nothing on paper
+   can. Logical properties throughout, so a Hebrew page and a Russian one are the same
+   rules mirrored. */
+
+:root {
+  --reading: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+             "Times New Roman", serif;
+  --size: 1.0625rem;
+  --leading: 1.75;
+  --leading-rtl: 1.95;
+  --gap: 2.5rem;
+  --ink: #1c1a17;
+  --ink-soft: #6b645c;
+  --rule: #e2dcd1;
+  --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+}
+
+/* The margins are wide enough to hang a verse number in (the reader's -2.6rem), and the
+   foot carries the page number in §5's detail face. The head carries the chapter, set
+   from the chapter's own heading, and is left off the first page, which has the title;
+   its face is the page's Hebrew one, named in the template, because a margin box has no
+   element to inherit a `lang` from. */
+@page {
+  margin: 20mm 20mm 22mm;
+  @top-center {
+    content: string(chapter);
+    font-size: 0.6875rem;
+    color: #6b645c;
+  }
+  @bottom-center {
+    content: counter(page);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.6875rem;
+    color: #6b645c;
+  }
+}
+@page :first {
+  @top-center { content: none; }
+}
+
+/* The page is paper, and paper is already the page colour: no background is printed. */
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: var(--size);
+  line-height: var(--leading);
+}
+
+/* The reader's rule for its own Hebrew face: what declares itself Hebrew, and never the
+   page around it, so the translation keeps the Latin reading face (§12, 2026-08-29). */
+[lang|="he"]:not(html),
+[lang|="yi"]:not(html),
+[lang="arc"]:not(html) {
+  font-family: var(--reading-hebrew);
+  line-height: var(--leading-rtl);
+}
+
+/* The title, at §5's display step, and the English name under it as the reader's
+   contents page gives it. */
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 0 var(--gap);
+  margin-block-end: 2.5rem;
+}
+.title > * { flex: 1 1 0; min-width: 0; }
+.title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.title .english {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+/* Chapters run on rather than each taking a fresh sheet: a book's front matter is a
+   section of its own, and a sheet with a title and a byline on it is paper spent on
+   nothing. The heading is kept with the lines under it. */
+.chapter + .chapter { margin-block-start: 2.5rem; }
+
+/* The pair. Two columns and the gutter between them, as parallel mode sets them; the
+   source leads the reading direction because the row follows the page's. A flex row
+   rather than the reader's grid: the typesetter lays a grid out left to right whatever
+   the page's direction, and a Hebrew text with its translation on the wrong side is the
+   one thing this page must not print. */
+.pair {
+  display: flex;
+  align-items: flex-start;
+  gap: 0 var(--gap);
+  margin-block-end: 0.35rem;
+  padding-block: 0.35rem;
+  break-inside: avoid;
+}
+.verses .pair { margin-block-end: 0.1rem; padding-block: 0.2rem; }
+.pair > * { flex: 1 1 0; min-width: 0; }
+.pair p { margin: 0; }
+.tr { color: var(--ink-soft); }
+
+/* Under rather than beside: the reader's interlinear mode, the translation hung under
+   its line on a rule. */
+.under .pair { display: block; }
+.under .tr {
+  margin-block-start: 0.35rem;
+  padding-inline-start: 0.9rem;
+  border-inline-start: 2px solid var(--rule);
+}
+.under .pair { margin-block-end: 1.2rem; }
+.under .pair.head .tr { border: 0; padding: 0; margin: 0; }
+
+.pair.head { margin-block: 1.5rem 1rem; break-after: avoid; }
+.chapter > .pair.head:first-child { margin-block-start: 0; }
+.pair.head .src, .pair.head .tr {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.pair.head .src { string-set: chapter content(); }
+.pair.byline .src, .pair.byline .tr { font-style: italic; color: var(--ink-soft); }
+
+/* The verse's number, in the margin where a printed edition sets it (§5's detail face,
+   the label size, muted). The reader hangs it there by position; on paper it opens the
+   line and is drawn back out into the margin by exactly its own width, so the text stands
+   where it would without it. Inline rather than positioned because the typesetter's
+   absolute positions do not follow the reading direction, and its floats push the row
+   beside them down a line — a number on the wrong side of a verse, or a translation a
+   line below its verse, is worse than none. */
+.verse-number {
+  display: inline-block;
+  width: 2rem;
+  margin-inline-start: -2.6rem;
+  margin-inline-end: 0.6rem;
+  text-align: end;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+}
+
+/* The chapter's words: a hairline, a label, and two columns of word and meaning. The
+   meaning is ink — it is what the list is for — at the gloss size. */
+.words {
+  margin-block-start: 1.5rem;
+  padding-block-start: 0.75rem;
+  border-block-start: 1px solid var(--rule);
+}
+.words .label {
+  margin: 0 0 0.5rem;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.words dl {
+  margin: 0;
+  columns: 2;
+  column-gap: var(--gap);
+}
+.words .word {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  break-inside: avoid;
+  margin-block-end: 0.2rem;
+}
+.words dt { flex: none; }
+.words dd {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}

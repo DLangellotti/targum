@@ -104,6 +104,13 @@ phonetics = ["phonikud>=0.4"]
 # step and a few hundred megabytes. Without it `tests/test_reader_browser.py` skips
 # itself, the way the node tests skip without node.
 browser = ["playwright>=1.44"]
+# A reader's edition on paper (targum-internal#105): `targum export pdf`. WeasyPrint,
+# BSD-3, lays out HTML and CSS through Pango and HarfBuzz, so the nikkud and the te'amim
+# are placed by the same shaping a browser uses and the page is set from the reader's own
+# stylesheet values rather than drawn a second time by hand. An extra because it needs
+# Pango on the machine (`brew install pango`, or the distribution's package), which the
+# box and CI have no use for; without it the command says so in one sentence.
+print = ["weasyprint>=62"]
 mcp = [
     "mcp>=1.2",
 ]
@@ -167,6 +174,7 @@ module = [
   "transformers.*",
   "tokenizers.*",
   "pymupdf.*",
+  "weasyprint.*",
 ]
 ignore_missing_imports = true
 

@@ -1,0 +1,52 @@
+<!doctype html>
+{#- A reader's edition on paper (targum-internal#105, design.md §12 2026-09-27). The page
+    is set once and never touched, so it carries none of the reader's controls: the text,
+    the translation beside it, and after each chapter its words. The direction follows the
+    text, as the reader's does; the root's language is the translation's, as the reader's
+    chrome is, and every cell carries its own. -#}
+<html lang="{{ page_language }}" dir="{{ source_direction }}">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}{% if english %} · {{ english }}{% endif %}</title>
+<style>{{ asset('print.css') }}</style>
+<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } }</style>
+{{ hebrew_face }}
+{{ chrome_face }}
+</head>
+<body class="{% if under %}under{% else %}beside{% endif %}{% if verses %} verses{% endif %}">
+<header class="title">
+  <h1 lang="{{ source_language }}" dir="{{ source_direction }}">{{ title|isolate(source_direction) }}</h1>
+  {% if english %}<p class="english" lang="{{ target_language }}" dir="{{ target_direction }}">{{ english }}</p>{% endif %}
+</header>
+{% for chapter in chapters %}
+<section class="chapter">
+  {% for line in chapter.lines %}
+  {% if line.kind == 'heading' %}
+  <div class="pair head">
+    <h{{ line.level }} class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{{ line.source|isolate(source_direction) }}</h{{ line.level }}>
+    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ line.translation|isolate(target_direction) }}</p>
+  </div>
+  {% else %}
+  <div class="pair {{ line.kind }}">
+    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{% if line.verse %}<span class="verse-number">{{ line.verse.split(':')[1] }}</span>{% endif %}{{ line.source|isolate(source_direction) }}</p>
+    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ line.translation|isolate(target_direction) }}</p>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% if chapter.words %}
+  <aside class="words">
+    <h2 class="label" lang="{{ page_language }}">{{ t("lists.work.words", "Words") }}</h2>
+    <dl>
+      {% for word in chapter.words %}
+      <div class="word">
+        <dt lang="{{ source_language }}" dir="{{ source_direction }}">{{ word.form }}</dt>
+        <dd lang="{{ target_language }}" dir="{{ target_direction }}">{{ word.meaning|isolate(target_direction) }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </aside>
+  {% endif %}
+</section>
+{% endfor %}
+</body>
+</html>

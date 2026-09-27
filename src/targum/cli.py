@@ -50,12 +50,14 @@ parasha_app = typer.Typer(no_args_is_help=True, help="The weekly Torah portion."
 daily_app = typer.Typer(no_args_is_help=True, help="The daily learning cycles.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 video_app = typer.Typer(no_args_is_help=True, help="The curated video shelf.")
+export_app = typer.Typer(no_args_is_help=True, help="A text in another form.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
 app.add_typer(parasha_app, name="parasha")
 app.add_typer(daily_app, name="daily")
 app.add_typer(video_app, name="video")
+app.add_typer(export_app, name="export")
 
 console = Console()
 err = Console(stderr=True)
@@ -3633,6 +3635,75 @@ def cache_clear(
         )
     removed = Cache().clear()
     console.print(f"[green]Cleared[/green] {removed} cached items [dim]{cache_dir()}[/dim]")
+
+
+@export_app.command("pdf")
+def export_pdf(
+    folder: Annotated[Path, typer.Argument(help="A built targum's folder.")],
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Where to write it. Default: beside the folder.")
+    ] = None,
+    into: Annotated[
+        str | None,
+        typer.Option("--into", help="Which translation, by language (en, ru, arc…)."),
+    ] = None,
+    reader: Annotated[
+        str | None,
+        typer.Option(
+            "--for",
+            help="An account's email: list the words it has not marked known, "
+            "rather than the text's hard words.",
+        ),
+    ] = None,
+    under: Annotated[
+        bool, typer.Option("--under", help="The translation under each line, not beside it.")
+    ] = False,
+    vowels: Annotated[
+        bool, typer.Option("--vowels/--no-vowels", help="Print the vowel points.")
+    ] = True,
+    accents: Annotated[
+        bool,
+        typer.Option("--accents/--no-accents", help="Print the te'amim, where the text has them."),
+    ] = True,
+    size: Annotated[str, typer.Option("--size", help="a4 or letter.")] = "a4",
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """A reader's edition as a PDF (targum-internal#105): the text with its vowels, the
+    translation beside each line, and after each chapter its words with their meanings.
+
+    Nothing is fetched and nothing is spent: it is set from what is already in the
+    folder. Needs the `print` extra and Pango on the machine.
+    """
+    from .render.printed import SIZES, print_html, write_pdf
+
+    if size not in SIZES:
+        fail(TargumError(f"No paper called {size}.", f"Try one of: {', '.join(SIZES)}."))
+    known: set[str] | None = None
+    if reader:
+        from .accounts import Store
+        from .models import read_artifact
+        from .serve import default_store
+
+        keeping = Store(store or default_store())
+        person = keeping.person_by_email(reader)
+        if person is None:
+            fail(TargumError(f"No account for {reader}."))
+        document = read_artifact(Document, folder / "document.json")
+        known = keeping.known_forms(person.id, document.language if document else "he")
+    try:
+        html = print_html(
+            folder,
+            into=into,
+            known=known,
+            vowels=vowels,
+            accents=accents,
+            under=under,
+            size=size,
+        )
+        written = write_pdf(html, out or folder.with_suffix(".pdf"))
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]Wrote[/green] {written}")
 
 
 def main() -> None:
