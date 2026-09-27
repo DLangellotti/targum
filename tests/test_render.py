@@ -24,6 +24,9 @@ from targum.models import (
 from targum.render import MAX_SEGMENTS_PER_SECTION, isolate, render, split_sections
 from targum.vocalize import MARKS, has_taamim, strip_nikkud, strip_taamim
 
+#: Every script a page carries, for the checks that read them all.
+ASSETS_DIR = Path(__file__).resolve().parents[1] / "src" / "targum" / "render" / "assets"
+
 
 def _reader_template() -> str:
     """The reader's template as its English reads: a `t("key", "English")` call stands for
@@ -2967,6 +2970,31 @@ def test_no_name_in_the_reader_is_both_a_function_and_a_variable() -> None:
         assigned = re.findall(r"^  var (\w+)\b", part, re.M)
         clash = sorted(set(declared) & set(assigned))
         assert not clash, f"declared as both a function and a variable: {clash}"
+
+
+@pytest.mark.parametrize("script", sorted(path.name for path in ASSETS_DIR.glob("*.js")))
+def test_no_page_script_declares_one_name_twice(script: str) -> None:
+    """Two `function x` in one scope are one binding: the later one wins everywhere,
+    hoisted over the first, and every call meant for the first gets the second — at
+    runtime, silently. The reader's check above covers `function` against `var`; this
+    covers `function` against `function`, in every script a page carries.
+
+    Not hypothetical twice over. `chat.js` gained a `named(word)` in a scope that already
+    had `named()` for the conversation's language, and every word on the chat page lost
+    its state (targum#456, caught by the chat tests only because they happened to look).
+    And `learn.js` had carried two `post`s since the arrival's subjects (#284): a promise
+    that throws on an error and a fire-and-forget one, the second silently replacing the
+    first — harmless only because every caller left happened to want the second.
+    """
+    source = (ASSETS_DIR / script).read_text(encoding="utf-8")
+    # Per IIFE, as the reader's check reads it: a page script is one or several.
+    for part in source.split("\n})();"):
+        declared = re.findall(r"^  function (\w+)\(", part, re.M)
+        twice = sorted({name for name in declared if declared.count(name) > 1})
+        assert not twice, f"{script} declares a function twice in one scope: {twice}"
+        assigned = re.findall(r"^  var (\w+)\b", part, re.M)
+        clash = sorted(set(declared) & set(assigned))
+        assert not clash, f"{script} declares a name as both a function and a variable: {clash}"
 
 
 def test_dragging_a_phrase_shows_the_chip() -> None:

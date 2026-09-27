@@ -55,13 +55,6 @@
     });
   }
 
-  function post(path, body) {
-    return ask(path, body).then(function (answer) {
-      if (answer && answer.error) throw new Error(answer.error);
-      return answer;
-    });
-  }
-
   function reload() {
     location.reload();
   }
