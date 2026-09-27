@@ -487,6 +487,20 @@ the forward walk on 2026-09-27). The door is built and **shut** (`TARGUM_X`) unt
 terms forbid collecting its posts by automated means and the box fetching one is
 targum's act.
 
+Amended again the same day, for a post brought by hand (targum-internal#158; David chose
+to build it on 2026-09-27): **a post targum cannot fetch is typed in, and arrives in the
+same shape.** "Bring a post" on the Add page takes the box's place while it is open, so the
+page keeps one filled button. It asks where the post was posted (Instagram, TikTok or X),
+the handle, the name where the post shows one, what it says, its pictures in their order
+or its one video, and its link where the reader has one. The link is kept only in its
+platform's own shape; without one the head draws no way home. Nothing is fetched to fill
+the rest in: no day, because nobody was asked for one, and no face, so the disc wears the
+first letter of the name (an avatar upload was left out as one more field for a letter
+that already does the job). A video is a film post, its transcript the text and the typed
+words its caption. The pictures are drawn as brought; the words in them are read only when
+the reader presses "Also read the pictures", the Instagram post's own press, charged the
+same way. Private, like every post.
+
 
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
 

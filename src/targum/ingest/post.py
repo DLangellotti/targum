@@ -52,6 +52,19 @@ LONG_EDGE = 1280
 #: The author's picture, which the card draws as a small disc: twice its 48px at 2x.
 AVATAR_EDGE = 96
 
+#: A handle as the three platforms write one: Instagram's thirty letters, digits, dots
+#: and underscores hold TikTok's and X's too. A brought post's handle is typed by the
+#: reader, and it is drawn after an `@` in the head, so it is held to the one shape.
+HANDLE = re.compile(r"[A-Za-z0-9._]{1,30}")
+
+#: The most a brought post's words may be. X's longest post is 25,000 characters and a
+#: caption 2,200; ten thousand is a long post and not yet an article, which the box
+#: above the form takes as a text.
+TEXT_MOST = 10_000
+
+#: A brought post's title where its first line will not do, as the pasted post's is.
+TITLE_MOST = 80
+
 
 @dataclass(frozen=True)
 class Media:
@@ -166,6 +179,46 @@ def posted_from(stamp: object) -> str:
 _MARKS = "\u2066\u2067\u2068\u2069\u200e\u200f\t "
 
 
+def home_of(link: str) -> tuple[str, str] | None:
+    """The platform a post's own address names, and that address in its one canonical
+    shape — the shape the card links home to and `test_render.py` pins — or None for an
+    address that names no post on Instagram, TikTok or X. A brought post's link is typed
+    by the reader, so it is kept only in that shape and never as it was typed."""
+    from ..errors import TargumError
+    from ..video import hosts as hosts_module
+    from . import x as x_module
+
+    found = x_module.home_url(link)
+    if found:
+        return "x", found
+    host = hosts_module.host_for(link)
+    if host is not hosts_module.INSTAGRAM and host is not hosts_module.TIKTOK:
+        return None
+    try:
+        found = hosts_module.home_url(link)
+    except TargumError:
+        return None
+    if not found:
+        return None
+    return ("instagram" if host is hosts_module.INSTAGRAM else "tiktok"), found
+
+
+def brought_text(handle: str, words: str) -> str:
+    """A brought post's words as a text targum reads, the way a pasted post's caption is
+    (`video.instagram.caption_text`): front matter naming the title and the author, then
+    a line a paragraph (#158's rule 1). The title is the first line where it is short
+    enough to be one, cut at a word where it is not, and "Post by @handle" where the post
+    is only pictures."""
+    lines = lines_of(words)
+    title = " ".join(lines[0].split()) if lines else ""
+    if len(title) > TITLE_MOST:
+        cut = title[: TITLE_MOST + 1]
+        title = cut.rsplit(" ", 1)[0] if " " in cut else cut[:TITLE_MOST]
+    title = title or f"Post by @{handle}"
+    head = ["---", f"title: {title}", f"author: @{handle}", "---", ""]
+    return "\n".join([*head, "\n\n".join(lines), ""])
+
+
 def lines_of(caption: str) -> list[str]:
     """A caption's lines, each a paragraph (#158's rule 1: a line is how it was written),
     with the marks a platform wraps them in taken off and the blank ones left out."""
@@ -216,14 +269,22 @@ def keep_pictures(pictures: list[Path], folder: Path, first: int = 1) -> list[Me
     the number the first is kept under, so a thread's posts keep theirs apart."""
     import io
 
-    from PIL import Image
+    from PIL import Image, ImageOps
 
+    if any(Path(source).suffix.lower() in (".heic", ".heif") for source in pictures):
+        # A phone's own photos, brought by hand: Pillow opens them once `pillow-heif` is
+        # registered, which the picture reader does and nothing else here would.
+        from ..vision import _pillow
+
+        _pillow()
     kept = folder / "post"
     kept.mkdir(parents=True, exist_ok=True)
     media: list[Media] = []
     for n, source in enumerate(pictures, start=first):
         try:
-            image = Image.open(source)
+            # Upright first: a phone stores a photo sideways with its turn in a tag, and a
+            # picture brought by hand is a phone's photo more often than not.
+            image = ImageOps.exif_transpose(Image.open(source))
             image.thumbnail((LONG_EDGE, LONG_EDGE), Image.Resampling.LANCZOS)
             out = io.BytesIO()
             image.convert("RGB").save(out, format="WEBP", quality=82, method=6)
@@ -268,7 +329,12 @@ __all__ = [
     "Item",
     "Manifest",
     "Media",
+    "HANDLE",
+    "TEXT_MOST",
+    "TITLE_MOST",
     "UNWORDLY",
+    "brought_text",
+    "home_of",
     "inside",
     "keep_avatar",
     "keep_pictures",

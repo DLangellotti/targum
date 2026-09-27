@@ -319,6 +319,48 @@ body.add > .add-main {
 .instead { margin: 0; line-height: 1.55; }
 .instead .row { margin-block-start: 0.6rem; }
 
+/* --- a post, brought by hand (targum-internal#158) --------------------------------
+   The box's own card, in the box's place while it is open: a raised card, wells for
+   what is typed, labels above them as the manual page has them, and the same row of
+   presses at its foot. Handle and name share a row where there is room for two. */
+.post-form {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+.post-form-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+.post-form-title + .hint { margin-block-start: -0.5rem; }
+.post-label { display: block; color: var(--ink-soft); font-size: 0.8125rem; }
+.post-where { display: grid; gap: 0.3rem; justify-items: start; }
+.post-where .segment { font-size: 0.875rem; font-weight: 600; padding: 0.35rem 0.85rem; }
+.post-who { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.6rem 1rem; }
+.post-form textarea {
+  inline-size: 100%;
+  min-block-size: 6rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: var(--field);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.post-form textarea:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--teal); }
+.post-media { display: grid; gap: 0.45rem; }
+.post-media .hint { flex: 1 1 14rem; font-size: 0.8125rem; }
+.post-form .ghost:focus-visible,
+.post-where .segment:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+
 @media (max-width: 40rem) {
   .add-main { padding-block-start: 1.25rem; }
   .option-row { grid-template-columns: minmax(0, 1fr); }
@@ -332,7 +374,9 @@ body.add > .add-main {
   .add .bring-choose,
   .add .bring-ask,
   .add .change,
+  .add .ghost,
   .add .status button,
+  .post-where .segment,
   .given-file-x,
   .drop.small button {
     min-height: 44px;
