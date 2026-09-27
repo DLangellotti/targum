@@ -368,6 +368,29 @@ author's does. David, 2026-09-27, targum-internal#354.
   named is the author's, as it always was.
 
 What it does not change: a reader still cannot settle, and a model is never a judge.
+### A haser word counts as the male word the reader knows — 2026-09-27
+
+The press card's "You know about 6 words in 10 here", and the number the chat ranks
+articles and feed items by, come from `level.known_share`: the text's tokens, bare of
+points, against the reader's known forms and the commonest words. Taking the points off
+a pointed page leaves ktiv haser (ארועים), while the common words and most of what a
+reader marks are ktiv male (אירועים), so a reader who pasted a vocalized page was told
+they knew less of it than they do. David, 2026-09-27, targum-internal#349.
+
+- **The tight rule.** A token counts as known when putting back an inner vav or yod —
+  only those two letters, only insertions, never at the first or last letter — gives a
+  known form, with or without a prefix or two peeled first. No letter is ever dropped
+  from the known side: the loose rule that ignored vav and yod on both sides is out.
+- **Only on a token that came with points.** Haser is what taking the points off leaves;
+  an unpointed page is written male already, and there the rule would only add
+  collisions (קם for קיים). An unpointed page measures exactly as it did.
+- **Measured locally, against the common words alone:** Genesis 40.0% to 43.6%, Ruth
+  40.3% to 44.0%, Avot 50.8% to 53.5%; across the 102 pointed texts on the laptop's shelf
+  the lift is 0.9 to 6.5 points, median 3.2. The 1948 declaration, unpointed, is 39.9%
+  before and after.
+
+What it does not touch: `coverage`, the figure on the library shelf and a built text,
+which intersects dictionary forms and has no spelling problem.
 
 
 ### What we inferred says so — 2026-09-27

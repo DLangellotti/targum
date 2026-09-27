@@ -418,6 +418,47 @@ def _forms_of(token: str) -> list[str]:
     return out
 
 
+#: The two letters ktiv male writes that ktiv haser leaves out. Stripping the points off
+#: a pointed text gives the haser spelling (ארועים), while the common words and most
+#: forms a reader marks are male (אירועים): targum-internal#349.
+MATRES = "וי"
+
+
+def _skeleton(word: str) -> str:
+    """The word with every vav and yod between its first and last letter taken out. The
+    first and last stay: a vav or yod there is a letter of the word or an ending, and
+    haser does not drop it."""
+    if len(word) <= 2:
+        return word
+    return word[0] + "".join(ch for ch in word[1:-1] if ch not in MATRES) + word[-1]
+
+
+def _haser_of(token: str, form: str) -> bool:
+    """Whether `token` is `form` with one or more of its inner vavs and yods left out,
+    and nothing else changed. Letters only ever come out of the known form, never go in:
+    a token with a letter the form lacks is a different word."""
+    if len(token) >= len(form) or token[:1] != form[:1] or token[-1:] != form[-1:]:
+        return False
+    inner, whole = token[1:-1], form[1:-1]
+    # reach[i]: the first i letters of `inner` can be matched into what is read so far.
+    reach = [True] + [False] * len(inner)
+    for ch in whole:
+        for i in range(len(inner), 0, -1):
+            reach[i] = (reach[i] and ch in MATRES) or (reach[i - 1] and inner[i - 1] == ch)
+        reach[0] = reach[0] and ch in MATRES
+    return reach[len(inner)]
+
+
+def _male_index(forms: set[str]) -> dict[str, list[str]]:
+    """Each known form that has an inner vav or yod, filed under its skeleton."""
+    index: dict[str, list[str]] = {}
+    for form in forms:
+        skeleton = _skeleton(form)
+        if skeleton != form:
+            index.setdefault(skeleton, []).append(form)
+    return index
+
+
 def known_share(text: str, forms: set[str]) -> float | None:
     """The share of a text's Hebrew tokens the reader already has, cheaply.
 
@@ -429,12 +470,38 @@ def known_share(text: str, forms: set[str]) -> float | None:
     inflected known word whose form the ledger never saw; the exact figure is the
     coverage a built text is measured with (`coverage.against`). None below
     `MEASURABLE` tokens: "not measured" and "0% known" are different claims.
+
+    A token spelled haser also counts when putting back an inner vav or yod gives a known
+    form: ארועים off a pointed page is the אירועים the reader knows (targum-internal#349).
+    Only insertions into the token, and only those two letters, and never at its first
+    or last letter: no letter is dropped from the known side to meet it, so a token
+    with a letter the known form lacks stays unknown. Tried on the token and on it less
+    a prefix or two, so והארועים counts too. Only a token that came with points is
+    tried: haser is what taking them off leaves, while an unpointed page is written
+    male already, and there the rule would only add collisions (קם for קיים, פחת for
+    פחות), so an unpointed page measures exactly as it did. The known forms are filed
+    by skeleton only when a pointed token misses outright, once a call.
     """
-    tokens = [_bare(t) for t in _WORD.findall(text)]
-    tokens = [t for t in tokens if t]
+    found = [(_bare(t), _POINTS.search(t) is not None) for t in _WORD.findall(text)]
+    tokens = [(t, pointed) for t, pointed in found if t]
     if len(tokens) < MEASURABLE:
         return None
-    known = sum(1 for token in tokens if any(form in forms for form in _forms_of(token)))
+    index: dict[str, list[str]] | None = None
+
+    def is_known(token: str, pointed: bool) -> bool:
+        nonlocal index
+        candidates = _forms_of(token)
+        if any(form in forms for form in candidates):
+            return True
+        if not pointed:
+            return False
+        if index is None:
+            index = _male_index(forms)
+        return any(
+            _haser_of(form, male) for form in candidates for male in index.get(_skeleton(form), ())
+        )
+
+    known = sum(1 for token, pointed in tokens if is_known(token, pointed))
     return known / len(tokens)
 
 
