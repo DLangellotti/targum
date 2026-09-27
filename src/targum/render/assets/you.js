@@ -574,6 +574,85 @@
     });
   }
 
+  /* Telegram (targum-internal#328): drawn only where the server said there is a bot.
+     Link asks for a fresh one-time link and follows it, which opens Telegram on the
+     bot with the token in hand; each linked chat is a row with Unlink, which does not
+     ask twice, because linking again is one press here. */
+  function drawTelegram(who) {
+    var panel = at("telegram");
+    var rows = at("telegram-rows");
+    var go = at("telegram-go");
+    var said = at("telegram-said");
+    if (!panel || !rows || !go || !who.telegram) return;
+    panel.hidden = false;
+
+    function tell(text) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+
+    function day(stamp) {
+      var root = document.documentElement;
+      try {
+        return new Date(stamp).toLocaleDateString((root && root.lang) || "en", {
+          day: "numeric",
+          month: "short",
+          year: "numeric"
+        });
+      } catch (e) {
+        return "";
+      }
+    }
+
+    function paint(chats) {
+      rows.textContent = "";
+      (chats || []).forEach(function (one) {
+        var row = document.createElement("li");
+        var name = document.createElement("span");
+        name.className = "series-name";
+        name.textContent = t("you.telegram.chat", "A Telegram chat");
+        var when = document.createElement("span");
+        when.className = "note when";
+        when.textContent = t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) });
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "ghost";
+        press.textContent = t("you.telegram.unlink", "Unlink");
+        press.onclick = function () {
+          press.disabled = true;
+          ask("/account/telegram", { unlink: one.chat })
+            .then(function (answer) {
+              paint(answer && answer.chats);
+              tell(t("you.telegram.unlinked", "Unlinked."));
+            })
+            .catch(function () {
+              press.disabled = false;
+              tell(t("you.telegram.could-not", "We couldn't do that. Try again."));
+            });
+        };
+        row.appendChild(name);
+        row.appendChild(press);
+        row.appendChild(when);
+        rows.appendChild(row);
+      });
+    }
+
+    paint(who.telegram.chats);
+    go.onclick = function () {
+      go.disabled = true;
+      ask("/account/telegram", {})
+        .then(function (answer) {
+          go.disabled = false;
+          if (!answer || !answer.link) throw new Error("no link");
+          window.location.href = answer.link;
+        })
+        .catch(function () {
+          go.disabled = false;
+          tell(t("you.telegram.could-not", "We couldn't do that. Try again."));
+        });
+    };
+  }
+
   /* --- putting it together ---------------------------------------------------- */
 
   ask("/account/me")
@@ -584,6 +663,7 @@
       drawLanguages(who);
       drawRecord(who);
       drawConnections(who);
+      drawTelegram(who);
       drawPrompts(who);
       drawGrant(who);
       at("you-name").addEventListener("input", saveName);

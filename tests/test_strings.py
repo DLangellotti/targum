@@ -186,7 +186,7 @@ def test_every_sentence_the_server_says_is_in_the_english_catalogue() -> None:
 
     english = strings.catalogue("en")
     said = 0
-    for name in ("serve.py", "chat/session.py", "chat/tools.py"):
+    for name in ("serve.py", "chat/session.py", "chat/tools.py", "telegram.py"):
         source = Path(strings.__file__).parents[1] / name
         for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
             if not isinstance(node, ast.Call):
