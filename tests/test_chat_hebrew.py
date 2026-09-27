@@ -354,6 +354,19 @@ def test_each_new_contract_keeps_the_shape_and_says_its_own_language_s_rules(
         assert rule in said, rule
 
 
+def test_a_french_reader_with_an_empty_shelf_is_offered_a_way_in() -> None:
+    """targum-internal#281, criterion 3. The catalogue has almost no French, so a first
+    French day that asks for something to read finds little — and a reply that says only
+    "nothing found" ends the conversation. It says the shelf is small and hands over the
+    one door that is always open: bringing a text in."""
+    said = " ".join(hebrew.contract_for("fr").split())
+    assert "The French shelf is small" in said
+    assert "paste a French text or a link" in said and "the +" in said
+    assert "Never offer a text in another language as if it were French" in said
+    for other in ("it", "ru", "he"):
+        assert "shelf is small" not in hebrew.contract_for(other), other
+
+
 @pytest.mark.parametrize("code", ["fr", "ru", "yi"])
 def test_a_new_contract_carries_none_of_hebrew_s_own_spelling_rules(code: str) -> None:
     said = " ".join(hebrew.contract_for(code).split())
