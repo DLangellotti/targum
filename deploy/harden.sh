@@ -120,8 +120,9 @@ case "${ID:-}" in
   *) die "this is ${ID:-an unknown system}, and the box is Ubuntu." ;;
 esac
 [ -d /run/systemd/system ] || die "no systemd here, so this is a container or a chroot, not the box."
-[ -f /etc/systemd/system/targum.service ] && [ -d /etc/targum ] \
-  || die "no targum.service or /etc/targum, so this box was never provisioned. Run provision.sh first; harden.sh finishes a targum box, it does not make one."
+if [ ! -f /etc/systemd/system/targum.service ] || [ ! -d /etc/targum ]; then
+  die "no targum.service or /etc/targum, so this box was never provisioned. Run provision.sh first; harden.sh finishes a targum box, it does not make one."
+fi
 [ -f "$WALL_SRC" ] || die "$WALL_SRC is missing; copy the whole deploy/ directory, not the script alone."
 
 # ---------------------------------------------------------------------------------------
