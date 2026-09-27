@@ -139,19 +139,24 @@ def corpus_of(reference: str, source: str, language: str = "he") -> str:
 #: and `--judge` names another.
 JUDGE_MODEL = "claude-sonnet-5"
 
-JUDGE = """You are checking one line of Hebrew written by a language app for a learner.
+#: The conversation's language is `{named}` throughout. It was passed and never used: the
+#: template said Hebrew four times, so on master a French recast was judged as a Hebrew
+#: one and marked wrong for being French — 0.5% on 2026-09-27, where the 2026-09-23
+#: number had come from a copy of this file that did use it (targum-internal#358). For
+#: Hebrew the prompt is word for word what it was.
+JUDGE = """You are checking one line of {named} written by a language app for a learner.
 
 The learner wrote, in {language}:
 {said}
 
-A native Hebrew speaker rendered the same sentence as:
+A native {named} speaker rendered the same sentence as:
 {reference}
 
 The app wrote:
 {candidate}
 
-Is the app's line a correct and idiomatic Hebrew rendering of what the learner wrote —
-what a Hebrew speaker would actually say, with the same meaning? Different words from the
+Is the app's line a correct and idiomatic {named} rendering of what the learner wrote —
+what a {named} speaker would actually say, with the same meaning? Different words from the
 native rendering are fine; a calque, the word order of the learner's language, a wrong
 form, or a changed meaning is not. Ignore the vowel points. Answer YES or NO on the first
 line, then one short sentence saying why."""
