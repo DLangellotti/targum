@@ -383,6 +383,11 @@ named once where it starts — never above it, where it would be read as the sta
 was said and would push the transcript onto a page of its own. The head's "On Instagram"
 is the film's one way home, and the bar's own link home gives way to it.
 
+Amended again the same day, for a TikTok: **a TikTok is a reel's shape**, 9:16 in the
+film panel, the transcript its text and the caption after it, and its head says "On
+TikTok". TikTok gives no author's picture without a fetch of its own, so the disc wears
+the first letter of their name.
+
 
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
 
