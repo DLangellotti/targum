@@ -158,6 +158,11 @@ def parse(english: str, rendered: str, language: str = "yi") -> list[Pair]:
     ]
 
 
+def files(language: str = "yi", split: str = DEFAULT_SPLIT) -> list[Path]:
+    """What `load` reads, for the fingerprint a ledger row carries (`evals.fingerprint`)."""
+    return [_path("en", split), _path(language, split)]
+
+
 def load(language: str = "yi", split: str = DEFAULT_SPLIT) -> list[Pair]:
     """Every English sentence with its rendering in one language.
 

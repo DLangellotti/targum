@@ -145,6 +145,10 @@ def main() -> None:
         )
         print(f"Replies written to {args.keep}.")
 
+    read_from = args.pool or exemplars.pool_path()
+    note = args.note or "correct native-written Hebrew sent as the reader's line"
+    if read_from is not None:
+        note = evals.pinned(note, [read_from])
     rows = [
         evals.Row(
             at=date.today().isoformat(),
@@ -155,7 +159,7 @@ def main() -> None:
             n=len(replies),
             system="chat-contract",
             version=CHAT_MODEL,
-            note=args.note or "correct native-written Hebrew sent as the reader's line",
+            note=note,
         )
         for metric, score in (
             ("why_on_correct_lines", sum(written)),

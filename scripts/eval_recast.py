@@ -231,6 +231,20 @@ def reference_rows(
     return pool_rows(pool, max_words if max_words is not None else MAX_WORDS, source)
 
 
+def reference_files(
+    reference: str, pool: Path | None, split: str, source: str = "en", language: str = "he"
+) -> list[Path]:
+    """The files `reference_rows` read, for the fingerprint on each ledger row: every
+    reference is fetched from a branch or an undated export (targum-internal#351)."""
+    if reference == "flores":
+        return flores.files(split)
+    if reference == "ntrex":
+        return ntrex.files(source, language)
+    if reference == "flores200":
+        return flores200.files(language, split)
+    return [pool] if pool is not None else []
+
+
 def stand_in_known(into: str, count: int) -> list[str]:
     """The reader's known words where wordfreq has no list to take them from.
 
@@ -622,6 +636,9 @@ def main() -> None:
         f"unjudged={unjudged} judge={args.judge}"
         + (f" split={args.split}" if args.reference == "flores" else "")
         + (f" source={args.source}" if args.source != "en" else "")
+    )
+    note = evals.pinned(
+        note, reference_files(args.reference, args.pool, args.split, args.source, into)
     )
     corpus = corpus_of(args.reference, args.source, into)
     rows_out = [

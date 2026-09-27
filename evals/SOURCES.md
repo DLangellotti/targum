@@ -49,6 +49,37 @@ No fetch below pins a commit or a checksum except where it says so. Most read th
 default branch of a repository or a live dump, so the files can change under the same
 command. Where a number has to be re-checked exactly, keep the fetched file.
 
+**Since 2026-09-27 every row a script writes carries the fingerprint of the files it was
+scored against**, as `gold=<12 hex>` at the end of its note (targum-internal#351; rows
+written before then have none, and were not rewritten). The fingerprint is the first 12
+hex of a sha256 (`evals.fingerprint`): for one file, the file's own, so
+`shasum -a 256 <file> | cut -c1-12` re-checks it; for several, a sha256 over their
+`<sha256>  <name>` lines sorted by name. To check a number against a set on disk, run
+`targum evals --fingerprint <file> [--fingerprint <file> …]` over the files below and
+compare. A different fingerprint means different bytes: the same command fetched a
+different set, and the two numbers are not measured on the same thing.
+
+| ledger `stage/corpus` | files fingerprinted |
+| --- | --- |
+| `lemma/iahlt*` | `<model dir>/gold/{corpus}-{split}.conllu` for the splits scored, via the scorecard's `gold.fingerprints` |
+| `lemma/ud-*` | `<model dir>/ud/<corpus>-dev.conllu` (the `-curly` rows pin the same file) |
+| `vocalize/dicta-modern` | `<model dir>/gold/dicta-diacritization-modern.txt` |
+| `vocalize/ben-yehuda` | the 26 files in `<model dir>/gold/ben-yehuda/` named by `BEN_YEHUDA_WORKS` |
+| `vocalize/scene-corrections` | `<model dir>/gold/scene-nikkud.jsonl` |
+| `stress/tanakh-taamim` | `<model dir>/oshb/<book>.json` for the books scored (the converted files, not the XML) |
+| `stress/wiktionary-ru` | `<model dir>/wiktionary-ru/stressed-sentences.jsonl` (the kept sentences, not Kaikki's dump) |
+| `align/pockettorah` | `aliyah.json`, each measured aliyah's book JSON and `labels/<aliyah>.txt`, under `~/.targum/evals/align/pockettorah` |
+| `align/clips-*` | the release's `<split>.tsv` |
+| `ask/heq` | `<model dir>/gold/heq-<split>.json` |
+| `recast/ntrex-128*` | `<model dir>/gold/ntrex-<source>.txt` and `ntrex-<reference>.txt` |
+| `recast/flores-plus` | `<model dir>/gold/flores-<split>-{en,he}.jsonl` |
+| `recast/flores-200*` | `<model dir>/gold/flores200-<split>-{en,<lang>}.txt` |
+| `recast/tatoeba*` | the pool named by `--pool` |
+| `chat/tatoeba-correct` | the pool read (`--pool`, else `chat/exemplars.pool_path()`) |
+| `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
+
+`suggest/shelf-*` and `align/tts-*` have no reference file, so their rows carry no pin.
+
 ## IAHLT treebanks
 
 `UD_Hebrew-IAHLTwiki` (about 5,000 Wikipedia sentences) and `UD_Hebrew-IAHLTknesset`
@@ -66,7 +97,7 @@ word tagged by people.
 - **Scored by:** `scripts/score_annotation.py` (the annotator), `scripts/score_dictionary.py`
   (the paid dictionary stage).
 - **Ledger:** no rows yet. `score_annotation.py` writes a JSON scorecard, and
-  `targum evals` imports one as `stage=lemma` rows (`evals.rows_from_scorecard`, `cli.py:543`).
+  `targum evals` imports one as `stage=lemma` rows (`evals.rows_from_scorecard`, `cli.py:558`).
 
 ## Universal Dependencies dev sets
 
@@ -226,7 +257,7 @@ follow-along app would want.
 - **Licence:** labels not stated; the repository has no licence file. The audio is
   "CC BY-SA 3.0" (`parasha/leyning.py:54`).
 - **Fetch:** on first run of `scripts/eval_align.py --on pockettorah`, to
-  `~/.targum/evals/align/pockettorah` (`scripts/eval_align.py:441`).
+  `~/.targum/evals/align/pockettorah` (`scripts/eval_align.py:459`).
 - **Use:** evaluation only. Never committed, never trained on, never shipped.
 - **Scored by:** `scripts/eval_align.py --on pockettorah`.
 - **Ledger:** `align/pockettorah`.

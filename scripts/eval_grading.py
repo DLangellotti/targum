@@ -206,6 +206,9 @@ def main() -> None:
         note += f" openers=tatoeba seed={args.seed}"
     if args.exemplars:
         note += " exemplars=on"
+    if args.pool:
+        # The openers came from the pool, so the pool is what this number is about.
+        note = evals.pinned(note, [args.pool])
     rows = [
         evals.Row(
             today,
@@ -218,16 +221,37 @@ def main() -> None:
             note=note,
         ),
         evals.Row(
-            today, "grading", "chat", CHAT_MODEL, "unpaired_lines", float(unpaired), len(kept)
+            today,
+            "grading",
+            "chat",
+            CHAT_MODEL,
+            "unpaired_lines",
+            float(unpaired),
+            len(kept),
+            note=note,
         ),
         evals.Row(
-            today, "grading", "chat", CHAT_MODEL, "hebrew_words_median", median_words, len(words)
+            today,
+            "grading",
+            "chat",
+            CHAT_MODEL,
+            "hebrew_words_median",
+            median_words,
+            len(words),
+            note=note,
         ),
         # A count and not a rate, the way `unpaired_lines` is: the contract allows one
         # "~ " line under a recast and none anywhere else, so the number worth floor-ing
         # is how many broke that, not what share of the reply they were.
         evals.Row(
-            today, "grading", "chat", CHAT_MODEL, "stray_why_lines", float(strays), len(replies)
+            today,
+            "grading",
+            "chat",
+            CHAT_MODEL,
+            "stray_why_lines",
+            float(strays),
+            len(replies),
+            note=note,
         ),
     ]
     evals.append(rows, args.ledger)

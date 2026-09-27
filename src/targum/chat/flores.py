@@ -163,6 +163,11 @@ def parse(english: str, hebrew: str) -> list[Pair]:
     return out
 
 
+def files(split: str = DEFAULT_SPLIT) -> list[Path]:
+    """What `load` reads, for the fingerprint a ledger row carries (`evals.fingerprint`)."""
+    return [_path(split, language) for language in FILES]
+
+
 def load(split: str = DEFAULT_SPLIT) -> list[Pair]:
     """Every English sentence of a split with its Hebrew rendering."""
     texts: dict[str, str] = {}

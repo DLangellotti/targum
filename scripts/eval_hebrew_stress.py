@@ -267,14 +267,19 @@ def main() -> None:
     args = parser.parse_args()
 
     if not oshb.available():
-        raise SystemExit("OSHB is not on disk; run `targum fetch oshb` first")
+        raise SystemExit("OSHB is not on disk; run `targum models fetch scripture` first")
 
     items = sample(collect(tuple(args.books)), args.words)
     if not items:
         raise SystemExit("no scorable words in those books")
     default_right = sum(item.gold == len(item.syllables) - 1 for item in items)
     today = date.today().isoformat()
-    note = f"books={','.join(args.books)} words={len(items)}"
+    # The converted books the words were read from, so the row names the text it was
+    # scored on as well as the command that fetched it (targum-internal#351).
+    note = evals.pinned(
+        f"books={','.join(args.books)} words={len(items)}",
+        [oshb.root() / f"{code}.json" for code in args.books],
+    )
 
     rows = [
         evals.Row(

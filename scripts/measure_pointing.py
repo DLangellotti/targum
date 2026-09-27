@@ -331,6 +331,9 @@ class Corpus(NamedTuple):
     credit: str
     licence: str
     load: Callable[[Callable[[str], None]], list[Line]]
+    #: The files `load` read, for the fingerprint each ledger row carries: the fetch
+    #: reads a default branch, so the bytes are what pins the set (targum-internal#351).
+    files: Callable[[], list[Path]]
 
 
 CORPORA: dict[str, Corpus] = {
@@ -338,12 +341,17 @@ CORPORA: dict[str, Corpus] = {
         "DICTA, hebrew-diacritization-test-corpora (modern: Hebrew Wikipedia)",
         "public domain, per the repository README; no LICENSE file",
         fetch_dicta,
+        lambda: [gold_dir() / "dicta-diacritization-modern.txt"],
     ),
     "ben-yehuda": Corpus(
         "Project Ben-Yehuda volunteers, public_domain_dump "
         f"({len(BEN_YEHUDA_WORKS)} works, {len({a for a, _, _ in BEN_YEHUDA_WORKS})} authors)",
         "public domain, per the dump's LICENSE",
         fetch_ben_yehuda,
+        lambda: [
+            gold_dir() / "ben-yehuda" / (work.replace("/", "_") + ".txt")
+            for _author, _genre, work in BEN_YEHUDA_WORKS
+        ],
     ),
     "scene-corrections": Corpus(
         "targum's hundred scenes, as settled by a person on 2026-09-22 (targum#396); "
@@ -351,6 +359,7 @@ CORPORA: dict[str, Corpus] = {
         "model readings",
         "targum's own content: private, never committed, never shipped",
         fetch_scene_corrections,
+        lambda: [gold_dir() / SCENE_GOLD],
     ),
 }
 
@@ -777,6 +786,7 @@ def main() -> None:
                 + "; settled_* are the words a person settled, the rest of each line passed"
                 " two model readings"
             )
+        note = evals.pinned(note, corpus.files())
         for metric, (score_, n) in tally.rates().items():
             if score_ is None:
                 continue

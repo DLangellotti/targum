@@ -188,7 +188,8 @@ def score(
     language: str, count: int, model: str, curly: bool = False, system: str = "model-lemma"
 ) -> list[evals.Row]:
     corpus, _ = TREEBANKS[language]
-    picked = sentences(fetch(language))[: count or None]
+    source = fetch(language)
+    picked = sentences(source)[: count or None]
     if curly:
         corpus = f"{corpus}-curly"
         picked = [
@@ -243,7 +244,7 @@ def score(
     today = date.today().isoformat()
     words_in = sum(len(text.split()) for text, _ in picked)
     cost = spent.cost() if spent is not None else 0.0
-    note = f"sentences={len(picked)} spent=${cost:.3f}"
+    note = evals.pinned(f"sentences={len(picked)} spent=${cost:.3f}", [source])
     if spent is not None:
         per_word = spent.output_tokens / max(1, words_in)
         print(f"{language}  output tokens per word {per_word:.1f}", flush=True)

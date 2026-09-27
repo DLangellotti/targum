@@ -29,6 +29,7 @@ acceptance criterion and cannot be checked by a file that silently collapses the
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 from collections.abc import Iterable, Sequence
 from datetime import date
@@ -43,18 +44,23 @@ DEFAULT = Path("evals/ledger.jsonl")
 #: threshold argued with somewhere else (targum-internal#163, criterion 5).
 FLOORS = Path("evals/floors.json")
 
-#: The stages #163 names, and the chat's two (`grading`, #213; `recast`, #219). Not an
-#: enum: a stage nobody has written yet should be recordable the day somebody does,
-#: without this file being the thing in the way.
+#: The stages #163 names, the chat's (`grading`, #213; `recast`, #219; `chat`, #242;
+#: `ask`, #223), and `stress` (#260) and `suggest` (#244). `evals/README.md` says what
+#: writes each. Not an enum: a stage nobody has written yet should be recordable the day
+#: somebody does, without this file being the thing in the way.
 STAGES = (
     "segment",
     "lemma",
     "vocalize",
+    "stress",
     "difficulty",
     "align",
     "transcribe",
     "grading",
     "recast",
+    "chat",
+    "ask",
+    "suggest",
 )
 
 
@@ -114,6 +120,65 @@ def append(rows: Sequence[Row], path: Path = DEFAULT) -> int:
         for row in rows:
             out.write(json.dumps(row.as_dict(), ensure_ascii=False, sort_keys=True) + "\n")
     return len(rows)
+
+
+def _files(paths: Iterable[Path]) -> list[tuple[str, Path]]:
+    """Every file under `paths`, named the way the fingerprint names it: a file by its
+    own name, a file in a directory by its path inside that directory."""
+    found: list[tuple[str, Path]] = []
+    for path in paths:
+        if path.is_dir():
+            found.extend(
+                (inner.relative_to(path).as_posix(), inner)
+                for inner in path.rglob("*")
+                if inner.is_file()
+            )
+        else:
+            found.append((path.name, path))
+    return sorted(found)
+
+
+def fingerprint(paths: Iterable[Path]) -> str:
+    """The first 12 hex of a sha256 over the reference files a score was taken against.
+
+    Almost every gold set is fetched from a default branch or a live dump, so the command
+    that fetched it can bring down different bytes next year (`evals/SOURCES.md`). The
+    ledger cannot keep the set, but it can keep what the set was, so that a number can be
+    checked again against exactly the files it came from, or known not to be.
+
+    One file is its own sha256, so `shasum -a 256 <file>` re-checks it by eye. Several
+    files, or a directory, hash the lines `<sha256>  <name>` sorted by name, a file in a
+    directory named by its path inside it; `targum evals --fingerprint <path>` computes
+    either. A file that is not there hashes as `missing` rather than failing a run whose
+    score has already been paid for.
+    """
+    files = _files(paths)
+    if len(files) == 1 and files[0][1].is_file():
+        return hashlib.sha256(files[0][1].read_bytes()).hexdigest()[:12]
+    lines = []
+    for name, path in files:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else "missing"
+        lines.append(f"{digest}  {name}\n")
+    return hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()[:12]
+
+
+def pinned(note: str, paths: Iterable[Path]) -> str:
+    """`note` with `gold=<fingerprint>` on the end: the reference a row was scored on.
+
+    In the note rather than a column of its own, so the ledger's schema, and every row
+    written before the pin existed, stays as it was.
+    """
+    return marked(note, fingerprint(paths))
+
+
+def marked(note: str, gold: str) -> str:
+    """`note` with a fingerprint already taken on the end, after a space where the note
+    is `key=value` pairs and after a semicolon where it is a sentence."""
+    mark = f"gold={gold}"
+    if not note:
+        return mark
+    last = note.split()[-1]
+    return f"{note} {mark}" if "=" in last else f"{note}; {mark}"
 
 
 def latest(rows: Iterable[Row]) -> dict[tuple[str, str, str], Row]:
@@ -241,14 +306,21 @@ def rows_from_scorecard(
     A rate of `None` is not a score of zero — it is a base of zero, a metric that had
     nothing to measure — so it is left out rather than written down as a nought that a
     trend would later read as a collapse.
+
+    A scorecard that carries `gold.fingerprints` (one per corpus, which
+    `score_annotation.py` writes) has each row's note pinned to its corpus's; `+dict`
+    cards are the same sentences, so they take the same pin.
     """
     when = at or date.today().isoformat()
+    pins = (payload.get("gold") or {}).get("fingerprints") or {}
     rows: list[Row] = []
     for card in payload.get("cards", []):
         system = str(card.get("annotator", "?"))
         version = str(card.get("version") or system)
         corpus = str(card.get("corpus", ""))
         paired = int(card.get("paired") or 0)
+        pin = pins.get(corpus.split("+")[0])
+        said = marked(note, str(pin)) if pin else note
         for metric, score in (card.get("rates") or {}).items():
             if score is None:
                 continue
@@ -262,7 +334,7 @@ def rows_from_scorecard(
                     score=float(score),
                     n=paired,
                     corpus=corpus,
-                    note=note,
+                    note=said,
                 )
             )
     return rows
