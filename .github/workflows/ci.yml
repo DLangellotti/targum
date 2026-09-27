@@ -56,7 +56,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync --extra browser
+      # `bring` too: the + form's browser test makes the picture it brings with Pillow.
+      - run: uv sync --extra browser --extra bring
       # `--with-deps` because a bare runner has none of the shared libraries Chromium
       # links against, and the failure without it is a loader error rather than a
       # missing browser.
