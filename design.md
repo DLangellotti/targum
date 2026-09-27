@@ -362,14 +362,15 @@ palette. The platform's chrome is not.
   no counts. A button that cannot act on the platform is a lie, and a count is a number
   about a moment that has passed. Hashtags and mentions stay where the author put them and
   are not glossed or counted as vocabulary: they are names, not words.
-- **Where it sits.** The post's head (a letter disc for the author, their handle, the day)
+- **Where it sits.** The post's head (the author's picture, their handle, the day)
   takes the title's place at the top of the reader, and the pictures follow as a row the
   reader swipes, each 1:1 or 4:5 as posted, never cropped to a card. A reel is the film
   panel "A reader that carries moving pictures" (2026-08-31) already draws, at 9:16. The
   bar, the tap, the card and the audio are the reader's own and unchanged.
 - **Nothing is fetched.** The pictures are carried in the page as webp data, as covers
-  are; an author's own picture is not carried at all, and the disc is their first letter,
-  as a text with no picture wears its letter on the shelf. One link home, "On Instagram",
+  are, and so is the author's own picture, small, in a disc. Where the post gives none the
+  disc is their first letter, as a text with no picture wears its letter on the shelf
+  (David chose the picture over the letter on 2026-09-27). One link home, "On Instagram",
   is the one outbound address the post adds to the allowlist `test_render.py` pins.
 - **Always private.** A post is its author's, with no licence granted: it lives on the
   reader's own shelf and nowhere else, never the catalogue and never the shared shelf.
