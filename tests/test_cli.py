@@ -1483,3 +1483,38 @@ def test_seed_skips_a_row_it_cannot_build_and_keeps_going(
 
     assert len(built) == len(cli.seeds()) - 1
     assert by_id(refused).source not in built
+
+
+def test_seed_can_be_narrowed_to_one_kind(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`--to ru --kind dialogue` builds the scenes, whose Russian was written with them, and
+    nothing a plain `--to ru` would have bought besides — the head of every ordered
+    collection, Genesis first (2026-09-27)."""
+    from targum import cli
+    from targum.catalogue import Kind, by_id
+
+    built: list[str] = []
+
+    class FakeBuild:
+        def __init__(self, source: str, **options: object) -> None:
+            self.source = source
+            built.append(source)
+
+        def run(self) -> object:
+            out = tmp_path / "shared" / self.source.replace(":", "-").replace("/", "-")
+            out.mkdir(parents=True, exist_ok=True)
+            return type("Result", (), {"out_dir": out})()
+
+    monkeypatch.setattr(cli, "Build", FakeBuild)
+    monkeypatch.setattr("targum.coverage.lemmas", lambda folder: {})
+    monkeypatch.setattr("targum.annotate.lemma.for_source", lambda source, **kw: object())
+    cli.seed(out=tmp_path, to="ru", kind="dialogue")
+
+    scenes = [e for e in cli.seeds() if by_id(e).kind is Kind.dialogue]
+    assert scenes and len(built) == len(scenes)
+    assert all(by_id(e).kind is Kind.dialogue for e in scenes)
+    assert len(built) < len(cli.seeds()), "the other seeded rows are left alone"
+
+
+def test_seed_refuses_a_kind_that_does_not_exist(tmp_path: Path) -> None:
+    got = runner.invoke(app, ["seed", "--out", str(tmp_path), "--kind", "scenes"])
+    assert got.exit_code != 0
