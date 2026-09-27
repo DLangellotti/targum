@@ -60,6 +60,7 @@ def main() -> int:
     args = parser.parse_args()
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+    from targum import evals
     from targum.annotate import gold, score
 
     corpora = args.corpus or sorted(gold.CORPORA)
@@ -89,10 +90,17 @@ def main() -> int:
                 cards.append(_run(sentences, wanted, f"{corpus}+dict", args, **held))
 
     print(score.table(cards))
+    # What each corpus's files were, so the rows `targum evals --record` makes of this
+    # can be checked again against the same bytes (targum-internal#351).
+    described = json.loads(gold.describe())
+    described["fingerprints"] = {
+        corpus: evals.fingerprint(gold.root() / f"{corpus}-{split}.conllu" for split in splits)
+        for corpus in corpora
+    }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(
         json.dumps(
-            {"gold": json.loads(gold.describe()), "cards": [c.as_dict(args.top) for c in cards]},
+            {"gold": described, "cards": [c.as_dict(args.top) for c in cards]},
             ensure_ascii=False,
             indent=1,
         ),

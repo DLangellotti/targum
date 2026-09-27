@@ -152,6 +152,11 @@ def parse(text: str) -> list[Question]:
     return out
 
 
+def files(split: str = DEFAULT_SPLIT) -> list[Path]:
+    """What `load` reads, for the fingerprint a ledger row carries (`evals.fingerprint`)."""
+    return [_path(split)]
+
+
 def load(split: str = DEFAULT_SPLIT, *, answerable: bool = True) -> list[Question]:
     """The questions of a split — those the paragraph answers, unless asked otherwise."""
     path = _path(split)

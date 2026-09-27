@@ -145,7 +145,8 @@ def main() -> None:
     if not usable:
         raise SystemExit(why)
     lexicon = openrussian.load()
-    texts = sample(fetch(), args.sentences)
+    source = fetch()
+    texts = sample(source, args.sentences)
 
     placed = right = needed = covered = silero_placed = silero_right = 0
     yo_placed = yo_right = yo_needed = 0
@@ -192,7 +193,7 @@ def main() -> None:
 
     today = date.today().isoformat()
     version = engine.name
-    note = f"sentences={len(texts)}"
+    note = evals.pinned(f"sentences={len(texts)}", [source])
     rows = [
         evals.Row(
             today,

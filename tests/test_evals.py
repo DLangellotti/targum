@@ -132,6 +132,82 @@ def test_a_metric_with_nothing_to_measure_is_left_out() -> None:
     assert evals.rows_from_scorecard(payload) == []
 
 
+# -- the gold a row was scored on (targum-internal#351) ---------------------------------
+
+
+def test_one_file_is_fingerprinted_as_its_own_sha256(tmp_path: Path) -> None:
+    """So `shasum -a 256 <file>` re-checks a one-file pin without any of this code."""
+    import hashlib
+
+    gold = tmp_path / "gold.txt"
+    gold.write_bytes("שָׁלוֹם\n".encode())
+    assert evals.fingerprint([gold]) == hashlib.sha256(gold.read_bytes()).hexdigest()[:12]
+    assert len(evals.fingerprint([gold])) == 12
+
+
+def test_a_changed_byte_changes_the_fingerprint_and_order_does_not(tmp_path: Path) -> None:
+    first, second = tmp_path / "en.txt", tmp_path / "he.txt"
+    first.write_text("one\n")
+    second.write_text("אחת\n")
+    both = evals.fingerprint([first, second])
+    assert evals.fingerprint([second, first]) == both, "the order the script lists is not the set"
+    second.write_text("אחד\n")
+    assert evals.fingerprint([first, second]) != both
+
+
+def test_a_directory_is_the_files_in_it(tmp_path: Path) -> None:
+    folder = tmp_path / "works"
+    (folder / "inner").mkdir(parents=True)
+    (folder / "a.txt").write_text("a")
+    (folder / "inner" / "b.txt").write_text("b")
+    pinned = evals.fingerprint([folder])
+    (folder / "inner" / "b.txt").write_text("c")
+    assert evals.fingerprint([folder]) != pinned
+
+
+def test_a_missing_file_is_fingerprinted_rather_than_raised(tmp_path: Path) -> None:
+    """The fingerprint is taken after a run that may have spent; it must not lose it."""
+    there = tmp_path / "there.txt"
+    there.write_text("x")
+    gone = evals.fingerprint([there, tmp_path / "gone.txt"])
+    assert gone != evals.fingerprint([there])
+    assert len(gone) == 12
+
+
+def test_the_pin_goes_on_the_end_of_the_note(tmp_path: Path) -> None:
+    gold = tmp_path / "gold.txt"
+    gold.write_text("x")
+    mark = f"gold={evals.fingerprint([gold])}"
+    assert evals.pinned("", [gold]) == mark
+    said = "sentences=120 spent=$0.000"
+    assert evals.pinned(said, [gold]) == f"{said} {mark}"
+    assert evals.pinned("hand word onsets", [gold]) == f"hand word onsets; {mark}"
+
+
+def test_a_pinned_row_still_reads_and_checks(tmp_path: Path) -> None:
+    """The pin lives in the note, so the schema, `read` and the floors are untouched."""
+    gold = tmp_path / "gold.txt"
+    gold.write_text("x")
+    path = tmp_path / "ledger.jsonl"
+    evals.append([row(note=evals.pinned("sentences=1", [gold]))], path)
+    (kept,) = evals.read(path)
+    assert kept.note.endswith(f"gold={evals.fingerprint([gold])}")
+    assert evals.breaches([kept], []) == []
+
+
+def test_a_scorecard_s_fingerprint_reaches_its_rows() -> None:
+    payload = {
+        "gold": {"fingerprints": {"iahltwiki": "0123456789ab"}},
+        "cards": [
+            {"annotator": "a", "corpus": "iahltwiki", "paired": 1, "rates": {"lemma": 0.9}},
+            {"annotator": "a", "corpus": "iahltwiki+dict", "paired": 1, "rates": {"lemma": 0.9}},
+            {"annotator": "a", "corpus": "other", "paired": 1, "rates": {"lemma": 0.9}},
+        ],
+    }
+    notes = [entry.note for entry in evals.rows_from_scorecard(payload, note="run=1")]
+    assert notes == ["run=1 gold=0123456789ab", "run=1 gold=0123456789ab", "run=1"]
+
+
 def test_the_table_says_what_moved(tmp_path: Path) -> None:
     rows = [row(version="1", score=0.80), row(version="2", score=0.84)]
     drawn = evals.table(rows)
@@ -394,6 +470,30 @@ def test_only_the_seven_aliyot_are_asked_for(tmp_path: Path) -> None:
         with pytest.raises(ValueError):
             align.pockettorah_case(name, tmp_path)
     assert not any(tmp_path.iterdir()), "nothing was fetched"
+
+
+def test_a_pockettorah_pin_covers_the_table_the_books_and_the_labels(tmp_path: Path) -> None:
+    """The run's `runs/` output sits in the same folder and must not move the pin."""
+    align = _eval_align()
+    table = {
+        "parshiot": {
+            "parsha": [
+                {"_id": "Bereshit", "_verse": "Genesis 1:1 - 6:8"},
+                {"_id": "Noach", "_verse": "Genesis 6:9 - 11:32"},
+                {"_id": "Shemot", "_verse": "Exodus 1:1 - 6:1"},
+            ]
+        }
+    }
+    (tmp_path / "aliyah.json").write_text(json.dumps(table))
+    files = align.pockettorah_files(["Bereshit-1", "Noach-2", "Shemot-2"], tmp_path)
+    assert [one.relative_to(tmp_path).as_posix() for one in files] == [
+        "aliyah.json",
+        "Exodus.json",
+        "Genesis.json",
+        "labels/Bereshit-1.txt",
+        "labels/Noach-2.txt",
+        "labels/Shemot-2.txt",
+    ]
 
 
 def test_the_two_ends_of_a_recast_run_never_share_a_ledger_line() -> None:

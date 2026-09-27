@@ -514,6 +514,13 @@ def evals(
     check: Annotated[
         bool, typer.Option("--check", help="Exit 1 where a score crosses evals/floors.json.")
     ] = False,
+    fingerprint: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--fingerprint",
+            help="Print the gold= fingerprint of these reference files, and nothing else.",
+        ),
+    ] = None,
 ) -> None:
     """Where each stage stands, and what its last change did to it.
 
@@ -534,8 +541,16 @@ def evals(
     rise above, for the system the shelf runs — and exits 1 naming every line crossed.
     `tests/test_evals.py` runs the same check over the committed ledger, so a PR that
     records a worse number fails CI until the floor is moved in the same PR, in the open.
+
+    `--fingerprint <file> [--fingerprint <file> …]` prints what a row's `gold=` would be
+    over those files, so a number can be checked against the set it was scored on
+    (targum-internal#351; `evals/SOURCES.md` says which files each eval reads).
     """
     from . import evals as ledger_module
+
+    if fingerprint:
+        typer.echo(ledger_module.fingerprint(fingerprint))
+        return
 
     path = ledger or ledger_module.DEFAULT
     if record is not None:

@@ -173,6 +173,11 @@ def parse(source: str, rendered: str, language: str = "en", into: str = "he") ->
     ]
 
 
+def files(source: str = "en", into: str = "he") -> list[Path]:
+    """What `load` reads, for the fingerprint a ledger row carries (`evals.fingerprint`)."""
+    return [_path(source), _path(into)]
+
+
 def load(source: str = "en", into: str = "he") -> list[Line]:
     """Every sentence in `source`, with the `into` rendering of that same line.
 

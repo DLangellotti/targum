@@ -254,7 +254,10 @@ def main() -> None:
         print(f"\n  {one.question}\n  want: {' | '.join(one.answers)}\n  got:  {reply[:240]}")
 
     today = date.today().isoformat()
-    note = f"split={args.split} questions={len(chosen)} seed={args.seed} effort={EFFORT}"
+    note = evals.pinned(
+        f"split={args.split} questions={len(chosen)} seed={args.seed} effort={EFFORT}",
+        heq.files(args.split),
+    )
     rows_out = [
         evals.Row(
             today,

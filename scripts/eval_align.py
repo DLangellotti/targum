@@ -344,6 +344,24 @@ def pockettorah_case(name: str, gold: Path) -> tuple[list[str], list[float]]:
     )
 
 
+def pockettorah_files(names: Sequence[str], gold: Path) -> list[Path]:
+    """The fetched files a run over `names` read: the aliyah table, each aliyah's book and
+    its labels. What the ledger row's fingerprint is taken over, since the fetch reads the
+    repository's branch rather than a commit (targum-internal#351)."""
+    table = _json(gold / "aliyah.json")
+    books: set[str] = set()
+    for name in names:
+        portion = name.rpartition("-")[0]
+        for entry in table["parshiot"]["parsha"]:
+            if entry["_id"] == portion:
+                books.add(entry["_verse"].split()[0])
+    return [
+        gold / "aliyah.json",
+        *(gold / f"{book}.json" for book in sorted(books)),
+        *(gold / "labels" / f"{name}.txt" for name in names),
+    ]
+
+
 def _labels_file(name: str, gold: Path) -> Path:
     """The label file for an aliyah. The repository spells some with a capital and some
     without (`Noach-2.txt`, `vayikra-1.txt`), so both are asked for before giving up —
@@ -487,6 +505,10 @@ def run_pockettorah(args: argparse.Namespace) -> list[evals.Row]:
     marks = onsets_scored(all_found, all_onsets)
     marks["right_word_lit"] = round(lit_weighted / lit_ticks, 4)
     print(f"\nall: {marks}")
+    note = evals.pinned(
+        args.note or f"hand word onsets, chanted Torah: {', '.join(measured)}",
+        pockettorah_files(measured, gold),
+    )
     return [
         evals.Row(
             at=date.today().isoformat(),
@@ -497,7 +519,7 @@ def run_pockettorah(args: argparse.Namespace) -> list[evals.Row]:
             n=len(all_onsets),
             system=aligner.name,
             version=aligner.model,
-            note=args.note or f"hand word onsets, chanted Torah: {', '.join(measured)}",
+            note=note,
         )
         for metric, score in marks.items()
     ]
@@ -534,7 +556,10 @@ def run_clips(args: argparse.Namespace) -> list[evals.Row]:
             n=len(words),
             system=aligner.name,
             version=aligner.model,
-            note=args.note or f"first {len(clips)} clips of {args.split}.tsv, joined",
+            note=evals.pinned(
+                args.note or f"first {len(clips)} clips of {args.split}.tsv, joined",
+                [args.clips / f"{args.split}.tsv"],
+            ),
         )
     ]
 
