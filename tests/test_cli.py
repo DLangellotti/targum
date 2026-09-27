@@ -1518,3 +1518,38 @@ def test_seed_can_be_narrowed_to_one_kind(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_seed_refuses_a_kind_that_does_not_exist(tmp_path: Path) -> None:
     got = runner.invoke(app, ["seed", "--out", str(tmp_path), "--kind", "scenes"])
     assert got.exit_code != 0
+
+
+def test_catalogue_lemmas_indexes_a_home_s_catalogue_texts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#293: the index the library measures an unbuilt row against, read
+    off the annotations already on a shelf laid out the box's way, one home deep. It is
+    written where it is told to, because on the box the service account cannot write
+    beside the catalogue and root moves it there after."""
+    import json
+
+    from targum import coverage
+
+    fixtures = Path(__file__).parent / "fixtures" / "catalogue.json"
+    monkeypatch.setenv("TARGUM_CATALOGUE", str(fixtures))
+    out = tmp_path / "targums"
+    for home, name, source in (
+        ("shared", "declaration", "test:il-declaration"),
+        ("p1", "mine", "https://example.com/not-in-the-catalogue"),
+    ):
+        folder = out / home / name
+        folder.mkdir(parents=True)
+        (folder / "document.json").write_text(json.dumps({"source": source}), encoding="utf-8")
+        tokens = [{"lemma": "עם", "pos": "NOUN"}, {"lemma": "קם", "pos": "VERB"}]
+        (folder / "annotation.json").write_text(
+            json.dumps({"tokens": {"s1": tokens}}), encoding="utf-8"
+        )
+    written = tmp_path / "var" / "catalogue-lemmas.json"
+
+    got = runner.invoke(app, ["catalogue-lemmas", "--out", str(out), "--write", str(written)])
+
+    assert got.exit_code == 0, got.output
+    index = coverage.read_index(written)
+    assert set(index.texts) == {"il-declaration"}, "only catalogue texts, found by source"
+    assert sorted(index.words) == ["עם", "קם"]

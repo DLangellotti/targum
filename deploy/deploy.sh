@@ -340,6 +340,26 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum seed --out /var/lib/targum/targums
 
+      # The index the library measures an unbuilt row against, so the Words-you-know
+      # column says something for a text this reader has not opened (targum-internal#293).
+      # The server reads it beside the catalogue and nowhere else, and nothing wrote it
+      # there: the command existed and the box never ran it, so every row a reader had
+      # not built said nothing. Written after the rebuild and the seed, from the
+      # annotations they leave on the shelf, so it is as wide as the box is. It annotates
+      # nothing and buys nothing. The service account cannot write to /etc/targum, so it
+      # writes under /var/lib/targum and root puts it in place. Not fatal: an index that
+      # could not be written leaves the old one, or none, which is what the page drew
+      # before.
+      if systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+          --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+          /usr/local/bin/targum catalogue-lemmas --out /var/lib/targum/targums \
+            --write /var/lib/targum/catalogue-lemmas.json; then
+        install -o root -g targum -m 0640 /var/lib/targum/catalogue-lemmas.json \
+          /etc/targum/lemmas.json
+      else
+        echo "   the catalogue lemma index was not written; the library keeps the one it had" >&2
+      fi
+
       # Restarted again at the end, now that the shelf has been rewritten under it. The
       # first restart put the new code in front of readers; this one is cheap and makes
       # sure nothing the rebuild wrote is being served by a process that started before
