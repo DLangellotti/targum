@@ -246,6 +246,10 @@ MODES = ("find", "talk")
 #: still say which one they meant.
 CONTRIBUTOR_GRANT = "reader-grant-2026-09-22"
 
+#: What makes one editor's judgement the same judgement twice (targum-internal#354): the
+#: word, where, and what it went from and to. A note reworded is not a second judgement.
+EDITOR_FIELDS = ("language", "target", "term", "span", "before", "after")
+
 # Columns added to tables that already exist on somebody's disk. `CREATE TABLE IF NOT
 # EXISTS` does nothing to a table that is already there, so a new column has to be added
 # by hand or the first query naming it fails against every database but a brand new one
@@ -3029,6 +3033,17 @@ class Store:
         rows = self.db.execute(query + " ORDER BY at", values).fetchall()
         return [dict(row) for row in rows]
 
+    def finished(self, person_id: int | None) -> list[tuple[str, str, int]]:
+        """Every section this person has finished and not un-finished, as (document hash,
+        section, at), oldest first — what `occurrences.met` calls meeting a word."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT hash, section, at FROM section WHERE person = ? AND gone = 0 ORDER BY at",
+            (person_id,),
+        ).fetchall()
+        return [(str(row["hash"]), str(row["section"]), int(row["at"] or 0)) for row in rows]
+
     def marked(self, person: Person, language: str) -> dict[str, int]:
         """Every dictionary form this person has marked in one language, and how well.
 
@@ -3395,7 +3410,9 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
-    def settle_correction(self, correction_id: int, *, accept: bool, by: str = "author") -> int:
+    def settle_correction(
+        self, correction_id: int, *, accept: bool, by: str = "author", judge: str = ""
+    ) -> int:
         """Accept or refuse a reader's proposal, and write the decision down.
 
         **Acceptance is itself a row** — this card's words. So the proposal keeps its own
@@ -3405,6 +3422,11 @@ class Store:
 
         Applying the change to the gloss is the caller's: this store does not know what a
         gloss is, and the same decision may settle a lemma or a pointing later.
+
+        `by` is the role that settled it and `judge` which one of them, where there is an
+        account or an editor behind it (`editor_judge`). Whether an editor *should* settle
+        a reader's proposal is a standing question and not this method's
+        (targum-internal#354); it records whoever did.
         """
         state = "accepted" if accept else "rejected"
         with self.write() as db:
@@ -3423,6 +3445,7 @@ class Store:
             text=str(row["text"]),
             before=str(row["before"]),
             after=str(row["after"]),
+            judge=judge,
             state=state,
             licence="targum",
             reason=f"{state} a reader's proposal",
@@ -3446,6 +3469,26 @@ class Store:
         person by anybody holding only the rows. Inside the store, where the person table
         already lives, no pseudonym was ever going to hide anybody from the operator.
         """
+        return self._pseudonym(str(int(person_id)))
+
+    def editor_judge(self, name: str) -> str:
+        """One editor's pseudonym as a judge (targum-internal#354).
+
+        An editor is paid, not signed in, so there is no account id to salt; the name
+        they are known by here stands in for one. Salted the same way and with the same
+        never-rotated salt, for the same reason: two editors agreeing are two judges, and
+        one editor's second pass over a word is still one. The name is folded to lower
+        case and trimmed so "Dana" on Monday and "dana " on Friday are one editor.
+
+        Prefixed so it can never meet a reader's: a reader's pseudonym salts a bare
+        account number, and no account number begins "editor:".
+        """
+        folded = " ".join(name.split()).casefold()
+        if not folded:
+            raise ValueError("an editor's pseudonym needs a name")
+        return self._pseudonym(f"editor:{folded}")
+
+    def _pseudonym(self, key: str) -> str:
         import hmac
 
         with self.write() as db:
@@ -3455,9 +3498,56 @@ class Store:
                 db.execute("INSERT INTO judging (id, salt) VALUES (1, ?)", (salt,))
             else:
                 salt = str(row["salt"])
-        return hmac.new(
-            salt.encode("utf-8"), str(int(person_id)).encode("utf-8"), hashlib.sha256
-        ).hexdigest()[:16]
+        return hmac.new(salt.encode("utf-8"), key.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
+
+    def editor_pass(
+        self, stage: str, rows: list[dict[str, str]], *, judge: str = ""
+    ) -> tuple[list[int], int]:
+        """Write a paid editor's pass down as rows (targum-internal#354, door 2).
+
+        The pass arrives as a file and is kept as rows, never applied as a corrected
+        file: a corrected file is a snapshot the next rebuild overwrites, and the
+        judgements in it are lost when they are applied. Every row is `who = "editor"`
+        and `licence = "targum"` — a paid editor's judgement is targum's outright, which
+        is written on the row rather than inferred later from the role.
+
+        **It can be run twice.** A row already in the store from this editor — same
+        stage, word, line, before and after — is skipped rather than written again,
+        because a duplicate is a second judge who does not exist and `agreed` counts
+        judges. Returns the ids written and how many were already there.
+        """
+        todo = self.unkept_editor_rows(stage, rows, judge=judge)
+        written = [
+            self.correct(
+                stage,
+                who="editor",
+                judge=judge,
+                licence="targum",
+                **{k: str(row.get(k, "")) for k in (*EDITOR_FIELDS, "text", "context", "reason")},
+            )
+            for row in todo
+        ]
+        return written, len(rows) - len(todo)
+
+    def unkept_editor_rows(
+        self, stage: str, rows: list[dict[str, str]], *, judge: str = ""
+    ) -> list[dict[str, str]]:
+        """The rows of an editor's pass that this editor has not already had written down,
+        and each of those once, in the order given — what `editor_pass` would write."""
+        held = {
+            tuple(str(row[k]) for k in EDITOR_FIELDS)
+            for row in self.db.execute(
+                "SELECT * FROM correction WHERE stage = ? AND who = 'editor' AND judge = ?",
+                (stage, judge),
+            ).fetchall()
+        }
+        todo = []
+        for row in rows:
+            key = tuple(str(row.get(k, "")) for k in EDITOR_FIELDS)
+            if key not in held:
+                held.add(key)
+                todo.append(row)
+        return todo
 
     def correct(
         self,

@@ -791,6 +791,11 @@ and Brown-Driver-Briggs lexicons likewise public domain under a CC BY 4.0 compil
 Credit is required by that licence and is given here, in `annotate/oshb.py`, and by
 `targum models fetch scripture` when the data arrives.
 
+`annotate/tanakh_chapters.json`, the per-chapter word counts behind the Tanakh map
+(targum-internal#144), is counted from that tagging alone — every lemma in it is an Open
+Scriptures headword — and carries the credit and the licence in the file. It is public
+for that reason, and ships in the wheel beside `annotate/tanakh.json`.
+
 It is fetched rather than vendored, into the model directory beside the language models,
 and converted once on arrival — so a reader build parses no XML and fetches nothing.
 

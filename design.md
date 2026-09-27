@@ -394,6 +394,31 @@ chose HTML for all seven.
   reader's language, and says why: "your text took more than a few minutes to build".
   David kept it.
 
+### A haser word counts as the male word the reader knows — 2026-09-27
+
+The press card's "You know about 6 words in 10 here", and the number the chat ranks
+articles and feed items by, come from `level.known_share`: the text's tokens, bare of
+points, against the reader's known forms and the commonest words. Taking the points off
+a pointed page leaves ktiv haser (ארועים), while the common words and most of what a
+reader marks are ktiv male (אירועים), so a reader who pasted a vocalized page was told
+they knew less of it than they do. David, 2026-09-27, targum-internal#349.
+
+- **The tight rule.** A token counts as known when putting back an inner vav or yod —
+  only those two letters, only insertions, never at the first or last letter — gives a
+  known form, with or without a prefix or two peeled first. No letter is ever dropped
+  from the known side: the loose rule that ignored vav and yod on both sides is out.
+- **Only on a token that came with points.** Haser is what taking the points off leaves;
+  an unpointed page is written male already, and there the rule would only add
+  collisions (קם for קיים). An unpointed page measures exactly as it did.
+- **Measured locally, against the common words alone:** Genesis 40.0% to 43.6%, Ruth
+  40.3% to 44.0%, Avot 50.8% to 53.5%; across the 102 pointed texts on the laptop's shelf
+  the lift is 0.9 to 6.5 points, median 3.2. The 1948 declaration, unpointed, is 39.9%
+  before and after.
+
+What it does not touch: `coverage`, the figure on the library shelf and a built text,
+which intersects dictionary forms and has no spelling problem.
+
+
 ### What we inferred says so — 2026-09-27
 
 Everywhere targum has an answer it is not sure of, it has picked between two things: say
@@ -533,6 +558,20 @@ missing. The rest is on X.", and never passes a part off as the whole (David ask
 the forward walk on 2026-09-27). The door is built and **shut** (`TARGUM_X`) until David arms it, because X's
 terms forbid collecting its posts by automated means and the box fetching one is
 targum's act.
+
+Amended again the same day, for a post brought by hand (targum-internal#158; David chose
+to build it on 2026-09-27): **a post targum cannot fetch is typed in, and arrives in the
+same shape.** "Bring a post" on the Add page takes the box's place while it is open, so the
+page keeps one filled button. It asks where the post was posted (Instagram, TikTok or X),
+the handle, the name where the post shows one, what it says, its pictures in their order
+or its one video, and its link where the reader has one. The link is kept only in its
+platform's own shape; without one the head draws no way home. Nothing is fetched to fill
+the rest in: no day, because nobody was asked for one, and no face, so the disc wears the
+first letter of the name (an avatar upload was left out as one more field for a letter
+that already does the job). A video is a film post, its transcript the text and the typed
+words its caption. The pictures are drawn as brought; the words in them are read only when
+the reader presses "Also read the pictures", the Instagram post's own press, charged the
+same way. Private, like every post.
 
 
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27

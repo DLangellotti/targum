@@ -57,6 +57,13 @@
   //: dropped in next, is still that reel: the link goes up with the file, and the server
   //: keeps it only if it is a video host's own address (targum-internal#255).
   var cameFrom = "";
+  //: The quote for a post the reader brought, while it is the one on the page: reading
+  //: its pictures sends it again by this id rather than the box (targum-internal#158).
+  var posted = "";
+  //: A post's own address on the three platforms a post is brought from.
+  var POST_LINK = /^https?:\/\/([\w-]+\.)*(x|twitter|instagram|tiktok)\.com\//i;
+  //: The post form's one door from outside it, filled in where the form is built below.
+  var postForm = { open: function () {} };
 
   //: How long the box has to be still before the library is asked (targum-internal#251).
   //: A pause rather than a keystroke: the answer is worth nothing until a word is
@@ -1290,6 +1297,7 @@
   go.onclick = function () {
     var payload = options();
     var prepared;
+    posted = "";
 
     go.disabled = true;
     say(waiting());
@@ -1460,25 +1468,35 @@
     return parts.join(" ");
   }
 
+  /* The card's line of facts. Each is said only where the quote carries it: a state that
+     arrived without one leaves it out rather than printing "undefined sentences" or
+     "NaN:NaN" (targum-internal#158, where a brought post's card was the first to try). */
   function describe(job) {
+    var facts = [];
+    if (job.language) facts.push(named(job.language));
     if (job.audio) {
       var box = document.createDocumentFragment();
-      box.appendChild(document.createTextNode(named(job.language) + " · "));
-      var when = document.createElement("span");
-      when.className = "clock";
-      when.textContent = clock(job.seconds);
-      box.appendChild(when);
+      box.appendChild(document.createTextNode(facts.join(" · ")));
+      var seconds = Number(job.seconds);
+      if (isFinite(seconds) && seconds > 0) {
+        if (facts.length) box.appendChild(document.createTextNode(" · "));
+        var when = document.createElement("span");
+        when.className = "clock";
+        when.textContent = clock(seconds);
+        box.appendChild(when);
+      }
       if (job.parts > 1) {
         box.appendChild(document.createTextNode(" · " + tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
       }
       return box;
     }
-    var what =
-      job.chapters > 1
-        ? tn("add.job.chapters", job.chapters, "{n} chapter", "{n} chapters")
-        : (job.pages > 1 ? tn("add.job.pages", job.pages, "{n} page", "{n} pages") + " · " : "") +
-          tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences");
-    return document.createTextNode(named(job.language) + " · " + what);
+    if (job.chapters > 1) {
+      facts.push(tn("add.job.chapters", job.chapters, "{n} chapter", "{n} chapters"));
+    } else {
+      if (job.pages > 1) facts.push(tn("add.job.pages", job.pages, "{n} page", "{n} pages"));
+      if (job.segments > 0) facts.push(tn("add.job.sentences", job.segments, "{n} sentence", "{n} sentences"));
+    }
+    return document.createTextNode(facts.join(" · "));
   }
 
   //: What `/describe` said about the link now in the box, or null. Kept so the price,
@@ -1642,19 +1660,27 @@
     say(box);
   }
 
-  // Too long or too expensive to translate, said plainly rather than by failing.
-  function refuse(job) {
-    var box = document.createDocumentFragment();
+  // The card's first line: the title in bold, then its facts, with nothing said for a
+  // part the quote did not carry.
+  function titled(job) {
     var head = document.createElement("p");
     head.style.margin = "0";
     head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title;
-    head.appendChild(document.createTextNode(" · "));
-    head.appendChild(describe(job));
+    head.querySelector("b").textContent = job.title || "";
+    var facts = describe(job);
+    if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
+    head.appendChild(facts);
+    return head;
+  }
+
+  // Too long or too expensive to translate, said plainly rather than by failing.
+  function refuse(job) {
+    var box = document.createDocumentFragment();
+    var head = titled(job);
     box.appendChild(head);
     var why = document.createElement("span");
     why.className = "cost";
-    why.textContent = job.blocked;
+    why.textContent = job.blocked || "";
     box.appendChild(why);
     say(box, true);
   }
@@ -1666,12 +1692,7 @@
     // being worked out, and it should not vanish the moment the price lands.
     var was = foundBlock(found);
     if (was) box.appendChild(was);
-    var head = document.createElement("p");
-    head.style.margin = "0";
-    head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title;
-    head.appendChild(document.createTextNode(" · "));
-    head.appendChild(describe(job));
+    var head = titled(job);
     box.appendChild(head);
 
     // A text that arrived as pages: its first lines as read, and how many it could
@@ -1730,11 +1751,19 @@
     more.onclick = function () {
       more.disabled = true;
       var payload = options();
-      payload.source = readGiven().text;
+      if (posted) {
+        // A post the reader brought: the same post again, by the job that holds its
+        // pictures, rather than a link in the box.
+        payload.brought = {};
+        payload.again = posted;
+      } else {
+        payload.source = readGiven().text;
+      }
       payload.pictures = true;
       say(waiting());
       ask("/prepare", payload)
         .then(function (job) {
+          if (posted && job.id) posted = job.id;
           if (job.error) return say(line(job.error), true);
           if (job.blocked) return refuse(job);
           offer(job);
@@ -1750,7 +1779,27 @@
   // A refusal that has a way forward on the card: a post whose words are all in its
   // pictures says so, with the one button that reads them.
   function refusedWith(job) {
-    if (!(job.pictures_offered > 0)) return say(line(job.error), true);
+    if (!(job.pictures_offered > 0)) {
+      // A post on a platform we could not fetch it from, this time or at all: the
+      // refusal says so, and the form beside it takes the post by hand.
+      if (!posted && POST_LINK.test(cameFrom)) {
+        var why = document.createDocumentFragment();
+        why.appendChild(line(job.error));
+        var way = document.createElement("div");
+        way.className = "row";
+        var bring = document.createElement("button");
+        bring.type = "button";
+        bring.textContent = t("add.page.bring-a-post", "Bring a post");
+        var link = cameFrom;
+        bring.onclick = function () {
+          postForm.open(link);
+        };
+        way.appendChild(bring);
+        why.appendChild(way);
+        return say(why, true);
+      }
+      return say(line(job.error), true);
+    }
     var box = document.createDocumentFragment();
     box.appendChild(line(job.error));
     var row = document.createElement("div");
@@ -1804,6 +1853,184 @@
       });
     }, 700);
   }
+
+  /* --- a post, brought by hand ---------------------------------------------
+   *
+   * targum-internal#158. A post targum cannot fetch — X while its door is shut, one
+   * behind a login, one saved on a phone — is typed in: who posted it, what it says,
+   * its pictures or its video, and its link where the reader has it. It arrives as a
+   * pasted post does. The form takes the box's place while it is open, so the page
+   * keeps one filled button, and Back puts the box back as it was.
+   *
+   * Continue quotes it, as the box's Continue does, and spends nothing: the pictures
+   * go up and are kept, and their words are read only from the card's own button.
+   */
+  (function () {
+    var form = document.getElementById("post-form");
+    var open = document.getElementById("post-open");
+    var box = document.getElementById("bring-box");
+    if (!form || !open || !box) return;
+    var where = document.getElementById("post-where");
+    var handle = document.getElementById("post-handle");
+    var name = document.getElementById("post-name");
+    var words = document.getElementById("post-words");
+    var link = document.getElementById("post-link");
+    var field = document.getElementById("post-file");
+    var listed = document.getElementById("post-files");
+    var sending = document.getElementById("post-go");
+    var files = [];
+    var platform = "instagram";
+
+    function choose(which) {
+      platform = which;
+      Array.prototype.forEach.call(where.querySelectorAll(".segment"), function (one) {
+        one.setAttribute("aria-pressed", one.getAttribute("data-platform") === which ? "true" : "false");
+      });
+    }
+    Array.prototype.forEach.call(where.querySelectorAll(".segment"), function (one) {
+      one.addEventListener("click", function () {
+        choose(one.getAttribute("data-platform"));
+      });
+    });
+
+    // A link says where it was posted, so the switch follows it.
+    function follow() {
+      var host = (/^https?:\/\/([^/?#]+)/i.exec(link.value.trim()) || [])[1] || "";
+      host = host.toLowerCase().replace(/^(www|m|mobile|vm)\./, "");
+      if (host === "x.com" || host === "twitter.com") choose("x");
+      else if (host === "instagram.com") choose("instagram");
+      else if (host === "tiktok.com") choose("tiktok");
+    }
+    link.addEventListener("input", follow);
+
+    function show(on) {
+      form.hidden = !on;
+      box.hidden = on;
+      open.setAttribute("aria-expanded", on ? "true" : "false");
+      if (on) {
+        status.hidden = true;
+        handle.focus();
+      } else {
+        open.focus();
+      }
+    }
+    open.onclick = function () {
+      show(true);
+    };
+    document.getElementById("post-back").onclick = function () {
+      show(false);
+    };
+    postForm.open = function (address) {
+      if (address) {
+        link.value = address;
+        follow();
+      }
+      show(true);
+    };
+
+    function isFilm(file) {
+      return MOVING.test(file.name);
+    }
+
+    function drawn() {
+      listed.textContent = "";
+      files.forEach(function (file, n) {
+        var li = document.createElement("li");
+        li.className = "given-file";
+        var label = document.createElement("span");
+        label.className = "given-file-name";
+        label.textContent = file.name;
+        li.appendChild(label);
+        var meta = document.createElement("span");
+        meta.className = "given-file-meta";
+        meta.textContent = sized([file]);
+        li.appendChild(meta);
+        var x = document.createElement("button");
+        x.type = "button";
+        x.className = "given-file-x";
+        x.setAttribute("aria-label", t("add.remove", "Remove {file}", { file: file.name }));
+        x.textContent = "×";
+        x.onclick = function () {
+          files.splice(n, 1);
+          drawn();
+        };
+        li.appendChild(x);
+        listed.appendChild(li);
+      });
+      listed.hidden = !files.length;
+    }
+
+    document.getElementById("post-choose").onclick = function () {
+      field.click();
+    };
+    // Added to what is there, in the order chosen: a post's pictures are often picked
+    // one at a time.
+    field.onchange = function () {
+      Array.prototype.forEach.call(field.files || [], function (file) {
+        files.push(file);
+      });
+      field.value = "";
+      drawn();
+    };
+
+    function stop(said) {
+      sending.disabled = false;
+      say(line(said), true);
+    }
+
+    sending.onclick = function () {
+      var told = {
+        platform: platform,
+        handle: handle.value.trim().replace(/^@+/, ""),
+        name: name.value.trim(),
+        text: words.value.trim(),
+        link: link.value.trim(),
+      };
+      // Said here before anything goes up; the server says the same again.
+      if (!told.handle) return stop(t("add.post.no-handle", "Add the handle it was posted under."));
+      if (!told.text && !files.length) {
+        return stop(t("add.post.empty", "Paste what the post says, or add its pictures or its video."));
+      }
+      var films = files.filter(isFilm);
+      if (films.length && (films.length > 1 || files.length > 1)) {
+        return stop(t("add.post.media", "A post's media is its pictures, or one video."));
+      }
+      sending.disabled = true;
+      posted = "";
+      var payload = options();
+      payload.brought = told;
+      var up = files.length
+        ? bringing.upload(files, function (share) {
+            say(line(t("add.uploading", "We're uploading it… {share}%", { share: share })));
+          })
+        : Promise.resolve({});
+      up.then(function (sent) {
+        // The same video was already brought and built: the reader is the answer, as
+        // it is from the box.
+        if (sent.reader) {
+          window.location.href = keyed("/reader/" + sent.reader.split("/").map(encodeURIComponent).join("/"));
+          return null;
+        }
+        Object.keys(sent).forEach(function (key) {
+          if (key === "uploads" || key === "upload") payload[key] = sent[key];
+        });
+        say(waiting());
+        return ask("/prepare", payload);
+      })
+        .then(function (job) {
+          sending.disabled = false;
+          if (!job) return;
+          if (job.id) posted = job.id;
+          if (job.error) return job.pictures_offered > 0 ? refusedWith(job) : stop(job.error);
+          if (job.blocked) return refuse(job);
+          offer(job);
+        })
+        .catch(function (why) {
+          // A sentence the upload door said, or else the connection.
+          stop(typeof why === "string" ? why : t("add.unreachable", "We couldn't reach targum. Check your connection and try again."));
+        });
+    };
+  })();
 
   /* --- arriving with a link already in hand ---------------------------------
    *

@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from targum.audio import align as align_module
-from targum.audio.align import MODEL, NAME, CtcAligner, _bare
+from targum.audio.align import MODEL, NAME, CtcAligner, _bare, _blank
 from targum.errors import TargumError
 
 
@@ -257,3 +257,24 @@ def test_no_room_leaves_it_unplaced() -> None:
     from targum.audio.align import share_the_gap
 
     assert share_the_gap([(0, 10), None, (10, 20)], [0, 7, 0], total=30)[1] is None
+
+
+def test_the_hebrew_blank_is_pad_in_brackets_even_with_an_added_pad() -> None:
+    """Hebrew's tokenizer has both: `[PAD]` is the head's blank and `<pad>` is an added
+    token past the end of the head, which `forced_align` would refuse as out of range."""
+    vocab = {"[PAD]": 0, "|": 1, "א": 2, "<pad>": 40}
+    assert _blank(vocab, 30) == 0
+
+
+def test_the_french_russian_and_italian_blank_is_pad_in_angles() -> None:
+    """targum-internal#268: the jonatasgrosman models have no `[PAD]`, so every
+    non-Hebrew alignment raised KeyError before it looked for `<pad>`."""
+    vocab = {"<pad>": 0, "<s>": 1, "</s>": 2, "<unk>": 3, "|": 4, "a": 5}
+    assert _blank(vocab, 6) == 0
+
+
+def test_a_model_with_no_usable_blank_says_so() -> None:
+    with pytest.raises(TargumError, match="blank"):
+        _blank({"|": 0, "a": 1}, 2)
+    with pytest.raises(TargumError, match="blank"):
+        _blank({"<pad>": 9, "|": 0}, 2)

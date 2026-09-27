@@ -19,7 +19,10 @@ number means a text will be comfortable, not that it has been finished.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from array import array
+from bisect import bisect_left
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
@@ -170,6 +173,51 @@ class Index:
 
     words: tuple[str, ...]
     texts: dict[str, tuple[int, ...]]
+    #: How often each of an entry's dictionary forms comes round in it, running words,
+    #: aligned with its `texts` positions (targum-internal#95, #96). An `array` rather
+    #: than a tuple because this doubles the index's width and the server holds it whole:
+    #: four bytes a count instead of a pointer to an int. Missing for an entry counted by
+    #: an older targum, which answers "not counted" — the field was added without a
+    #: version bump because an older reader ignores it and a newer one reads an older
+    #: file as uncounted, so neither misreads the other.
+    counts: dict[str, array[int]] = field(default_factory=dict)
+
+    def _position(self, lemma: str) -> int | None:
+        """Where a dictionary form sits in the shared table, which is sorted."""
+        at = bisect_left(self.words, lemma)
+        return at if at < len(self.words) and self.words[at] == lemma else None
+
+    def count_in(self, entry_id: str, lemma: str) -> int | None:
+        """How many times a dictionary form comes round in one catalogue entry.
+
+        None where the entry was not counted — not in the index, or indexed before counts
+        were — and 0 where it was counted and the word is not in it: "not counted" and
+        "never there" are different claims, as "not measured" and 0% are above.
+        """
+        counts = self.counts.get(entry_id)
+        if counts is None:
+            return None
+        at = self._position(lemma)
+        if at is None:
+            return 0
+        positions = self.texts.get(entry_id, ())
+        found = bisect_left(positions, at)
+        if found < len(positions) and positions[found] == at and found < len(counts):
+            return int(counts[found])
+        return 0
+
+    def count_across(self, lemma: str, entry_ids: Iterable[str] | None = None) -> tuple[int, int]:
+        """How many times a dictionary form comes round across the counted entries, and
+        in how many of them: the whole library, or only `entry_ids` (a register, a
+        collection). An entry that was never counted adds nothing to either number."""
+        wanted = self.counts.keys() if entry_ids is None else entry_ids
+        total = texts = 0
+        for entry_id in wanted:
+            found = self.count_in(entry_id, lemma)
+            if found:
+                total += found
+                texts += 1
+        return total, texts
 
     def lemmas_for(self, entry_id: str) -> list[str]:
         """The dictionary forms of one entry, or nothing where it is not in the index."""
@@ -233,11 +281,28 @@ def _index_from(loaded: object) -> Index:
     for entry_id, positions in (loaded.get("texts") or {}).items():
         if isinstance(positions, list):
             texts[str(entry_id)] = tuple(int(at) for at in positions)
-    return Index(words=words, texts=texts)
+    counts: dict[str, array[int]] = {}
+    for entry_id, tally in (loaded.get("counts") or {}).items():
+        # A row of counts that does not line up with its row of words is dropped whole:
+        # every number in it would be some other word's.
+        if isinstance(tally, list) and len(tally) == len(texts.get(str(entry_id), ())):
+            try:
+                counts[str(entry_id)] = array("I", (int(n) for n in tally))
+            except (OverflowError, TypeError, ValueError):
+                continue
+    return Index(words=words, texts=texts, counts=counts)
 
 
-def build_index(found: dict[str, list[str]]) -> Index:
-    """Turn a map of entry id to its dictionary forms into the shared-table shape."""
+def build_index(
+    found: dict[str, list[str]], tallies: dict[str, dict[str, int]] | None = None
+) -> Index:
+    """Turn a map of entry id to its dictionary forms into the shared-table shape.
+
+    `tallies`, where given, is each entry's running count of each form
+    (`occurrences.Occurrences.totals`); an entry with no tally is indexed uncounted. A
+    form in `found` that the tally does not have counts 0 — the two are read off the
+    same annotation, so that is a word neither filter kept, not a word nobody counted.
+    """
     table = sorted({lemma for lemmas_ in found.values() for lemma in lemmas_ if lemma})
     at = {lemma: n for n, lemma in enumerate(table)}
     texts: dict[str, tuple[int, ...]] = {}
@@ -249,7 +314,11 @@ def build_index(found: dict[str, list[str]]) -> Index:
         positions = tuple(sorted(at[lemma] for lemma in set(lemmas_) if lemma))
         if positions:
             texts[entry_id] = positions
-    return Index(words=tuple(table), texts=texts)
+    counts: dict[str, array[int]] = {}
+    for entry_id, tally in (tallies or {}).items():
+        if entry_id in texts:
+            counts[entry_id] = array("I", (int(tally.get(table[at], 0)) for at in texts[entry_id]))
+    return Index(words=tuple(table), texts=texts, counts=counts)
 
 
 def write_index(path: Path, index: Index) -> None:
@@ -261,6 +330,16 @@ def write_index(path: Path, index: Index) -> None:
                 "version": INDEX_VERSION,
                 "words": list(index.words),
                 "texts": {entry_id: list(at) for entry_id, at in sorted(index.texts.items())},
+                **(
+                    {
+                        "counts": {
+                            entry_id: list(tally)
+                            for entry_id, tally in sorted(index.counts.items())
+                        }
+                    }
+                    if index.counts
+                    else {}
+                ),
             },
             ensure_ascii=False,
         ),
@@ -390,3 +469,185 @@ def monthly(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
     missing rather than drawing a slope out of two."""
     points = by_month(rows)
     return points if len(points) >= POINTS else []
+
+
+# -- the Tanakh map (targum-internal#144) ---------------------------------------------
+#
+# The same question once more, asked of every chapter of the Tanakh at once: 929 numbers,
+# one a square, each the share of that chapter's running words the reader knows. Running
+# words and not distinct ones, for the reason `Reading` gives — the commonest words come
+# round on every line, and a chapter is as readable as its lines are.
+#
+# Nothing here reads a build. The chapters are counted once from the Open Scriptures
+# tagging (`scripts/tanakh_map.py`) and the file ships in the package beside
+# `annotate/tanakh.json`, public for the reason that one is: every lemma in it is the hand
+# tagging's, filed by `headword_of`, which is the key a reader's marks on scripture are
+# kept under.
+#
+# **A chapter's language is data.** The Aramaic of Daniel and Ezra is counted apart, and a
+# chapter carries whichever language most of it is in. Asked about Hebrew, an Aramaic
+# chapter answers None — not measured, never 0% — and the Aramaic words inside a Hebrew
+# chapter (Jeremiah 10:11) are out of its Hebrew count. Asked about `arc`, the same file
+# shades those chapters from an Aramaic list, and the Hebrew ones answer None.
+
+#: The chapter file's shape, as `scripts/tanakh_map.py` writes it (`VERSION` there).
+MAP_VERSION = 1
+MAP = Path(__file__).parent / "annotate" / "tanakh_chapters.json"
+
+
+@dataclass(frozen=True)
+class Part:
+    """One language's share of one chapter: its running words, the same words by
+    frequency band, and each dictionary form's position in that language's ranked table
+    with how often it comes round."""
+
+    tokens: int
+    bands: tuple[int, ...]
+    positions: tuple[int, ...]
+    counts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class Chapter:
+    ref: str
+    verses: int
+    language: str
+    parts: dict[str, Part]
+
+
+@dataclass(frozen=True)
+class TanakhMap:
+    """Every chapter of the Tanakh, counted.
+
+    `words` is each language's dictionary forms, commonest first, so a position is also a
+    frequency rank and `cuts` turns it into a band. `books` is `(name, part, chapters)` in
+    the Hebrew order; `chapters` is keyed `"Genesis 1"` and ordered the same way.
+    """
+
+    words: dict[str, tuple[str, ...]]
+    cuts: tuple[int, ...]
+    books: tuple[tuple[str, str, int], ...]
+    chapters: dict[str, Chapter]
+    #: Each language's table the other way round: dictionary form to position.
+    at: dict[str, dict[str, int]]
+
+    def positions(self, known: set[str], language: str) -> frozenset[int]:
+        """The reader's known words as positions in one language's table."""
+        at = self.at.get(language, {})
+        return frozenset(at[word] for word in known if word in at)
+
+
+EMPTY_MAP = TanakhMap(words={}, cuts=(), books=(), chapters={}, at={})
+
+
+def _map_from(loaded: object) -> TanakhMap:
+    if not isinstance(loaded, dict) or loaded.get("version") != MAP_VERSION:
+        return EMPTY_MAP
+    words = {
+        str(language): tuple(str(word) for word in table)
+        for language, table in (loaded.get("words") or {}).items()
+    }
+    chapters: dict[str, Chapter] = {}
+    for ref, entry in (loaded.get("chapters") or {}).items():
+        parts: dict[str, Part] = {}
+        for language in words:
+            part = entry.get(language)
+            if not isinstance(part, dict):
+                continue
+            flat = [int(n) for n in part.get("words") or ()]
+            parts[language] = Part(
+                tokens=int(part.get("tokens") or 0),
+                bands=tuple(int(n) for n in part.get("bands") or ()),
+                positions=tuple(flat[0::2]),
+                counts=tuple(flat[1::2]),
+            )
+        chapters[str(ref)] = Chapter(
+            ref=str(ref),
+            verses=int(entry.get("verses") or 0),
+            language=str(entry.get("language") or "he"),
+            parts=parts,
+        )
+    return TanakhMap(
+        words=words,
+        cuts=tuple(int(n) for n in loaded.get("cuts") or ()),
+        books=tuple((str(b[0]), str(b[1]), int(b[2])) for b in loaded.get("books") or ()),
+        chapters=chapters,
+        at={
+            language: {word: n for n, word in enumerate(table)} for language, table in words.items()
+        },
+    )
+
+
+@lru_cache(maxsize=2)
+def _read_map(path: Path, stamp: tuple[int, int]) -> TanakhMap:
+    """The parse, kept while the file is unchanged; `stamp` is the cache key only."""
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return EMPTY_MAP
+    return _map_from(loaded)
+
+
+def read_map(path: Path | None = None) -> TanakhMap:
+    """The chapter file, or an empty map where there is none or it is not this shape.
+
+    Empty answers every chapter with nothing, which is what a page should draw when it
+    cannot measure: unshaded, never 0%.
+    """
+    where = path or MAP
+    try:
+        stat = where.stat()
+    except OSError:
+        return EMPTY_MAP
+    return _read_map(where, (stat.st_mtime_ns, stat.st_size))
+
+
+def chapter_map(
+    known: set[str], language: str = "he", path: Path | None = None
+) -> dict[str, float | None]:
+    """Every chapter's share of running words whose dictionary form is in `known`.
+
+    `known` is the reader's list as known — the lemmas they marked `KNOWN`, not the ones
+    they are learning, for the reason `KNOWN` gives. Keyed `"Genesis 1"`, in the Hebrew
+    order. None for a chapter in another language, or with no running words in this one:
+    the map leaves it unshaded rather than calling it unknown.
+    """
+    chapters = read_map(path)
+    have = chapters.positions(known, language)
+    out: dict[str, float | None] = {}
+    for ref, chapter in chapters.chapters.items():
+        part = chapter.parts.get(language)
+        if chapter.language != language or part is None or not part.tokens:
+            out[ref] = None
+            continue
+        hit = sum(
+            count for at, count in zip(part.positions, part.counts, strict=True) if at in have
+        )
+        out[ref] = hit / part.tokens
+    return out
+
+
+def chapter_estimate(
+    knowledge: list[float], language: str = "he", path: Path | None = None
+) -> dict[str, float | None]:
+    """Every chapter's share of running words a reader probably knows, from a profile.
+
+    `knowledge` is the share of each frequency band the reader knows, commonest band
+    first — what the test measures, corrected for guessing. A chapter is its running
+    words in each band weighted by that band's share, so a reader who knows the common
+    words and none of the rare ones is shaded as such. A shorter profile counts the bands
+    it leaves out as unknown. None where `chapter_map` would say None.
+    """
+    chapters = read_map(path)
+    out: dict[str, float | None] = {}
+    for ref, chapter in chapters.chapters.items():
+        part = chapter.parts.get(language)
+        if chapter.language != language or part is None or not part.tokens:
+            out[ref] = None
+            continue
+        weighed = sum(
+            count * min(max(share, 0.0), 1.0)
+            for count, share in zip(part.bands, knowledge, strict=False)
+        )
+        out[ref] = weighed / part.tokens
+    return out
