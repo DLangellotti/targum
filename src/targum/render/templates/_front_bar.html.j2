@@ -1,0 +1,48 @@
+{#- The front door's bar, on every page in front of the door that sells (2026-09-27).
+
+    The landing page drew it inline, and the weekly, the parasha and the daily pages had a
+    masthead of their own with a quiet Sign in and nothing to join. One bar now: the
+    lockup, the landing's places, the page's language, Sign in, and the waitlist as the
+    one call to action (§9: ink-filled).
+
+    Expects:
+    - `bar_class` — `bar` on the landing, where `landing.css` styles it; `front-bar`
+      everywhere else, where `front.css` does. Not the same name on both: `reader.css`,
+      which the other pages load, styles `.bar` sixty-odd times for the reader's own bar.
+    - `home` — the landing's own address for its places, "" on the landing itself (the
+      places are anchors on the page) and "/" elsewhere.
+    - `here` — this page's path, for the language links; the landing's is "/".
+    - `asked` — a language the visitor chose, carried to sign-in as the landing does. -#}
+{%- set home = home|default('') %}
+{%- set here = here|default('/') %}
+<header class="{{ bar_class|default('front-bar') }}">
+  <div class="col">
+    <a class="brand" href="{{ home or '#top' }}" aria-label="targum">
+      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+      </svg>
+      targum
+    </a>
+    <nav class="places" aria-label="{{ t("landing.page.on-this-page", "On this page") if not home else "targum" }}">
+      <a href="{{ home }}#how">{{ t("landing.page.how-you-learn", "How you learn") }}</a>
+      <a href="{{ home }}#watch">{{ t("landing.page.watch-and-listen", "Watch and listen") }}</a>
+      <a href="{{ home }}#talk">{{ t("landing.page.ai-assistant", "AI assistant") }}</a>
+      <a href="{{ home }}#questions">{{ t("landing.page.faq", "FAQ") }}</a>
+    </nav>
+    <div class="end">
+      {#- The page's own language, and nothing else's: two links, because a stranger
+          reading a landing page has no account and no cookie to keep a choice on, and
+          should not be given one to read a page in Russian. The names are each in
+          their own language, so neither goes through the catalogue. -#}
+      {#- Two codes and a slash. The one you are reading is ink, the other is a link:
+          nothing else is needed to say a page comes in two languages. -#}
+      <p class="tongue">
+        {%- if page_language == 'ru' %}<a href="{{ here }}?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
+        {%- else %}<b>EN</b><span>/</span><a href="{{ here }}?lang=ru" hreflang="ru">RU</a>{% endif %}
+      </p>
+      <a class="signin" href="/account/signin{% if asked %}?lang={{ asked }}{% endif %}">{{ t("landing.page.sign-in", "Sign in") }}</a>
+      <a class="btn cta small" href="#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+    </div>
+  </div>
+</header>

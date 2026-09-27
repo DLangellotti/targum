@@ -1,0 +1,313 @@
+/* The pages in front of the door that sell, drawn as the front door is (2026-09-27).
+
+   The weekly, the parasha and the four daily cycles had a look of their own — a
+   masthead with a quiet Sign in, a serif headline, and for the parasha and the dailies
+   an ink band with a picture beside it — while the landing had moved on to the desk:
+   the glass bar, the chrome's sans, the ground, cards raised by their shadow, and the
+   waitlist as the call to action. design.md §12 (2026-09-27) records the change.
+
+   These pages still load `reader.css` and `public.css`, for the tokens and for
+   everything under the hero that stays as it was: the levels, the aliyot, the frame,
+   Why targum, Made honestly. So this file does not carry the landing's token block
+   (`landing.css` copies it because it loads no other sheet), and every rule is under
+   `body.front` — both to beat `public.css`'s `.public h1` and `.public .lede`, and
+   because the names the landing uses (`.bar`, `.hero`, `.label`) mean something else
+   in the sheets beside it. The values are the landing's: where the two differ, the
+   landing is right and this is the copy to fix. */
+
+body.front {
+  /* The landing's ground and face (§13): the desk, and the chrome's sans. */
+  padding: 0;
+  background: var(--ground);
+  font: 400 0.9375rem/1.55 var(--chrome);
+  -webkit-font-smoothing: antialiased;
+  --muted: var(--ink-soft);
+  --teal-strong: rgb(31 111 107 / 0.16);
+}
+body.front main.sheet {
+  box-sizing: border-box;
+  padding-inline: 1.25rem;
+}
+
+/* --- the bar: glass, sticky, no rule (the landing's `.bar`) ------------------------ */
+body.front .front-bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 20;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+body.front .front-bar .col {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-block-size: 3.5rem;
+  max-inline-size: 64rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+body.front .front-bar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--ink);
+  font: 600 1.25rem/1 var(--reading);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+body.front .front-bar .brand svg { inline-size: 1rem; block-size: auto; }
+body.front .front-bar .places { display: flex; gap: 0.25rem; margin-inline-start: 0.75rem; min-inline-size: 0; }
+body.front .front-bar .places a {
+  color: var(--muted);
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+body.front .front-bar .places a:hover { background: var(--teal-wash); color: var(--teal); }
+body.front .front-bar .tongue {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+body.front .front-bar .tongue b { font-weight: 600; color: var(--ink); }
+body.front .front-bar .tongue span { color: var(--muted); opacity: 0.5; }
+body.front .front-bar .tongue a { color: var(--muted); text-decoration: none; }
+body.front .front-bar .tongue a:hover { color: var(--ink); }
+body.front .front-bar .end { margin-inline-start: auto; display: flex; align-items: center; gap: 0.5rem; }
+body.front .front-bar .signin {
+  color: var(--ink);
+  font-size: 0.875rem;
+  padding: 0.35rem 0.6rem;
+  white-space: nowrap;
+  text-decoration: none;
+}
+@media (max-width: 52rem) { body.front .front-bar .places { display: none; } }
+@media (max-width: 30rem) { body.front .front-bar .signin { display: none; } }
+
+/* --- buttons: three kinds, all pills; the call to action is ink (§9) --------------- */
+body.front .btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-block-size: 2.5rem;
+  padding: 0.5rem 1.15rem;
+  border: 0;
+  border-radius: 999px;
+  font: 600 0.9375rem/1 var(--chrome);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 160ms var(--ease), background-color 160ms var(--ease);
+}
+body.front .btn:active { transform: scale(0.98); }
+body.front .btn.cta { background: var(--ink); color: var(--paper); }
+body.front .btn.cta:hover { background: #322e29; }
+body.front .btn.tonal { background: var(--teal-wash); color: var(--teal); }
+body.front .btn.tonal:hover { background: var(--teal-strong); }
+body.front .btn.small { min-block-size: 2rem; padding: 0.35rem 0.8rem; font-size: 0.875rem; }
+@media (hover: none) and (pointer: coarse) { body.front .btn { min-block-size: 44px; } }
+
+/* --- the waitlist's form (the landing's `.join-form` and `.field`) ------------------- */
+body.front .join-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+  max-inline-size: 27rem;
+  margin: 0;
+}
+body.front .join-form .field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
+  margin: 0;
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+  border-radius: 12px;
+  padding: 0.35rem 0.35rem 0.35rem 1rem;
+}
+body.front .join-form .field input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  background: none;
+  font: 400 0.9375rem/1.4 var(--chrome);
+  color: var(--ink);
+  padding-block: 0.45rem;
+}
+body.front .join-form .field input:focus { outline: none; }
+body.front .join-form .field input::placeholder { color: var(--muted); }
+body.front .join-form .field:focus-within { box-shadow: 0 0 0 2px var(--teal); }
+body.front .join-note { margin: 0; font-size: 0.875rem; color: var(--muted); }
+
+/* --- the hero: the landing's, with the page's own picture beside it ----------------- */
+body.front .front-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.5rem 3rem;
+  align-items: center;
+  padding-block: 2.5rem 3rem;
+}
+body.front .front-hero .headline { display: grid; gap: 1.1rem; justify-items: start; }
+body.front .front-hero .eyebrow {
+  margin: 0;
+  font: 600 0.6875rem/1.2 var(--chrome);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+/* The landing display step (§5, §12 2026-08-31): the one headline of a public landing
+   page, in the chrome's face as the front door sets it. */
+body.front .front-hero h1 {
+  margin: 0;
+  font: 600 2.75rem/1.08 var(--chrome);
+  letter-spacing: -0.02em;
+  max-inline-size: 22ch;
+  text-wrap: balance;
+}
+/* The portion's or the cycle's own name, in its own face and at the reading size or
+   above: Hebrew is never set smaller than the Latin beside it (§5). */
+body.front .front-hero .named {
+  font-family: var(--reading-hebrew);
+  font-size: 1.5rem;
+  line-height: 1.5;
+}
+body.front .front-hero .lede {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  max-inline-size: 34rem;
+}
+body.front .front-hero .join-form { justify-self: stretch; }
+body.front .front-hero .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+body.front .front-hero .press { margin: 0.25rem 0 0; }
+/* The page's picture: a thing that exists (§12, 2026-09-01) — the scroll, a page of
+   the codex, the mosaic — as a card on the desk, raised by its shadow. `cover`, and a
+   fixed shape, so a tall scan and a wide photograph sit the same. */
+body.front .front-hero .art {
+  margin: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-raised);
+  aspect-ratio: 4 / 3.4;
+  background: var(--card);
+}
+body.front .front-hero .art img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+/* The weekly's picture is the stack of front pages, which casts its own shadow and
+   stands on the desk bare. */
+body.front .front-hero .art.papers {
+  overflow: visible;
+  box-shadow: none;
+  background: none;
+  aspect-ratio: auto;
+}
+body.front .front-hero .art.papers .stack {
+  display: block;
+  position: relative;
+  min-block-size: 24rem;
+}
+@media (max-width: 52rem) {
+  body.front .front-hero { grid-template-columns: minmax(0, 1fr); padding-block-start: 2rem; }
+  body.front .front-hero h1 { font-size: 2.25rem; }
+  body.front .front-hero .art { aspect-ratio: 16 / 7; }
+  body.front .front-hero .art.papers { display: none; }
+}
+@media (max-width: 30rem) {
+  body.front .front-hero { padding-block: 1.5rem 2rem; gap: 1rem; }
+  body.front .front-hero .headline { gap: 0.75rem; }
+  body.front .front-hero h1 { line-height: 1.05; }
+  body.front .front-hero .lede { font-size: 0.9375rem; line-height: 1.5; }
+}
+
+/* --- what is under the hero, in the chrome's face ----------------------------------- */
+/* The sections under the hero keep their structure and take the landing's type: the
+   small labels, the section titles and the prose all in the chrome's sans. The texts'
+   own words — a portion's name, a level's figure — keep their faces. */
+body.front .sheet .label,
+body.front .sheet h2 {
+  font-family: var(--chrome);
+}
+body.front .sheet .section-title {
+  font: 700 1.75rem/1.2 var(--chrome);
+  letter-spacing: -0.015em;
+}
+
+/* --- the waitlist, where the page ends (the landing's `#join`) ------------------------ */
+body.front .front-join { padding-block: 3.5rem 4rem; }
+body.front .front-join .split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 2rem 3rem;
+  align-items: start;
+}
+body.front .front-join .part-head { display: grid; gap: 0.5rem; max-inline-size: 38rem; }
+body.front .front-join .eyebrow {
+  margin: 0;
+  font: 600 0.6875rem/1.2 var(--chrome);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+body.front .front-join h2 {
+  margin: 0;
+  font: 700 1.75rem/1.2 var(--chrome);
+  letter-spacing: -0.015em;
+  text-transform: none;
+  color: var(--ink);
+  text-wrap: balance;
+}
+body.front .front-join .part-head p:not(.eyebrow) { margin: 0; font-size: 1.0625rem; }
+body.front .join-card {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1.75rem;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow-raised);
+}
+body.front .join-card .join-form { max-inline-size: none; }
+body.front .join-points { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; font-size: 0.9375rem; }
+body.front .join-points li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: 0.5rem; }
+body.front .join-points svg { inline-size: 1.05rem; block-size: 1.05rem; color: var(--teal); margin-block-start: 0.15rem; }
+@media (max-width: 52rem) { body.front .front-join .split { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 30rem) { body.front .join-card { padding: 1.1rem; } }
+
+/* Motion is always optional (§8): the presses scale and the fills fade, and neither is
+   needed to see what happened. */
+@media (prefers-reduced-motion: reduce) {
+  body.front .btn { transition: none; }
+  body.front .btn:active { transform: none; }
+}
+
+/* --- the foot: the landing's, one row under a hairline ------------------------------- */
+body.front .foot {
+  box-sizing: border-box;
+  max-inline-size: 64rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1.25rem;
+  border-block-start: 1px solid var(--hairline);
+  font-family: var(--chrome);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  text-align: start;
+}
+body.front .foot > * { white-space: nowrap; margin: 0; }
+body.front .foot a { color: var(--muted); text-decoration: none; }
+body.front .foot a:hover { color: var(--ink); }

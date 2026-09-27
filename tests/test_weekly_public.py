@@ -291,7 +291,7 @@ def test_the_page_embeds_the_reader_rather_than_linking_to_it(
     # sitting on the page.
     assert "targum is a reader for Hebrew" in page
     assert "publishes a free issue of the week's news" in page
-    assert 'class="go" href="#embed">Read this week\'s issue</a>' in page
+    assert 'class="btn tonal" href="#embed">Read this week\'s issue</a>' in page
     for level in ("aleph", "bet", "gimel"):
         assert f'href="/weekly/{WEEK}/{level}" data-level="{level}"' in page, level
     assert 'data-level="bet"\n       data-what=' in page or 'data-level="bet"' in page
@@ -488,12 +488,17 @@ def test_signed_out_cannot_use_the_signed_in_door(open_shelves: tuple[int, Path]
 
 def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Path]) -> None:
     """There used to be a Monday-reminder form here and a card at the foot of the issue
-    asking again. Both went: the one thing this page asks is to come in."""
+    asking again. Both went: the one thing this page asks is to come in — and since
+    2026-09-27 the way in is the waitlist, asked in the hero and at the foot, as the
+    front door asks it (design.md §12)."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
     assert "/weekly/subscribe" not in page
-    assert "<dialog" not in page and 'name="email"' not in page
-    assert page.count('class="go" href="/account/signin"') == 1
-    assert page.count('href="/account/signin"') == 2, "the corner and the door"
+    assert "<dialog" not in page
+    assert re.findall(r'<form[^>]*action="([^"]+)"', page) == ["/waitlist", "/waitlist"]
+    assert page.count('name="email"') == 2, "the hero's form and the foot's"
+    assert page.count('href="/account/signin"') == 1, "only the bar's"
+    assert 'class="btn cta small" href="#join"' in page, "the bar points at the foot's form"
+    assert 'id="join"' in page
 
 
 def test_the_page_still_offers_only_the_one_door(open_shelves: tuple[int, Path]) -> None:
@@ -918,7 +923,6 @@ def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Pat
         "This week",
         "Why targum",
         "Made honestly",
-        "Keep what you learn",
     ]
     how = page.split('<section class="how">', 1)[1].split("</section>", 1)[0]
     assert how.count("<li>") == 4 and "</ol>" in how
@@ -934,6 +938,6 @@ def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Pat
     assert '<span class="level here">Simplified</span>' in how, "the chips show this level"
     assert '<details class="sources" id="sources" open>' in page
     assert re.search(r"Sources <span class=\"count\">\(\d+\)</span>", page)
-    # The door is last, after the honesty, and it is the page's one inverted block.
-    assert page.index('<section class="honest">') < page.index('<section class="keep">')
-    assert page.index('<section class="keep">') > page.index('<details class="sources"')
+    # The door is last, after the honesty: the waitlist, as the front door ends.
+    assert page.index('<section class="honest">') < page.index('<section class="front-join"')
+    assert page.index('<section class="front-join"') > page.index('<details class="sources"')

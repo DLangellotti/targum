@@ -442,35 +442,34 @@ def test_both_portions_are_named_only_where_the_schedules_really_differ() -> Non
     assert "reading different portions" not in together
 
 
-def test_the_hero_band_carries_the_scroll_and_the_words(serving: int) -> None:
-    """D4: ink and the words on one side, the photograph on the other."""
+def test_the_hero_carries_the_scroll_beside_the_words(serving: int) -> None:
+    """The front door's hero (design.md §12, 2026-09-27): the headline and the waitlist
+    on one side, the photograph on the other as a card."""
     body = get(serving, "/parasha")[1]
-    assert 'class="band"' in body
-    assert 'class="pic"' in body
+    assert 'class="front-hero"' in body
+    assert 'class="art" aria-hidden="true"' in body, "the picture says nothing the words do not"
     assert "data:image/jpeg;base64," in body, "the photograph is inlined, not fetched"
-    assert 'aria-hidden="true"' in body, "the picture says nothing the words do not"
 
 
-def test_the_band_never_sets_type_over_the_picture(serving: int) -> None:
-    """The whole reason the seam is upright. If the words ever end up inside `.pic`,
-    the legibility problem this layout exists to solve has come back."""
+def test_no_type_is_set_over_the_picture(serving: int) -> None:
+    """The reason the picture stands beside the words: a headline over a photograph of
+    writing is a fight. If the words ever end up inside `.art`, it has come back."""
     import re
 
     body = get(serving, "/parasha")[1]
-    pic = re.search(r'<div class="pic"[^>]*>(.*?)</div>', body, re.S)
-    assert pic is not None
-    assert "<h1" not in pic.group(1)
-    assert "eyebrow" not in pic.group(1)
+    art = re.search(r'<figure class="art"[^>]*>(.*?)</figure>', body, re.S)
+    assert art is not None
+    assert "<h1" not in art.group(1)
+    assert "eyebrow" not in art.group(1)
 
 
-def test_the_band_is_the_dark_surface_in_both_themes(serving: int) -> None:
-    """The band's colours are constants, not the max-contrast tokens: that pair flips
-    with the theme, and flipping puts a pale panel on a dark page."""
+def test_the_call_to_action_is_the_waitlist(serving: int) -> None:
+    """David, 2026-09-27: the door on these pages is the waitlist, asked in the hero and
+    at the foot; reading is the second thing, and sign-in is only the bar's."""
     body = get(serving, "/parasha")[1]
-    assert "--band-ground: #171614" in body
-    assert "--band-ink: #e6e1d8" in body
-    band = body[body.index(".public .band {") : body.index(".public .band .pic img")]
-    assert "--ink-max" not in band and "--page-max" not in band
+    assert body.count('action="/waitlist"') == 2
+    assert 'class="btn tonal" href="#embed"' in body
+    assert body.count('href="/account/signin"') == 1
 
 
 def test_a_named_portion_gets_its_own_headline(serving: int) -> None:

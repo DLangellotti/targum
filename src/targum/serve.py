@@ -4682,7 +4682,9 @@ class Handler(BaseHTTPRequestHandler):
 
         page = parasha_page(
             portion,
-            language=self._page_language(),
+            # `?lang=` first, then the browser: the bar's EN / RU is a link, as on
+            # the front door and the weekly (design.md §12, 2026-09-27).
+            language=self._public_language(),
             schedule=schedule,
             other=elsewhere,
             diaspora=here if schedule is Schedule.diaspora else elsewhere,
@@ -4830,7 +4832,9 @@ class Handler(BaseHTTPRequestHandler):
         page = daily_page(
             cycle,
             day,
-            language=self._page_language(),
+            # `?lang=` first, then the browser: the bar's EN / RU is a link, as on
+            # the front door and the weekly (design.md §12, 2026-09-27).
+            language=self._public_language(),
             nearby=nearby,
             others=others,
             absent=list(ABSENT.items()),

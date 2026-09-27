@@ -1,9 +1,8 @@
 {#- One day of a learning cycle, with the reading itself inside it.
 
-    The parasha's anatomy without its hero. A portion is a week and can carry a
-    photograph; a day is a day, and somebody who has come for today's two mishnayot has
-    come to read them, not to be sold the idea. So the page opens on the date and the
-    reference and then gets out of the way.
+    Drawn as the front door is (design.md §12, 2026-09-27): the landing's bar, a hero
+    with the cycle's manuscript beside the headline and the waitlist under it, today's
+    reading, and the waitlist again at the foot.
 
     Nothing here is generated day to day. A calendar says which range, a cut takes it out
     of a text already on the shelf, and the page points at a reader built by a cron. -#}
@@ -11,47 +10,40 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}{{ asset('front.css') }}</style>
 {{ hebrew_face(true) }}
+{{ chrome_face() }}
 <script>{{ asset('keep.js') }}</script>
 </head>
-<body class="public">
+<body class="public front">
+{#- The front door's bar (2026-09-27). -#}
+{% with home = '/', here = ('/' ~ cycle.slug) if is_today else ('/' ~ cycle.slug ~ '/' ~ day.slug) %}{% include '_front_bar.html.j2' %}{% endwith %}
 <main class="sheet weekly parasha daily">
-  <div class="masthead">
-    <a class="brand" href="/" aria-label="targum">
-      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-      </svg>
-      <span>targum</span>
-    </a>
-    <div class="corner">
-      <a class="enter" href="/account/signin">{{ t("daily.page.sign-in", "Sign in") }}</a>
-    </div>
-  </div>
 
-  {#- The hero. The parasha's band: a seam down the middle, words on the ink half and a
-      picture on the other, so no word is ever set over the writing in the photograph.
+  {#- The hero, as the front door draws it (2026-09-27): the headline and the waitlist on
+      one side, the picture on the other as a card on the desk.
 
       The picture is a manuscript of the text the cycle reads — the Kaufmann Mishnah, the
-      Aleppo Codex, the Leningrad Codex, the Psalms scroll from Qumran — and not a
-      portrait of whoever is behind it. See `assets/manuscripts/README.md`: there is no
-      likeness of Judah the Prince to use, the one photograph of anything connected to him
-      is ShareAlike, and every "portrait" of a sage of the Mishnah is a nineteenth-century
-      invention. A page of the book is a picture of the book. -#}
-  <section class="band">
-    <div class="said">
-      <span class="eyebrow">{% if is_today %}{{ t("daily.page.today", "Today") }}{% else %}{{ day.hdate }}{% endif %}</span>
-      <h1 class="pitch">{{ t("daily.page.pitch", "{name}, every word explained.", name=cycle.name) }}</h1>
+      Aleppo Codex, the Leningrad Codex, the Gaza floor with David on it — and not a
+      portrait of whoever is behind it. See `assets/manuscripts/README.md` and §12
+      (2026-09-01): a page of the book is a picture of the book. -#}
+  <section class="front-hero">
+    <div class="headline">
+      <p class="eyebrow">{% if is_today %}{{ t("daily.page.today", "Today") }}{% else %}{{ day.hdate }}{% endif %}</p>
+      <h1>{{ t("daily.page.pitch", "{name}, every word explained.", name=cycle.name) }}</h1>
       <span class="named" lang="he" dir="rtl">{{ cycle.hebrew }}</span>
       <p class="lede">{{ cycle.blurb }}</p>
+      {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
+      <p class="actions">
+        <a class="btn tonal" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if day.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ day.hebrew or day.title }}</bdi></a>
+      </p>
     </div>
     {#- Decoration: it says nothing the words have not said, so it is hidden from a
         screen reader rather than described to one. What it is and who wrote it is said
         in words further down, where a reader can read it. -#}
-    <div class="pic" aria-hidden="true">
+    <figure class="art" aria-hidden="true">
       <img src="{{ data_uri('manuscripts/' ~ cycle.picture) }}" alt="">
-    </div>
+    </figure>
   </section>
 
   {#- What is read today, said twice: the way the cycle writes it and the way a Hebrew
@@ -130,19 +122,9 @@
     {% endif %}
   </section>
 
-  {#- The door. The parasha's, exactly: `.go` is only paper-on-ink inside `.door`, and
-      outside it the block inverts and the link does not — which is a blue underline on
-      near-black, and §9's "a beige button on a beige card is forbidden" said the other
-      way round. -#}
-  <section class="keep">
-    <h2 class="label">{{ t("daily.page.keep-what-you-learn", "Keep what you learn") }}</h2>
-    <p class="section-title">{{ t("daily.page.every-word-you-mark-remembered", "Every word you mark, remembered.") }}</p>
-    <p class="pitch-line">{{ t("daily.page.in-tomorrow-s-reading-and-in-everything", "In tomorrow's reading, and in everything you read after it.") }}</p>
-    <p class="door">
-      <a class="go" href="/account/signin">{{ t("daily.page.sign-in", "Sign in") }}</a>
-      <span class="free">{{ t("daily.page.an-email-address-no-password", "An email address. No password.") }}</span>
-    </p>
-  </section>
+  {#- The door is the waitlist (2026-09-27): a stranger who has read this far has no
+      account to sign in to. The landing's own section, from the same file. -#}
+  {% include '_front_join.html.j2' %}
 
 </main>
 

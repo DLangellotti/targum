@@ -25,37 +25,7 @@
 {{ chrome_face() }}
 </head>
 <body class="landing">
-<header class="bar">
-  <div class="col">
-    <a class="brand" href="#top" aria-label="targum">
-      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-      </svg>
-      targum
-    </a>
-    <nav class="places" aria-label="{{ t("landing.page.on-this-page", "On this page") }}">
-      <a href="#how">{{ t("landing.page.how-you-learn", "How you learn") }}</a>
-      <a href="#watch">{{ t("landing.page.watch-and-listen", "Watch and listen") }}</a>
-      <a href="#talk">{{ t("landing.page.ai-assistant", "AI assistant") }}</a>
-      <a href="#questions">{{ t("landing.page.faq", "FAQ") }}</a>
-    </nav>
-    <div class="end">
-      {#- The page's own language, and nothing else's: two links, because a stranger
-          reading a landing page has no account and no cookie to keep a choice on, and
-          should not be given one to read a page in Russian. The names are each in
-          their own language, so neither goes through the catalogue. -#}
-      {#- Two codes and a slash. The one you are reading is ink, the other is a link:
-          nothing else is needed to say a page comes in two languages. -#}
-      <p class="tongue">
-        {%- if page_language == 'ru' %}<a href="/?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
-        {%- else %}<b>EN</b><span>/</span><a href="/?lang=ru" hreflang="ru">RU</a>{% endif %}
-      </p>
-      <a class="signin" href="/account/signin{% if asked %}?lang={{ asked }}{% endif %}">{{ t("landing.page.sign-in", "Sign in") }}</a>
-      <a class="btn cta small" href="#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
-    </div>
-  </div>
-</header>
+{% with bar_class = 'bar', home = '', here = '/' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main id="top">
   <div class="col">
@@ -65,13 +35,7 @@
           <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
       </div>
       <div class="side">
-        <form class="join-form" method="post" action="/waitlist">
-          <label class="field">
-            <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}" required>
-            <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>
-          </label>
-          <p class="join-note">{{ t("landing.page.we-re-opening-in-small-groups-we-ll", "We’re opening in small groups. We’ll email you when your turn comes.") }}</p>
-        </form>
+        {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
         <div class="actions">
           <button class="btn tonal" type="button" id="watchIt">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
@@ -437,12 +401,7 @@
         <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
       </div>
       <div class="join-card">
-        <form class="join-form" method="post" action="/waitlist">
-          <label class="field">
-            <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}" required>
-            <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>
-          </label>
-        </form>
+        {% include '_join_form.html.j2' %}
         <ul class="join-points">
           <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</li>
           <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.no-card-and-nothing-to-pay-to-join", "No card, and nothing to pay to join.") }}</li>

@@ -7,65 +7,55 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-<style>{{ asset('reader.css') }}{{ asset('public.css') }}</style>
+<style>{{ asset('reader.css') }}{{ asset('public.css') }}{{ asset('front.css') }}</style>
 {{ hebrew_face() }}
+{{ chrome_face() }}
 <script>{{ asset('keep.js') }}</script>
 </head>
-<body class="public">
+<body class="public front">
+{#- The front door's bar (2026-09-27). -#}
+{% with home = '/', here = '/weekly/' ~ issue.id ~ '/' ~ level.value %}{% include '_front_bar.html.j2' %}{% endwith %}
 <main class="sheet weekly">
-  {#- One row: the name at one corner, the door and the light switch at the other, on the
-      sheet's own grid. The corner used to be pinned to the window's edge, which on a wide
-      screen is nowhere near the page, and on a phone sat on a row of its own above the
-      name. -#}
-  <div class="masthead">
-    <a class="brand" href="/" aria-label="targum">
-      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-      </svg>
-      <span>targum</span>
-    </a>
-    <div class="corner">
-      <a class="enter" href="/account/signin">{{ t("weekly.page.sign-in", "Sign in") }}</a>
-    </div>
-  </div>
-
-  {#- A landing page for one thing: reading the news in Hebrew. The pitch is in English
-      because the person it is for cannot yet read the Hebrew — that is the whole
-      premise — and the first thing under it is the product itself rather than a
-      picture of it. The headline is the one place §5's landing display size is used. -#}
-  <section class="hero with-stack">
-    <h1 class="pitch">{{ t("weekly.page.read-this-week-s-news-in-hebrew", "Read this week's news in Hebrew. Every word explained.") }}</h1>
-    <p class="lede">
-      {{ t("weekly.page.targum-is-a-reader-for-hebrew-tap", "targum is a reader for Hebrew: tap any word for what it means, say how well you
+  {#- A landing page for one thing: reading the news in Hebrew, drawn as the front door is
+      (2026-09-27). The pitch is in English because the person it is for cannot yet read
+      the Hebrew — that is the whole premise. The headline is the one place §5's landing
+      display size is used. The call to action is the waitlist; reading this week's issue
+      is the second thing, and it needs no account. -#}
+  <section class="front-hero">
+    <div class="headline">
+      <h1>{{ t("weekly.page.read-this-week-s-news-in-hebrew", "Read this week's news in Hebrew. Every word explained.") }}</h1>
+      <p class="lede">
+        {{ t("weekly.page.targum-is-a-reader-for-hebrew-tap", "targum is a reader for Hebrew: tap any word for what it means, say how well you
       know it, and every page after remembers.") }}
-    </p>
-    {#- One action. The corner already offers Sign in; a second one beside the primary
-        made the first screen ask twice. -#}
-    <p class="cta">
-      <a class="go" href="#embed">{{ t("weekly.page.read-this-week-s-issue", "Read this week's issue") }}</a>
-    </p>
-    {#- The press line: the outlets this issue cites, as their own wordmarks in their
-        own colours — §12 records the departure. Only outlets the foot's sources list
-        names; the marks and their licences are `assets/press/`. -#}
-    {%- if press %}
-    <p class="press">
-      <span class="from">{{ t("weekly.page.from-this-week-s-reporting-in", "From this week's reporting in") }}</span>
-      {%- for outlet, mark in press %}
-      <img src="{{ data_uri(mark) }}" alt="{{ outlet }}">
-      {%- endfor %}
-    </p>
-    {%- endif %}
+      </p>
+      {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
+      <p class="actions">
+        <a class="btn tonal" href="#embed">{{ t("weekly.page.read-this-week-s-issue", "Read this week's issue") }}</a>
+      </p>
+      {#- The press line: the outlets this issue cites, as their own wordmarks in their
+          own colours — §12 records the departure. Only outlets the foot's sources list
+          names; the marks and their licences are `assets/press/`. -#}
+      {%- if press %}
+      <p class="press">
+        <span class="from">{{ t("weekly.page.from-this-week-s-reporting-in", "From this week's reporting in") }}</span>
+        {%- for outlet, mark in press %}
+        <img src="{{ data_uri(mark) }}" alt="{{ outlet }}">
+        {%- endfor %}
+      </p>
+      {%- endif %}
+    </div>
     {#- The week's papers, beside the pitch: photographs of real Israeli front pages,
         because nothing else on the page says "news" before the reader does. Imagery
-        (§12): aria-hidden, square corners, kept as printed in both themes, and it
-        appears only on a wide window. The images and what they are — including that
-        they are not free files — are recorded in `assets/press/README.md`. -#}
-    <div class="stack" aria-hidden="true">
-      <div class="paper"><img src="{{ data_uri('press/pages/yedioth.jpg') }}" alt=""></div>
-      <div class="paper"><img src="{{ data_uri('press/pages/haaretz.jpg') }}" alt=""></div>
-      <div class="paper"><img src="{{ data_uri('press/pages/hayom.jpg') }}" alt=""></div>
-    </div>
+        (§12): aria-hidden, square corners, and it appears only on a wide window. The
+        images and what they are — including that they are not free files — are
+        recorded in `assets/press/README.md`. -#}
+    <figure class="art papers" aria-hidden="true">
+      <div class="stack">
+        <div class="paper"><img src="{{ data_uri('press/pages/yedioth.jpg') }}" alt=""></div>
+        <div class="paper"><img src="{{ data_uri('press/pages/haaretz.jpg') }}" alt=""></div>
+        <div class="paper"><img src="{{ data_uri('press/pages/hayom.jpg') }}" alt=""></div>
+      </div>
+    </figure>
   </section>
 
   {#- The page's spine: one small label over each block, in the one register the page
@@ -237,17 +227,6 @@
   {%- endif %}
   </section>
 
-  {#- The door, last, and the page's one inverted block (§9): ink, pale text, the accent
-      button — striking because it is the only one. Full width, like the reader. -#}
-  <section class="keep">
-    <h2 class="label">{{ t("weekly.page.keep-what-you-learn", "Keep what you learn") }}</h2>
-    <p class="section-title">{{ t("weekly.page.every-word-you-mark-remembered", "Every word you mark, remembered.") }}</p>
-    <p class="pitch-line">{{ t("weekly.page.in-next-week-s-issue-and-in", "In next week's issue, and in everything you read after it.") }}</p>
-    <p class="door">
-      <a class="go" href="/account/signin">{{ t("weekly.page.sign-in", "Sign in") }}</a>
-      <span class="free">{{ t("weekly.page.an-email-address-no-password", "An email address. No password.") }}</span>
-    </p>
-  </section>
 
   {%- if archive %}
   <section class="archive">
@@ -259,6 +238,10 @@
     </ul>
   </section>
   {%- endif %}
+
+  {#- The door is the waitlist (2026-09-27): a stranger who has read this far has no
+      account to sign in to. The landing's own section, from the same file. -#}
+  {% include '_front_join.html.j2' %}
 </main>
 
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
