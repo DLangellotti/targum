@@ -45,6 +45,13 @@
   .bo .decide button { cursor: pointer; }
   .bo .trace pre { font-size: 0.75rem; white-space: pre-wrap; margin: 0.4rem 0 0; color: var(--ink-soft); }
   .bo a.topup { font-size: 0.8125rem; font-weight: 600; white-space: nowrap; }
+  /* The visitors' days, drawn as bars. Sized by attribute rather than by style,
+     because the page's policy names its style blocks by hash and admits no other. */
+  .bo .days { inline-size: 100%; block-size: 4rem; display: block; margin: 0 0 0.5rem; }
+  .bo .days rect { fill: var(--leaf); }
+  .bo .days rect.part { fill: var(--rule); }
+  .bo .tallies { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0 1.5rem; margin-block-end: 1.5rem; }
+  .bo .tallies h3 { font-size: 0.875rem; margin: 1rem 0 0.25rem; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -90,6 +97,63 @@
   <p class="taken">{{ survey.waiting.on }} waiting &middot;
     {{ survey.waiting.pending }} not yet confirmed &middot;
     {{ survey.waiting.off }} left the list</p>
+  {%- endif %}
+
+  {#- Who came to the front door (`visits.py`): counted each hour off the proxy's
+      access log by `targum roll-visits`. No script, no cookie, nothing sent anywhere.
+      A visitor is an address and browser within one day, so the window's figure is a
+      sum of days, not a count of people. -#}
+  <h2 id="visitors">Visitors</h2>
+  {%- if not visits or not visits.any() %}
+  <p class="nothing">Nothing counted yet. The roll-up runs hourly on the box.</p>
+  {%- else %}
+  {%- set tallest = visits.days|map(attribute='visitors')|max or 1 %}
+  <p class="taken">{{ visits.visitor_days }} visitor-days &middot; {{ visits.views }} pages
+    in the last {{ days }} days</p>
+  <svg class="days" viewBox="0 0 {{ days * 10 }} 40" preserveAspectRatio="none" role="img"
+       aria-label="Visitors a day, oldest on the left">
+    {%- for day in visits.days|reverse %}
+    {%- set high = (day.visitors / tallest * 38)|round(1) %}
+    <rect x="{{ loop.index0 * 10 + 1 }}" y="{{ 40 - high }}" width="8" height="{{ high }}"
+          {%- if day.views and not day.whole %} class="part"{% endif %}><title>{{ day.day }}: {{ day.visitors }}</title></rect>
+    {%- endfor %}
+  </svg>
+  <div class="tallies">
+    {%- for kind, heading in (('page', 'Pages'), ('referrer', 'Came from'), ('campaign', 'Campaigns'), ('country', 'Countries')) %}
+    <div>
+      <h3>{{ heading }}</h3>
+      {%- if visits.top.get(kind) %}
+      <table>
+        <tbody>
+          {%- for key, n in visits.top[kind] %}
+          <tr><td>{{ key }}</td><td class="n">{{ n }}</td></tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+      {%- elif kind == 'country' and not visits.has_countries %}
+      <p class="nothing">No country file yet.</p>
+      {%- else %}
+      <p class="nothing">None.</p>
+      {%- endif %}
+    </div>
+    {%- endfor %}
+  </div>
+  <table>
+    <thead><tr><th>Day</th><th class="n">Visitors</th><th class="n">Pages</th><th class="n">Waitlist</th></tr></thead>
+    <tbody>
+      {%- for day in visits.days if day.views or asked.get(day.day) %}
+      <tr>
+        <td>{{ day.day }}{% if not day.whole %} <span class="quiet">partial</span>{% endif %}</td>
+        <td class="n">{{ day.visitors }}</td>
+        <td class="n">{{ day.views }}</td>
+        <td class="n">{{ asked.get(day.day, 0) or '·' }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  <p class="note">Pages and referring sites are counted in pages; campaigns and countries in
+    visitors. Campaigns are <code>?utm_source=</code> on the link. Countries:
+    <a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts

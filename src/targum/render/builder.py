@@ -1541,6 +1541,7 @@ def back_office_page(
     said: str = "",
     incidents: list[Any] | None = None,
     balances: dict[str, dict[str, Any]] | None = None,
+    visits: object | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -1581,6 +1582,11 @@ def back_office_page(
             kinds=[k.value for k in Kind],
             services=services,
             said_max=SAID_MAX,
+            # `visits.Visits`, typed loosely for the reason `found` is.
+            visits=visits,
+            # Waitlist sign-ups by the day they asked, beside that day's visitors: the
+            # one conversion the front door has.
+            asked=Counter(who.asked for who in getattr(found, "waiting_list", [])),
         )
     )
 

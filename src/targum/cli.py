@@ -934,6 +934,44 @@ def watch_health(
     console.print(said)
 
 
+@app.command("roll-visits")
+def roll_visits(
+    store: Annotated[
+        Path | None,
+        typer.Option("--store", help="The store; the counts are kept beside it."),
+    ] = None,
+    log: Annotated[
+        Path | None, typer.Option("--log", help="Caddy's access log for the product.")
+    ] = None,
+) -> None:
+    """Count the front door's visitors off the access log, and keep the counts.
+
+    Run every hour by targum-visits.timer on the box. Reads only what is new since the
+    last pass, keeps per-day counts beside the store for the back office, and fetches
+    DB-IP's country file when it is a month old. No address outlives the pass.
+    """
+    from . import visits
+    from .serve import default_store
+
+    beside = (store or default_store()).parent
+    where = visits.geoip_path(beside)
+    if visits.geoip_stale(where):
+        try:
+            month = visits.fetch_geoip(where)
+            console.print(f"[dim]{visits.GEOIP_CREDIT}, {month}, {visits.GEOIP_LICENCE}.[/dim]")
+        except TargumError as error:
+            # Countries are the one part that can go without; the counts still go on.
+            console.print(f"[yellow]{error}[/yellow] [dim]Counting without countries.[/dim]")
+    own = urlparse(os.environ.get("TARGUM_PUBLIC_ADDRESS", "").strip()).hostname or "targum.page"
+    written = visits.roll_up(
+        beside / visits.FILE,
+        log=log or visits.LOG,
+        own=own,
+        country=visits.country_reader(where),
+    )
+    console.print(f"{written} day{'' if written == 1 else 's'} counted.")
+
+
 @app.command()
 def restore(
     backup: Annotated[Path, typer.Argument(help="The copy to put back.")],

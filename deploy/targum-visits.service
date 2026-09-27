@@ -1,0 +1,34 @@
+# /etc/systemd/system/targum-visits.service — installed by deploy.sh, started every hour
+# by targum-visits.timer.
+#
+# Counts the front door's visitors off Caddy's access log and keeps per-day counts in
+# /var/lib/targum/visits.sqlite for the back office (`visits.py`). No script on any
+# page, no cookie, nothing sent anywhere; the one fetch is DB-IP's country file, once a
+# month, into /var/lib/targum.
+#
+# Caddy writes its log 0600 as caddy unless the Caddyfile says otherwise, which is why
+# the Caddyfile's `mode 0640` and the group below go together.
+#
+#   journalctl -u targum-visits -n 20
+
+[Unit]
+Description=targum visitor counts
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=targum
+Group=targum
+SupplementaryGroups=caddy
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum roll-visits --store /var/lib/targum/targum.db
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum
