@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Write, build, publish, announce and ship one issue of the weekly, start to finish.
+# Write, build, publish, ship and announce one issue of the weekly, start to finish.
 #
 #   ./deploy/weekly-run.sh              this week
 #   ./deploy/weekly-run.sh 2026-w38     a named one
@@ -27,7 +27,7 @@
 # instead of English, built into folders of its own after `publish` has said yes. That
 # order is the point: an issue the guards refuse spends nothing on Russian, and a Russian
 # build that stops cannot hold back an English issue that passed. A run whose Russian
-# stopped still announces and ships the English, then ends non-zero and says so; running
+# stopped still ships and announces the English, then ends non-zero and says so; running
 # it again builds only the Russian that is missing (the translation cache keeps whatever
 # it already bought) and ships it. Until then a Russian subscriber is mailed in Russian
 # and lands on a Russian page with the English reader in it, which is the most there is.
@@ -169,13 +169,6 @@ for language in ${TARGUM_WEEKLY_LANGUAGES-ru}; do
   fi
 done
 
-if [ -n "${TARGUM_PUBLIC_ADDRESS:-}" ]; then
-  say "telling everybody who asked"
-  "$TARGUM" weekly announce "$WEEK" || FAILED="$FAILED announce"
-else
-  say "no TARGUM_PUBLIC_ADDRESS, so nobody is being told (the issue is still out)"
-fi
-
 if [ -n "${TARGUM_HOST:-}" ]; then
   say "shipping to $TARGUM_HOST"
   # A hotel network kills this at kex_exchange_identification while the site is perfectly
@@ -184,6 +177,27 @@ if [ -n "${TARGUM_HOST:-}" ]; then
   ./deploy/ship-weekly.sh "$WEEK" || FAILED="$FAILED ship"
 else
   say "no TARGUM_HOST, so it stays here"
+fi
+
+# The mail goes out from the box, after the ship (targum-internal#346, David 2026-09-27).
+# Everybody who subscribes on targum.page is a row in the box's database, and this used to
+# announce from the laptop's, where they never were: the site's subscribers would never
+# have been mailed. On the box the subscribers, the mailer and the issue it links to are
+# all in one place, and after the ship so every letter points at a page that is there.
+# The store is named: as the targum user a bare announce would open ~/.targum under
+# /srv/targum rather than the database the service serves from.
+if [ -z "${TARGUM_HOST:-}" ]; then
+  say "no TARGUM_HOST, so nobody is being told (the issue is still out here)"
+elif printf '%s' "$FAILED" | grep -q ship; then
+  say "the ship failed, so nobody is told yet: a letter would link to a page that is not there"
+  FAILED="$FAILED announce"
+else
+  say "telling everybody who asked, from $TARGUM_HOST"
+  ssh -o ServerAliveInterval=60 "$TARGUM_HOST" "systemd-run --quiet --wait --pipe --collect \
+      --uid=targum --gid=targum --setenv=HOME=/srv/targum \
+      -p EnvironmentFile=/etc/targum/targum.env \
+      /usr/local/bin/targum weekly announce '$WEEK' --store /var/lib/targum/targum.db" \
+    || FAILED="$FAILED announce"
 fi
 
 if [ -n "$FAILED" ]; then
