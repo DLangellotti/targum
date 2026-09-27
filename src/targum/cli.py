@@ -373,9 +373,14 @@ def catalogue_lemmas(
     without building anything. It buys nothing and annotates nothing: a catalogue text
     with no built copy on this machine is left out, and `targum rebuild --words` or a
     seed run is what brings it in. Safe to run again; it rewrites the whole index.
+
+    It also counts how often each word comes round in each text (targum-internal#95,
+    #96), from the same annotations, and leaves each text's places cached beside it as
+    `occurrences.json`. Nothing reads the counts on a page yet.
     """
     from . import catalogue as catalogue_module
     from .coverage import build_index, lemmas, write_index
+    from .occurrences import text_occurrences
 
     root = out or Path("targum-out")
     if not root.is_dir():
@@ -383,6 +388,7 @@ def catalogue_lemmas(
 
     by_source = {entry.source: entry.id for entry in catalogue_module.everything()}
     found: dict[str, list[str]] = {}
+    tallies: dict[str, dict[str, int]] = {}
     for document in sorted(root.glob("*/*/document.json")):
         try:
             source = str(json.loads(document.read_text(encoding="utf-8")).get("source", ""))
@@ -394,8 +400,11 @@ def catalogue_lemmas(
         words = lemmas(document.parent)
         if words:
             found[entry_id] = words
+            counted = text_occurrences(document.parent)
+            if counted is not None:
+                tallies[entry_id] = counted.totals()
 
-    index = build_index(found)
+    index = build_index(found, tallies)
     where = write or (
         (catalogue_module.catalogue_path() or Path.home() / ".targum" / "catalogue.json").parent
         / "lemmas.json"
@@ -406,6 +415,9 @@ def catalogue_lemmas(
         f"[green]{reach}[/green] of {len(by_source)} catalogue texts "
         f"[dim]{len(index.words):,} distinct words → {where}[/dim]"
     )
+    if index.counts:
+        running = sum(sum(tally) for tally in index.counts.values())
+        console.print(f"[dim]{len(index.counts)} counted, {running:,} running words[/dim]")
     if reach < len(by_source):
         console.print(
             f"[dim]{len(by_source) - reach} have no built copy here; "
