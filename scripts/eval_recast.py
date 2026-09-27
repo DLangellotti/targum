@@ -519,11 +519,22 @@ def main() -> None:
     references = [str(row["he"]) for row in chosen]
     # The lemmatizer is loaded after the turns and dropped before the judging, so the
     # model is not held in memory through four hundred API calls.
-    reader = lemma.for_source("chat:eval")
-    got = content_lemmas(reader, candidates, into)
-    want = content_lemmas(reader, references, into)
-    del reader
-    overlaps = [jaccard(a, b) for a, b in zip(got, want, strict=True)]
+    #
+    # The overlap is the second score and the judge the first, so a language no
+    # lemmatizer here may read is judged and not thrown away. Stanza refuses French for a
+    # paid offering, and the run that first met that had bought 200 recasts and died
+    # before judging one (targum-internal#358, 2026-09-27). Its overlap is left out of
+    # the ledger rather than written as zero.
+    overlaps: list[float] | None
+    try:
+        reader = lemma.for_source("chat:eval")
+        got = content_lemmas(reader, candidates, into)
+        want = content_lemmas(reader, references, into)
+        del reader
+        overlaps = [jaccard(a, b) for a, b in zip(got, want, strict=True)]
+    except TargumError as why:
+        print(f"  no lemma overlap for {into}: {why.message}")
+        overlaps = None
     unpaired = sum(1 for line in candidates if not line)
 
     verdicts: list[tuple[str, str]] = []
@@ -548,12 +559,13 @@ def main() -> None:
     unjudged = sum(1 for verdict, _ in verdicts if verdict == "none")
     judged = len(verdicts) - unjudged
     ok_share = (sum(1 for verdict, _ in verdicts if verdict == "yes") / judged) if judged else 0.0
-    overlap = sum(overlaps) / len(overlaps)
+    overlap = sum(overlaps) / len(overlaps) if overlaps else None
+    shown_overlap = "n/a" if overlap is None else f"{overlap:.3f}"
     if args.save:
         args.save.parent.mkdir(parents=True, exist_ok=True)
         with args.save.open("w", encoding="utf-8") as out:
             for row, candidate, (verdict, why), score in zip(
-                chosen, candidates, verdicts, overlaps, strict=True
+                chosen, candidates, verdicts, overlaps or [None] * len(chosen), strict=True
             ):
                 out.write(
                     json.dumps(
@@ -564,7 +576,7 @@ def main() -> None:
                             "got": candidate,
                             "verdict": verdict,
                             "why": why,
-                            "overlap": round(score, 3),
+                            "overlap": None if score is None else round(score, 3),
                             # Only for a turn bought in this run: one kept from an earlier
                             # run was kept for its line, and its reply is in that run's file.
                             **(
@@ -586,7 +598,7 @@ def main() -> None:
         f"exemplars {'on' if args.exemplars else 'off'}, known={args.known}"
     )
     print(
-        f"judge says right: {ok_share:.1%} of {judged} judged   lemma overlap: {overlap:.3f}   "
+        f"judge says right: {ok_share:.1%} of {judged} judged   lemma overlap: {shown_overlap}   "
         f"no recast: {unpaired}   judge wrote nothing: {unjudged}"
     )
     print(f"spent ${usage.cost():.2f} over {usage.calls} calls")
@@ -625,7 +637,7 @@ def main() -> None:
             "chat",
             CHAT_MODEL,
             "lemma_overlap",
-            round(overlap, 4),
+            round(overlap or 0.0, 4),
             len(chosen),
             corpus=corpus,
             note=note,
@@ -642,6 +654,8 @@ def main() -> None:
             note=note,
         ),
     ]
+    if overlap is None:
+        rows_out = [row for row in rows_out if row.metric != "lemma_overlap"]
     evals.append(rows_out, args.ledger)
     print(f"\nappended {len(rows_out)} rows to {args.ledger}")
 
