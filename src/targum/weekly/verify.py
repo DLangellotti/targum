@@ -14,7 +14,8 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..annotate.base import NOT_VOCABULARY
+from ..annotate.base import not_vocabulary
+from ..models import Token
 from .models import FACTS_ONLY, LEVELS, Level, Story
 
 #: How many words in a row count as somebody else's sentence rather than the same facts
@@ -179,20 +180,20 @@ def gauge(markdown: str, language: str = "he") -> Gauge:
     words = sum(len(segment.text.split()) for segment in sentences)
     annotation = Annotator().annotate(segmented)
 
-    def surfaces(wanted: Callable[[str | None], bool]) -> frozenset[str]:
+    def surfaces(wanted: Callable[[Token], bool]) -> frozenset[str]:
         found = {
             token.surface.casefold()
             for tokens in annotation.tokens.values()
             for token in tokens
-            if wanted(token.pos)
+            if wanted(token)
         }
         return frozenset(word for surface in found for word in words_of(surface))
 
     return Gauge(
         difficulty=hard_share(annotation, language),
         sentence=round(words / len(sentences), 1) if sentences else 0.0,
-        names=surfaces(lambda pos: pos in NOT_VOCABULARY),
-        verbs=surfaces(lambda pos: pos in {"VERB", "AUX"}),
+        names=surfaces(lambda token: not_vocabulary(token.pos, token.entity)),
+        verbs=surfaces(lambda token: token.pos in {"VERB", "AUX"}),
     )
 
 

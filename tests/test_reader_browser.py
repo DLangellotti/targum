@@ -7096,3 +7096,89 @@ def test_a_reader_with_the_grant_can_say_a_meaning_is_wrong(browser, tmp_path: P
     assert said["document"], "and which text, so the licence can be applied later"
     assert "Thank you" in page.locator("#gloss-card .fix-said").inner_text()
     context.close()
+
+
+#: What the card says about the word it is open on: its meaning, whether it offers to
+#: look one up, and its grammar line.
+SAYS = """
+() => {
+  const card = document.getElementById('gloss-card');
+  if (!card || card.hidden) return null;
+  const meaning = card.querySelector('.meaning');
+  const use = card.querySelector('.use');
+  return {
+    meaning: meaning ? meaning.textContent : null,
+    asking: !!card.querySelector('.look-up'),
+    use: use ? use.textContent : "",
+  };
+}
+"""
+
+
+def test_a_name_is_one_chip_that_says_what_it_is_and_means_nothing(browser, tmp_path: Path) -> None:
+    """targum-internal#149, on the page. בן־גוריון is one person and one chip; the card on
+    him says "name" and offers no meaning — the glossary's "uncle" for דוד is David's
+    namesake, not David. A place says "place". A date's word keeps its meaning and says
+    it is part of a date."""
+    from test_entities import TEXT, said
+
+    from targum.annotate.dicta import _tokens
+
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=TEXT)
+    pages = render(
+        Document(
+            source="memory",
+            title="Names",
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.paragraph, text=TEXT)],
+            content_hash="h",
+        ),
+        SegmentedDocument(document_hash="h", language="he", segmenter="t", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="h",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "David Ben-Gurion, Rabbi, in Jerusalem on Monday."},
+            )
+        ],
+        tmp_path / "names",
+        annotation=Annotation(
+            document_hash="h",
+            language="he",
+            annotator="t",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: _tokens(said())},
+        ),
+        glossaries={
+            "en": Glossary(
+                source_language="he",
+                target_language="en",
+                provider="p",
+                entries={"דוד": "uncle", "ירושלים": "Jerusalem", "רבי": "rabbi", "יום": "day"},
+            )
+        },
+    )
+    context, page = open_reader(browser, pages[0])
+    words = page.evaluate("() => [...document.querySelectorAll('.w')].map((w) => w.textContent)")
+    assert "דוד בן־גוריון" in words, f"the name was not one chip: {words}"
+
+    page.evaluate(TAP_AGAIN, "דוד בן־גוריון")
+    card = page.evaluate(SAYS)
+    assert card["use"] == "name"
+    assert not card["meaning"] and not card["asking"], f"a name was glossed: {card}"
+
+    page.evaluate(TAP_AGAIN, "בירושלים")
+    card = page.evaluate(SAYS)
+    assert card["use"] == "place" and not card["meaning"] and not card["asking"]
+
+    page.evaluate(TAP_AGAIN, "רבי")
+    assert page.evaluate(SAYS)["meaning"] == "rabbi", "a title keeps its meaning"
+
+    page.evaluate(TAP_AGAIN, "ביום")
+    card = page.evaluate(SAYS)
+    assert card["meaning"] == "day" and card["use"].startswith("date"), card
+    context.close()

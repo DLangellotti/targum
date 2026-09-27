@@ -279,7 +279,8 @@ class Token(Artifact):
     split: bool = False
     # The part of speech Stanza gave the content word, as a Universal POS tag. Read by
     # nothing in the reader; it is how a difficulty count leaves names and numerals
-    # out, since a name is not a word a learner has to acquire. Absent on annotations
+    # out, since a name is not a word a learner has to acquire — wherever `entity` below
+    # is absent, since that is the better answer where it exists. Absent on annotations
     # written before it existed.
     pos: str | None = None
     # Hebrew verbs only, and only where Stanza tagged a binyan. The root is worked out
@@ -325,6 +326,14 @@ class Token(Artifact):
     # exact. Only the scripture path knows it; absent everywhere else, and on annotations
     # written before it existed (targum-internal#64).
     lexeme: str | None = None
+    # What a named-entity reader said about this occurrence, in BIO form: `B-PER` on the
+    # word that opens a person's name, `I-PER` on each word after it, `B-GPE` for a
+    # place, and so on through the model's labels (TTL a title, TIMEX a date, ORG, LOC…).
+    # `O` only where it overrules the part of speech: a PROPN the NER placed in no
+    # entity. Where this is set it, and not `pos`, says whether a word is a name — see
+    # `annotate.base.not_vocabulary`. Only DICTA reads entities; absent everywhere else,
+    # and on annotations written before it did (targum-internal#149).
+    entity: str | None = None
 
     @property
     def glossed_as(self) -> str:

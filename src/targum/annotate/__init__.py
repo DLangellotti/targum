@@ -16,7 +16,6 @@ from .base import (
     LANGUAGES,
     NEVER_A_VERB,
     NOT_A_WORD,
-    NOT_VOCABULARY,
     UNRATED,
     Bands,
     Lemmatizer,
@@ -27,6 +26,7 @@ from .base import (
     is_prefixed_foreign,
     is_stranded_prefix,
     method_label,
+    not_vocabulary,
     unread,
 )
 from .biblical import METHOD as TANAKH_METHOD
@@ -238,7 +238,7 @@ class Annotator:
                     # Read, and deliberately not rated. See `elsewhere` above.
                     band = UNRATED
                     in_register = None
-                elif token.pos in NOT_VOCABULARY:
+                elif not_vocabulary(token.pos, token.entity):
                     # A name is rare in any corpus, and rating it would call every name
                     # in a chronicle "extremely hard". It has no difficulty: it is a
                     # token the reader can tap, not a word they have to learn. The same

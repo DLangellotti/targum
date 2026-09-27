@@ -1264,6 +1264,8 @@
   "reader.grammar.determiner": "определитель",
   "reader.grammar.number": "число",
   "reader.grammar.name": "имя",
+  "reader.grammar.place": "место",
+  "reader.grammar.date": "дата",
   "reader.grammar.like-most-nouns-in": "как большинство существительных на -{ending}",
   "contents.page.your-learn-page": "Ваша страница «Учиться»",
   "contents.page.targum-learn": "targum — Учиться",

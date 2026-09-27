@@ -22,6 +22,7 @@ from ..errors import ProviderError, TargumError
 from ..models import VERB_MARK, Annotation, Glossary
 from ..translate.prompts import language_name
 from . import aramaic, closed, oshb
+from .base import is_named
 
 BATCH_SIZE = 40
 # Glosses are short, so a batch is cheap. Tokens per lemma, in and out, for the estimate
@@ -297,6 +298,11 @@ def unique_lemmas(
         if only is not None and segment_id not in only:
             continue
         for token in tokens:
+            if is_named(token.entity):
+                # A person or a place the NER named is labelled on the card, not glossed
+                # (targum-internal#149). The same spelling met as a word is still looked
+                # up from that occurrence: דוד the uncle is not David.
+                continue
             # An unrated word is still a word worth looking up.
             if token.band >= min_band or (token.band == 0 and min_band <= 1):
                 form = token.glossed_as

@@ -24,6 +24,7 @@ UNRATED = 0
 # They are still tokens — the reader can tap a name, hear it read, and press `i` — but
 # a frequency band for אחשורוש says nothing true about how hard Esther is, and counting
 # every name in a chronicle as a hard word would move it a shelf up the library.
+# Asked through `not_vocabulary` below, which lets a named-entity reader overrule the tag.
 NOT_VOCABULARY = frozenset({"PROPN", "NUM"})
 
 # What a lemmatizer writes when it could not read a token at all. DICTA's, and the only
@@ -51,6 +52,108 @@ NEVER_A_VERB = frozenset({"יש", "אין"})
 # reader.js, and a word marked while wearing one of those keeps it as its band — which
 # is how the ledger and the ulpan ladder know to leave it out.
 KIND_COLUMN = {"PROPN": 1, "NUM": 2}
+
+# What a named-entity reader's labels make of a word (targum-internal#149). A person and
+# a place are names: not vocabulary, not counted, not glossed, and the card says which
+# they are. A place is GPE — a country, a city — or LOC, which is where DICTA files
+# אירופה, הנגב and השומרון; leaving LOC out made those forty-three words on the sample
+# vocabulary that PROPN had kept out. Every other label leaves a word a word: a title
+# is one (רבי, הנשיא, אלוף), and so are צה"ל, the words of a date, and a book's name.
+NAMED = {"PER": "name", "GPE": "place", "LOC": "place"}
+
+# The same, as the reader receives it: a tenth column, written only on the rows that
+# have one, so a page with no entities on it is exactly as heavy as it was. What the
+# card calls each is `ENTITY_NAMES` in reader.js.
+LABEL_COLUMN = {"PER": 1, "GPE": 2, "LOC": 2, "TIMEX": 3}
+
+
+def entity_label(entity: str | None) -> str:
+    """The label under a BIO tag — `PER` for `B-PER` or `I-PER` — and "" for `O` or none."""
+    if not entity or entity[:2] not in ("B-", "I-"):
+        return ""
+    return entity[2:]
+
+
+def is_named(entity: str | None) -> bool:
+    """Whether the NER called this word part of a person's name or a place's."""
+    return entity_label(entity) in NAMED
+
+
+def not_vocabulary(pos: str | None, entity: str | None = None) -> bool:
+    """Whether a word is left out of every count of words a learner has to know.
+
+    A number always is. Past that, the named-entity reader decides wherever it read the
+    word — PROPN is what DICTA tags רבי as 57% of the time and the setumah ס every time,
+    and the NER tells the name דוד from the word it spells (targum-internal#149) — and the
+    part of speech only where no NER did, which is every annotator but DICTA's and every
+    annotation written before it read entities.
+    """
+    if pos == "NUM":
+        return True
+    if entity:
+        return is_named(entity)
+    return pos in NOT_VOCABULARY
+
+
+def kind_of(pos: str | None, entity: str | None = None) -> int:
+    """The reader's kind column for a word: 0 a word, 1 a name, 2 a number."""
+    if pos == "NUM":
+        return KIND_COLUMN["NUM"]
+    if entity:
+        return KIND_COLUMN["PROPN"] if is_named(entity) else 0
+    return KIND_COLUMN.get(pos or "", 0)
+
+
+def chips(tokens: Sequence[Token]) -> list[Token]:
+    """The words as the reader draws them: a name of several words as one.
+
+    בן גוריון is a person, and two chips said "name" twice over two halves of him. So a
+    run the NER marked as one person or one place — a `B-` word and the `I-` words after
+    it with the same label — becomes one token spanning all of it, keyed by its words'
+    dictionary forms together. Nothing else is merged: the words of a date or of an
+    organisation's name are each a word with a meaning of its own.
+    """
+    out: list[Token] = []
+    run: list[Token] = []
+
+    def close() -> None:
+        if len(run) == 1:
+            out.append(run[0])
+        elif run:
+            first, last = run[0], run[-1]
+            sounds = [one.ipa for one in run]
+            out.append(
+                Token(
+                    start=first.start,
+                    end=last.end,
+                    surface=" ".join(one.surface for one in run),
+                    lemma=" ".join(one.lemma for one in run),
+                    band=UNRATED,
+                    pos=first.pos,
+                    entity=first.entity,
+                    ipa=" ".join(s for s in sounds if s) if all(sounds) else None,
+                )
+            )
+        run.clear()
+
+    for token in tokens:
+        label = entity_label(token.entity)
+        if (
+            run
+            and label in NAMED
+            and token.entity == "I-" + label
+            and entity_label(run[-1].entity) == label
+        ):
+            run.append(token)
+            continue
+        close()
+        if label in NAMED:
+            run.append(token)
+        else:
+            out.append(token)
+    close()
+    return out
+
 
 # Plain difficulty, easiest first. Deliberately not CEFR levels: these come from
 # frequency, and calling level 3 "B1" would claim a correspondence that has not been

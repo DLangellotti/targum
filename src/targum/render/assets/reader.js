@@ -3557,6 +3557,15 @@ var targumReader = function () {
     return !!(token[6] && KIND_NAMES[token[6]]);
   }
 
+  // What the named-entity reader called a word, where it called it anything the card
+  // says (targum-internal#149): column 10, on those rows only. A person and a place are
+  // names — labelled, never glossed — and a date is a word the card says is part of one.
+  var ENTITY_NAMES = ["", "name", "place", "date"];
+
+  function entityOf(row) {
+    return (row && row.length > 9 && ENTITY_NAMES[row[9]]) || "";
+  }
+
   // One entry of the grammar string the annotator kept — "UPOS=VERB|Person=1|Tense=Past"
   // and nothing more. A missing key is "", never a guess.
   function feat(line, key) {
@@ -4660,12 +4669,18 @@ var targumReader = function () {
     headline.appendChild(window.TargumVocab.copyButton(shown, { say: say }));
     card.appendChild(headline);
 
+    // A person or a place the NER named has no meaning to look up: the card says which
+    // it is, below, and offers nothing to buy. דוד the name is not דוד the uncle, and
+    // the uncle's meaning is not shown on David. A note of the reader's own still is.
+    var entity = entityOf(rowOf(word));
+    var named = entity === "name" || entity === "place";
+
     // The meaning first — it is the question the tap asked — and everything else
     // under it. The old card made the reader walk four lines of metadata to reach it.
     var meaning = inTarget(document.createElement("span"));
     meaning.className = "meaning";
     var own = noteOf(lemma);
-    var sense = own || glosses[index] || "";
+    var sense = own || (named ? "" : glosses[index]) || "";
     meaning.textContent = sense;
     if (own) meaning.classList.add("mine");
     // Only where there is a meaning to copy: the placeholder below is not one.
@@ -4673,11 +4688,13 @@ var targumReader = function () {
       meaning.classList.add("copy-line");
       meaning.appendChild(window.TargumVocab.copyButton(sense, { say: say }));
     }
-    card.appendChild(meaning);
+    if (sense || !named) card.appendChild(meaning);
 
     // Nothing has been looked up for this word, so nothing is claimed about it. The
     // translation is beside the line; write down what you make of it, or ask.
-    if (!own && !glosses[index]) {
+    if (named) {
+      // Nothing to look up; see `named`.
+    } else if (!own && !glosses[index]) {
       var outcome = lookup[glossedAs(index)];
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
@@ -4845,7 +4862,13 @@ var targumReader = function () {
     // The kind is data (the band a word is kept under, in English); the card says it.
     var kind = row && row.length > 6 ? KIND_NAMES[row[6]] || "" : "";
     var kindWord =
-      kind === "name" ? gt("reader.grammar.name", "name") : kind ? gt("reader.grammar.number", "number") : "";
+      entity === "place"
+        ? gt("reader.grammar.place", "place")
+        : kind === "name"
+          ? gt("reader.grammar.name", "name")
+          : kind
+            ? gt("reader.grammar.number", "number")
+            : "";
     var grammarHere = row && row.length > 8 ? grammarTable[row[8]] || "" : "";
     var auxiliary = !kindWord && language === "fr" ? auxiliaryBefore(word) : null;
     var usage =
@@ -4865,6 +4888,11 @@ var targumReader = function () {
         usage = usage.replace(" · " + pluralMark(), "");
         usage = (usage ? usage + " · " : "") + pluralMark() + " " + lying;
       }
+    }
+    // A word of a date keeps its meaning and its grammar; the line says it is one.
+    if (entity === "date") {
+      var dated = gt("reader.grammar.date", "date");
+      usage = usage ? dated + " · " + usage : dated;
     }
     if (usage) {
       var use = document.createElement("span");
