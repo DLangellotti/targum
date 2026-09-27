@@ -2252,8 +2252,8 @@ def daily_page(
 ) -> str:
     """One day of a learning cycle, with its own reader inside it.
 
-    The parasha's page without the hero: a portion is a week and can carry a photograph,
-    a day is a day, and somebody who came for today's two mishnayot came to read them.
+    Drawn as the front door is (design.md §12, 2026-09-27): the landing's bar and hero,
+    the cycle's manuscript beside the headline, and the waitlist at the foot.
     Everything it needs was decided at build time; what is left at serve time is a lookup.
     """
     return (

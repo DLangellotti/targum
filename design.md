@@ -347,6 +347,39 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The weekly, the parasha and the dailies are drawn as the front door is — 2026-09-27
+
+"Parasha and dailies and weekly digest pages should be updated to fit design of rest of
+website," David wrote, "and call to action would be to join waitlist." They were the last
+public pages still drawn the way the front door was drawn before #69: a masthead with a
+quiet Sign in, a serif headline, an ink band with a picture on its other half, and an
+inverted door at the foot asking a stranger to sign in to an account they could not yet
+have.
+
+Now they are drawn as the landing is, from the landing's own parts:
+
+- **The bar is the landing's** (`_front_bar.html.j2`, which the landing includes too):
+  glass, sticky, the lockup, the landing's places, EN / RU, Sign in, and **Join the
+  waitlist** as the one ink call to action (§9).
+- **The hero is the landing's**, on the desk's ground (§13): the chrome's sans at the
+  landing display step (§5), the lede under it, and the waitlist's form
+  (`_join_form.html.j2`) with the line that says what happens next. Reading is the second
+  thing, a tonal button to the frame below — the text needs no account, keeping a word
+  does, and the waitlist is the way to that.
+- **The picture stays, as a card.** The scroll, the codices and the Gaza floor are still
+  the rule of "a picture of a thing" (2026-09-01, below); they now stand beside the
+  headline as a card raised by its shadow instead of as the other half of an ink band.
+  The band's one inverted block went with it, and so did the door's. The weekly's stack of
+  front pages stands on the desk bare, as it did (2026-08-31).
+- **The page ends on the waitlist** (`_front_join.html.j2`), the landing's own closing
+  section, where "Keep what you learn" and its Sign in stood.
+
+Everything between the hero and the foot — the levels, the aliyot, the frame, Why targum,
+Made honestly — keeps its structure and takes the chrome's face for its labels and section
+titles. `front.css` carries the landing's values under `body.front`, because `reader.css`,
+which these pages still load, means something else by `.bar`, `.hero` and `.label`; where
+the two copies differ, `landing.css` is right.
+
 ### A text can be printed, and the page is the reader's — 2026-09-27
 
 `targum export pdf <folder>` sets a reader's edition on paper (targum-internal#105). The
@@ -2656,6 +2689,9 @@ and the page is laid out again only if a setting inside it changes the page, as 
 "Pages, or one long scroll" do. A tap on the page still puts it away.
 
 ### A daily page carries an artefact, not an invented face — 2026-09-01
+
+*The band below was retired on 2026-09-27 (above): the picture now stands beside the
+headline as a card. The rule about what the picture may be is unchanged.*
 
 The daily learning pages take the parasha's band: a seam down the middle, words on the
 ink half, a picture on the other. What is in the picture is the decision.

@@ -1,0 +1,22 @@
+{#- The waitlist, as the landing ends on it, at the foot of a page that sells
+    (2026-09-27). It took the place of "Keep what you learn" and its Sign in: a stranger
+    who has read this far has no account to sign in to, and the door they can use is
+    this one. Its own class rather than the landing's `part`, which `public.css` already
+    means something by. -#}
+<section class="front-join" id="join">
+  <div class="split">
+    <div class="part-head">
+      <p class="eyebrow">{{ t("landing.page.the-waitlist", "The waitlist") }}</p>
+      <h2>{{ t("landing.page.be-among-the-first-to-learn-hebrew-this", "Be among the first to learn Hebrew this way.") }}</h2>
+      <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
+    </div>
+    <div class="join-card">
+      {% include '_join_form.html.j2' %}
+      <ul class="join-points">
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.no-card-and-nothing-to-pay-to-join", "No card, and nothing to pay to join.") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.your-email-and-nothing-else-we-won-t", "Your email and nothing else. We won’t pass it on.") }}</li>
+      </ul>
+    </div>
+  </div>
+</section>
