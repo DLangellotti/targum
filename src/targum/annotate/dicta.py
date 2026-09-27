@@ -42,6 +42,12 @@ from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, roo
 
 # The one model, named in full because the name rides into every annotation.
 MODEL = "dicta-il/dictabert-joint"
+#: The commit of `MODEL` this code runs, pinned (2026-09-27). The model is loaded with
+#: `trust_remote_code`, so an unpinned load runs whatever modeling code DICTA last pushed —
+#: and it pushed some on 2026-09-09 and 2026-09-15 — on the first cold start after a cache
+#: is cleared. This is the revision the box and the laptop both hold. Moving it is an
+#: annotator change like any other: read the diff, then rename.
+REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 
 # What this annotator knows how to say about a word, in the vocabulary `lemma.py` uses
 # for the same list. The roots survive the swap because the binyan is derived rather
@@ -287,8 +293,11 @@ class DictaLemmatizer:
                     "pip install 'transformers>=4.40'",
                 ) from missing
 
-            self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-            model = AutoModel.from_pretrained(self.model_id, trust_remote_code=True)
+            pinned = REVISION if self.model_id == MODEL else None
+            self._tokenizer = AutoTokenizer.from_pretrained(self.model_id, revision=pinned)
+            model = AutoModel.from_pretrained(
+                self.model_id, trust_remote_code=True, revision=pinned
+            )
             model.eval()
             torch.set_grad_enabled(False)
             self._model = model
