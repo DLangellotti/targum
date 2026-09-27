@@ -107,6 +107,27 @@ MODELS: dict[str, tuple[str, str]] = {
 _LETTERS = re.compile(r"[^א-ת]")
 
 
+def _blank(vocab: dict[str, int], classes: int) -> int:
+    """The id of the blank the model emits between letters.
+
+    The two families name it differently. Hebrew's tokenizer calls it `[PAD]` and also
+    carries a `<pad>` among four added special tokens the head has no output class for,
+    so `[PAD]` is asked for first. The French, Russian and Italian models call their
+    blank `<pad>` and have no `[PAD]` at all (targum-internal#268). Whichever is found
+    must be one of the head's `classes`: an added token past the end is out of range in
+    `forced_align` rather than wrong-looking, and is refused here in words instead.
+    """
+    for token in ("[PAD]", "<pad>"):
+        index = vocab.get(token)
+        if index is not None and 0 <= index < classes:
+            return index
+    raise TargumError(
+        "The aligner's model has no blank token it can use.",
+        "Its vocabulary has neither [PAD] nor <pad> among the model's outputs; "
+        "check the model named in MODELS for its blank token.",
+    )
+
+
 def _code(language: str) -> str:
     return (language or "").split("-")[0].lower()
 
@@ -354,10 +375,7 @@ class CtcAligner:
 
         log_probs, per_frame, processor, voiced = self._emissions(audio)
         vocab = processor.tokenizer.get_vocab()
-        # The blank the model emits, which is not `<pad>`: the tokenizer carries four
-        # added special tokens the head never has an output class for, and handing one
-        # of those to `forced_align` is out of range rather than wrong-looking.
-        blank = vocab["[PAD]"]
+        blank = _blank(vocab, log_probs.size(-1))
         divider = vocab["|"]
 
         targets: list[int] = []
