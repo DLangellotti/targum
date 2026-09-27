@@ -2441,5 +2441,9 @@
   "progress.reading.sections.one": "{n} раздел",
   "progress.reading.sections.few": "{n} раздела",
   "progress.reading.sections.many": "{n} разделов",
-  "progress.reading.sections.other": "{n} раздела"
+  "progress.reading.sections.other": "{n} раздела",
+  "reader.next.known-ahead.one": "Здесь вы уже знаете {n} слово.",
+  "reader.next.known-ahead.few": "Здесь вы уже знаете {n} слова.",
+  "reader.next.known-ahead.many": "Здесь вы уже знаете {n} слов.",
+  "reader.next.known-ahead.other": "Здесь вы уже знаете {n} слова."
 }

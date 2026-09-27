@@ -1945,6 +1945,9 @@ var targumReader = function () {
     if (!already) {
       setFinished(true);
       footPressed = { lemmas: taken, counted: taken.length ? counted : 0 };
+      // Only where the page stays: in a playlist the press leaves, and a line said to a
+      // page nobody is on is a line never said.
+      if (!footWay) sayKnownAhead();
     }
     return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
   }
@@ -1959,6 +1962,66 @@ var targumReader = function () {
     }
     if (finishedAt()) return;
     pressFoot(marking);
+  }
+
+  /* The third moment (targum-internal#335; design.md §12, "Three moments in ten
+     minutes"): being remembered. The first time a section is finished in place, the offer
+     under it says how many of its words the reader already knows, the words the press
+     just marked among them — "You already know 14 words in this one." It is what the
+     marks are for, said about the next thing rather than this one: this text's own
+     figures are the ink block's.
+
+     Said once in a browser, in answer to the press and never on load, in the offer's own
+     row, so nothing above it moves. Nothing where the offer's words are not on the page
+     (a page written before this, or a text the catalogue's index has not measured), and
+     nothing where the count is nought: "none of these" is not a thing worth being told
+     first, and the moment waits for a finish that has something to say. A count, never a
+     share, and never of what is waiting. */
+  var TOLD_SHARE = "targum:taught-the-share";
+
+  function knownAhead(offer) {
+    var words = [];
+    try {
+      words = JSON.parse((offer && offer.getAttribute("data-known-of")) || "[]");
+    } catch (e) {
+      return 0;
+    }
+    var known = 0;
+    (Array.isArray(words) ? words : []).forEach(function (lemma) {
+      var word = vocab[lemma];
+      if (word && word.status === KNOWN) known += 1;
+    });
+    return known;
+  }
+
+  function sayKnownAhead() {
+    var offer = document.getElementById("next-up");
+    var line = document.getElementById("next-up-known");
+    if (!offer || !line || PREVIEW) return;
+    try {
+      if (localStorage.getItem(TOLD_SHARE)) return;
+    } catch (e) {
+      return;
+    }
+    var known = knownAhead(offer);
+    if (!known) return;
+    line.textContent = tn(
+      "reader.next.known-ahead",
+      known,
+      "You already know {n} word in this one.",
+      "You already know {n} words in this one.",
+      { n: known }
+    );
+    line.hidden = false;
+    try {
+      targumKeep(TOLD_SHARE, String(Date.now()));
+    } catch (e) {}
+  }
+
+  // Taken back with the finish: the count it said had the press's words in it.
+  function unsayKnownAhead() {
+    var line = document.getElementById("next-up-known");
+    if (line) line.hidden = true;
   }
 
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A
@@ -1983,6 +2046,7 @@ var targumReader = function () {
     footPressed = null;
     if (pressed && pressed.lemmas.length) takeBack(pressed.lemmas);
     setFinished(false);
+    unsayKnownAhead();
   }
 
   /* Leaving by the press, for the next item of a playlist. What the press did goes with
@@ -2835,6 +2899,7 @@ var targumReader = function () {
         if (done && !finishedBySelf && !finishedAt()) {
           finishedBySelf = true;
           setFinished(true);
+          if (!footWay) sayKnownAhead();
         }
         if (done) {
           // A milestone bragged the brand's way: what is true, in type, once. Not a
@@ -9260,6 +9325,9 @@ var targumReader = function () {
         (pick.minutes ? " · " + say.t("reader.next.minutes", "{n} min").replace("{n}", pick.minutes) : "");
       why.hidden = !pick.because;
     }
+    // The count of words known was about the first offer, and this is another.
+    var known = next.querySelector(".next-up-known");
+    if (known) known.hidden = true;
     // Nothing left to draw, so the control goes rather than sitting there inert.
     if (!more.length) elsewhere.hidden = true;
   });

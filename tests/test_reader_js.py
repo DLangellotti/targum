@@ -676,6 +676,67 @@ def test_the_next_section_is_offered_once_this_one_is_finished() -> None:
     assert back["onward"] is False, "taken back, and the offer goes with it"
 
 
+# -- the third moment: being remembered (targum-internal#335) ------------------------
+
+
+def test_the_first_finish_says_how_much_of_the_next_one_is_known() -> None:
+    """At the first finished foot, the offer under it says how many of its words the
+    reader already knows, the words the press just marked among them. Once: the flag is
+    set, and a page that finds it says nothing."""
+    words, lemmas = chapter(["a", "b", "c"])
+    ahead = ["a", "b", "x", "y"]
+    before = run([], chapter=words, lemmas=lemmas, vocab={"x": {"status": 9}}, knownOf=ahead)
+    assert before["finished"]["ahead"] == "", "never on load"
+    done = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        section=1,
+        sections=3,
+        vocab={"x": {"status": 9}, "y": {"status": 2}},
+        knownOf=ahead,
+        presses=[True],
+    )["finished"]
+    # a and b marked by the press, x known already; y is still being learned.
+    assert done["ahead"] == "You already know 3 words in this one."
+    assert done["told"], "and it is said once in a browser"
+    again = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        section=1,
+        sections=3,
+        vocab={"x": {"status": 9}},
+        knownOf=ahead,
+        presses=[True],
+        stored={"targum:taught-the-share": "1"},
+    )["finished"]
+    assert again["ahead"] == "", "not on the next finish"
+
+
+def test_the_line_waits_for_a_finish_with_something_to_say() -> None:
+    """Nought known of the next one is not the first thing worth being told, so nothing
+    is said and the moment waits; nor is anything said where the offer's words are not
+    on the page. Taking the finish back takes the line with it."""
+    words, lemmas = chapter(["a"])
+    nought = run([], chapter=words, lemmas=lemmas, knownOf=["q"], presses=[False])["finished"]
+    assert nought["ahead"] == "" and nought["told"] == ""
+    unmeasured = run([], chapter=words, lemmas=lemmas, presses=[True])["finished"]
+    assert unmeasured["ahead"] == "" and unmeasured["told"] == ""
+    back = run([], chapter=words, lemmas=lemmas, knownOf=["a"], presses=[True, "undo"])["finished"]
+    assert back["ahead"] == "", "the count had the press's words in it"
+
+
+def test_a_playlist_press_leaves_the_line_unsaid() -> None:
+    """In a playlist the press moves on, so the line would be said to a page nobody is on
+    — and the flag with it, and the moment lost."""
+    words, lemmas = chapter(["a"])
+    moved = run([], chapter=words, lemmas=lemmas, knownOf=["a"], footWay="next", presses=[True])[
+        "finished"
+    ]
+    assert moved["ahead"] == "" and moved["told"] == ""
+
+
 def test_the_last_chapter_finishes_the_book_as_well() -> None:
     """`done` goes on meaning what it always meant, so a one-chapter book behaves exactly
     as a scene and an article do — and the library row, which asks about a whole text and

@@ -116,6 +116,11 @@ byId["next-up"] = element("aside");
 byId["next-up"].classList.add("next-up");
 byId["next-up"].classList.add("here");
 byId["next-up"].hidden = true;
+// The next one's words, where the builder could write them (targum-internal#335), and
+// the line that says how many of them are known, hidden as the template ships it.
+if (payload.knownOf) byId["next-up"].setAttribute("data-known-of", JSON.stringify(payload.knownOf));
+byId["next-up-known"] = element("span");
+byId["next-up-known"].hidden = true;
 
 // The first-time line as the template ships it: hidden, with its sentence in it. The
 // script decides whether to show it and what it says after the first word is marked.
@@ -274,6 +279,9 @@ process.stdout.write(
       // Whether the next section is being offered, which happens on finishing and not
       // before: the pager already names it, and twice is once.
       onward: !byId["next-up"].hidden,
+      // The line under the offer: how many of its words are known, said once.
+      ahead: byId["next-up-known"].hidden ? "" : byId["next-up-known"].textContent,
+      told: localStorage.getItem("targum:taught-the-share") || "",
     },
     // The Anki file, written from cards the test hands over: what a deck is made of
     // is decided on the page, but what the file says is decided here.

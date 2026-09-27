@@ -2280,5 +2280,7 @@
   "progress.reading.tick": "{n} in 10",
   "progress.reading.point": "{month}: about {n} in 10",
   "progress.reading.sections.one": "{n} section",
-  "progress.reading.sections.other": "{n} sections"
+  "progress.reading.sections.other": "{n} sections",
+  "reader.next.known-ahead.one": "You already know {n} word in this one.",
+  "reader.next.known-ahead.other": "You already know {n} words in this one."
 }

@@ -2166,6 +2166,68 @@ def test_the_second_moment_is_the_voice_and_it_is_said_once(worded_scene) -> Non
     assert scene.evaluate("() => localStorage.getItem('targum:taught-the-voice')") == "1"
 
 
+@pytest.mark.parametrize("viewport", [WINDOW, PHONE], ids=["desk", "phone"])
+def test_the_third_moment_is_the_next_ones_known_words_said_once(
+    browser, tmp_path, viewport
+) -> None:
+    """targum-internal#335: being remembered. At the foot of the first section finished,
+    the offer under it says how many of the next one's words the reader already knows —
+    in answer to the press, never on load, once in a browser, and in the offer's own row
+    so nothing above it moves."""
+    import json as _json
+
+    first = chapter(tmp_path / "reader", parts=2).parent / "sec-0001.html"
+    context = opened(browser, viewport)
+    page = context.new_page()
+    page.goto(address(first))
+    page.wait_for_selector(".pair")
+    ahead = _json.loads(page.get_attribute("#next-up", "data-known-of") or "[]")
+    assert len(ahead) > 3, "the next part's words ride on the offer"
+    # Three of the next part's words, known before this one is opened.
+    known = {w: {"surface": w, "status": 9, "at": 1} for w in ahead[:3]}
+    page.evaluate("(v) => localStorage.setItem('targum:vocab:he', JSON.stringify(v))", known)
+    page.reload()
+    page.wait_for_selector(".pair")
+    line = page.locator("#next-up-known")
+    assert line.is_hidden(), "never on load"
+    assert page.evaluate("() => localStorage.getItem('targum:taught-the-share')") is None
+
+    page.locator("#done-mark").scroll_into_view_if_needed()
+    page.click("#done-mark")
+    page.wait_for_function("() => !document.getElementById('next-up-known').hidden")
+    assert line.inner_text() == "You already know 3 words in this one.", (
+        "the three known before, and none of this part's, which the press just marked"
+    )
+    assert page.evaluate("() => localStorage.getItem('targum:taught-the-share')")
+    # Moves nothing: the offer's own row is where it is with the line or without it.
+    moved = page.evaluate(
+        """() => {
+          const link = document.querySelector('#next-up .next-up-link');
+          const at = () => link.getBoundingClientRect().top;
+          const said = at();
+          const line = document.getElementById('next-up-known');
+          line.hidden = true;
+          const unsaid = at();
+          line.hidden = false;
+          return said - unsaid;
+        }"""
+    )
+    assert moved == 0
+    box = line.bounding_box()
+    assert box and box["x"] >= 0 and box["x"] + box["width"] <= viewport["width"], "on screen"
+
+    # Once: taken back and pressed again, and on the next visit, it is not said again.
+    page.click("#done-undo")
+    page.wait_for_function("() => document.getElementById('next-up-known').hidden")
+    page.click("#done-mark")
+    page.wait_for_function("() => !document.getElementById('finished').hidden")
+    assert line.is_hidden()
+    page.reload()
+    page.wait_for_selector(".pair")
+    assert line.is_hidden()
+    context.close()
+
+
 def _sitting(browser, tmp_path, monkeypatch, me: dict) -> list[dict]:
     """Open a voiced scene with markable words, look a word up, play a moment, leave —
     and answer with everything the page handed to `/events`."""

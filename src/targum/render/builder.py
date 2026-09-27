@@ -1197,6 +1197,56 @@ def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str
     return out
 
 
+def section_vocabulary(
+    annotation: Annotation | None,
+    section: Section,
+    unwordly: Mapping[str, list[tuple[int, int]]] | None = None,
+) -> list[str]:
+    """The distinct dictionary forms a section asks a learner to know: names, numbers and
+    a post's hashtags left out, as every count of words leaves them out.
+
+    Written into the page before it, so the foot of a finished section can say how many
+    of the next one's words the reader already knows (targum-internal#335). The page
+    fetches nothing, so the next section's words have to be on it already.
+    """
+    if annotation is None:
+        return []
+    from ..annotate.base import not_vocabulary
+
+    found: set[str] = set()
+    for sid in section.segment_ids:
+        spans = (unwordly or {}).get(sid)
+        for token in annotation.tokens.get(sid) or ():
+            if not token.lemma or not_vocabulary(token.pos, token.entity):
+                continue
+            if spans:
+                from ..ingest.post import inside
+
+                if inside(token.start, token.end, spans):
+                    continue
+            found.add(token.lemma)
+    return sorted(found)
+
+
+def _listed(words: list[str]) -> str:
+    """A list for a data attribute, or nothing where it is empty, so the attribute is
+    left off rather than carrying an empty list."""
+    return json.dumps(words, ensure_ascii=False) if words else ""
+
+
+def offered_vocabulary(entry_id: str) -> list[str]:
+    """The dictionary forms of a catalogue text offered at a reader's foot, from the index
+    beside the catalogue (`coverage.Index`), or nothing where there is no index or it has
+    not measured that text. Nothing is a working answer: the foot then says nothing about
+    the offer, which is what it said before (targum-internal#335)."""
+    if not entry_id:
+        return []
+    from .. import catalogue as catalogue_module
+    from .. import coverage as coverage_module
+
+    return coverage_module.read_index(catalogue_module.lemmas_path()).lemmas_for(entry_id)
+
+
 def learn_page(token: str, language: str = "en", connector: bool = False) -> str:
     """The page you land on: carry on, what you have, what you know.
 
@@ -2939,6 +2989,10 @@ def render(
         # page because the page fetches nothing (targum-internal#233).
         "suggested": offers[0] if offers else {},
         "suggested_more": json.dumps(offers[1:], ensure_ascii=False) if offers[1:] else "",
+        # The offer's words, so the first finished foot can say how many of them the
+        # reader already knows, the words the press just marked among them
+        # (targum-internal#335). Empty where the catalogue's index has not measured it.
+        "suggested_known_of": (_listed(offered_vocabulary(offers[0]["id"])) if offers else ""),
         "parts": parts,
         "document": document,
         "siblings": siblings or [],
@@ -3591,6 +3645,13 @@ def render(
             ),
             previous=None if section.number == 1 else sections[section.number - 2],
             following=None if section.number == len(sections) else sections[section.number],
+            # And the next section's words, for the same line when the offer is the next
+            # section rather than another text.
+            following_known_of=(
+                ""
+                if section.number == len(sections)
+                else _listed(section_vocabulary(annotation, sections[section.number], unwordly))
+            ),
             standalone=single,
         )
         name = "index.html" if single else section.filename

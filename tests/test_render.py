@@ -608,6 +608,89 @@ def test_the_foot_of_a_section_offers_the_next_one_by_name(tmp_path: Path) -> No
     assert 'class="next-up here" id="next-up" dir="ltr" hidden>' in first
 
 
+def test_the_foot_carries_the_next_sections_words_to_count_the_known_ones(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#335: at the first finished foot the offer says how many of the next
+    section's words the reader already knows. The page fetches nothing, so the words ride
+    on the offer — distinct, with numbers and names left out, as every count leaves them
+    out — and the line they feed ships hidden."""
+    import json as _json
+
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    segmented = make_segmented(segments)
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[1].id: [Token(start=0, end=9, surface="paragraph", lemma="here", band=3)],
+            segments[3].id: [
+                Token(start=0, end=9, surface="paragraph", lemma="next", band=3),
+                Token(start=0, end=9, surface="paragraph", lemma="next", band=3),
+                Token(start=10, end=11, surface="3", lemma="3", band=1, pos="NUM"),
+            ],
+        },
+    )
+    pages = render(document, segmented, [translation], tmp_path / "reader", annotation=annotation)
+    first = pages[1].read_text(encoding="utf-8")
+    carried = first.split('data-known-of="')[1].split('"')[0]
+    assert _json.loads(carried.replace("&#34;", '"').replace("&amp;", "&")) == ["next"]
+    assert '<span class="next-up-known" id="next-up-known" hidden></span>' in first
+    # The last section has no next one, and carries nothing for it.
+    assert 'class="next-up here"' not in pages[2].read_text(encoding="utf-8")
+
+
+def test_the_offer_carries_its_words_where_the_index_has_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A catalogue text offered at the foot carries its dictionary forms from the index
+    beside the catalogue; one the index has not measured carries nothing, and the foot
+    says nothing about it."""
+    import json as _json
+
+    from targum import coverage
+
+    rows = catalogue_of(("here", "s:here", 10, "modern"), ("first", "s:first", 12, "modern"))
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    index = tmp_path / "lemmas.json"
+    coverage.write_index(index, coverage.build_index({"first": ["b", "a"]}))
+    monkeypatch.setenv("TARGUM_CATALOGUE_LEMMAS", str(index))
+    segments = [paragraph(0)]
+    segmented = make_segmented(segments)
+    document = Document(source="s:here", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader")[0].read_text(
+        encoding="utf-8"
+    )
+    carried = page.split('data-known-of="')[1].split('"')[0]
+    assert _json.loads(carried.replace("&#34;", '"').replace("&amp;", "&")) == ["a", "b"]
+
+    monkeypatch.setenv("TARGUM_CATALOGUE_LEMMAS", str(tmp_path / "none.json"))
+    bare = render(document, segmented, [translation], tmp_path / "again")[0].read_text(
+        encoding="utf-8"
+    )
+    assert 'data-known-of="' not in bare and 'id="next-up-known"' not in bare
+
+
 def test_the_page_carries_the_second_pick_because_it_cannot_fetch_one(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

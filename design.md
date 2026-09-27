@@ -1377,7 +1377,8 @@ leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration
 
 1. **The word, within a minute.** As it was. The arrival opens a text directly
    (2026-09-19, above), and where the reader's subject has a text that can be heard, that
-   is the one it opens — because the second moment is impossible on a silent page.
+   is the one it opens — because the second moment is impossible on a silent page. A
+   reader who named a rung and no subject is routed the same way (2026-09-27).
 2. **The voice, within three.** When the first word is marked, the same line, in the same
    place, at the same height, says "Now press play. The page follows the voice, line by
    line." The press puts it away, and it is said once in a browser.
@@ -1385,6 +1386,15 @@ leaves the page (Dmitry, 2026-09-16: any notification is fatal), and celebration
    says what it is: "These are the words you marked. We keep them here, and they'll be
    waiting whenever you come back." One visit, and never again. It counts nothing — the
    fold's rule that nothing puts a number on what is waiting is untouched.
+   And before that, on the page itself (David, 2026-09-27): the first time a section is
+   finished in place, the offer under the ink block — the next part, or the next text —
+   says how many of its words the reader already knows, the words the press just marked
+   among them: "You already know 14 words in this one." A count of words, never a share;
+   in the offer's own row, under its name, so nothing above it moves; said in answer to
+   the press and never on load; once in a browser (`targum:taught-the-share`). Nothing is
+   said where the count is nought or the offer's words are not on the page, and the
+   moment waits for a finish that has something to say. Not in a playlist, where the
+   press leaves the page. The ink block's figures stay this text's own.
 
 What is not here yet, and is the rest of the list David settled the same day: bringing your
 own, talking to targum, and "targum remembers what you're having trouble with", which
