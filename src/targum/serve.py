@@ -2349,8 +2349,11 @@ class Library:
         try:
             from urllib.parse import urlparse
 
+            from .ingest import x as x_module
             from .video import instagram as instagram_module
 
+            if x_module.is_x(job.source) and self._prepare_x(job):
+                return
             if instagram_module.is_post(job.source) and self._prepare_post(job):
                 return
             if urlparse(job.source).scheme in ("http", "https"):
@@ -2803,6 +2806,76 @@ class Library:
         target = folder / f"{post.code}.txt"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
+        job.source = str(target)
+        return False
+
+    def _prepare_x(self, job: Job) -> bool:
+        """A post on X, or the thread its author wrote up to it, read off X's syndication
+        endpoint (targum-internal#158) — only where the deployment armed the door
+        (`ingest.x.ENV`), because X's terms forbid automated collection and whether the
+        box does it for a reader is David's decision, not a default.
+
+        Shut, it says so by name with the way that works, rather than falling through to
+        the page reader, which would import X's JavaScript shell as the text. Open, the
+        posts become a text like an Instagram post's caption — the author as its byline,
+        the post as its home — and what the card draws is kept for `post.json`. Reading
+        a post costs nothing; its words are priced by the text path below.
+
+        Returns True when the job is settled here, False when `job.source` is now the
+        thread's text.
+        """
+        import secrets
+
+        from .ingest import x as x_module
+        from .ingest.post import lines_of
+
+        if not x_module.is_open():
+            job.error = said_in(
+                job.ui,
+                "job.x-closed",
+                "We don't bring posts in from X. Copy the post's words and paste them here.",
+            )
+            job.stage = "failed"
+            return True
+        try:
+            posts = x_module.thread(job.source)
+        except TargumError as refusal:
+            job.error = refused_in(job.ui, refusal)
+            job.stage = "failed"
+            return True
+        if not any(lines_of(post.text) for post in posts):
+            job.error = said_in(
+                job.ui,
+                "job.x-no-words",
+                "That post has no words to read. Its pictures are all it says.",
+            )
+            job.stage = "failed"
+            return True
+        address = x_module.home_url(job.source)
+        first = posts[0]
+        job.options["came_from"] = address
+        job.options["post"] = {
+            "platform": "x",
+            "url": address,
+            "handle": first.handle,
+            "name": first.name,
+            "posted_at": first.posted,
+            "avatar": first.avatar,
+            "pictures": [],
+            # A post a thread holds, in order: how many of the text's paragraphs are its
+            # lines, and its photos, so each item keeps its own.
+            "items": [
+                {
+                    "lines": len(lines_of(post.text)),
+                    "pictures": [picture.url for picture in post.pictures],
+                }
+                for post in posts
+            ],
+        }
+        folder = Path(job.home or self.out) / "uploads" / secrets.token_hex(8)
+        target = folder / f"{posts[-1].id}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(x_module.text_of(posts), encoding="utf-8")
         job.source = str(target)
         return False
 
@@ -3268,6 +3341,8 @@ class Library:
             ]
             if film:
                 items = self._film_items(folder, document)
+            elif isinstance(said.get("items"), list):
+                items = self._thread_items(said["items"], folder, document)
             manifest = post_module.Manifest(
                 platform=platform,
                 author=post_module.Author(
@@ -3284,6 +3359,39 @@ class Library:
         except Exception as error:  # noqa: BLE001 - the card's business, not the build's
             traceback.print_exc()
             incidents_module.record(self.incidents, "post", error, job=job.id)
+
+    @staticmethod
+    def _thread_items(told: list[dict[str, Any]], folder: Path, document: Document) -> list[Any]:
+        """A thread's items, one a post in order (targum-internal#158): each the blocks
+        its lines became and its own photos, kept as webp. The lines are counted from the
+        end of the document, because the title and byline the front matter put above
+        them are the head's and belong to no post."""
+        import tempfile
+
+        from .ingest import post as post_module
+        from .video import instagram as instagram_module
+
+        counts = [max(0, int(item.get("lines") or 0)) for item in told]
+        blocks = [block.id for block in document.blocks]
+        tail = blocks[len(blocks) - sum(counts) :] if sum(counts) <= len(blocks) else blocks
+        items: list[Any] = []
+        at, kept = 0, 1
+        with tempfile.TemporaryDirectory() as raw:
+            for n, (item, count) in enumerate(zip(told, counts, strict=True)):
+                wanted = [str(address) for address in item.get("pictures") or []]
+                media: list[post_module.Media] = []
+                if wanted:
+                    fetched = instagram_module.pictures_into(
+                        instagram_module.Post(
+                            code="", author="", caption="", pictures=tuple(wanted)
+                        ),
+                        Path(raw) / f"{n:03d}",
+                    )
+                    media = post_module.keep_pictures(fetched, folder, first=kept)
+                    kept += len(wanted)
+                items.append(post_module.Item(block_ids=tail[at : at + count], media=media))
+                at += count
+        return items
 
     @staticmethod
     def _film_items(folder: Path, document: Document) -> list[Any]:

@@ -218,7 +218,10 @@ VIDEO_HOMES = (
     "https://www.facebook.com/watch/?v=",
     "https://www.reddit.com/comments/",
 )
-OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, *VIDEO_HOMES, SVG_NAMESPACE, OPENRUSSIAN)
+#: A post on X, "On X" in its head (targum-internal#158). Not a video host's: X's door is
+#: its own module (`ingest/x.py`), and every spelling of a post reduces to this one prefix.
+X_POST = "https://x.com/i/status/"
+OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, *VIDEO_HOMES, X_POST, SVG_NAMESPACE, OPENRUSSIAN)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -461,6 +464,42 @@ def test_a_tiktok_kept_as_a_post_says_on_tiktok(tmp_path: Path) -> None:
     assert f'class="post-home" href="{home}"' in html and ">On TikTok</a>" in html
     assert 'data-home="' not in html
     assert 'class="post-face letter"' in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_a_post_from_x_says_on_x_and_goes_home_to_the_one_prefix(tmp_path: Path) -> None:
+    """X's head (targum-internal#158): "On X", to the one address the allowlist pins,
+    whatever spelling the reader pasted."""
+    from targum.ingest import post as post_module
+    from targum.ingest import x as x_module
+
+    assert x_module.HOME == X_POST
+    post_module.write(
+        tmp_path,
+        post_module.Manifest(
+            platform="x",
+            author=post_module.Author("aviv_bahar", "אביב בהר"),
+            items=[post_module.Item(block_ids=["b0001"])],
+            url="https://twitter.com/aviv_bahar/status/1837201000000000001?s=20",
+        ),
+    )
+    segmented = make_segmented([paragraph(1)])
+    document = Document(
+        source=str(tmp_path / "t.txt"), title="t", language="he", blocks=[], content_hash="h"
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "Said." for s in segmented.segments},
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'class="post-home" href="{X_POST}1837201000000000001"' in html
+    assert ">On X</a>" in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 

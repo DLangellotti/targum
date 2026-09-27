@@ -206,10 +206,11 @@ def left_out(folder: Path) -> dict[str, list[tuple[int, int]]] | None:
     }
 
 
-def keep_pictures(pictures: list[Path], folder: Path) -> list[Media]:
+def keep_pictures(pictures: list[Path], folder: Path, first: int = 1) -> list[Media]:
     """A post's pictures, in its order, as webp under `<folder>/post/`, long edge at most
     `LONG_EDGE`. Never cropped: a 4:5 post stays 4:5 (§12). A picture that will not open
-    is left out rather than failing the post; the caption is still the text."""
+    is left out rather than failing the post; the caption is still the text. `first` is
+    the number the first is kept under, so a thread's posts keep theirs apart."""
     import io
 
     from PIL import Image
@@ -217,7 +218,7 @@ def keep_pictures(pictures: list[Path], folder: Path) -> list[Media]:
     kept = folder / "post"
     kept.mkdir(parents=True, exist_ok=True)
     media: list[Media] = []
-    for n, source in enumerate(pictures, start=1):
+    for n, source in enumerate(pictures, start=first):
         try:
             image = Image.open(source)
             image.thumbnail((LONG_EDGE, LONG_EDGE), Image.Resampling.LANCZOS)

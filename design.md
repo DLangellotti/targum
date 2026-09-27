@@ -388,6 +388,14 @@ film panel, the transcript its text and the caption after it, and its head says 
 TikTok". TikTok gives no author's picture without a fetch of its own, so the disc wears
 the first letter of their name.
 
+And for X, the same day: **a post on X is a post's shape, and a thread is one post an
+item**, each with its own photos under its own lines, in the order written, "On X" in the
+head. The thread is the one ending at the post pasted: X shows what a post answers and
+never what answers it, so it is read back to its start and stops at the first post by
+anybody else. The door is built and **shut** (`TARGUM_X`) until David arms it, because X's
+terms forbid collecting its posts by automated means and the box fetching one is
+targum's act.
+
 
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
 

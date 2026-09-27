@@ -2607,8 +2607,14 @@ def post_card(
                 pictures.append(
                     {"src": uri, "width": width, "height": height, "alt": media.get("alt") or ""}
                 )
-    home = video_hosts.home_url(str(manifest.get("url") or ""))
     platform = str(manifest.get("platform") or "")
+    if platform == "x":
+        # X is not a video host: its one address is its own module's (targum-internal#158).
+        from ..ingest import x as x_module
+
+        home = x_module.home_url(str(manifest.get("url") or ""))
+    else:
+        home = video_hosts.home_url(str(manifest.get("url") or ""))
     card = {
         "handle": handle,
         "name": name,
@@ -2620,7 +2626,7 @@ def post_card(
         "stamp": stamp,
         "pictures": pictures,
         "home": home,
-        "home_named": video_hosts.named(home) or platform.title(),
+        "home_named": "X" if platform == "x" else (video_hosts.named(home) or platform.title()),
         "caption_from": caption_from,
     }
     # The rows the head stands in for: the title and the byline the front matter put at
