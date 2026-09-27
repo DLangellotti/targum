@@ -23,6 +23,14 @@ aligning are the letters on the page.
 **Hebrew, and since 2026-09-13 French, Russian and Italian** — one permissive model per
 language (`MODELS`) rather than one multilingual NonCommercial one. A language with no row
 reports itself unavailable and plays through, exactly as a missing install does.
+
+**A span is moved to the voice after it is found** (2026-09-27, targum-internal#225). CTC
+emits a letter as a spike and fills the rest of the sound with blanks, so the span the
+path gives a word is narrower than the word: measured against the acoustic edges of words
+that follow or precede a pause, the path started words 15-70 ms after the voice did and
+ended them 25-220 ms before it stopped, on chanted Torah (six PocketTorah aliyot) and on
+read speech (two LibriVox readers) alike. `to_the_voice` widens each span into the blank
+frames either side, as far as the audio stays voiced. See its docstring for the rule.
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +49,7 @@ from .tools import samples
 #: Apache-2.0, and the name says which model made a span. Stored spans carry the
 #: aligner's name, so changing this is what makes a recording align again.
 MODEL = "imvladikon/wav2vec2-large-xlsr-53-hebrew"
-NAME = "ctc-xlsr-he/1"
+NAME = "ctc-xlsr-he/2"
 
 #: The rate the model was trained at. Not a preference.
 RATE = 16000
@@ -60,6 +69,25 @@ BATCH = 4
 SCORE_FLOOR = -10.0
 MATCH_FLOOR = -6.0
 
+#: How `to_the_voice` moves a span (2026-09-27). Measured, not chosen: at the words where
+#: the voice's own edge can be seen — after or before a pause — the path's start trailed
+#: the voice by a median of 15-70 ms per recording (about two frames) and its end fell
+#: short by 25-220 ms. `LEAD_S` is that start lag, applied only where the voice gives no
+#: edge to walk to. The two reaches bound the walk: a start is never pulled back more
+#: than about three times the worst per-recording lag, and an end never carried on past
+#: half a second, which covers the latest measured end (a held note in Devarim-1, 330 ms
+#: at the upper quartile) without letting a word swallow a cough that follows it.
+LEAD_S = 0.04
+REACH_BACK_S = 0.2
+REACH_ON_S = 0.5
+
+#: A frame is voiced when it is louder than a quarter of the way from the recording's
+#: quiet (its 10th percentile, in dB) to its loud (its 95th). Relative to the recording,
+#: because a phone in a car and a studio have different floors.
+QUIET_Q = 0.10
+LOUD_Q = 0.95
+VOICED_AT = 0.25
+
 #: The language the module's own `MODEL` and `NAME` are for.
 LANGUAGE = "he"
 
@@ -71,9 +99,9 @@ LANGUAGE = "he"
 #: constants above, byte for byte, because its name is part of every stored span's key.
 MODELS: dict[str, tuple[str, str]] = {
     LANGUAGE: (MODEL, NAME),
-    "fr": ("jonatasgrosman/wav2vec2-large-xlsr-53-french", "ctc-xlsr-fr/1"),
-    "ru": ("jonatasgrosman/wav2vec2-large-xlsr-53-russian", "ctc-xlsr-ru/1"),
-    "it": ("jonatasgrosman/wav2vec2-large-xlsr-53-italian", "ctc-xlsr-it/1"),
+    "fr": ("jonatasgrosman/wav2vec2-large-xlsr-53-french", "ctc-xlsr-fr/2"),
+    "ru": ("jonatasgrosman/wav2vec2-large-xlsr-53-russian", "ctc-xlsr-ru/2"),
+    "it": ("jonatasgrosman/wav2vec2-large-xlsr-53-italian", "ctc-xlsr-it/2"),
 }
 
 _LETTERS = re.compile(r"[^א-ת]")
@@ -117,6 +145,66 @@ def match_score(words: list[str], scores: list[float], language: str) -> float |
     return sum(heard) / len(heard) if heard else None
 
 
+def voiced_frames(levels_db: Sequence[float]) -> list[bool]:
+    """Which frames are voiced, given each frame's level in dB. See `VOICED_AT`."""
+    if not levels_db:
+        return []
+    ordered = sorted(levels_db)
+
+    def at(share: float) -> float:
+        return ordered[min(len(ordered) - 1, int(share * (len(ordered) - 1)))]
+
+    quiet, loud = at(QUIET_Q), at(LOUD_Q)
+    line = quiet + VOICED_AT * (loud - quiet)
+    return [level > line for level in levels_db]
+
+
+def to_the_voice(
+    spans: Sequence[tuple[int, int] | None],
+    voiced: Sequence[bool],
+    lead: int,
+    reach_back: int,
+    reach_on: int,
+) -> list[tuple[int, int] | None]:
+    """Each word's [start, end) frames, widened from the CTC path to the voice.
+
+    `None` is a word the path did not place, and stays `None`. Starts first, walking back
+    from the path's start through the blank frames before it, never into the previous
+    word: where a quiet frame is met, the word starts on the first voiced frame after it,
+    which is the voice's onset. Where the walk finds no quiet — the words run into each
+    other, or the recording has no floor — the voice cannot place the boundary, and the
+    start moves back by the measured `lead` alone. Then ends, walking on through voiced
+    frames until the voice stops or the next word starts, so words said without a break
+    between them tile and nothing goes unlit in the middle of a phrase.
+    """
+    placed = [list(span) if span else None for span in spans]
+    previous_end = 0
+    for span in placed:
+        if span is None:
+            continue
+        start = span[0]
+        at = start
+        met_quiet = False
+        while at > previous_end and start - at < reach_back:
+            if at - 1 < len(voiced) and not voiced[at - 1]:
+                met_quiet = True
+                break
+            at -= 1
+        span[0] = at if met_quiet else max(previous_end, start - lead)
+        previous_end = span[1]
+    following: int | None = None
+    for span in reversed(placed):
+        if span is None:
+            continue
+        ceiling = following if following is not None else len(voiced)
+        end = at = span[1]
+        while at < ceiling and at - end < reach_on and at < len(voiced) and voiced[at]:
+            at += 1
+        span[1] = max(end, at)
+        following = span[0]
+    return [(span[0], span[1]) if span else None for span in placed]
+
+
 class CtcAligner:
     """Word timings for a recording, in a language `MODELS` has an acoustic model for."""
 
@@ -140,8 +228,8 @@ class CtcAligner:
             return False, "uv sync --extra speech-align  (the forced aligner)"
         return True, self.name
 
-    def _emissions(self, audio: Path) -> tuple[Any, float, Any]:
-        """Log probabilities per frame, and how long a frame is.
+    def _emissions(self, audio: Path) -> tuple[Any, float, Any, list[bool]]:
+        """Log probabilities per frame, how long a frame is, and which frames are voiced.
 
         Windowed, because the whole file at once does not fit. Each window is given
         `CONTEXT_S` of real audio either side and the frames covering that context are
@@ -164,11 +252,17 @@ class CtcAligner:
         wave = heard.input_values[0]
         stride = model.config.inputs_to_logits_ratio
         window, context = WINDOW_S * RATE, CONTEXT_S * RATE
+        # Frame for frame with the logits: frame t is the audio from t strides in. The
+        # processor's normalising is one scale and one shift for the whole file, which
+        # moves every level by the same number of dB and so leaves `voiced_frames` alone.
+        whole = wave.numel() // stride
+        power = wave[: whole * stride].reshape(whole, stride).float().pow(2).mean(dim=1)
+        voiced = voiced_frames((10 * torch.log10(power + 1e-10)).tolist())
 
         if wave.numel() <= window:
             with torch.inference_mode():
                 logits = model(wave.unsqueeze(0)).logits
-            return torch.log_softmax(logits[0].float(), dim=-1), stride / RATE, processor
+            return torch.log_softmax(logits[0].float(), dim=-1), stride / RATE, processor, voiced
 
         # Padded so every window is the same width, which is what lets them be batched.
         over = -wave.numel() % window
@@ -183,7 +277,7 @@ class CtcAligner:
         logits = logits[:, keep : keep + window // stride].flatten(0, 1)
         if over:
             logits = logits[: -(over // stride)]
-        return torch.log_softmax(logits.float(), dim=-1), stride / RATE, processor
+        return torch.log_softmax(logits.float(), dim=-1), stride / RATE, processor, voiced
 
     def align(
         self, audio: Path, words: list[str], language: str
@@ -219,7 +313,7 @@ class CtcAligner:
         import torch
         import torchaudio.functional as alignment
 
-        log_probs, per_frame, processor = self._emissions(audio)
+        log_probs, per_frame, processor, voiced = self._emissions(audio)
         vocab = processor.tokenizer.get_vocab()
         # The blank the model emits, which is not `<pad>`: the tokenizer carries four
         # added special tokens the head never has an output class for, and handing one
@@ -246,20 +340,27 @@ class CtcAligner:
         )
         merged = alignment.merge_tokens(paths[0], scores[0], blank=blank)
 
-        found: dict[int, list[float]] = {}
+        found: dict[int, list[int]] = {}
         heard: dict[int, list[float]] = {}
         for span, who in zip(merged, owner, strict=True):
             if who < 0:
                 continue
-            edges = found.setdefault(who, [span.start * per_frame, span.end * per_frame])
-            edges[1] = span.end * per_frame
+            edges = found.setdefault(who, [span.start, span.end])
+            edges[1] = span.end
             heard.setdefault(who, []).append(float(span.score))
 
+        frames = to_the_voice(
+            [(found[i][0], found[i][1]) if i in found else None for i in range(len(words))],
+            voiced,
+            lead=round(LEAD_S / per_frame),
+            reach_back=round(REACH_BACK_S / per_frame),
+            reach_on=round(REACH_ON_S / per_frame),
+        )
         out: list[tuple[float, float, float]] = []
         clock = 0.0
-        for index in range(len(words)):
-            if index in found:
-                start, end = found[index]
+        for index, placed in enumerate(frames):
+            if placed is not None:
+                start, end = placed[0] * per_frame, placed[1] * per_frame
                 marks = heard[index]
                 clock = end
                 out.append((start, end, sum(marks) / len(marks)))
