@@ -2623,14 +2623,24 @@ def settle_command(
         bool, typer.Option("--accept/--reject", help="Take the reader's meaning, or refuse it.")
     ],
     by: Annotated[
-        str, typer.Option("--by", help="Who settles it: author (you) or editor.")
+        str,
+        typer.Option(
+            "--by",
+            help="Who settles it: author (you, the default) or editor (a paid editor).",
+        ),
     ] = "author",
     editor: Annotated[
-        str, typer.Option("--editor", help="Which editor, by the name they go by here.")
+        str,
+        typer.Option(
+            "--editor",
+            help="With --by editor: which editor, by the name they go by here. "
+            "Name them, so two editors count as two judges.",
+        ),
     ] = "",
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
-    """Settle a reader's proposed correction (targum-internal#164, door 3).
+    """Settle a reader's proposed correction, as the author or as a paid editor
+    (targum-internal#164, door 3; targum-internal#354).
 
     A reader's correction is a proposal until somebody with standing accepts it — this
     card's own words, "not a vote". Accepting applies the meaning and writes the decision
@@ -2641,8 +2651,15 @@ def settle_command(
     A refused proposal never reaches the gold set: `Store.agreed` counts only what was
     accepted, because a refusal is a judgement that the suggestion was *wrong*.
 
-    `--by editor` settles it as a paid editor (targum-internal#354), so a reader's
-    proposal an editor accepted is a reader and an editor agreeing.
+    Two hands settle, and either verdict closes the proposal the same way (design.md
+    §12, "An editor settles a reader's proposal — 2026-09-27"). The author's is the
+    default. A paid editor settles with `--by editor --editor NAME`: the decision row is
+    theirs, under their own pseudonym (`Store.editor_judge`), so a proposal an editor
+    accepted counts as a reader and an editor agreeing, and two named editors are two
+    judges. Leaving out `--editor` counts every unnamed editor as one.
+
+        targum corrections --proposed
+        targum settle 42 --accept --by editor --editor Dana
     """
     from .accounts import Store
     from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, Sense, set_gloss
