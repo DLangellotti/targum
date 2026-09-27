@@ -1,4 +1,4 @@
-"""A Telegram bot as a door onto /add (targum-internal#328, slice 1).
+"""A Telegram bot as a door onto /add (targum-internal#328, slices 1 and 2).
 
 Somebody links a chat from /account, and from then on what they send the bot — a voice
 note, a recording, a video, a picture, a PDF, or some text — becomes an ordinary private
@@ -18,22 +18,28 @@ What holds, and why:
   kept, built or spent. It never builds anonymously.
 - **The send is the press**, as Send with a file is on the page (2026-09-07), for text,
   pictures, PDFs and any recording up to ten minutes. A longer one is quoted and asks
-  first, with a link to the same `/build/<id>` page a connector's quote uses, so the
-  press is still the reader's own on targum's page (David, 2026-09-27).
+  first (David, 2026-09-27).
+- **A link is quoted, and the reader's press on the Build button is the consent**
+  (slice 2). It is priced by the same `Library.prepare` the Add page's `/prepare` calls,
+  so every refusal the Add page gives a link — YouTube, Instagram, TikTok, X and the
+  rest — comes back here in the same words. The button carries an opaque token bound to
+  the chat and the person it was offered to, and the press goes through
+  `Library.press`, the one road from a quote to `Library.claim` that `/build` takes
+  too. A long recording's quote carries the same button.
 - **Nothing about the message is kept but its content.** A forward carries its original
   sender's name; it is never read, so it can never land in somebody else's library. No
   message log: the update is answered and dropped.
-- **The bot only answers.** One reply per message it was sent, never a message first.
+- **The bot only answers.** One reply per message it was sent or button pressed, never
+  a message first.
 - **The hosted Bot API downloads up to 20 MB.** Bigger files are refused by name, with
   the address of the Add page, which takes them.
-
-Links, and the quote button they need, are slice 2: a link today gets one line pointing
-at the Add page.
 """
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -48,6 +54,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from . import serve as serve_module
     from .accounts import Person, Store
     from .serve import Library
 
@@ -79,6 +86,13 @@ API = "https://api.telegram.org"
 #: The longest a text's title may be, as the Add page titles a paste.
 PASTE_TITLE = 60
 
+#: The longest title a quote says before it trails off. A page's title can be a
+#: paragraph, and a quote is one line.
+QUOTE_TITLE = 120
+
+#: What a Build button's `callback_data` starts with. Telegram allows 64 bytes in all.
+PRESS = "b:"
+
 
 def configured() -> tuple[str, str, str] | None:
     """The bot token, the webhook secret and the bot's name, or None where any is unset.
@@ -107,9 +121,18 @@ class TooBig(Exception):
 
 
 class Client(Protocol):
-    """The four calls the door makes to Telegram. A protocol, so a test can stand in."""
+    """The calls the door makes to Telegram. A protocol, so a test can stand in."""
 
     def send(self, chat_id: int, text: str) -> None: ...
+
+    def offer(self, chat_id: int, text: str, button: str, data: str) -> None:
+        """A message with one button under it, whose press comes back as `data`."""
+
+    def answer(self, query_id: str, text: str = "") -> None:
+        """Tell Telegram a button's press was heard, so the button stops spinning."""
+
+    def edit(self, chat_id: int, message_id: int, text: str) -> None:
+        """Say something else in a message already sent, and take its button away."""
 
     def typing(self, chat_id: int) -> None: ...
 
@@ -142,6 +165,35 @@ class BotApi:
         self._call(
             "sendMessage",
             {"chat_id": chat_id, "text": text, "link_preview_options": {"is_disabled": True}},
+        )
+
+    def offer(self, chat_id: int, text: str, button: str, data: str) -> None:
+        self._call(
+            "sendMessage",
+            {
+                "chat_id": chat_id,
+                "text": text,
+                "link_preview_options": {"is_disabled": True},
+                "reply_markup": {"inline_keyboard": [[{"text": button, "callback_data": data}]]},
+            },
+        )
+
+    def answer(self, query_id: str, text: str = "") -> None:
+        payload: dict[str, Any] = {"callback_query_id": query_id}
+        if text:
+            payload["text"] = text
+        self._call("answerCallbackQuery", payload)
+
+    def edit(self, chat_id: int, message_id: int, text: str) -> None:
+        # No `reply_markup`, which is what takes the button away.
+        self._call(
+            "editMessageText",
+            {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "text": text,
+                "link_preview_options": {"is_disabled": True},
+            },
         )
 
     def typing(self, chat_id: int) -> None:
@@ -205,7 +257,7 @@ def _safe_name(name: str, fallback: str) -> str:
 
 def _is_only_a_link(message: dict[str, Any]) -> bool:
     """Whether a text message is a link and nothing else. A forwarded post with a link
-    at its foot is a text; a message that is one address is a link, which is slice 2."""
+    at its foot is a text; a message that is one address is a link, and is quoted."""
     text = str(message.get("text") or "").strip()
     if not text or any(char.isspace() for char in text):
         return False
@@ -279,9 +331,12 @@ class Door:
         """Answer one update, or say nothing where there is nothing to answer."""
         from . import incidents as incidents_module
 
+        query = update.get("callback_query")
+        if isinstance(query, dict):
+            return self._pressed(query)
         message = update.get("message")
         if not isinstance(message, dict):
-            # An edit, a channel post, a button: nothing slice 1 answers.
+            # An edit, a channel post: nothing the bot answers.
             return
         chat = message.get("chat") or {}
         if chat.get("type") != "private" or not isinstance(chat.get("id"), int):
@@ -362,15 +417,7 @@ class Door:
         text = str(message.get("text") or "")
         if text.strip():
             if _is_only_a_link(message):
-                return self._reply(
-                    chat_id,
-                    said_in(
-                        ui,
-                        "telegram.links-later",
-                        "We can't take links here yet. Paste it on {link}.",
-                        link=f"{self.address}/add",
-                    ),
-                )
+                return self._quote_link(chat_id, person, ui, text.strip())
             return self._text(chat_id, person, ui, text)
         brought = self._file_of(message, ui)
         if brought is None:
@@ -537,13 +584,71 @@ class Door:
             source = folder if brought.kind == "picture" else numbered
         self._build(chat_id, person, ui, source)
 
+    def _quote_link(self, chat_id: int, person: Person, ui: str, text: str) -> None:
+        """A link, priced as the Add page prices a pasted one, and offered with a button.
+
+        The same checks `Handler._prepare` makes before it prices anything: a link must
+        name something to fetch (`ingest.fetchable`, the rule the Add page's door and the
+        chat's quote keep), and a text the library already holds with a translation a
+        person published is pointed at rather than bought again. Everything after that is
+        `Library.prepare`'s, whose refusals are the Add page's own.
+        """
+        from . import catalogue as catalogue_module
+        from . import ingest as ingest_module
+
+        source = text if re.match(r"(?i)^https?://", text) else f"https://{text}"
+        if not ingest_module.fetchable(source) and catalogue_module.matching(source) is None:
+            return self._reply(
+                chat_id,
+                said_in(
+                    ui,
+                    "telegram.no-address",
+                    "We can't fetch that link. Check it, or paste it on {link}.",
+                    link=f"{self.address}/add",
+                ),
+            )
+        already = catalogue_module.matching(source)
+        if already is not None and already.translations:
+            return self._reply(
+                chat_id,
+                said_in(
+                    ui,
+                    "telegram.in-library",
+                    "{title} is already in the library, with a translation a person "
+                    "published. It'll read better than ours: {link}",
+                    title=already.title,
+                    link=f"{self.address}/library/{already.id}",
+                ),
+            )
+        job = self._prepared(person, ui, source, {"source": source})
+        if self._refused(chat_id, ui, job):
+            return
+        self._offer(chat_id, person, ui, job)
+
     def _build(self, chat_id: int, person: Person, ui: str, source: Path) -> None:
         """Price it and, unless it is a long recording, start it: `Library.prepare`, then
-        `Library.claim`, then the queue — the three steps `/prepare` and `/build` take,
-        in their order, and no second way to the rails."""
-        from .render.builder import credits_of
+        `Library.press` — the steps `/prepare` and `/build` take, in their order, and no
+        second way to the rails. A long recording is offered with the Build button a link
+        gets, and waits for the reader's press."""
+        job = self._prepared(person, ui, str(source), {})
+        if self._refused(chat_id, ui, job):
+            return
+        if job.audio and job.seconds > ASK_OVER_SECONDS:
+            return self._offer(chat_id, person, ui, job)
+        blocked = self.library.press(job)
+        if blocked:
+            self.library.remember(job)
+            return self._reply(chat_id, f"{blocked} {self.address}/you")
+        self._reply(chat_id, self._started(ui, job))
+
+    def _prepared(
+        self, person: Person, ui: str, source: str, extra: dict[str, Any]
+    ) -> serve_module.Job:
+        """A job for this person, priced by `Library.prepare` as `/prepare` prices one.
+
+        Its options are the Add page's (`add.js`, `options()`): into the language the
+        account reads, from the one it is learning, every word tappable, no glossary."""
         from .serve import Job
-        from .strings import counted
         from .translate.prompts import INTO, READING
 
         offered = {code for code, _ in INTO}
@@ -554,8 +659,8 @@ class Door:
         job = Job(
             ui=ui,
             id=secrets.token_hex(8),
-            source=str(source),
-            options={"to": into, "from": reading, "words": True, "gloss": False},
+            source=source,
+            options={"to": into, "from": reading, "words": True, "gloss": False, **extra},
             owner=person.id,
             admin=person.admin,
             home=self.library.home(person),
@@ -564,9 +669,12 @@ class Door:
         self.library.remember(job)
         self.library.prepare(job)
         self.library.remember(job)
-        press = f"{self.address}/build/{job.id}"
+        return job
+
+    def _refused(self, chat_id: int, ui: str, job: serve_module.Job) -> bool:
+        """Say why `Library.prepare` would not price it, if it would not."""
         if job.stage == "failed":
-            return self._reply(
+            self._reply(
                 chat_id,
                 job.error
                 or said_in(
@@ -575,36 +683,155 @@ class Door:
                     "We couldn't read that. Try again, or paste the text itself.",
                 ),
             )
+            return True
         if job.stage == "blocked":
-            return self._reply(chat_id, f"{job.blocked} {self.address}/you".strip())
-        if job.audio and job.seconds > ASK_OVER_SECONDS:
-            credits = credits_of(job.seconds)
-            said = counted(
-                "telegram.asks",
-                credits,
-                ui,
-                {
-                    "one": "Thanks. This one uses {n} credit. Confirm it here: {link}",
-                    "other": "Thanks. This one uses {n} credits. Confirm it here: {link}",
-                },
+            self._reply(chat_id, f"{job.blocked} {self.address}/you".strip())
+            return True
+        return False
+
+    def _offer(self, chat_id: int, person: Person, ui: str, job: serve_module.Job) -> None:
+        """The quote, in one line, with the Build button under it. Nothing is spent until
+        the reader presses it."""
+        self._quietly(
+            lambda: self.client.offer(
+                chat_id,
+                self._quote(ui, job),
+                said_in(ui, "telegram.build", "Build"),
+                PRESS + self._token(chat_id, person.id, job.id),
             )
-            return self._reply(chat_id, said.format(n=credits, link=press))
-        blocked = self.library.claim(job)
-        if blocked:
-            job.blocked = blocked
-            job.stage = "blocked"
-            self.library.remember(job)
-            return self._reply(chat_id, f"{blocked} {self.address}/you")
-        self.library.enqueue(job)
-        self._reply(
-            chat_id,
-            said_in(
-                ui,
-                "telegram.started",
-                "Thanks. We're getting it ready, and it'll be on your shelf: {link}",
-                link=press,
-            ),
         )
+
+    def _quote(self, ui: str, job: serve_module.Job) -> str:
+        """What the text is and what it uses, in credits and never in money."""
+        from .render.builder import credits_of
+        from .strings import counted
+
+        title = " ".join((job.title or "").split()) or said_in(ui, "telegram.untitled", "This one")
+        if len(title) > QUOTE_TITLE:
+            title = title[:QUOTE_TITLE].rsplit(" ", 1)[0] + "…"
+        if not job.audio:
+            return said_in(
+                ui,
+                "telegram.quote.text",
+                "{title}. It's a text, so it uses none of your credits.",
+                title=title,
+            )
+        credits = credits_of(job.seconds)
+        said = counted(
+            "telegram.quote",
+            credits,
+            ui,
+            {"one": "{title}. It uses {n} credit.", "other": "{title}. It uses {n} credits."},
+        )
+        return said.format(title=title, n=credits)
+
+    def _started(self, ui: str, job: serve_module.Job) -> str:
+        return said_in(
+            ui,
+            "telegram.started",
+            "Thanks. We're getting it ready, and it'll be on your shelf: {link}",
+            link=f"{self.address}/build/{job.id}",
+        )
+
+    # -- the Build button ---------------------------------------------------------
+
+    def _token(self, chat_id: int, person_id: int, job_id: str) -> str:
+        """What a Build button carries: the job, sealed to the chat and the person it was
+        offered to with the webhook's secret.
+
+        Kept nowhere, so a restart does not strand a quote (the job itself is read back
+        by `Library._recover`). Unforgeable without the secret, so a button's data typed
+        into another chat, or a job id seen in a link, presses nothing; and bound to the
+        person as well as the chat, so a chat unlinked and linked to somebody else cannot
+        press the quotes it was offered before. The job id rides in it, and is no secret
+        from this chat: the reply after a press links `/build/<id>`, which in turn opens
+        only for its owner (`Handler._own_job`)."""
+        seal = hmac.new(
+            self.secret.encode("utf-8"),
+            f"press:{chat_id}:{person_id}:{job_id}".encode(),
+            hashlib.sha256,
+        ).digest()[:16]
+        return f"{job_id}:{base64.urlsafe_b64encode(seal).rstrip(b'=').decode('ascii')}"
+
+    def _pressable(self, data: str, chat_id: int, person: Person) -> serve_module.Job | None:
+        """The job a button's data names, if it was offered to this chat and this person
+        and is still theirs. None for anything else, said the same way whatever it was."""
+        if not data.startswith(PRESS):
+            return None
+        job_id, _, _ = data[len(PRESS) :].partition(":")
+        if not re.fullmatch(r"[0-9a-f]{16}", job_id):
+            return None
+        expected = PRESS + self._token(chat_id, person.id, job_id)
+        if not secrets.compare_digest(data.encode("utf-8"), expected.encode("utf-8")):
+            return None
+        job = self.library.jobs.get(job_id)
+        if job is None or job.owner != person.id or job.kind != "build":
+            return None
+        return job
+
+    def _pressed(self, query: dict[str, Any]) -> None:
+        """A press on a Build button: `Library.press`, exactly as `/build` presses.
+
+        The press is the consent, so it is the only thing here that spends. A second
+        press of the same quote — a double tap, or the button tapped again before the
+        first answer lands — finds the job pressed and leaves it be."""
+        from . import incidents as incidents_module
+
+        query_id = str(query.get("id") or "")
+        message = query.get("message") or {}
+        chat = message.get("chat") or {}
+        if chat.get("type") != "private" or not isinstance(chat.get("id"), int):
+            return self._quietly(lambda: self.client.answer(query_id))
+        chat_id = int(chat["id"])
+        ui = self._stranger_language(query)
+        try:
+            person = self.store.telegram_person(chat_id)
+            if person is None:
+                self._quietly(lambda: self.client.answer(query_id))
+                return self._reply(chat_id, self._link_first(ui))
+            ui = self._language(person)
+            job = self._pressable(str(query.get("data") or ""), chat_id, person)
+            if job is None:
+                self._quietly(lambda: self.client.answer(query_id))
+                return self._reply(
+                    chat_id,
+                    said_in(
+                        ui,
+                        "telegram.press-stale",
+                        "That button doesn't work any more. Send the link again.",
+                    ),
+                )
+            if job.stage in self.library.PRESSED:
+                return self._quietly(
+                    lambda: self.client.answer(
+                        query_id, said_in(ui, "telegram.pressed-already", "It's on its way.")
+                    )
+                )
+            blocked = self.library.press(job)
+            self._quietly(lambda: self.client.answer(query_id))
+            if blocked:
+                # The button stays, so a press after the month turns over still works.
+                self.library.remember(job)
+                return self._reply(chat_id, f"{blocked} {self.address}/you")
+            said = self._quote(ui, job) + "\n" + self._started(ui, job)
+            message_id = message.get("message_id")
+            if isinstance(message_id, int):
+                try:
+                    return self.client.edit(chat_id, message_id, said)
+                except Exception as error:  # noqa: BLE001 - said as a reply instead
+                    log.warning("telegram: %s", error)
+            self._reply(chat_id, said)
+        except Exception as error:  # noqa: BLE001 - one bad press never takes the door down
+            incidents_module.record(self.library.incidents, "telegram", error)
+            self._reply(
+                chat_id,
+                said_in(
+                    ui,
+                    "telegram.failed",
+                    "We couldn't take that. Try again, or send it on {link}.",
+                    link=f"{self.address}/add",
+                ),
+            )
 
     # -- saying things ------------------------------------------------------------
 

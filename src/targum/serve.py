@@ -1216,6 +1216,9 @@ class Library:
         # hundred chunks and the disk should not be walked for every one of them.
         self._used: dict[Path, tuple[int, int]] = {}
         self.lock = threading.Lock()
+        # Held across `press`, so two presses of one quote arriving together — a double
+        # tap on a Telegram button, two tabs — decide once between them.
+        self._pressing = threading.Lock()
         self.queue: queue.Queue[str] = queue.Queue()
         self._workers: list[threading.Thread] = []
         if store is not None:
@@ -3161,6 +3164,30 @@ class Library:
             if not blocked:
                 self._committed += total
             return blocked, 0.0, "everyone" if blocked else ""
+
+    #: The stages a pressed job is in. A press on one of these has already happened.
+    PRESSED = frozenset({"queued", "working", "done"})
+
+    def press(self, job: Job) -> str:
+        """A reader's press on a quote: claim it, then queue it. The blocking sentence, or "".
+
+        The one way from a quote to the queue, for every door that has a button on it —
+        `/build` from the page's card, the `/build/<id>` form a connector links to, and
+        the Telegram bot's Build button — so none of them is a second path to
+        `Library.claim`. A job already pressed is left as it is: a second press neither
+        claims again nor puts the job in the line twice, where the worker would build it
+        twice.
+        """
+        with self._pressing:
+            if job.stage in self.PRESSED:
+                return ""
+            blocked = self.claim(job)
+            if blocked:
+                job.blocked = blocked
+                job.stage = "blocked"
+                return blocked
+            self.enqueue(job)
+            return ""
 
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
@@ -8204,8 +8231,8 @@ class Handler(BaseHTTPRequestHandler):
     def _press(self, job_id: str) -> None:
         """The press itself, as a form post so the page works with script off.
 
-        The same three steps `_build` takes and in the same order — own it, claim it,
-        enqueue it — because there is exactly one path to `Library.claim` and this must
+        The same two steps `_build` takes — own it, then `Library.press`, which claims and
+        enqueues — because there is exactly one path to `Library.claim` and this must
         not become a second. What differs is only the answer: a browser running no script
         is sent back to the page, which now says it is being made.
         """
@@ -8213,15 +8240,10 @@ class Handler(BaseHTTPRequestHandler):
         if job is None:
             return self._not_found()
         wants_json = bool(self.headers.get("X-Targum-Press"))
-        if job.stage not in {"working", "done"}:
-            blocked = self.library.claim(job)
-            if blocked:
-                job.blocked = blocked
-                job.stage = "blocked"
-                if wants_json:
-                    return self._json(job.state(), 402)
-                return self._go(f"/build/{job.id}")
-            self.library.enqueue(job)
+        if self.library.press(job):
+            if wants_json:
+                return self._json(job.state(), 402)
+            return self._go(f"/build/{job.id}")
         if wants_json:
             return self._json(job.state())
         self._go(f"/build/{job.id}")
@@ -8817,14 +8839,8 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 404,
             )
-        if job.stage in {"working", "done"}:
-            return self._json(job.state())
-        blocked = self.library.claim(job)
-        if blocked:
-            job.blocked = blocked
-            job.stage = "blocked"
+        if self.library.press(job):
             return self._json(job.state(), 402)
-        self.library.enqueue(job)
         self._json(job.state())
 
     def _cover(self, payload: dict[str, Any]) -> None:
