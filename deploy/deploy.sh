@@ -69,6 +69,17 @@ echo "== secrets, from 1Password =="
 # the item it could not read. Before this the box's file was edited by hand, and
 # TARGUM_TTS_KEY was missing from all five versions of it without anything saying so.
 command -v op >/dev/null || { echo "   no op here: brew install 1password-cli" >&2; exit 1; }
+# Nobody need be at the fingerprint reader (David, 2026-09-27): as weekly-run.sh does, the
+# vault is read as the targum-box service account when its token is in the login keychain
+# (weekly.plist.example says how it gets there once). That account reads the targum vault
+# and nothing else, cannot write to it, and every reference in box.env.op is in that vault.
+# A token already in the environment is used as it is; with none anywhere, op falls back
+# to the app's own unlock, as before.
+if [ -z "${OP_SERVICE_ACCOUNT_TOKEN:-}" ] &&
+  token="$(security find-generic-password -s targum-op-service-account -w 2>/dev/null)"; then
+  export OP_SERVICE_ACCOUNT_TOKEN="$token"
+  echo "   reading the vault as the targum-box service account"
+fi
 # Digits allowed after the first letter: rclone reads a remote from RCLONE_CONFIG_<NAME>_*,
 # and a filter of [A-Z_] alone dropped any such line whose name held one, silently.
 SECRETS="$(op inject -i deploy/box.env.op | grep -E '^[A-Z_][A-Z0-9_]*=')"
