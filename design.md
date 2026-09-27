@@ -394,6 +394,29 @@ chose HTML for all seven.
   reader's language, and says why: "your text took more than a few minutes to build".
   David kept it.
 
+### An editor settles a reader's proposal — 2026-09-27
+
+A reader's correction is a proposal until somebody with standing settles it
+(targum-internal#164: "not a vote"). Until now that somebody was the author. A paid
+editor is the second hand with standing, and their verdict closes a proposal just as the
+author's does. David, 2026-09-27, targum-internal#354.
+
+- **The flow.** `targum corrections --proposed` lists the queue; `targum settle ID
+  --accept|--reject --by editor --editor NAME` settles one. Accepting applies the meaning
+  and refusing changes nothing, whoever presses. Either way the proposal leaves the
+  queue and cannot be settled a second time.
+- **How an editor is counted.** The decision is a row of its own, `who = "editor"`,
+  `licence = "targum"`, under the editor's pseudonym (`Store.editor_judge`: their name,
+  folded and salted the way a reader's account is). So a proposal an editor accepted is a
+  reader and an editor agreeing, two judges in `Store.agreed`; two named editors are two
+  judges; one editor twice is one. An editor left unnamed is counted by role, so every
+  unnamed editor is one judge. A refusal never reaches the gold set, whoever made it.
+- **The default stays the author.** `--by` defaults to `author`, so a settle with no hand
+  named is the author's, as it always was.
+
+What it does not change: a reader still cannot settle, and a model is never a judge.
+
+
 ### A haser word counts as the male word the reader knows — 2026-09-27
 
 The press card's "You know about 6 words in 10 here", and the number the chat ranks
