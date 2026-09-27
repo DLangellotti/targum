@@ -1712,11 +1712,15 @@
       });
       if (rows.length) return pickByRung(voiced(rows), rung);
     }
+    // And heard here too: a reader who named a rung and no subject is as new as one who
+    // named three, and the voice is as much the second thing they should find.
     if (rung && !arrived.length) {
       return pickByRung(
-        handed.filter(function (reader) {
-          return reader.register === "modern";
-        }),
+        voiced(
+          handed.filter(function (reader) {
+            return reader.register === "modern";
+          })
+        ),
         rung
       );
     }

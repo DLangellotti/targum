@@ -1435,6 +1435,21 @@ def test_a_first_text_is_one_that_can_be_heard_where_the_subject_has_one() -> No
     assert silent["carry"]["title"] == "שקט"
 
 
+def test_a_rung_without_a_subject_is_heard_first_too() -> None:
+    """A reader who skipped the subjects and named a rung is as new as one who named
+    three: the modern text the rung lands on is one with a voice, where there is one."""
+    shelf = [
+        reader("quiet", "שקט", "quiet", kind="article", register="modern", difficulty=10),
+        reader(
+            "loud", "קול", "loud", kind="article", register="modern", difficulty=30, spoken=True
+        ),
+    ]
+    came = draw([], {"targum:declared": "aleph"}, shared=shelf)
+    assert came["carry"]["title"] == "קול", "the easiest heard one, over an easier silent one"
+    silent = draw([], {"targum:declared": "aleph"}, shared=shelf[:1])
+    assert silent["carry"]["title"] == "שקט", "and a silent one where nothing is heard"
+
+
 def test_the_fold_says_what_it_is_the_first_time_and_never_again() -> None:
     """The third moment: the words a new reader marked ten minutes ago are waiting, and a
     line says whose they are. Once — the second time they know."""

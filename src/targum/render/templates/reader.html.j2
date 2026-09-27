@@ -757,6 +757,11 @@
   <span class="next-up-lead">{{ t("reader.page.read-next", "Up next") }}</span>
   <a class="next-up-link" href="{{ following.filename }}"><bdi lang="{{ source_language }}" dir="auto">{{ following.title }}</bdi></a>
   <span class="next-up-why">{{ t("reader.next.minutes", "{n} min", n=minutes[following.number]) }}</span>
+  {#- How many of the next one's words the reader already knows, said once, at the foot of
+      the first section they finish (targum-internal#335; design.md §12, "Three moments in
+      ten minutes"). Written by the script after the press, never on load, with a count
+      targum's own server works out: the page carries no list of anybody's words. -#}
+  <span class="next-up-known" id="next-up-known" hidden></span>
 </aside>
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
@@ -776,6 +781,8 @@
       opinion (targum-internal#176). The blurb is one tap away on the library row this
       links to. -#}
   {% if suggested.because %}<span class="next-up-why">{{ suggested.because }}{% if suggested.minutes %} · {{ t("reader.next.minutes", "{n} min", n=suggested.minutes) }}{% endif %}</span>{% endif %}
+  {#- The same line, for a text from the library (targum-internal#335). -#}
+  <span class="next-up-known" id="next-up-known" hidden></span>
   {#- A way to disagree, and nothing more (targum-internal#233). It draws again from a
       list written into the page — the page fetches nothing — and remembers nothing: a
       refusal the server kept would turn a door into a profile nobody asked to build.

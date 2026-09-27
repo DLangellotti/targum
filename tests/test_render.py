@@ -608,6 +608,51 @@ def test_the_foot_of_a_section_offers_the_next_one_by_name(tmp_path: Path) -> No
     assert 'class="next-up here" id="next-up" dir="ltr" hidden>' in first
 
 
+def test_the_foot_carries_a_place_for_the_count_and_no_words(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#335; David on targum#476, "count on the server". The first finished
+    foot says how many of the next one's words the reader knows, and the number comes
+    from targum's own server: a shared page is built once for everybody, and no list of
+    the offer's words reaches the browser. The page carries only the empty line."""
+    segments = [heading(0, 1, "One"), paragraph(1), heading(2, 1, "Two"), paragraph(3)]
+    segmented = make_segmented(segments)
+    document = Document(source="memory", title="Book", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: "x" for s in segments},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[1].id: [Token(start=0, end=9, surface="paragraph", lemma="here", band=3)],
+            segments[3].id: [Token(start=0, end=9, surface="paragraph", lemma="zqxlater", band=3)],
+        },
+    )
+    pages = render(document, segmented, [translation], tmp_path / "reader", annotation=annotation)
+    first = pages[1].read_text(encoding="utf-8")
+    assert '<span class="next-up-known" id="next-up-known" hidden></span>' in first
+    assert "data-known-of" not in first.split("<script", 1)[0]
+    assert "zqxlater" not in first, "the next section's words are not on this page"
+
+    rows = catalogue_of(("here", "s:here", 10, "modern"), ("first", "s:first", 12, "modern"))
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    alone = Document(source="s:here", title="Book", language="he", blocks=[], content_hash="h")
+    page = render(alone, make_segmented([paragraph(0)]), [translation], tmp_path / "one")[
+        0
+    ].read_text(encoding="utf-8")
+    assert 'href="/open/first"' in page and 'id="next-up-known"' in page
+    assert "data-known-of" not in page.split("<script", 1)[0]
+
+
 def test_the_page_carries_the_second_pick_because_it_cannot_fetch_one(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

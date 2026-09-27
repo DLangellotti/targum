@@ -6108,6 +6108,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._gloss_phrase(payload)
         if route == "/chapter":
             return self._chapter(payload)
+        if route == "/known-ahead":
+            return self._known_ahead(payload)
         if route == "/cover":
             return self._cover(payload)
         if route == "/jobs/watch":
@@ -8461,6 +8463,63 @@ class Handler(BaseHTTPRequestHandler):
                 )
             except Exception:  # noqa: BLE001 - a measurement never costs the reader a sync
                 log.exception("could not measure section %s of %s", section, hash_)
+
+    #: The most dictionary forms a page may say it holds as known. A section of Psalms has
+    #: a few hundred; this is a ceiling on a request, not a figure anybody reaches.
+    KNOWN_AHEAD_CAP = 5000
+
+    def _known_ahead(self, payload: dict[str, Any]) -> None:
+        """How many of the next thing's words the reader already knows, as a number and
+        nothing else (targum-internal#335; David on targum#476: "count on the server").
+
+        Asked once, by the foot of the first section a reader finishes: `document` and
+        `section` name the page they are on, and either `next` (a section of the same
+        text) or `entry` (a catalogue text) names the offer. The offer's words are read
+        here — the next section's from its annotation, a catalogue text's from the index
+        beside the catalogue — and never go to the browser: a page on the shared shelf is
+        built once for everybody, so neither a list nor a count could be baked into it.
+
+        Counted against the signed-in reader's own ledger, and against the words on the
+        page they are on that the page says it holds as known — the words the press has
+        just marked, which may not have reached the account yet. Only the words that are
+        really on that page are taken from it, so the page cannot count anything else.
+        `known` is None where the offer cannot be measured, and the page says nothing.
+        """
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        found = self.library.document_folder(homes, str(payload.get("document") or ""))
+        if found is None:
+            return self._json({"known": None})
+        folder, language = found
+        language = language.split("-")[0].lower()
+        try:
+            here = int(payload.get("section") or 0)
+            following = int(payload.get("next") or 0)
+        except (TypeError, ValueError):
+            return self._json({"error": "bad section"}, 400)
+        entry = str(payload.get("entry") or "")
+        if following:
+            offered = set(coverage_module.section_lemmas(folder, following) or [])
+        elif entry:
+            index = coverage_module.read_index(catalogue_module.lemmas_path())
+            offered = set(index.lemmas_for(entry))
+        else:
+            offered = set()
+        if not offered or not language:
+            return self._json({"known": None})
+        marked = self.store.marked(person, language)
+        known = {lemma for lemma in offered if marked.get(lemma) == coverage_module.KNOWN}
+        said = payload.get("known")
+        if isinstance(said, list) and here:
+            on_page = set(coverage_module.section_lemmas(folder, here) or [])
+            held = {str(lemma) for lemma in said[: self.KNOWN_AHEAD_CAP]}
+            known |= offered & on_page & held
+        self._json({"known": len(known)})
 
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language

@@ -676,6 +676,82 @@ def test_the_next_section_is_offered_once_this_one_is_finished() -> None:
     assert back["onward"] is False, "taken back, and the offer goes with it"
 
 
+# -- the third moment: being remembered (targum-internal#335) ------------------------
+
+
+def test_the_first_finish_asks_targum_how_much_of_the_next_one_is_known() -> None:
+    """At the first finished foot, the offer under it says how many of its words the
+    reader already knows. The page cannot count it — a shared page is built once for
+    everybody — so it asks targum's own server, naming this page and the offer, and
+    sends the words of this page it holds as known, the press's among them. Only a
+    number comes back (David on targum#476). Once: the flag is set, and a page that finds
+    it does not ask."""
+    words, lemmas = chapter(["a", "b", "c"])
+    before = run([], chapter=words, lemmas=lemmas, ask={"known": 3})
+    assert before["finished"]["ahead"] == "", "never on load"
+    assert not [q for q in before["asked"] if "/known-ahead" in q["url"]], "nor asked on load"
+    done = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        section=1,
+        sections=3,
+        vocab={"c": {"status": 2}},
+        ask={"known": 3},
+        presses=[True],
+    )
+    (question,) = [q["body"] for q in done["asked"] if "/known-ahead" in q["url"]]
+    assert question["document"] == "a-chapter"
+    assert question["section"] == 1 and question["next"] == 2, "the next section of this text"
+    # a and b marked by the press just now; c is still being learned, and is not sent.
+    assert sorted(question["known"]) == ["a", "b"]
+    assert "lemmas" not in question and "words" not in question
+    assert done["finished"]["ahead"] == "You already know 3 words in this one."
+    assert done["finished"]["told"], "and it is said once in a browser"
+    again = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        section=1,
+        sections=3,
+        ask={"known": 3},
+        presses=[True],
+        stored={"targum:taught-the-share": "1"},
+    )
+    assert again["finished"]["ahead"] == "", "not on the next finish"
+    assert not [q for q in again["asked"] if "/known-ahead" in q["url"]], "nor asked"
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [{"known": 0}, {"known": None}, {"signedIn": False, "status": 401}, "fail"],
+    ids=["nought", "not-measured", "signed-out", "offline"],
+)
+def test_the_line_waits_for_a_finish_with_something_to_say(answer: Any) -> None:
+    """Nought known of the next one is not the first thing worth being told, and nor is
+    anything said where targum cannot measure the offer, the reader is signed out, or the
+    question never arrived. The moment waits for a finish that has something to say."""
+    words, lemmas = chapter(["a"])
+    done = run([], chapter=words, lemmas=lemmas, ask=answer, presses=[True])["finished"]
+    assert done["ahead"] == "" and done["told"] == ""
+
+
+def test_undo_while_the_question_is_out_says_nothing() -> None:
+    """Taken back before the answer came, the count would have the press's words in it."""
+    words, lemmas = chapter(["a", "b"])
+    back = run([], chapter=words, lemmas=lemmas, ask={"known": 2}, presses=[True, "undo"])
+    assert back["finished"]["ahead"] == "" and back["finished"]["told"] == ""
+
+
+def test_a_playlist_press_leaves_the_line_unsaid() -> None:
+    """In a playlist the press moves on, so the line would be said to a page nobody is on
+    — and the flag with it, and the moment lost."""
+    words, lemmas = chapter(["a"])
+    moved = run([], chapter=words, lemmas=lemmas, ask={"known": 1}, footWay="next", presses=[True])
+    assert moved["finished"]["ahead"] == "" and moved["finished"]["told"] == ""
+    assert not [q for q in moved["asked"] if "/known-ahead" in q["url"]]
+
+
 def test_the_last_chapter_finishes_the_book_as_well() -> None:
     """`done` goes on meaning what it always meant, so a one-chapter book behaves exactly
     as a scene and an article do — and the library row, which asks about a whole text and

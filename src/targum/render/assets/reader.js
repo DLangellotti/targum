@@ -1945,6 +1945,9 @@ var targumReader = function () {
     if (!already) {
       setFinished(true);
       footPressed = { lemmas: taken, counted: taken.length ? counted : 0 };
+      // Only where the page stays: in a playlist the press leaves, and a line said to a
+      // page nobody is on is a line never said.
+      if (!footWay) sayKnownAhead();
     }
     return { already: already, lemmas: taken, counted: taken.length ? counted : 0 };
   }
@@ -1959,6 +1962,99 @@ var targumReader = function () {
     }
     if (finishedAt()) return;
     pressFoot(marking);
+  }
+
+  /* The third moment (targum-internal#335; design.md §12, "Three moments in ten
+     minutes"): being remembered. The first time a section is finished in place, the offer
+     under it says how many of its words the reader already knows, the words the press
+     just marked among them — "You already know 14 words in this one." It is what the
+     marks are for, said about the next thing rather than this one: this text's own
+     figures are the ink block's.
+
+     The number is targum's to work out, not the page's (David on targum#476, "count on
+     the server"): a page on the shared shelf is built once for everybody, so it can carry
+     neither a count nor the offer's words. It asks once, naming this page and the offer,
+     and sends the words of this page it holds as known, so the press's own words count
+     before the sync has carried them. Only a number comes back.
+
+     Said once in a browser, in answer to the press and never on load, in the offer's own
+     row, so nothing above it moves. Nothing off a disk, signed out, where the server
+     cannot measure the offer, or where the count is nought: "none of these" is not a thing
+     worth being told first, and the moment waits for a finish that has something to say.
+     A count, never a share, and never of what is waiting. */
+  var TOLD_SHARE = "targum:taught-the-share";
+  // Asked once a page: the press that clears the last word finishes the section twice
+  // over (the cleared page, then the press), and one question is enough.
+  var askedShare = false;
+
+  function toldShare() {
+    try {
+      return !!localStorage.getItem(TOLD_SHARE);
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // What the foot is offering, as the server names it: the next section of this text,
+  // or a catalogue text by its id off the `/open/<id>` link. Null for anything else.
+  function offerNamed(offer) {
+    if (offer.classList.contains("here")) return { next: Number(sectionId) + 1 };
+    var link = offer.querySelector(".next-up-link");
+    var href = (link && link.getAttribute("href")) || "";
+    var id = /^\/open\/([^?#]+)/.exec(href);
+    return id ? { entry: decodeURIComponent(id[1]) } : null;
+  }
+
+  function sayKnownAhead() {
+    var offer = document.getElementById("next-up");
+    var line = document.getElementById("next-up-known");
+    if (!offer || !line || PREVIEW || !canAsk() || typeof fetch !== "function") return;
+    if (askedShare || toldShare()) return;
+    var named = offerNamed(offer);
+    if (!named) return;
+    askedShare = true;
+    var held = lemmasHere(false).filter(function (lemma) {
+      return statusOf(lemma) === KNOWN;
+    });
+    fetch(keyed("/known-ahead"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        document: documentId,
+        section: Number(sectionId),
+        next: named.next || 0,
+        entry: named.entry || "",
+        known: held,
+      }),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        var known = answer && typeof answer.known === "number" ? answer.known : 0;
+        // Taken back while the question was out, or said by an earlier answer.
+        if (!known || !finishedAt() || toldShare()) return;
+        line.textContent = tn(
+          "reader.next.known-ahead",
+          known,
+          "You already know {n} word in this one.",
+          "You already know {n} words in this one.",
+          { n: known }
+        );
+        line.hidden = false;
+        try {
+          targumKeep(TOLD_SHARE, String(Date.now()));
+        } catch (e) {}
+      })
+      .catch(function () {
+        /* offline, or the server could not say: the moment waits */
+      });
+  }
+
+  // Taken back with the finish: the count it said had the press's words in it.
+  function unsayKnownAhead() {
+    var line = document.getElementById("next-up-known");
+    if (line) line.hidden = true;
   }
 
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A
@@ -1983,6 +2079,7 @@ var targumReader = function () {
     footPressed = null;
     if (pressed && pressed.lemmas.length) takeBack(pressed.lemmas);
     setFinished(false);
+    unsayKnownAhead();
   }
 
   /* Leaving by the press, for the next item of a playlist. What the press did goes with
@@ -2835,6 +2932,7 @@ var targumReader = function () {
         if (done && !finishedBySelf && !finishedAt()) {
           finishedBySelf = true;
           setFinished(true);
+          if (!footWay) sayKnownAhead();
         }
         if (done) {
           // A milestone bragged the brand's way: what is true, in type, once. Not a
@@ -9260,6 +9358,9 @@ var targumReader = function () {
         (pick.minutes ? " · " + say.t("reader.next.minutes", "{n} min").replace("{n}", pick.minutes) : "");
       why.hidden = !pick.because;
     }
+    // The count of words known was about the first offer, and this is another.
+    var known = next.querySelector(".next-up-known");
+    if (known) known.hidden = true;
     // Nothing left to draw, so the control goes rather than sitting there inert.
     if (!more.length) elsewhere.hidden = true;
   });
