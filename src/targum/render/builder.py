@@ -3383,6 +3383,10 @@ def render(
             # the reader. Keyed off what actually ran: a text annotated before the swap
             # carries Stanza's name and gets no DICTA credit it did not earn.
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
+            # Russian's words read here (annotate/russian.py), named the same way and on the
+            # same key: the carve-out in LICENSING.md promised it, and OpenCorpora's
+            # CC BY-SA asks it.
+            russian_words_credit=bool(annotation and annotation.annotator.startswith("ru-local/")),
             # The vowel points likewise, and only where the model actually pointed a
             # word: a text its edition pointed throughout names the vocalizer that was
             # ready and never ran, and owes it nothing.

@@ -23,7 +23,7 @@ from ..paths import ensure, model_dir
 _STANZA_CODE = {"iw": "he", "ji": "yi"}
 
 #: The Stanza models targum may load: a language, and for each processor the build that
-#: was checked. **Empty, on purpose (2026-09-13).**
+#: was checked. **Empty, on purpose (2026-09-13)**, but for one Russian file (below).
 #:
 #: Stanza's code is Apache-2.0 and its models are not; each is trained on a Universal
 #: Dependencies treebank with a licence of its own, and `LICENSING.md` holds that a
@@ -35,7 +35,16 @@ _STANZA_CODE = {"iw": "he", "ji": "yi"}
 #: Spanish and German are ShareAlike. None passes, so nothing is listed, and a language
 #: whose treebank is checked and clean is added here with the build that was checked —
 #: never Stanza's default, which a Stanza release can repoint at another treebank.
-AUDITED: dict[str, dict[str, str]] = {}
+#:
+#: **Russian's lemmatizer, alone, since 2026-09-27.** David carved Russian out of the rule
+#: on training data (`LICENSING.md`, "Russian"): a Russian model may be used whatever it
+#: was trained on, where its own licence permits commercial use. `syntagrus_nocharlm` is
+#: Apache-2.0, one file, and loads neither a character model nor the `conll17` vectors,
+#: which are CC BY-NC-SA files of their own and stay out. Russian's tokenizer is not
+#: listed, so its sentences are still drawn by rule (`segment/hebrew.py`), and the
+#: lemmatizer is read by `annotate/russian.py` with spaCy's parts of speech, never through
+#: `annotate/lemma.StanzaLemmatizer`, which asks for a tagger this does not list.
+AUDITED: dict[str, dict[str, str]] = {"ru": {"lemma": "syntagrus_nocharlm"}}
 
 _NONCOMMERCIAL_HEBREW = (
     "Hebrew is not read by Stanza: its Hebrew models are NonCommercial.",

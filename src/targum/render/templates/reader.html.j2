@@ -798,7 +798,7 @@
     them in a file nobody opens is not naming them"; nor is naming them in a card nobody
     can open. They belong to the text, so they travel with it, at every width, on the
     last page where the pager is. -#}
-{% if speech_credit or words_credit or pointing_credit or lexicon_credit or biblical %}
+{% if speech_credit or words_credit or russian_words_credit or pointing_credit or lexicon_credit or biblical %}
 <aside class="credits" id="credits" aria-label="{{ t("reader.page.credits", "Credits") }}">
   {#- Who read it. A recording the library serves is somebody else's work under a licence
       that asks for them to be named, and naming them in a file nobody opens is not
@@ -818,6 +818,12 @@
       file nobody opens is the same non-naming the reading credit above refuses. -#}
   {% if words_credit %}
   <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- Russian's words, where they were read here rather than by the model (LICENSING.md,
+      "Russian"): the three things that read them, and OpenCorpora's dictionary under the
+      licence that asks for it to be named. -#}
+  {% if russian_words_credit %}
+  <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://spacy.io/models/ru" rel="noopener">spaCy</a>, <a href="https://stanfordnlp.github.io/stanza/" rel="noopener">Stanza</a> and pymorphy3 with <a href="https://opencorpora.org" rel="noopener">OpenCorpora</a> · <a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="noopener">CC BY-SA 3.0</a></p>
   {% endif %}
   {#- And what pointed the words, on the same terms and keyed the same way: to the
       vocalizer that ran, and only where it pointed something the edition had not. -#}

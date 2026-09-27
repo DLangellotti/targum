@@ -262,9 +262,9 @@ class HebrewSegmenter:
     """Rules for every language; Stanza, held as the delegate, only where it is audited.
 
     Hebrew-script text by the rules above, text in a script with capitals by the same
-    rules taught abbreviations and case (`cased.py`), and Stanza for a language listed in
-    `stanza_segmenter.AUDITED`, which today is none. The class keeps its name because
-    everything that builds a reader constructs it.
+    rules taught abbreviations and case (`cased.py`), and Stanza for a language whose
+    tokenizer `stanza_segmenter.AUDITED` lists, which today is none. The class keeps its
+    name because everything that builds a reader constructs it.
 
     The same shape as `annotate.dicta.DictaLemmatizer` and for the same reason: the
     language only arrives with the text, so the thing that routes by it has to hold both.
@@ -289,6 +289,8 @@ class HebrewSegmenter:
         code = stanza_code(language)
         if code in HEBREW_SCRIPT:
             return [sentences(text) for text in texts]
-        if code in AUDITED:
+        # A tokenizer listed, not merely a language: Russian's lemmatizer is listed and its
+        # sentences are still drawn by rule (2026-09-27).
+        if "tokenize" in AUDITED.get(code, {}):
             return self.other.split(texts, language)
         return [cased.sentences(text, code) for text in texts]

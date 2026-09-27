@@ -221,7 +221,24 @@ VIDEO_HOMES = (
 #: A post on X, "On X" in its head (targum-internal#158). Not a video host's: X's door is
 #: its own module (`ingest/x.py`), and every spelling of a post reduces to this one prefix.
 X_POST = "https://x.com/i/status/"
-OUTBOUND = (PEALIM, LICENCE, DICTA, YOUTUBE, *VIDEO_HOMES, X_POST, SVG_NAMESPACE, OPENRUSSIAN)
+#: What read Russian's words where they were read here (`annotate/russian.py`), named at
+#: the foot of the page as DICTA is, which the Russian carve-out in LICENSING.md promised.
+RUSSIAN_WORDS = (
+    "https://spacy.io/models/ru",
+    "https://stanfordnlp.github.io/stanza/",
+    "https://opencorpora.org",
+)
+OUTBOUND = (
+    PEALIM,
+    LICENCE,
+    DICTA,
+    YOUTUBE,
+    *VIDEO_HOMES,
+    X_POST,
+    SVG_NAMESPACE,
+    OPENRUSSIAN,
+    *RUSSIAN_WORDS,
+)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:
@@ -4903,6 +4920,14 @@ def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
     read_by_stanza = page("stanza/1.10.1/tokenize,pos,lemma+roots")
     assert "Dictionary forms by" not in read_by_stanza
     assert "huggingface.co" not in read_by_stanza
+
+    # Russian read here names what read it, and nothing of DICTA's.
+    read_here = page("ru-local/ru_core_news_lg-3.8.0+stanza-1.14.0/syntagrus_nocharlm/1")
+    assert "Dictionary forms by" in read_here and "huggingface.co" not in read_here
+    for link in RUSSIAN_WORDS:
+        assert link in read_here
+    assert "https://creativecommons.org/licenses/by-sa/3.0/" in read_here
+    assert "spacy.io" not in read_by_dicta
 
 
 def test_two_words_with_one_spelling_are_two_rows_with_one_lemma(tmp_path: Path) -> None:

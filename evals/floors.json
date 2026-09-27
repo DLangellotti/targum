@@ -329,6 +329,62 @@
   },
   {
     "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "token_recall",
+    "system": "ru-local",
+    "at_least": 0.95,
+    "why": "on 2026-09-27: 0.9781 over 120 dev sentences, 0.9925 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "lemma_accuracy",
+    "system": "ru-local",
+    "at_least": 0.92,
+    "why": "on 2026-09-27: 0.942 over 120 dev sentences, 0.9542 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "upos_accuracy",
+    "system": "ru-local",
+    "at_least": 0.91,
+    "why": "on 2026-09-27: 0.9341 over 120 dev sentences, 0.9463 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "case_accuracy",
+    "system": "ru-local",
+    "at_least": 0.92,
+    "why": "on 2026-09-27: 0.9399 over 120 dev sentences, 0.9504 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "aspect_accuracy",
+    "system": "ru-local",
+    "at_least": 0.95,
+    "why": "on 2026-09-27: 0.9821 over 120 dev sentences, 0.9732 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "gender_accuracy",
+    "system": "ru-local",
+    "at_least": 0.94,
+    "why": "on 2026-09-27: 0.9686 over 120 dev sentences, 0.9673 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-ru-syntagrus",
+    "metric": "number_accuracy",
+    "system": "ru-local",
+    "at_least": 0.96,
+    "why": "on 2026-09-27: 0.9856 over 120 dev sentences, 0.9824 over all 8,906; the Russian reader that runs here (annotate/russian.py)"
+  },
+  {
+    "stage": "lemma",
     "corpus": "ud-fr-gsd",
     "metric": "gender_accuracy",
     "system": "model-lemma",

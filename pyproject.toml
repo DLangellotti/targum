@@ -81,6 +81,19 @@ difficulty = ["wordfreq>=3.1"]
 # data is not disclosed, which LICENSING.md records. Without it a Russian reader is
 # built with no stress toggle and says so.
 stress = ["silero-stress>=1.4"]
+# Russian words read here rather than bought from the model (annotate/russian.py,
+# targum-internal#310, 2026-09-27). spaCy and its Russian model are MIT, the model trained
+# on Nerus and Navec (both MIT); pymorphy3 is MIT and its dictionary is OpenCorpora,
+# CC BY-SA 3.0. Stanza's Russian lemmatizer (Apache-2.0, trained on SynTagRus) is fetched
+# at first use like every Stanza model. Taken under the Russian carve-out in LICENSING.md.
+# 640 MB on disk, most of it the model's vectors. Without it Russian is read by the model
+# exactly as before; installing it renames every Russian annotation and reads them again,
+# for nothing but time.
+russian = [
+  "spacy>=3.8,<3.9",
+  "pymorphy3>=2.0",
+  "ru_core_news_lg @ https://github.com/explosion/spacy-models/releases/download/ru_core_news_lg-3.8.0/ru_core_news_lg-3.8.0-py3-none-any.whl",
+]
 # Not a hard dependency, and not because it is heavy — it is 24 kB of rule tables. It
 # caps Python below 3.13, and the reader that would lose is the one on a Python targum
 # otherwise supports. Without it a text is built with no readings and says so in the
@@ -142,6 +155,8 @@ files = ["src/targum"]
 [[tool.mypy.overrides]]
 module = [
   "stanza.*",
+  "spacy.*",
+  "pymorphy3.*",
   "silero_stress.*",
   "trafilatura.*",
   "wordfreq.*",

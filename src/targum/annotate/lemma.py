@@ -179,9 +179,10 @@ def for_text(
 ) -> Lemmatizer:
     """The lemmatizer for a text whose language is known.
 
-    French, Russian, Italian and Yiddish are read by the model (`model_lemma`), which
-    costs money, so it reads from the cache alone unless `buy` is set — and only a build
-    that was quoted and claimed sets it. Everything else is `for_source`, unchanged, and
+    French, Italian and Yiddish are read by the model (`model_lemma`), and Russian too where
+    this machine has no reader of its own (`annotate/russian.py`). The model costs money,
+    so it reads from the cache alone unless `buy` is set — and only a build that was
+    quoted and claimed sets it. Everything else is `for_source`, unchanged, and
     that is on purpose: the Hebrew annotator's name embeds its delegate's, so routing
     Hebrew's chain through anything new would rename every Hebrew annotation on the shelf
     and read them all again.
@@ -194,7 +195,8 @@ def for_text(
 
 
 def for_language(lemmatizer: Lemmatizer, language: str | None) -> Lemmatizer:
-    """The same lemmatizer, with the Aramaic reader in front of it for a text in Aramaic.
+    """The same lemmatizer, with the Aramaic reader in front of it for a text in Aramaic,
+    and the Russian reader in place of it for a text in Russian (`_russian`).
 
     Asked of the document's language rather than folded into `for_source`'s choice,
     because the source cannot say it — an upload is a file path — and because a lemmatizer
@@ -205,9 +207,30 @@ def for_language(lemmatizer: Lemmatizer, language: str | None) -> Lemmatizer:
     """
     from .aramaic import AramaicLemmatizer
 
-    if (language or "").split("-")[0].lower() != "arc" or isinstance(lemmatizer, AramaicLemmatizer):
+    code = (language or "").split("-")[0].lower()
+    if code == "ru":
+        return _russian(lemmatizer)
+    if code != "arc" or isinstance(lemmatizer, AramaicLemmatizer):
         return lemmatizer
     return AramaicLemmatizer(lemmatizer)
+
+
+def _russian(lemmatizer: Lemmatizer) -> Lemmatizer:
+    """The Russian reader in place of the shared chain, where this machine has it.
+
+    Only the chain `for_source` builds is replaced — DICTA with Stanza behind it, which
+    refuses Russian. A lemmatizer somebody chose, the model's included, is kept: the model
+    reads Russian only where the reader here is not installed (`model_lemma.reads`), and a
+    test's stand-in is a stand-in on purpose.
+    """
+    from . import russian
+    from .dicta import DictaLemmatizer
+    from .scripture import ScriptureLemmatizer
+
+    if isinstance(lemmatizer, DictaLemmatizer | ScriptureLemmatizer | StanzaLemmatizer):
+        if russian.available():
+            return russian.RussianLemmatizer()
+    return lemmatizer
 
 
 def for_source(

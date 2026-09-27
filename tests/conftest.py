@@ -118,6 +118,20 @@ def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("TARGUM_PUBLIC_SHELVES", raising=False)
 
 
+@pytest.fixture(autouse=True)
+def russian_read_by_the_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Russian words go to the model, as they do in CI, unless a test says otherwise.
+
+    Whether they do is read from what is installed (`annotate/russian.available`), and a
+    laptop synced with every extra has the Russian reader where CI does not. Without this
+    the Russian tests that stand a fake model in for the real one would pass in CI and
+    fail on that laptop. `tests/test_russian.py` turns it back on where it means to.
+    """
+    from targum.annotate import russian
+
+    monkeypatch.setattr(russian, "available", lambda: False)
+
+
 @pytest.fixture(scope="session")
 def free_port() -> Callable[[], int]:
     """A port to start a test server on, asked of the operating system.
