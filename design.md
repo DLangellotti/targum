@@ -375,6 +375,14 @@ palette. The platform's chrome is not.
 - **Always private.** A post is its author's, with no licence granted: it lives on the
   reader's own shelf and nowhere else, never the catalogue and never the shared shelf.
 
+Amended 2026-09-27 (targum-internal#158), for a reel: **a film's text is what was said,
+and its caption follows it.** The head is the same head, the film is the film panel, and
+the transcript is the rows the film follows. The caption the author typed is still text,
+tapped and translated, but it is a second item under the transcript with "The caption"
+named once where it starts — never above it, where it would be read as the start of what
+was said and would push the transcript onto a page of its own. The head's "On Instagram"
+is the film's one way home, and the bar's own link home gives way to it.
+
 
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27
 

@@ -394,6 +394,44 @@ def test_a_reel_links_home_at_its_start(tmp_path: Path) -> None:
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
 
+def test_a_reel_kept_as_a_post_goes_home_from_its_head(tmp_path: Path) -> None:
+    """A reel with a `post.json` (targum-internal#158): the head says "On Instagram" and
+    the bar's own home gives way to it, one way home and not two; the caption the author
+    typed is named where it starts, under what was said."""
+    from targum.ingest import post as post_module
+
+    document, segmented, translation = imported(
+        tmp_path, "https://www.instagram.com/kan_news/reel/DSkLv4UE196/?igsh=abc"
+    )
+    post_module.write(
+        tmp_path,
+        post_module.Manifest(
+            platform="instagram",
+            author=post_module.Author("kan_news", "כאן חדשות"),
+            items=[
+                post_module.Item(
+                    block_ids=["b0001"],
+                    media=[post_module.Media("video", "audio/parts/part-001.mp4", 270, 480)],
+                    kind="clip",
+                ),
+                post_module.Item(block_ids=["b0002"], kind="caption"),
+            ],
+            url="https://www.instagram.com/reel/DSkLv4UE196/",
+            posted_at="2026-09-21T13:33:20Z",
+        ),
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert 'data-home="' not in html, "the bar gives way to the head"
+    assert f'class="post-home" href="{INSTAGRAM}DSkLv4UE196"' in html
+    assert ">On Instagram</a>" in html
+    assert "@kan_news" in html and 'class="post-pictures' not in html
+    label = html.index('class="post-caption"')
+    assert html.index('data-id="0001.000-aaaaaa"') < label < html.index('data-id="0002.000-aaaaaa"')
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
 def test_every_video_home_the_table_writes_is_pinned_here() -> None:
     from targum.video import hosts
 

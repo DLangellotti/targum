@@ -2257,5 +2257,6 @@
   "telegram.started": "Thanks. We're getting it ready, and it'll be on your shelf: {link}",
   "telegram.link-first": "Link your targum account first, from {link}.",
   "telegram.what-to-send": "Send us a voice note, a video, a picture, a PDF or some text, and we'll put it on your shelf.",
-  "telegram.too-big": "{name} is over 20 MB, and Telegram won't hand us anything bigger. Send it on {link}."
+  "telegram.too-big": "{name} is over 20 MB, and Telegram won't hand us anything bigger. Send it on {link}.",
+  "reader.post.the-caption": "The caption"
 }

@@ -2414,5 +2414,6 @@
   "telegram.started": "Спасибо. Мы готовим это, и оно появится на вашей полке: {link}",
   "telegram.link-first": "Сначала подключите аккаунт targum на {link}.",
   "telegram.what-to-send": "Пришлите нам голосовое сообщение, видео, картинку, PDF или текст, и мы положим это на вашу полку.",
-  "telegram.too-big": "{name} больше 20 МБ, а больше Telegram нам не отдаёт. Отправьте файл на {link}."
+  "telegram.too-big": "{name} больше 20 МБ, а больше Telegram нам не отдаёт. Отправьте файл на {link}.",
+  "reader.post.the-caption": "Подпись"
 }

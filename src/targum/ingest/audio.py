@@ -24,6 +24,19 @@ from .base import build_document
 REFINED = "refined"
 TRANSCRIPTS = "transcripts"
 
+#: A clip's caption, beside the recording: what the author typed under a reel or a TikTok
+#: (targum-internal#158, rule 7 — "a clip's text is its transcript; the caption the author
+#: typed is a separate item's text, drawn under the video"). Written by the build from what
+#: the door said; absent for every other recording, whose documents are unchanged by it.
+CAPTION = "caption.txt"
+
+#: Where a caption's blocks are numbered: a range of its own past every part's, so no
+#: part's growth moves it and it never falls inside a part's reserved range.
+CAPTION_PART = MAX_PARTS + 1
+
+#: What a caption block's `ref` starts with, which is how the post's manifest finds them.
+CAPTION_REF = "caption"
+
 
 def refined_path(workspace: Path, number: int) -> Path:
     return workspace / REFINED / f"part-{number:03d}.json"
@@ -35,6 +48,32 @@ def transcript_path(workspace: Path, number: int) -> Path:
 
 def waiting_ref(number: int) -> str:
     return f"part {number}:waiting"
+
+
+def write_caption(workspace: Path, caption: str) -> None:
+    """Keep a clip's caption beside its recording, for `load` to read. Only when it has
+    changed, so an unchanged caption leaves the file and its hash where they were."""
+    from ..paths import write_atomic
+
+    target = workspace / CAPTION
+    text = caption.strip() + "\n"
+    try:
+        if target.read_text(encoding="utf-8") == text:
+            return
+    except OSError:
+        pass
+    workspace.mkdir(parents=True, exist_ok=True)
+    write_atomic(target, text)
+
+
+def caption_of(workspace: Path) -> list[str]:
+    """The kept caption's lines, or [] where the recording has none."""
+    from .post import lines_of
+
+    try:
+        return lines_of((workspace / CAPTION).read_text(encoding="utf-8"))
+    except OSError:
+        return []
 
 
 class AudioIngester:
@@ -113,6 +152,21 @@ class AudioIngester:
                     )
                 )
 
+        # The caption the author typed, after the transcript: under the film, as its own
+        # item's text. After, never before — a paragraph above the first part's heading
+        # would be body text, and a heading after body text opens a new page, which
+        # would put the transcript the film follows on a page of its own.
+        caption = caption_of(workspace)
+        for n, line in enumerate(caption):
+            blocks.append(
+                Block(
+                    id=audio_block_id(CAPTION_PART, n),
+                    kind=BlockKind.paragraph,
+                    text=line,
+                    ref=f"{CAPTION_REF}:{n + 1}",
+                )
+            )
+
         language = plan.language or DEFAULT_LANGUAGE
         for refined in refinements.values():
             if refined.language:
@@ -137,7 +191,13 @@ class AudioIngester:
         # The tags ride in the hash beside the audio and the refinements: a corrected
         # title is a changed source, or the reconciliation reads the fresh ingest as a
         # hand edit and keeps the old name forever.
+        # And the caption, only where there is one: every recording without one keeps
+        # the hash it always had, and is not read as changed.
         document.source_hash = content_hash(
-            found.sha256, found.title, found.artist, json.dumps(heard, sort_keys=True)
+            found.sha256,
+            found.title,
+            found.artist,
+            json.dumps(heard, sort_keys=True),
+            *(["\n".join(caption)] if caption else []),
         )
         return document

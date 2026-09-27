@@ -127,3 +127,143 @@ def test_a_build_that_is_not_a_post_writes_nothing(tmp_path: Path) -> None:
         SimpleNamespace(incidents=None), job, tmp_path, SimpleNamespace(blocks=[])
     )  # type: ignore[arg-type]
     assert post.read(tmp_path) is None
+
+
+"""--- a film keeps its shape too: a reel, and a TikTok (targum-internal#158) ---"""
+
+
+def a_built_reel(folder: Path) -> SimpleNamespace:
+    """A reel's folder after the recording pipeline: its cut named by the audio manifest,
+    and the document's title, byline, transcript and caption."""
+    from targum.audio import manifest as manifest_module
+
+    (folder / "audio" / "parts").mkdir(parents=True)
+    (folder / "audio" / "parts" / "part-001.mp4").write_bytes(b"film")
+    manifest_module.write(
+        folder,
+        manifest_module.AudioManifest(
+            source=str(folder / "audio" / "source.mp4"),
+            home="https://www.instagram.com/reel/DSkLv4UE196/",
+            sha256="x",
+            duration=49.0,
+            language="he",
+            parts=[
+                manifest_module.ManifestPart(
+                    number=1,
+                    start=0.0,
+                    end=49.0,
+                    audio="audio/parts/part-001.mp3",
+                    video="audio/parts/part-001.mp4",
+                    frame=[270, 480],
+                )
+            ],
+        ),
+    )
+    return SimpleNamespace(
+        blocks=[
+            SimpleNamespace(id="b0000000", ref=""),
+            SimpleNamespace(id="b0000001", ref=""),
+            SimpleNamespace(id="b0010000", ref="part 1"),
+            SimpleNamespace(id="b0010001", ref="part 1:1"),
+            SimpleNamespace(id="b10000000", ref="caption:1"),
+        ]
+    )
+
+
+def test_a_reels_manifest_names_its_cut_and_keeps_its_caption_apart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The clip is the transcript with the recording's own cut as its media — named, never
+    copied — and the caption is a separate item (#158, rule 7). yt-dlp gives no face, so
+    the embed page is asked for one; the head is the handle, the name and the day."""
+    from targum import serve
+    from targum.video import instagram
+
+    folder = tmp_path / "reel"
+    document = a_built_reel(folder)
+    asked: list[str] = []
+
+    def backup(url: str) -> instagram.Post:
+        asked.append(url)
+        return instagram.Post(
+            "DSkLv4UE196",
+            "kan_news",
+            "caption",
+            video="https://v.fbcdn.net/film.mp4",
+            name="כאן חדשות",
+            posted="2026-09-21T13:33:20Z",
+            avatar="https://a.fna.fbcdn.net/face.jpg",
+        )
+
+    def pictures_into(found: Any, into: Path) -> list[Path]:
+        into.mkdir(parents=True, exist_ok=True)
+        return [a_picture(into / f"{n:02d}.jpg", 150, 150) for n in range(len(found.pictures))]
+
+    monkeypatch.setattr(instagram, "backup", backup)
+    monkeypatch.setattr(instagram, "pictures_into", pictures_into)
+    job = serve.Job(id="j", source="https://www.instagram.com/reel/DSkLv4UE196/", options={})
+    serve.Library._keep_film_post(
+        job, platform="instagram", handle="kan_news", name="", caption="שבת שלום"
+    )
+    library = SimpleNamespace(incidents=None, _film_items=serve.Library._film_items)
+    serve.Library.keep_post(library, job, folder, document)  # type: ignore[arg-type]
+
+    got = post.read(folder)
+    assert got is not None
+    assert asked == ["https://www.instagram.com/reel/DSkLv4UE196/"]
+    assert got["author"] == {
+        "handle": "kan_news",
+        "name": "כאן חדשות",
+        "avatar": "post/avatar.webp",
+    }
+    assert got["posted_at"] == "2026-09-21T13:33:20Z"
+    clip, caption = got["items"]
+    assert clip["kind"] == "clip" and clip["block_ids"] == ["b0010000", "b0010001"]
+    assert clip["media"] == [
+        {
+            "kind": "video",
+            "path": "audio/parts/part-001.mp4",
+            "width": 270,
+            "height": 480,
+            "alt": "",
+        }
+    ]
+    assert caption == {"block_ids": ["b10000000"], "media": [], "kind": "caption", "author": None}
+    assert sorted(p.name for p in (folder / "post").iterdir()) == ["avatar.webp"], "no copy"
+
+
+def test_a_pasted_reel_keeps_what_its_head_draws_and_its_caption_for_the_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """At the quote, from yt-dlp's answer: Instagram's `channel` is the handle and its
+    `uploader` the name. The build is handed the caption."""
+    from targum import serve
+    from targum.video import instagram
+
+    monkeypatch.setattr(
+        instagram,
+        "describe",
+        lambda url: {
+            "webpage_url": "https://www.instagram.com/reel/DSkLv4UE196/",
+            "title": "שבת שלום",
+            "duration": 49.4,
+            "channel": "kan_news",
+            "uploader": "כאן חדשות",
+            "timestamp": 1790000000,
+            "description": "שבת שלום\n#שבת",
+            "formats": [{"acodec": "mp4a.40.5"}],
+        },
+    )
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    library = serve.Library(tmp_path)
+    job = serve.Job(id="a", source="https://www.instagram.com/reel/DSkLv4UE196/")
+    library.prepare(job)
+    assert job.stage in ("ready", "blocked"), job.error
+    said = job.options["post"]
+    assert (said["platform"], said["handle"]) == ("instagram", "kan_news")
+    assert said["name"] == "כאן חדשות"
+    assert said["posted_at"] == "2026-09-21T14:13:20Z"
+    assert said["film"] is True and said["pictures"] == []
+    build = library._builder(job)
+    assert build.caption == "שבת שלום\n#שבת"
+    assert build.beside is not None

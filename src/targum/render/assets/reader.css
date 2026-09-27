@@ -858,6 +858,17 @@ html[dir="rtl"] #reader > .english { text-align: end; }
 @media (prefers-reduced-motion: no-preference) {
   .post-pictures { scroll-behavior: smooth; }
 }
+/* Under a film, where what its author typed starts: named once, muted, with the rule a
+   section break takes above it, so the caption is not read as more of what was said. */
+.post-caption {
+  margin-block: 1.5rem 0.4rem;
+  padding-block-start: 0.75rem;
+  padding-inline: 0.6rem;
+  border-block-start: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+}
 /* An address the author wrote is text, and a long one breaks rather than widening the
    page. */
 body.is-post .pair .src { overflow-wrap: anywhere; }
