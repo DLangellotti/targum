@@ -5838,6 +5838,72 @@ def test_one_form_the_other_verb_spells_refuses_the_table(
     assert extensions.get("paradigms", [0]) == [0]
 
 
+def test_a_participle_takes_the_table_of_the_verb_whose_present_it_is(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#307. `עוֹמֵד` is filed under `עומד` with no binyan, and the source
+    spells `עומד` as `עָמַד`'s present and as the past of the פּוּעַל `עוּמַּד`. The
+    annotator tagged it present, and only one of them has that present: the page draws
+    `עָמַד`'s table — without the private readings, which CI does not have."""
+    from targum.annotate import paradigms
+    from targum.models import Annotation, Token
+
+    shipped = paradigms.table()
+    monkeypatch.setattr(
+        paradigms, "table", lambda: paradigms.Table(verbs=shipped.verbs, by_form=shipped.by_form)
+    )
+    segments = [paragraph(0)]
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+
+    def drawn(feats: str, where: str) -> dict[str, Any]:
+        annotation = Annotation(
+            document_hash="h",
+            language="he",
+            annotator="t",
+            method="frequency",
+            method_note="note",
+            tokens={
+                segments[0].id: [
+                    Token(
+                        start=0,
+                        end=1,
+                        surface="עוֹמֵד",
+                        lemma="עומד",
+                        band=1,
+                        pos="VERB",
+                        feats=feats,
+                    )
+                ]
+            },
+        )
+        html = render(
+            document,
+            make_segmented(segments),
+            [translation],
+            tmp_path / where,
+            annotation=annotation,
+        )[0].read_text(encoding="utf-8")
+        data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+        return dict(data.get("extensions") or {})
+
+    extensions = drawn("UPOS=VERB|Person=1,2,3|Gender=Masc|Number=Sing", "present")
+    assert extensions["paradigms"] == [1]
+    written = {paradigms.bare(form) for form, _codes in extensions["conjugations"][1]}
+    assert {"עומד", "עמדתי"} <= written, "עָמַד's own forms, the one on the page among them"
+    assert "מעומד" not in written, "and not עוּמַּד's"
+    # Tagged past, it is `עוּמַּד`'s spelling as much as `עָמַד`'s: no table.
+    past = drawn("UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past", "past")
+    assert past.get("paradigms", [0]) == [0]
+
+
 # -- a commentary's comments are separated (targum-internal#200) ------------------------
 
 

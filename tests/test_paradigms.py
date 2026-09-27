@@ -30,6 +30,7 @@ from targum.annotate.paradigms import (
     bare,
     binyan_of,
     family_of,
+    present_wanted,
     readings,
     table,
     written_form,
@@ -548,3 +549,199 @@ def test_the_coverage_measurement_counts_what_the_readings_settle(tmp_path: Path
     tally, _lemmas, _skipped = measure_conjugations.measure(tmp_path)
     assert tally["settled by reading"] == 2
     assert "settled by reading" in measure_conjugations.COVERED
+
+
+# -- a participle, by the tense it was tagged with (targum-internal#307, 2026-09-27) --
+
+#: How the annotator tags a participle: every person at once, and no tense.
+PRESENT = "UPOS=VERB|Person=1,2,3|Gender=Masc|Number=Sing"
+PRESENT_PLURAL = "UPOS=VERB|Person=1,2,3|Gender=Masc|Number=Plur"
+PAST = "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past"
+
+
+def standing() -> Table:
+    """`עומד` as the source has it: the present of the פעל `עָמַד`, and the past of the
+    פּוּעַל `עוּמַּד` written in full, whose own present is `מעומד`."""
+    paal = Paradigm(
+        lemma="עָמַד",
+        forms=(
+            Form(written="עומד", features=("masculine", "present", "singular")),
+            Form(written="עומדים", features=("masculine", "plural", "present")),
+            Form(written="עמדתי", features=("1st", "past", "singular")),
+        ),
+    )
+    pual = Paradigm(
+        lemma="עומד",
+        forms=(
+            Form(written="עומד", features=("3rd", "masculine", "past", "singular")),
+            Form(written="מעומד", features=("masculine", "present", "singular")),
+            Form(written="יעומד", features=("3rd", "future", "masculine", "singular")),
+        ),
+    )
+    return Table(verbs={"a": paal, "p": pual}, by_form={"עומד": ("a", "p")})
+
+
+@pytest.mark.parametrize(
+    ("feats", "wanted"),
+    [
+        (PRESENT, {"gender": "masculine", "number": "singular"}),
+        (
+            "UPOS=VERB|Person=3|Gender=Fem|Number=Plur|Tense=Pres",
+            {"gender": "feminine", "number": "plural"},
+        ),
+        ("UPOS=VERB|Gender=Masc,Fem|Number=Sing|Tense=Pres|VerbForm=Part", {"number": "singular"}),
+        (PAST, None),
+        ("UPOS=VERB|VerbForm=Inf", None),
+        ("UPOS=VERB|Person=3|Gender=Masc|Number=Sing", None),
+        ("", None),
+    ],
+)
+def test_the_present_is_what_the_annotator_said_it_is(
+    feats: str, wanted: dict[str, str] | None
+) -> None:
+    """Three ways of saying present, and nothing else is taken for one: an occurrence
+    whose tense was not said is not guessed to be a participle."""
+    assert present_wanted(feats) == wanted
+
+
+def test_a_participle_takes_the_verb_whose_present_it_is() -> None:
+    """The ambiguity #454 left: a participle filed under itself, spelled like another
+    verb's past. Tagged present, it is the one whose present it is."""
+    shelf = standing()
+    assert shelf.of("עומד") is None, "nothing to go on"
+    found = shelf.of("עומד", said=(("עומד", PRESENT, "עוֹמֵד"),))
+    assert found is not None and found.lemma == "עָמַד"
+
+
+def test_a_form_tagged_past_or_nothing_names_no_verb() -> None:
+    """Only the present is asked. In the past and the future the full and thin
+    spellings of different binyanim collide too often to be read on letters."""
+    shelf = standing()
+    assert shelf.of("עומד", said=(("עומד", PAST, "עומד"),)) is None
+    assert shelf.of("עומד", said=(("עומד", "UPOS=VERB", "עומד"),)) is None
+
+
+def test_a_present_two_verbs_could_spell_refuses() -> None:
+    """The Bible writes `נֹתֵן` without its ו, which is letter for letter the נִפְעַל's
+    `נִתָּן`. The table writes the פעל's present in full, `נותן`, so on exact letters
+    only the נִפְעַל matches — and it is the wrong verb. A present that the other could
+    be, spelled fuller or thinner, refuses."""
+    paal = Paradigm(
+        lemma="נָתַן", forms=(Form(written="נותן", features=("masculine", "present", "singular")),)
+    )
+    nifal = Paradigm(
+        lemma="נִתַּן", forms=(Form(written="נתן", features=("masculine", "present", "singular")),)
+    )
+    shelf = Table(verbs={"a": paal, "n": nifal}, by_form={"נתן": ("a", "n")})
+    assert shelf.of("נתן", said=(("נתן", PRESENT, "נֹתֵן"),)) is None
+
+
+def test_a_present_another_verb_in_the_table_writes_refuses() -> None:
+    """Asked of the whole table, not only of the word's candidates: the verb the reader
+    is looking at may be filed elsewhere, and its present spelled the same way is
+    reason enough not to choose."""
+    shelf = standing()
+    stranger = Paradigm(
+        lemma="עִמֵּד", forms=(Form(written="עומד", features=("masculine", "present", "singular")),)
+    )
+    wider = Table(verbs={**shelf.verbs, "x": stranger}, by_form=shelf.by_form)
+    assert wider.of("עומד", said=(("עומד", PRESENT, "עומד"),)) is None
+
+
+def test_every_other_form_of_the_word_on_the_page_must_be_that_verb_s() -> None:
+    """One table for the word on the page. A form the present did not settle rides
+    along only if the chosen verb writes it and the others do not."""
+    shelf = standing()
+    ok = shelf.of("עומד", said=(("עומד", PRESENT, "עוֹמֵד"), ("עמדתי", "", "עָמַדְתִּי")))
+    assert ok is not None and ok.lemma == "עָמַד"
+    # `יעומד` is the פּוּעַל's.
+    assert shelf.of("עומד", said=(("עומד", PRESENT, "עוֹמֵד"), ("יעומד", "", "יעומד"))) is None
+    # A form neither writes is a word this table knows nothing about.
+    assert shelf.of("עומד", said=(("עומד", PRESENT, "עוֹמֵד"), ("עמדנו", "", "עמדנו"))) is None
+    # The same letters, where their tense was not said, are the same word.
+    same = shelf.of("עומד", said=(("עומד", PRESENT, "עוֹמֵד"), ("עומד", "UPOS=VERB", "עומד")))
+    assert same is not None and same.lemma == "עָמַד"
+
+
+def test_the_mishnah_s_plural_is_the_table_s() -> None:
+    """`עוֹמְדִין` is the `עומדים` the table writes."""
+    found = standing().of("עומד", said=(("עומדין", PRESENT_PLURAL, "עוֹמְדִין"),))
+    assert found is not None and found.lemma == "עָמַד"
+
+
+def test_a_candidate_with_no_present_in_the_table_cannot_be_ruled_out() -> None:
+    """The source's lexemes are not all whole. A candidate with no present at all might
+    have had this one, so its silence proves nothing."""
+    shelf = standing()
+    thin = Paradigm(lemma="עומד", forms=(Form(written="עומד", features=("past",)),))
+    assert (
+        Table(verbs={**shelf.verbs, "p": thin}, by_form=shelf.by_form).of(
+            "עומד", said=(("עומד", PRESENT, "עוֹמֵד"),)
+        )
+        is None
+    )
+
+
+def test_shin_and_sin_are_two_letters() -> None:
+    """`הַפּוֹרֵשׁ` "who parts from" has the letters of `פּוֹרֵשׂ` "who spreads", and the
+    source has only the second. The dot says they are different verbs."""
+    spread = Paradigm(
+        lemma="פָּרַשׂ",
+        forms=(Form(written="פורש", features=("masculine", "present", "singular")),),
+    )
+    pual = Paradigm(
+        lemma="פורש",
+        forms=(
+            Form(written="פורש", features=("3rd", "masculine", "past", "singular")),
+            Form(written="מפורש", features=("masculine", "present", "singular")),
+        ),
+    )
+    shelf = Table(verbs={"s": spread, "p": pual}, by_form={"פורש": ("s", "p")})
+    assert shelf.of("פורש", said=(("פורש", PRESENT, "פּוֹרֵשׁ"),)) is None
+    found = shelf.of("פורש", said=(("פורש", PRESENT, "פּוֹרֵשׂ"),))
+    assert found is not None and found.lemma == "פָּרַשׂ"
+
+
+def test_the_present_refuses_what_another_signal_settled_on_another_verb() -> None:
+    """`חוֹשֵׁב` "thinks" is tagged פּוּעַל often enough to settle the wrong table. Where
+    the present names one verb and the binyan another, neither is taken."""
+    shelf = standing()
+    assert shelf.of("עומד", binyan="פועל") is None, "`עוּמַּד`'s binyan is not read"
+    two = Table(
+        verbs={
+            "a": standing().verbs["a"],
+            "p": Paradigm(lemma="עֻמַּד", forms=standing().verbs["p"].forms),
+        },
+        by_form={"עומד": ("a", "p")},
+    )
+    assert (found := two.of("עומד", binyan="פועל")) is not None and found.lemma == "עֻמַּד"
+    assert two.of("עומד", binyan="פועל", said=(("עומד", PRESENT, "עוֹמֵד"),)) is None
+
+
+def test_the_present_settles_participles_on_the_shipped_table(shipped: Table) -> None:
+    """The measure in miniature, on the real table and with no readings at all — so it
+    holds in CI's checkout, where the private readings are absent."""
+    bare_shelf = Table(verbs=shipped.verbs, by_form=shipped.by_form)
+    for lemma, surface, verb in (("עומד", "עוֹמֵד", "עָמַד"), ("יוצא", "יוֹצֵא", "יָצָא")):
+        assert bare_shelf.of(lemma) is None, f"{lemma} was already settled"
+        found = bare_shelf.of(lemma, said=((bare(surface), PRESENT, surface),))
+        assert found is not None and found.lemma == verb
+
+
+def test_the_coverage_measurement_counts_what_the_present_settles(tmp_path: Path) -> None:
+    """The measurement asks the builder's question with the grammar each form carries."""
+    measure_conjugations: Any = load_script("measure_conjugations")
+    path = tmp_path / "mishnah"
+    path.mkdir()
+    tokens = [
+        {"pos": "VERB", "lemma": "עומד", "surface": "עוֹמֵד", "feats": PRESENT},
+        {"pos": "VERB", "lemma": "עומד", "surface": "עוֹמְדִים", "feats": PRESENT_PLURAL},
+    ]
+    (path / "annotation.json").write_text(
+        json.dumps({"language": "he", "tokens": {"s": tokens}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    measure_conjugations.table = standing
+    tally, _lemmas, _skipped = measure_conjugations.measure(tmp_path)
+    assert tally["settled by the present"] == 2
+    assert "settled by the present" in measure_conjugations.COVERED
