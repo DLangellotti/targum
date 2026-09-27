@@ -1,8 +1,11 @@
-"""How well the forced aligner finds word boundaries in synthesised speech.
+"""How well the forced aligner finds words in audio: synthesised, chanted, or read.
 
-targum-internal#265's acceptance 2. Word clocks on a read-aloud page — the thing that
-would let a line light word by word where there is no recording, only a voice — are held
-behind a number nobody had taken. This takes it.
+Three measurements share this file because they share the aligner, the ledger stage and
+the question; they differ in where the truth comes from, and `--on` below says how.
+
+**Synthesised speech** (`--on tts`) is targum-internal#265's acceptance 2. Word clocks
+on a read-aloud page — the thing that would let a line light word by word where there is
+no recording, only a voice — are held behind a number nobody had taken. This takes it.
 
     .venv/bin/python scripts/eval_align.py --languages he,fr,ru,it --words 40 --dry-run
     op run --env-file op.env -- .venv/bin/python scripts/eval_align.py --languages he
@@ -24,21 +27,87 @@ better on a natural line than on this. If it fails here it fails everywhere, whi
 a bad number conclusive and a good one only encouraging. A hand-marked pass on natural
 lines is still worth doing before change 3 goes on, and `--keep` writes the audio and the
 alignment out so that pass has something to start from.
+
+**Three roads to a truth, and `--on` picks one** (targum-internal#225, 2026-09-27).
+
+- `--on tts` (the default, and the only one that spends): the above.
+- `--on pockettorah`: real audio already on disk, scored against timings a person made.
+  PocketTorah's app lights each word as the reader chants it, and to do that its
+  repository carries one label file per aliyah — a comma-separated list of the second at
+  which each word begins, marked by hand in an audio editor. The 515 recordings are
+  already in `downloads_root()`, fetched for the leyning. So this costs nothing but CPU:
+  the labels, the word lists they index into and the aliyah table are small files read
+  once from the app's repository into `~/.targum/evals/align/pockettorah`. **Evaluation
+  only**, the discipline `LICENSING.md` keeps for the treebanks: the repository states no
+  licence for its labels, so they are never committed, never trained on and never ship;
+  the numbers they produce go to the ledger and nothing else goes anywhere.
+- `--on clips`: a folder of short recordings with a sentence each, in Common Voice's own
+  layout (`<folder>/<split>.tsv` naming `path` and `sentence`, clips in `<folder>/clips`).
+  Joined end to end, so the seams are known exactly — the same trick as `tts`, on real
+  voices. Built ahead of the data: the day the CC0 Hebrew release is fetched, pointing
+  `--clips` at it is the only new step.
+
+**What is scored on PocketTorah, and why these.** The labels give onsets and nothing else,
+so what is compared is where each word *begins*:
+
+- `onset_ms_median` and `onset_ms_mean`: how far the aligner's start of each word is from
+  the hand mark, in milliseconds. The median is the typical word; the mean is dragged by
+  the few that went badly, which is the reason to keep both.
+- `onset_ms_lag_median`: the same, signed — positive where the aligner starts a word
+  after the hand does. An error that is mostly one constant lag is a different problem
+  from scatter, with a different fix, and the unsigned numbers cannot tell them apart.
+  (Measured 2026-09-27: it is mostly lag, 100–400 ms depending on the aliyah. Whether
+  the lag is the aligner's or the labellers' — a highlight set to lead the voice a
+  little would read exactly like this — is not something this gold can settle.)
+- `onset_within_100ms` and `onset_within_250ms`: the share of words close enough. 100 ms
+  is about the grain of the hand marks themselves — a label dropped by eye on a waveform
+  is rarely better — so it is as tight as this gold can honestly be read. 250 ms is about
+  a syllable of chant, and a word lit a syllable early is still the word being sung.
+- `right_word_lit`: the share of the recording, sampled every 10 ms from the first
+  hand-marked onset to the end of the file, during which the word the aligner would light
+  is the word the hand marks light. This is the reader's number: it is what a person
+  following along actually sees, it weighs a long held word by how long it is held, and it
+  forgives an onset error that never changes which word is lit. Both sides light a word
+  from its start until the next word starts, which is the app's own rule — so the aligner
+  is not marked down for silences its spans leave between words.
+
+**Chant, not speech.** Cantillation stretches vowels far past anything a speech model
+was trained on, so this is a hard case for the aligner — and the one targum ships, since
+every portion's audio is this collection. It says nothing direct about read speech; that
+is what the clips are for.
+
+**What is scored on clips.** `word_in_its_clip`: the share of words whose aligned middle
+falls inside the clip they were said in. Clips carry silence at both ends, so a seam is
+not a word's onset and cannot be scored in milliseconds; which clip a word landed in is
+the thing that is known, and a word in the wrong clip is a word lit during the wrong
+sentence.
+
+    .venv/bin/python scripts/eval_align.py --on pockettorah --aliyot Bereshit-1,Noach-2
+    .venv/bin/python scripts/eval_align.py --on clips --clips ~/cv-he --split test --most 50
 """
 
 from __future__ import annotations
 
 import argparse
+import array
+import bisect
+import csv
 import json
 import statistics
 import sys
+import urllib.parse
+import wave
+from collections.abc import Sequence
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from targum import evals  # noqa: E402
 from targum.audio.align import MODELS, CtcAligner  # noqa: E402
+from targum.audio.align import RATE as ALIGN_RATE  # noqa: E402
+from targum.audio.tools import samples  # noqa: E402
 from targum.speech import (  # noqa: E402
     BYTES_PER_SECOND,
     NAME,
@@ -130,18 +199,343 @@ def scored(found: list[tuple[float, float, float]], truth: list[float]) -> dict[
     }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--languages", default="he,fr,ru,it", help="Comma separated.")
-    parser.add_argument("--words", type=int, default=40, help="How many words a language.")
-    parser.add_argument(
-        "--dry-run", action="store_true", help="Say what it would cost and call nothing."
-    )
-    parser.add_argument("--keep", type=Path, help="Where to leave the audio and the alignment.")
-    parser.add_argument("--ledger", type=Path, help="Which ledger file.")
-    parser.add_argument("--note", default="", help="What was different about this run.")
-    args = parser.parse_args()
+# -- real audio against hand marks: PocketTorah (targum-internal#225) ------------------
 
+#: The app's repository, read for its labels, its text and its aliyah table. Pinned to
+#: the branch rather than a commit because the labels have not changed in years and a
+#: changed label is a better gold, not a broken one; the fetched copies stay put.
+POCKETTORAH_RAW = "https://raw.githubusercontent.com/rneiss/PocketTorah/master/data"
+
+#: One aliyah from each book of the Torah, and a second from Genesis, so the number is not
+#: one labeller's habit on one passage. Chosen for having labels whose count matches the
+#: words, and nothing else: Shemot-1 was the first pick and has one mark more than words.
+ALIYOT = ("Bereshit-1", "Noach-2", "Shemot-2", "Vayikra-1", "Bamidbar-1", "Devarim-1")
+
+#: The grain `right_word_lit` samples at: finer than the model's 20 ms frames would be
+#: pretence, coarser would round short words away.
+TICK_S = 0.01
+
+ONSET_CLOSE_MS = (100.0, 250.0)
+
+
+def labels_of(text: str) -> list[float]:
+    """A PocketTorah label file: the second at which each word begins, comma separated."""
+    return [float(piece) for piece in text.replace("\n", ",").split(",") if piece.strip()]
+
+
+def aliyah_words(book: dict[str, Any], begin: str, end: str) -> list[str]:
+    """The words of one aliyah, in the app's own division, which is what its labels index.
+
+    The app's text is the Westminster Leningrad Codex as tanach.us publishes it: a word
+    is a `w`, a maqaf ends one word rather than joining two, and a `/` marks a morpheme
+    boundary inside a word. The `/` comes out; everything else the aligner strips itself.
+    Where the text has a ketiv, `w` is the qere — what is read aloud, and what is labelled.
+    """
+    chapters = [one for one in book["Tanach"]["tanach"]["book"]["c"] if one]
+
+    def place(ref: str) -> tuple[int, int]:
+        chapter, verse = ref.strip().split(":")
+        return int(chapter), int(verse)
+
+    first, last = place(begin), place(end)
+    out: list[str] = []
+    for number, chapter in enumerate(chapters, start=1):
+        verses = chapter["v"] if isinstance(chapter["v"], list) else [chapter["v"]]
+        for verse_number, verse in enumerate(verses, start=1):
+            if first <= (number, verse_number) <= last:
+                out.extend(word.replace("/", "") for word in verse["w"])
+    return out
+
+
+def onsets_scored(
+    found: Sequence[tuple[float, float, float]], onsets: list[float]
+) -> dict[str, float]:
+    """How far each aligned start is from the hand-marked one. See the module docstring.
+
+    `strict=True`, as in `scored`: an aligner that answered short would otherwise be
+    scored on the words it managed, which reads better the worse it did.
+    """
+    signed = [(start - mark) * 1000.0 for (start, _, _), mark in zip(found, onsets, strict=True)]
+    errors = [abs(one) for one in signed]
+    marks = {
+        "onset_ms_median": round(statistics.median(errors), 1),
+        "onset_ms_mean": round(statistics.fmean(errors), 1),
+        "onset_ms_lag_median": round(statistics.median(signed), 1),
+    }
+    for close in ONSET_CLOSE_MS:
+        share = sum(1 for e in errors if e <= close) / len(errors)
+        marks[f"onset_within_{int(close)}ms"] = round(share, 4)
+    return marks
+
+
+def lit_share(
+    found: Sequence[tuple[float, float, float]], onsets: list[float], until: float
+) -> float:
+    """The share of time from the first hand onset to `until` that the same word is lit.
+
+    Lit means begun and not yet followed: the last word whose start is at or before the
+    moment. Before its first word the aligner lights nothing, which is never right here,
+    because sampling starts at the first word the hand marks.
+    """
+    if len(found) != len(onsets):
+        raise ValueError(f"{len(found)} alignments for {len(onsets)} marked words")
+    if not onsets or until <= onsets[0]:
+        return 0.0
+    # Starts can tie (a word the model has no letters for sits at its neighbour's end),
+    # and bisect over a sorted copy answers "the last one begun" either way.
+    starts = sorted(start for start, _, _ in found)
+    order = sorted(range(len(found)), key=lambda index: found[index][0])
+    ticks = int((until - onsets[0]) / TICK_S)
+    right = 0
+    for tick in range(ticks):
+        moment = onsets[0] + tick * TICK_S
+        truth = bisect.bisect_right(onsets, moment) - 1
+        at = bisect.bisect_right(starts, moment) - 1
+        if at >= 0 and order[at] == truth:
+            right += 1
+    return round(right / ticks, 4) if ticks else 0.0
+
+
+def _fetch(url: str, into: Path) -> Path:
+    """One small file, once. Kept where the next run finds it."""
+    if into.is_file() and into.stat().st_size:
+        return into
+    import httpx
+
+    into.parent.mkdir(parents=True, exist_ok=True)
+    answer = httpx.get(url, timeout=60.0, follow_redirects=True)
+    answer.raise_for_status()
+    into.write_bytes(answer.content)
+    return into
+
+
+def _json(path: Path) -> Any:
+    # The app's JSON files open with a byte-order mark, which `json` refuses.
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def pockettorah_case(name: str, gold: Path) -> tuple[list[str], list[float]]:
+    """The words of one aliyah and the hand onsets for them, fetched if not yet here.
+
+    `name` is the app's, `Bereshit-1` or `Achrei Mot-3`. Only the seven aliyot are asked
+    for: the maftir and the haftarah are labelled against other passages.
+    """
+    portion, _, number = name.rpartition("-")
+    if not number.isdigit() or not 1 <= int(number) <= 7:
+        raise ValueError(f"{name!r} is not a portion and an aliyah from 1 to 7")
+    table = _json(_fetch(f"{POCKETTORAH_RAW}/aliyah.json", gold / "aliyah.json"))
+    entry = next(
+        (one for one in table["parshiot"]["parsha"] if one["_id"] == portion),
+        None,
+    )
+    if entry is None:
+        raise ValueError(f"PocketTorah has no portion called {portion!r}")
+    aliyah = next(one for one in entry["fullkriyah"]["aliyah"] if one["_num"] == number)
+    book_name = entry["_verse"].split()[0]
+    book = _json(
+        _fetch(f"{POCKETTORAH_RAW}/torah/json/{book_name}.json", gold / f"{book_name}.json")
+    )
+    return aliyah_words(book, aliyah["_begin"], aliyah["_end"]), labels_of(
+        _labels_file(name, gold).read_text()
+    )
+
+
+def _labels_file(name: str, gold: Path) -> Path:
+    """The label file for an aliyah. The repository spells some with a capital and some
+    without (`Noach-2.txt`, `vayikra-1.txt`), so both are asked for before giving up —
+    and not every aliyah was labelled, which is a `LookupError` the run skips past."""
+    import httpx
+
+    into = gold / "labels" / f"{name}.txt"
+    for spelled in dict.fromkeys((name, name[:1].lower() + name[1:])):
+        quoted = urllib.parse.quote(f"{spelled}.txt")
+        try:
+            return _fetch(f"{POCKETTORAH_RAW}/torah/labels/{quoted}", into)
+        except httpx.HTTPStatusError as missing:
+            if missing.response.status_code != 404:
+                raise
+    raise LookupError(f"{name}: PocketTorah has no labels for it")
+
+
+def _audio_for(name: str, folder: Path) -> Path | None:
+    """The mp3 on disk for an app name. The two spell portions differently
+    (`Achrei Mot` and `AchreiMot`), so both go through the leyning's own flattening."""
+    from targum.parasha.leyning import _flat, stems
+
+    portion, _, number = name.rpartition("-")
+    found = stems(path.name for path in folder.glob("*.mp3")).get(_flat(portion), {})
+    file = found.get(int(number))
+    return folder / file if file else None
+
+
+# -- real voices joined end to end: Common Voice's layout ------------------------------
+
+
+def clip_rows(folder: Path, split: str, most: int) -> list[tuple[Path, str]]:
+    """The first `most` clips of a split, in file order, as (audio, sentence).
+
+    File order rather than a sample: Common Voice's own order is fixed per release, so
+    the same release and the same `--most` is the same measurement.
+    """
+    table = folder / f"{split}.tsv"
+    with table.open(encoding="utf-8", newline="") as rows:
+        reader = csv.DictReader(rows, delimiter="\t", quoting=csv.QUOTE_NONE)
+        out: list[tuple[Path, str]] = []
+        for row in reader:
+            if len(out) >= most:
+                break
+            sentence = (row.get("sentence") or "").strip()
+            if sentence and row.get("path"):
+                out.append((folder / "clips" / row["path"], sentence))
+    return out
+
+
+def joined_clips(clips: list[tuple[Path, str]], into: Path) -> list[tuple[float, float]]:
+    """Every clip in one 16 kHz WAV, end to end. Answers each clip's (start, end)."""
+    pcm = array.array("h")
+    bounds: list[tuple[float, float]] = []
+    for audio, _ in clips:
+        start = len(pcm) / ALIGN_RATE
+        pcm.extend(int(max(-1.0, min(1.0, x)) * 32767) for x in samples(audio, ALIGN_RATE))
+        bounds.append((start, len(pcm) / ALIGN_RATE))
+    with wave.open(str(into), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(ALIGN_RATE)
+        out.writeframes(pcm.tobytes())
+    return bounds
+
+
+def in_its_clip(
+    found: Sequence[tuple[float, float, float]],
+    owners: list[int],
+    bounds: list[tuple[float, float]],
+) -> float:
+    """The share of words whose aligned middle lies inside the clip they were said in."""
+    right = 0
+    for (start, end, _), owner in zip(found, owners, strict=True):
+        middle = (start + end) / 2
+        low, high = bounds[owner]
+        if low <= middle < high:
+            right += 1
+    return round(right / len(owners), 4) if owners else 0.0
+
+
+def _ready(language: str) -> CtcAligner:
+    aligner = CtcAligner(language)
+    usable, hint = aligner.available()
+    if not usable:
+        sys.exit(f"The forced aligner is not installed: {hint}")
+    return aligner
+
+
+def run_pockettorah(args: argparse.Namespace) -> list[evals.Row]:
+    from targum.audio.tools import duration
+    from targum.parasha.leyning import downloads_root
+
+    folder = args.audio or downloads_root()
+    gold = Path.home() / ".targum" / "evals" / "align" / "pockettorah"
+    names = [one.strip() for one in args.aliyot.split(",") if one.strip()]
+    aligner = _ready("he")
+    all_found: list[tuple[float, float, float]] = []
+    all_onsets: list[float] = []
+    lit_ticks = 0.0
+    lit_weighted = 0.0
+    measured: list[str] = []
+    for name in names:
+        audio = _audio_for(name, folder)
+        if audio is None:
+            print(f"{name}: no recording in {folder} — skipped")
+            continue
+        try:
+            words, onsets = pockettorah_case(name, gold)
+        except LookupError as missing:
+            print(f"{missing} — skipped")
+            continue
+        if len(words) != len(onsets):
+            # Off by one from the first gap onward, every word after it would be scored
+            # against its neighbour's mark and nothing in the numbers would show it.
+            print(f"{name}: {len(words)} words and {len(onsets)} marks — skipped")
+            continue
+        print(f"{name}: aligning {len(words)} words…", flush=True)
+        found = aligner.align(audio, words, "he")
+        length = duration(audio)
+        marks = onsets_scored(found, onsets)
+        lit = lit_share(found, onsets, length)
+        print(f"{name}: {marks} right_word_lit={lit}")
+        (gold / "runs").mkdir(parents=True, exist_ok=True)
+        (gold / "runs" / f"{name}.json").write_text(
+            json.dumps(
+                {"words": words, "onsets": onsets, "found": found, "scored": marks, "lit": lit},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        all_found.extend(found)
+        all_onsets.extend(onsets)
+        span = length - onsets[0]
+        lit_ticks += span
+        lit_weighted += lit * span
+        measured.append(name)
+    if not measured:
+        sys.exit("Nothing was measured.")
+    # Pooled over words, not averaged over aliyot, so a long aliyah counts for its length.
+    marks = onsets_scored(all_found, all_onsets)
+    marks["right_word_lit"] = round(lit_weighted / lit_ticks, 4)
+    print(f"\nall: {marks}")
+    return [
+        evals.Row(
+            at=date.today().isoformat(),
+            stage="align",
+            corpus="pockettorah",
+            metric=metric,
+            score=score,
+            n=len(all_onsets),
+            system=aligner.name,
+            version=aligner.model,
+            note=args.note or f"hand word onsets, chanted Torah: {', '.join(measured)}",
+        )
+        for metric, score in marks.items()
+    ]
+
+
+def run_clips(args: argparse.Namespace) -> list[evals.Row]:
+    if not args.clips:
+        sys.exit("--on clips needs --clips, the folder the release was unpacked into.")
+    clips = clip_rows(args.clips, args.split, args.most)
+    if not clips:
+        sys.exit(f"No clips with a sentence in {args.clips / (args.split + '.tsv')}.")
+    keep = args.keep or Path.home() / ".targum" / "evals" / "align"
+    keep.mkdir(parents=True, exist_ok=True)
+    joined = keep / f"clips-{args.language}-{args.split}-{len(clips)}.wav"
+    bounds = joined_clips(clips, joined)
+    words: list[str] = []
+    owners: list[int] = []
+    for index, (_, sentence) in enumerate(clips):
+        pieces = sentence.split()
+        words.extend(pieces)
+        owners.extend([index] * len(pieces))
+    aligner = _ready(args.language)
+    print(f"aligning {len(words)} words over {bounds[-1][1]:.1f}s of {len(clips)} clips…")
+    found = aligner.align(joined, words, args.language)
+    score = in_its_clip(found, owners, bounds)
+    print(f"word_in_its_clip: {score}")
+    return [
+        evals.Row(
+            at=date.today().isoformat(),
+            stage="align",
+            corpus=args.corpus or f"clips-{args.language}-{args.split}",
+            metric="word_in_its_clip",
+            score=score,
+            n=len(words),
+            system=aligner.name,
+            version=aligner.model,
+            note=args.note or f"first {len(clips)} clips of {args.split}.tsv, joined",
+        )
+    ]
+
+
+def run_tts(args: argparse.Namespace) -> list[evals.Row]:
     languages = [code.strip() for code in args.languages.split(",") if code.strip()]
     unknown = [code for code in languages if code not in MODELS]
     if unknown:
@@ -166,7 +560,7 @@ def main() -> None:
             f"= about ${total * PRICES[NAME]:.2f}"
         )
         print("Nothing was called. Drop --dry-run to run it.")
-        return
+        return []
 
     keep = args.keep or Path.home() / ".targum" / "evals" / "align"
     keep.mkdir(parents=True, exist_ok=True)
@@ -206,8 +600,44 @@ def main() -> None:
                     note=(args.note or "one clip a word, joined; boundaries exact by construction"),
                 )
             )
+    print(f"\nThe audio and the alignment are in {keep}.")
+    return rows
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "--on",
+        choices=("tts", "pockettorah", "clips"),
+        default="tts",
+        help="Where the truth comes from. Only tts spends.",
+    )
+    parser.add_argument("--languages", default="he,fr,ru,it", help="tts: comma separated.")
+    parser.add_argument("--words", type=int, default=40, help="tts: how many words a language.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="tts: say what it would cost and call nothing."
+    )
+    parser.add_argument("--keep", type=Path, help="Where to leave the audio and the alignment.")
+    parser.add_argument(
+        "--aliyot", default=",".join(ALIYOT), help="pockettorah: the app's names, comma separated."
+    )
+    parser.add_argument("--audio", type=Path, help="pockettorah: the folder of the mp3s.")
+    parser.add_argument("--clips", type=Path, help="clips: the folder the release unpacked to.")
+    parser.add_argument("--split", default="test", help="clips: which .tsv to read.")
+    parser.add_argument("--most", type=int, default=50, help="clips: how many clips.")
+    parser.add_argument("--language", default="he", help="clips: the language they are in.")
+    parser.add_argument("--corpus", default="", help="clips: the ledger's name for them.")
+    parser.add_argument("--ledger", type=Path, help="Which ledger file.")
+    parser.add_argument("--note", default="", help="What was different about this run.")
+    args = parser.parse_args()
+
+    runs = {"tts": run_tts, "pockettorah": run_pockettorah, "clips": run_clips}
+    rows = runs[args.on](args)
     written = evals.append(rows, args.ledger or evals.DEFAULT)
-    print(f"\nRecorded {written} rows. The audio and the alignment are in {keep}.")
+    if rows:
+        print(f"\nRecorded {written} rows.")
 
 
 if __name__ == "__main__":

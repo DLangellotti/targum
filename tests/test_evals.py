@@ -267,6 +267,135 @@ def test_the_words_drawn_stop_at_what_was_asked_for() -> None:
         assert len(align.words_of(code, 999)) >= 20, f"{code} has enough to measure with"
 
 
+# -- the aligner on real audio (targum-internal#225) ------------------------------------
+
+
+def test_pockettorah_labels_are_onsets_separated_by_commas() -> None:
+    align = _eval_align()
+    assert align.labels_of("2.0,3.5,4.25\n") == [2.0, 3.5, 4.25]
+    assert align.labels_of("1,2,") == [1.0, 2.0], "a trailing comma is not a word"
+
+
+def test_an_aliyah_is_the_apps_words_across_a_chapter_boundary() -> None:
+    """The labels index the app's own word list, so the words must be cut exactly as it
+    cuts them: a `w` each, the `/` morpheme marks out, a trailing null chapter ignored."""
+    align = _eval_align()
+    book = {
+        "Tanach": {
+            "tanach": {
+                "book": {
+                    "c": [
+                        {"v": [{"w": ["בְּ/רֵאשִׁ֖ית", "בָּרָ֣א"]}, {"w": ["וְ/הָ/אָ֗רֶץ"]}]},
+                        {"v": {"w": ["וַ/יְכֻלּ֛וּ"]}},
+                        None,
+                    ]
+                }
+            }
+        }
+    }
+    assert align.aliyah_words(book, "1:2", "2:1") == ["וְהָאָ֗רֶץ", "וַיְכֻלּ֛וּ"]
+    assert align.aliyah_words(book, "1:1", "1:1") == ["בְּרֵאשִׁ֖ית", "בָּרָ֣א"]
+
+
+def test_onsets_are_scored_both_unsigned_and_as_a_lag() -> None:
+    align = _eval_align()
+    onsets = [1.0, 2.0, 3.0, 4.0]
+    # 50 ms late, 150 ms late, 300 ms early, exact.
+    found = [(1.05, 1.9, 0.0), (2.15, 2.9, 0.0), (2.7, 3.9, 0.0), (4.0, 4.5, 0.0)]
+    marks = align.onsets_scored(found, onsets)
+    assert marks["onset_ms_median"] == 100.0
+    assert marks["onset_ms_mean"] == 125.0
+    assert marks["onset_ms_lag_median"] == 25.0, "signed: two late, one early, one exact"
+    assert marks["onset_within_100ms"] == 0.5
+    assert marks["onset_within_250ms"] == 0.75
+
+
+def test_onsets_for_a_short_alignment_are_refused() -> None:
+    align = _eval_align()
+    with pytest.raises(ValueError):
+        align.onsets_scored([(1.0, 2.0, 0.0)], [1.0, 2.0])
+    with pytest.raises(ValueError):
+        align.lit_share([(1.0, 2.0, 0.0)], [1.0, 2.0], 3.0)
+
+
+def test_the_right_word_is_lit_for_the_share_of_time_it_is_lit() -> None:
+    """Both sides light a word from its start to the next start: an aligner that is late
+    on one word is wrong only for the time it is late, not for the whole word."""
+    align = _eval_align()
+    onsets = [0.0, 1.0, 2.0]
+    exact = [(0.0, 0.5, 0.0), (1.0, 1.5, 0.0), (2.0, 2.5, 0.0)]
+    assert align.lit_share(exact, onsets, 3.0) == 1.0
+    # The second word starts half a second late: from 1.0 to 1.5 the first is still lit.
+    late = [(0.0, 0.5, 0.0), (1.5, 1.8, 0.0), (2.0, 2.5, 0.0)]
+    assert align.lit_share(late, onsets, 3.0) == round(2.5 / 3.0, 4)
+    # Before the aligner's first word nothing is lit, which is never the right word.
+    slow = [(0.5, 0.9, 0.0), (1.0, 1.5, 0.0), (2.0, 2.5, 0.0)]
+    assert align.lit_share(slow, onsets, 3.0) == round(2.5 / 3.0, 4)
+
+
+def test_a_word_placed_in_the_wrong_clip_is_counted_wrong() -> None:
+    align = _eval_align()
+    bounds = [(0.0, 2.0), (2.0, 4.0)]
+    owners = [0, 0, 1]
+    found = [(0.2, 0.6, 0.0), (1.8, 2.6, 0.0), (2.5, 3.0, 0.0)]
+    # The second word's middle is at 2.2, in the next clip.
+    assert align.in_its_clip(found, owners, bounds) == round(2 / 3, 4)
+
+
+def test_common_voice_rows_are_read_in_file_order_quotes_and_all(tmp_path: Path) -> None:
+    """Common Voice's .tsv is unquoted: a sentence may hold a `"` and must be read as
+    written, not as the start of a quoted field that swallows the next rows."""
+    align = _eval_align()
+    (tmp_path / "test.tsv").write_text(
+        "client_id\tpath\tsentence\n"
+        'a\tone.mp3\tהוא אמר "שלום" ויצא\n'
+        "b\ttwo.mp3\t\n"
+        "c\tthree.mp3\tמחר נלך\n"
+        "d\tfour.mp3\tאחרון\n",
+        encoding="utf-8",
+    )
+    rows = align.clip_rows(tmp_path, "test", 2)
+    assert rows == [
+        (tmp_path / "clips" / "one.mp3", 'הוא אמר "שלום" ויצא'),
+        (tmp_path / "clips" / "three.mp3", "מחר נלך"),
+    ], "an empty sentence is skipped and the count stops at what was asked for"
+
+
+def test_joined_clips_know_where_each_one_sits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import wave
+
+    align = _eval_align()
+    lengths = {"a.mp3": 16000, "b.mp3": 8000}
+    monkeypatch.setattr(align, "samples", lambda path, rate: [0.1] * lengths[path.name])
+    into = tmp_path / "joined.wav"
+    bounds = align.joined_clips([(tmp_path / "a.mp3", "x"), (tmp_path / "b.mp3", "y")], into)
+    assert bounds == [(0.0, 1.0), (1.0, 1.5)]
+    with wave.open(str(into)) as made:
+        assert made.getframerate() == 16000
+        assert made.getnframes() == 24000
+
+
+def test_an_app_name_finds_the_mp3_however_either_side_spells_it(tmp_path: Path) -> None:
+    align = _eval_align()
+    for name in ("AchreiMot-3.mp3", "Bereshit-1.mp3"):
+        (tmp_path / name).write_bytes(b"")
+    assert align._audio_for("Achrei Mot-3", tmp_path) == tmp_path / "AchreiMot-3.mp3"
+    assert align._audio_for("Bereshit-1", tmp_path) == tmp_path / "Bereshit-1.mp3"
+    assert align._audio_for("Bereshit-2", tmp_path) is None
+
+
+def test_only_the_seven_aliyot_are_asked_for(tmp_path: Path) -> None:
+    """The maftir and the haftarah are labelled against other passages; asking for one
+    fails before anything is fetched."""
+    align = _eval_align()
+    for name in ("Bereshit-H", "Bereshit-8", "Bereshit"):
+        with pytest.raises(ValueError):
+            align.pockettorah_case(name, tmp_path)
+    assert not any(tmp_path.iterdir()), "nothing was fetched"
+
+
 def test_the_two_ends_of_a_recast_run_never_share_a_ledger_line() -> None:
     """`ntrex-128-ru` means a Russian speaker's turn against the Hebrew reference
     (targum-internal#286). An English turn against the Russian reference is a different
