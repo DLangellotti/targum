@@ -44,9 +44,16 @@ from .hebrew import BINYANIM, CLITIC_GLOSSES, FINALS, binyan_of, kept_feats, roo
 MODEL = "dicta-il/dictabert-joint"
 
 # What this annotator knows how to say about a word, in the vocabulary `lemma.py` uses
-# for the same list. Identical to Stanza's: the roots survive the swap because the
-# binyan is derived rather than read, and dropping "roots" here would claim otherwise.
-FEATURES = "roots+everyword+names+grammar/2"
+# for the same list. The roots survive the swap because the binyan is derived rather
+# than read, and dropping "roots" here would claim otherwise.
+#
+# "entities" where Stanza's list says "names", since targum-internal#149: which word is a
+# person or a place is read off the model's named-entity head rather than off PROPN.
+# The same weights have always returned it — `dictabert-joint` runs its NER head on
+# every call and this threw the answer away — so the change costs no download and no
+# extra pass. It does change what every Hebrew annotation says, and this string is in
+# the annotator's name, so changing it is what re-reads the library: once, on purpose.
+FEATURES = "roots+everyword+entities+grammar/2"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -92,6 +99,13 @@ PIECE = "##"
 
 # Not a word at all, exactly as `lemma.py` draws the line.
 SKIP_POS = frozenset({"PUNCT", "SYM"})
+
+# What the NER says about a word that belongs to no entity. Written only where it
+# overrules the tag — on a PROPN the NER left outside every entity — because that is
+# the one place a reader of the token could otherwise take the tag's word for it. On
+# a sample of the shelf (targum-internal#149) those were mostly not names at all:
+# בחמישי, ובדיו, הדפתרא, the setumah ס.
+OUTSIDE = "O"
 
 # The prefix letters DICTA hands back as one chunk — ובספר segments as ("וב", "ספר"),
 # not as three pieces — so the chunk is spelled out a letter at a time for the card.
@@ -348,13 +362,39 @@ def _batches(texts: list[str]) -> Iterator[list[int]]:
         yield batch
 
 
+def _entities(said: dict[str, Any]) -> dict[int, str]:
+    """Each word the NER placed in an entity, as its label in BIO form: `B-PER` on the
+    word that opens a name, `I-PER` on each word after it.
+
+    By the model's own word index, which counts punctuation, so it is read before any
+    word is skipped. The maqaf in תל־אביב is a word of its own to the model and sits
+    inside the entity; the word after it still continues it.
+    """
+    out: dict[int, str] = {}
+    for entity in said.get("ner_entities") or []:
+        label = str(entity.get("label") or "")
+        try:
+            first, last = int(entity["token_start"]), int(entity["token_end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not label or last < first:
+            continue
+        for at in range(first, last + 1):
+            out[at] = ("B-" if at == first else "I-") + label
+    return out
+
+
 def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None) -> list[Token]:
     out: list[Token] = []
-    for word in said.get("tokens", []):
+    entities = _entities(said)
+    for at, word in enumerate(said.get("tokens", [])):
         morph = word.get("morph") or {}
         pos = morph.get("pos") or None
         if pos in SKIP_POS:
             continue
+        entity = entities.get(at)
+        if entity is None and pos == "PROPN":
+            entity = OUTSIDE
         surface = word.get("token") or ""
         seg = list(word.get("seg") or [])
         # The word under whatever prefixes it carries: ועשרים is keyed as עשרים, and a
@@ -379,6 +419,7 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
                 root=root_of(lemma, binyan),
                 built=_pieces_of(seg, lemma, morph.get("suffix")),
                 feats=kept_feats(feats, pos),
+                entity=entity,
             )
         )
     return out

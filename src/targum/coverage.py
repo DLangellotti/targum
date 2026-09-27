@@ -92,7 +92,7 @@ def lemmas(folder: Path) -> list[str]:
     except (OSError, json.JSONDecodeError):
         return []
 
-    from .annotate.base import NOT_VOCABULARY
+    from .annotate.base import not_vocabulary
 
     # A name is not a word the reader has to know, so it is not one they can fail to
     # know either: left out of the denominator, or a book of names could never be read.
@@ -100,7 +100,7 @@ def lemmas(folder: Path) -> list[str]:
         str(token.get("lemma") or "")
         for sid, tokens in (loaded.get("tokens") or {}).items()
         for token in tokens
-        if token.get("pos") not in NOT_VOCABULARY
+        if not not_vocabulary(token.get("pos"), token.get("entity"))
         and not (
             unwordly
             and sid in unwordly

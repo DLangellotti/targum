@@ -26,7 +26,7 @@ import traceback
 from collections.abc import Callable
 from typing import Any
 
-from ..annotate.base import NOT_VOCABULARY, Bands, Lemmatizer, in_script
+from ..annotate.base import Bands, Lemmatizer, in_script, not_vocabulary
 from ..annotate.frequency import FrequencyBands
 from ..models import Segment
 from ..usage import Usage
@@ -136,7 +136,7 @@ class Recorder:
                     continue
                 # Shipped as the browser counts, since chat.js slices the line itself.
                 start, end = js_span(line, start, end)
-                vocabulary = token.pos not in NOT_VOCABULARY
+                vocabulary = not not_vocabulary(token.pos, token.entity)
                 if vocabulary and token.lemma not in bands:
                     bands[token.lemma] = self.bands.band(token.lemma, language) if rated else 0
                 if vocabulary and token.lemma not in meanings:
@@ -148,6 +148,9 @@ class Recorder:
                         "surface": surface,
                         "lemma": token.lemma,
                         "pos": token.pos or "",
+                        # Only where the NER read the word, which is what decides a
+                        # name wherever it did (targum-internal#149).
+                        **({"entity": token.entity} if token.entity else {}),
                         "band": bands.get(token.lemma, 0) if vocabulary else 0,
                         "meaning": meanings.get(token.lemma, "") if vocabulary else "",
                     }
@@ -167,7 +170,7 @@ def outside_share(lines: list[list[dict[str, Any]]], allowed: set[str]) -> float
     outside = 0
     for words in lines:
         for word in words:
-            if word.get("pos") in NOT_VOCABULARY:
+            if not_vocabulary(word.get("pos"), word.get("entity")):
                 continue
             total += 1
             if word.get("lemma") not in allowed:

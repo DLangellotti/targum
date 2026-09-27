@@ -32,7 +32,15 @@ if TYPE_CHECKING:  # imported for types only; the real import is inside each fun
     from ..weekly.models import Level as WeeklyLevel
 from markupsafe import Markup, escape
 
-from ..annotate.base import BAND_NAMES, KIND_COLUMN, method_label
+from ..annotate.base import (
+    BAND_NAMES,
+    KIND_COLUMN,
+    LABEL_COLUMN,
+    chips,
+    entity_label,
+    kind_of,
+    method_label,
+)
 from ..models import (
     Annotation,
     BlockKind,
@@ -3071,7 +3079,8 @@ def render(
                 if not tokens or sid in post_covers:
                     continue
                 rows: list[list[int]] = []
-                for token in tokens:
+                # A name of several words is one chip (targum-internal#149).
+                for token in chips(tokens):
                     if sid in unwordly and inside(token.start, token.end, unwordly[sid]):
                         continue
                     word = (token.lemma, token.head)
@@ -3102,21 +3111,26 @@ def render(
                         grammar_at[token.feats] = len(grammar)
                         grammar.append(token.feats)
                     start, end = js_span(bare[sid], *map_span(token.start, token.end, to_bare[sid]))
-                    rows.append(
-                        [
-                            start,
-                            end,
-                            token.band,
-                            1 if token.split else 0,
-                            lemma_at[word],
-                            sound_at.get(token.ipa or "", 0),
-                            # A name or a number, which the reader can tap and mark but
-                            # which is never counted as vocabulary.
-                            KIND_COLUMN.get(token.pos or "", 0),
-                            built_at.get(token.built or "", 0),
-                            grammar_at.get(token.feats or "", 0),
-                        ]
-                    )
+                    row = [
+                        start,
+                        end,
+                        token.band,
+                        1 if token.split else 0,
+                        lemma_at[word],
+                        sound_at.get(token.ipa or "", 0),
+                        # A name or a number, which the reader can tap and mark but
+                        # which is never counted as vocabulary.
+                        kind_of(token.pos, token.entity),
+                        built_at.get(token.built or "", 0),
+                        grammar_at.get(token.feats or "", 0),
+                    ]
+                    # What the NER called it — a person, a place, a date — on the rows
+                    # that have one and no other, so a page without entities weighs
+                    # what it did.
+                    label = LABEL_COLUMN.get(entity_label(token.entity), 0)
+                    if label:
+                        row.append(label)
+                    rows.append(row)
                 words[sid] = rows
         # One table of meanings per target language, each parallel to `lemmas`. A reader
         # holding an English and a Russian translation carries both and shows whichever

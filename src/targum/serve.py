@@ -1902,7 +1902,7 @@ class Library:
         annotation is not free — a book's worth is megabytes — and the library page is
         drawn every time somebody opens it.
         """
-        from .annotate.base import NOT_VOCABULARY
+        from .annotate.base import not_vocabulary
         from .annotate.frequency import FrequencyBands
         from .models import Annotation, read_artifact
 
@@ -1917,7 +1917,7 @@ class Library:
         seen: dict[str, int] = {}
         for tokens in annotation.tokens.values():
             for token in tokens:
-                if token.pos in NOT_VOCABULARY:
+                if not_vocabulary(token.pos, token.entity):
                     continue
                 band = seen.get(token.lemma)
                 if band is None:
@@ -2261,7 +2261,7 @@ class Library:
         no ladder or no frequency list: no level is better than a made-up one.
         """
         from . import level as level_module
-        from .annotate.base import NOT_VOCABULARY
+        from .annotate.base import not_vocabulary
         from .annotate.frequency import rank, ranks
         from .models import Annotation, read_artifact
 
@@ -2280,7 +2280,7 @@ class Library:
         running: list[int | None] = []
         for sid, tokens in loaded.tokens.items():
             for token in tokens:
-                if token.pos in NOT_VOCABULARY or not token.lemma:
+                if not_vocabulary(token.pos, token.entity) or not token.lemma:
                     continue
                 if sid in unwordly and post_module.inside(token.start, token.end, unwordly[sid]):
                     continue

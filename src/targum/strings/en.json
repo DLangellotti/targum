@@ -1198,6 +1198,8 @@
   "reader.grammar.determiner": "determiner",
   "reader.grammar.number": "number",
   "reader.grammar.name": "name",
+  "reader.grammar.place": "place",
+  "reader.grammar.date": "date",
   "reader.grammar.like-most-nouns-in": "like most nouns in -{ending}",
   "contents.page.your-learn-page": "Your Learn page",
   "contents.page.targum-learn": "targum — Learn",

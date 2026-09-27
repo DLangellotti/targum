@@ -30,7 +30,7 @@ from collections import Counter
 from functools import lru_cache
 
 from ..models import Annotation
-from .base import NOT_VOCABULARY
+from .base import not_vocabulary
 from .frequency import FrequencyBands
 
 #: Where a word stops being one a reader knows and starts being one they look up.
@@ -57,7 +57,7 @@ def hard_share(annotation: Annotation, language: str) -> int:
             # The same rule the server applies to an upload: a name is a token the
             # reader can tap, not a word they have to learn. News is full of them, which
             # is why real journalism measures low on this scale despite reading hard.
-            if token.pos in NOT_VOCABULARY:
+            if not_vocabulary(token.pos, token.entity):
                 continue
             counts[band_of(token.lemma, language)] += 1
     total = sum(counts.values())
