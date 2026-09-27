@@ -3413,9 +3413,12 @@ class Store:
         gloss is, and the same decision may settle a lemma or a pointing later.
 
         `by` is the role that settled it and `judge` which one of them, where there is an
-        account or an editor behind it (`editor_judge`). Whether an editor *should* settle
-        a reader's proposal is a standing question and not this method's
-        (targum-internal#354); it records whoever did.
+        account or an editor behind it (`editor_judge`). The author and a paid editor
+        both settle, and either verdict closes the proposal the same way (design.md §12,
+        "An editor settles a reader's proposal — 2026-09-27"; targum-internal#354). An
+        editor's decision row is `who = 'editor'` under their own pseudonym, so an
+        accepted proposal counts as the reader and that editor agreeing: two judges in
+        `agreed`. `by` defaults to the author.
         """
         state = "accepted" if accept else "rejected"
         with self.write() as db:

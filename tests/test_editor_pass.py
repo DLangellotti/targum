@@ -72,6 +72,44 @@ def test_an_editor_can_settle_a_readers_proposal(tmp_path: Path) -> None:
     assert set(store.agreed()[0]["roles"].split(",")) == {"reader", "editor"}
 
 
+def test_an_editors_verdict_closes_a_proposal_as_the_authors_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """design.md §12, "An editor settles a reader's proposal — 2026-09-27", end to end
+    through the command: the named editor's accept closes the proposal and counts as a
+    second judge beside the reader, their refusal closes it and counts for nothing, and
+    a settle with no `--by` is still the author's."""
+    monkeypatch.setattr(gloss_module, "_home", lambda: tmp_path / "glosses", raising=False)
+    monkeypatch.setenv("TARGUM_CACHE", str(tmp_path / "cache"))
+    db = tmp_path / "words.db"
+    store = Store(db)
+    reader = store.judge_for(7)
+    offer = {"stage": "gloss", "who": "reader", "judge": reader, "language": "he", "target": "en"}
+    taken = store.propose_correction(term="עם", after="with", **offer)
+    refused = store.propose_correction(term="אור", after="nonsense", **offer)
+    plain = store.propose_correction(term="בית", after="house", **offer)
+    runner = CliRunner()
+    editor = ["--by", "editor", "--editor", "Dana", "--store", str(db)]
+
+    yes = runner.invoke(app, ["settle", str(taken), "--accept", *editor])
+    no = runner.invoke(app, ["settle", str(refused), "--reject", *editor])
+    assert yes.exit_code == 0 and no.exit_code == 0, yes.output + no.output
+    assert [row["id"] for row in store.proposed_corrections()] == [plain]
+
+    decided = {row["term"]: row for row in store.corrections() if row["id"] > plain}
+    dana = store.editor_judge("Dana")
+    assert decided["עם"]["who"] == "editor" and decided["עם"]["judge"] == dana
+    assert decided["עם"]["state"] == "accepted" and decided["אור"]["state"] == "rejected"
+    (gold,) = store.agreed()
+    assert gold["term"] == "עם" and gold["judges"] == 2
+    assert set(gold["roles"].split(",")) == {"reader", "editor"}
+
+    by_default = runner.invoke(app, ["settle", str(plain), "--accept", "--store", str(db)])
+    assert by_default.exit_code == 0, by_default.output
+    last = max(store.corrections(), key=lambda row: row["id"])
+    assert last["who"] == "author" and last["judge"] == ""
+
+
 # -- the file an editor hands back ------------------------------------------------------
 
 
