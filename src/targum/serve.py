@@ -4781,37 +4781,48 @@ class Handler(BaseHTTPRequestHandler):
         from .weekly.models import Level
 
         rest = route.removeprefix("/weekly").strip("/")
+        # A language somebody pressed for — or that the digest put in its links — is kept
+        # across the redirects below, so a Russian mail lands on a Russian page.
+        kept = f"?lang={self._asked()}" if self._asked() else ""
 
         # The two doors that arrive from an email. Both are a page with a button rather
         # than a link that acts: a mail client that fetches every link in a message
         # would otherwise answer for the person it was sent to, which is the same reason
         # `/account/enter` stopped being a bare GET.
         if rest in {"confirm", "stop"}:
+            from .strings import text
+
             store = self.library.store
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
             if store is None:
                 return self._send(404, b"not found", "text/plain")
+            # In the language they asked in (targum-internal#288), by the waitlist's rule:
+            # the confirm door reads it off the row, and the stop door never does — it
+            # has to answer the same for a real token and a made-up one, so it takes the
+            # request's, and the mail mints its link with `?lang=`.
+            said = (
+                store.subscription_language(token) if rest == "confirm" else self._public_language()
+            )
             if rest == "confirm":
                 waiting = store.peek_subscription(token)
                 if waiting is None:
                     return self._send(
                         200,
-                        weekly_note(
-                            "That link has already been used, or it's expired.",
-                            address=self.address,
-                            done=False,
+                        self._weekly_page_note(
+                            text("weekly.note.link-spent", said), said, done=False
                         ).encode("utf-8"),
                         HTML,
                     )
-                message = f"Should we send the weekly to {waiting} every Monday?"
-                button = "Yes, send it"
+                message = text("weekly.note.send-it", said, email=waiting)
+                button = text("weekly.note.send-it.button", said)
             else:
-                message = "Should we stop sending you the weekly?"
-                button = "Yes, stop"
-            page = weekly_note(
-                message,
-                address=self.address,
-                pending={"action": f"/weekly/{rest}", "token": token, "button": button},
+                message = text("weekly.note.stop-it", said)
+                button = text("weekly.note.stop-it.button", said)
+            # The language rides on the form's own address, so the answer to the press
+            # is in it too rather than in whatever the browser asks for.
+            action = f"/weekly/{rest}" + (f"?lang={said}" if said != "en" else "")
+            page = self._weekly_page_note(
+                message, said, pending={"action": action, "token": token, "button": button}
             )
             return self._send(200, page.encode("utf-8"), HTML)
 
@@ -4840,7 +4851,7 @@ class Handler(BaseHTTPRequestHandler):
             newest = published[0] if published else None
             if newest is None:
                 return self._send(404, b"not found", "text/plain")
-            return self._go(f"/weekly/{newest.id}/{self._opens_at(newest).value}")
+            return self._go(f"/weekly/{newest.id}/{self._opens_at(newest).value}{kept}")
 
         week, _, wanted = rest.partition("/")
         issue = next((one for one in published if one.id == week), None)
@@ -4850,27 +4861,43 @@ class Handler(BaseHTTPRequestHandler):
             # is coming.
             return self._send(404, b"not found", "text/plain")
         if not wanted:
-            return self._go(f"/weekly/{issue.id}/{self._opens_at(issue).value}")
+            return self._go(f"/weekly/{issue.id}/{self._opens_at(issue).value}{kept}")
         if wanted not in set(Level) or issue.edition(Level(wanted)) is None:
             return self._send(404, b"not found", "text/plain")
 
+        language = self._public_language()
         page = weekly_page(
             issue,
             Level(wanted),
             address=self.address,
             archive=published,
-            language=self._public_language(),
+            language=language,
+            # The edition the frame opens: the page's language where every level was
+            # built into it, and English otherwise (targum-internal#288).
+            edition=weekly.reading_in(issue, language),
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
-    def _weekly_said(self, message: str, done: bool = True) -> None:
-        """One sentence, on the weekly page's own furniture.
+    def _weekly_page_note(self, message: str, said: str, **rest: Any) -> str:
+        """The weekly's note furniture, in `said`: its heading, title and foot too."""
+        from .strings import text
+
+        return weekly_note(
+            message,
+            address=self.address,
+            heading=text("weekly.note.heading", said),
+            language=said,
+            **rest,
+        )
+
+    def _weekly_said(self, message: str, said: str, done: bool = True) -> None:
+        """One sentence, on the weekly page's own furniture, in `said`.
 
         Says the same thing whatever state the address is in — subscribed already,
         never seen, or stopped — for the reason `start_sign_in` does: an endpoint that
         answered differently would be a way to ask whether somebody is a reader here.
         """
-        page = weekly_note(message, address=self.address, done=done)
+        page = self._weekly_page_note(message, said, done=done)
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
     def _waitlist_note(self, message: str, done: bool = True, said: str = "", **rest: Any) -> None:
@@ -5000,21 +5027,24 @@ class Handler(BaseHTTPRequestHandler):
         return self._waitlist_note(text("waitlist.note.taken-off", said), said=said)
 
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
+        """Subscribing, confirming and stopping, each answered in the reader's language
+        (targum-internal#288) by the rule the waitlist's doors follow."""
+        from .strings import text
+
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
 
         if route == "/weekly/subscribe":
             address = (form.get("email") or "").strip()
+            said = self._public_language()
             if not plausible(address):
-                return self._weekly_said(
-                    "We couldn't read that as an email address. Check it and try again.", done=False
-                )
+                return self._weekly_said(text("weekly.note.not-an-address", said), said, done=False)
             if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
-                return self._weekly_said(
-                    "We've had a few requests for that address. Try again in an hour.", False
-                )
-            token = store.subscribe(address)
+                return self._weekly_said(text("weekly.note.too-often", said), said, False)
+            # The language the page was in, kept so every mail after this one — and the
+            # edition each links to — is in it rather than in English by default.
+            token = store.subscribe(address, said)
             # `can_mail` asks about a build's owner; a subscriber has none, so the two
             # halves it actually needs are checked here instead.
             postable = self.library.mailer is not None and bool(self.address)
@@ -5023,26 +5053,27 @@ class Handler(BaseHTTPRequestHandler):
                 with contextlib.suppress(Exception):
                     self.library.mailer.notify(  # type: ignore[union-attr]
                         address,
-                        "Confirm the targum weekly",
-                        f"Press the button on this page and the weekly starts arriving "
-                        f"on Mondays:\n\n{where}\n\n"
-                        f"If you did not ask for it, nothing has happened and you can "
-                        f"ignore this.\n",
+                        text("mail.weekly.confirm.subject", said),
+                        text("mail.weekly.confirm.body", said, link=where),
                     )
             # The same sentence either way, including when the address is already on.
-            return self._weekly_said("Thanks. Check your email and press the button in it.")
+            return self._weekly_said(text("weekly.note.check-your-email", said), said)
 
         if route == "/weekly/confirm":
+            said = store.subscription_language(form.get("t", ""))
             found = store.confirm_subscription(form.get("t", ""))
             if found is None:
-                return self._weekly_said("That link has already been used, or it's expired.", False)
-            return self._weekly_said("Thanks. You'll get the weekly every Monday.")
+                return self._weekly_said(text("weekly.note.link-spent", said), said, False)
+            return self._weekly_said(text("weekly.note.you-are-on", said), said)
 
         if route == "/weekly/stop":
+            # The request's language and never the row's: this reply has to be the same
+            # for a token that was one and a token that was not.
+            said = self._public_language()
             store.stop_subscription(form.get("t", ""))
             # Nothing is said about whether the token was one: an unsubscribe endpoint
             # that reported back would answer whether an address is on the list.
-            return self._weekly_said("We won't send you the weekly again.")
+            return self._weekly_said(text("weekly.note.stopped", said), said)
 
         return self._send(404, b"not found", "text/plain")
 
@@ -5072,7 +5103,9 @@ class Handler(BaseHTTPRequestHandler):
                 )
             wanted = bool(payload.get("on", True))
             if series == "weekly":
-                store.follow(person.email, wanted)
+                # In the language they are reading targum in, as a series' is, so the
+                # weekly is mailed to them in it (targum-internal#288).
+                store.follow(person.email, wanted, self._page_language())
             else:
                 # In the language they are reading targum in as they press, so the mail
                 # and the page it leads to are in it too (targum-internal#289). There is
@@ -5140,7 +5173,7 @@ class Handler(BaseHTTPRequestHandler):
                 401,
             )
         wanted = bool(payload.get("on", True))
-        store.follow(person.email, wanted)
+        store.follow(person.email, wanted, self._page_language())
         return self._json({"following": store.following(person.email)})
 
     @staticmethod
@@ -5168,8 +5201,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if not weekly_is_indexed():
             self._robots_tag = "noindex"
-        known = {one.folder for issue in weekly.readable() for one in issue.editions}
-        if edition not in known:
+        # Every language an issue was built into, and only those (targum-internal#288).
+        if edition not in weekly.servable():
             return self._send(404, b"not found", "text/plain")
 
         root = (weekly.root() / edition / "reader").resolve()

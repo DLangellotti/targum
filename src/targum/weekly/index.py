@@ -92,7 +92,7 @@ def latest() -> Issue | None:
     return next(iter(published()), None)
 
 
-def built(week: str, level: Level) -> bool:
+def built(week: str, level: Level, language: str = "en") -> bool:
     """Whether this edition has a reader on disk.
 
     Published and readable are not the same fact, and the gap between them is a real
@@ -100,7 +100,7 @@ def built(week: str, level: Level) -> bool:
     arrived. Asked of the weekly's own root, which is where both the index and the
     readers live.
     """
-    return (root() / folder(week, level) / "reader" / "index.html").is_file()
+    return (root() / folder(week, level, language) / "reader" / "index.html").is_file()
 
 
 def readable() -> list[Issue]:
@@ -117,6 +117,42 @@ def readable() -> list[Issue]:
         editions = [one for one in issue.editions if built(issue.id, one.level)]
         if editions:
             out.append(issue.model_copy(update={"editions": editions}))
+    return out
+
+
+def speaks(issue: Issue, language: str) -> bool:
+    """Whether this issue can be read in `language` rather than in English.
+
+    Asked of the index and of the disk together, as `readable` asks: the index says every
+    level was built into it, and the disk says every edition this issue offers actually
+    has that reader. A Russian that is listed but did not arrive falls back to English
+    rather than to a 404.
+    """
+    code = language.split("-")[0].lower()
+    if code == "en" or code not in issue.languages:
+        return False
+    return bool(issue.editions) and all(
+        built(issue.id, edition.level, code) for edition in issue.editions
+    )
+
+
+def reading_in(issue: Issue, language: str) -> str:
+    """Which language's edition to hand a reader of `language`: theirs, or English."""
+    code = language.split("-")[0].lower()
+    return code if speaks(issue, code) else "en"
+
+
+def servable() -> set[str]:
+    """Every edition folder a stranger may be handed, in every language it was built in.
+
+    The gate `/weekly/read/<folder>/` asks. English is what `readable` already vouches
+    for; another language is added only for an issue that `speaks` it.
+    """
+    out: set[str] = set()
+    for issue in readable():
+        for language in ["en", *issue.languages]:
+            if language == "en" or speaks(issue, language):
+                out.update(folder(issue.id, edition.level, language) for edition in issue.editions)
     return out
 
 

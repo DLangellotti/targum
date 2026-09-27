@@ -3062,9 +3062,18 @@ def weekly_build(
 
     The three come out linked, so a reader who finds one level too hard says so in one
     press instead of going back out to look for the easier one.
+
+    `--to ru` builds the Russian edition beside the English one, in folders of its own
+    (targum-internal#288). The Hebrew is the issue's and is not touched, so a Russian
+    edition needs no guard of its own: `publish` measured the same Hebrew. The language
+    is recorded on the issue only once all three levels built, which is what lets the
+    site and the ship tell a finished Russian from a half-built one — and it may be run
+    after `publish`, which is how `deploy/weekly-run.sh` runs it: an issue the guards
+    refuse spends nothing on Russian.
     """
     from .pipeline import Build
     from .serve import HOSTED_MODEL
+    from .strings import text
     from .weekly import index as weekly_index
     from .weekly.models import LEVELS, Level, folder, identifier
 
@@ -3074,17 +3083,23 @@ def weekly_build(
     issue = weekly_index.by_week(week)
     if issue is None:
         fail(TargumError(f"No issue for {week}.", "Draft one first."))
+    language = to.split("-")[0].lower()
 
     have = {edition.level for edition in issue.editions}
     for level in Level:
         if level not in have:
             continue
         # Relative, so the folder keeps working off a disk with no server in front of it.
+        # Named in the edition's own language, because the level switch is drawn inside
+        # the reader, and a Russian reader with "Easy · 1,000 words" on it is a Russian
+        # reader with English chrome (targum-internal#288).
         siblings = [
             {
-                "name": LEVELS[other].name,
-                "figure": f"{LEVELS[other].figure} words",
-                "folder": folder(week, other),
+                "name": text(f"weekly.level.{other.value}", language),
+                "figure": text(
+                    "weekly.page.figure-words", language, figure=LEVELS[other].figure_in(language)
+                ),
+                "folder": folder(week, other, language),
                 "current": "1" if other is level else "",
             }
             for other in Level
@@ -3093,9 +3108,9 @@ def weekly_build(
         console.print(f"[dim]{LEVELS[level].name}[/dim]")
         build = Build(
             source=f"weekly:{identifier(week, level)}",
-            target_language=to,
+            target_language=language,
             source_language="he",
-            out=root / folder(week, level),
+            out=root / folder(week, level, language),
             model=HOSTED_MODEL,
             gloss=True,
             siblings=siblings,
@@ -3106,7 +3121,19 @@ def weekly_build(
         result = build.run()
         console.print(f"  [green]{result.out_dir}[/green]")
 
-    console.print(f"[dim]Read one: {root / folder(week, Level.bet)}/reader/index.html[/dim]")
+    # Recorded last, and only here: a build that died on the second level raised above
+    # and never reaches this, so a language on the index is a language every level has.
+    # Read again rather than written from the copy loaded at the top, which is minutes
+    # old by now.
+    index = weekly_index.load()
+    for one in index.issues:
+        if one.id == week and language not in one.languages:
+            one.languages = [*one.languages, language]
+            weekly_index.save(index)
+
+    console.print(
+        f"[dim]Read one: {root / folder(week, Level.bet, language)}/reader/index.html[/dim]"
+    )
 
 
 @weekly_app.command("publish")

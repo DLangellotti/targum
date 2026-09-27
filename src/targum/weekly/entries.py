@@ -8,8 +8,9 @@ rather than in `catalogue.json` is what lets a Monday issue appear without a dep
 from __future__ import annotations
 
 from ..catalogue import Entry, Kind, Register, Tag
+from ..strings import languages
 from . import index
-from .models import LEVELS, Issue, Level, identifier
+from .models import LEVELS, Issue, Level, identifier, label_in
 
 #: The byline, which is also the marking. It rides on `Document.author`, so it is drawn
 #: on the contents page of every built reader by machinery that already exists, and it
@@ -62,6 +63,11 @@ def entries_for(issue: Issue) -> list[Entry]:
                 # public text; charging the second reader for it would be wrong.
                 source=f"weekly:{identifier(issue.id, edition.level)}",
                 blurb=issue.blurb,
+                # The level, in the reader's own language, under the Hebrew title
+                # (targum-internal#288). The title carries it in English and cannot stop
+                # doing so — a build names its folder after it — so English needs nothing
+                # more, and a Russian shelf is told which level each row is in Russian.
+                named={code: label_in(edition.level, code) for code in languages() if code != "en"},
                 words=edition.words,
                 tags=frozenset({Tag.journalism}),
                 kind=Kind.article,

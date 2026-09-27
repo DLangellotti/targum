@@ -98,6 +98,32 @@ class LevelSpec(BaseModel):
         """What a reader sees: the name, then the count that orders it."""
         return f"{self.name} · {self.figure} words"
 
+    def figure_in(self, language: str) -> str:
+        """The count as a reader of `language` writes a number: `1,000` in English and
+        `1 000` in Russian, with a space that does not break (targum-internal#288).
+
+        A comma in a Russian thousand reads as a decimal point, so "1,000 слов" on a
+        Russian page is one word, not a thousand.
+        """
+        if language.split("-")[0].lower() == "ru":
+            return self.figure.replace(",", "\u00a0")
+        return self.figure
+
+
+def label_in(level: Level, language: str) -> str:
+    """`LevelSpec.label` in a reader's language: "Easy · 1,000 words", "Лёгкий · 1 000
+    слов". English is exactly `label`, which the private half still reads by name.
+
+    Here rather than on `LevelSpec`, because the name is looked up by the level it
+    belongs to and a spec does not know which level it is.
+    """
+    from ..strings import text
+
+    spec = LEVELS[level]
+    name = text(f"weekly.level.{level.value}", language)
+    count = text("weekly.page.figure-words", language, figure=spec.figure_in(language))
+    return f"{name} · {count}"
+
 
 # The two bands do different jobs, and the widths say which.
 #
@@ -211,6 +237,16 @@ class Issue(BaseModel):
     sources: list[Story] = Field(default_factory=list)
     #: What the generator wants a person to look at before publishing.
     notes: str = ""
+    #: The languages every level of this issue has been built into — English, and since
+    #: 2026-09-27 Russian every issue (targum-internal#288).
+    #:
+    #: The Hebrew is the same in every language, so the guards `publish` runs are run
+    #: once and cover them all; what differs is only the translation and the meanings
+    #: beside it. A language is added here by `weekly build --to` only once all three
+    #: levels built, so a Russian that stopped halfway is never offered: the page falls
+    #: back to the English reader and the ship leaves the half-built folders behind.
+    #: Issues written before this field existed were only ever built in English.
+    languages: list[str] = Field(default_factory=lambda: ["en"])
 
     def edition(self, level: Level) -> Edition | None:
         return next((e for e in self.editions if e.level is level), None)
@@ -378,6 +414,15 @@ def entry_id(week: str, level: Level) -> str:
     return f"weekly-{identifier(week, level)}"
 
 
-def folder(week: str, level: Level) -> str:
-    """The built reader's directory, under the weekly root."""
-    return f"{entry_id(week, level)}-he"
+def folder(week: str, level: Level, language: str = "en") -> str:
+    """The built reader's directory, under the weekly root.
+
+    English keeps the name it has always had. Another language is the same name with its
+    code on the end — `weekly-2026-w39-bet-he-ru` — rather than the same folder: a reader
+    takes its chrome from the first translation it holds, so one folder carrying both
+    would be drawn in whichever language was built last, for everybody.
+    `deploy/ship-weekly.sh` derives the name the same way, from the index alone.
+    """
+    base = f"{entry_id(week, level)}-he"
+    code = language.split("-")[0].lower()
+    return base if code in ("", "en") else f"{base}-{code}"

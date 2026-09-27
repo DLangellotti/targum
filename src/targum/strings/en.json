@@ -2284,5 +2284,22 @@
   "progress.reading.sections.one": "{n} section",
   "progress.reading.sections.other": "{n} sections",
   "reader.next.known-ahead.one": "You already know {n} word in this one.",
-  "reader.next.known-ahead.other": "You already know {n} words in this one."
+  "reader.next.known-ahead.other": "You already know {n} words in this one.",
+  "mail.weekly.subject": "the weekly — {dated}",
+  "mail.weekly.body": "This week's issue, for the week of {dated}: ⁨{title}⁩.\n\nFive sections in Modern Hebrew, written at three levels:\n\n{levels}\n\nRead it: {where}\n\nYou are getting this because you asked for it. To stop: {stop}\n",
+  "mail.weekly.confirm.subject": "Confirm the targum weekly",
+  "mail.weekly.confirm.body": "Press the button on this page and the weekly starts arriving on Mondays:\n\n{link}\n\nIf you did not ask for it, nothing has happened and you can ignore this.\n",
+  "weekly.note.heading": "the weekly",
+  "weekly.note.title": "the weekly — targum",
+  "weekly.note.description": "A weekly digest of the news in Modern Hebrew, at three levels.",
+  "weekly.note.not-an-address": "We couldn't read that as an email address. Check it and try again.",
+  "weekly.note.too-often": "We've had a few requests for that address. Try again in an hour.",
+  "weekly.note.check-your-email": "Thanks. Check your email and press the button in it.",
+  "weekly.note.link-spent": "That link has already been used, or it's expired.",
+  "weekly.note.send-it": "Should we send the weekly to {email} every Monday?",
+  "weekly.note.send-it.button": "Yes, send it",
+  "weekly.note.you-are-on": "Thanks. You'll get the weekly every Monday.",
+  "weekly.note.stop-it": "Should we stop sending you the weekly?",
+  "weekly.note.stop-it.button": "Yes, stop",
+  "weekly.note.stopped": "We won't send you the weekly again."
 }

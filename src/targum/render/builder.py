@@ -2158,8 +2158,14 @@ def weekly_page(
     address: str = "",
     archive: list[WeeklyIssue] | None = None,
     language: str = "en",
+    edition: str = "en",
 ) -> str:
     """A landing page for the weekly, with the issue's own reader inside it.
+
+    `edition` is which language's reader the frame opens — the page's own where the
+    issue was built into it, English otherwise. The caller asks the index, because only
+    the index and the disk together know whether a Russian edition finished
+    (targum-internal#288).
 
     Everything it needs comes off the index. It used to read the composed markdown and
     parse it on every request, back when the page rendered the prose itself; the reader
@@ -2167,7 +2173,7 @@ def weekly_page(
     the template had stopped using — and it meant a box serving the weekly needed the
     source files as well as the built readers. It needs the readers and the index.
     """
-    from ..weekly.models import LEVELS
+    from ..weekly.models import LEVELS, label_in
     from ..weekly.models import folder as weekly_folder
 
     spec = LEVELS[level]
@@ -2182,14 +2188,14 @@ def weekly_page(
             t=page_words(language),
             page_language=_page_language(language),
             strings=script_strings(language, "weekly."),
-            title=f"\u2068{issue.title}\u2069 — {spec.label} — targum",
+            title=f"\u2068{issue.title}\u2069 — {label_in(level, language)} — targum",
             description=blurb,
             canonical=_addressed_in(_weekly_at, language)[0],
             alternates=_addressed_in(_weekly_at, language)[1],
             issue=issue,
             level=level,
             spec=spec,
-            folder=weekly_folder(issue.id, level),
+            folder=weekly_folder(issue.id, level, edition),
             levels=LEVELS,
             level_names={
                 one: said(f"weekly.level.{one.value}", named.name) for one, named in LEVELS.items()
@@ -2414,15 +2420,18 @@ def weekly_note(
     caller's words and are expected in it already; what this settles is the furniture —
     the page's `lang`, the foot, and the door at the bottom — which took `t` from the
     environment's English global and so was English on a page that was otherwise not.
+    The page's own title and description are said in it too (targum-internal#288).
     """
+    from ..strings import text
+
     return (
         _environment()
         .get_template("weekly-note.html.j2")
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            title="the weekly — targum",
-            description="A weekly digest of the news in Modern Hebrew, at three levels.",
+            title=text("weekly.note.title", language),
+            description=text("weekly.note.description", language),
             canonical=f"{address}/weekly" if address else "",
             message=message,
             done=done,
