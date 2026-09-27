@@ -1102,6 +1102,34 @@ body.marking .w.here,
   letter-spacing: 0.01em;
 }
 
+/* "inferred", after a reading we guessed part of (design.md §12, 2026-09-27): one word in
+   muted ink at the line's own size, outside the reading. No hue, no icon, no italic, no
+   question mark — a word in a sentence, not a state. It is a button, so a hairline under
+   it in muted ink says it can be tapped without lending it the accent. */
+.gloss-card .inferred {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-block-end: 1px dotted var(--ink-soft);
+  border-radius: 0;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: inherit;
+  cursor: pointer;
+}
+/* What it stands for, on the line under the reading, in the card's quiet style. It
+   wraps to the card it opens in rather than widening it: the card was placed beside the
+   word at the width it had, and a line that grew it would push it off the screen. */
+.gloss-card .guessed {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.gloss-card .guessed[hidden] { display: none; }
+
 /* A Hebrew verb taken apart: its root and the binyan it is built in. Its own line
    rather than a tag beside the level, because it is the answer to a different
    question — not how hard the word is, but how it is made. */
@@ -1739,7 +1767,10 @@ body[data-case="Loc"] .w.case-Loc {
     /* The grip and the size key, on a wide touch screen (2026-09-13). */
     .video-grip, .video-size,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
-    .player-first
+    .player-first,
+    /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
+       reach grows and whose look and line do not. */
+    .gloss-card .inferred
   ) {
     position: relative;
   }
@@ -1756,7 +1787,10 @@ body[data-case="Loc"] .w.case-Loc {
     /* The grip and the size key, on a wide touch screen (2026-09-13). */
     .video-grip, .video-size,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
-    .player-first
+    .player-first,
+    /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
+       reach grows and whose look and line do not. */
+    .gloss-card .inferred
   )::after {
     content: "";
     position: absolute;

@@ -41,6 +41,7 @@ from ..annotate.base import (
     kind_of,
     method_label,
 )
+from ..annotate.pronounce import guessed
 from ..models import (
     Annotation,
     BlockKind,
@@ -3119,7 +3120,13 @@ def render(
         # far fewer distinct spellings than tokens, and the same word said twice is
         # stored once.
         sounds: list[str] = [""]
-        sound_at: dict[str, int] = {"": 0}
+        # Beside each sound, what of it we guessed (`pronounce.guessed`), so the card can
+        # say "inferred" (design.md §12, 2026-09-27). Keyed by the pair rather than the
+        # reading: the same reading can be read off a mark in one place and guessed in
+        # another. Nothing on the word rows grows; one small number per distinct sound.
+        guesses: list[int] = [0]
+        sound_at: dict[tuple[str, int], int] = {("", 0): 0}
+        as_written = {segment.id: segment.text for segment in segmented.segments}
         # How a split surface is put together, and the occurrence's grammar. Both are
         # facts about the occurrence, like the sound, and ride the same way: a table of
         # distinct strings with an index on each token, because ולבית is built the same
@@ -3185,9 +3192,14 @@ def render(
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the
                     # source had no marks the map is the identity and this costs nothing.
-                    if token.ipa and token.ipa not in sound_at:
-                        sound_at[token.ipa] = len(sounds)
-                        sounds.append(token.ipa)
+                    sound = ("", 0)
+                    if token.ipa:
+                        said_as = as_written.get(sid, "")[token.start : token.end]
+                        sound = (token.ipa, guessed(said_as, token.ipa))
+                    if sound not in sound_at:
+                        sound_at[sound] = len(sounds)
+                        sounds.append(sound[0])
+                        guesses.append(sound[1])
                     if token.built and token.built not in built_at:
                         built_at[token.built] = len(builts)
                         builts.append(token.built)
@@ -3201,7 +3213,7 @@ def render(
                         token.band,
                         1 if token.split else 0,
                         lemma_at[word],
-                        sound_at.get(token.ipa or "", 0),
+                        sound_at[sound],
                         # A name or a number, which the reader can tap and mark but
                         # which is never counted as vocabulary.
                         kind_of(token.pos, token.entity),
@@ -3514,6 +3526,9 @@ def render(
                     # Left out entirely where nothing was read, rather than shipping a
                     # table holding one empty string in every reader that has no Hebrew.
                     **({"sounds": sounds} if len(sounds) > 1 else {}),
+                    # Parallel to the sounds, and left out where nothing on the page was
+                    # guessed — a pointed, accented Tanakh chapter says nothing more.
+                    **({"guessed": guesses} if any(guesses) else {}),
                     # How split words are put together and how each occurrence is
                     # conjugated or declined, for the card's own lines. Left out, like
                     # the sounds, wherever an annotation written before they existed —

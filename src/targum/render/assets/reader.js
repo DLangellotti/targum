@@ -273,6 +273,9 @@ var targumReader = function () {
   // Absent in every reader with no Hebrew in it, and in one built before there was
   // anything to read the vowels with.
   var sounds = data.sounds || [];
+  // Beside each sound, what of it we guessed: 1 the stress, 2 the vowels, 3 both
+  // (design.md §12, "What we inferred says so"). Absent where nothing was.
+  var guesses = data.guessed || [];
   // How split words are put together and how each occurrence is conjugated or declined
   // — tables of distinct strings, like the sounds, with an index on each token. Absent
   // on annotations written before they existed, and the card then simply says less.
@@ -4283,6 +4286,23 @@ var targumReader = function () {
     return out;
   }
 
+  // What of this occurrence's reading was guessed rather than read off the text's own
+  // marks, as the bits above; 0 where nothing was, or where the page cannot say.
+  function guessOf(word) {
+    if (!guesses.length) return 0;
+    var row = rowOf(word);
+    return row ? guesses[row[5]] || 0 : 0;
+  }
+
+  // The sentence "inferred" stands for: said on the line under the reading when it is
+  // tapped, and its accessible name, so a screen reader hears it without the tap.
+  function whyGuessed(guess) {
+    if ((guess & 3) === 3)
+      return t("reader.card.inferred-both", "The text marks neither the vowels nor the stress, so we inferred both.");
+    if (guess & 2) return t("reader.card.inferred-vowels", "The text has no vowels here, so we inferred them.");
+    return t("reader.card.inferred-stress", "The text doesn't mark the stress, so we inferred it.");
+  }
+
   function readingOf(word) {
     if (!sounds.length) return "";
     var row = rowOf(word);
@@ -4854,9 +4874,33 @@ var targumReader = function () {
         heard.textContent = syllableStress(said);
         notation.appendChild(heard);
         saying.appendChild(notation);
+        // One word after the reading and outside it, where we guessed part of it — the
+        // stress phonikud defaulted, or vowels the menaked supplied. Never a number, a
+        // hue or an icon: a word in a sentence, not a state (design.md §12).
+        var guess = guessOf(word);
+        if (guess) {
+          var why = whyGuessed(guess);
+          var inferred = document.createElement("button");
+          inferred.type = "button";
+          inferred.className = "inferred";
+          inferred.textContent = t("reader.card.inferred", "inferred");
+          inferred.setAttribute("aria-label", why);
+          inferred.setAttribute("aria-expanded", "false");
+          var guessedLine = document.createElement("span");
+          guessedLine.className = "guessed";
+          guessedLine.textContent = why;
+          guessedLine.hidden = true;
+          inferred.onclick = function (event) {
+            event.stopPropagation();
+            guessedLine.hidden = !guessedLine.hidden;
+            inferred.setAttribute("aria-expanded", guessedLine.hidden ? "false" : "true");
+          };
+          saying.appendChild(inferred);
+        }
       }
       if (hear) saying.appendChild(hear);
       card.appendChild(saying);
+      if (guessedLine) card.appendChild(guessedLine);
     }
 
     // How the string is put together. A split token names its pieces — that is the

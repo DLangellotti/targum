@@ -2307,5 +2307,9 @@
   "weekly.note.you-are-on": "Thanks. You'll get the weekly every Monday.",
   "weekly.note.stop-it": "Should we stop sending you the weekly?",
   "weekly.note.stop-it.button": "Yes, stop",
-  "weekly.note.stopped": "We won't send you the weekly again."
+  "weekly.note.stopped": "We won't send you the weekly again.",
+  "reader.card.inferred": "inferred",
+  "reader.card.inferred-stress": "The text doesn't mark the stress, so we inferred it.",
+  "reader.card.inferred-vowels": "The text has no vowels here, so we inferred them.",
+  "reader.card.inferred-both": "The text marks neither the vowels nor the stress, so we inferred both."
 }
