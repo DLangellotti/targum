@@ -193,11 +193,13 @@ chmod 0644 /etc/cron.d/targum-ytdlp
 
 cat <<EOF
 
-Provisioned. Three things left, none of them this script's to do:
+Provisioned. Four things left, none of them this script's to do:
 
   1. Fill in /etc/targum/targum.env    (chmod 600, secrets only here)
   2. Point $DOMAIN's A record at this box, and wait for it
   3. From your laptop:  TARGUM_HOST=root@$DOMAIN ./deploy/deploy.sh
+  4. Harden it — swap, security updates, keys-only SSH, a firewall — with a second
+     terminal at hand:  bash $HERE/harden.sh --dry-run, then without --dry-run
 
 And to get the backups off this disk, which is the one failure the nightly copy
 does not cover, and to be told when /health stops answering: the switch-on steps
