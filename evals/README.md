@@ -12,11 +12,14 @@ The stages, and what writes them:
 | --- | --- | --- |
 | `lemma` | lemma accuracy against the IAHLT treebanks | `scripts/score_annotation.py` |
 | `lemma` | `token_recall`, `lemma_accuracy`, `upos_accuracy` and the grammar features, the model's reading of French, Russian, Italian and Yiddish against the Universal Dependencies dev sets; `corpus=<treebank>-curly` is the same sentences written with ’ (`--curly`) | `scripts/eval_lemma.py` (targum-internal#258, #262) |
-| `vocalize` | `letter_vowel`, `letter_dagesh`, `shin_dot`, `qamats_qatan_recall`, `word_exact` and `skeleton_kept`, Nakdimon and DICTA's menaked on two held-out sets: `dicta-modern`, the Wikipedia third of DICTA's diacritization test corpora, and `ben-yehuda`, 26 pointed works by 12 authors from Project Ben-Yehuda's dump, none of them in Nakdimon's training set | `scripts/measure_pointing.py` (targum-internal#148) |
+| `vocalize` | `letter_vowel`, `letter_dagesh`, `shin_dot`, `qamats_qatan_recall`, `word_exact` and `skeleton_kept`, Nakdimon and DICTA's menaked on two held-out sets: `dicta-modern`, the Wikipedia third of DICTA's diacritization test corpora, and `ben-yehuda`, 26 pointed works by 12 authors from Project Ben-Yehuda's dump, none of them in Nakdimon's training set; and `scene-corrections`, the scenes' lines as a person settled them (targum#396), private, with the settled words scored on their own as `settled_*` and a `*_folded` count that reads a vowel beside a vav one way (targum-internal#351) | `scripts/measure_pointing.py` (targum-internal#148); the scene set is built by `scripts/scene_nikkud_gold.py` |
 | `grading` | `outside_share`, the share of the chat's content lemmas outside the list it was given; `unpaired_lines` | `scripts/eval_grading.py` (targum-internal#213, #220) |
 | `recast` | `judge_ok_share`, `lemma_overlap`, `unpaired`, the chat's `> ` line against a person's rendering of the same English: `corpus=tatoeba`, volunteers' sentences, `corpus=flores-plus`, FLORES+'s professional renderings (`--reference flores`), or `corpus=ntrex-128`, the WMT 2019 news set's (`--reference ntrex`) | `scripts/eval_recast.py` (targum-internal#219, #221, #222) |
 | `stress` | `stress_precision`, `stress_coverage`, `yo_precision`, `yo_recall`, and `silero_precision` (system `silero-stress`, silero alone, the independent number): Russian stress marks against sentences stressed by hand in English Wiktionary's examples and quotations (`corpus=wiktionary-ru`, evaluation only) | `scripts/eval_stress.py` (targum-internal#260) |
 | `ask` | `span_found_share`, `token_f1`, `unanswered`, the chat's reply to a question about a paragraph on a stubbed page against the span a person marked as the answer, on HeQ (`corpus=heq`) | `scripts/eval_ask.py` (targum-internal#223) |
+
+What each corpus is, where it comes from, its licence and what it may be used for:
+`SOURCES.md`.
 
 Every chat eval spends model calls and caches nothing: the question is what the model does
 today. Load the keys first: prefix the command with `op run --env-file op.env --`.

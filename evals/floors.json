@@ -542,5 +542,29 @@
     "system": "chat-contract",
     "at_most": 1,
     "why": "0 of 10 on 2026-09-22. Counts every '~ ' written, including ones the parser drops before the page. One is allowed here and none above, because a dropped line is a contract slip the reader never sees and the metric beside this one is the one that reaches them."
+  },
+  {
+    "stage": "vocalize",
+    "corpus": "scene-corrections",
+    "metric": "settled_word_exact_folded",
+    "system": "dicta-il/dictabert-large-char-menaked",
+    "at_least": 0.7,
+    "why": "the first hand-marked Hebrew nikkud row (targum-internal#351): 0.7326 on 2026-09-27 over 389 settled words, the menaked at the pinned d311fbf7c403. Only the settled words were marked by a person; the rest of each line passed two model readings"
+  },
+  {
+    "stage": "vocalize",
+    "corpus": "scene-corrections",
+    "metric": "word_exact_folded",
+    "system": "dicta-il/dictabert-large-char-menaked",
+    "at_least": 0.9,
+    "why": "0.9183 on 2026-09-27 over 1,848 words in 345 scene lines; a weaker claim than the settled row beside it, since most of these words were read by two models and no person"
+  },
+  {
+    "stage": "vocalize",
+    "corpus": "scene-corrections",
+    "metric": "skeleton_kept",
+    "system": "dicta-il/dictabert-large-char-menaked",
+    "at_least": 0.99,
+    "why": "1.0 on 2026-09-27; a letter changed is a bug, not a score"
   }
 ]

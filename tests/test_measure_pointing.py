@@ -163,3 +163,65 @@ def test_a_shin_the_reference_leaves_bare_is_not_scored(script: ModuleType) -> N
     script.score(undotted, line.gold, tally)
     assert tally.rates()["shin_dot"] == (None, 0)
     assert tally.rates()["word_exact"] == (1.0, 4)
+
+
+#: A scene line as `scene_nikkud_gold.py` writes it: one point-only correction settled on
+#: the third word, the tsere a person changed to segol.
+SCENE = (
+    '{"span": "09 t4", "english": "", "was": "", "line": "קָרָא לִי לִפְנֶי חֹדֶשׁ",'
+    ' "settled": [{"start": 10, "end": 17, "kind": "points", "was": "לִפְנֵי"}], "ids": [1]}'
+)
+
+
+def test_a_scene_line_carries_the_words_a_person_settled(script: ModuleType) -> None:
+    (line,) = script.parse_scene_gold(SCENE + "\n")
+    assert line.bare == "קרא לי לפני חדש"
+    (one,) = line.settled
+    assert line.gold[one.start : one.end] == "לִפְנֶי"
+
+
+def test_the_settled_words_are_scored_on_their_own(script: ModuleType) -> None:
+    (line,) = script.parse_scene_gold(SCENE)
+    tally = script.Tally()
+    script.score(line, line.gold, tally)
+    rates = tally.rates()
+    assert rates["word_exact"] == (1.0, 4)
+    assert rates["settled_word_exact"] == (1.0, 1)
+    assert rates["settled_points_word_exact"] == (1.0, 1)
+    assert rates["settled_letters_word_exact"] == (None, 0)
+    assert rates["settled_points_repeated"] == (0.0, 1)
+
+
+def test_the_rejected_pointing_is_counted_as_repeated(script: ModuleType) -> None:
+    (line,) = script.parse_scene_gold(SCENE)
+    tally = script.Tally()
+    script.score(line, line.gold.replace("לִפְנֶי", "לִפְנֵי"), tally)
+    rates = tally.rates()
+    assert rates["word_exact"] == (3 / 4, 4)
+    assert rates["settled_word_exact"] == (0.0, 1)
+    assert rates["settled_points_repeated"] == (1.0, 1)
+
+
+def test_a_corpus_without_settled_words_has_no_settled_rows(script: ModuleType) -> None:
+    (line,) = script.parse_dicta(RAW)
+    tally = script.Tally()
+    script.score(line, line.gold, tally)
+    assert not any(metric.startswith("settled") for metric in tally.rates())
+
+
+def test_the_vowel_before_a_bare_vav_folds_onto_the_vav(script: ModuleType) -> None:
+    """The scenes write בּוֹקֶר and חוּקִּי; the menaked, keeping the letters, writes
+    בֹּוקֶר and חֻוקִּי. Strictly two wrong words, folded the same two words."""
+    line = script.Line("בּוֹקֶר חוּקִּי כָּל", "בוקר חוקי כל")
+    tally = script.Tally()
+    script.score(line, "בֹּוקֶר חֻוקִּי כׇּל", tally)
+    rates = tally.rates()
+    assert rates["word_exact"] == (0.0, 3)
+    assert rates["word_exact_folded"] == (1.0, 3)
+
+
+def test_folding_does_not_forgive_a_wrong_vowel(script: ModuleType) -> None:
+    line = script.Line("בּוֹקֶר", "בוקר")
+    tally = script.Tally()
+    script.score(line, "בֻּוקֶר", tally)
+    assert tally.rates()["word_exact_folded"] == (0.0, 1)
