@@ -95,6 +95,9 @@ class Manifest:
     author: Author
     items: list[Item]
     fetched_by: str = "paste"
+    #: Whether some of a thread may not be here: X shows a thread only in part to
+    #: somebody signed out (`ingest.x.Thread.more`), and the card says so.
+    more: bool = False
     #: The post's own address, or None where the reader brought it without one.
     url: str | None = None
     #: ISO 8601, or "" where the platform's page did not say.
@@ -206,10 +209,11 @@ def left_out(folder: Path) -> dict[str, list[tuple[int, int]]] | None:
     }
 
 
-def keep_pictures(pictures: list[Path], folder: Path) -> list[Media]:
+def keep_pictures(pictures: list[Path], folder: Path, first: int = 1) -> list[Media]:
     """A post's pictures, in its order, as webp under `<folder>/post/`, long edge at most
     `LONG_EDGE`. Never cropped: a 4:5 post stays 4:5 (§12). A picture that will not open
-    is left out rather than failing the post; the caption is still the text."""
+    is left out rather than failing the post; the caption is still the text. `first` is
+    the number the first is kept under, so a thread's posts keep theirs apart."""
     import io
 
     from PIL import Image
@@ -217,7 +221,7 @@ def keep_pictures(pictures: list[Path], folder: Path) -> list[Media]:
     kept = folder / "post"
     kept.mkdir(parents=True, exist_ok=True)
     media: list[Media] = []
-    for n, source in enumerate(pictures, start=1):
+    for n, source in enumerate(pictures, start=first):
         try:
             image = Image.open(source)
             image.thumbnail((LONG_EDGE, LONG_EDGE), Image.Resampling.LANCZOS)

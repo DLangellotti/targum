@@ -2258,5 +2258,12 @@
   "telegram.link-first": "Link your targum account first, from {link}.",
   "telegram.what-to-send": "Send us a voice note, a video, a picture, a PDF or some text, and we'll put it on your shelf.",
   "telegram.too-big": "{name} is over 20 MB, and Telegram won't hand us anything bigger. Send it on {link}.",
-  "reader.post.the-caption": "The caption"
+  "reader.post.the-caption": "The caption",
+  "job.x-closed": "We don't bring posts in from X. Copy the post's words and paste them here.",
+  "job.x-no-words": "That post has no words to read. Its pictures are all it says.",
+  "x.one-post": "We can take one post at a time.",
+  "x.one-post.hint": "Paste the address of a single post.",
+  "x.not-shown": "X wouldn't show us that post.",
+  "x.not-shown.hint": "It may be deleted, private or age-restricted. Copy its words and paste them here.",
+  "reader.post.thread-in-part": "Some of this thread may be missing. The rest is on {service}."
 }
