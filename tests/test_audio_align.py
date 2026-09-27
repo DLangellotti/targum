@@ -223,3 +223,37 @@ def test_a_word_the_path_did_not_place_stays_unplaced() -> None:
     got = _moved([(2, 4), None, (10, 12)], "0011111111110000")
     assert got[1] is None
     assert got[0] == (2, 8) and got[2] == (8, 12)
+
+
+def test_a_spoken_word_the_model_cannot_spell_takes_the_gap_it_left() -> None:
+    """targum-internal#380: "Lubbock" in a Hebrew text came out a point, and the word
+    before it lit while it was said. It takes the frames between its neighbours now."""
+    from targum.audio.align import share_the_gap, to_the_voice
+
+    spans = [(0, 10), None, (30, 40)]
+    shared = share_the_gap(spans, [0, 7, 0], total=50)
+    assert shared == [(0, 10), (10, 30), (30, 40)]
+    widened = to_the_voice(shared, [True] * 50, lead=2, reach_back=10, reach_on=25)
+    assert widened[0] is not None and widened[1] is not None
+    assert widened[0][1] <= widened[1][0], "the word before stops where the name starts"
+
+
+def test_a_run_of_them_shares_the_gap_by_length() -> None:
+    from targum.audio.align import share_the_gap
+
+    shared = share_the_gap([(0, 10), None, None, (40, 50)], [0, 2, 4, 0], total=60)
+    assert shared[1] == (10, 20) and shared[2] == (20, 40)
+
+
+def test_punctuation_stays_unplaced() -> None:
+    """A dash is not said. It stays a point, as it was."""
+    from targum.audio.align import share_the_gap
+
+    assert share_the_gap([(0, 10), None, (10, 20)], [0, 0, 0], total=30)[1] is None
+
+
+def test_no_room_leaves_it_unplaced() -> None:
+    """Where the neighbours touch there is nothing to share, and no word is invented."""
+    from targum.audio.align import share_the_gap
+
+    assert share_the_gap([(0, 10), None, (10, 20)], [0, 7, 0], total=30)[1] is None
