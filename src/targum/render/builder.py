@@ -1419,6 +1419,8 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     Everything it needs is baked in, as a reader's is: the two faces, the stylesheet and
     the one script are inlined, and nothing on the page fetches anything.
     """
+    from ..ingest import x as x_door
+
     words = page_words(language)
     _front_at = _addressed_in(address.rstrip("/") + "/" if address else "", language)
     return (
@@ -1442,6 +1444,9 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),
+            # X is a door the deployment arms (targum-internal#158), so the list says it
+            # works only where it does: "soon" on a box with the switch off.
+            x_open=x_door.is_open(),
         )
     )
 
