@@ -76,8 +76,9 @@ hook the same day found three more and a formatting divergence.
 
 ## The weekly runs itself now, from this laptop
 
-`deploy/weekly-run.sh` does the whole chain — brief, draft, build, publish, announce,
-ship — and `deploy/weekly.plist.example` is the `launchd` job that runs it on a Monday.
+`deploy/weekly-run.sh` does the whole chain — brief, draft, build, publish, the Russian
+edition, ship, announce — and `deploy/weekly.plist.example` is the `launchd` job that runs
+it on a Monday.
 **Installing the plist does not arm it**; `launchctl load` does, and nothing here loads
 it for you, because the job writes an issue with a model, publishes it under the targum
 name and mails whoever asked for it.
@@ -92,6 +93,13 @@ page, and `BYLINE_HE` survives only so issues published before the change still 
 they did. `publish` still refuses a lifted phrase (the licence boundary) and still refuses
 a missed band, and the scheduled run never passes `--anyway`. A run that stops has found
 something.
+
+**Every issue has a Russian edition, and the mail goes out from the box** (both
+2026-09-27). The Russian is built after `publish`, so an issue the guards refuse spends
+nothing on it, and a Russian build that stops never holds back the English. `announce`
+runs *on the box* after the ship, against `/var/lib/targum/targum.db`: the site's
+subscribers live there, and an announce from the laptop reads the laptop's database, where
+they never are (targum-internal#346). A subscription made on the laptop is not mailed.
 
 ## The keys are in 1Password, and nothing loads them for you
 
@@ -115,9 +123,10 @@ wrong. There is; it is just not in the environment of a fresh shell.
 - **The laptop and the box hold different Anthropic and OpenAI keys** — items
   `Anthropic laptop` / `OpenAI laptop` against `Anthropic` / `OpenAI` — so a console's
   usage says which machine spent it.
-- **The Monday weekly reads as the `targum-box` service account**: read-only, the
-  `targum` vault only, its token in the Personal vault and, for the job, in the login
-  keychain. Putting it there, once, in a terminal of your own:
+- **The Monday weekly and `deploy.sh` read as the `targum-box` service account**:
+  read-only, the `targum` vault only, its token in the Personal vault and, for unattended
+  runs, in the login keychain. With it there, a deploy needs nobody at the fingerprint
+  reader (2026-09-27); without it, `op` falls back to the app's unlock. Putting it there, once, in a terminal of your own:
 
   ```
   security add-generic-password -a "$USER" -s targum-op-service-account -T /usr/bin/security \
