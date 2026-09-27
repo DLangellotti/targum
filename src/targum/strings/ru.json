@@ -1291,6 +1291,7 @@
   "suggest.looked-up": "Ученик смотрит в словаре {share}% его слов.",
   "suggest.modern-hebrew": "Современный иврит.",
   "suggest.biblical-hebrew": "Библейский иврит.",
+  "suggest.passage": "{title} читается на вашем уровне, хотя весь текст сложнее.",
   "suggest.unmeasured": "Пока не измерено.",
   "reader.next.sequence": "Следующий по порядку.",
   "reader.next.step-up": "На ступень сложнее этого.",
