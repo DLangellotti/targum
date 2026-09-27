@@ -248,3 +248,46 @@ def test_a_video_with_a_poster_shows_its_picture(browser, tmp_path: Path) -> Non
     source = page.get_attribute("#library-list .thumb img", "src")
     context.close()
     assert source and "/thumb/vlog" in source
+
+
+#: Every + and ⋯ on the shelf, and whether any of them lies under the Talk to targum pill
+#: in the window's width. The pill is fixed and the cards scroll only up and down, so a
+#: key clear of it across the window is clear of it at every scroll position.
+UNDER_THE_PILL = """() => {
+  const pill = document.getElementById('talk-open').getBoundingClientRect();
+  const keys = [...document.querySelectorAll('#library-list .add-to-list, #library-list .row-more')]
+    .map((key) => key.getBoundingClientRect())
+    .filter((key) => key.width > 0);
+  return {
+    pill: [Math.round(pill.left), Math.round(pill.right)],
+    keys: keys.length,
+    under: keys.filter((key) => key.right > pill.left && key.left < pill.right).length,
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [1024, 1152, 1280, 1366])
+def test_the_talk_pill_never_covers_a_cards_keys(browser, tmp_path: Path, width: int) -> None:
+    """targum-internal#379. At a desk between 1024 and 1280px the pill sat over the
+    right-hand cards' + and ⋯, and they could not be pressed until scrolled past it. The
+    grid keeps its end edge clear of the pill instead (layout over reader controls)."""
+    context, page, thrown = shelf(browser, tmp_path, width)
+    got = page.evaluate(UNDER_THE_PILL)
+    context.close()
+    assert got["keys"] and got["under"] == 0, got
+    assert not got["sideways"]
+    assert not thrown
+
+
+def test_a_longer_pill_takes_more_room(browser, tmp_path: Path) -> None:
+    """The room is the pill's own width, measured, so Russian's longer words are cleared
+    too and not only the English the width was first seen in."""
+    context, page, _ = shelf(browser, tmp_path, 1024)
+    page.evaluate(
+        "() => { document.querySelector('#talk-open span').textContent = 'Поговорить с targum'; }"
+    )
+    page.wait_for_timeout(100)
+    got = page.evaluate(UNDER_THE_PILL)
+    context.close()
+    assert got["keys"] and got["under"] == 0, got

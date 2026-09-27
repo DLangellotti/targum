@@ -21,6 +21,23 @@
   var scrim = document.getElementById("talk-scrim");
   if (!pill || !drawer || !frame) return;
 
+  // How far in from the window's end edge the pill reaches, in `--talk-room`, so a page
+  // can keep its controls out from under it (targum-internal#379: at 1024–1280px the
+  // shelf's right-hand cards scrolled their + and ⋯ beneath it). Measured rather than
+  // guessed: the pill is as wide as its words, and Russian's are longer. While the
+  // drawer is open the pill is put away, and the room is kept rather than let the page
+  // jump under the drawer.
+  function measureRoom() {
+    var box = pill.getBoundingClientRect();
+    if (!box.width) return;
+    var rtl = getComputedStyle(pill).direction === "rtl";
+    var reach = rtl ? box.right : document.documentElement.clientWidth - box.left;
+    document.documentElement.style.setProperty("--talk-room", Math.max(0, Math.ceil(reach)) + "px");
+  }
+  measureRoom();
+  window.addEventListener("resize", measureRoom);
+  if (window.ResizeObserver) new ResizeObserver(measureRoom).observe(pill);
+
   // The reader is a built page with no key baked in: it carries the one it was served
   // with in its own address, as `reader.js` does. Off a disk there is nothing to talk
   // to, and the pill stays hidden.
