@@ -17,7 +17,7 @@
 <script>{{ asset('durable.js') }}</script>
 <script>{{ asset('keep.js') }}</script>
 </head>
-<body class="reader mode-parallel{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">
+<body class="reader mode-parallel{% if post %} is-post{% endif %}{% if words %} has-list{% endif %}{% if mark_guessed %} mark-guessed{% endif %}{% if verse_by_verse %} verses{% endif %}">
 <header class="bar">
   {#- The mark holds the corner on its own: at this size the identity is the monogram,
       not the lockup, and the bar already carries the title beside it.
@@ -379,6 +379,41 @@
     text would be a decoration; this is a mark, the size of a stamp, that says which book
     you are in. Its own cover where the chapter has one, the book's where it has not. -#}
 {% if plate %}<figure class="plate"><img src="{{ plate }}" alt=""></figure>{% endif %}
+{#- A post read as a post (design.md §12, "A post keeps its shape", 2026-09-27;
+    targum-internal#159). Its head takes the title's place: the author's own picture in a
+    disc, or their first letter where the post gave none; their name and handle; the day.
+    The pictures follow in the post's order, a row the reader swipes, each at the shape
+    it was posted in and never cropped to a card. Then the caption, which is the rows
+    below: the reader's own, tapped and translated like any text. No platform mark, no
+    platform colour, no button that cannot act there and no count. Everything is in the
+    page as data; the one address is the link home, which the reader must press.
+
+    The picture's width and height ride as attributes, so the row is its right shape
+    before a byte of it is decoded — and a served page's policy allows no `style`. -#}
+{% if post %}
+<section class="post" aria-label="{{ t("reader.post.the-post", "The post") }}">
+  <header class="post-head">
+    <span class="post-face{% if not post.avatar %} letter{% endif %}" aria-hidden="true">{% if post.avatar %}<img src="{{ post.avatar }}" alt="" width="48" height="48">{% else %}{{ post.letter }}{% endif %}</span>
+    <span class="post-who">
+      {% if post.name %}<bdi class="post-name" dir="auto">{{ post.name }}</bdi>{% endif %}
+      {#- Each piece its own isolate, so a Latin handle and an English date on a Hebrew
+          page keep their own order, and a narrow window wraps between them, not inside. -#}
+      <span class="post-meta"><bdi class="post-handle{% if not post.name %} alone{% endif %}" dir="ltr">@{{ post.handle }}</bdi>{% if post.day %}<span aria-hidden="true">·</span><time datetime="{{ post.stamp }}" dir="auto">{{ post.day }}</time>{% endif %}</span>
+    </span>
+    {#- Not where the film's own home already stands in the bar: one way home, not two. -#}
+    {% if post.home and not spoken_home %}
+    <a class="post-home" href="{{ post.home }}" target="_blank" rel="noreferrer noopener">{{ t("reader.post.on-service", "On {service}", service=post.home_named) }}</a>
+    {% endif %}
+  </header>
+  {% if post.pictures %}
+  <div class="post-pictures{% if post.pictures|length > 1 %} several{% endif %}" tabindex="0" role="group" aria-label="{{ tn("reader.post.pictures", post.pictures|length, "{n} picture", "{n} pictures") }}">
+    {%- for picture in post.pictures %}
+    <figure class="post-picture"><img src="{{ picture.src }}" width="{{ picture.width }}" height="{{ picture.height }}" alt="{{ picture.alt }}" decoding="async"></figure>
+    {%- endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endif %}
 {#- A chapter nobody has paid for yet. It says so, once, above the text, and offers to
     get it; the source is still there to read and mark. The translation column is left
     out rather than shipped empty — a column of blank paragraphs said nothing about

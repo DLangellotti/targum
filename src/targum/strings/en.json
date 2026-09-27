@@ -2225,5 +2225,9 @@
   "job.unreadable.missing": "That page isn't there. Check the link and try again.",
   "job.unreadable.broken": "That site didn't answer properly. Try again, or paste the text itself.",
   "job.unreadable.other": "We couldn't read that. Try again, or paste the text itself.",
-  "job.unreadable.language": "This looks like {language}, and we can't read that yet. Choose the language it's in."
+  "job.unreadable.language": "This looks like {language}, and we can't read that yet. Choose the language it's in.",
+  "reader.post.the-post": "The post",
+  "reader.post.on-service": "On {service}",
+  "reader.post.pictures.one": "{n} picture",
+  "reader.post.pictures.other": "{n} pictures"
 }

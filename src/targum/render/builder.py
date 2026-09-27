@@ -63,7 +63,9 @@ ASSETS = Path(__file__).parent / "assets"
 # The en dash is in the run: a range — a clock's 0:00–10:58, a year's 1897–1948 — is
 # one thing to say, and split at the dash its halves are two isolates an RTL paragraph
 # reorders, so every range read backwards.
-_LATIN_RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9 .,:/'’&–-]*[A-Za-z0-9]|[A-Za-z0-9]")
+# A mention and an address are one run too (targum-internal#159): a post's `@kan_news`
+# split at its `@` and its `_` into isolates an RTL line reordered, and read "news_kan@".
+_LATIN_RUN = re.compile(r"@?[A-Za-z0-9][A-Za-z0-9 .,:/'’&–_=?%#-]*[A-Za-z0-9/]|@?[A-Za-z0-9]")
 # And a Hebrew run keeps its numbers and its inner punctuation (2026-09-14): stopped at
 # a digit or a colon, "פרק 3 של ספר" was two isolates, and an LTR line laid the halves
 # out left to right, so the phrase read in the wrong order. Only what cannot end a
@@ -2508,6 +2510,98 @@ def cover_uri(covers: Path | None, name: str) -> str:
     return f"data:image/webp;base64,{base64.b64encode(raw).decode('ascii')}"
 
 
+def _kept_uri(folder: Path, relative: str) -> str:
+    """A picture a post keeps beside its reader, as a `data:` URI, or "".
+
+    Only a file inside the folder: the path came out of a JSON file on the disk, and a
+    page that inlined whatever it named could be made to carry any file on the box.
+    """
+    if not relative:
+        return ""
+    try:
+        found = (folder / relative).resolve()
+        found.relative_to(folder.resolve())
+        raw = found.read_bytes()
+    except (OSError, ValueError):
+        return ""
+    return f"data:image/webp;base64,{base64.b64encode(raw).decode('ascii')}"
+
+
+def post_card(
+    folder: Path | None, segmented: SegmentedDocument, language: str
+) -> tuple[dict[str, Any] | None, set[str]]:
+    """What the post card draws, and which rows it stands in for (design.md §12, "A post
+    keeps its shape", 2026-09-27; targum-internal#159).
+
+    None for a folder without a `post.json`, which is every text that is not a post. For a
+    post: its head (the author's picture or first letter, their name and handle, the day),
+    the pictures in the post's order at their own shape, and the one link home. Everything
+    is carried in the page, as covers are: nothing is fetched.
+
+    The rows it stands in for are the title and byline the text path put above the
+    caption. The head takes the title's place, and the title is the caption's first line,
+    which is still the first line under the pictures.
+    """
+    from ..ingest import post as post_module
+    from ..strings import said_date
+    from ..video import hosts as video_hosts
+
+    manifest = post_module.read(folder) if folder is not None else None
+    if manifest is None or folder is None:
+        return None, set()
+    author = manifest.get("author") or {}
+    handle = str(author.get("handle") or "").lstrip("@")
+    name = str(author.get("name") or "")
+    day, stamp = "", str(manifest.get("posted_at") or "")
+    if stamp:
+        try:
+            when = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+        else:
+            day, stamp = said_date(when.date(), language), when.date().isoformat()
+    pictures: list[dict[str, Any]] = []
+    for item in manifest.get("items") or []:
+        for media in item.get("media") or []:
+            # A film is the film panel's (§12, 2026-08-31), which already draws it at
+            # its own shape; the card carries pictures only.
+            if media.get("kind") != "image":
+                continue
+            uri = _kept_uri(folder, str(media.get("path") or ""))
+            width, height = int(media.get("width") or 0), int(media.get("height") or 0)
+            if uri and width > 0 and height > 0:
+                pictures.append(
+                    {"src": uri, "width": width, "height": height, "alt": media.get("alt") or ""}
+                )
+    home = video_hosts.home_url(str(manifest.get("url") or ""))
+    platform = str(manifest.get("platform") or "")
+    card = {
+        "handle": handle,
+        "name": name,
+        # Their first letter where there is no picture, as a text with no cover wears
+        # its letter on the shelf.
+        "letter": (name or handle or "?")[:1].upper(),
+        "avatar": _kept_uri(folder, str(author.get("avatar") or "")),
+        "day": day,
+        "stamp": stamp,
+        "pictures": pictures,
+        "home": home,
+        "home_named": video_hosts.named(home) or platform.title(),
+    }
+    # The rows the head stands in for: the title and the byline the front matter put at
+    # the top, and only while they are at the top — a heading further down is the
+    # caption's own.
+    covered: set[str] = set()
+    for segment in segmented.segments:
+        if segment.kind is BlockKind.heading and (segment.level or 1) == 1:
+            covered.add(segment.id)
+        elif segment.kind is BlockKind.byline:
+            covered.add(segment.id)
+        else:
+            break
+    return card, covered
+
+
 def plate_uri(covers: Path | None, name: str) -> str:
     """The same cover, small enough to sit on every page of a book.
 
@@ -2768,6 +2862,23 @@ def render(
     parts = parts[1:]
 
     drawn = cover_name(document)
+    # A post read as a post (design.md §12, "A post keeps its shape"): the head, the
+    # pictures and the link home, and the rows the head takes the place of.
+    chrome_language = translations[0].target_language if translations else "en"
+    post, post_covers = post_card(folder, segmented, chrome_language)
+    # Its hashtags, mentions and addresses, which are names and not words: nothing in
+    # them is tapped or counted on the page (David, 2026-09-27). At render, not in the
+    # annotator, so no text is annotated again for it.
+    unwordly: dict[str, list[tuple[int, int]]] = {}
+    if post is not None:
+        from ..ingest.post import inside
+        from ..ingest.post import unwordly as unwordly_in
+
+        unwordly = {
+            segment.id: found
+            for segment in segmented.segments
+            if (found := unwordly_in(segment.text))
+        }
     # Which languages the renderings are in, for naming them on the switch.
     into = [translation.target_language for translation in translations]
     # Whether this text is an imported recording. The contents page asks so its
@@ -2956,10 +3067,13 @@ def render(
         if annotation is not None:
             for sid in section.segment_ids:
                 tokens = annotation.tokens.get(sid)
-                if not tokens:
+                # A row the post's head stands in for is not on the page to tap.
+                if not tokens or sid in post_covers:
                     continue
                 rows: list[list[int]] = []
                 for token in tokens:
+                    if sid in unwordly and inside(token.start, token.end, unwordly[sid]):
+                        continue
                     word = (token.lemma, token.head)
                     if word not in lemma_at:
                         lemma_at[word] = len(lemmas)
@@ -3214,7 +3328,9 @@ def render(
             lexicon_credit="partners" in extensions
             or "stress" in extensions
             or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
-            segments=segments,
+            segments=[segment for segment in segments if segment.id not in post_covers],
+            # The post's card, on the page that opens the text (a post is one page).
+            post=post if section.number == 1 else None,
             verses=verses,
             languages=languages,
             switches=switches,

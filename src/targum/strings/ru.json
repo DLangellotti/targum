@@ -2380,5 +2380,10 @@
   "job.unreadable.missing": "Такой страницы нет. Проверьте ссылку и попробуйте ещё раз.",
   "job.unreadable.broken": "Сайт ответил с ошибкой. Попробуйте ещё раз или вставьте сам текст.",
   "job.unreadable.other": "Не удалось это прочитать. Попробуйте ещё раз или вставьте сам текст.",
-  "job.unreadable.language": "Похоже, это {language}, а этот язык мы пока не читаем. Выберите язык текста."
+  "job.unreadable.language": "Похоже, это {language}, а этот язык мы пока не читаем. Выберите язык текста.",
+  "reader.post.the-post": "Пост",
+  "reader.post.on-service": "В {service}",
+  "reader.post.pictures.one": "{n} картинка",
+  "reader.post.pictures.few": "{n} картинки",
+  "reader.post.pictures.many": "{n} картинок"
 }

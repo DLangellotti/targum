@@ -206,7 +206,9 @@ OPENRUSSIAN = "https://en.openrussian.org"
 INSTAGRAM = "https://www.instagram.com/reel/"
 VIDEO_HOMES = (
     INSTAGRAM,
-    # A post that is a film keeps the `/p/` it was pasted with (2026-09-18).
+    # A post that is a film keeps the `/p/` it was pasted with (2026-09-18), and a post of
+    # pictures links home to the same shape, "On Instagram" in its head (design.md §12,
+    # "A post keeps its shape"; `test_post_card.py`).
     "https://www.instagram.com/p/",
     "https://vimeo.com/",
     "https://www.tiktok.com/@/video/",

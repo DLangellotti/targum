@@ -412,9 +412,15 @@ def pictures_into(post: Post, folder: Path) -> list[Path]:
 
 def caption_text(post: Post) -> str:
     """The caption as a text targum reads: front matter naming the title and the author,
-    then the caption with the marks Instagram wraps it in taken off each line."""
+    then the caption with the marks Instagram wraps it in taken off each line.
+
+    Each line is its own paragraph. A caption's lines are how it was written (design.md
+    §12, "A post keeps its shape"), and the plain-text ingester joins the lines of a
+    paragraph into one, so a line that ends without a full stop ran into the next as
+    one sentence. A blank line between two paragraphs of the caption is not kept apart
+    from a line break: the reader draws a sentence a row either way."""
     lines = [line.strip(_MARKS) for line in post.caption.splitlines()]
-    body = "\n".join(lines).strip()
+    body = "\n\n".join(line for line in lines if line)
     title = (post.title or f"Post by {post.author}").replace("\n", " ")
     # Plain, not quoted: `parse_frontmatter` takes everything after the first colon and
     # trims quotes off the ends, so quoting would only put backslashes into a title.

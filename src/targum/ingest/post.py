@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -126,6 +127,57 @@ def read(folder: Path) -> dict[str, Any] | None:
     return data
 
 
+#: What in a post's text names something rather than says it: a hashtag, a mention, an
+#: address. They stay where the author put them and are drawn as written, but they are
+#: names, not words (design.md §12, "A post keeps its shape"): not tapped as vocabulary and
+#: not counted in what a reader knows of the text. Done here, at render and count, rather
+#: than in the annotator, whose name is every text's cache key (David, 2026-09-27). A
+#: hashtag's letters may carry points, which are not `\w`; a mention may carry dots, but
+#: never ends on one.
+UNWORDLY = re.compile(
+    r"(?:https?://|www\.)\S+"
+    r"|#[\w\u0591-\u05c7\u05f3\u05f4]+"
+    r"|@[\w.]*\w"
+)
+
+
+def unwordly(text: str) -> list[tuple[int, int]]:
+    """Where the hashtags, mentions and addresses are in `text`, as (start, end)."""
+    return [match.span() for match in UNWORDLY.finditer(text)]
+
+
+def without_unwordly(text: str) -> str:
+    """`text` with its hashtags, mentions and addresses taken out, for a count that reads
+    the words and not the tokens (`level.known_share`)."""
+    return UNWORDLY.sub(" ", text)
+
+
+def inside(start: int, end: int, spans: list[tuple[int, int]]) -> bool:
+    """Whether the word at (start, end) falls in any of `spans`. Overlap is enough: an
+    annotator that took the `#` off a hashtag still found a word that is in one."""
+    return any(start < stop and end > begin for begin, stop in spans)
+
+
+def left_out(folder: Path) -> dict[str, list[tuple[int, int]]] | None:
+    """For a post's folder, where each segment's hashtags, mentions and addresses are,
+    measured in the segment's own text as the annotation's offsets are; None for a folder
+    that is not a post, whose words are all counted as they always were.
+
+    Read from `segments.json` beside the reader, so a count asked after the build needs
+    nothing but the folder.
+    """
+    if read(folder) is None:
+        return None
+    from ..models import SegmentedDocument, read_artifact
+
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if segmented is None:
+        return {}
+    return {
+        segment.id: spans for segment in segmented.segments if (spans := unwordly(segment.text))
+    }
+
+
 def keep_pictures(pictures: list[Path], folder: Path) -> list[Media]:
     """A post's pictures, in its order, as webp under `<folder>/post/`, long edge at most
     `LONG_EDGE`. Never cropped: a 4:5 post stays 4:5 (§12). A picture that will not open
@@ -184,8 +236,13 @@ __all__ = [
     "Item",
     "Manifest",
     "Media",
+    "UNWORDLY",
+    "inside",
     "keep_avatar",
     "keep_pictures",
+    "left_out",
     "read",
+    "unwordly",
+    "without_unwordly",
     "write",
 ]
