@@ -86,6 +86,7 @@
   var SUBJECTS = [
     ["tanakh", t("library.subject.tanakh", "Tanakh")],
     ["judaica", t("library.subject.judaica", "Judaica")],
+    ["stories", t("library.subject.stories", "Stories")],
     ["journalism", t("library.subject.journalism", "News")],
     ["sport", t("library.subject.sport", "Sport")],
     ["science", t("library.subject.science", "Science")],
@@ -455,7 +456,22 @@
   /* Whether a row is filed under one subject. A list, not a value: a match report is
      journalism and sport at once and belongs under both. */
   function holdsSubject(row, tag) {
-    return (row.tags || []).indexOf(tag) >= 0;
+    return subjectsOf(row).indexOf(tag) >= 0;
+  }
+
+  /* The kinds that are stories, for the one subject the catalogue files by form rather
+     than by topic. The arrival's "Stories and novels" door already answers from these
+     kinds (`learn.js` INTERESTS); this page offered no such chip, and the revival-era
+     fiction, most of what carries no tag, could not be browsed to (targum-internal#311,
+     2026-09-27). Read from the kind rather than tagged by hand: `Kind` already says it,
+     and a tag would be a second copy of it to keep in step. */
+  var STORY_KINDS = ["story", "novel", "play"];
+
+  /* A row's subjects: its tags, and "stories" where its kind is one. */
+  function subjectsOf(row) {
+    var all = (row.tags || []).slice();
+    if (STORY_KINDS.indexOf(row.kind) >= 0 && all.indexOf("stories") < 0) all.push("stories");
+    return all;
   }
 
   /* "Now" means now; "a step up" means now *and* the step. A band that excluded what the
@@ -1696,7 +1712,7 @@
     var pretend = unsubjected();
     rows.forEach(function (row) {
       if (!matches(row, code, pretend)) return;
-      (row.tags || []).forEach(function (tag) {
+      subjectsOf(row).forEach(function (tag) {
         tally[tag] = (tally[tag] || 0) + 1;
       });
     });
