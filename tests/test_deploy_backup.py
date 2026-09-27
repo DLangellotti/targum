@@ -101,3 +101,26 @@ def test_the_vault_filter_keeps_names_with_digits() -> None:
     script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
     (pattern,) = re.findall(r"grep -E '(\^\[A-Z_\][^']*)'", script)
     assert re.match(pattern, "RCLONE_CONFIG_B2_KEY=x")
+
+
+def test_a_deploy_installs_the_extras_ci_checks_with_before_it_checks() -> None:
+    """A deploy runs from a fresh worktree, whose `.venv` had no extras, and its mypy
+    then failed on PIL, pypdf and mcp — twice (2026-09-14, 2026-09-27). The extras are
+    read from CI's own workflow, so the two lists cannot drift."""
+    import subprocess
+
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    line = next(line for line in script.splitlines() if line.startswith("EXTRAS="))
+    root = DEPLOY.parent
+    got = subprocess.run(
+        ["bash", "-c", f'{line}; echo "$EXTRAS"'],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.split()
+    assert got[::2] == ["--extra"] * (len(got) // 2) and len(got) >= 2
+    extras = set(got[1::2])
+    assert {"difficulty", "covers", "bring", "mcp"} <= extras, extras
+    sync = script.index("check uv sync --frozen --inexact $EXTRAS")
+    assert sync < script.index("check uv run mypy"), "synced before anything is checked"

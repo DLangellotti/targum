@@ -43,6 +43,15 @@ check() {
 # happen. So the suite here may be stood down for a tree CI has already passed — and
 # only for that exact tree: TARGUM_CHECKED must name the commit being shipped, and the
 # tree must be clean, or the suite runs as it always did.
+# The extras CI checks with, read from CI's own workflow so the two lists cannot drift.
+# A deploy runs from a fresh worktree, whose `.venv` `uv run` makes with no extras at
+# all, and mypy then failed on PIL, pypdf and mcp — a deploy stopped by its preflight for
+# a reason that was not the code (2026-09-14, and again 2026-09-27). `--frozen` because a
+# deploy installs what the lock says, never a fresh resolution of it.
+EXTRAS="$(grep -m1 -oE 'uv sync( --extra [a-z-]+)+' .github/workflows/ci.yml | sed 's/^uv sync//')"
+[ -n "$EXTRAS" ] || { echo "   no 'uv sync --extra' line in .github/workflows/ci.yml" >&2; exit 1; }
+# shellcheck disable=SC2086 # the extras are separate words on purpose
+check uv sync --frozen --inexact $EXTRAS
 check uv run ruff check .
 check uv run ruff format --check .
 check uv run mypy
