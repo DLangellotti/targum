@@ -86,6 +86,7 @@ from targum.chat import (  # noqa: E402
     ntrex,
     prompts,
 )
+from targum.errors import TargumError  # noqa: E402
 from targum.level import EMPTY  # noqa: E402
 from targum.models import Segment  # noqa: E402
 from targum.translate.anthropic_provider import output_config  # noqa: E402
@@ -223,6 +224,39 @@ def reference_rows(
     if pool is None:
         sys.exit("--pool is required with the Tatoeba reference")
     return pool_rows(pool, max_words if max_words is not None else MAX_WORDS, source)
+
+
+def stand_in_known(into: str, count: int) -> list[str]:
+    """The reader's known words where wordfreq has no list to take them from.
+
+    Every language is scored as a reader who has marked `--known` words, and the words
+    are wordfreq's commonest. Yiddish has none, so its reader had marked nothing — which
+    is not a weaker version of the same reader but a different one: the ledger then says
+    it is their first day and to offer them a text (`suggest_next`), the eval gives the
+    model no tools, and it wrote the call out as text instead of the recast. 13 of 14
+    empty Yiddish turns on 2026-09-27 were exactly that (targum-internal#359).
+
+    So the commonest words of FLORES-200's `dev` split stand in, counted by form. `dev`
+    and `devtest` are disjoint, so no sentence being scored lends its own words to the
+    reader. Empty where FLORES-200 does not carry the language or is not downloaded.
+    """
+    if into not in flores200.FILES:
+        return []
+    try:
+        flores200.fetch([into], split="dev")
+        lines = [pair.he for pair in flores200.load(into, "dev")]
+    except TargumError as why:
+        print(f"  no stand-in ledger for {into}: {why.message}")
+        return []
+    counts: dict[str, int] = {}
+    for line in lines:
+        for word in hebrew._WORD.findall(strip_nikkud(line)[0]):
+            counts[word] = counts.get(word, 0) + 1
+    ranked = sorted(counts, key=lambda word: (-counts[word], word))
+    print(
+        f"  wordfreq has no {into} list; {min(count, len(ranked))} known words from FLORES-200 dev"
+    )
+    return ranked[:count]
 
 
 def sample(rows: list[dict[str, Any]], count: int, seed: int) -> list[dict[str, Any]]:
@@ -394,7 +428,7 @@ def main() -> None:
         # alone. Scoring against a different prompt would measure what nobody ships
         # (targum-internal#360).
         print(f"  wordfreq has no {named} list; the prompt stands on the ledger alone")
-    known = common[: args.known]
+    known = common[: args.known] if common else stand_in_known(into, args.known)
     allowed = set(common) | set(known)
     ledger = hebrew.ledger_block(replace(EMPTY, language=into), known, common)
 
