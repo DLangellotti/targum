@@ -511,10 +511,18 @@ def test_a_post_with_no_caption_says_where_its_words_are(
 def test_a_post_says_who_and_when_where_its_data_does() -> None:
     """The post card draws a name and a day (design.md §12, 2026-09-27); the markup form
     carries neither, and a post read off it keeps both empty rather than guessed."""
-    dated = {**CAROUSEL, "owner": {"username": "aviv.bahar", "full_name": "אביב בהר"}}
+    dated = {
+        **CAROUSEL,
+        "owner": {
+            "username": "aviv.bahar",
+            "full_name": "אביב בהר",
+            "profile_pic_url": "https://a.fna.fbcdn.net/face.jpg",
+        },
+    }
     dated["taken_at_timestamp"] = 1790000000
     post = instagram.read_embed(page_with(dated), "DdCARhLDF-P")
     assert post.name == "אביב בהר"
+    assert post.avatar == "https://a.fna.fbcdn.net/face.jpg"
     assert post.posted == "2026-09-21T14:13:20Z"
     plain = instagram.read_embed(page_with(CAROUSEL), "DdCARhLDF-P")
     assert plain.name == "" and plain.posted == ""

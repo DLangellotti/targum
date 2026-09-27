@@ -110,6 +110,9 @@ class Post:
     #: Kept for the post card (targum-internal#158).
     name: str = ""
     posted: str = ""
+    #: The author's own picture on Meta's CDN, where the page's data carries it; the post
+    #: card draws it (design.md §12, "A post keeps its shape", amended 2026-09-27).
+    avatar: str = ""
 
     @property
     def title(self) -> str:
@@ -314,6 +317,8 @@ def _from_data(media: dict[str, Any], code: str) -> Post:
     author = str((media.get("owner") or {}).get("username") or "")
     name = str((media.get("owner") or {}).get("full_name") or "")
     posted = _when(media.get("taken_at_timestamp"))
+    avatar = str((media.get("owner") or {}).get("profile_pic_url") or "")
+    avatar = avatar if on_the_cdn(avatar) else ""
     if media.get("is_video") and on_the_cdn(str(media.get("video_url") or "")):
         return Post(
             code,
@@ -323,6 +328,7 @@ def _from_data(media: dict[str, Any], code: str) -> Post:
             duration=float(media.get("video_duration") or 0.0),
             name=name,
             posted=posted,
+            avatar=avatar,
         )
     slides = [
         edge.get("node") or {}
@@ -333,7 +339,7 @@ def _from_data(media: dict[str, Any], code: str) -> Post:
         for slide in slides
         if not slide.get("is_video") and on_the_cdn(str(slide.get("display_url") or ""))
     )
-    return Post(code, author, caption, pictures=pictures, name=name, posted=posted)
+    return Post(code, author, caption, pictures=pictures, name=name, posted=posted, avatar=avatar)
 
 
 def _when(stamp: object) -> str:

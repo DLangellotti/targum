@@ -11,8 +11,7 @@ moves and nothing is re-translated. A folder without one is a plain text reader,
 deleting it returns a post's folder to one.
 
 **Nothing is fetched to draw it.** The pictures are kept in the folder as webp at a long
-edge of `LONG_EDGE`, as covers are, and the author's own picture is not kept at all: the
-card draws their first letter (§12).
+edge of `LONG_EDGE`, as covers are, and the author's own picture at `AVATAR_EDGE`.
 
 **The three licence fields are always "", false, false for a post.** A post is its
 author's, with no licence granted. They are here because the 2026-09-01 corpus decision
@@ -49,6 +48,9 @@ FETCHED_BY = ("paste", "cli", "brought")
 #: at, and the ceiling #158 set.
 LONG_EDGE = 1280
 
+#: The author's picture, which the card draws as a small disc: twice its 48px at 2x.
+AVATAR_EDGE = 96
+
 
 @dataclass(frozen=True)
 class Media:
@@ -64,6 +66,9 @@ class Media:
 class Author:
     handle: str
     name: str = ""
+    #: Their own picture, kept small beside the reader, relative to its folder; "" where
+    #: the platform's page did not give one and the card draws their first letter.
+    avatar: str = ""
 
 
 @dataclass(frozen=True)
@@ -147,7 +152,30 @@ def keep_pictures(pictures: list[Path], folder: Path) -> list[Media]:
     return media
 
 
+def keep_avatar(picture: Path, folder: Path) -> str:
+    """The author's picture as a small square webp under `<folder>/post/`, or "" where it
+    will not open — the card then draws their first letter."""
+    import io
+
+    from PIL import Image, ImageOps
+
+    try:
+        image = ImageOps.fit(
+            Image.open(picture).convert("RGB"), (AVATAR_EDGE, AVATAR_EDGE), Image.Resampling.LANCZOS
+        )
+        out = io.BytesIO()
+        image.save(out, format="WEBP", quality=82, method=6)
+    except Exception as why:  # noqa: BLE001 - a missing face is not a missing post
+        log.warning("left a post's author picture out: %s", why)
+        return ""
+    kept = folder / "post"
+    kept.mkdir(parents=True, exist_ok=True)
+    (kept / "avatar.webp").write_bytes(out.getvalue())
+    return "post/avatar.webp"
+
+
 __all__ = [
+    "AVATAR_EDGE",
     "FETCHED_BY",
     "LONG_EDGE",
     "NAME",
@@ -156,6 +184,7 @@ __all__ = [
     "Item",
     "Manifest",
     "Media",
+    "keep_avatar",
     "keep_pictures",
     "read",
     "write",

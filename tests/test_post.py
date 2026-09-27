@@ -37,7 +37,7 @@ def test_a_manifest_round_trips_and_its_licence_is_always_none(tmp_path: Path) -
     got = post.read(tmp_path)
     assert got is not None
     assert got["platform"] == "instagram" and got["fetched_by"] == "paste"
-    assert got["author"] == {"handle": "aviv.bahar", "name": "אביב בהר"}
+    assert got["author"] == {"handle": "aviv.bahar", "name": "אביב בהר", "avatar": ""}
     assert got["items"][0]["block_ids"] == ["b0000000", "b0000001"]
     assert (got["licence"], got["reader_publishable"], got["corpus_exportable"]) == (
         "",
@@ -85,7 +85,10 @@ def test_a_finished_post_build_writes_its_manifest_beside_the_reader(
 
     def pictures_into(found: Any, folder: Path) -> list[Path]:
         folder.mkdir(parents=True, exist_ok=True)
-        return [a_picture(folder / f"{n:02d}.jpg", 1080, 1350) for n in (1, 2)]
+        return [
+            a_picture(folder / f"{n:02d}.jpg", 1080, 1350)
+            for n in range(1, len(found.pictures) + 1)
+        ]
 
     monkeypatch.setattr(instagram, "pictures_into", pictures_into)
     folder = tmp_path / "post-folder"
@@ -97,6 +100,7 @@ def test_a_finished_post_build_writes_its_manifest_beside_the_reader(
         "handle": "aviv.bahar",
         "name": "",
         "posted_at": "",
+        "avatar": "https://a.fna.fbcdn.net/face.jpg",
         "pictures": ["https://a.fna.fbcdn.net/one.jpg", "https://a.fna.fbcdn.net/two.jpg"],
     }
     blocks = [SimpleNamespace(id="b0000000"), SimpleNamespace(id="b0000001")]
@@ -111,6 +115,8 @@ def test_a_finished_post_build_writes_its_manifest_beside_the_reader(
         "post/media-002.webp",
     ]
     assert got["posted_at"] == ""
+    assert got["author"]["avatar"] == "post/avatar.webp", "the last fetched is the face"
+    assert Image.open(folder / "post" / "avatar.webp").size == (post.AVATAR_EDGE, post.AVATAR_EDGE)
 
 
 def test_a_build_that_is_not_a_post_writes_nothing(tmp_path: Path) -> None:

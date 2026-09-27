@@ -2674,6 +2674,7 @@ class Library:
             "handle": post.author,
             "name": post.name,
             "posted_at": post.posted,
+            "avatar": post.avatar,
             "pictures": list(post.pictures),
         }
         wanted = bool(job.options.get("pictures")) and bool(post.pictures)
@@ -3132,19 +3133,29 @@ class Library:
 
         try:
             media: list[post_module.Media] = []
-            if said.get("pictures"):
+            avatar = ""
+            wanted = [str(address) for address in said.get("pictures") or []]
+            face = str(said.get("avatar") or "")
+            if wanted or face:
                 with tempfile.TemporaryDirectory() as raw:
                     fetched = instagram_module.pictures_into(
                         instagram_module.Post(
-                            code="", author="", caption="", pictures=tuple(said["pictures"])
+                            code="",
+                            author="",
+                            caption="",
+                            pictures=(*wanted, *([face] if face else [])),
                         ),
                         Path(raw),
                     )
+                    if face:
+                        avatar = post_module.keep_avatar(fetched.pop(), folder)
                     media = post_module.keep_pictures(fetched, folder)
             manifest = post_module.Manifest(
                 platform=str(said.get("platform") or "instagram"),
                 author=post_module.Author(
-                    handle=str(said.get("handle") or ""), name=str(said.get("name") or "")
+                    handle=str(said.get("handle") or ""),
+                    name=str(said.get("name") or ""),
+                    avatar=avatar,
                 ),
                 items=[
                     post_module.Item(block_ids=[block.id for block in document.blocks], media=media)
