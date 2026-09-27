@@ -3177,12 +3177,20 @@ def models_list() -> None:
 @models_app.command("fetch")
 def models_fetch(
     language: Annotated[str, typer.Argument(help="A language tag, such as he or ru.")],
+    into: Annotated[
+        str,
+        typer.Option(
+            "--language",
+            help="With 'flores200': the language to keep beside the English (yi, he, fr, ru).",
+        ),
+    ] = "yi",
 ) -> None:
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
     'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
     their own, 'openrussian' for the Russian dictionary tables, 'gold' for the treebanks
     the annotator is scored against, 'flores' for the FLORES+ sentences the chat's recast
-    is scored against, 'ntrex' for the news sentences beside them, or 'heq' for the
+    is scored against, 'ntrex' for the news sentences beside them, 'flores200' for the
+    archived FLORES-200 (the only one with Yiddish; not FLORES+), or 'heq' for the
     questions its answers about a text are scored against."""
     from .align import embedding
 
@@ -3259,6 +3267,37 @@ def models_fetch(
         except TargumError as error:
             fail(error)
         console.print(f"[green]Downloaded[/green] {got} files · {flores.CREDIT} · {flores.LICENCE}")
+        return
+
+    if language in {"flores200", "flores-200"}:
+        from .chat import flores200
+
+        # Before `available`, so a language the module does not carry is refused by name
+        # rather than reported as not downloaded.
+        if into not in flores200.FILES:
+            fail(
+                TargumError(
+                    f"FLORES-200 is not carried here for {into}.",
+                    f"This module knows {', '.join(sorted(flores200.FILES))}.",
+                )
+            )
+        if flores200.available(into):
+            console.print(f"[dim]FLORES-200 ({into}) is already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching FLORES-200 ({flores200.DEFAULT_SPLIT}, {into}), "
+            f"{flores200.LICENCE}. Not FLORES+: a number taken here files under flores-200. "
+            f"For scoring the chat's recast only: nothing here is trained on or shipped.[/dim]"
+        )
+        try:
+            got = flores200.fetch(
+                [into], notify=lambda message: console.print(f"[dim]  {message}[/dim]")
+            )
+        except TargumError as error:
+            fail(error)
+        console.print(
+            f"[green]Downloaded[/green] {got} files · {flores200.CREDIT} · {flores200.LICENCE}"
+        )
         return
 
     if language in {"ntrex", "ntrex-128"}:
