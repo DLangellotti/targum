@@ -373,6 +373,38 @@ def test_the_box_finishes_the_deploy_without_the_laptop() -> None:
     assert after.index("is-active targum-deploy") < after.index("/health"), "asked before verified"
 
 
+def test_the_deploy_writes_the_index_the_library_measures_unbuilt_rows_by(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """targum-internal#293. The library measures a row nobody has built against a lemma
+    index beside the catalogue, and `targum catalogue-lemmas` is what writes it — but no
+    deploy ever ran it, so on the box every unbuilt row said nothing. In the unit, after
+    the rebuild and the seed whose annotations it reads, and put where `lemmas_path`
+    looks: beside the catalogue the deploy installs."""
+    from targum import catalogue as catalogue_module
+
+    remote = DEPLOY.split("<<EOF", 1)[1].split("\nEOF", 1)[0]
+    unit = remote[remote.index("--unit=targum-deploy") :]
+    assert "targum catalogue-lemmas --out /var/lib/targum/targums" in unit
+    at = unit.index("targum catalogue-lemmas")
+    assert unit.index("targum rebuild") < at and unit.index("targum seed") < at
+    assert at < unit.rindex("systemctl restart targum"), "the last restart comes after it"
+    step = unit[unit.rindex("systemd-run", 0, at) : at]
+    assert "--uid=targum" in step and "EnvironmentFile=/etc/targum/targum.env" in step
+
+    installed = "/etc/targum/lemmas.json"
+    assert installed in unit
+    assert "/etc/targum/catalogue.json" in remote
+    # And that is the name the server reads beside a catalogue in /etc/targum.
+    etc = tmp_path / "etc" / "targum"
+    etc.mkdir(parents=True)
+    (etc / "catalogue.json").write_text("{}", encoding="utf-8")
+    (etc / "lemmas.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("TARGUM_CATALOGUE", str(etc / "catalogue.json"))
+    monkeypatch.delenv("TARGUM_CATALOGUE_LEMMAS", raising=False)
+    assert catalogue_module.lemmas_path() == etc / Path(installed).name
+
+
 def test_scripture_warns_when_the_tagging_is_not_where_the_service_looks(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
