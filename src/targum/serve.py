@@ -2381,6 +2381,14 @@ class Library:
             from .ingest import x as x_module
             from .video import instagram as instagram_module
 
+            said = job.options.get("post")
+            if (
+                isinstance(said, dict)
+                and said.get("fetched_by") == "brought"
+                and not said.get("film")
+                and self._prepare_brought(job, said)
+            ):
+                return
             if x_module.is_x(job.source) and self._prepare_x(job):
                 return
             if instagram_module.is_post(job.source) and self._prepare_post(job):
@@ -2833,6 +2841,62 @@ class Library:
             reads = vision.read_pages(paths, usage=Usage(), model=GLOSS_MODEL)
             text = "\n\n".join([text.rstrip(), *(read.text for read in reads)]) + "\n"
         target = folder / f"{post.code}.txt"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        job.source = str(target)
+        return False
+
+    def _prepare_brought(self, job: Job, said: dict[str, Any]) -> bool:
+        """A post the reader brought by hand, its words made a text (targum-internal#158).
+
+        Its pictures are the post's own and are drawn as they are. Their words are read
+        only when the reader pressed for it, on the terms an Instagram post's pictures
+        are read on (`_read_pages`: reserved, claimed, settled, thirty at most), and put
+        after the post's own words. The words the reader typed cost nothing to read.
+
+        Returns True when the job is settled here — words only in pictures nobody asked
+        to read, or a reading the budget refused — and False when `job.source` is now the
+        post's text, for the text path to price.
+        """
+        from . import vision
+        from .annotate.gloss import GLOSS_MODEL
+        from .ingest import picture as picture_module
+        from .ingest import post as post_module
+
+        kept = str(said.get("kept") or "")
+        pictures = picture_module.pages_of(kept) if kept else []
+        job.options["post_pictures"] = len(pictures)
+        wanted = bool(job.options.get("pictures")) and bool(pictures)
+        words = str(said.get("caption") or "")
+        if not post_module.lines_of(words) and not wanted:
+            job.error = said_in(
+                job.ui,
+                "job.post-only-pictures",
+                "That post's words are all in its pictures. Read the pictures to bring it in.",
+            )
+            job.stage = "failed"
+            return True
+        handle = str(said.get("handle") or "")
+        text = post_module.brought_text(handle, words)
+        if wanted:
+            job.source = kept
+            refused = self._read_pages(job)
+            if refused:
+                job.blocked = refused
+                job.stage = "blocked"
+                return True
+            # Read a moment ago and cached by their bytes, so this costs nothing: it is
+            # the same words `_read_pages` paid for, put after the post's own.
+            reads = vision.read_pages(pictures, usage=Usage(), model=GLOSS_MODEL)
+            text = "\n\n".join([text.rstrip(), *(read.text for read in reads)]) + "\n"
+        # Named for its author and made unique, since a brought post has no id of its
+        # own: the reader's folder is named after this file.
+        target = (
+            Path(job.home or self.out)
+            / "uploads"
+            / secrets.token_hex(8)
+            / f"{handle}-{secrets.token_hex(3)}.txt"
+        )
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text, encoding="utf-8")
         job.source = str(target)
@@ -3367,7 +3431,8 @@ class Library:
             avatar = ""
             wanted = [str(address) for address in said.get("pictures") or []]
             face = str(said.get("avatar") or "")
-            if film and platform == "instagram" and not face:
+            brought = said.get("fetched_by") == "brought"
+            if film and platform == "instagram" and not face and not brought:
                 # yt-dlp says nothing of a face. The embed page does, and is asked once,
                 # here, where the build is already fetching: quietly, because a post with
                 # no face wears its first letter.
@@ -3392,6 +3457,14 @@ class Library:
                     if face:
                         avatar = post_module.keep_avatar(fetched.pop(), folder)
                     media = post_module.keep_pictures(fetched, folder)
+            if brought and not film and Path(str(said.get("kept") or "")).is_dir():
+                # The reader's own pictures, in the order they chose them. Kept from
+                # where the upload gathered them; nothing is fetched.
+                from .ingest import picture as picture_module
+
+                media = post_module.keep_pictures(
+                    picture_module.pages_of(str(said["kept"])), folder
+                )
             items = [
                 post_module.Item(block_ids=[block.id for block in document.blocks], media=media)
             ]
@@ -3407,7 +3480,7 @@ class Library:
                     avatar=avatar,
                 ),
                 items=items,
-                fetched_by="paste",
+                fetched_by="brought" if brought else "paste",
                 more=bool(said.get("more")),
                 url=str(said.get("url") or "") or None,
                 posted_at=str(said.get("posted_at") or ""),
@@ -8759,8 +8832,16 @@ class Handler(BaseHTTPRequestHandler):
                 400,
             )
 
+        # What a post card draws is the server's to say: a door writes it on the job from
+        # what it read or was brought (`keep_post`), and one that arrived in a request
+        # could name a file on this disk as the post's picture.
+        payload = {name: value for name, value in payload.items() if name != "post"}
         try:
-            source = self._source_from(payload)
+            brought = self._brought(payload) if isinstance(payload.get("brought"), dict) else None
+            if brought is not None:
+                payload, source = brought
+            else:
+                source = self._source_from(payload)
             # A reader's own translation is a file like the source is, and it is written
             # down here so the price — and then the build — is worked out with it in hand.
             mine = self._translation_from(payload)
@@ -9356,6 +9437,146 @@ class Handler(BaseHTTPRequestHandler):
         ):
             raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
         return source
+
+    def _brought(self, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
+        """A post the reader brought by hand (targum-internal#158; design.md §12, "A post
+        keeps its shape"): the handle it was posted under, the name beside it, its words,
+        its pictures or its video, and its link where they have it. What the card draws is
+        written on the job here, as the pasted doors write it, and `Library.prepare`
+        makes the words a text.
+
+        Nothing is fetched: not the post, not its author's picture, not the link, which is
+        kept only in its platform's own shape. The pictures are kept and drawn, and their
+        words are read only when the reader presses for it, the same press an Instagram
+        post's pictures take (`again`, with `pictures`): the job it names is this
+        reader's own, and its pictures are the ones it kept.
+
+        Returns the payload the job is made of and its source: the video, for a post that
+        is one, and otherwise the kept pictures, or nothing yet for a post of words alone.
+        """
+        from .ingest import picture as picture_module
+        from .ingest import post as post_module
+        from .video import VIDEO_SUFFIXES
+
+        told = payload["brought"]
+        rest = {
+            name: value
+            for name, value in payload.items()
+            if name not in ("brought", "again", "upload", "uploads", "name", "content")
+        }
+        again = str(payload.get("again") or "")
+        if again:
+            earlier = self._own_job(again)
+            said = earlier.options.get("post") if earlier is not None else None
+            if not isinstance(said, dict) or said.get("fetched_by") != "brought":
+                raise TargumError(
+                    self._say(
+                        "serve.post-lost",
+                        "We lost that post when we restarted. Bring it again.",
+                    )
+                )
+            if said.get("url"):
+                rest["came_from"] = said["url"]
+            return dict(rest, post=dict(said)), str(said.get("kept") or "")
+
+        handle = str(told.get("handle") or "").strip().lstrip("@")
+        if not post_module.HANDLE.fullmatch(handle):
+            raise TargumError(
+                self._say(
+                    "serve.post-handle",
+                    "Add the handle it was posted under: letters, numbers, dots and underscores.",
+                )
+            )
+        name = " ".join(str(told.get("name") or "").split())[:80]
+        words = str(told.get("text") or "").strip()
+        if len(words) > post_module.TEXT_MOST:
+            raise TargumError(
+                self._say(
+                    "serve.post-too-long",
+                    "That's longer than a post. Paste it into the box above instead.",
+                )
+            )
+        link = str(told.get("link") or "").strip()
+        url: str | None = None
+        if link:
+            found = post_module.home_of(link)
+            if found is None:
+                raise TargumError(
+                    self._say(
+                        "serve.post-link",
+                        "That link isn't a post on Instagram, TikTok or X. Paste the "
+                        "post's own link, or leave it out.",
+                    )
+                )
+            platform, url = found
+        else:
+            platform = str(told.get("platform") or "")
+            if platform not in post_module.PLATFORMS:
+                raise TargumError(
+                    self._say(
+                        "serve.post-platform", "Choose where it was posted: Instagram, TikTok or X."
+                    )
+                )
+
+        kept, film = "", ""
+        many = payload.get("uploads")
+        upload = str(payload.get("upload") or "")
+        if isinstance(many, list) and many:
+            folder = self._gathered([str(one) for one in many])
+            if not folder.is_dir():
+                raise TargumError(
+                    self._say("serve.post-media", "A post's media is its pictures, or one video.")
+                )
+            kept = str(folder)
+        elif upload:
+            held = self._upload_folder(upload)
+            if held is None:
+                raise TargumError("We can't find that upload any more. Send it again.")
+            folder, meta = held
+            target = folder / Path(str(meta.get("name") or "")).name
+            if not target.is_file():
+                raise TargumError("We can't find that upload any more. Send it again.")
+            if target.suffix.lower() in PICTURE_SUFFIXES:
+                kept = str(self._gathered([upload]))
+            elif target.suffix.lower() in VIDEO_SUFFIXES:
+                film = str(target)
+            else:
+                raise TargumError(
+                    self._say("serve.post-media", "A post's media is its pictures, or one video.")
+                )
+        if not words and not kept and not film:
+            raise TargumError(
+                self._say(
+                    "serve.post-empty",
+                    "Paste what the post says, or add its pictures or its video.",
+                )
+            )
+        pictures = len(picture_module.pages_of(kept)) if kept else 0
+        post: dict[str, Any] = {
+            "platform": platform,
+            "url": url,
+            "handle": handle,
+            # A name that only repeats the handle says nothing the handle does not.
+            "name": "" if name.lstrip("@") == handle else name,
+            # Nothing a brought post does not say: no day, and no face, which the disc
+            # wears as the first letter.
+            "posted_at": "",
+            "avatar": "",
+            "pictures": [],
+            "fetched_by": "brought",
+            # The reader's own pictures, gathered in their order, kept beside the reader
+            # at the build and read only when they press for it.
+            "kept": kept,
+            "count": pictures,
+            # A video is a film post: its text is what is said in it, and the words the
+            # reader brought are its caption, after the transcript (§12, 2026-09-27).
+            "film": bool(film),
+            "caption": words,
+        }
+        if url:
+            # Its home, the way a refused link's is: the shape the host table writes.
+            rest["came_from"] = url
+        return dict(rest, post=post), film or kept
 
     def _gathered(self, uploads: list[str]) -> Path:
         """Chunked uploads of pages, made into one source that stays.

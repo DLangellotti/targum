@@ -375,7 +375,7 @@ beyond the mark's minimum size, so what paper takes from the rules above is writ
   set the page; the box has no Pango and the extra is off it. The command line is the
   door until a reader asks for one on the page.
 
-### What we guessed says "probably" — 2026-09-27
+### What we inferred says so — 2026-09-27
 
 Everywhere targum has an answer it is not sure of, it has picked between two things: say
 it flatly, or say nothing. `pronounce.sayable` refuses a word with no vowels because "a
@@ -385,24 +385,25 @@ for the same reason. The pronunciation line on a word card goes the other way. W
 text carries no mark for the stress, phonikud puts it on the last syllable, the card
 prints that as fact, and it is right about two words in three. And on the modern shelf
 the vowels it reads from were themselves put there by the menaked, not by the source.
-There is now a third option: **the answer, shown, with "probably" beside it.** David,
+There is now a third option: **the answer, shown, with "inferred" beside it.** David,
 2026-09-27, targum-internal#323.
 
 - **The first uses are the stress and the vowels, on the pronunciation line.** The
-  reading is followed by the word "probably" («вероятно» in Russian; the interface's own
+  reading is followed by the word "inferred" («выведено» in Russian; the interface's own
   word in each language it speaks) when the stressed syllable was guessed rather than
   read off a mark, or when the pointing came from the menaked rather than the source.
   The IPA itself is unchanged. A text whose vowels the source carried — the Tanakh,
   Sefaria's vocalized editions, Ben-Yehuda where the source pointed it — keeps its vowels
-  unqualified; only its guessed stress can say "probably".
+  unqualified; only its guessed stress can say "inferred".
 - **Today that is every guessed stress, and it is shown now.** No stage in the build has
   a calibrated confidence on stress (#318 measured Jev and did not adopt it), so every
-  stress phonikud defaulted says "probably" — on modern Hebrew, most words. That is the
+  stress phonikud defaulted says "inferred" — on modern Hebrew, most words. That is the
   honest state of the card, and it is shown as it is rather than held back until a better
   source makes it rarer.
-- **Tapping "probably" says what was guessed,** on a line under the reading in the card's
-  own quiet style: "We guessed where the stress falls.", "We guessed the vowels.", or
-  "We guessed the vowels and where the stress falls." The same words are its accessible
+- **Tapping "inferred" says what the text left unmarked,** on a line under the reading in the card's
+  own quiet style: "The text doesn't mark the stress, so we inferred it.", "The text has no
+  vowels here, so we inferred them.", or "The text marks neither the vowels nor the
+  stress, so we inferred both." The same words are its accessible
   name, so a screen reader hears them without the tap.
 - **What it looks like.** One word, in muted ink (§4), at the card's own size, after the
   thing it qualifies and outside it. Never a number, a percentage, a bar or a scale;
@@ -412,23 +413,26 @@ There is now a third option: **the answer, shown, with "probably" beside it.** D
   confidence — measured in `evals/ledger.jsonl`, precision rising as the confidence does,
   as Jev's did on stress in #318 — the stage records, beside its ledger row, the
   confidence at which its measured precision reaches 0.95. An answer at or above it is
-  shown plainly; an answer under it says "probably". The bar is the same for every stage.
+  shown plainly; an answer under it says "inferred". The bar is the same for every stage.
   Where no calibrated confidence exists, the only distinction is whether we guessed it or
-  read it from the text, and every guess says "probably". The bar lives in this entry and
+  read it from the text, and every guess says "inferred". The bar lives in this entry and
   the thresholds beside the ledger, never on the page.
 - **What never gets it.** Anything read off the text's own marks: a stress from
   phonikud's mark (U+05AB) or a placed Masoretic accent, the nikkud a source carried, a
   qamats qatan marked as one (U+05C7). Counts, which are not guesses: known share, words,
   time, days. And public pages: the landing says what the product does (§6), and
-  "probably" belongs beside the answer it qualifies, inside the product.
+  "inferred" belongs beside the answer it qualifies, inside the product.
 - **It only replaces silence or a flat assertion.** It may not be added where the answer
   is already certain, and it is not a softener for copy. A guess shown flatly today moves
-  to "probably" when its use is added here. Silence keeps a stricter rule: a guess that
+  to "inferred" when its use is added here. Silence keeps a stricter rule: a guess that
   today shows nothing may come out only with a calibrated confidence and its threshold
   behind it. For anything with no number under it, `sayable`'s rule stands.
 - **Each new use is an amendment to this entry.** A sense, a root, a cast, a guessed
   qamats qatan: each names its confidence and its threshold before a card says
-  "probably" about it.
+  "inferred" about it.
+
+The word was "probably" until David changed it the same day: "probably" hedges without
+saying what was uncertain; "inferred" says what happened.
 
 This fits the positioning, which shows the machinery to readers who want it, better than
 silence did, and it keeps the voice: we say what we did, in one word, and do not
@@ -510,6 +514,20 @@ missing. The rest is on X.", and never passes a part off as the whole (David ask
 the forward walk on 2026-09-27). The door is built and **shut** (`TARGUM_X`) until David arms it, because X's
 terms forbid collecting its posts by automated means and the box fetching one is
 targum's act.
+
+Amended again the same day, for a post brought by hand (targum-internal#158; David chose
+to build it on 2026-09-27): **a post targum cannot fetch is typed in, and arrives in the
+same shape.** "Bring a post" on the Add page takes the box's place while it is open, so the
+page keeps one filled button. It asks where the post was posted (Instagram, TikTok or X),
+the handle, the name where the post shows one, what it says, its pictures in their order
+or its one video, and its link where the reader has one. The link is kept only in its
+platform's own shape; without one the head draws no way home. Nothing is fetched to fill
+the rest in: no day, because nobody was asked for one, and no face, so the disc wears the
+first letter of the name (an avatar upload was left out as one more field for a letter
+that already does the job). A video is a film post, its transcript the text and the typed
+words its caption. The pictures are drawn as brought; the words in them are read only when
+the reader presses "Also read the pictures", the Instagram post's own press, charged the
+same way. Private, like every post.
 
 
 ### A level that spreads, a Russian name, and a definition that steps back — 2026-09-27

@@ -38,7 +38,7 @@
       box takes whatever it is given and a line under it says what targum thinks that
       was; every choice the form had is behind Change. -#}
   {% include '_glyphs.html.j2' %}
-  <section class="bring" aria-label="{{ t("add.page.what-to-add", "What to add") }}">
+  <section class="bring" id="bring-box" aria-label="{{ t("add.page.what-to-add", "What to add") }}">
     <div class="drop" id="drop">
       <ul class="given-files" id="given-files" hidden></ul>
       <label class="given-label" for="given">{{ t("add.page.what-would-you-like-to-read", "What would you like to learn from?") }}</label>
@@ -58,10 +58,64 @@
           cannot do — the same rule the composer's Speak follows. -#}
       <button type="button" id="record" class="bring-choose" hidden
               aria-pressed="false" aria-label="{{ t("add.page.record", "Record") }}" title="{{ t("add.page.record", "Record") }}"><svg class="glyph" aria-hidden="true" focusable="false"><use class="glyph-use" href="#glyph-mic"/></svg><span id="record-word">{{ t("add.page.record", "Record") }}</span></button>
+      {#- A post from a platform targum does not fetch from, or will not today: the reader
+          brings it by hand (targum-internal#158). -#}
+      <button type="button" id="post-open" class="bring-choose" aria-expanded="false" aria-controls="post-form">{{ t("add.page.bring-a-post", "Bring a post") }}</button>
       <button type="button" id="ask-targum" class="bring-ask" hidden>{{ t("add.page.ask-targum", "Ask targum") }}</button>
       {#- Paused where nothing new can be made (2026-09-14): the notice above said so and
           the button went on offering, and a press only repeated the notice. -#}
       <button type="button" id="go" class="go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
+    </div>
+  </section>
+
+  {#- A post, brought by hand (targum-internal#158; design.md §12, "A post keeps its
+      shape", amended 2026-09-27). For the post targum cannot fetch — X while its door is
+      shut, a post behind a login, one saved on a phone — the reader types who posted it
+      and what it says and adds its pictures or its video, and it arrives as the pasted
+      ones do: its head, its pictures in their order, its words the text. It takes the
+      box's place while it is open, so the page still has one filled button. Nothing is
+      fetched, and the pictures' words are read only if the reader presses for it. -#}
+  <section class="post-form" id="post-form" aria-labelledby="post-form-title" hidden>
+    <h2 class="post-form-title" id="post-form-title">{{ t("add.page.bring-a-post", "Bring a post") }}</h2>
+    <p class="hint">{{ t("add.page.post-what", "Type in a post we can't fetch, and add its pictures or video. Only you will see it.") }}</p>
+    <div class="post-where">
+      <span class="post-label" id="post-where-label">{{ t("add.page.post-posted-on", "Posted on") }}</span>
+      <div class="segmented" id="post-where" role="group" aria-labelledby="post-where-label">
+        <button type="button" class="segment" data-platform="instagram" aria-pressed="true">Instagram</button>
+        <button type="button" class="segment" data-platform="tiktok" aria-pressed="false">TikTok</button>
+        <button type="button" class="segment" data-platform="x" aria-pressed="false">X</button>
+      </div>
+    </div>
+    <div class="post-who">
+      <label class="field">
+        <span>{{ t("add.page.post-handle", "Handle") }}</span>
+        <input type="text" id="post-handle" dir="ltr" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="31" placeholder="@">
+      </label>
+      <label class="field">
+        <span>{{ t("add.page.post-name", "Name, if it shows one") }}</span>
+        <input type="text" id="post-name" dir="auto" autocomplete="off" maxlength="80">
+      </label>
+    </div>
+    <label class="field">
+      <span>{{ t("add.page.post-words", "What it says") }}</span>
+      <textarea id="post-words" rows="4" dir="auto" spellcheck="false"></textarea>
+    </label>
+    <div class="post-media">
+      <span class="post-label">{{ t("add.page.post-media", "Its pictures or video") }}</span>
+      <ul class="given-files" id="post-files" hidden></ul>
+      <input type="file" id="post-file" multiple accept=".png,.jpg,.jpeg,.webp,.heic,.heif,.mp4,.m4v,.mov,.webm,.mkv" hidden>
+      <div class="bring-row">
+        <button type="button" id="post-choose" class="bring-choose"><svg class="glyph" aria-hidden="true" focusable="false"><use href="#glyph-file"/></svg><span>{{ t("add.page.choose-files", "Choose files") }}</span></button>
+        <p class="hint">{{ t("add.page.post-media-note", "In the post's order. We don't read the words in them unless you ask.") }}</p>
+      </div>
+    </div>
+    <label class="field">
+      <span>{{ t("add.page.post-link", "Its link, if you have it") }}</span>
+      <input type="url" id="post-link" dir="ltr" autocomplete="off" spellcheck="false" inputmode="url">
+    </label>
+    <div class="bring-row">
+      <button type="button" id="post-back" class="ghost">{{ t("add.page.post-back", "Back") }}</button>
+      <button type="button" id="post-go" class="go"{% if no_key %} disabled{% endif %}>{{ t("add.page.continue", "Continue") }}</button>
     </div>
   </section>
 

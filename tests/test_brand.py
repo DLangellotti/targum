@@ -333,6 +333,8 @@ THUMBED = (
     ".chat-claim label",
     # A post's one way home (design.md §12, "A post keeps its shape", 2026-09-27).
     ".post-home",
+    # "inferred" after a reading on a word card (design.md §12, 2026-09-27).
+    ".gloss-card .inferred",
 )
 
 

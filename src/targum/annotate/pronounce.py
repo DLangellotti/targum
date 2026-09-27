@@ -94,6 +94,72 @@ def stressed(word: str) -> str | None:
     return "".join(out)
 
 
+# What a card says "inferred" about, as bits on a reading (design.md §12, "What we guessed
+# says so", 2026-09-27). Worked out at render from what the build already stored —
+# the word as the source wrote it, and its reading — so nothing is annotated again.
+STRESS_GUESSED = 1
+VOWELS_GUESSED = 2
+
+# The one bar for every stage: a calibrated confidence is shown plainly at or above the
+# point where its measured precision reaches this, and says "inferred" below it. The
+# thresholds themselves are recorded beside `evals/ledger.jsonl`, never on the page.
+CONFIDENCE_BAR = 0.95
+
+# A syllable is a vowel, however phonikud spells it; a diphthong's glide is a consonant.
+_VOWELS = frozenset("aeiouəɛɔ")
+
+
+def syllables(reading: str) -> int:
+    """How many syllables a reading has: its runs of vowels."""
+    count = 0
+    previous = False
+    for char in reading:
+        vowel = char in _VOWELS
+        if vowel and not previous:
+            count += 1
+        previous = vowel
+    return count
+
+
+def guessed(
+    written: str,
+    reading: str,
+    *,
+    stress_confidence: float | None = None,
+    stress_threshold: float | None = None,
+) -> int:
+    """Which parts of this reading we guessed, as `STRESS_GUESSED | VOWELS_GUESSED` bits.
+
+    `written` is the word as the source wrote it, before any diacritizer touched it.
+
+    The vowels were guessed where the source left the word bare: `splice` keeps every
+    word the source pointed exactly as written, so a word with no marks of its own was
+    pointed by the menaked. The stress was guessed where no mark placed it — neither
+    phonikud's own (U+05AB) nor a placed Masoretic accent, which is what `stressed`
+    reads — and phonikud put it on the last syllable. A word of one syllable has
+    nowhere else for it to go, so nothing was guessed there.
+
+    `stress_confidence` and `stress_threshold` are the hook for a calibrated stress
+    source (#318 measured one and did not adopt it): at or above the confidence where
+    its precision reaches `CONFIDENCE_BAR`, its answer is shown plainly. No source passes
+    them today, so every defaulted stress is a guess.
+    """
+    if not reading:
+        return 0
+    flags = 0
+    if not has_nikkud(written):
+        flags |= VOWELS_GUESSED
+    placed = has_nikkud(written) and stressed(written) is not None
+    calibrated = (
+        stress_confidence is not None
+        and stress_threshold is not None
+        and stress_confidence >= stress_threshold
+    )
+    if not placed and not calibrated and syllables(reading) > 1:
+        flags |= STRESS_GUESSED
+    return flags
+
+
 def supports(language: str) -> bool:
     return language in LANGUAGES
 
