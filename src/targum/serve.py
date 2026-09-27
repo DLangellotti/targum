@@ -1402,17 +1402,39 @@ class Library:
             person = self.store.person_by_id(job.owner)
             if person is None:
                 return
+            from .letters import build_ready
+
             path = "/".join(quote(part) for part in job.reader.split("/"))
             link = f"{self.address}/reader/{path}" if self.address else ""
-            # English first, the title isolated (U+2068 … U+2069): a subject that began
-            # with a Hebrew title took "is ready" into its direction and showed as
+            # In the reader's own language (the one the desk was in when they started
+            # it), with the title isolated (U+2068 … U+2069) inside it: a subject that
+            # began with a Hebrew title took "is ready" into its direction and showed as
             # "is ready בראשית" in a mail client (2026-09-14).
-            title = f"\u2068{job.title or job.source}\u2069"
-            self.mailer.notify(
-                person.email,
-                f"Ready to read: {title}",
-                f"Ready to read: {title}\n\n{link}\n".rstrip() + "\n",
+            letter = build_ready(
+                job.title or job.source,
+                link,
+                self.address,
+                job.ui or "en",
+                asked=bool(job.options.get("mail")),
+                listen=job.audio,
+                watch=self._is_film(job, person),
             )
+            self.mailer.notify(
+                person.email, letter.subject, letter.text, letter.headers or None, letter.html
+            )
+
+    def _is_film(self, job: Job, person: Person) -> bool:
+        """Whether a finished build kept its pictures: a video address, or an import
+        whose manifest says a part kept its cut — the manifest is the claim, as on the
+        shelf, and not the `video/` sidecar the build remakes."""
+        from . import spoken
+        from .audio import manifest as manifest_module
+
+        if spoken.is_video(job.source):
+            return True
+        if not job.reader:
+            return False
+        return manifest_module.keeps_video(self.home(person) / job.reader.split("/")[0])
 
     def enqueue(self, job: Job) -> None:
         job.stage = "queued"
@@ -5073,6 +5095,7 @@ class Handler(BaseHTTPRequestHandler):
         """Joining, confirming and leaving. Public by necessity, and public by design:
         nobody joining a waitlist has an account, and the whole point is that they
         cannot get one yet."""
+        from .letters import waitlist_confirm
         from .strings import text
 
         store = self.library.store
@@ -5101,10 +5124,9 @@ class Handler(BaseHTTPRequestHandler):
                     # everybody until 2026-09-22, on a front door that has been
                     # bilingual since #69 — so a Russian visitor typed into a Russian
                     # page and the first thing targum ever sent them was English.
+                    letter = waitlist_confirm(where, said)
                     self.library.mailer.notify(  # type: ignore[union-attr]
-                        address,
-                        text("mail.waitlist.subject", said),
-                        text("mail.waitlist.body", said, link=where),
+                        address, letter.subject, letter.text, None, letter.html
                     )
             # The same sentence whatever state the address is in, including already on:
             # an endpoint that answered differently would be a way to ask who is waiting.
@@ -5129,6 +5151,7 @@ class Handler(BaseHTTPRequestHandler):
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
         """Subscribing, confirming and stopping, each answered in the reader's language
         (targum-internal#288) by the rule the waitlist's doors follow."""
+        from .letters import weekly_confirm
         from .strings import text
 
         store = self.library.store
@@ -5151,10 +5174,9 @@ class Handler(BaseHTTPRequestHandler):
             if token is not None and postable:
                 where = f"{self.address.rstrip('/')}/weekly/confirm?t={token}"
                 with contextlib.suppress(Exception):
+                    letter = weekly_confirm(where, said)
                     self.library.mailer.notify(  # type: ignore[union-attr]
-                        address,
-                        text("mail.weekly.confirm.subject", said),
-                        text("mail.weekly.confirm.body", said, link=where),
+                        address, letter.subject, letter.text, None, letter.html
                     )
             # The same sentence either way, including when the address is already on.
             return self._weekly_said(text("weekly.note.check-your-email", said), said)

@@ -375,6 +375,101 @@ beyond the mark's minimum size, so what paper takes from the rules above is writ
   set the page; the box has no Pango and the extra is off it. The command line is the
   door until a reader asks for one on the page.
 
+### Mail is drawn, and fetches nothing — 2026-09-27
+
+Every mail a reader can receive was plain text until today, on the argument in `mail.py`
+that "it is a link and a sentence; anything more is a thing to maintain and a reason to
+land in a spam folder". That held while the sign-in link was the only mail. There are
+seven now: the sign-in link, two confirmations (the waitlist and the Weekly News
+Digest), the invitation off the waitlist, the digest itself, a followed series'
+instalment, and a build that finished while the reader was away. Several of them go to
+strangers who have never seen the product. David asked for them to be designed, and
+chose HTML for all seven.
+
+- **Every mail is HTML with a plain-text alternative**, sent as multipart/alternative.
+  Both halves are drawn from one list of blocks in `letters.py`, so they cannot say
+  different things. A link in the text half is on a line of its own, and both halves go
+  as base64 wherever they are not plain ASCII, so no encoder breaks the token.
+- **The frame is the desk (§13).** The ground is the desk, the mail is one card of at
+  most 600px on it, the text is ink in the chrome's sans (named, never fetched: the
+  fallback stack is what a mail client shows), links are teal, and the one call to
+  action is an ink-filled pill (§9). A text's own title is in the reading serif, and
+  Hebrew is `dir="rtl"`. In plain text, English leads and a Hebrew title sits in an
+  isolate (see "The Hebrew-first audit" below).
+- **The logo is in the mail, drawn and not loaded.** The mark's two columns are table
+  cells with a background colour, the translation column 3px lower, in the mark's own
+  paper values (`#201e1b`, `#a5824f`). The wordmark beside them is live text in the
+  reading face at 600, lowercase. Gmail and Outlook strip inline SVG. A CID-attached
+  image would fetch nothing, but many clients show it as an attachment, so it is left out.
+- **It fetches nothing.** There are no images, no remote stylesheets or fonts, no
+  tracking pixel and no redirecting links. That is the readers' rule (§13, "What stays
+  the reader's") applied to mail. The provider's open and click tracking stays off,
+  because one adds a pixel and the other rewrites every link. `test_mail.py` pins it.
+- **Light only.** The mail declares `color-scheme: light only`, because there is one look
+  (see "There is one look, and it is light" below). A client that inverts anyway gets a
+  palette that survives it: nothing is an image of text.
+- **The digest and the series are lists, and say so.** They carry `List-Unsubscribe`,
+  RFC 8058's one-click `List-Unsubscribe-Post` and a `List-Id`, a stop link in the foot,
+  and a slot for a postal address that stays empty until one is configured. The other
+  five are transactional or asked for once, and carry none of these.
+- **Daily series are not mailed.** A daily cycle's instalment lands on Learn and in the
+  bell, but a mail every day is the ping a reader deletes an app over (Dmitry,
+  2026-09-16). Weekly or slower is mailed.
+- **The digest has one public name, Weekly News Digest** («Недельный обзор новостей»),
+  in its subjects, pages and strings. "the weekly" is the team's word, which §6 names as
+  the public-page failure mode. מבט השבוע stays as the issue's own Hebrew masthead.
+- **A long build still mails its owner unasked.** After three minutes it mails, in the
+  reader's language, and says why: "your text took more than a few minutes to build".
+  David kept it.
+
+### An editor settles a reader's proposal — 2026-09-27
+
+A reader's correction is a proposal until somebody with standing settles it
+(targum-internal#164: "not a vote"). Until now that somebody was the author. A paid
+editor is the second hand with standing, and their verdict closes a proposal just as the
+author's does. David, 2026-09-27, targum-internal#354.
+
+- **The flow.** `targum corrections --proposed` lists the queue; `targum settle ID
+  --accept|--reject --by editor --editor NAME` settles one. Accepting applies the meaning
+  and refusing changes nothing, whoever presses. Either way the proposal leaves the
+  queue and cannot be settled a second time.
+- **How an editor is counted.** The decision is a row of its own, `who = "editor"`,
+  `licence = "targum"`, under the editor's pseudonym (`Store.editor_judge`: their name,
+  folded and salted the way a reader's account is). So a proposal an editor accepted is a
+  reader and an editor agreeing, two judges in `Store.agreed`; two named editors are two
+  judges; one editor twice is one. An editor left unnamed is counted by role, so every
+  unnamed editor is one judge. A refusal never reaches the gold set, whoever made it.
+- **The default stays the author.** `--by` defaults to `author`, so a settle with no hand
+  named is the author's, as it always was.
+
+What it does not change: a reader still cannot settle, and a model is never a judge.
+
+
+### A haser word counts as the male word the reader knows — 2026-09-27
+
+The press card's "You know about 6 words in 10 here", and the number the chat ranks
+articles and feed items by, come from `level.known_share`: the text's tokens, bare of
+points, against the reader's known forms and the commonest words. Taking the points off
+a pointed page leaves ktiv haser (ארועים), while the common words and most of what a
+reader marks are ktiv male (אירועים), so a reader who pasted a vocalized page was told
+they knew less of it than they do. David, 2026-09-27, targum-internal#349.
+
+- **The tight rule.** A token counts as known when putting back an inner vav or yod —
+  only those two letters, only insertions, never at the first or last letter — gives a
+  known form, with or without a prefix or two peeled first. No letter is ever dropped
+  from the known side: the loose rule that ignored vav and yod on both sides is out.
+- **Only on a token that came with points.** Haser is what taking the points off leaves;
+  an unpointed page is written male already, and there the rule would only add
+  collisions (קם for קיים). An unpointed page measures exactly as it did.
+- **Measured locally, against the common words alone:** Genesis 40.0% to 43.6%, Ruth
+  40.3% to 44.0%, Avot 50.8% to 53.5%; across the 102 pointed texts on the laptop's shelf
+  the lift is 0.9 to 6.5 points, median 3.2. The 1948 declaration, unpointed, is 39.9%
+  before and after.
+
+What it does not touch: `coverage`, the figure on the library shelf and a built text,
+which intersects dictionary forms and has no spelling problem.
+
+
 ### What we inferred says so — 2026-09-27
 
 Everywhere targum has an answer it is not sure of, it has picked between two things: say

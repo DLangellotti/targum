@@ -381,7 +381,7 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
     status, page = get(port, f"/waitlist/confirm?t={token}")
     assert status == 200
     assert "Оставить dina@example.com в списке ожидания?" in page
-    assert "Да, оставить" in page and "Yes, keep me" not in page
+    assert "Подтвердить" in page and ">Confirm<" not in page
 
     status, page = post(port, "/waitlist/confirm", {"t": token})
     assert status == 200 and "Вы в списке." in page

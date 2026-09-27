@@ -28,7 +28,9 @@ class Postbox:
     def send(self, to: str, link: str, language: str = "en") -> None:
         raise AssertionError("An invitation is a `notify`, not a sign-in link.")
 
-    def notify(self, to: str, subject: str, body: str, headers: Any = None) -> None:
+    def notify(
+        self, to: str, subject: str, body: str, headers: Any = None, html: Any = None
+    ) -> None:
         if to == self.refuse:
             raise RuntimeError("mailbox full")
         self.sent.append((to, subject, body))
@@ -89,17 +91,18 @@ def test_the_invitation_is_written_in_the_language_they_joined_in(store: Store) 
     said = {to: (subject, body) for to, subject, body in post.sent}
     assert "targum" in said["dina@example.com"][0]
     assert "очередь" in said["dina@example.com"][0]
-    assert "Your turn" in said["avi@example.com"][0]
+    assert "your turn" in said["avi@example.com"][0]
 
 
 def test_every_invitation_carries_the_way_in(store: Store) -> None:
     for language in ("en", "ru"):
-        subject, body = invitation("https://targum.page/", language)
-        assert subject
-        assert "https://targum.page/account/signin" in body
-        # No token in it: the address is on the guest list by now, and a sign-in link
-        # sitting in an inbox would be stale long before it was read.
-        assert "?t=" not in body
+        letter = invitation("https://targum.page/", language)
+        assert letter.subject
+        for body in (letter.text, letter.html):
+            assert "https://targum.page/account/signin" in body
+            # No token in it: the address is on the guest list by now, and a sign-in
+            # link sitting in an inbox would be stale long before it was read.
+            assert "?t=" not in body
 
 
 def test_a_dry_run_changes_nothing(store: Store) -> None:

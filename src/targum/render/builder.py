@@ -2184,6 +2184,7 @@ def weekly_page(
     the template had stopped using — and it meant a box serving the weekly needed the
     source files as well as the built readers. It needs the readers and the index.
     """
+    from ..strings import text
     from ..weekly.models import LEVELS, label_in
     from ..weekly.models import folder as weekly_folder
 
@@ -2199,7 +2200,11 @@ def weekly_page(
             t=page_words(language),
             page_language=_page_language(language),
             strings=script_strings(language, "weekly."),
-            title=f"\u2068{issue.title}\u2069 — {label_in(level, language)} — targum",
+            # The digest's public name beside the issue's own Hebrew masthead (2026-09-27).
+            title=(
+                f"\u2068{issue.title}\u2069 — {label_in(level, language)} — "
+                f"{text('series.weekly.name', language)} — targum"
+            ),
             description=blurb,
             canonical=_addressed_in(_weekly_at, language)[0],
             alternates=_addressed_in(_weekly_at, language)[1],
@@ -2416,7 +2421,7 @@ def weekly_note(
     address: str = "",
     done: bool = True,
     pending: dict[str, str] | None = None,
-    heading: str = "the weekly",
+    heading: str = "Weekly News Digest",
     home: str = "/weekly",
     language: str = "en",
 ) -> str:

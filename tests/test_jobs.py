@@ -21,7 +21,9 @@ class Postbox:
     def send(self, to: str, link: str, language: str = "en") -> None:
         raise AssertionError("a finished build is not a sign-in")
 
-    def notify(self, to: str, subject: str, body: str) -> None:
+    def notify(
+        self, to: str, subject: str, body: str, headers: object = None, html: object = None
+    ) -> None:
         self.sent.append((to, subject, body))
 
 
@@ -81,6 +83,31 @@ def test_a_long_build_says_so_by_email(tmp_path: Path) -> None:
     assert "https://targum.page/reader/a%20b/reader/index.html" in body
 
 
+def test_a_long_film_is_ready_to_watch(tmp_path: Path) -> None:
+    """A film is watched before it is listened to. Asked of the manifest beside the
+    reader, as the shelf asks it, and not of the `video/` sidecar the build remakes."""
+    from targum.audio import manifest
+
+    store = Store(tmp_path / "db")
+    person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
+    postbox = Postbox()
+    library = Library(tmp_path, store=store, mailer=postbox, address="https://targum.page")  # type: ignore[arg-type]
+    folder = library.home(person) / "film"
+    folder.mkdir(parents=True)
+    part = manifest.ManifestPart(number=1, start=0, end=60, audio="a.m4a", video="v.mp4")
+    manifest.write(
+        folder,
+        manifest.AudioManifest(source="s", sha256="0", duration=60, language="he", parts=[part]),
+    )
+    then = now() - Library.LONG_BUILD_MS - 1
+    library.tell(job("film", person.id, "done", then, reader="film/reader/index.html", audio=True))
+    library.tell(job("talk", person.id, "done", then, reader="talk/reader/index.html", audio=True))
+    assert [subject for _, subject, _ in postbox.sent] == [
+        "Ready to watch: \u2068Text film\u2069",
+        "Ready to listen: \u2068Text talk\u2069",
+    ]
+
+
 def test_a_short_build_says_nothing(tmp_path: Path) -> None:
     store = Store(tmp_path / "db")
     person, _ = store.finish_sign_in(store.start_sign_in("reader@example.com"))  # type: ignore[misc]
@@ -96,7 +123,7 @@ def test_a_failed_email_never_fails_the_build(tmp_path: Path) -> None:
         def send(self, to: str, link: str, language: str = "en") -> None:
             raise RuntimeError
 
-        def notify(self, to: str, subject: str, body: str) -> None:
+        def notify(self, to: str, subject: str, body: str, *rest: object) -> None:
             raise RuntimeError("smtp is down")
 
     store = Store(tmp_path / "db")

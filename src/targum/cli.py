@@ -375,9 +375,14 @@ def catalogue_lemmas(
     without building anything. It buys nothing and annotates nothing: a catalogue text
     with no built copy on this machine is left out, and `targum rebuild --words` or a
     seed run is what brings it in. Safe to run again; it rewrites the whole index.
+
+    It also counts how often each word comes round in each text (targum-internal#95,
+    #96), from the same annotations, and leaves each text's places cached beside it as
+    `occurrences.json`. Nothing reads the counts on a page yet.
     """
     from . import catalogue as catalogue_module
     from .coverage import build_index, lemmas, write_index
+    from .occurrences import text_occurrences
 
     root = out or Path("targum-out")
     if not root.is_dir():
@@ -385,6 +390,7 @@ def catalogue_lemmas(
 
     by_source = {entry.source: entry.id for entry in catalogue_module.everything()}
     found: dict[str, list[str]] = {}
+    tallies: dict[str, dict[str, int]] = {}
     for document in sorted(root.glob("*/*/document.json")):
         try:
             source = str(json.loads(document.read_text(encoding="utf-8")).get("source", ""))
@@ -396,8 +402,11 @@ def catalogue_lemmas(
         words = lemmas(document.parent)
         if words:
             found[entry_id] = words
+            counted = text_occurrences(document.parent)
+            if counted is not None:
+                tallies[entry_id] = counted.totals()
 
-    index = build_index(found)
+    index = build_index(found, tallies)
     where = write or (
         (catalogue_module.catalogue_path() or Path.home() / ".targum" / "catalogue.json").parent
         / "lemmas.json"
@@ -408,6 +417,9 @@ def catalogue_lemmas(
         f"[green]{reach}[/green] of {len(by_source)} catalogue texts "
         f"[dim]{len(index.words):,} distinct words → {where}[/dim]"
     )
+    if index.counts:
+        running = sum(sum(tally) for tally in index.counts.values())
+        console.print(f"[dim]{len(index.counts)} counted, {running:,} running words[/dim]")
     if reach < len(by_source):
         console.print(
             f"[dim]{len(by_source) - reach} have no built copy here; "
@@ -2372,6 +2384,12 @@ def correct_command(
         str, typer.Option("--context", help="The sentence you judged it in, if one.")
     ] = "",
     reason: Annotated[str, typer.Option("--reason", help="Why, in a few words.")] = "",
+    who: Annotated[
+        str, typer.Option("--who", help="Whose hand: author (yours) or editor (a paid editor's).")
+    ] = "author",
+    editor: Annotated[
+        str, typer.Option("--editor", help="Which editor, by the name they go by here.")
+    ] = "",
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
     """Correct a gloss by hand, and write the judgement down (targum-internal#164).
@@ -2379,6 +2397,10 @@ def correct_command(
     The one thing no model lab has is a record of human judgement about Hebrew at the
     word level, with provenance. Deleting a cache file by hand applied a correction and
     threw the judgement away; this applies it and keeps it.
+
+    `--who editor` writes it as a paid editor's judgement (targum-internal#354): a
+    distinct judge from the author and from any reader, held under `targum` like the
+    author's own. `--editor` says which editor, so two of them agreeing count as two.
     """
     from .accounts import Store
     from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, Sense, forget_gloss, set_gloss
@@ -2386,6 +2408,7 @@ def correct_command(
 
     if forget == bool(meaning):
         fail(TargumError("Say what the word means, or say --forget.", "One or the other."))
+    judge = _judge_for(who, editor, store)
     provider_name = AnthropicGlosses(GLOSS_MODEL).name
     if forget:
         before = forget_gloss(lemma, source, to, provider_name)
@@ -2396,7 +2419,8 @@ def correct_command(
     keeping = Store(store or default_store())
     row = keeping.correct(
         "gloss",
-        who="author",
+        who=who,
+        judge=judge,
         licence="targum",
         term=lemma,
         language=source,
@@ -2411,6 +2435,87 @@ def correct_command(
         f"[green]Recorded[/green] #{row}: {lemma} {was}, now {after!r}"
         if after
         else f"[green]Recorded[/green] #{row}: {lemma} {was}, forgotten"
+    )
+
+
+#: Who may write a judgement from this terminal. A reader's comes through the reader, and
+#: a model's is not a judgement at all.
+HANDS = ("author", "editor")
+
+
+def _judge_for(who: str, editor: str, store: Path | None) -> str:
+    """The judge pseudonym for a hand at the terminal, after checking the pair makes sense.
+
+    The author has no account behind them and is counted by role, so their judge is
+    empty. An editor is named, so two editors are two judges; an unnamed editor is
+    counted by role, which is right for one editor and undercounts two.
+    """
+    if who not in HANDS:
+        fail(TargumError(f"--who {who!r} is not a hand here.", "Say author or editor."))
+    if editor and who != "editor":
+        fail(TargumError("--editor names an editor.", "Add --who editor, or leave --editor out."))
+    if not editor.strip():
+        return ""
+    from .accounts import Store
+    from .serve import default_store
+
+    return Store(store or default_store()).editor_judge(editor)
+
+
+@app.command(name="editor-pass")
+def editor_pass_command(
+    path: Annotated[
+        Path, typer.Argument(help="The editor's file: CSV with a header row, or JSON lines.")
+    ],
+    stage: Annotated[str, typer.Option("--stage", help="What they read: scene, gloss, lemma…")],
+    editor: Annotated[
+        str, typer.Option("--editor", help="Which editor, by the name they go by here.")
+    ] = "",
+    write: Annotated[
+        bool, typer.Option("--write", help="Write the rows. Without it, say what would be.")
+    ] = False,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Keep a paid editor's pass as rows, not as a corrected file (targum-internal#354).
+
+    A corrected file is a snapshot the next rebuild overwrites, and the judgements in it
+    are lost at the moment they are applied. This writes each one down instead, as
+    `who = editor` and `licence = targum`, where a rebuild cannot reach it and where it
+    counts as a second judge beside the author and the readers.
+
+    Columns: line, before, after, note — and term, which a gloss row must give and any
+    other row may leave to be read off `before`. `targum.editor_pass` has the rest.
+
+    It applies nothing: a gloss the editor changed is recorded here and set with
+    `targum correct --who editor`. Run twice, it writes nothing the second time.
+    """
+    from .accounts import Store
+    from .editor_pass import read_editor_pass
+    from .serve import default_store
+
+    try:
+        rows = read_editor_pass(path.expanduser(), stage)
+    except (OSError, TargumError) as error:
+        fail(error if isinstance(error, TargumError) else TargumError(str(error)))
+    judge = _judge_for("editor", editor, store)
+    keeping = Store(store or default_store())
+    if not write:
+        todo = keeping.unkept_editor_rows(stage, rows, judge=judge)
+        console.print(
+            f"{len(rows)} judgements in {path.name}, {len(rows) - len(todo)} already kept, "
+            f"{len(todo)} to write"
+        )
+        for row in todo[:5]:
+            console.print(
+                f"  {row.get('span', '')}  [bold]{row['term']}[/bold]: "
+                f"{row.get('before', '')!r} -> {row.get('after', '')!r}"
+            )
+        console.print("\n[dim]Nothing was written. Add --write.[/dim]")
+        return
+    written, skipped = keeping.editor_pass(stage, rows, judge=judge)
+    console.print(
+        f"[green]Kept[/green] {len(written)} of the editor's judgements as rows"
+        + (f", {skipped} already there" if skipped else "")
     )
 
 
@@ -2519,9 +2624,25 @@ def settle_command(
     accept: Annotated[
         bool, typer.Option("--accept/--reject", help="Take the reader's meaning, or refuse it.")
     ],
+    by: Annotated[
+        str,
+        typer.Option(
+            "--by",
+            help="Who settles it: author (you, the default) or editor (a paid editor).",
+        ),
+    ] = "author",
+    editor: Annotated[
+        str,
+        typer.Option(
+            "--editor",
+            help="With --by editor: which editor, by the name they go by here. "
+            "Name them, so two editors count as two judges.",
+        ),
+    ] = "",
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
-    """Settle a reader's proposed correction (targum-internal#164, door 3).
+    """Settle a reader's proposed correction, as the author or as a paid editor
+    (targum-internal#164, door 3; targum-internal#354).
 
     A reader's correction is a proposal until somebody with standing accepts it — this
     card's own words, "not a vote". Accepting applies the meaning and writes the decision
@@ -2531,11 +2652,22 @@ def settle_command(
 
     A refused proposal never reaches the gold set: `Store.agreed` counts only what was
     accepted, because a refusal is a judgement that the suggestion was *wrong*.
+
+    Two hands settle, and either verdict closes the proposal the same way (design.md
+    §12, "An editor settles a reader's proposal — 2026-09-27"). The author's is the
+    default. A paid editor settles with `--by editor --editor NAME`: the decision row is
+    theirs, under their own pseudonym (`Store.editor_judge`), so a proposal an editor
+    accepted counts as a reader and an editor agreeing, and two named editors are two
+    judges. Leaving out `--editor` counts every unnamed editor as one.
+
+        targum corrections --proposed
+        targum settle 42 --accept --by editor --editor Dana
     """
     from .accounts import Store
     from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, Sense, set_gloss
     from .serve import default_store
 
+    judge = _judge_for(by, editor, store)
     keeping = Store(store or default_store())
     waiting = {row["id"]: row for row in keeping.proposed_corrections(limit=1000)}
     proposal = waiting.get(correction_id)
@@ -2553,7 +2685,7 @@ def settle_command(
             AnthropicGlosses(GLOSS_MODEL).name,
             Sense(str(proposal["after"]), grounded=True),
         )
-    row = keeping.settle_correction(correction_id, accept=accept)
+    row = keeping.settle_correction(correction_id, accept=accept, by=by, judge=judge)
     word, meaning = proposal["term"], proposal["after"]
     console.print(
         f"[green]Accepted[/green] #{correction_id} as #{row}: {word} now {meaning!r}"
