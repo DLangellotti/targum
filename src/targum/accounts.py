@@ -1205,6 +1205,18 @@ class Person:
     admin: bool = False
 
 
+@dataclass(frozen=True)
+class Kept:
+    """One word a reader kept, with what it means to them: `Store.kept_between`."""
+
+    language: str
+    lemma: str
+    surface: str
+    #: Their own note where they wrote one, else the meaning the page gave when they kept
+    #: it, else "". Either may run on past its first sense; the sheet cuts it there.
+    meaning: str
+
+
 # The four kinds of thing a person accumulates, and the columns each one syncs. Kept as
 # data rather than four near-identical functions, because the merge is the same
 # argument four times and the only thing that differs is the shape.
@@ -3103,6 +3115,52 @@ class Store:
                 if form:
                     out.add(strip_nikkud(str(form))[0])
         return out
+
+    def kept_between(
+        self,
+        person_id: int | None,
+        start: int,
+        end: int,
+        *,
+        languages: Iterable[str],
+        target: str,
+    ) -> list[Kept]:
+        """The words a reader first kept between two moments (ms), still learning, in the
+        order they were kept — what the week's sheet lists (targum-internal#105).
+
+        Kept rather than looked up, because a look-up leaves nothing here that names a
+        word: the tally of taps is the browser's own (`targum:cards:<language>`), and the
+        event log says which segment a card was opened in and not which word. A word kept
+        this week and since marked known, or ignored, is not one to carry into Shabbat.
+        Names and numbers are not vocabulary. The meaning is the one in `target`, the
+        language the sheet is read in.
+        """
+        codes = sorted({code.split("-")[0].lower() for code in languages})
+        if person_id is None or not codes:
+            return []
+        marks = ", ".join("?" for _ in codes)
+        rows = self.db.execute(
+            "SELECT w.language, w.lemma, w.surface, w.note AS own, w.meaning AS said,"
+            " m.note AS note, m.meaning AS meaning FROM word w"
+            " LEFT JOIN meaning m ON m.person = w.person AND m.source = w.language"
+            " AND m.target = ? AND m.term = w.lemma AND m.gone = 0"
+            " WHERE w.person = ? AND w.gone = 0 AND w.status IN (1, 2, 3)"
+            " AND w.at >= ? AND w.at < ? AND w.band NOT IN ('name', 'number')"
+            f" AND w.language IN ({marks}) ORDER BY w.at",
+            (target.split("-")[0].lower(), int(person_id), int(start), int(end), *codes),
+        ).fetchall()
+        return [
+            Kept(
+                language=str(row["language"]),
+                lemma=str(row["lemma"]),
+                surface=str(row["surface"] or ""),
+                # Theirs before the page's, and the meaning table's — which is per
+                # language — before the word row's, which is what it held before that
+                # table was split off and may be in another language.
+                meaning=str(row["note"] or row["meaning"] or row["own"] or row["said"] or ""),
+            )
+            for row in rows
+        ]
 
     def activity(self, person_id: int | None) -> dict[str, Any]:
         """The days someone read on, and how many sections and texts they finished."""

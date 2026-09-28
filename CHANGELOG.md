@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The week's shnayim mikra sheet as a PDF: `targum export mikra` (targum-internal#105).
+  This Shabbat's portion — or the week of `--on` — with Onkelos beside each verse, the
+  haftarah the calendar names for it with the reader's language beside it, and with
+  `--for` the words that account kept that week and is still learning, with the meanings
+  it kept beside them. Cut from the books on the shelf as the portion page is, so it costs
+  nothing; the same `print` extra. design.md §12 (2026-09-28) says what the sheet adds.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

@@ -347,6 +347,29 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The week's sheet is the edition, twice — 2026-09-28
+
+`targum export mikra` prints the week's shnayim mikra sheet (targum-internal#105): the
+portion with Onkelos beside each verse, the haftarah with the reader's language beside it,
+and with `--for` the words the reader kept that week. Everything under "A text can be
+printed" below holds; this says only what the sheet adds.
+
+- **Two readings, one page.** The portion leads under the page's title; the haftarah
+  follows under a title of its own, on the same run of paper rather than a fresh sheet,
+  for the reason chapters run on. The portion is set beside Onkelos because that is the
+  practice — twice the text, once the targum — and the haftarah beside the reader's
+  language because it is read once and never with a targum (targum-internal#203). Where
+  the shelf has no Onkelos, the reader's language stands beside the portion and the
+  command says so; paper does not.
+- **One list, at the end, and it is the reader's.** No list after an aliyah: a portion's
+  hard words would be pages of them. The one list is the words kept that week and still
+  being learned, each with the reader's own note, or the meaning the page gave when it was
+  kept, or the week's texts' first sense — and left off where there is none, as the
+  edition leaves one off. Kept and not tapped, because a tap is counted only in the
+  browser and the account does not see it.
+- **The week is the portion page's week**: it begins when `pointing_at` turns, motzei
+  Shabbat on the one clock, so the sheet and the page agree on which week a word was kept in.
+
 ### The back office is four tabs — 2026-09-28
 
 "The back office has so much going on now, time to organize into menus and tabs," David

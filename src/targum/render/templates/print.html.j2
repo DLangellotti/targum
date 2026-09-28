@@ -3,8 +3,12 @@
     is set once and never touched, so it carries none of the reader's controls: the text,
     the translation beside it, and after each chapter its words. The direction follows the
     text, as the reader's does; the root's language is the translation's, as the reader's
-    chrome is, and every cell carries its own. -#}
-<html lang="{{ page_language }}" dir="{{ source_direction }}">
+    chrome is, and every cell carries its own.
+
+    The week's sheet is the same page with two parts — the portion beside Onkelos, the
+    haftarah beside the reader's language — and the reader's own words of the week after
+    them (design.md §12, 2026-09-28). A part after the first takes a title of its own. -#}
+<html lang="{{ page_language }}" dir="{{ page_direction }}">
 <head>
 <meta charset="utf-8">
 <title>{{ title }}{% if english %} · {{ english }}{% endif %}</title>
@@ -14,11 +18,19 @@
 {{ chrome_face }}
 </head>
 <body class="{% if under %}under{% else %}beside{% endif %}{% if verses %} verses{% endif %}">
-<header class="title">
+{% for part in parts %}
+{% set source_language = part.source_language %}{% set source_direction = part.source_direction %}
+{% set target_language = part.target_language %}{% set target_direction = part.target_direction %}
+<header class="title{% if not loop.first %} part{% endif %}">
+  {% if loop.first %}
   <h1 lang="{{ source_language }}" dir="{{ source_direction }}">{{ title|isolate(source_direction) }}</h1>
-  {% if english %}<p class="english" lang="{{ target_language }}" dir="{{ target_direction }}">{{ english }}</p>{% endif %}
+  {% if english %}<p class="english" lang="{{ chrome }}" dir="{{ chrome_direction }}">{{ english }}</p>{% endif %}
+  {% else %}
+  <h1 lang="{{ source_language }}" dir="{{ source_direction }}">{{ part.title|isolate(source_direction) }}</h1>
+  {% if part.english %}<p class="english" lang="{{ chrome }}" dir="{{ chrome_direction }}">{{ part.english }}</p>{% endif %}
+  {% endif %}
 </header>
-{% for chapter in chapters %}
+{% for chapter in part.chapters %}
 <section class="chapter">
   {% for line in chapter.lines %}
   {% if line.kind == 'heading' %}
@@ -48,5 +60,19 @@
   {% endif %}
 </section>
 {% endfor %}
+{% endfor %}
+{% if week %}
+<aside class="words week">
+  <h2 class="label" lang="{{ page_language }}">{{ t("print.week.words", "Your words this week") }}</h2>
+  <dl>
+    {% for word in week %}
+    <div class="word">
+      <dt lang="{{ word.language or parts[0].source_language }}" dir="{{ word.direction or parts[0].source_direction }}">{{ word.form }}</dt>
+      <dd lang="{{ chrome }}" dir="{{ chrome_direction }}">{{ word.meaning|isolate(chrome_direction) }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+</aside>
+{% endif %}
 </body>
 </html>

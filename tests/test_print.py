@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 from pathlib import Path
 
 import pytest
 
+from targum.accounts import Person, Store
 from targum.errors import TargumError
 from targum.models import (
     Annotation,
@@ -19,7 +21,9 @@ from targum.models import (
     Translation,
     Vocalization,
 )
-from targum.render.printed import first_sense, print_html
+from targum.parasha import calendar as cal
+from targum.parasha import cut as cutmod
+from targum.render.printed import Word, first_sense, mikra_html, print_html, week_words
 from targum.vocalize import has_taamim, strip_nikkud
 
 # Jonah 1:1–2, as the edition writes it: vowels and te'amim.
@@ -228,3 +232,231 @@ def test_the_pdf_is_one_page_and_reads_in_order(bird: Path, tmp_path: Path) -> N
     assert positions == sorted(positions)
     assert bare.index(strip_nikkud(LINE_1)[0]) < bare.index(strip_nikkud(LINE_2)[0])
     assert "to rise" in text and "word" in text
+
+
+# -- the week's shnayim mikra sheet ----------------------------------------------------
+
+# Onkelos, beside every verse of the fixture's portion.
+ONKELOS = "אַתּוּן קָיְמִין יוֹמָא דֵין"
+
+
+@pytest.fixture
+def shelf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Deuteronomy with Onkelos beside it and enough of Isaiah for its haftarah, and the
+    calendar for 2026 where the portion page keeps it — the same books and the same
+    calendar `test_parasha_cut` cuts from."""
+    import shutil
+
+    from test_parasha_cut import FIXTURES, a_book
+
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(tmp_path / "parasha"))
+    (tmp_path / "parasha" / "calendar").mkdir(parents=True)
+    for one in FIXTURES.glob("*.json"):
+        shutil.copy(one, tmp_path / "parasha" / "calendar" / one.name)
+    library = tmp_path / "library"
+    a_book(library / "דברים-he", "Deuteronomy", "דברים", {29: 29, 30: 20, 31: 30})
+    a_book(library / "ישעיהו-he", "Isaiah", "ישעיהו", {61: 11, 62: 12, 63: 9})
+    english = next((library / "דברים-he" / "translations").glob("*.en.json"))
+    onkelos = Translation.model_validate_json(english.read_text(encoding="utf-8"))
+    onkelos.model_copy(
+        update={
+            "name": "Onkelos Deuteronomy",
+            "target_language": "arc",
+            "segments": {sid: ONKELOS for sid in onkelos.segments},
+        }
+    ).write(english.parent / "onkelos.deuteronomy.arc.json")
+    return library
+
+
+def _week(library: Path) -> tuple[cal.Reading, cutmod.Portion, cutmod.Portion]:
+    """Nitzavim-Vayeilech, 5 September 2026, and its haftarah, cut as the command cuts."""
+    reading = cal.for_shabbat(date(2026, 9, 5), cal.Schedule.diaspora)
+    assert reading is not None and reading.haftarah is not None
+    portion = cutmod.cut(reading, cutmod.books_for(reading, library))
+    haftarah = cutmod.cut_haftarah(reading.haftarah, cutmod.books_for(reading.haftarah, library))
+    return reading, portion, haftarah
+
+
+def _began() -> int:
+    """When that week began, in the milliseconds a kept word carries."""
+    return int(cal.week_began(date(2026, 9, 5)).timestamp() * 1000)
+
+
+def _kept(tmp_path: Path) -> tuple[Store, Person]:
+    store = Store(tmp_path / "db")
+    signed = store.finish_sign_in(store.start_sign_in("r@example.com"))
+    assert signed is not None
+    person = signed[0]
+    began, hour = _began(), 3_600_000
+
+    def word(lemma: str, status: int, at: int, language: str = "he", band: str = "") -> dict:
+        return {"language": language, "lemma": lemma, "status": status, "band": band, "at": at}
+
+    store.push(
+        person,
+        {
+            "words": [
+                word("אתם", 1, began + hour),  # this week, with no meaning of its own
+                word("שלום", 2, began + 2 * hour),  # this week, with the reader's note
+                word("רעב", 1, began + 3 * hour),  # this week, with no meaning anywhere
+                word("בית", 9, began + 4 * hour),  # this week, and known already
+                word("דוד", 1, began + 5 * hour, band="name"),  # a name
+                word("ארץ", 1, began - hour),  # last week
+                word("קום", 1, began + 8 * 24 * hour),  # next week
+                word("אנון", 2, began + 6 * hour, language="arc"),  # from the Onkelos column
+            ],
+            "meanings": [
+                {
+                    "source": "he",
+                    "target": "en",
+                    "term": "שלום",
+                    "meaning": "hello",
+                    "note": "peace; wellbeing",
+                    "at": began,
+                },
+                {"source": "arc", "target": "en", "term": "אנון", "meaning": "they", "at": began},
+            ],
+        },
+    )
+    return store, person
+
+
+def test_the_sheet_sets_the_portion_beside_onkelos_and_the_haftarah_beside_english(
+    shelf: Path,
+) -> None:
+    reading, portion, haftarah = _week(shelf)
+    html = mikra_html(
+        portion, haftarah, name="Nitzavim-Vayeilech", hebrew="נִצָּבִים", when="23 Elul 5786"
+    )
+    # The chrome is the reader's language, and the portion's name leads the page.
+    assert '<html lang="en" dir="rtl">' in html
+    assert "Nitzavim-Vayeilech · 23 Elul 5786" in html
+    torah, _, prophets = html.partition('<header class="title part">')
+    assert prophets, "the haftarah stands under a title of its own"
+    # Twice the text, once the targum: Onkelos beside every verse of the portion, and no
+    # English there.
+    assert torah.count('<p class="tr" lang="arc" dir="rtl">') >= portion.verses
+    assert ONKELOS in torah and "Deuteronomy 29 verse 9" not in torah
+    assert torah.count('<div class="pair verse">') == sum(a.verses for a in reading.aliyot)
+    # The haftarah, read once and never beside a targum: English beside it, and its range
+    # as a chumash prints it.
+    assert "Isaiah 61:10-63:9" in prophets
+    assert "Isaiah 61 verse 10" in prophets and ONKELOS not in prophets
+    # No list after an aliyah: the one list on the sheet is the reader's week.
+    assert 'class="words' not in html
+
+
+def test_the_portion_can_stand_beside_english_when_asked(shelf: Path) -> None:
+    _, portion, haftarah = _week(shelf)
+    torah = mikra_html(portion, haftarah, name="N", hebrew="נ", into="en").partition(
+        '<header class="title part">'
+    )[0]
+    assert "Deuteronomy 29 verse 9" in torah and ONKELOS not in torah
+
+
+def test_the_week_is_the_words_kept_in_it_and_still_being_learned(tmp_path: Path) -> None:
+    store, person = _kept(tmp_path)
+    kept = store.kept_between(
+        person.id, _began(), _began() + 7 * 86_400_000, languages=("he", "arc"), target="en"
+    )
+    assert [(one.language, one.lemma) for one in kept] == [
+        ("he", "אתם"),
+        ("he", "שלום"),
+        ("he", "רעב"),
+        ("arc", "אנון"),
+    ]
+    # The reader's own note before the meaning the page gave.
+    assert kept[1].meaning == "peace; wellbeing"
+
+
+def test_the_sheets_list_takes_its_meanings_from_the_reader_or_the_week(
+    shelf: Path, tmp_path: Path
+) -> None:
+    _, portion, haftarah = _week(shelf)
+    store, person = _kept(tmp_path)
+    week = week_words(
+        store.kept_between(
+            person.id, _began(), _began() + 7 * 86_400_000, languages=("he", "arc"), target="en"
+        ),
+        [portion, haftarah],
+    )
+    # אתם takes the portion's meaning, שלום the first sense of the reader's note, and רעב,
+    # with a meaning nowhere, is left off: paper cannot look one up.
+    assert [(w.form, w.meaning, w.language) for w in week] == [
+        ("אתם", "you", "he"),
+        ("שלום", "peace", "he"),
+        ("אנון", "they", "arc"),
+    ]
+    listed = mikra_html(portion, haftarah, name="N", hebrew="נ", week=week).partition(
+        '<aside class="words week">'
+    )[2]
+    assert "Your words this week" in listed
+    assert ("שלום", "peace") in _words(listed)
+    assert '<dt lang="arc" dir="rtl">אנון</dt>' in listed
+
+
+def test_export_mikra_finds_the_week_and_writes_one_sheet(
+    shelf: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.render import printed
+
+    _kept(tmp_path)
+    written: dict[str, object] = {}
+
+    def fake(html: str, out: Path) -> Path:
+        written["html"], written["out"] = html, out
+        return out
+
+    monkeypatch.setattr(printed, "write_pdf", fake)
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        [
+            *("export", "mikra", "--on", "2026-09-01", "--library", str(shelf)),
+            *("--for", "r@example.com", "--store", str(tmp_path / "db")),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    # A Tuesday finds the Shabbat after it, and the file is named for both.
+    assert written["out"] == tmp_path / "nitzavim-vayeilech-2026-09-05.pdf"
+    html = str(written["html"])
+    assert ONKELOS in html and "Isaiah 61:10-63:9" in html
+    assert ("שלום", "peace") in _words(html)
+
+
+def test_export_mikra_refuses_a_shelf_without_the_book(shelf: Path, tmp_path: Path) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    result = CliRunner().invoke(
+        app, ["export", "mikra", "--on", "2026-09-01", "--library", str(tmp_path / "none")]
+    )
+    assert result.exit_code == 1
+    assert "Deuteronomy is not built" in result.output
+
+
+def test_the_sheet_on_paper_reads_portion_then_haftarah_then_words(
+    shelf: Path, tmp_path: Path
+) -> None:
+    """Set for real where the machine can, as the edition's own PDF test is."""
+    from targum.render.printed import _find_pango, write_pdf
+
+    _find_pango()
+    try:
+        import weasyprint  # noqa: F401
+    except (ImportError, OSError):
+        pytest.skip("WeasyPrint or Pango is not installed")
+    pypdf = pytest.importorskip("pypdf")
+
+    _, portion, haftarah = _week(shelf)
+    week = [Word(form="שָׁלוֹם", meaning="peace")]
+    html = mikra_html(portion, haftarah, name="Nitzavim-Vayeilech", hebrew="נצבים", week=week)
+    out = write_pdf(html, tmp_path / "sheet.pdf")
+    text = "".join(page.extract_text() for page in pypdf.PdfReader(out).pages)
+    order = ["Nitzavim-Vayeilech", "Isaiah 61:10-63:9", "Isaiah 61 verse 10", "peace"]
+    positions = [text.index(line) for line in order]
+    assert positions == sorted(positions)
