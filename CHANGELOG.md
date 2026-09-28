@@ -213,6 +213,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- The arrival opens with a welcome: where you are, what happens next, and an optional
+  "What should we call you?" that the greeting uses at once. The connector's card says
+  it is optional and has one press, Continue; the bars count only the questions.
+- The waitlist's pages say "Thanks for joining", "Confirm your place", "You're on the
+  list" and "You're off the list" over sentences a person would say, instead of "the
+  waitlist" over every answer.
+- The sign-in page's foot stands under the door across the page instead of in its
+  column, where its columns ran into each other; a long address wraps at its "@"; and
+  the line about words following you between browsers is gone.
 - targum in Claude and ChatGPT is met on the way in, in four places, each only while the
   connector is open and, inside the product, only to a reader with no connection yet. The
   arrival ends on a card with the address to copy and Open as its press, so the first text

@@ -1476,6 +1476,10 @@ body.arriving .today-line { display: none; }
   margin: 0 0 1.25rem;
 }
 .arrival-top .arrival-step { margin: 0; }
+/* Hidden on the cards that are not questions — the welcome and the optional one — and
+   `display: flex` above would otherwise outrank the attribute (found 2026-09-28: the
+   optional card still said "2 of 2"). */
+.arrival-step[hidden] { display: none; }
 .arrival-switch {
   display: flex;
   align-items: center;
@@ -1501,6 +1505,47 @@ body.arriving .today-line { display: none; }
 .arrival-switch-key[aria-pressed="true"] { color: var(--ink); cursor: default; }
 .arrival-switch-key:hover:not([aria-pressed="true"]) { background: var(--teal-wash); color: var(--teal); }
 .arrival-switch-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* The welcome's one field: what to call them, optional (2026-09-28). A well, as §13
+   draws fields, with its label above it and "Optional" said beside the label. */
+.arrival-name { display: grid; gap: 0.4rem; margin-block-start: 0.5rem; max-inline-size: 22rem; }
+.arrival-name[hidden] { display: none; }
+.arrival-name label {
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.arrival-name input {
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+  color: var(--ink);
+  min-block-size: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  border-radius: var(--radius-row);
+  background: color-mix(in srgb, var(--ground) 70%, var(--card));
+}
+.arrival-name input:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+/* "Optional", said as a label: beside the name's question, and over the connector's
+   card, which must never read as a step a reader has to take (2026-09-28). */
+.arrival-optional {
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.arrival-optional-lead {
+  display: inline-block;
+  margin: 0 0 0.6rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+}
 
 /* The question is the page's heading, and there is nothing to share the page with. */
 .arrival-asks {

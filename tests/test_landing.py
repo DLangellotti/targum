@@ -210,7 +210,7 @@ def test_joining_takes_the_address_and_mails_a_link(
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
     assert status == 200
-    assert "Check your email" in body
+    assert "confirm your address" in body
     assert store.waiting_state("dina@example.com") == "pending"
     sent = posted.getvalue()
     assert "dina@example.com" in sent
@@ -365,8 +365,8 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, body = post(port, "/waitlist?lang=ru", {"email": "dina@example.com"})
     assert status == 200
-    assert "Спасибо. Проверьте почту" in body
-    assert "Check your email" not in body
+    assert "Мы отправили вам письмо" in body
+    assert "confirm your address" not in body
     assert 'lang="ru"' in body, "the page says which language it is in"
 
     # The mail too, which is the first thing targum ever sends anybody.
@@ -382,11 +382,11 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, page = get(port, f"/waitlist/confirm?t={token}")
     assert status == 200
-    assert "Оставить dina@example.com в списке ожидания?" in page
+    assert "Подтвердите dina@example.com, чтобы сохранить место" in page
     assert "Подтвердить" in page and ">Confirm<" not in page
 
     status, page = post(port, "/waitlist/confirm", {"t": token})
-    assert status == 200 and "Вы в списке." in page
+    assert status == 200 and "Вы в списке" in page and "Спасибо за подтверждение" in page
     assert store.waiting_state("dina@example.com") == "on"
 
 
@@ -397,7 +397,7 @@ def test_an_english_visitor_is_answered_as_they_always_were(
     port, _store, posted = served
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
-    assert status == 200 and "Check your email" in body
+    assert status == 200 and "confirm your address" in body
     assert "Confirm your place on the targum waitlist" in posted.getvalue()
 
 
@@ -427,7 +427,7 @@ def test_the_way_out_cannot_be_used_to_ask_who_is_waiting(
     # And the page really is Russian when asked in Russian, so the sameness above is not
     # the sameness of two English pages.
     _, said = post(port, "/waitlist/stop?lang=ru", {"t": "not-a-token"})
-    assert "Мы убрали вас из списка ожидания." in said
+    assert "Мы больше не будем писать вам о списке ожидания." in said
 
 
 def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None:

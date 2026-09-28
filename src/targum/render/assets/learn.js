@@ -1902,6 +1902,7 @@
       subjects: document.getElementById("arrival-subjects"),
       level: document.getElementById("arrival-level"),
       connect: document.getElementById("arrival-connect"),
+      welcome: document.getElementById("arrival-welcome"),
     };
     if (!host || !row || !rungs || !done || !skip || !screenOf.subjects || !screenOf.level) return;
     if (!asking) {
@@ -1917,6 +1918,15 @@
        in the language chosen — comes back on the second of three, not the first of two. */
     var withTongue = !!(screenOf.tongue && tongues && asksIn && asksTongue());
     var order = withTongue ? ["tongue", "subjects", "level"] : ["subjects", "level"];
+    /* The welcome, before the first question it can be written in (2026-09-28): after
+       the language, which decides what language it is in, and before the subjects. */
+    var nameRow = document.getElementById("arrival-name-row");
+    var nameField = document.getElementById("arrival-name");
+    if (screenOf.welcome) {
+      order.splice(withTongue ? 1 : 0, 0, "welcome");
+      if (nameRow) nameRow.hidden = !(who && who.signedIn);
+      if (nameField && who && who.name) nameField.value = who.name;
+    }
     /* And last, where the reader can take it up, the way into Claude and ChatGPT
        (design.md §12, "The connector is met on the way in"): a card that tells rather
        than asks, with the address to copy, and Open as its filled press so the text the
@@ -1928,6 +1938,14 @@
       connectHost.appendChild(connectSteps("arrival"));
     }
     var step = withTongue && thisVisit() ? 1 : 0;
+    // Only the questions are counted: the welcome says where they are and asks nothing,
+    // and the connector's card is optional — counted, it read as a step that had to be
+    // taken (2026-09-28: "this makes it seem like installing the MCP is mandatory").
+    function counted() {
+      return order.filter(function (name) {
+        return name !== "welcome" && name !== "connect";
+      });
+    }
     row.textContent = "";
     rungs.textContent = "";
     if (tongues) tongues.textContent = "";
@@ -1939,32 +1957,42 @@
        pressing a row *is* the answer and a second button would be a second question. */
     function settle() {
       var now = order[step];
-      ["tongue", "subjects", "level", "connect"].forEach(function (name) {
+      ["tongue", "welcome", "subjects", "level", "connect"].forEach(function (name) {
         if (screenOf[name]) screenOf[name].hidden = name !== now;
       });
-      if (where) {
+      var asking = now !== "welcome" && now !== "connect";
+      if (where) where.hidden = !asking;
+      if (where && asking) {
+        var questions = counted();
+        var at = questions.indexOf(now);
         /* And drawn, as a bar a step in leaf (design.md §12, 2026-09-28). The bars carry
            no text, so what is read aloud, and what `textContent` says, is the words. */
         var bars = document.createElement("span");
         bars.className = "arrival-bars";
         bars.setAttribute("aria-hidden", "true");
-        for (var b = 0; b < order.length; b++) {
+        for (var b = 0; b < questions.length; b++) {
           var bar = document.createElement("span");
-          bar.className = b <= step ? "arrival-bar is-done" : "arrival-bar";
+          bar.className = b <= at ? "arrival-bar is-done" : "arrival-bar";
           bars.appendChild(bar);
         }
         var words = document.createElement("span");
         words.textContent = t("learn.arrival.step", "{n} of {of}")
-          .replace("{n}", String(step + 1))
-          .replace("{of}", String(order.length));
+          .replace("{n}", String(at + 1))
+          .replace("{of}", String(questions.length));
         where.textContent = "";
         where.appendChild(bars);
         where.appendChild(words);
       }
-      done.hidden = now !== "subjects" && now !== "connect";
+      var passing = now === "welcome" || now === "connect";
+      done.hidden = now !== "subjects" && !passing;
       done.disabled = now === "subjects" && picked.length < WANTED;
-      done.textContent =
-        now === "connect" ? t("learn.arrival.open", "Open") : t("learn.arrival.next", "Next");
+      /* Continue on the two cards that ask nothing: the welcome, and the connector's,
+         which is optional and must read as optional (2026-09-28). A Skip beside it did
+         the same thing and made the card read as a step to get past. */
+      done.textContent = passing
+        ? t("learn.arrival.continue", "Continue")
+        : t("learn.arrival.next", "Next");
+      skip.hidden = passing;
       if (back) back.hidden = step === 0;
       if (!count) return;
       var short = WANTED - picked.length;
@@ -1996,6 +2024,7 @@
         now === "level" ? rungs.children[0] : now === "tongue" ? tongues.children[0] : null;
       if (now === "subjects") first = done.disabled ? row.children[0] : done;
       if (now === "connect") first = done;
+      if (now === "welcome") first = nameRow && !nameRow.hidden ? nameField : done;
       if (first && first.focus) first.focus({ preventScroll: true });
     }
 
@@ -2084,6 +2113,17 @@
     });
 
     done.onclick = function () {
+      if (order[step] === "welcome") {
+        var name = nameField ? String(nameField.value || "").trim() : "";
+        if (name && who && who.signedIn) {
+          post("/account/name", { name: name });
+          who.name = name;
+          greetedName = name;
+          drawGreeting();
+        }
+        onward();
+        return;
+      }
       if (order[step] === "connect") {
         counted("arrival-open");
         finish();

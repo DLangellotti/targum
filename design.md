@@ -347,6 +347,33 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The arrival opens with a welcome, and says what is optional — 2026-09-28
+
+David, trying the arrival as a new reader on the live site: "very weird to come and see
+this as first screen. No welcome, no telling you where you are, no asking your name, just
+a question!" And of the connector's card: "this makes it seem like installing the MCP is
+mandatory. Make it very clear that it's optional", and "the skip and open buttons do the
+same thing there, don't they?" They did.
+
+- **A welcome comes first** — after the language, where that is asked, since it decides
+  what language the welcome is in. "Welcome to targum", a line on what targum is, a line
+  on what happens next, and **What should we call you?**, optional, asked only where an
+  account can keep it; the greeting uses it at once. It asks nothing that has to be
+  answered, so its press is **Continue** and there is no Skip.
+- **The bars count questions and nothing else.** The welcome is not one, and nor is the
+  connector's card: counted, "3 of 3" made it a step to get through.
+- **The connector's card says it is optional**, three ways: "Optional" over it, a first
+  line that says targum does not need it and that it can be done later from Learn, and a
+  single press, **Continue**. The Skip beside it did what Continue did, and two ways past
+  a card read as a card to get past.
+
+The waitlist's pages had one heading for every answer, "the waitlist", over "Thanks.
+Check your email and press the button in it." Each answer has its own heading now —
+"Thanks for joining", "Confirm your place", "You're on the list", "You're off the list" —
+and sentences a person would say. Each heading follows from the step alone, so the
+answers that must not say whether an address is waiting still cannot.
+
+
 ### Russian is shown to somebody who may read it — 2026-09-28
 
 "I don't want a non russian to see any russian. Figure out how to design this as such,"

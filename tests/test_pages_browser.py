@@ -616,13 +616,22 @@ def _arrival_page(
     page = context.new_page()
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/?k={TOKEN}")
+
+    def past_welcome() -> None:
+        # The welcome (2026-09-28) asks nothing; these tests are about what comes after
+        # it, so they go on the way a reader does, with Continue.
+        page.wait_for_selector("#arrival-welcome:not([hidden])")
+        page.locator("#arrival-done").tap()
+
     if not locale.startswith("ru"):
+        past_welcome()
         page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
         page.wait_for_timeout(150)
         return context, page, went
     page.wait_for_selector("#arrival-language:not([hidden]) .arrival-rung")
     if language is not None:
         page.locator("#arrival-tongues .arrival-rung", has_text=language).tap()
+        past_welcome()
         page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
     page.wait_for_timeout(150)
     return context, page, went
