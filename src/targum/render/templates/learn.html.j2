@@ -100,6 +100,20 @@
         <p class="arrival-asks" id="arrival-asks-language"></p>
         <div class="arrival-levels arrival-tongues" id="arrival-tongues" role="group" aria-labelledby="arrival-asks-language"></div>
       </div>
+      {#- The welcome (David, 2026-09-28: "very weird to come and see this as first
+          screen. No welcome, no telling you where you are, no asking your name, just a
+          question"). Says where they are and what happens next, and asks what to call
+          them — optional, and only where there is an account to keep it. Not a question
+          the bars count. -#}
+      <div class="arrival-screen" id="arrival-welcome" hidden>
+        <p class="arrival-asks" id="arrival-asks-welcome">{{ t("learn.arrival.welcome", "Welcome to targum") }}</p>
+        <p class="arrival-hint">{{ t("learn.arrival.welcome-what", "You learn Hebrew here from real texts and videos, with a translation beside every line and any word explained with a tap.") }}</p>
+        <p class="arrival-hint">{{ t("learn.arrival.welcome-next", "A few quick questions first, then we’ll open something for you.") }}</p>
+        <div class="arrival-name" id="arrival-name-row" hidden>
+          <label for="arrival-name">{{ t("learn.arrival.what-to-call-you", "What should we call you?") }} <span class="arrival-optional">{{ t("learn.arrival.optional-word", "Optional") }}</span></label>
+          <input id="arrival-name" type="text" autocomplete="given-name" maxlength="60" spellcheck="false">
+        </div>
+      </div>
       <div class="arrival-screen" id="arrival-subjects">
         <p class="arrival-asks" id="arrival-asks">{{ t("learn.arrival.what-are-you-interested-in", "What are you interested in?") }}</p>
         <p class="arrival-hint">{{ t("learn.arrival.pick-three-or-more", "Pick three or more. We use them to choose what to put in front of you.") }}</p>
@@ -115,8 +129,9 @@
           the way in"). It tells rather than asks: the address and Copy, every app's steps
           in a new tab, and Open for the text the answers chose. Filled by `learn.js`. -#}
       <div class="arrival-screen" id="arrival-connect" hidden>
+        <p class="arrival-optional arrival-optional-lead">{{ t("learn.arrival.optional-word", "Optional") }}</p>
         <p class="arrival-asks" id="arrival-asks-connect">{{ t("learn.arrival.connect-asks", "Use targum in Claude or ChatGPT") }}</p>
-        <p class="arrival-hint">{{ t("learn.arrival.connect-hint", "Add targum to the AI you already use, and it practises Hebrew with you using the words you know.") }}</p>
+        <p class="arrival-hint">{{ t("learn.arrival.connect-hint", "You don’t need this to use targum. If you use Claude or ChatGPT, you can add targum there and practise Hebrew with the words you know. You can do it later from Learn.") }}</p>
         <div class="arrival-connect-steps" id="arrival-connect-steps"></div>
         <p class="arrival-connect-more"><a href="/connect#install" target="_blank" rel="noopener">{{ t("learn.arrival.connect-every-app", "Learn more") }}</a></p>
       </div>

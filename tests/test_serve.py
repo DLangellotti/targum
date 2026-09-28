@@ -1329,7 +1329,8 @@ def test_a_mail_client_reading_the_link_does_not_spend_it(
     for _ in range(3):
         status, body, handed = call(port, "GET", where)
         assert status == 200
-        assert b"Sign in as reader@example.com" in body
+        # The heading allows a break before the "@" (2026-09-28); the address is the same.
+        assert b"Sign in as reader@example.com" in body.replace("\u200b".encode(), b"")
         assert "targum_session=" not in handed, "reading the page signed somebody in"
 
     # And it still works when a person actually presses the button.
@@ -1345,7 +1346,7 @@ def test_the_landing_page_names_the_account_without_spending_the_link(
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"someone@example.com" in body
+    assert b"someone@example.com" in body.replace("\u200b".encode(), b"")
 
 
 def test_asking_for_too_many_links_is_refused(served: tuple[int, str, Path]) -> None:

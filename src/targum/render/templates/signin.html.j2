@@ -34,7 +34,10 @@
   {% if landing %}
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}
-  <h1>{{ t("signin.page.sign-in-as", "Sign in as {address}", address=landing) }}</h1>
+  {#- A break allowed before the "@", so a long address wraps at its seam rather than
+      mid-word ("…gmai / l.com", 2026-09-28). The zero-width space is only in the
+      heading; nothing is sent from it. -#}
+  <h1>{{ t("signin.page.sign-in-as", "Sign in as {address}", address=landing.replace("@", "\u200b@")) }}</h1>
   <p class="said">{{ t("signin.page.press-to-sign-in-on-this-browser", "Press to sign in on this browser.") }}</p>
   <form method="post" action="/account/enter">
     <input type="hidden" name="t" value="{{ token }}">
@@ -74,7 +77,6 @@
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
     <button class="go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
-  <p class="aside">{{ t("signin.page.once-you-re-signed-in-your-words", "Once you're signed in, your words follow you between browsers.") }}</p>
   {% endif %}
 
   <p class="said sent" id="sent" role="status" hidden></p>
@@ -84,8 +86,11 @@
       navigate to from out here — but somebody handing an address over deserves to read
       what happens to it before they do, which is what the privacy link is for once the
       documents are open. Until then this is the same three links as everywhere else. -#}
-  {% include '_public_foot.html.j2' %}
 </main>
+{#- Outside the door's column, as on every other page with it (2026-09-28). Inside, the
+    foot laid out its columns by the window's width in a 26rem column, and ran them into
+    one another. -#}
+{% include '_public_foot.html.j2' %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('signin.js') }}</script>

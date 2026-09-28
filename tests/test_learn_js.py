@@ -1618,22 +1618,23 @@ ANSWERED = [
 ]
 
 
-def test_the_arrival_ends_on_the_connector_and_open_is_still_one_press() -> None:
-    """After the rung, a last card for a signed-in reader with no connection: the
-    address to copy, and Open as its filled press, so the text the answers chose is one
-    press away and installing never stands in front of it."""
+def test_the_arrival_ends_on_the_connector_and_continue_is_still_one_press() -> None:
+    """After the rung, a last card for a signed-in reader with no connection, said to be
+    optional (2026-09-28: "this makes it seem like installing the MCP is mandatory"):
+    the address to copy, and Continue as its only press, so the text the answers chose is
+    one press away. No Skip beside it: it did the same thing, and read like a step to get
+    past."""
     shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
     up = draw([], shared=shelf, me=UNCONNECTED, do=ANSWERED)
     assert up["connectUp"], "the rung leads to the card, not straight into the text"
-    assert up["step"] == "3 of 3", "counted in the bars like the screens before it"
+    assert up["step"] == "", "optional, so not counted as a step to get through"
     assert up["connectAddress"].endswith("/mcp"), "this site's own address, as /connect shows"
-    assert up["doneSays"] == "Open" and up["nextShown"] and up["done"]
+    assert up["doneSays"] == "Continue" and up["nextShown"] and up["done"]
+    assert not up["skipShown"], "one way on, not two that do the same"
     assert not up["went"], "nothing is opened until the press"
 
     opened = draw([], shared=shelf, me=UNCONNECTED, do=[*ANSWERED, {"press": "arrival-done"}])
     assert "/reader/holon/" in opened["went"], opened["went"]
-    skipped = draw([], shared=shelf, me=UNCONNECTED, do=[*ANSWERED, {"press": "arrival-skip"}])
-    assert "/reader/holon/" in skipped["went"], "Skip opens it too: the card asks nothing"
 
 
 @pytest.mark.parametrize(
@@ -1664,3 +1665,40 @@ def test_the_banner_shows_the_steps_with_the_address() -> None:
     first, second = drawn["banner"]["steps"]
     assert first.startswith("Copy this address") and "/mcp" in first and first.endswith("Copy")
     assert second == "Add it as a connector in Claude or ChatGPT."
+
+
+# --- the welcome (2026-09-28) -------------------------------------------------------------
+
+
+def test_a_new_reader_is_welcomed_before_anything_is_asked() -> None:
+    """ "Very weird to come and see this as first screen. No welcome, no telling you where
+    you are, no asking your name, just a question" (David, 2026-09-28). The welcome says
+    where they are and asks what to call them; it is not a question, so the bars do not
+    count it and there is nothing to skip."""
+    page = draw([], shared=seeded(), me=UNCONNECTED, welcome=True)
+    assert page["welcomeUp"] and not page["subjectsUp"]
+    assert page["nameAsked"], "an account can keep a name"
+    assert page["doneSays"] == "Continue" and page["done"] and not page["skipShown"]
+    on = draw([], shared=seeded(), me=UNCONNECTED, welcome=True, do=[{"press": "arrival-done"}])
+    assert on["subjectsUp"] and on["step"] == "1 of 2", "the questions, and only they, counted"
+
+
+def test_a_name_given_is_kept_and_greeted() -> None:
+    page = draw(
+        [],
+        shared=seeded(),
+        me=UNCONNECTED,
+        welcome=True,
+        do=[{"name": "  David "}, {"press": "arrival-done"}],
+    )
+    named = [c["body"] for c in page["sent"] if c["path"].split("?")[0] == "/account/name"]
+    assert named == [{"name": "David"}]
+    assert page["greeting"].endswith(", David.")
+    quiet = draw([], shared=seeded(), me=UNCONNECTED, welcome=True, do=[{"press": "arrival-done"}])
+    assert not [c for c in quiet["sent"] if c["path"].split("?")[0] == "/account/name"]
+
+
+def test_somebody_signed_out_is_welcomed_and_not_asked_a_name() -> None:
+    """Nothing could keep it, so nothing is asked."""
+    page = draw([], shared=seeded(), welcome=True)
+    assert page["welcomeUp"] and not page["nameAsked"]

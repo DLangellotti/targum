@@ -245,6 +245,8 @@ function act(step) {
     );
     if (press) press.fire("click", {});
   }
+  // A name typed into the welcome's one field (2026-09-28).
+  if (step.name !== undefined) byId["arrival-name"].value = step.name;
   // A code on the arrival's EN · RU switch (2026-09-28).
   if (step.switchTo) {
     const key = Array.from(at("arrival-switch").children).find(
@@ -303,13 +305,33 @@ function withDoors(node) {
   return out;
 }
 
+/* The welcome (2026-09-28) asks nothing, so every test that is not about it walks past
+   it the way a reader does, with Continue, wherever it stands — first, or after the
+   language. `welcome: true` stops on it, for the tests about the welcome itself. */
+function pastWelcome() {
+  if (payload.welcome) return;
+  const card = byId["arrival-welcome"];
+  if (card && !card.hidden && byId["arrival"] && !byId["arrival"].hidden) {
+    byId["arrival-done"].fire("click", {});
+  }
+}
+
 setTimeout(() => {
-  (payload.do || []).forEach(act);
+  pastWelcome();
+  (payload.do || []).forEach((step) => {
+    act(step);
+    pastWelcome();
+  });
   /* Read a beat later, not in the same tick as the last press (2026-09-20). Every press
      until now changed the page where it stood; choosing a language tells the account
      first and goes on when the account has answered, and read at once the page was
      always still on the question. */
-  setTimeout(report, 10);
+  setTimeout(() => {
+    // The language goes on when the account answers, so the welcome it leads to is
+    // walked past here, a beat after, as a reader would.
+    pastWelcome();
+    setTimeout(report, 10);
+  }, 10);
 }, 30);
 
 function report() {
@@ -407,7 +429,8 @@ function report() {
       visit,
       backShown: !at("arrival").hidden && !at("arrival-back").hidden,
       // Which screen is up and what it says of itself: "1 of 2".
-      step: at("arrival").hidden ? "" : at("arrival-step").textContent,
+      // Nothing where the line is hidden: the welcome and the optional card are not steps.
+      step: at("arrival").hidden || at("arrival-step").hidden ? "" : at("arrival-step").textContent,
       subjectsUp: !at("arrival").hidden && !at("arrival-subjects").hidden,
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
       nextShown: !at("arrival").hidden && !at("arrival-done").hidden,
@@ -425,6 +448,11 @@ function report() {
         return found[0] || "";
       })(),
       doneSays: at("arrival-done").textContent,
+      skipShown: !at("arrival").hidden && !at("arrival-skip").hidden,
+      // The welcome (2026-09-28): whether it is up, and whether it asks for a name.
+      welcomeUp: !at("arrival").hidden && !at("arrival-welcome").hidden,
+      nameAsked: !at("arrival").hidden && !at("arrival-welcome").hidden && !at("arrival-name-row").hidden,
+      greeting: at("greeting").textContent,
       arriving: global.document.body.classList.contains("arriving"),
       // What the page put in the browser, and where it posted. Both are here so a test
       // can assert something was *not* kept — an assertion that is worthless unless the

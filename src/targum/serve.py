@@ -5026,7 +5026,14 @@ class Handler(BaseHTTPRequestHandler):
         page = self._weekly_page_note(message, said, done=done)
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
-    def _waitlist_note(self, message: str, done: bool = True, said: str = "", **rest: Any) -> None:
+    def _waitlist_note(
+        self,
+        message: str,
+        done: bool = True,
+        said: str = "",
+        heading: str = "waitlist.note.heading-joined",
+        **rest: Any,
+    ) -> None:
         """A sentence back from the front door, on the furniture the weekly's doors use.
 
         The same page, a different heading and a different way home: this is read in a
@@ -5038,6 +5045,11 @@ class Handler(BaseHTTPRequestHandler):
         language that door was in, and somebody arriving from a mail is answered in the
         language recorded on their row. It falls back to the request's own, which is
         right for the typed half and never wrong for the other (targum-internal#288).
+
+        `heading` is the key of the page's heading, one a step (2026-09-28): it was one
+        heading for every answer, "the waitlist", over "Thanks. Check your email…". Each
+        heading follows from the step alone and never from the address, so the answers
+        that must not say whether an address is waiting still cannot.
         """
         from .strings import text
 
@@ -5046,7 +5058,7 @@ class Handler(BaseHTTPRequestHandler):
             message,
             address=self.address,
             done=done,
-            heading=text("waitlist.note.heading", code),
+            heading=text(heading, code),
             home="/",
             language=code,
             **rest,
@@ -5085,14 +5097,23 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/waitlist/confirm":
             waiting = store.peek_waiting(token)
             if waiting is None:
-                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
+                return self._waitlist_note(
+                    text("waitlist.note.link-spent", said),
+                    said=said,
+                    heading="waitlist.note.heading-spent",
+                )
             message = text("waitlist.note.keep-me", said, email=waiting)
             button = text("waitlist.note.keep-me.button", said)
+            heading = "waitlist.note.heading-confirm"
         else:
             message = text("waitlist.note.take-me-off", said)
             button = text("waitlist.note.take-me-off.button", said)
+            heading = "waitlist.note.heading-leave"
         return self._waitlist_note(
-            message, said=said, pending={"action": route, "token": token, "button": button}
+            message,
+            said=said,
+            heading=heading,
+            pending={"action": route, "token": token, "button": button},
         )
 
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
@@ -5111,10 +5132,18 @@ class Handler(BaseHTTPRequestHandler):
             said = self._public_language()
             if not plausible(address):
                 return self._waitlist_note(
-                    text("waitlist.note.not-an-address", said), done=False, said=said
+                    text("waitlist.note.not-an-address", said),
+                    done=False,
+                    said=said,
+                    heading="waitlist.note.heading-address",
                 )
             if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
-                return self._waitlist_note(text("waitlist.note.too-often", said), False, said=said)
+                return self._waitlist_note(
+                    text("waitlist.note.too-often", said),
+                    False,
+                    said=said,
+                    heading="waitlist.note.heading-later",
+                )
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
             token = store.join_waitlist(address, said)
@@ -5139,8 +5168,16 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/waitlist/confirm":
             said = store.waiting_language(form.get("t", ""))
             if store.confirm_waiting(form.get("t", "")) is None:
-                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
-            return self._waitlist_note(text("waitlist.note.you-are-on", said), said=said)
+                return self._waitlist_note(
+                    text("waitlist.note.link-spent", said),
+                    said=said,
+                    heading="waitlist.note.heading-spent",
+                )
+            return self._waitlist_note(
+                text("waitlist.note.you-are-on", said),
+                said=said,
+                heading="waitlist.note.heading-on",
+            )
 
         # Nothing is said about whether the token was one, for the reason the weekly's
         # unsubscribe says nothing: an endpoint that reported back would answer whether
@@ -5150,7 +5187,9 @@ class Handler(BaseHTTPRequestHandler):
         # that was not.
         said = self._public_language()
         store.leave_waitlist(form.get("t", ""))
-        return self._waitlist_note(text("waitlist.note.taken-off", said), said=said)
+        return self._waitlist_note(
+            text("waitlist.note.taken-off", said), said=said, heading="waitlist.note.heading-off"
+        )
 
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
         """Subscribing, confirming and stopping, each answered in the reader's language

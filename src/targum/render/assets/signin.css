@@ -10,6 +10,8 @@
 body.signin {
   min-height: 100svh;
   display: grid;
+  /* The door in the middle of what is left, the foot under it across the page. */
+  grid-template-rows: 1fr auto;
   place-items: center;
   padding: 1.5rem 1rem;
   background: var(--ground);
@@ -38,6 +40,8 @@ body.signin {
 }
 .gate .brand-mark { width: 0.85em; height: 1.1em; }
 
+body.signin > .site-footer { justify-self: stretch; width: 100%; }
+
 .gate .door {
   padding: 1.75rem 1.25rem 1.5rem;
   border-radius: var(--radius-card);
@@ -47,6 +51,10 @@ body.signin {
 
 .gate h1 {
   margin: 0 0 0.5rem;
+  /* "Sign in as" and an address, which is one word as long as the address: a long one
+     ran out of the card (2026-09-28). The template allows a break before its "@"; this
+     is the last resort for an address too long even for that. */
+  overflow-wrap: break-word;
   font-family: var(--chrome);
   font-size: 1.5rem;
   font-weight: 700;
