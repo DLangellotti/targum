@@ -63,6 +63,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   reader has marked known or put aside comes off as the page opens, in the browser, with
   nothing asked of the server. Decided when a reader is written: with the switch unset a
   page is byte for byte what it was. design.md §12 (2026-09-28).
+- A French word read into English names its false friend: *actuellement* adds "false
+  friend: not *actually* — currently" to the card (targum-internal#267). The 315 entries
+  are targum's own list, `annotate/false_friends.json`, drafted and checked by Claude Opus
+  5 with `scripts/false_friends.py` and checked against Grammalecte's lexicon for the
+  lemma. **No person has reviewed it yet**, and the table says `"reviewed": false` until
+  one has. LICENSING.md says how it was made and why nothing was copied.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

@@ -3364,6 +3364,13 @@ def render(
             from ..annotate.endings import ending_of
 
             endings = [ending_of(lemma) for lemma in lemmas]
+        # And the English it looks like and does not mean, from targum's own list
+        # (targum-internal#267). The card says it only while the text is read into English.
+        friends: list[list[str]] = []
+        if segmented.language.split("-")[0].lower() == "fr":
+            from ..annotate.false_friends import friend_of
+
+            friends = [friend_of(lemma) for lemma in lemmas]
         partners: list[str] = []
         stresses: list[str] = []
         if lexicon is not None:
@@ -3392,6 +3399,7 @@ def render(
                 ),
                 ("partners", partners),
                 ("stress", stresses),
+                ("friends", friends),
             )
             if any(table)
         }

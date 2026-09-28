@@ -264,6 +264,9 @@ var targumReader = function () {
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
   var stressLines = extensions.stress || [];
+  // A French word's English look-alike and what it means instead, ["actually",
+  // "currently"], from targum's own list (targum-internal#267).
+  var friends = extensions.friends || [];
   // Which Hebrew each dictionary form belongs to, where its two registers disagree, and
   // which one this text is written in. Codes, not sentences: the words are in
   // `registerLine`, so rewriting them costs nothing and re-annotating a library is not
@@ -5251,6 +5254,20 @@ var targumReader = function () {
     // at all unless the box shows it.
     var round = roundLines(index, root, redrawCard);
     if (round) card.appendChild(round);
+    // A French word that looks like an English one and does not mean it. Only when read
+    // into English, since the look-alike is an English word (targum-internal#267).
+    var friend = language === "fr" && targetLanguage === "en" ? friends[index] : null;
+    if (friend && friend.length === 2) {
+      var falseFriend = document.createElement("span");
+      falseFriend.className = "false-friend";
+      falseFriend.appendChild(document.createTextNode(t("reader.card.false-friend", "false friend: not ")));
+      var looks = document.createElement("i");
+      looks.setAttribute("lang", "en");
+      looks.textContent = friend[0];
+      falseFriend.appendChild(looks);
+      falseFriend.appendChild(document.createTextNode(" — " + friend[1]));
+      card.appendChild(falseFriend);
+    }
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
     // for either is `i`. Everything else keeps the editor exactly as it was.
