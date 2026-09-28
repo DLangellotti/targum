@@ -70,8 +70,17 @@ The /you tab title still said "You — targum". It is fixed to "Your profile —
 "learned" tooltip is a `title` on a plain div, so touch and screen-reader users don't get
 it. That's a note, not fixed.
 
-**In the stacked follow-up PR (behaviour):** Q2–11, the display half of Q14, Q20–23 and
-Q28, with tests. See that PR for per-item status.
+**In the stacked follow-up PR, #537 (behaviour):** Q2–11, the display half of Q14,
+Q20–23 and Q28 are all done, with tests. On that branch the full suite passes: 5,288
+tests passed, none failed.
+- **Q8:** re-ticking a translation language really didn't bring its translations back.
+  Readers are now rewritten whenever the set of languages changes, which spends nothing.
+- **Q11:** the cost lines use new `bring.*`, `reader.chapter.*` and `contents.*` keys,
+  because `.page.` keys never reach the scripts.
+- **Still open:**
+  - A connect lost on the Google sign-in path is still dropped silently; only the
+    mailed-link path is detected. Google sign-in isn't configured on the box today.
+  - Chat-tool error text that only the model reads was left as it was.
 
 ## Scope
 
