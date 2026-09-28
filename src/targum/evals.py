@@ -64,6 +64,35 @@ STAGES = (
 )
 
 
+#: What `targum eval <name>` runs: the harness in `scripts/` for each stage. A stage two
+#: scripts measure is named `stage/<corpus>`, after the corpora in `evals/SOURCES.md`,
+#: and the bare stage lists both rather than picking one. `evals/README.md` says what
+#: each writes; the scripts stay where they are, and this is only the way in.
+SCRIPTS = {
+    "lemma/iahlt": "score_annotation.py",
+    "lemma/ud": "eval_lemma.py",
+    "vocalize": "measure_pointing.py",
+    "stress/wiktionary-ru": "eval_stress.py",
+    "stress/tanakh-taamim": "eval_hebrew_stress.py",
+    "align": "eval_align.py",
+    "grading": "eval_grading.py",
+    "recast": "eval_recast.py",
+    "chat": "eval_why.py",
+    "ask": "eval_ask.py",
+    "suggest": "eval_suggest.py",
+}
+
+
+def script_for(name: str) -> str:
+    """The script `targum eval <name>` runs, or a `ValueError` saying what would do."""
+    if name in SCRIPTS:
+        return SCRIPTS[name]
+    within = sorted(known for known in SCRIPTS if known.startswith(f"{name}/"))
+    if within:
+        raise ValueError(f"{name} is measured two ways; one of {', '.join(within)}")
+    raise ValueError(f"no eval called {name!r}; one of {', '.join(SCRIPTS)}")
+
+
 @dataclasses.dataclass(frozen=True)
 class Row:
     """One number, and everything needed to know what it is a number about."""

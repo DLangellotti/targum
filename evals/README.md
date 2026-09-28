@@ -24,6 +24,12 @@ nothing is here that no script writes, except where it says so:
 | `ask` | `heq` | `span_found_share`, `span_found_share_ktiv`, `token_f1`, `unanswered`: the chat's reply to a question about a paragraph on a stubbed page against the span a person marked as the answer | `scripts/eval_ask.py` (targum-internal#223) |
 | `suggest` | `shelf-<n>` | `suggested_known_share`, `suggested_with_known_share`: the known share of the texts `suggest_next` offers a reader who knows the commonest words, and how many offers carry one, over the texts built on this machine. Calls no model | `scripts/eval_suggest.py` (targum-internal#244) |
 
+`targum eval <stage>` runs any of these from the repository root, passing everything
+after the stage to the script: `targum eval vocalize --corpus dicta-modern`. `lemma` and
+`stress` are each measured by two scripts, so they are named by corpus:
+`lemma/iahlt` and `lemma/ud`, `stress/tanakh-taamim` and `stress/wiktionary-ru`
+(`evals.SCRIPTS`). Calling the script by path still works; the command is only the way in.
+
 What each corpus is, where it comes from, its licence and what it may be used for:
 `SOURCES.md`. Each row a script writes now ends its note with `gold=<12 hex>`, the
 fingerprint of the reference files it was scored against (targum-internal#351);
