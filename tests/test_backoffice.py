@@ -287,3 +287,18 @@ def test_only_an_admin_records_a_balance() -> None:
     handler = text[text.index("def _balance") : text.index("def _promote")]
     assert "not person.admin" in handler
     assert 'self._send(404, b"not found"' in handler
+
+
+def test_the_page_is_four_tabs_with_the_numbers_above_them() -> None:
+    """David, 2026-09-28: "so much going on now". People, Traffic, Shelf, Operations,
+    switched in place; the address names the tab and the panel's id does not match it,
+    so the browser never scrolls past the tabs to reach it."""
+    from targum.backoffice import Survey
+
+    page = back_office_page(Survey(), 30)
+    for name in ("people", "traffic", "shelf", "operations"):
+        assert f'href="#{name}" role="tab" aria-controls="tab-{name}"' in page, name
+        assert f'<section class="tab-panel" id="tab-{name}"' in page, name
+    assert page.index('class="bo-tabs"') < page.index('id="tab-people"')
+    assert page.index("waiting &middot;") < page.index('class="bo-tabs"')
+    assert "incidents" in page[: page.index('class="bo-tabs"')]

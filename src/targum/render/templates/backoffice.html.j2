@@ -58,44 +58,44 @@
   .bo .tallies td:first-child { overflow-wrap: anywhere; }
   .bo .tallies td.n { inline-size: 4rem; }
   .bo .tallies h3 { font-size: 0.875rem; margin: 1rem 0 0.25rem; }
+  /* The tabs: a row of names with the open one underlined in ink, the way a page's
+     own sections are marked; nothing to learn. */
+  .bo .bo-tabs { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; margin: 0 0 1.5rem;
+                 border-block-end: 1px solid var(--rule); }
+  .bo .bo-tabs a { padding: 0.5rem 0 0.6rem; margin-block-end: -1px; color: var(--ink-soft);
+                   font-weight: 600; text-decoration: none; border-block-end: 2px solid transparent; }
+  .bo .bo-tabs a:hover { color: var(--ink); }
+  .bo .bo-tabs a[aria-selected="true"] { color: var(--ink); border-block-end-color: var(--ink); }
+  .bo .tab-panel > h2:first-child, .bo .tab-panel > p:first-child { margin-block-start: 0; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
 <body class="public">
 <main class="bo">
   <h1>back office</h1>
-  <p class="taken">{{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
-    {{ survey.active() }} active in the last {{ days }} days &middot; taken {{ survey.taken }}</p>
-  {#- The paid APIs, what each console last said was left, and the way to its billing
-      page (`services.py`). The balance is typed in below, because most of these say it
-      only to an admin key; the date beside it is how old the figure is, so it is never
-      shown without one. -#}
-  <h2 id="services">Services</h2>
-  <table class="services">
-    <thead>
-      <tr><th>Service</th><th>Used for</th><th>Key</th><th>Balance</th><th>Read</th><th></th></tr>
-    </thead>
-    <tbody>
-      {% for one in services %}
-      <tr>
-        <td>{{ one.name }}</td>
-        <td class="quiet">{{ one.used_for }}</td>
-        <td class="quiet">{{ 'set' if one.configured else 'not set' }}</td>
-        <td>
-          <form method="post" action="/back-office/balance" class="decide">
-            <input type="hidden" name="service" value="{{ one.id }}">
-            <input type="text" name="said" value="{{ one.said }}" maxlength="{{ said_max }}"
-                   size="12" aria-label="{{ one.name }} balance" placeholder="not read yet">
-            <button type="submit">Save</button>
-          </form>
-        </td>
-        <td class="quiet">{{ one.as_of or '—' }}</td>
-        <td><a class="topup" href="{{ one.console }}" target="_blank" rel="noopener noreferrer">Top up</a></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  {#- The four numbers that say whether anything needs doing, above the tabs so they
+      are the first thing read whichever tab is open (2026-09-28). -#}
+  <p class="taken">{{ survey.waiting.on if survey.waiting else 0 }} waiting &middot;
+    {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
+    {{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
+    {{ survey.active() }} active in the last {{ days }} days &middot;
+    {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
 
+  {#- Four tabs on one page (David, 2026-09-28: "so much going on now"), switched in
+      place by the script at the foot, which also keeps the open one in the address so
+      a reload and a form's answer land where they left. Without the script the tabs
+      are links to their panels and every panel shows, which is what this page was. -#}
+  {#- What the last press said — the door's count, a decision on the shelf — above
+      the tabs, so it is read whichever one the answer opens. -#}
+  {% if said %}<p class="note said">{{ said }}</p>{% endif %}
+  <nav class="bo-tabs" role="tablist" aria-label="Back office">
+    <a href="#people" role="tab" aria-controls="tab-people">People</a>
+    <a href="#traffic" role="tab" aria-controls="tab-traffic">Traffic</a>
+    <a href="#shelf" role="tab" aria-controls="tab-shelf">Shelf</a>
+    <a href="#operations" role="tab" aria-controls="tab-operations">Operations</a>
+  </nav>
+
+  <section class="tab-panel" id="tab-people" role="tabpanel" aria-label="People">
   {#- The front door's list (targum-internal#69). Three numbers, no addresses: the rest
       of this page names nobody either. `on` is the number that matters — an address
       that answered its confirmation — and `pending` is how many have not yet. -#}
@@ -103,64 +103,6 @@
   <p class="taken">{{ survey.waiting.on }} waiting &middot;
     {{ survey.waiting.pending }} not yet confirmed &middot;
     {{ survey.waiting.off }} left the list</p>
-  {%- endif %}
-
-  {#- Who came to the front door (`visits.py`): counted each hour off the proxy's
-      access log by `targum roll-visits`. No script, no cookie, nothing sent anywhere.
-      A visitor is an address and browser within one day, so the window's figure is a
-      sum of days, not a count of people. -#}
-  <h2 id="visitors">Visitors</h2>
-  {%- if not visits or not visits.any() %}
-  <p class="nothing">Nothing counted yet. The roll-up runs hourly on the box.</p>
-  {%- else %}
-  {%- set tallest = visits.days|map(attribute='visitors')|max or 1 %}
-  <p class="taken">{{ visits.visitor_days }} visitor-days &middot; {{ visits.views }} pages
-    in the last {{ days }} days</p>
-  <svg class="days" viewBox="0 0 {{ days * 10 }} 40" preserveAspectRatio="none" role="img"
-       aria-label="Visitors a day, oldest on the left">
-    {%- for day in visits.days|reverse %}
-    {%- set high = (day.visitors / tallest * 38)|round(1) %}
-    <rect x="{{ loop.index0 * 10 + 1 }}" y="{{ 40 - high }}" width="8" height="{{ high }}"
-          {%- if day.views and not day.whole %} class="part"{% endif %}><title>{{ day.day }}: {{ day.visitors }}</title></rect>
-    {%- endfor %}
-  </svg>
-  <div class="tallies">
-    {%- for kind, heading in (('page', 'Pages'), ('referrer', 'Came from'), ('campaign', 'Campaigns'), ('country', 'Countries')) %}
-    <div>
-      <h3>{{ heading }}</h3>
-      {%- if visits.top.get(kind) %}
-      <table>
-        <tbody>
-          {%- for key, n in visits.top[kind] %}
-          <tr><td>{{ key }}</td><td class="n">{{ n }}</td></tr>
-          {%- endfor %}
-        </tbody>
-      </table>
-      {%- elif kind == 'country' and not visits.has_countries %}
-      <p class="nothing">No country file yet.</p>
-      {%- else %}
-      <p class="nothing">None.</p>
-      {%- endif %}
-    </div>
-    {%- endfor %}
-  </div>
-  <table>
-    <thead><tr><th>Day</th><th class="n">Visitors</th><th class="n">Pages</th><th class="n">Waitlist</th></tr></thead>
-    <tbody>
-      {%- for day in visits.days if day.views or asked.get(day.day) %}
-      <tr>
-        <td>{{ day.day }}{% if not day.whole %} <span class="quiet">partial</span>{% endif %}</td>
-        <td class="n">{{ day.visitors }}</td>
-        <td class="n">{{ day.views }}</td>
-        <td class="n">{{ asked.get(day.day, 0) or '·' }}</td>
-      </tr>
-      {%- endfor %}
-    </tbody>
-  </table>
-  <p class="note">A visitor is a browser opening a public page while signed out: no
-    scripts, no framed readers, no accounts. Pages and referring sites are counted in pages;
-    campaigns and countries in visitors. Campaigns are <code>?utm_source=</code> on the link. Countries:
-    <a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
@@ -259,13 +201,76 @@
     </tbody>
   </table>
 
+  </section>
+
+  <section class="tab-panel" id="tab-traffic" role="tabpanel" aria-label="Traffic">
+  {#- Who came to the front door (`visits.py`): counted each hour off the proxy's
+      access log by `targum roll-visits`. No script, no cookie, nothing sent anywhere.
+      A visitor is an address and browser within one day, so the window's figure is a
+      sum of days, not a count of people. -#}
+  <h2 id="visitors">Visitors</h2>
+  {%- if not visits or not visits.any() %}
+  <p class="nothing">Nothing counted yet. The roll-up runs hourly on the box.</p>
+  {%- else %}
+  {%- set tallest = visits.days|map(attribute='visitors')|max or 1 %}
+  <p class="taken">About {{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot;
+    {{ visits.views }} pages in the last {{ days }} days</p>
+  <svg class="days" viewBox="0 0 {{ days * 10 }} 40" preserveAspectRatio="none" role="img"
+       aria-label="Visitors a day, oldest on the left">
+    {%- for day in visits.days|reverse %}
+    {%- set high = (day.visitors / tallest * 38)|round(1) %}
+    <rect x="{{ loop.index0 * 10 + 1 }}" y="{{ 40 - high }}" width="8" height="{{ high }}"
+          {%- if day.views and not day.whole %} class="part"{% endif %}><title>{{ day.day }}: {{ day.visitors }}</title></rect>
+    {%- endfor %}
+  </svg>
+  <div class="tallies">
+    {%- for kind, heading in (('page', 'Pages'), ('referrer', 'Came from'), ('campaign', 'Campaigns'), ('country', 'Countries')) %}
+    <div>
+      <h3>{{ heading }}</h3>
+      {%- if visits.top.get(kind) %}
+      <table>
+        <tbody>
+          {%- for key, n in visits.top[kind] %}
+          <tr><td>{{ key }}</td><td class="n">{{ n }}</td></tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+      {%- elif kind == 'country' and not visits.has_countries %}
+      <p class="nothing">No country file yet.</p>
+      {%- else %}
+      <p class="nothing">None.</p>
+      {%- endif %}
+    </div>
+    {%- endfor %}
+  </div>
+  <table>
+    <thead><tr><th>Day</th><th class="n">Visitors</th><th class="n">Pages</th><th class="n">Waitlist</th></tr></thead>
+    <tbody>
+      {%- for day in visits.days if day.views or asked.get(day.day) %}
+      <tr>
+        <td>{{ day.day }}{% if not day.whole %} <span class="quiet">partial</span>{% endif %}</td>
+        <td class="n">{{ day.visitors }}</td>
+        <td class="n">{{ day.views }}</td>
+        <td class="n">{{ asked.get(day.day, 0) or '·' }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  <p class="note">A visitor is a browser opening a public page while signed out: no
+    scripts, no framed readers, no accounts. Pages and referring sites are counted in pages;
+    campaigns and countries in visitors. Campaigns are <code>?utm_source=</code> on the link. Countries:
+    <a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
+  {%- endif %}
+
+  </section>
+
+  <section class="tab-panel" id="tab-shelf" role="tabpanel" aria-label="Shelf">
   {#- A reader's build offered to the shelf. The licence has already been read by
       `promote.py` — nothing here may enter the catalogue unless its standing allows a
       public copy — so what is left for a person is the record: is this a text, is the
       register right, who is it by. Accept is a form post to the same origin; the page
       carries no script. -#}
   <h2>Proposed for the shelf</h2>
-  {% if said %}<p class="note">{{ said }}</p>{% endif %}
   {% if not proposed %}
   <p class="nothing">Nothing waiting.</p>
   {% else %}
@@ -321,6 +326,39 @@
   </table>
   {% endif %}
 
+  </section>
+
+  <section class="tab-panel" id="tab-operations" role="tabpanel" aria-label="Operations">
+  {#- The paid APIs, what each console last said was left, and the way to its billing
+      page (`services.py`). The balance is typed in below, because most of these say it
+      only to an admin key; the date beside it is how old the figure is, so it is never
+      shown without one. -#}
+  <h2 id="services">Services</h2>
+  <table class="services">
+    <thead>
+      <tr><th>Service</th><th>Used for</th><th>Key</th><th>Balance</th><th>Read</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for one in services %}
+      <tr>
+        <td>{{ one.name }}</td>
+        <td class="quiet">{{ one.used_for }}</td>
+        <td class="quiet">{{ 'set' if one.configured else 'not set' }}</td>
+        <td>
+          <form method="post" action="/back-office/balance" class="decide">
+            <input type="hidden" name="service" value="{{ one.id }}">
+            <input type="text" name="said" value="{{ one.said }}" maxlength="{{ said_max }}"
+                   size="12" aria-label="{{ one.name }} balance" placeholder="not read yet">
+            <button type="submit">Save</button>
+          </form>
+        </td>
+        <td class="quiet">{{ one.as_of or '—' }}</td>
+        <td><a class="topup" href="{{ one.console }}" target="_blank" rel="noopener noreferrer">Top up</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
   <h2>Incidents</h2>
   {#- What went wrong, other than in the journal (targum-internal#24): a request that
       raised, a build that died, a look-up that failed. The type and the message, the
@@ -345,8 +383,11 @@
   </table>
   {% endif %}
 
+  </section>
+
   <p class="note">Counts only. This page holds no words, no texts and no notes — see
     <code>backoffice.py</code> for why that is a rule rather than a first version.</p>
 </main>
+<script>{{ asset('backoffice.js') }}</script>
 </body>
 </html>

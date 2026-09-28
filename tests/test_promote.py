@@ -341,7 +341,7 @@ def test_the_back_office_decides_and_a_stranger_cannot(world, shelf, monkeypatch
         status, where = post(
             admin_session, {"id": got.id, "action": "accept", "credit": "Kan", "kind": "talk"}
         )
-        assert (status, where) == (303, "/back-office")
+        assert (status, where) == (303, "/back-office#shelf")
         assert store.proposal(got.id)["state"] == "accepted"
         assert catalogue.by_id("vid-he").kind.value == "talk"  # type: ignore[union-attr]
     finally:

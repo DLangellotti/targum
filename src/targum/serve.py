@@ -5653,7 +5653,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             rows = open_the_door(self.store, self.mailer, self.address, count)
         except ValueError as error:
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}")
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         let_in = sum(1 for row in rows if row.ok)
         failed = len(rows) - let_in
         if not rows:
@@ -5662,7 +5662,7 @@ class Handler(BaseHTTPRequestHandler):
             said = f"Let {let_in} in. {failed} could not be written to."
         else:
             said = f"Let {let_in} in."
-        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
+        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#people")
 
     def _balance(self, form: dict[str, str]) -> None:
         """Record what a service's console said was left, from the back office's form.
@@ -5681,7 +5681,7 @@ class Handler(BaseHTTPRequestHandler):
         if service not in BY_ID or not said:
             return self._send(400, b"bad request", "text/plain")
         self.store.balance_read(service, said)
-        self._go(f"{BACK_OFFICE_ROUTE}#services")
+        self._go(f"{BACK_OFFICE_ROUTE}#operations")
 
     def _promote(self, form: dict[str, str]) -> None:
         """Accept or decline a proposal, from the back office's own form.
@@ -5712,8 +5712,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(400, b"bad request", "text/plain")
         except TargumError as error:
             said = f"{error.message} {error.hint or ''}".strip()
-            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}")
-        self._go(BACK_OFFICE_ROUTE)
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#shelf")
+        self._go(f"{BACK_OFFICE_ROUTE}#shelf")
 
     def do_GET(self) -> None:  # noqa: N802
         self._answer(self._get)
