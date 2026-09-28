@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Test accounts, wiped at every sign-out: `targum test-account EMAIL` marks and invites
+  an address, and signing out of it empties everything it holds while keeping the account,
+  so the next sign-in is a new reader's first visit. Refused for an address that already
+  has a real account; `--link` prints a one-time sign-in link for a test account only.
+  deploy/README.md, "A test account".
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

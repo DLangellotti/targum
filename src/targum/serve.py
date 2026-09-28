@@ -8542,6 +8542,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json({})
 
     def _sign_out(self) -> None:
+        self._wipe_if_testing()
         self.store.sign_out(self._cookie(SESSION_COOKIE) or None)
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -8553,6 +8554,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _wipe_if_testing(self) -> None:
+        """Empty a test account as it signs out, so its next sign-in is a first visit
+        (accounts.py, `TEST_ACCOUNT`). Every other account is asked one question here —
+        is this a test account — and nothing else happens to it. A wipe that fails is
+        written down and the sign-out goes ahead: leaving somebody signed in because a
+        clean-up broke would be the worse failure.
+        """
+        person = self._person()
+        if person is None or not self.store.is_test_account(person):
+            return
+        try:
+            self.store.wipe(person)
+            shutil.rmtree(self.library.home(person), ignore_errors=True)
+        except Exception as error:  # noqa: BLE001 — the sign-out must still happen
+            incidents_module.record(self.library.incidents, "test-account-wipe", error)
 
     def _forget(self) -> None:
         person = self._person()

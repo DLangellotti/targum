@@ -264,6 +264,44 @@ CREATE TABLE IF NOT EXISTS invited (
 );
 """
 
+# Accounts for testing the product as a new reader would meet it, again and again
+# (David, 2026-09-28: "a testing account that you and I can use, and whose memory is
+# wiped each time it logs out"). Signing out of one wipes everything it holds — see
+# `Store.wipe` — and keeps the account and its invitation, so the next sign-in is a first
+# visit. Written only from the command line on the box, and only for an address that has
+# no account yet or is already one of these: a real reader's account can never become
+# one by a typo, because the thing that happens to it next is that it is emptied.
+TEST_ACCOUNT = """
+CREATE TABLE IF NOT EXISTS test_account (
+  email TEXT PRIMARY KEY,
+  at    INTEGER NOT NULL
+);
+"""
+
+#: What a test account holds, emptied at its sign-out: every table keyed by `person`.
+#: `tests/test_test_account.py` holds this against the schema, so a table added tomorrow
+#: with a person column fails there until it is named here or in `WIPE_BY_HAND`.
+WIPED = (
+    "word",
+    "meaning",
+    "phrase",
+    "doc",
+    "day",
+    "section",
+    "reading",
+    "event",
+    "chosen",
+    "slip",
+    "telegram",
+    "oauth_token",
+    "oauth_grant",
+    "prompt",
+    "session",
+    "link",
+)
+#: Keyed by person and emptied by hand in `Store.wipe`, their children first.
+WIPE_BY_HAND = ("chat", "playlist")
+
 # Who is not a reader but the person running the box. An address here is exempt from the
 # per-account spend rails — see `serve.Library.claim` — because the limits exist to stop
 # a reader running up somebody else's bill, and the person paying it is not that reader.
@@ -1337,6 +1375,7 @@ class Store:
         self.db.executescript(SCHEMA)
         self.db.executescript(INVITED)
         self.db.executescript(ADMIN)
+        self.db.executescript(TEST_ACCOUNT)
         self.db.executescript(CHOSEN)
         self.db.executescript(EVENTS)
         self._migrate()
@@ -2322,6 +2361,98 @@ class Store:
         """
         with self.write() as db:
             return db.execute("DELETE FROM invited WHERE email = ?", (tidy(email),)).rowcount > 0
+
+    # -- test accounts (2026-09-28) ------------------------------------------------
+
+    def make_test_account(self, email: str) -> str:
+        """Mark an address as a test account, and invite it.
+
+        Refused for an address that already has an account and is not a test account:
+        the next thing that happens to a test account is that it is emptied, and a real
+        reader's words must never be one typo away from that. A test account that
+        already exists is marked again, harmlessly.
+        """
+        address = tidy(email)
+        if not address or "@" not in address:
+            raise ValueError("That doesn't look like an email address.")
+        row = self.db.execute("SELECT id FROM person WHERE email = ?", (address,)).fetchone()
+        if row is not None and not self.is_test_account_email(address):
+            raise ValueError(
+                f"{address} already has an account, so it can't become a test account: "
+                "signing out of a test account empties it. Use a new address."
+            )
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO test_account (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+            db.execute(
+                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return address
+
+    def test_accounts(self) -> list[str]:
+        return [
+            row["email"] for row in self.db.execute("SELECT email FROM test_account ORDER BY at")
+        ]
+
+    def is_test_account_email(self, email: str) -> bool:
+        address = tidy(email)
+        found = self.db.execute("SELECT 1 FROM test_account WHERE email = ?", (address,))
+        return found.fetchone() is not None
+
+    def is_test_account(self, person: Person | None) -> bool:
+        return person is not None and self.is_test_account_email(person.email)
+
+    def test_sign_in(self, email: str) -> str:
+        """A sign-in token for a test account, for the operator to hand over by hand.
+
+        The mailed link proves an address by sending something to it; a test account is
+        shared by the people testing, and one of them cannot read the mail. So the box's
+        operator can mint the link — for a test account and for nothing else, which is
+        what keeps this from being a way into a real reader's account.
+        """
+        address = tidy(email)
+        if not self.is_test_account_email(address):
+            raise ValueError(f"{address} is not a test account.")
+        return self.start_sign_in(address)
+
+    def wipe(self, person: Person) -> None:
+        """Empty a test account, keeping the account and its invitation.
+
+        Everything a reader holds goes — their words, what they marked and finished, what
+        they said on arrival, conversations, lists, connections, their name and picture —
+        and every session and link with it, so a second browser still signed in is
+        signed out too rather than left holding a history that no longer exists. The
+        caller empties the account's folder of texts. Refuses anything but a test account.
+        """
+        if not self.is_test_account(person):
+            raise ValueError("Only a test account is wiped.")
+        with self.write() as db:
+            for table in WIPED:
+                db.execute(f"DELETE FROM {table} WHERE person = ?", (person.id,))
+            db.execute(
+                "DELETE FROM chat_turn WHERE chat IN (SELECT id FROM chat WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM chat WHERE person = ?", (person.id,))
+            db.execute(
+                "DELETE FROM playlist_item WHERE playlist IN"
+                " (SELECT id FROM playlist WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
+            # Kept by address rather than by person: the series it followed, and a
+            # language the operator marked it as reading.
+            db.execute("DELETE FROM follow WHERE email = ?", (person.email,))
+            db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
+            db.execute(
+                "UPDATE person SET name = '', picture = '', address = '', interest = '',"
+                " declared = '', events = '', granted = 0, revision = revision + 1"
+                " WHERE id = ?",
+                (person.id,),
+            )
 
     def invitations(self) -> list[str]:
         return [row["email"] for row in self.db.execute("SELECT email FROM invited ORDER BY at")]
