@@ -62,7 +62,10 @@ GEOIP_STALE = timedelta(days=32)
 BOTS = re.compile(
     r"bot|crawl|spider|slurp|preview|scan|monitor|fetch|http|curl|wget|python|go-http|"
     r"java/|okhttp|headless|lighthouse|facebookexternalhit|whatsapp|telegram|"
-    r"embedly|quora link|pinterest|bitly|vkshare|feedly|uptime",
+    r"embedly|quora link|pinterest|bitly|vkshare|feedly|uptime|"
+    # No current browser says "compatible;" — the crawlers that borrow a browser's
+    # string keep it (2026-09-28).
+    r"compatible;",
     re.IGNORECASE,
 )
 
@@ -92,6 +95,11 @@ NOT_PAGES = (
 #: A path segment that is an identifier rather than a place: a hash, a number, a token.
 #: Folded to one mark so that a reader's texts are one row, not a thousand.
 _IDENTIFIER = re.compile(r"^(?:[0-9a-f]{8,}|\d+|[A-Za-z0-9_-]{24,})$")
+
+#: What a scanner asks for and targum has never served: WordPress's doors, PHP, and the
+#: dotfiles (`/.env`, `/.git/config`). Unknown addresses answer with a page, so without
+#: this a probe that sends a browser's headers counted as a visit (2026-09-28).
+_PROBE = re.compile(r"\.php$|/wp-|^/\.|/cgi-bin/|/xmlrpc", re.IGNORECASE)
 
 KINDS = ("page", "referrer", "campaign", "country")
 
@@ -137,6 +145,30 @@ def _when(stamp: Any) -> datetime | None:
 def _header(headers: dict[str, Any], name: str) -> str:
     values = headers.get(name) or []
     return str(values[0]) if values else ""
+
+
+def signed_in(line: str) -> tuple[str, str] | None:
+    """The day and address of a signed-in request, or None.
+
+    Used, and forgotten, within one pass (`roll_up`): an address that was signed in on a
+    day is a household with an account, and its signed-out pages that day — a second
+    phone, a private window, somebody checking what the door looks like — are the
+    household's, not a stranger's. It took a third off the count (2026-09-28). Nothing
+    is kept: the set lives as long as the pass, like the visitors themselves.
+    """
+    try:
+        record = json.loads(line)
+    except ValueError:
+        return None
+    if not isinstance(record, dict):
+        return None
+    request = record.get("request") or {}
+    if "Cookie" not in (request.get("headers") or {}):
+        return None
+    at = _when(record.get("ts"))
+    if at is None:
+        return None
+    return at.date().isoformat(), str(request.get("client_ip") or request.get("remote_ip") or "")
 
 
 def parse(line: str) -> Request | None:
@@ -186,6 +218,8 @@ def parse(line: str) -> Request | None:
         uri.path.startswith("/account/") and uri.path != "/account/signin"
     ):
         return None
+    if _PROBE.search(uri.path):
+        return None
     address = str(request.get("client_ip") or request.get("remote_ip") or "")
     return Request(
         at=at,
@@ -233,17 +267,22 @@ def count(
     own: str,
     country: Callable[[str], str] | None = None,
     covered_from: datetime | None = None,
+    households: set[tuple[str, str]] | None = None,
 ) -> dict[str, Tally]:
     """Every day the requests fall on, counted. Nobody is kept past the return.
 
     `covered_from` is the earliest moment the log was read from, when the caller knows
     it is earlier than the first request counted; a day is whole if that is before it.
+    `households` is the (day, address) of every signed-in request the pass saw, whose
+    signed-out pages that day are not counted (`signed_in`).
     """
     days: dict[str, Tally] = {}
     seen: dict[str, set[tuple[str, str]]] = {}
     counters: dict[str, dict[str, Counter[str]]] = {}
     first = covered_from
     for one in requests:
+        if households and (one.at.date().isoformat(), one.address) in households:
+            continue
         first = one.at if first is None or one.at < first else first
         day = one.at.date().isoformat()
         tally = days.setdefault(day, Tally(day=day))
@@ -380,13 +419,21 @@ def roll_up(
                 db.execute("DELETE FROM visit_day")
                 db.execute("DELETE FROM visit_count")
         since = resume_from(db)
-        read = [one for one in map(parse, lines(log_files(log), since)) if one is not None]
+        read: list[Request] = []
+        households: set[tuple[str, str]] = set()
+        for text in lines(log_files(log), since):
+            one = parse(text)
+            if one is not None:
+                read.append(one)
+            elif (signed := signed_in(text)) is not None:
+                households.add(signed)
         # A rotated file that straddles `since` is read whole, which is how the pass knows
         # the log reaches back past the start of its first day. Its lines before `since`
         # belong to days already kept whole, and are not counted again.
         earliest = min((one.at for one in read), default=None)
         wanted = [one for one in read if since is None or one.at >= since]
-        return keep(db, count(wanted, own.lower().removeprefix("www."), country, earliest))
+        own_name = own.lower().removeprefix("www.")
+        return keep(db, count(wanted, own_name, country, earliest, households))
     finally:
         db.close()
 
@@ -480,6 +527,15 @@ class Visits:
 
     def any(self) -> bool:
         return self.views > 0
+
+    def a_day(self, over: int = 7) -> float:
+        """Visitors a day over the last `over` days, today among them.
+
+        The headline, because the sum of thirty days' visitors read as that many people
+        (2026-09-28): "173 visitor-days" is about three strangers a day.
+        """
+        recent = self.days[:over]
+        return sum(day.visitors for day in recent) / over if recent else 0.0
 
 
 def survey(path: Path, today: date | None = None, days: int = 30, rows: int = 10) -> Visits:

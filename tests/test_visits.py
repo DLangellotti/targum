@@ -278,3 +278,46 @@ def test_a_recount_forgets_what_the_old_rules_kept(tmp_path: Path) -> None:
     db = sqlite3.connect(into)
     assert db.execute("SELECT day, views FROM visit_day").fetchall() == [("2026-09-21", 1)]
     db.close()
+
+
+def test_a_signed_in_household_is_not_a_stranger_that_day(tmp_path: Path) -> None:
+    """2026-09-28: an address signed in on a day is a household with an account; its
+    signed-out pages that day — a second phone, a private window — are not visitors.
+    The next day it is a stranger again, because nothing about it is kept."""
+    logs = tmp_path / "caddy"
+    logs.mkdir()
+    home = "85.64.1.2"
+    live = write_log(
+        logs / "targum.log",
+        [
+            line(at(20, 9), ip=home, cookie=True, uri="/progress"),
+            line(at(20, 10), ip=home, agent=PHONE),  # signed out, same house, same day
+            line(at(20, 11), ip="198.51.100.7"),  # a stranger
+            line(at(21, 9), ip=home),  # the next day, signed out, nothing signed in
+        ],
+    )
+    into = tmp_path / "visits.sqlite"
+    visits.roll_up(into, log=live)
+    db = sqlite3.connect(into)
+    assert dict(db.execute("SELECT day, visitors FROM visit_day")) == {
+        "2026-09-20": 1,
+        "2026-09-21": 1,
+    }
+    assert "85.64" not in "\n".join(db.iterdump())
+    db.close()
+
+
+def test_crawlers_and_probes_that_borrow_a_browsers_headers_are_left_out() -> None:
+    borrowed = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        " (KHTML, like Gecko; compatible; Bytespider)"
+    )
+    assert visits.parse(line(at(20), agent=borrowed)) is None
+    for probe in ("/wp-login.php", "/index.php", "/.env", "/.git/config", "/wp-admin/"):
+        assert visits.parse(line(at(20), uri=probe)) is None, probe
+
+
+def test_the_headline_is_visitors_a_day() -> None:
+    """The sum of thirty days read as that many people."""
+    found = visits.Visits(days=[visits.Tally(day=f"d{n}", visitors=n % 4) for n in range(30)])
+    assert found.a_day() == sum(n % 4 for n in range(7)) / 7

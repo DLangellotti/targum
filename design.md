@@ -347,6 +347,22 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The back office is four tabs — 2026-09-28
+
+"The back office has so much going on now, time to organize into menus and tabs," David
+wrote, and chose the shape: **People** (the waitlist and its door, accounts, the last 30
+days), **Traffic** (visitors), **Shelf** (proposed and wanted), **Operations** (services
+and balances, incidents), on one page and switched in place, with no counts on the tabs.
+Above them, one line says whether anything needs doing: how many wait, visitors a day,
+accounts active, incidents. The open tab is named in the address, so a form's answer
+lands on it; the panel's id is not the tab's name, so the browser never scrolls past the
+tabs to reach it. Without the script every panel shows, as the page always did.
+
+The Visitors headline is a rate, "about 3 visitors a day this week", because the sum of
+thirty days' visitors read as that many people. What counts as a visitor is `visits.py`'s
+to say: a browser's own page load, signed out, not from an address signed in the same
+day, and not a crawler or a probe.
+
 ### One foot, for the site and the app — 2026-09-28
 
 The site had two feet, the app's and the one the public pages wore, drawn by six
