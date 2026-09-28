@@ -427,6 +427,59 @@ def catalogue_lemmas(
         )
 
 
+@app.command(name="test-account")
+def test_account(
+    email: Annotated[str | None, typer.Argument(help="The address to make a test account.")] = None,
+    link: Annotated[
+        bool, typer.Option("--link", help="Print a one-time sign-in link for it.")
+    ] = False,
+    address: Annotated[
+        str | None,
+        typer.Option("--address", help="The site's address (default: TARGUM_PUBLIC_ADDRESS)."),
+    ] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Make an account for testing, whose memory is wiped each time it signs out.
+
+    Signing out of a test account empties it — words, progress, what it said on arrival,
+    conversations, lists, connections and the texts it built — and keeps the account and
+    its invitation, so the next sign-in is a new reader's first visit. Refused for an
+    address that already has a real account.
+
+    `--link` prints a one-time sign-in link, for testing without reading the address's
+    mail. It works for test accounts only. With no arguments, lists them.
+    """
+    from .accounts import Store
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+    if not email:
+        found = keeping.test_accounts()
+        for one in found:
+            console.print(one)
+        console.print(f"[dim]{len(found)} test account(s)[/dim]")
+        return
+    try:
+        made = keeping.make_test_account(email)
+    except ValueError as error:
+        fail(TargumError(str(error), "Try: targum test-account test@example.com"))
+    console.print(f"[green]Test account[/green] {made} — wiped at every sign-out")
+    if not link:
+        return
+    where = (address or os.environ.get("TARGUM_PUBLIC_ADDRESS", "")).strip().rstrip("/")
+    if not where:
+        fail(
+            TargumError(
+                "No address for the link.",
+                "Set TARGUM_PUBLIC_ADDRESS, or pass --address https://targum.page",
+            )
+        )
+    token = keeping.test_sign_in(made)
+    # Plain print, not the console: a link wrapped at the terminal's width is a link
+    # that does not work when it is copied.
+    print(f"{where}/account/enter?t={token}")
+
+
 @app.command()
 def admin(
     email: Annotated[

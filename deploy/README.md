@@ -79,6 +79,30 @@ responses stream, so the reader's Range requests pass through. Hosted video tran
 on the box at roughly real-time ÷ 4 per part. The box never fetches from YouTube —
 that import is CLI-only, on purpose.
 
+## A test account
+
+An account for trying targum as a new reader meets it, as often as you like: signing
+out of it empties it — words, progress, what it said on arrival, conversations, lists,
+connections and the texts it built — and keeps the account and its invitation, so the
+next sign-in is a first visit. Made on the box:
+
+```
+targum test-account tester@example.com
+```
+
+It is refused for an address that already has an account: a test account is emptied
+the next time it signs out, so a real reader's account must never become one. For
+testing without reading the address's mail, `--link` prints a one-time sign-in link, and
+only for a test account:
+
+```
+ssh root@targum.page 'set -a; . /etc/targum/targum.env; set +a; targum test-account tester@example.com --link'
+```
+
+The link opens the ordinary sign-in page; press its button. `targum test-account` with
+no address lists them. What a test account builds is spent like anybody's, under the same
+rails, and it shows in the usage figures.
+
 ## Backups off the box
 
 `targum-backup.timer` runs `targum backup` at 04:00 UTC (it replaced the cron line in
