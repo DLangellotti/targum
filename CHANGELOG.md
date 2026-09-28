@@ -218,7 +218,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   it is optional and has one press, Continue; the bars count only the questions.
 - The waitlist's pages say "Thanks for joining", "Confirm your place", "You're on the
   list" and "You're off the list" over sentences a person would say, instead of "the
-  waitlist" over every answer.
+  waitlist" over every answer — each true for every address it can be said to: a link
+  "no longer works" rather than "expired", since a waitlist link has no age limit, and
+  joining says an email went out only if the address was not already on the list.
 - The sign-in page's foot stands under the door across the page instead of in its
   column, where its columns ran into each other; a long address wraps at its "@"; and
   the line about words following you between browsers is gone.

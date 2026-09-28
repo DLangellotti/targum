@@ -210,7 +210,7 @@ def test_joining_takes_the_address_and_mails_a_link(
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
     assert status == 200
-    assert "confirm your address" in body
+    assert "Confirm it there to keep your place" in body
     assert store.waiting_state("dina@example.com") == "pending"
     sent = posted.getvalue()
     assert "dina@example.com" in sent
@@ -365,8 +365,8 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, body = post(port, "/waitlist?lang=ru", {"email": "dina@example.com"})
     assert status == 200
-    assert "Мы отправили вам письмо" in body
-    assert "confirm your address" not in body
+    assert "мы отправили на него письмо" in body
+    assert "Confirm it there to keep your place" not in body
     assert 'lang="ru"' in body, "the page says which language it is in"
 
     # The mail too, which is the first thing targum ever sends anybody.
@@ -397,7 +397,7 @@ def test_an_english_visitor_is_answered_as_they_always_were(
     port, _store, posted = served
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
-    assert status == 200 and "confirm your address" in body
+    assert status == 200 and "Confirm it there to keep your place" in body
     assert "Confirm your place on the targum waitlist" in posted.getvalue()
 
 
