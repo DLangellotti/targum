@@ -1438,10 +1438,40 @@
      difficulty each row already carries, and the rung says how far along to land: aleph
      takes the easiest of them, vav the hardest, the rest in between. It is a coarse rule
      on purpose — it decides one text, once, and the reader's own marked words decide
-     everything after it. No rung, and the order the shelf already has is the order. */
+     everything after it. No rung, and the order the shelf already has is the order.
+
+     Where the rows say what rung each was written for (`level.name`, the ladder
+     `level.py` climbs), that is read first, and the position rule is only for a shelf
+     that does not say (2026-09-28). By position alone one row is every rung's answer, so
+     a reader who said "Just starting" was opened on a vav article because it was the
+     only one filed under their subject. The pick is the hardest text at or under the
+     rung they named — one they can follow — and where nothing is that easy, the easiest
+     there is. */
+  function rungOf(reader) {
+    var name = reader && reader.level && reader.level.name;
+    return name ? charts.DECLARED_RUNGS.indexOf(String(name).replace(/ /g, "-")) : -1;
+  }
+
   function pickByRung(rows, rung) {
     if (!rows.length) return null;
     if (!rung) return rows[0];
+    var said = charts.DECLARED_RUNGS.indexOf(rung);
+    var leveled = rows.filter(function (reader) {
+      return rungOf(reader) >= 0;
+    });
+    if (said >= 0 && leveled.length) {
+      var under = leveled.filter(function (reader) {
+        return rungOf(reader) <= said;
+      });
+      var pool = under.length ? under : leveled;
+      var best = pool[0];
+      pool.forEach(function (reader) {
+        var here = rungOf(reader);
+        var there = rungOf(best);
+        if (under.length ? here > there : here < there) best = reader;
+      });
+      return best;
+    }
     var sorted = rows.slice().sort(function (a, b) {
       return (a.difficulty || 0) - (b.difficulty || 0);
     });
@@ -1691,6 +1721,18 @@
     });
   }
 
+  /* Whether a row is one this reader can follow, by the rung they named: written for
+     it, under it, or one above — a stretch, not a wall. A subject is what they will
+     enjoy only where they can read it; a vav article is not "Food and cooking" to
+     somebody just starting, so a subject whose rows are all past reach gives way to
+     the next, and the rung decides where none is left (2026-09-28). A row that does
+     not say its rung, and a reader who named none, are never ruled out by this. */
+  function inReach(reader, rung) {
+    var said = rung ? charts.DECLARED_RUNGS.indexOf(rung) : -1;
+    var at = rungOf(reader);
+    return said < 0 || at < 0 || at <= said + 1;
+  }
+
   function firstText(handed, code) {
     var store = charts.collect(charts.meaningLanguage(code))[code];
     var rung = charts.seed(store && store.words, code);
@@ -1699,7 +1741,7 @@
       if (!asked) continue;
       var theirs = inTheirs(
         handed.filter(function (reader) {
-          return wanted(reader, asked);
+          return wanted(reader, asked) && inReach(reader, rung);
         })
       );
       if (theirs.length) return pickByRung(voiced(theirs), rung);
@@ -1708,21 +1750,26 @@
       var came = interestOf(arrived[w]);
       if (!came) continue;
       var rows = handed.filter(function (reader) {
-        return wanted(reader, came);
+        return wanted(reader, came) && inReach(reader, rung);
       });
       if (rows.length) return pickByRung(voiced(rows), rung);
     }
     // And heard here too: a reader who named a rung and no subject is as new as one who
-    // named three, and the voice is as much the second thing they should find.
-    if (rung && !arrived.length) {
-      return pickByRung(
-        voiced(
-          handed.filter(function (reader) {
-            return reader.register === "modern";
-          })
-        ),
-        rung
-      );
+    // named three, and the voice is as much the second thing they should find. So is a
+    // reader whose subjects the shelf cannot answer yet (2026-09-28): the track's own
+    // start knows nothing of the rung, and "Just starting" was handed whatever stood
+    // first on it. The rung is the one answer left to go on, so it decides.
+    if (rung) {
+      // Reach before voice: a voice is the second thing to find, and it is found on a
+      // page the reader can follow — a heard vav article is not one, over a silent aleph
+      // text that is. Where nothing on the modern shelf is in reach, the easiest there is.
+      var modern = handed.filter(function (reader) {
+        return reader.register === "modern";
+      });
+      var near = modern.filter(function (reader) {
+        return inReach(reader, rung);
+      });
+      return pickByRung(voiced(near.length ? near : modern), rung);
     }
     return null;
   }

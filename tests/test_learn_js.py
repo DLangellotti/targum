@@ -1218,6 +1218,73 @@ def test_the_rung_picks_how_hard_the_first_text_is() -> None:
     assert unsaid["carry"]["title"] == "קל", "no rung, and the shelf's own order is the order"
 
 
+def leveled(name: str, title: str, rung: str, **extra: Any) -> dict[str, Any]:
+    """A modern row that says which rung of `level.py`'s ladder it was written for."""
+    return reader(
+        name,
+        title,
+        name,
+        kind="article",
+        register="modern",
+        level={"rung": "", "name": rung, "cefr": ""},
+        **extra,
+    )
+
+
+def test_the_rung_reads_the_level_a_text_was_written_for() -> None:
+    """Where the shelf says what rung a row was written for, that is what is matched,
+    not its place in a sort. By place alone the one row under a subject was every
+    rung's answer (David, 2026-09-28: finished the arrival at "Just starting" and was
+    not handed a text he could read). The pick is the hardest at or under the rung
+    said, and "aleph plus" on a row is "aleph-plus" in the arrival."""
+    shelf = [
+        leveled("easy", "קל", "aleph", tags=["sport"]),
+        leveled("some", "קצת", "aleph plus", tags=["sport"]),
+        leveled("hard", "קשה", "vav", tags=["sport"]),
+    ]
+    stamps = {"targum:arrived": "sport,history,art"}
+    assert draw([], {**stamps, "targum:declared": "aleph"}, shared=shelf)["carry"]["title"] == "קל"
+    assert (
+        draw([], {**stamps, "targum:declared": "gimel"}, shared=shelf)["carry"]["title"] == "קצת"
+    ), "gimel is past aleph plus and short of vav: the hardest it can follow"
+    assert draw([], {**stamps, "targum:declared": "vav"}, shared=shelf)["carry"]["title"] == "קשה"
+    # Where place and level part: two rows, and gimel sits past the middle of the
+    # ladder, so by place it took the vav one. By level it is the one it can follow.
+    pair = [shelf[0], shelf[2]]
+    assert draw([], {**stamps, "targum:declared": "gimel"}, shared=pair)["carry"]["title"] == "קל"
+
+
+def test_a_subject_past_reach_gives_way_to_the_rung() -> None:
+    """A vav article is not "Sport" to somebody just starting. A subject whose rows are
+    all more than a rung past what the reader said gives way to the next subject, and
+    where none is left the rung picks from the modern shelf — a text they can follow
+    over a subject they cannot read."""
+    shelf = [
+        leveled("hard", "קשה", "vav", tags=["sport"]),
+        leveled("food", "אוכל", "bet", tags=["food"]),
+        leveled("easy", "קל", "aleph"),
+    ]
+    stamps = {"targum:arrived": "sport,food,art", "targum:declared": "aleph"}
+    assert draw([], stamps, shared=shelf)["carry"]["title"] == "קל", "sport and food are past aleph"
+    stretch = {**stamps, "targum:declared": "aleph-plus"}
+    assert draw([], stretch, shared=shelf)["carry"]["title"] == "אוכל", "one rung up is a stretch"
+    fluent = {**stamps, "targum:declared": "vav"}
+    assert draw([], fluent, shared=shelf)["carry"]["title"] == "קשה", "and sport, at vav"
+
+
+def test_where_the_rung_decides_reach_comes_before_a_voice() -> None:
+    """The second moment is the voice, and it is found on a page the reader can follow:
+    with no subject to go on, a silent text at their rung beats a heard one far past it."""
+    shelf = [
+        leveled("loud", "קול", "vav", spoken=True),
+        leveled("quiet", "שקט", "aleph"),
+    ]
+    came = draw(
+        [], {"targum:arrived": "archaeology,art,music", "targum:declared": "aleph"}, shared=shelf
+    )
+    assert came["carry"]["title"] == "שקט"
+
+
 def test_a_measured_rung_outvotes_the_one_they_said() -> None:
     """The rule that keeps a declared level small: the first measurement retires it.
     A reader whose own marked words reach aleph is routed by nothing they said."""
