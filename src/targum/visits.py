@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from .errors import TargumError
 
@@ -66,8 +66,28 @@ BOTS = re.compile(
     re.IGNORECASE,
 )
 
-#: The operator's own page is not a visit.
-NOT_PAGES = ("/back-office",)
+#: Not the front door. The operator's own page, and the app's: a page only a signed-in
+#: reader can open is a reader using targum, which the back office counts as accounts.
+#: The cookie rule in `parse` already leaves these out; this is the second lock.
+NOT_PAGES = (
+    "/back-office",
+    "/reader/",
+    "/readers",
+    "/progress",
+    "/job/",
+    "/glossary/",
+    "/chat",
+    "/add",
+    "/texts",
+    "/words",
+    "/build/",
+    "/set/",
+    "/learn",
+    "/you",
+    "/playlists",
+    "/yours",
+    "/oauth",
+)
 
 #: A path segment that is an identifier rather than a place: a hash, a number, a token.
 #: Folded to one mark so that a reader's texts are one row, not a thousand.
@@ -120,10 +140,23 @@ def _header(headers: dict[str, Any], name: str) -> str:
 
 
 def parse(line: str) -> Request | None:
-    """A log line, if it is somebody opening a page. None for everything else.
+    """A log line, if it is a stranger opening a page. None for everything else.
 
     A page is a successful GET answered with HTML — not a stylesheet, not a fetch from a
-    page already open, not a redirect, not a 404 some scanner asked for.
+    page already open, not a redirect, not a 404 some scanner asked for. And it is a
+    person's browser opening it, which the first version took on the user agent's word
+    and got wrong by a factor of ten (2026-09-28): 2,451 "views" in the log were 891 once
+    these rules held, and 50 visitors a day were 5.
+
+    - **A browser's own navigation.** `Sec-Fetch-Dest: document` is sent by every current
+      browser when a person opens a page, and not by the scripts that dress up as one —
+      400 of the old count were a single fake iPhone OS 13 agent with no such header.
+      It also leaves out `iframe`: the reader framed inside Learn or a parasha page was
+      a second view of the page around it.
+    - **A language asked for.** A browser always says which it reads; a script rarely.
+    - **No cookie.** targum sets one cookie, the session, so a request that carries any
+      is a signed-in reader, and a reader using the app is not a visitor at the door.
+      Caddy writes the header as `REDACTED`, which is all this needs to know.
     """
     try:
         record = json.loads(line)
@@ -144,8 +177,14 @@ def parse(line: str) -> Request | None:
     agent = _header(headers, "User-Agent")
     if not agent or BOTS.search(agent):
         return None
+    if _header(headers, "Sec-Fetch-Dest") != "document":
+        return None
+    if not _header(headers, "Accept-Language") or "Cookie" in headers:
+        return None
     uri = urlparse(str(request.get("uri") or "/"))
-    if uri.path.startswith(NOT_PAGES):
+    if uri.path.startswith(NOT_PAGES) or (
+        uri.path.startswith("/account/") and uri.path != "/account/signin"
+    ):
         return None
     address = str(request.get("client_ip") or request.get("remote_ip") or "")
     return Request(
@@ -159,8 +198,9 @@ def parse(line: str) -> Request | None:
 
 
 def page_of(path: str) -> str:
-    """The row a path is counted under: identifiers folded, so `/r/3fa9…` is `/r/…`."""
-    parts = [("…" if _IDENTIFIER.match(part) else part) for part in path.split("/")]
+    """The row a path is counted under: identifiers folded, so `/r/3fa9…` is `/r/…`, and
+    the Hebrew in an address said as Hebrew rather than as `%D7%94%D7%A1…`."""
+    parts = [("…" if _IDENTIFIER.match(part) else unquote(part)) for part in path.split("/")]
     return "/".join(parts) or "/"
 
 
@@ -325,10 +365,20 @@ def roll_up(
     log: Path = LOG,
     own: str = "targum.page",
     country: Callable[[str], str] | None = None,
+    recount: bool = False,
 ) -> int:
-    """Count what the log holds since the last pass, and keep it. Returns days written."""
+    """Count what the log holds since the last pass, and keep it. Returns days written.
+
+    `recount` forgets every day kept and counts the whole log again — for when the rules
+    for what counts have changed. Days the log no longer reaches are lost with it, which
+    is why it is a flag and not what a pass does.
+    """
     db = open_db(into)
     try:
+        if recount:
+            with db:
+                db.execute("DELETE FROM visit_day")
+                db.execute("DELETE FROM visit_count")
         since = resume_from(db)
         read = [one for one in map(parse, lines(log_files(log), since)) if one is not None]
         # A rotated file that straddles `since` is read whole, which is how the pass knows

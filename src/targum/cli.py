@@ -943,6 +943,10 @@ def roll_visits(
     log: Annotated[
         Path | None, typer.Option("--log", help="Caddy's access log for the product.")
     ] = None,
+    recount: Annotated[
+        bool,
+        typer.Option("--recount", help="Forget the kept days and count the whole log again."),
+    ] = False,
 ) -> None:
     """Count the front door's visitors off the access log, and keep the counts.
 
@@ -968,6 +972,7 @@ def roll_visits(
         log=log or visits.LOG,
         own=own,
         country=visits.country_reader(where),
+        recount=recount,
     )
     console.print(f"{written} day{'' if written == 1 else 's'} counted.")
 
