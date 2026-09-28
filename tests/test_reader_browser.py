@@ -3549,7 +3549,8 @@ def test_a_phrase_off_the_disk_stays_word_by_word(page) -> None:
     drag_across_words(page)
     chip = page.evaluate(CHIP)
     assert chip is not None, "the chip did not open"
-    assert chip["note"] in ("word by word — the sentence is in parallel", ""), chip
+    whole = "word by word — the line's translation has the whole sentence"
+    assert chip["note"] in (whole, ""), chip
     assert "looking" not in chip["note"], "a page that cannot ask said it was asking"
 
 
@@ -7161,7 +7162,7 @@ def test_a_reader_with_the_grant_can_say_a_meaning_is_wrong(browser, tmp_path: P
     assert said["stood"] == MEANING, "what it said before travels with what it should say"
     assert said["sentence"], "the line it was read in travels with it"
     assert said["document"], "and which text, so the licence can be applied later"
-    assert "Thank you" in page.locator("#gloss-card .fix-said").inner_text()
+    assert "Thanks" in page.locator("#gloss-card .fix-said").inner_text()
     context.close()
 
 

@@ -46,8 +46,8 @@
   <p class="aside">{{ t("signin.page.didn-t-ask-for-this-you-can", "Didn't ask for this? You can close the page.") }}</p>
 
   {% elif expired %}
-  <h1>{{ t("signin.page.that-link-has-been-used", "That link has been used") }}</h1>
-  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. We'll send you another.") }}</p>
+  <h1>{{ t("signin.page.that-link-has-been-used", "That link no longer works") }}</h1>
+  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. Enter your email and we'll send a new one.") }}</p>
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"

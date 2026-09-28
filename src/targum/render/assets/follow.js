@@ -218,7 +218,7 @@
         var when = whenSaid(one.instalment.when);
         if (when) now.appendChild(el("span", "series-when", when));
       } else {
-        now.textContent = t("follow.nothing-this-week", "Nothing this week yet.");
+        now.textContent = t("follow.nothing-this-week", "The latest one isn't ready yet.");
       }
       what.appendChild(now);
       li.appendChild(what);

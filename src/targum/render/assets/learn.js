@@ -280,7 +280,7 @@
             })
       );
     } else if (reader.sections > 1) {
-      out.push(tn("learn.parts", reader.sections, "{n} part", "{n} parts"));
+      out.push(tn("learn.parts", reader.sections, "{n} section", "{n} sections"));
     } else if (reader.minutes && door.state !== "carry") {
       out.push(t("learn.minutes", "{n} min", { n: reader.minutes }));
     }
@@ -1302,7 +1302,7 @@
     drawCarry(reader, {
       id: "offered",
       state: "carry",
-      heading: t("learn.from-the-conversation", "From the conversation"),
+      heading: t("learn.from-the-conversation", "From the chat"),
       primary: true,
       path: path,
       meta: found ? undefined : "",
@@ -1367,7 +1367,7 @@
     var why = "";
     if (!level) {
       pick = open[0];
-      why = t("learn.why.start", "Where most people start");
+      why = t("learn.why.start", "An easy place to start");
     } else {
       open.forEach(function (entry) {
         if (!pick && entry.difficulty > level) pick = entry;
@@ -2383,7 +2383,7 @@
     // this line is an instruction, which wore it too (2026-09-27).
     line.className = known >= KNOWN_FLOOR ? "known-line is-count" : "known-line";
     line.textContent = known >= KNOWN_FLOOR
-      ? tn("learn.known-words", known, "You know {n} {language} words.", "You know {n} {language} words.", {
+      ? tn("learn.known-words", known, "You know {n} {language} word.", "You know {n} {language} words.", {
           language: named(code),
         })
       : t("learn.known-start", "Open something, tap the words you don't know and talk to targum about any line.");

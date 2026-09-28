@@ -183,7 +183,7 @@
         <ol class="flow-steps">
           <li><span class="how-n">1</span><p>{{ t("connect.page.write-in-hebrew-or-english-or-ask-for-something-to-read", "Write in Hebrew or English, or ask for something to read.") }}</p></li>
           <li><span class="how-n">2</span><p>{{ t("connect.page.your-ai-looks-at-your-word-list-and-the-library", "Your AI looks at your word list and the library.") }}</p></li>
-          <li><span class="how-n">3</span><p>{{ t("connect.page.it-answers-at-your-level-and-targum-keeps-the-fixes", "It answers at your level, and targum keeps the lines it corrects.") }}</p></li>
+          <li><span class="how-n">3</span><p>{{ t("connect.page.it-answers-at-your-level-and-targum-keeps-the-fixes", "It answers at your level. targum checks what you write and keeps the corrections.") }}</p></li>
         </ol>
       </div>
     </div>
@@ -250,7 +250,7 @@
         </div>
         <div class="tile">
           <h3>{{ t("connect.page.nothing-starts-without-you", "Nothing starts without you") }}</h3>
-          <p>{{ t("connect.page.before-you-connect-we-show-you", "Before you connect, we show you what your AI will be able to do. It can’t start a text for you: it sends a link, and you open it.") }}</p>
+          <p>{{ t("connect.page.before-you-connect-we-show-you", "Before you connect, we show you what your AI will be able to do. It can’t make a text on its own: it sends a link, and you confirm it on targum.") }}</p>
           <div class="spec row">
             <span class="can">{{ t("connect.page.the-library", "The library") }}</span>
             <span class="can">{{ t("connect.page.your-words", "Your words") }}</span>
@@ -358,7 +358,7 @@
             <ol class="steps">
               <li>{{ t("connect.page.code-run-this-in-your-terminal", "Run this in your terminal:") }}
                 {{ copyable("codex mcp add targum --url " ~ mcp, t("connect.page.copy", "Copy")) }}</li>
-              <li>{{ t("connect.page.codex-then-sign-in", "Then run this, to sign in:") }}
+              <li>{{ t("connect.page.codex-then-sign-in", "Then run this to sign in:") }}
                 {{ copyable("codex mcp login targum", t("connect.page.copy", "Copy")) }}</li>
               <li>{{ t("connect.page.sign-in-in-your-browser-then-connect", "Sign in to targum in your browser, then choose Connect.") }}</li>
             </ol>
@@ -420,7 +420,7 @@
         <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}</summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so is searching the library and your word list. Chatting is included.") }}</p></details>
         <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}</summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
         <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}</summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. We give your AI the rules our own chat follows: short replies in simple Hebrew, built from the words you know, with the English when you ask.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}</summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it tells you how long it’ll take and sends you a link. Nothing starts until you press Start on targum.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}</summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it sends you a link. Nothing is made until you confirm it on targum.") }}</p></details>
         <details><summary>{{ t("connect.page.q-how-do-i-disconnect", "How do I disconnect?") }}</summary><p>{{ t("connect.page.a-how-do-i-disconnect", "From your targum account, where every connected app is listed, or by removing it in the app.") }}</p></details>
         <details><summary>{{ t("connect.page.q-what-is-mcp", "Why do the steps say MCP?") }}</summary><p>{{ t("connect.page.a-what-is-mcp", "MCP is how these apps add a tool like targum. Some menus call it a connector.") }}</p></details>
       </div>

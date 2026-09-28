@@ -404,7 +404,7 @@
           " " +
           (transcript
             ? t("add.spoken.theirs", "We'll use the transcript that came with it, so there's nothing to write down.")
-            : t("add.spoken.ours", "We'll write down what's said, and that uses some of your credits."));
+            : t("add.spoken.ours", "We'll write down what's said, part by part."));
       }
       if (theirs) said += " " + t("add.translation.theirs", "We'll line up your translation with it, sentence by sentence.");
       return unpaired ? said + " " + unpaired : said;
@@ -765,7 +765,7 @@
     if (row.seconds) facts.push(clock(row.seconds));
     if (row.known_share !== null && row.known_share !== undefined) {
       facts.push(
-        tn("add.found.known", Math.round(row.known_share * 10), "You know {n} word in ten", "You know {n} words in ten", {
+        tn("add.found.known", Math.round(row.known_share * 10), "You know about {n} word in 10", "You know about {n} words in 10", {
           n: Math.round(row.known_share * 10),
         })
       );
@@ -1276,7 +1276,7 @@
   // unchanging line for all of that reads as a hang, so it keeps talking.
   function waiting() {
     var box = document.createDocumentFragment();
-    var text = line(t("add.fetching", "We're fetching it…"));
+    var text = line(t("add.fetching", "We're reading it…"));
     var note = document.createElement("p");
     note.className = "hint plain";
     note.textContent = "";
@@ -1289,7 +1289,7 @@
       note.textContent =
         seconds < 12
           ? ""
-          : t("add.still-working", "Still working. The first text in a language takes us longer.");
+          : t("add.still-working", "Still working. A long text, or the first in a new language, takes us longer.");
     }, 1000);
     return box;
   }
@@ -1560,7 +1560,7 @@
     box.className = "found";
     var head = document.createElement("p");
     head.className = "found-head";
-    head.textContent = t("add.found", "What targum found");
+    head.textContent = t("add.found", "What we found");
     box.appendChild(head);
     body.forEach(function (one) {
       box.appendChild(one);
@@ -1993,7 +1993,7 @@
       }
       var films = files.filter(isFilm);
       if (films.length && (films.length > 1 || files.length > 1)) {
-        return stop(t("add.post.media", "A post's media is its pictures, or one video."));
+        return stop(t("add.post.media", "Add either its pictures or a single video."));
       }
       sending.disabled = true;
       posted = "";

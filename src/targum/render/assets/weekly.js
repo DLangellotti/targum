@@ -67,7 +67,7 @@
     }
 
     function say(open) {
-      handle.textContent = open ? t("weekly.back-to-page", "Back to the page") : t("weekly.full-screen", "Full screen");
+      handle.textContent = open ? t("weekly.back-to-page", "Exit full screen") : t("weekly.full-screen", "Full screen");
       handle.setAttribute("aria-expanded", open ? "true" : "false");
     }
 

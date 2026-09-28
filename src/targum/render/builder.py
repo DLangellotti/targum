@@ -2004,16 +2004,16 @@ def progress_page(token: str, language: str = "en") -> str:
 #: level named after the person reading it grades them, which the voice rules refuse.
 WEEKLY_LEVELS: dict[str, str] = {
     "aleph": (
-        "Short sentences, one clause each, present and past. Every place and person "
-        "is said in a few words the first time it appears."
+        "Short sentences, one clause each, in the present and past. Every place and "
+        "person is explained in a few words the first time it appears."
     ),
     "bet": (
-        "Ordinary reporting: subordinate clauses, past and future, the register a "
-        "news site writes in when it is not trying to be difficult."
+        "Ordinary reporting, the way a news site writes when it isn't trying to be "
+        "difficult: longer sentences, past and future."
     ),
     "gimel": (
-        "Unsimplified. Officialese inside quotation marks, idiom, and the "
-        "constructions a paper actually uses. The week's biggest story runs at length."
+        "Not simplified: official statements quoted as they were said, idioms, and the "
+        "sentences a real paper uses. The week's biggest story runs at length."
     ),
 }
 

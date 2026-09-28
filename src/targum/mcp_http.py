@@ -98,7 +98,9 @@ PROMPTS: tuple[dict[str, Any], ...] = (
     },
     {
         "name": "talk",
-        "description": "Talk in Hebrew, at your own words, with the translation when you ask.",
+        "description": (
+            "Talk in Hebrew, using the words you know, with the translation when you ask."
+        ),
         "arguments": [],
         "needs": ("how_to_talk",),
         "says": (

@@ -539,7 +539,7 @@ def test_a_set_that_does_not_fit_claims_nothing_and_says_how_many_do(door, monke
     assert status == 402 and said["credits_left"] == 2
     # One line: what the set needs, what is left, what to do.
     assert said["error"] == (
-        "This playlist needs 3 credits and you have 2 left. Untick some texts and try again."
+        "These texts need 3 credits and you have 2 left. Untick some and try again."
     )
     claimed = store.db.execute("SELECT COUNT(*) AS n FROM job WHERE claimed > 0").fetchone()
     assert int(claimed["n"]) == 0

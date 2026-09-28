@@ -203,7 +203,7 @@ function readInto() {
             // spun for ever (2026-09-14).
             if (job.blocked || job.stage === "blocked" || !job.id) {
               get.disabled = false;
-              get.textContent = job.blocked || job.error || t("contents.could-not", "We couldn't do that. Try again.");
+              get.textContent = job.blocked || job.error || t("contents.could-not", "We couldn't start that. Try again.");
               return;
             }
             watch(job.id, get);
@@ -230,7 +230,7 @@ function readInto() {
           } else if (job.stage === "failed" || job.blocked || (job.error && !job.stage)) {
             clearInterval(timer);
             button.disabled = false;
-            button.textContent = job.error || job.blocked || t("contents.could-not", "We couldn't do that. Try again.");
+            button.textContent = job.error || job.blocked || t("contents.could-not", "We couldn't start that. Try again.");
           }
         })
         .catch(function () {

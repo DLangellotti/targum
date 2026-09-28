@@ -1170,7 +1170,7 @@ var targumReader = function () {
     renderFinished();
     say(
       on
-        ? t("reader.finish.said", "Finished. You'll see it on your progress page.")
+        ? t("reader.finish.said", "Finished. You'll see it on Your Progress.")
         : t("reader.finish.undone", "Not finished.")
     );
   }
@@ -1916,7 +1916,7 @@ var targumReader = function () {
       tn(
         "reader.rest.marked",
         batch.length,
-        "You marked {n} words as known. Nothing left to mark here.",
+        "You marked {n} word as known. Nothing left to mark here.",
         "You marked {n} words as known. Nothing left to mark here."
       )
     );
@@ -2009,7 +2009,7 @@ var targumReader = function () {
     if (!line) return;
     line.textContent = t(
       "reader.next.connect",
-      "Practise the words you marked in Claude or ChatGPT."
+      "Practise the words you marked, in Claude or ChatGPT."
     ) + " ";
     var way = document.createElement("a");
     way.href = "/connect#install";
@@ -2320,7 +2320,7 @@ var targumReader = function () {
       });
       remember();
       redraw();
-      say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} words.", "Took back {n} words."));
+      say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} word.", "Took back {n} words."));
       return true;
     }
     if (last.before) {
@@ -4547,7 +4547,7 @@ var targumReader = function () {
     var box = document.createElement("details");
     box.className = "card-conj";
     var head = document.createElement("summary");
-    head.textContent = t("reader.card.the-table", "The table");
+    head.textContent = t("reader.card.the-table", "All its forms");
     box.appendChild(head);
 
     // Grouped by tense, in the order a table is laid out, with anything the source did
@@ -4755,9 +4755,9 @@ var targumReader = function () {
               answer && answer.proposed
                 ? t(
                     "reader.card.correction-taken",
-                    "Thank you. We will look at it before it changes for anybody."
+                    "Thanks. We'll check it before it changes for anyone."
                   )
-                : t("reader.card.correction-lost", "We could not send that. Try again later.");
+                : t("reader.card.correction-lost", "We couldn't send that. Try again later.");
             row.appendChild(thanks);
           })
           .catch(function () {
@@ -5012,7 +5012,7 @@ var targumReader = function () {
         encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
-      pealim.textContent = t("reader.card.conjugations", "conjugations");
+      pealim.textContent = t("reader.card.conjugations", "conjugations on Pealim");
       verb.appendChild(pealim);
       card.appendChild(verb);
       // The table itself, where this page carries one (targum-internal#300). About six
@@ -5206,7 +5206,7 @@ var targumReader = function () {
       field.dir = "auto";
       field.setAttribute("aria-label", t("reader.ask.label", "Ask about this word"));
       field.placeholder = state.turns.length
-        ? t("reader.ask.one-more", "One more")
+        ? t("reader.ask.one-more", "One more question")
         : t("reader.ask.label", "Ask about this word");
       field.autocomplete = "off";
       var go = document.createElement("button");
@@ -5358,7 +5358,7 @@ var targumReader = function () {
             why = {};
           }
           settle(
-            why.message || t("reader.error.conversation", "We couldn't continue the conversation. Try again."),
+            why.message || t("reader.error.conversation", "We couldn't continue the chat. Try again."),
             true
           );
         } else if (source.readyState === 2) {
@@ -5933,7 +5933,7 @@ var targumReader = function () {
               ? t("reader.pick.looking-word-by-word", "word by word — looking…")
               : t("reader.card.looking", "looking…")
             : reading
-              ? t("reader.pick.in-parallel", "word by word — the sentence is in parallel")
+              ? t("reader.pick.in-parallel", "word by word — the line's translation has the whole sentence")
               : "",
       hear: hearButton(picked.segmentId, picked.start, picked.end, t("reader.pick.hear-phrase", "Hear this phrase")),
       kind: held ? held.kind : "",
@@ -8235,8 +8235,8 @@ var targumReader = function () {
         // a mode that alters what reading does deserves more than that.
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you go.")
-            : t("reader.mode.not-marking", "Not marking.")
+            ? t("reader.mode.marking", "Highlighting the words you haven't learned.")
+            : t("reader.mode.not-marking", "Not highlighting.")
         );
         return;
       }
@@ -8850,8 +8850,8 @@ var targumReader = function () {
         save();
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you go.")
-            : t("reader.mode.not-marking", "Not marking.")
+            ? t("reader.mode.marking", "Highlighting the words you haven't learned.")
+            : t("reader.mode.not-marking", "Not highlighting.")
         );
         return;
       case "b":
@@ -9854,7 +9854,7 @@ var targumReader = function () {
     try {
       audio.currentTime = from;
     } catch (why) {
-      return refused("We can't play this recording in this browser.", why);
+      return refused("We can't play this recording in this browser. Try another browser.", why);
     }
     /* Drawn before the first `timeupdate` rather than by it. The clock is empty until
        that tick, and the strip is anchored to the foot of the window — so when its text
@@ -9872,7 +9872,7 @@ var targumReader = function () {
         // file: the control flipped back and the page had nothing to say for itself.
         refused(
           why && why.name === "NotAllowedError"
-            ? "This tab isn't allowed to play sound. Check the address bar."
+            ? "This tab isn't allowed to play sound. Allow sound for this site in the address bar, then try again."
             : "We couldn't play this recording. Try again.",
           why
         );
@@ -11208,7 +11208,7 @@ else targumReader();
   go.onclick = function () {
     go.disabled = true;
     var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
-    tell("Thanks. We're reading this section aloud. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
+    tell("Thanks. We're recording this section now. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
     fetch(keyed("/voice"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),

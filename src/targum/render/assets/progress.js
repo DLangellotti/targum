@@ -479,11 +479,11 @@
     if (next === null) {
       line.textContent = t("progress.milestone.past", "You're past every milestone we keep.");
     } else if (known === 0) {
-      line.textContent = t("progress.milestone.start", "Mark a word as you go and it starts here.");
+      line.textContent = t("progress.milestone.start", "Mark a word as known and your count starts here.");
     } else {
       boldIn(
         line,
-        tn("progress.milestone.next", next - known, "Another {bold} to {next}.", "Another {bold} to {next}.", {
+        tn("progress.milestone.next", next - known, "Another {bold} known word to reach {next}.", "Another {bold} known words to reach {next}.", {
           next: grouped(next),
         }),
         grouped(next - known)
@@ -535,7 +535,7 @@
 
     var line = el("p", "next");
     if (!got.words) {
-      line.textContent = t("progress.level.start", "Mark a word as known and this starts.");
+      line.textContent = t("progress.level.start", "Mark a word as known and your level starts here.");
     } else if (!found.next) {
       line.textContent = weighted
         ? t("progress.level.past-ulpan", "You're past every rung an ulpan keeps.")
@@ -550,11 +550,11 @@
       boldIn(
         line,
         weighted
-          ? tn("progress.level.next-ulpan", more, "Another {bold} words to {letter} ({name}).", "Another {bold} words to {letter} ({name}).", {
+          ? tn("progress.level.next-ulpan", more, "Another {bold} word to {letter} ({name}).", "Another {bold} words to {letter} ({name}).", {
               letter: found.next.letter,
               name: found.next.name,
             })
-          : tn("progress.level.next-cefr", more, "Another {bold} common words to {name}.", "Another {bold} common words to {name}.", {
+          : tn("progress.level.next-cefr", more, "Another {bold} common word to {name}.", "Another {bold} common words to {name}.", {
               name: found.next.name,
             }),
         grouped(more)
@@ -650,12 +650,12 @@
             "{n} day on targum in the last twelve weeks",
             "{n} days on targum in the last twelve weeks"
           )
-        : t("progress.days.none", "No days on targum in the last twelve weeks yet")
+        : t("progress.days.none", "No days on targum in the last twelve weeks")
     );
     host.appendChild(strip);
 
     var said = el("p", "legend-days");
-    if (!days.length) said.textContent = t("progress.days.first", "Today is the first.");
+    if (!days.length) said.textContent = t("progress.days.first", "Open something and today is your first.");
     else {
       said.textContent = tn(
         "progress.days.counted",
@@ -762,7 +762,7 @@
       );
     }
     if (!figures.children.length) {
-      figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing here yet.")));
+      figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing recorded for this choice yet.")));
     }
   }
 
@@ -858,7 +858,7 @@
           mine.months
             ? t(
                 "progress.reading.so-far",
-                "We'll draw this once you've finished sections in three different months. So far: {n}.",
+                "We'll draw this once you've finished sections in three different months. Months so far: {n}.",
                 { n: mine.months }
               )
             : t("progress.reading.waiting", "We'll draw this once you've finished sections in three different months.")

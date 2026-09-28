@@ -444,9 +444,9 @@
         var plain = !group && view.status === "all" && !view.query;
         var empty = "";
         if (!rows.length && mine.length) {
-          empty = t("yours.sift.none", "Nothing here matches that.");
+          empty = t("yours.sift.none", "Nothing here matches that. Try another search or filter.");
         } else if (!rows.length && view.tab === "uploads") {
-          empty = t("yours.uploads.empty", "Nothing you've brought yet. What you add is kept here.");
+          empty = t("yours.uploads.empty", "Nothing you've added yet. What you paste, upload or link on Add is kept here.");
         } else if (!rows.length) {
           // The rows are handed over already sifted, so `shelf.draw` cannot tell an empty
           // language from an empty shelf; this can.

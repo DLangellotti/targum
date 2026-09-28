@@ -896,7 +896,7 @@ def test_the_framed_reader_is_never_forced_on_anyone(
         )
         # `fullscreenElement` is set before the page's own `fullscreenchange` handler has
         # written the row, so the label is read with a retry rather than once.
-        playwright_api.expect(page.locator("#embed-handle")).to_have_text("Back to the page")
+        playwright_api.expect(page.locator("#embed-handle")).to_have_text("Exit full screen")
         page.click("#embed-handle")
         page.wait_for_function(
             "() => !document.fullscreenElement && !document.body.classList.contains('locked')"
@@ -920,7 +920,7 @@ def test_the_page_has_a_spine_and_says_how_it_works(open_shelves: tuple[int, Pat
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
     labels = re.findall(r'<h2 class="label">([^<]+)', page)
     assert [label.strip() for label in labels][:4] == [
-        "This week",
+        "This issue",
         "Why targum",
         "Made honestly",
     ]

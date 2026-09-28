@@ -687,7 +687,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             which = ""
             if language.split("-")[0] == "he" and entry.register.value in ("modern", "biblical"):
                 which = f" {entry.register.value.capitalize()} Hebrew."
-            row["because"] = f"A learner looks up {entry.difficulty}% of its words.{which}"
+            row["because"] = f"{entry.difficulty}% of its words are rare in everyday use.{which}"
             row["reason"] = {
                 "key": "suggest.looked-up",
                 "share": entry.difficulty,
@@ -751,7 +751,7 @@ def _passage(
         "readable": round(best.share, 2),
         "whole": round(whole, 2),
     }
-    row["because"] = f"{best.title} reads at your level, though the whole text is harder."
+    row["because"] = f"Try {best.title} first. It's easier than the text as a whole."
     row["reason"] = {"key": "suggest.passage", "title": best.title}
 
 
@@ -770,7 +770,7 @@ def because_in(row: dict[str, Any], language: str) -> str:
         said = said_in(
             language,
             "suggest.looked-up",
-            "A learner looks up {share}% of its words.",
+            "{share}% of its words are rare in everyday use.",
             share=reason["share"],
         )
         register = str(reason.get("register") or "")
@@ -783,7 +783,7 @@ def because_in(row: dict[str, Any], language: str) -> str:
         return said_in(
             language,
             "suggest.passage",
-            "{title} reads at your level, though the whole text is harder.",
+            "Try {title} first. It's easier than the text as a whole.",
             title=reason.get("title") or "",
         )
     if key == "suggest.unmeasured":
@@ -843,7 +843,10 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         names = ", ".join(f"{language_name(code)} ({code})" for code in sorted(offered))
         return {"error": f"targum translates into {names}."}
     if wanted not in reads:
-        return {"error": f"{language_name(wanted)} is not in the reader's profile."}
+        return {
+            "error": f"{language_name(wanted)} isn't one of the reader's languages. They "
+            "can add it on targum, under Your languages."
+        }
 
     payload: dict[str, Any] = {**BUILD_OPTIONS, "to": wanted}
     catalogue_id = str(args.get("catalogue_id") or "").strip()
@@ -1465,16 +1468,16 @@ def refused(ctx: Ctx | None, host: str, error: Any) -> dict[str, Any] | None:
         # passes and this door did not. Said as what it is, because the reader's own
         # browser will open it and "does not answer" would be false.
         return {
-            "error": f"{host} runs a bot check that targum could not pass, so the page "
-            "cannot be read or built here. It opens in the reader's own browser.",
+            "error": f"{host} runs a bot check that targum could not pass, so targum can't "
+            "read the page or make a text from it. It opens in the reader's own browser.",
             "host_shut": True,
             "challenge": True,
             "advice": "Offer something else rather than this, and say plainly that the "
             "site checks for a browser and targum is not one.",
         }
     return {
-        "error": f"{host} does not answer targum. It may open in the reader's own browser; "
-        "it will not open here, so nothing can be built from it.",
+        "error": f"{host} does not answer targum. It may open in the reader's own browser, "
+        "but targum can't make a text from it.",
         "host_shut": True,
         "advice": "Offer something else rather than this, and say plainly that targum "
         "cannot reach it.",

@@ -742,7 +742,7 @@ STALE = """<!doctype html>
 </head>
 <body>
 <main>
-  <h1>This tab has gone stale</h1>
+  <h1>This tab is out of date</h1>
   <p>Nothing is lost. Everything you were reading and every word you've kept is still
   here.</p>
   <p>Sign in and this won't happen again. A signed-in tab keeps working, and your words
@@ -1638,8 +1638,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.talk-credits",
-                "You've used your {credits} credits of audio and conversation for this "
-                "month, and a credit is a minute. They come back on {date}. "
+                "You've used your {credits} credits of audio and chat for this month, and "
+                "a credit is a minute. They come back on {date}. "
                 "Everything you have stays open, and the library is always free.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
@@ -1650,7 +1650,7 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.chat",
-                "That's a lot of conversation for one day. Try again in {hours} hours. The "
+                "That's a lot of chatting for one day. Try again in {hours} hours. The "
                 "library is always free.",
                 hours=BUDGET_HOURS,
             )
@@ -2608,7 +2608,7 @@ class Library:
                     # `job.error` reaches `refusedWith()`, which is where the button is.
                     raise UnsupportedSource(
                         "This PDF is a scan, so its words are in pictures of its pages. "
-                        "Read the pages to bring it in.",
+                        "We can read those pictures for you.",
                         key="pdf.scan-read-the-pages",
                     )
                 folder = Path(job.home) / "pages" if job.home else source.parent / "pages"
@@ -3069,7 +3069,7 @@ class Library:
             job.error = said_in(
                 job.ui,
                 "job.video-too-long",
-                "That video is longer than {hours} hours. That's more than we can take at once.",
+                "That video is over {hours} hours. Try a shorter one.",
                 hours=f"{hours:g}",
             )
             job.stage = "failed"
@@ -3427,7 +3427,7 @@ class Library:
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             self._blame(
                 job,
-                "Something went wrong on our side. The Terminal has the detail.",
+                "Something went wrong on our side, and we've noted it. Try again later.",
             )
 
     def keep_post(self, job: Job, folder: Path, document: Document) -> None:
@@ -3792,7 +3792,7 @@ class Library:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             return self._blame(
-                job, "Something went wrong on our side. The Terminal has the detail."
+                job, "Something went wrong on our side, and we've noted it. Try again later."
             )
 
         job.spent = builder.spent.cost()
@@ -3854,7 +3854,7 @@ class Library:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice", error, job=job.id)
             return self._blame(
-                job, "Something went wrong on our side. The Terminal has the detail."
+                job, "Something went wrong on our side, and we've noted it. Try again later."
             )
         # Paid for from here on, whatever happens to the page below.
         self._charge_speech(job, clip.seconds)
@@ -3906,7 +3906,7 @@ class Library:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice:render", error, job=job.id)
             return self._blame(
-                job, "Something went wrong on our side. The Terminal has the detail."
+                job, "Something went wrong on our side, and we've noted it. Try again later."
             )
         job.reader = f"{folder.name}/reader/{pages[0].name}"
         job.message = ""
@@ -3968,7 +3968,9 @@ class Library:
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            self._blame(job, "Something went wrong on our side. The Terminal has the detail.")
+            self._blame(
+                job, "Something went wrong on our side, and we've noted it. Try again later."
+            )
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -6939,7 +6941,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.that-s-too-long-for-one-2",
-                        "That's too long for one turn. Try a shorter one.",
+                        "That's too long for one message. Try a shorter one.",
                     )
                 },
                 413,
@@ -8502,8 +8504,8 @@ class Handler(BaseHTTPRequestHandler):
                 said = said_in(
                     self._page_language(),
                     "set.page.only-this-many-fit",
-                    "This playlist needs {total} credits and you have {n} left. "
-                    "Untick some texts and try again.",
+                    "These texts need {total} credits and you have {n} left. "
+                    "Untick some and try again.",
                     total=sum(credits_of(job.seconds) for job in chosen if job.audio),
                     n=fits,
                 )
@@ -8862,7 +8864,7 @@ class Handler(BaseHTTPRequestHandler):
 
         url = str(payload.get("url") or payload.get("source") or "").strip()
         if not url:
-            return self._json({"error": self._say("serve.give-a-link", "Give a link.")}, 400)
+            return self._json({"error": self._say("serve.give-a-link", "Paste a link.")}, 400)
         person = self._person()
         found = tools_module.describe_source(
             tools_module.Ctx(
@@ -8916,7 +8918,8 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.not-in-profile",
-                        "{language} isn't in your profile yet. Add it there and try again.",
+                        "{language} isn't in Your languages yet. Add it in Your profile, then "
+                        "try again.",
                         language=self._named(wanted),
                     )
                 },
@@ -8949,7 +8952,8 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.not-in-profile",
-                        "{language} isn't in your profile yet. Add it there and try again.",
+                        "{language} isn't in Your languages yet. Add it in Your profile, then "
+                        "try again.",
                         language=self._named(reading),
                     )
                 },
@@ -9517,8 +9521,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         if suffix not in self.READABLE:
             raise TargumError(
-                f"We can't read '{suffix}' files. Save it as plain text or "
-                "markdown and drop that in instead."
+                f"We can't read {suffix} files. Save it as plain text and drop that in instead."
             )
         uploads = self._home() / "uploads" / secrets.token_hex(8)
         uploads.mkdir(parents=True, exist_ok=True)
@@ -9559,7 +9562,7 @@ class Handler(BaseHTTPRequestHandler):
         if not source or (
             not ingest_module.fetchable(source) and catalogue_module.matching(source) is None
         ):
-            raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
+            raise TargumError("Paste a link or drop a file.")
         return source
 
     def _brought(self, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -9617,7 +9620,7 @@ class Handler(BaseHTTPRequestHandler):
             raise TargumError(
                 self._say(
                     "serve.post-too-long",
-                    "That's longer than a post. Paste it into the box above instead.",
+                    "That's longer than a post. Press Back and paste it into the box instead.",
                 )
             )
         link = str(told.get("link") or "").strip()
@@ -9649,7 +9652,7 @@ class Handler(BaseHTTPRequestHandler):
             folder = self._gathered([str(one) for one in many])
             if not folder.is_dir():
                 raise TargumError(
-                    self._say("serve.post-media", "A post's media is its pictures, or one video.")
+                    self._say("serve.post-media", "Add either its pictures or a single video.")
                 )
             kept = str(folder)
         elif upload:
@@ -9666,7 +9669,7 @@ class Handler(BaseHTTPRequestHandler):
                 film = str(target)
             else:
                 raise TargumError(
-                    self._say("serve.post-media", "A post's media is its pictures, or one video.")
+                    self._say("serve.post-media", "Add either its pictures or a single video.")
                 )
         if not words and not kept and not film:
             raise TargumError(
@@ -9898,7 +9901,13 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > CHUNK_BYTES:
             return self._json(
-                {"error": self._say("serve.that-chunk-is-too-big", "That chunk is too big.")}, 413
+                {
+                    "error": self._say(
+                        "serve.that-chunk-is-too-big",
+                        "Part of the upload was too big. Send it again.",
+                    )
+                },
+                413,
             )
         expected = int(meta.get("size") or 0)
         if number * CHUNK_BYTES >= expected + CHUNK_BYTES:

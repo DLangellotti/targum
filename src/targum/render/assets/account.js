@@ -219,7 +219,7 @@
   var arrived = new URLSearchParams(location.search).get("signin");
   if (arrived === "welcome") say(t("account.welcome", "You're signed in."), true);
   if (arrived === "expired") {
-    say(t("account.expired", "That link has been used. Ask us for another."), true, true);
+    say(t("account.expired", "That link no longer works. Enter your email for a new one."), true, true);
   }
   if (arrived) {
     // Take it out of the address so a refresh does not say it again.

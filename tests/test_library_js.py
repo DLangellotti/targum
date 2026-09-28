@@ -322,7 +322,7 @@ def test_search_reaches_a_hebrew_title_through_its_english(tmp_path: Path) -> No
 def test_nothing_matching_says_so(tmp_path: Path) -> None:
     drawn = draw(tmp_path, view={"find": "אין כזה דבר"})
     assert drawn["rows"] == []
-    assert drawn["empty"] == "Nothing here matches that."
+    assert drawn["empty"] == "Nothing here matches that. Try another search or fewer filters."
 
 
 def test_shortest_first_is_shortest_first(tmp_path: Path) -> None:
@@ -380,7 +380,7 @@ def test_a_text_you_have_opens_and_one_you_do_not_is_a_button(tmp_path: Path) ->
 
 def test_an_empty_filter_says_so(tmp_path: Path) -> None:
     filtered = draw(tmp_path, view={"find": "zzzzz"})
-    assert filtered["empty"] == "Nothing here matches that."
+    assert filtered["empty"] == "Nothing here matches that. Try another search or fewer filters."
 
 
 def test_drawing_a_cover_is_offered_only_where_it_could_work(tmp_path: Path) -> None:

@@ -103,7 +103,7 @@
     var named = { title: title };
     if (job.stage === "done") return t("building.ready", "{title} is ready.", named);
     if (job.stage === "failed") {
-      return title + ": " + (job.error || t("building.failed", "we couldn't get it ready."));
+      return title + ": " + (job.error || t("building.failed", "we couldn't get it ready. Try adding it again."));
     }
     if (job.stage === "blocked") {
       return title + ": " + (job.blocked || t("building.blocked", "we can't do this one right now."));
@@ -316,7 +316,7 @@
     .then(function (got) {
       ((got && got.chats) || []).forEach(function (chat) {
         if (!chat.answered || !(chat.answered > (chat.opened || 0))) return;
-        var about = chat.title ? iso(chat.title) : t("building.your-conversation", "your conversation");
+        var about = chat.title ? iso(chat.title) : t("building.your-conversation", "your chat");
         note("chat:" + chat.id + ":" + chat.answered, t("building.new-reply", "New reply in {title}", { title: about }), {
           label: t("building.open", "Open"),
           action: function () {
@@ -372,7 +372,7 @@
     .then(function (me) {
       var hours = me && me.signedIn && me.hours;
       if (!hours || !hours.allowed || !(hours.used >= hours.allowed * 0.75)) return;
-      var reset = hours.ends ? " " + t("building.hours.reset", "They reset on {date}.", { date: hours.ends }) : "";
+      var reset = hours.ends ? " " + t("building.hours.reset", "They come back on {date}.", { date: hours.ends }) : "";
       /* Credits with the rate beside them (design.md §12, 2026-09-23), and what is left
          rather than what is gone — this is a warning, and what remains is the thing it
          is warning about. It said "You've used 6.2 of your 8 hours", a decimal nobody
@@ -390,7 +390,7 @@
         t("building.credits.rate", "That's about {clock} of audio.", { clock: clockOf(spare) });
       note("hours:" + (hours.ends || "now"), used + reset, {
         href: keyed("/progress"),
-        label: t("building.hours.see", "See"),
+        label: t("building.hours.see", "See usage"),
       });
     })
     .catch(function () {});

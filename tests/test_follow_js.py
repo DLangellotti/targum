@@ -81,7 +81,7 @@ def test_the_row_names_every_series_and_where_it_is_this_week() -> None:
     assert got["asked"] == ["/account/follows", "/series"] and got["shown"]
     assert [r["id"] for r in got["rows"]] == ["weekly", "parasha", "mishna-yomi"]
     assert got["rows"][1]["now"].startswith("כי תבוא") and "Sep" in got["rows"][1]["now"]
-    assert got["rows"][2]["now"] == "Nothing this week yet."
+    assert got["rows"][2]["now"] == "The latest one isn't ready yet."
     assert all(r["follow"] == "Follow" and r["pressed"] == "false" for r in got["rows"])
     assert all(r["switch"] for r in got["rows"]), "a switch, which says its state"
     assert got["rows"][0]["open"] == "/weekly?k=k"

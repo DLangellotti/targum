@@ -898,7 +898,7 @@ def test_the_credits_are_whole_sentences_with_their_links_inside_them() -> None:
     portion = P(slug="x", name="N", hebrew="נ", numbers=[35], summary="s", verses=1, aliyot=1)
     when = date(2026, 5, 30)
 
-    for language, expected in (("en", "The scroll at the top is"), ("ru", "Свиток наверху")):
+    for language, expected in (("en", "The scroll at the top was"), ("ru", "Свиток наверху")):
         html = parasha_page(
             portion, schedule=cal.Schedule.diaspora, shabbat=when, language=language
         )

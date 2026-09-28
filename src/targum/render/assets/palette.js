@@ -128,7 +128,7 @@
       place: t("palette.kind.place", "Page"),
       catalogue: t("nav.library", "Library"),
       text: t("palette.kind.text", "Yours"),
-      chat: t("palette.kind.chat", "Conversation"),
+      chat: t("palette.kind.chat", "Chat"),
       talk: "",
     };
   }

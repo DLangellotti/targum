@@ -328,7 +328,7 @@ def test_the_chat_rail_refuses_and_names_when_it_lifts(tmp_path: Path) -> None:
     feed = chats.feed_for(first.chat_id, second.n)
     assert feed is not None
     errors = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert errors and "conversation" in errors[0]["message"]
+    assert errors and "chatting" in errors[0]["message"]
     assert (
         "Try again in" in errors[0]["message"] and "library is always free" in errors[0]["message"]
     )
@@ -373,7 +373,7 @@ def test_a_failing_model_is_said_to_the_reader_and_released(tmp_path: Path) -> N
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said[0]["message"] == "We couldn't carry on the conversation. Try again."
+    assert said[0]["message"] == "We couldn't answer that. Try again."
     assert "boom" not in json.dumps(said), "the library's own words never reach a reader"
     assert library.jobs[f"chat-{asked.chat_id}-1"].stage == "failed"
     assert store.committed(0) == 0.0, "the reserve went back"
@@ -703,7 +703,7 @@ def test_the_hours_refuse_a_turn_and_name_conversation(tmp_path: Path) -> None:
     feed = chats.feed_for(asked.chat_id, asked.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"][0]["message"]
-    assert "credits of audio and conversation" in said and "library is always free" in said
+    assert "credits of audio and chat" in said and "library is always free" in said
     assert "$" not in said
     assert store.hours_used(None, 0) == 0.0, "a refused turn spends no seconds"
 
@@ -1092,11 +1092,11 @@ def test_a_worker_outlives_the_turn_it_lost(tmp_path: Path, monkeypatch: Any) ->
 
     row = next(r for r in store.chat_turns(first.chat_id) if r["n"] == first.n)
     assert row["stage"] == "failed", "the page stops waiting"
-    assert row["error"] == "We couldn't carry on the conversation. Try again."
+    assert row["error"] == "We couldn't answer that. Try again."
     feed = chats.feed_for(first.chat_id, first.n)
     assert feed is not None
     said = [json.loads(data) for kind, data in feed.events if kind == "error"]
-    assert said and said[0]["message"] == "We couldn't carry on the conversation. Try again."
+    assert said and said[0]["message"] == "We couldn't answer that. Try again."
     assert "wordlist" not in json.dumps(said), "the library's own words never reach a reader"
 
     second = chats.say(None, library.home(None), "", "again", admin=False)

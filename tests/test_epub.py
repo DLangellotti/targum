@@ -55,7 +55,7 @@ def test_embedded_hebrew_survives(document) -> None:
 def test_a_broken_epub_says_so(tmp_path: Path) -> None:
     fake = tmp_path / "broken.epub"
     fake.write_bytes(b"not an epub at all")
-    with pytest.raises(TargumError, match="Could not read the EPUB"):
+    with pytest.raises(TargumError, match="couldn't open"):
         ingest.load(str(fake))
 
 

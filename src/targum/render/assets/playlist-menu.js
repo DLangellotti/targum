@@ -109,14 +109,14 @@
           // sentence, and is said as the plain failure.
           var why = got.answer && got.answer.error;
           if (got.status === 404 || got.status === 401 || /^(not found|bad request)$/i.test(String(why || ""))) why = "";
-          status(menu, why || say("playlist-menu.failed", "Couldn't add it. Try again."), true);
+          status(menu, why || say("playlist-menu.failed", "We couldn't add it. Try again."), true);
           return;
         }
         status(menu, say("playlist-menu.added", "Added to {name}.", { name: got.answer.name || target.name }));
         setTimeout(close, 900);
       })
       .catch(function () {
-        status(menu, say("playlist-menu.failed", "Couldn't add it. Try again."), true);
+        status(menu, say("playlist-menu.failed", "We couldn't add it. Try again."), true);
       });
   }
 
@@ -231,14 +231,14 @@
           return;
         }
         if (got.status >= 400) {
-          status(menu, say("playlist-menu.load-failed", "Couldn't load your playlists. Try again."), true);
+          status(menu, say("playlist-menu.load-failed", "We couldn't load your playlists. Try again."), true);
           return;
         }
         status(menu, "");
         draw(menu, text, key, (got.answer && got.answer.playlists) || []);
       })
       .catch(function () {
-        status(menu, say("playlist-menu.load-failed", "Couldn't load your playlists. Try again."), true);
+        status(menu, say("playlist-menu.load-failed", "We couldn't load your playlists. Try again."), true);
       });
   }
 

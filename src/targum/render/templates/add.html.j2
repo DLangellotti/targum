@@ -171,10 +171,10 @@
         <div id="have-translation" hidden>
           <div class="drop small" id="drop-translation" tabindex="0">
             <p class="drop-label">{{ t("add.page.drop-the-translation", "Drop the translation") }}</p>
-            <p class="drop-note">{{ t("add.page.plain-text-or-markdown-in-reading-order", "Plain text or markdown, in reading order") }}</p>
+            <p class="drop-note">{{ t("add.page.plain-text-or-markdown-in-reading-order", "A text file or an ebook, in reading order") }}</p>
             <input type="file" id="translation" accept=".txt,.md,.markdown,.epub" hidden>
             <button type="button" id="choose-translation">{{ t("add.page.choose-file", "Choose file") }}</button>
-            <button type="button" id="unchoose-translation" class="unchoose" hidden>{{ t("add.page.something-else", "Something else") }}</button>
+            <button type="button" id="unchoose-translation" class="unchoose" hidden>{{ t("add.page.something-else", "Remove file") }}</button>
           </div>
           <label class="field">
             <textarea id="pasted-translation" rows="3" dir="auto" spellcheck="false"
@@ -198,10 +198,10 @@
         <div id="have-transcript" hidden>
           <div class="drop small" id="drop-transcript" tabindex="0">
             <p class="drop-label">{{ t("add.page.drop-the-transcript", "Drop the transcript") }}</p>
-            <p class="drop-note">{{ t("add.page.srt-or-vtt-timings-kept", "SRT or VTT, timings kept") }}</p>
+            <p class="drop-note">{{ t("add.page.srt-or-vtt-timings-kept", "A subtitle file (SRT or VTT)") }}</p>
             <input type="file" id="transcript" accept=".srt,.vtt" hidden>
             <button type="button" id="choose-transcript">{{ t("add.page.choose-file", "Choose file") }}</button>
-            <button type="button" id="unchoose-transcript" class="unchoose" hidden>{{ t("add.page.something-else", "Something else") }}</button>
+            <button type="button" id="unchoose-transcript" class="unchoose" hidden>{{ t("add.page.something-else", "Remove file") }}</button>
           </div>
         </div>
       </div>

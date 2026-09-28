@@ -399,7 +399,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"has been used" in body
+    assert b"no longer works" in body
 
 
 def test_an_address_is_never_confirmed_or_denied(served: tuple[int, str, Path]) -> None:
@@ -552,7 +552,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "ru", "from": "he"},
         cookie=cookie,
     )
-    assert status == 400 and answer["error"].startswith("Russian isn't in your profile")
+    assert status == 400 and answer["error"].startswith("Russian isn't in Your languages")
 
     _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert me["learning"] == ["he"] and me["reads"] == ["en"]
@@ -650,7 +650,7 @@ def test_a_text_shows_under_every_language_it_is_written_in(tmp_path: Path) -> N
 @pytest.mark.parametrize(
     ("asked", "said"),
     [
-        ({"learning": ["he"], "reads": []}, "Keep at least one."),
+        ({"learning": ["he"], "reads": []}, "Keep at least one language ticked."),
         ({"learning": ["yi"], "reads": ["en"]}, "Hebrew stays on."),
         ({"learning": ["he"], "reads": ["fr"]}, "We don't offer French."),
     ],

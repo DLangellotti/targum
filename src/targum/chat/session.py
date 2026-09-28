@@ -631,7 +631,7 @@ def brought_note(brought: dict[str, Any]) -> list[str]:
             "It could not be made ready: " + str(brought.get("blocked") or brought.get("error"))
         )
     else:
-        lines.append("Its card is in the thread, waiting on their press.")
+        lines.append("Its card is on the page, waiting on their press.")
     return lines
 
 
@@ -982,9 +982,7 @@ class Chats:
         from ..serve import said_in
 
         traceback.print_exc()
-        said = said_in(
-            asked.ui, "chat.could-not-carry-on", "We couldn't carry on the conversation. Try again."
-        )
+        said = said_in(asked.ui, "chat.could-not-carry-on", "We couldn't answer that. Try again.")
         try:
             if self.store is not None:
                 self.store.chat_turn_update(asked.chat_id, asked.n, stage="failed", error=said)
@@ -1241,7 +1239,7 @@ class Chats:
                 else said_in(
                     asked.ui,
                     "chat.could-not-carry-on",
-                    "We couldn't carry on the conversation. Try again.",
+                    "We couldn't answer that. Try again.",
                 )
             )
             self.library.release(job)

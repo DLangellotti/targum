@@ -88,7 +88,7 @@ def test_the_checked_words_are_marked_known_for_real_and_the_rest_are_left() -> 
         "looked at and left"
     )
     assert got["touched"] == {"sync": 1, "lists": 1}, "the count above and the sync hear it"
-    assert got["said"] == "We've marked 2 as known."
+    assert got["said"] == "We've marked 2 words as known."
     assert [r["form"] for r in got["rows"]] == SECOND, "the next page"
     assert got["yesDisabled"], "a fresh page, nothing checked yet"
     nothing = run(pages=PAGES, do=[{"type": "yes"}])
@@ -110,7 +110,7 @@ def test_check_all_checks_the_page_and_the_head_follows_the_rows() -> None:
     assert not any(r["checked"] for r in cleared["rows"]) and cleared["yesDisabled"]
     whole = run(pages=PAGES, do=[{"type": "all"}, {"type": "yes"}])
     assert sorted(whole["ledger"]) == sorted(FIRST) and whole["passed"] == {}
-    assert whole["said"] == "We've marked 12 as known."
+    assert whole["said"] == "We've marked 12 words as known."
 
 
 def test_none_of_these_leaves_them_unmet_and_does_not_show_them_again() -> None:
