@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}</style>
+<style>{{ asset('reader.css') }}</style>{% if said %}<style>{{ asset('said.css') }}</style>{% endif %}
 {%- if preread %}
 <style>{{ asset('preread.css') }}</style>
 {% endif %}
@@ -104,6 +104,22 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M4 3.5h8M8 3.5v6"/>
           <path d="M5 12.5h0M8 12.5h0M11 12.5h0" class="dots"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
+    {% if said %}
+    {#- How the French is said (targum-internal#266): the liaisons every speaker makes, the
+        elisions and the letters nobody says, drawn between and over the words by the
+        stylesheet and never written into the text, so no word moves. Beside the modes for
+        the reason the vowels are. -#}
+    <div class="group" data-what="As said">
+      <button type="button" data-said-toggle aria-pressed="false"
+              title="{{ t("said.switch-title", "As said (n). The liaisons every speaker makes, the elisions, and the final letters nobody says.") }}"
+              aria-label="{{ t("said.switch", "As said") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M3.5 3.5v6M12.5 3.5v6"/>
+          <path d="M4.5 12q3.5 2.5 7 0"/>
         </svg>
       </button>
     </div>
@@ -823,7 +839,7 @@
     them in a file nobody opens is not naming them"; nor is naming them in a card nobody
     can open. They belong to the text, so they travel with it, at every width, on the
     last page where the pager is. -#}
-{% if speech_credit or words_credit or russian_words_credit or pointing_credit or lexicon_credit or biblical %}
+{% if speech_credit or words_credit or russian_words_credit or pointing_credit or lexicon_credit or said or biblical %}
 <aside class="credits" id="credits" aria-label="{{ t("reader.page.credits", "Credits") }}">
   {#- Who read it. A recording the library serves is somebody else's work under a licence
       that asks for them to be named, and naming them in a file nobody opens is not
@@ -859,6 +875,11 @@
       partner or a word whose stress moves (targum-internal#259). -#}
   {% if lexicon_credit %}
   <p class="credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
+  {% endif %}
+  {% if said %}
+  {#- LGPL-LR, as David decided on 2026-09-14: a page that shows Morphalou's readings names
+      it and its licence, and says that targum corrects one of them. -#}
+  <p class="credit">{{ t("said.credit", "How the French is said, from") }} <a href="https://www.ortolang.fr/market/lexicons/morphalou" rel="noopener">Morphalou 3.1</a>, ATILF CNRS · <a href="https://repository.ortolang.fr/api/content/morphalou/5/licenceLGPLLR.txt" rel="noopener">LGPL-LR</a> · <a href="https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/morphalou_corrections.tsv" rel="noopener">{{ t("said.corrected", "one reading corrected by targum") }}</a></p>
   {% endif %}
   {% if biblical %}
   <p class="credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
@@ -939,6 +960,7 @@
     {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
     {% if cases %}<dt>c</dt><dd>{{ t("reader.page.one-case-at-a-time", "one case at a time") }}</dd>{% endif %}
+    {% if said %}<dt>n</dt><dd>{{ t("said.key", "the French as said") }}</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{{ "stress marks" if stress_marks else "vowel points" }}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>{{ t("reader.page.the-chanting-marks-with-the-vowels-on", "the chanting marks, with the vowels on") }}</dd>{% endif %}
     <dt>p</dt><dd>{{ t("reader.page.parallel-2", "parallel") }}</dd>
@@ -969,7 +991,7 @@
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('events.js') }}</script>
 <script>{{ asset('playlist-menu.js') }}</script>
-<script>{{ asset('reader.js') }}</script>
+<script>{{ asset('reader.js') }}</script>{% if said %}<script>{{ asset('said.js') }}</script>{% endif %}
 {%- if preread %}
 <script>{{ asset('preread.js') }}</script>
 {% endif %}

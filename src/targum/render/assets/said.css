@@ -1,0 +1,47 @@
+/* How the French is said (targum-internal#266; `said.js`, design.md §12 2026-09-28).
+
+   Carried only by a page written while `TARGUM_FRENCH_IPA` is on. Every mark is drawn by
+   this sheet over characters already in the text — the space a liaison crosses, an
+   elision's apostrophe, the letters nobody says — and only while the switch is on, so
+   switching moves no word and no line: the tie and its consonant are positioned out of
+   the flow, and greying a letter changes its colour and nothing else.
+
+   Muted ink, not the accent (§4): the accent is for what the reader has kept, and a
+   liaison is a note on the text, as a translation at rest is (§9). */
+
+.said-tie,
+.said-elide {
+  position: relative;
+}
+
+/* The tie under the join, where the two words are said as one. */
+body.said-on .said-tie::before,
+body.said-on .said-elide::before {
+  content: "‿";
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: -0.45em;
+  text-align: center;
+  line-height: 1;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+/* The consonant the liaison carries, small over the join: les‿z‿enfants. */
+body.said-on .said-tie::after {
+  content: attr(data-said);
+  position: absolute;
+  inset-inline: -0.5em;
+  inset-block-start: -0.95em;
+  text-align: center;
+  line-height: 1;
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+/* The letters nobody says: still there to read, one step quieter. */
+body.said-on .said-mute {
+  color: var(--ink-soft);
+}

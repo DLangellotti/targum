@@ -215,6 +215,21 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
     return {"strings": said, "stringsLanguage": code} if said else {}
 
 
+def said_strings(translations: list[Translation]) -> dict[str, Any]:
+    """The "as said" switch's own words in the page's language, for `said.js` (targum-internal
+    #266). Kept out of `reader_strings`, whose `reader.` keys every reader carries: a page
+    written with the switch off must not carry a word more than it did."""
+    from ..strings import SOURCE, catalogue
+
+    if not translations:
+        return {}
+    code = translations[0].target_language.split("-")[0].lower()
+    if code == SOURCE:
+        return {}
+    said = {key: text for key, text in catalogue(code).items() if key.startswith("said.")}
+    return {"saidWords": said} if said else {}
+
+
 def beside_words(
     translation: Translation, section: Section, by_id: Mapping[str, Segment]
 ) -> dict[str, Any]:
@@ -1635,6 +1650,29 @@ def legal_page(which: str, address: str = "") -> str:
     )
 
 
+def _said_here(
+    text: str,
+    tokens: list[Any],
+    lexicon: Any,
+    said_marks: dict[str, list[list[object]]],
+    sid: str,
+    bare: str,
+    to_bare: Any,
+) -> dict[int, str]:
+    """A French row's words as said there (targum-internal#266): each word's reading for the
+    card, keyed by where it starts, and the row's marks for the "as said" switch, measured
+    as the word rows are."""
+    from ..annotate import french_said
+
+    said = french_said.sentence(text, list(tokens), lexicon)
+    drawn: list[list[object]] = []
+    for start, end, kind, consonant in french_said.marks(text, list(tokens), said):
+        first, last = js_span(bare, *map_span(start, end, to_bare))
+        drawn.append([first, last, kind, consonant] if consonant else [first, last, kind])
+    said_marks[sid] = drawn
+    return {token.start: one.as_said for token, one in zip(tokens, said, strict=True) if one.ipa}
+
+
 def _family_at(
     token: object,
     families: list[list[list[str]]],
@@ -2973,6 +3011,14 @@ def render(
         from ..annotate import openrussian
 
         lexicon = openrussian.lexicon()
+    # How a French word is said (targum-internal#266), where the switch is on and this
+    # machine fetched Morphalou. Off, or without the table, the page is the one it was.
+    pronouncing = None
+    if segmented.language.split("-")[0].lower() == "fr" and annotation is not None:
+        from ..annotate import french_said, morphalou
+
+        if french_said.is_on():
+            pronouncing = morphalou.lexicon()
     # Which rows are in a language other than the document's. Daniel and Ezra turn into
     # Aramaic mid-book and back, and a row of Aramaic drawn under `lang="he"` is a lie to
     # a screen reader and a spell-checker both. Those rows carry no tokens — the annotator
@@ -3242,6 +3288,8 @@ def render(
         grammar: list[str] = [""]
         grammar_at: dict[str, int] = {"": 0}
         words: dict[str, list[list[int]]] = {}
+        # The "as said" marks, per row, where the page says how its French is said.
+        said_marks: dict[str, list[list[object]]] = {}
         # Every form each verb is written in on this page, so the conjugation table a
         # word gets is one all of them agree on and not the first one's (#307).
         verb_forms: dict[tuple[str, str], list[str]] = {}
@@ -3266,10 +3314,24 @@ def render(
                 if not tokens or sid in post_covers:
                     continue
                 rows: list[list[int]] = []
+                on_row = [
+                    token
+                    for token in chips(tokens)
+                    if not (sid in unwordly and inside(token.start, token.end, unwordly[sid]))
+                ]
+                heard: dict[int, str] = {}
+                if pronouncing is not None:
+                    heard = _said_here(
+                        as_written.get(sid, ""),
+                        on_row,
+                        pronouncing,
+                        said_marks,
+                        sid,
+                        bare[sid],
+                        to_bare[sid],
+                    )
                 # A name of several words is one chip (targum-internal#149).
-                for token in chips(tokens):
-                    if sid in unwordly and inside(token.start, token.end, unwordly[sid]):
-                        continue
+                for token in on_row:
                     word = (token.lemma, token.head)
                     if word not in lemma_at:
                         lemma_at[word] = len(lemmas)
@@ -3301,6 +3363,8 @@ def render(
                     if token.ipa:
                         said_as = as_written.get(sid, "")[token.start : token.end]
                         sound = (token.ipa, guessed(said_as, token.ipa))
+                    elif token.start in heard:
+                        sound = (heard[token.start], 0)
                     if sound not in sound_at:
                         sound_at[sound] = len(sounds)
                         sounds.append(sound[0])
@@ -3582,6 +3646,9 @@ def render(
             lexicon_credit="partners" in extensions
             or "stress" in extensions
             or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
+            # How the French is said (targum-internal#266): the switch, its script and its
+            # style, and Morphalou's notice. Nothing of it where the switch is off.
+            said=bool(said_marks),
             segments=[segment for segment in segments if segment.id not in post_covers],
             preread=preread,
             preread_shown=PREREAD_SHOWN,
@@ -3668,6 +3735,9 @@ def render(
                     # Left out entirely where nothing was read, rather than shipping a
                     # table holding one empty string in every reader that has no Hebrew.
                     **({"sounds": sounds} if len(sounds) > 1 else {}),
+                    # The French "as said" switch's marks (targum-internal#266), left out
+                    # wherever the switch is off, so a page without them is the page it was.
+                    **({"said": said_marks, **said_strings(translations)} if said_marks else {}),
                     # Parallel to the sounds, and left out where nothing on the page was
                     # guessed — a pointed, accented Tanakh chapter says nothing more.
                     **({"guessed": guesses} if any(guesses) else {}),

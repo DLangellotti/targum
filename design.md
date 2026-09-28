@@ -585,6 +585,35 @@ build it to be looked at rather than wait (2026-09-28).
   in its heading to protect and it opens with no script. Its summary is in the thumb
   registry.
 
+### How French is said is drawn over the text, never into it — 2026-09-28
+
+A French reader gets a switch of its own, **As said**, on `n` as the vowels are on a Hebrew
+page (targum-internal#266). **Behind `TARGUM_FRENCH_IPA`, off**, until a person has read the
+gold set its liaisons are scored against: the set was drafted by a model, and the card's
+floor, a precision of 0.98, is only as good as the gold under it.
+
+- **What it marks.** The liaisons every speaker makes — a determiner before its noun or
+  adjective, a clitic pronoun before its verb, a verb before its inverted pronoun — with
+  the consonant heard; every elision; and the final consonants nobody says. **An optional
+  liaison is left unmarked**: natives make about one in five of them in speech, and a
+  switch that marked them would teach a rule that is not one.
+- **Drawn, not written.** Every mark sits on characters the text already has: a tie
+  under the space a liaison crosses, with its consonant small above it in the UI face at
+  the label size; the same tie under an elision's apostrophe; the silent letters in muted
+  ink. The tie and the consonant are out of the flow, so switching moves no line, and
+  since nothing is inserted every offset, every kept phrase and every saved word is the
+  same with the switch on or off. A page's mute e is not greyed: the switch is about
+  consonants.
+- **Muted ink, not the accent** (§4). The accent is for what the reader has kept; a
+  liaison is a note on the text, as a translation at rest is (§9). No hue, no underline.
+- **The card says the word as it is said here**, in IPA, with its liaison consonant and a
+  tie where it has one (*les* before *enfants* is /lez‿/), in the card's reading line.
+  A word the lexicon has no reading for shows none, as `pronounce.sayable` would have it.
+- **The switch icon** is a line diagram of what it does (§7): two letters and the tie
+  between them.
+- **The source is named at the foot** of any page that shows a reading: Morphalou, its
+  licence and the one reading targum corrects, which the licence decision asks.
+
 ### The back office is four tabs — 2026-09-28
 
 "The back office has so much going on now, time to organize into menus and tabs," David

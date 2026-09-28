@@ -44,7 +44,8 @@ found one, and is not read as free.
 | Synthetic reader, fixed openers | no reference | targum's own | eval | `grading/` (empty corpus) |
 | Stored reader lines | no reference | private store | eval, never committed | `grading/stored-38` |
 | Scratch shelf of six | no reference | per text on the shelf | eval | `suggest/shelf-6` |
-| Morphalou 3.1, over the French shelf | no reference (coverage of a lexicon) | LGPL-LR | lookup; the French card will read it | none: no stage fits, so the number is in targum-internal#266 |
+| Morphalou 3.1, over the French shelf | no reference (coverage of a lexicon) | LGPL-LR | lookup; the French card reads it | none: no stage fits, so the number is in targum-internal#266 |
+| French liaisons and readings, drafted | **model-drafted, not yet read by a person** | the texts public domain; the labels targum's own | eval only | `said/pd-fr-drafted` |
 
 No fetch below pins a commit or a checksum except where it says so. Most read the
 default branch of a repository or a live dump, so the files can change under the same
@@ -77,6 +78,7 @@ different set, and the two numbers are not measured on the same thing.
 | `recast/flores-200*` | `<model dir>/gold/flores200-<split>-{en,<lang>}.txt` |
 | `recast/tatoeba*` | the pool named by `--pool` |
 | `chat/tatoeba-correct` | the pool read (`--pool`, else `chat/exemplars.pool_path()`) |
+| `said/pd-fr-drafted` | `evals/french-said-gold.jsonl` (in the repository) |
 | `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
 
 `suggest/shelf-*` and `align/tts-*` have no reference file, so their rows carry no pin.
@@ -381,6 +383,33 @@ reach, so the number is recorded in the issue and the PR rather than in the ledg
   the reader's own tokens where a text is built on the machine, and otherwise the text
   fetched from its source and split by the rules the French annotator is given.
 - **Ledger:** none.
+
+## French liaisons and readings, drafted
+
+The gold the French card's liaisons and readings are scored against (targum-internal#266):
+342 sentences of four public-domain texts on the French shelf — Perrault's *Le Petit
+Chaperon rouge* (1826 edition), Daudet's *La Chèvre de monsieur Seguin*, Maupassant's *La
+Folle* and Allais's *Un philosophe* — as Wikisource gives them (`ingest.load`), split
+into sentences.
+
+- **Kind: model-drafted, and not yet read by a person.** The issue asks for a set written
+  by hand; this one was drafted by three model passes, on 2026-09-28, and says so on every
+  row (`"drafted"`). Each sentence's words, dictionary forms, parts of speech and features
+  were drafted following the tagger's own instruction (`model_lemma.SYSTEM`) and placed
+  by the tagger's own parser. Each place a liaison could be made — a word ending in a
+  consonant letter before a word beginning with a vowel, h or y, with nothing but a
+  space or a hyphen between — was labelled `always`, `optional` or `never`, with the
+  consonant heard, by a pass that was not shown the rule (389 places: 124 always, 153
+  optional, 112 never). The reading of each word Morphalou says two ways, that the card
+  corrects or that it says by parts was chosen by a third pass (174 words). Where the
+  literature splits between always and optional, the label is optional.
+- **Not PFC.** The PFC corpus is NonCommercial and is not used.
+- **Licence:** the texts are public domain; the labels are targum's own.
+- **Where:** `evals/french-said-gold.jsonl`, in the repository.
+- **Use:** evaluation only. The liaison precision is the rule's given the tags the gold
+  drafted; `--tagger` runs the tagger instead, which spends.
+- **Scored by:** `scripts/eval_liaison.py`.
+- **Ledger:** `said/pd-fr-drafted`.
 
 ## Sets with no reference
 

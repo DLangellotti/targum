@@ -2443,5 +2443,12 @@
   "signin.page.sign-in-to-targum": "Sign in to targum",
   "progress.basis.ulpan": "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.",
   "progress.basis.cefr": "The European scale runs from A1, for beginners, to C2. A guide, not a placement.",
-  "progress.count.learned.title": "Saved as new and since marked known."
+  "progress.count.learned.title": "Saved as new and since marked known.",
+  "said.switch": "As said",
+  "said.switch-title": "As said (n). The liaisons every speaker makes, the elisions, and the final letters nobody says.",
+  "said.key": "the French as said",
+  "said.credit": "How the French is said, from",
+  "said.corrected": "one reading corrected by targum",
+  "said.on": "As said.",
+  "said.off": "As written."
 }
