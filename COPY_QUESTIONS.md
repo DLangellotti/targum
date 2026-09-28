@@ -10,6 +10,19 @@ listed in `COPY_AUDIT.md`, with the terms in `COPY_VOICE_GUIDE.md`.
 
 ---
 
+## Answers (David, 2026-09-28)
+
+- **1:** yes. Update and stamp the 38 Russian strings.
+- **2–10:** fix all of them, in a follow-up PR (not this one).
+- **11–16:** use the recommendations.
+- **17–19:** apply all three, including the privacy notice amendments.
+- **20–23:** use the recommendations.
+- **24–27:** apply all four: Following / Your profile, Save as a text, one connector
+  name, and "Sign in to targum" as the heading.
+- **28–30:** use the recommendations.
+
+---
+
 ## A. Blocking the merge
 
 **1. May I update 38 Russian strings whose English I corrected?**
