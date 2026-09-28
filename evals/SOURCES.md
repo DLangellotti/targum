@@ -44,6 +44,7 @@ found one, and is not read as free.
 | Synthetic reader, fixed openers | no reference | targum's own | eval | `grading/` (empty corpus) |
 | Stored reader lines | no reference | private store | eval, never committed | `grading/stored-38` |
 | Scratch shelf of six | no reference | per text on the shelf | eval | `suggest/shelf-6` |
+| Morphalou 3.1, over the French shelf | no reference (coverage of a lexicon) | LGPL-LR | lookup; the French card will read it | none: no stage fits, so the number is in targum-internal#266 |
 
 No fetch below pins a commit or a checksum except where it says so. Most read the
 default branch of a repository or a live dump, so the files can change under the same
@@ -359,6 +360,27 @@ writing 96% of them. 6,682 rows carry a Russian sentence from Tatoeba's `heb-rus
   and `scripts/eval_grading.py --pool` for openers.
 - **Ledger:** `recast/tatoeba`, `recast/tatoeba-ru`, `chat/tatoeba-correct`; `grading/`
   rows whose note says `openers=tatoeba`.
+
+## Morphalou 3.1, over the French shelf
+
+The share of the French shelf's word tokens that Morphalou gives a transcription for,
+counted before the French pronunciation card is built (targum-internal#266). Not a score:
+nothing is compared with a reference, and no stage in `ledger.jsonl` measures a lexicon's
+reach, so the number is recorded in the issue and the PR rather than in the ledger.
+
+- **Kind:** no reference. The number is how much of the shelf a lookup reaches.
+- **From:** ORTOLANG, `https://repository.ortolang.fr/api/content/morphalou/5/Morphalou3.1_formatCSV_toutEnUn.zip`,
+  pinned by sha256 `4fc815cbf17aecdf1b47f6bbc263489a460fd8d11ae17e6b522336c72bd0e333`
+  (`annotate/morphalou.py`). No account is needed.
+- **Licence:** "Morphalou3 est distribué sous licence LGPL-LR" (the table's own header);
+  the licence text is at the end of `LICENSING.md`.
+- **Fetch:** `targum models fetch morphalou`, to `<model dir>/morphalou/3.1/Morphalou3.1_CSV.csv`
+  and `licenceLGPLLR.txt` beside it.
+- **Use:** a lookup, never trained on, never committed.
+- **Counted by:** `scripts/measure_pronunciation.py`, over the catalogue's French texts:
+  the reader's own tokens where a text is built on the machine, and otherwise the text
+  fetched from its source and split by the rules the French annotator is given.
+- **Ledger:** none.
 
 ## Sets with no reference
 

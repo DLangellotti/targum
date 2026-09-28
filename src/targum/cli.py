@@ -3622,7 +3622,8 @@ def models_fetch(
 ) -> None:
     """Download a language model ahead of time. Use 'embeddings' for the aligner,
     'scripture' for the hand-tagged Hebrew Bible, 'menaked' for DICTA's vowel points on
-    their own, 'openrussian' for the Russian dictionary tables, 'gold' for the treebanks
+    their own, 'openrussian' for the Russian dictionary tables, 'morphalou' for the French
+    lexicon a word's pronunciation is looked up in, 'gold' for the treebanks
     the annotator is scored against, 'flores' for the FLORES+ sentences the chat's recast
     is scored against, 'ntrex' for the news sentences beside them, 'flores200' for the
     archived FLORES-200 (the only one with Yiddish; not FLORES+), or 'heq' for the
@@ -3649,6 +3650,26 @@ def models_fetch(
             fail(error)
         console.print(
             f"[green]Downloaded[/green] {got} tables · {openrussian.CREDIT} · {openrussian.LICENCE}"
+        )
+        return
+
+    if language in {"morphalou", "french-pronunciation"}:
+        from .annotate import morphalou
+
+        if morphalou.available():
+            console.print("[dim]Morphalou is already downloaded.[/dim]")
+            return
+        console.print(
+            f"[dim]Fetching {morphalou.CREDIT}, {morphalou.LICENCE}, about 38 MB. Looked up "
+            f"for how a French word is said, never trained on, never committed.[/dim]"
+        )
+        try:
+            got = morphalou.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))
+        except TargumError as error:
+            fail(error)
+        console.print(
+            f"[green]Downloaded[/green] {got / 1_000_000:.0f} MB · {morphalou.CREDIT} · "
+            f"{morphalou.LICENCE}"
         )
         return
 
