@@ -5664,6 +5664,31 @@ class Handler(BaseHTTPRequestHandler):
             said = f"Let {let_in} in."
         self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#people")
 
+    def _let_in(self, form: dict[str, str]) -> None:
+        """Let one person in, pressed on their own row (David, 2026-09-28).
+
+        The door `_open_the_door` is, for one address the operator chose: an admin
+        session, 404 for anyone else, and only somebody on the waitlist who confirmed
+        and has not been let in (`doorway.let_in`).
+        """
+        from .doorway import let_in
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        email = (form.get("email") or "").strip()
+        try:
+            row = let_in(self.store, self.mailer, self.address, email)
+        except ValueError as error:
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
+        if row is None:
+            said = f"{email} is not waiting to be let in."
+        elif row.failed:
+            said = f"Could not write to {email}: {row.failed}"
+        else:
+            said = f"Let {email} in, and wrote to them."
+        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
+
     def _balance(self, form: dict[str, str]) -> None:
         """Record what a service's console said was left, from the back office's form.
 
@@ -6144,6 +6169,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._promote(self._form())
         if route == BACK_OFFICE_ROUTE + "/open-the-door":
             return self._open_the_door(self._form())
+        if route == BACK_OFFICE_ROUTE + "/let-in":
+            return self._let_in(self._form())
         if route == BACK_OFFICE_ROUTE + "/balance":
             return self._balance(self._form())
         # Subscribing to the weekly, confirming it, and stopping it. Public by

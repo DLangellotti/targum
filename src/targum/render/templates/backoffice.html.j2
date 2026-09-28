@@ -75,7 +75,7 @@
   <h1>back office</h1>
   {#- The four numbers that say whether anything needs doing, above the tabs so they
       are the first thing read whichever tab is open (2026-09-28). -#}
-  <p class="taken">{{ survey.waiting.on if survey.waiting else 0 }} waiting &middot;
+  <p class="taken">{{ survey.waiting_for_a_way_in }} waiting to be let in &middot;
     {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
     {{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
     {{ survey.active() }} active in the last {{ days }} days &middot;
@@ -100,9 +100,10 @@
       of this page names nobody either. `on` is the number that matters — an address
       that answered its confirmation — and `pending` is how many have not yet. -#}
   {%- if survey.waiting %}
-  <p class="taken">{{ survey.waiting.on }} waiting &middot;
+  <p class="taken">{{ survey.waiting.on }} confirmed their email &middot;
     {{ survey.waiting.pending }} not yet confirmed &middot;
-    {{ survey.waiting.off }} left the list</p>
+    {{ survey.waiting.off }} left the list &middot;
+    {{ survey.waiting_list|selectattr('invited')|list|length }} let in</p>
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
@@ -119,8 +120,20 @@
         <td>{{ who.email }}</td>
         <td class="quiet">{{ who.asked }}</td>
         <td class="quiet">{{ who.joined or '—' }}</td>
-        <td class="quiet">{{ who.state }}</td>
-        <td class="quiet">{{ who.invited or '—' }}</td>
+        {#- What the state means, not what the column stores: `on` read as "let in" and it
+            only ever meant the address answered its confirmation mail (2026-09-28). -#}
+        <td class="quiet">{{ {'on': 'Confirmed their email', 'pending': 'Not confirmed yet', 'off': 'Left the list'}.get(who.state, who.state) }}</td>
+        <td>
+          {%- if who.invited %}<span class="quiet">{{ who.invited }}</span>
+          {%- elif who.state == 'on' %}
+          {#- One person at a time, the operator's choice (David, 2026-09-28): the same door
+              as the batch below, for this address only (`doorway.let_in`). -#}
+          <form method="post" action="/back-office/let-in" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" value="accept" aria-label="Let {{ who.email }} in">Let in</button>
+          </form>
+          {%- else %}<span class="quiet">—</span>{% endif %}
+        </td>
         <td class="quiet">{{ who.language or 'en' }}</td>
       </tr>
       {% endfor %}
