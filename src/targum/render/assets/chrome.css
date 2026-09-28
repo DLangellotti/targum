@@ -291,29 +291,6 @@ body {
 /* §4: selection in UI is quiet ink, never the accent. */
 .segment[aria-pressed="true"] { background: var(--ink-soft); color: var(--paper); }
 
-/* --- the footer every page wears ------------------------------------------
-   The about page is the open-source half made visible, and it should be reachable from
-   the product and not only from the door. Here rather than in library.css, which the
-   upload page has no reason to load — and so wore three unstyled blue links, invisible
-   only because that page used to be too long to reach the bottom of. */
-.site-foot {
-  /* The column every desk page's content stands in, so the links start where the page
-     does. At 46rem, centred, they started a hand's width in from it on some pages and in
-     the middle on others (2026-09-14). */
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 62rem;
-  margin: 3rem auto 0;
-  padding: 1.2rem 1.25rem 2rem;
-  border-block-start: 1px solid var(--hairline);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.2rem;
-  color: var(--ink-soft);
-  font-size: 0.6875rem;
-}
-.site-foot a { color: var(--ink-soft); text-decoration: none; }
-.site-foot a:hover { color: var(--ink); }
 
 /* Notifications (2026-09-11): a bell in the bar with a count, and a panel under it —
    what is building, what is ready, and the × the guidelines ask for on each. It
@@ -752,7 +729,6 @@ button:active:not(:disabled) { transform: scale(0.98); }
 @media (max-width: 48rem) {
   .talk-drawer { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; }
 }
-.site-foot { border-block-start: 0; }
 .segmented { border: 1px solid var(--hairline); background: var(--field); }
 .segment[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); }
 
@@ -978,3 +954,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
   white-space: nowrap;
 }
 .notices-act:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+
+/* The foot is its own (`foot.css`, 2026-09-28); on the desk it stands in the desk's own
+   62rem column, so its links start where the page does. */
+body .site-footer { max-inline-size: 62rem; }

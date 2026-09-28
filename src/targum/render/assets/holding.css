@@ -78,22 +78,6 @@ body.holding {
   .corner .enter { transition: none; }
 }
 
-/* Quiet, at the bottom, out of the way of a page whose whole point is emptiness. */
-.holding .foot {
-  position: fixed;
-  inset-block-end: 1.25rem;
-  inset-inline: 0;
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.4rem 1.2rem;
-  padding-inline: 1rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.holding .foot > * { white-space: nowrap; }
-.holding .foot a { color: var(--ink-soft); text-decoration: none; }
-.holding .foot a:hover { color: var(--ink); }
 
 /* An address that is not a page (2026-09-14): one line of what to do, under the state. */
 .holding .missing { margin: 0; max-inline-size: 24rem; text-align: center; color: var(--ink-soft); font-size: 0.9375rem; }

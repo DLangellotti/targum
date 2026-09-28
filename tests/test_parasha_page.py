@@ -465,11 +465,11 @@ def test_no_type_is_set_over_the_picture(serving: int) -> None:
 
 def test_the_call_to_action_is_the_waitlist(serving: int) -> None:
     """David, 2026-09-27: the door on these pages is the waitlist, asked in the hero and
-    at the foot; reading is the second thing, and sign-in is only the bar's."""
+    at the foot; reading is the second thing, and sign-in is the bar's and the foot's."""
     body = get(serving, "/parasha")[1]
     assert body.count('action="/waitlist"') == 2
     assert 'class="btn tonal" href="#embed"' in body
-    assert body.count('href="/account/signin"') == 1
+    assert body.count('href="/account/signin"') == 2
 
 
 def test_a_named_portion_gets_its_own_headline(serving: int) -> None:
@@ -483,7 +483,10 @@ def test_a_named_portion_gets_its_own_headline(serving: int) -> None:
     # while every named portion's <title> still said "this week's parasha" — the title is
     # lower case where the headline is capitalised, and Jinja writes its apostrophe as
     # &#39;, so a raw case-sensitive search for the phrase could not find it either way.
-    assert "this week's parasha" not in unescape(named).casefold()
+    # Above the foot: the foot's "This week's parasha" is a link to /parasha, which is
+    # this week's, and says nothing about the page it stands on (2026-09-28).
+    page = named.split('<footer class="site-footer">')[0]
+    assert "this week's parasha" not in unescape(page).casefold()
 
 
 def test_a_named_portion_does_not_title_itself_this_weeks(serving: int) -> None:

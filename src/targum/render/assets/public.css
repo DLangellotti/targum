@@ -230,18 +230,6 @@ body.public {
   font-size: 0.9375rem;
 }
 
-.public .foot {
-  max-width: var(--measure);
-  margin: 3rem auto 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.public .foot a {
-  color: var(--ink-soft);
-}
 
 /* --- the four pages about a reader's own data --- */
 

@@ -496,7 +496,7 @@ def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Pat
     assert "<dialog" not in page
     assert re.findall(r'<form[^>]*action="([^"]+)"', page) == ["/waitlist", "/waitlist"]
     assert page.count('name="email"') == 2, "the hero's form and the foot's"
-    assert page.count('href="/account/signin"') == 1, "only the bar's"
+    assert page.count('href="/account/signin"') == 2, "the bar's and the foot's"
     assert 'class="btn cta small" href="#join"' in page, "the bar points at the foot's form"
     assert 'id="join"' in page
 

@@ -347,6 +347,37 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### One foot, for the site and the app — 2026-09-28
+
+The site had two feet, the app's and the one the public pages wore, drawn by six
+stylesheets into six slightly different rows of small links. David asked for the foot
+to be designed once for everything, with X added, and chose each part:
+
+- **The lockup and columns.** The mark and the name, the landing's one-line description
+  under them, then three short columns: **Read** (Library, This week's news, This week's
+  parasha, Daily learning), **targum** (About, Install MCP, Source, Privacy, Terms),
+  **Follow**. A thin line under them carries © and the licence, and EN / RU on a
+  public page.
+- **Plain names.** "What's built" is **About** and "targum in your AI" is **Install MCP**
+  (David, 2026-09-28). `/connect` still explains what MCP is for somebody who has never
+  added one; the foot names the action.
+- **Social accounts as §7 glyphs.** X, Instagram and LinkedIn are drawn as the
+  interface's own icons (16 units, a 1.4 stroke, round caps, no fill), in ink, never in
+  the platforms' colours (§10), with the name as the label. X is `@targum_app`, because
+  an X handle cannot hold the domain's dot.
+- **The waitlist is a line**, on public pages only, while the front door is open: the
+  call to action's words in ink under the description, not a second button under the
+  page's own. **Sign in is under it** (David, 2026-09-28), quieter: the two doors
+  together, the new reader's first.
+- **It links only to pages that answer.** The reading pages while the shelves are public,
+  Install MCP while the connector is open, the legal pages once they are published. The
+  foot's one exception to "no link to a 404" was the daily cycles: there is no page for
+  all four, so the foot links Mishnah Yomit, whose page lists the other three.
+
+One file draws it (`_site_foot.html.j2`), and it carries its own stylesheet
+(`foot.css`), with every token's value written beside it, so it looks the same under
+the landing's sheets, the reader's and the desk's.
+
 ### The weekly, the parasha and the dailies are drawn as the front door is — 2026-09-27
 
 "Parasha and dailies and weekly digest pages should be updated to fit design of rest of

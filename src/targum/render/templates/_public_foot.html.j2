@@ -1,31 +1,4 @@
-{#- The foot of every page a stranger can reach, and now of the sign-in page too.
-
-    There were three copies of this — the holding page, the shelf and a text — and they
-    had already drifted apart: two carried the licence and one did not. That is the
-    lesson `_public_head.html.j2` records, arriving a second time.
-
-    `back` adds the way to the catalogue, which only a text's own page wants. -#}
-<footer class="foot">
-  {%- if back %}
-  <a href="/library">{{ back }}</a>
-  {%- endif %}
-  <a href="/about">{{ t("foot.whats-built", "What's built") }}</a>
-  {#- The way to /connect from every public page, on the same switch the route and the
-      in-app foot answer to, so no page links to a 404. -#}
-  {%- if connector_is_open() %}
-  <a href="/connect">{{ t("foot.targum-in-your-ai", "targum in your AI") }}</a>
-  {%- endif %}
-  {#- The front door hides its bar's sign-in on a phone, where four controls wrapped the
-      bar onto two lines; asked for, the door stands here instead. -#}
-  {%- if signin %}
-  <a href="/account/signin">{{ t("foot.sign-in", "Sign in") }}</a>
-  {%- endif %}
-  {#- Shown only once the documents are open. See `_foot.html.j2`. -#}
-  {%- if legal_is_public() %}
-  <a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a>
-  <a href="/terms">{{ t("foot.terms", "Terms") }}</a>
-  {%- endif %}
-  {%- include '_social.html.j2' %}
-  <a href="https://github.com/DLangellotti/targum">{{ t("foot.source", "Source") }}</a>
-  <span>AGPL-3.0</span>
-</footer>
+{#- The foot on every page in front of the door: the one foot (`_site_foot.html.j2`),
+    with the waitlist, Sign in and EN / RU. The templates that pass `signin` still may;
+    the foot offers Sign in on every public page now. -#}
+{% with public = true %}{% include '_site_foot.html.j2' %}{% endwith %}

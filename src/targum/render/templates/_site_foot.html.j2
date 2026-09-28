@@ -1,0 +1,116 @@
+{#- The one foot, on every page of the site and the app (design.md §12, 2026-09-28).
+
+    There were two — the app's and the one the public pages wore — drawn by six
+    stylesheets, and they had drifted into six slightly different rows of small links.
+    Now one file and one stylesheet, carried inside the foot itself so no page can draw
+    it differently: the lockup and what targum is, then Read, targum and Follow, then a
+    line with the licence and, on a public page, the language.
+
+    Expects `public` — true on the pages in front of the door, where the foot also
+    offers the waitlist, Sign in and EN / RU; false inside the app, where the reader has
+    an account and the desk's own menu says the language.
+
+    Every link it draws is to a page that answers: the reading pages only while the
+    shelves are public, the connector only while it is open, the legal pages only once
+    they are published, the waitlist only while the front door is. -#}
+{%- set public = public|default(false) %}
+{%- set shelves = shelves_are_public() %}
+<style>{{ asset('foot.css') }}</style>
+<footer class="site-footer">
+  <div class="sf-inner">
+    <div class="sf-brand">
+      <a class="sf-mark" href="/" aria-label="targum">
+        <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+          <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+          <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent, #a5824f)"></rect>
+        </svg>
+        targum
+      </a>
+      <p class="sf-tag">{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</p>
+      {%- if public and front_door_is_open() %}
+      <a class="sf-join" href="/#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }} <span aria-hidden="true">→</span></a>
+      {%- endif %}
+      {#- Sign in under the waitlist (David, 2026-09-28): the two doors together, the one
+          for somebody new first and the one for somebody who already has a key under it. -#}
+      {%- if public %}
+      <a class="sf-signin" href="/account/signin">{{ t("foot.sign-in", "Sign in") }}</a>
+      {%- endif %}
+    </div>
+    <div class="sf-cols">
+      {%- if shelves or not public %}
+      <nav class="sf-col" aria-labelledby="sf-read">
+        <p class="sf-head" id="sf-read">{{ t("foot.read", "Read") }}</p>
+        <ul>
+          <li><a href="/library">{{ t("nav.library", "Library") }}</a></li>
+          {%- if shelves %}
+          <li><a href="/weekly">{{ t("foot.weekly", "This week's news") }}</a></li>
+          <li><a href="/parasha">{{ t("foot.parasha", "This week's parasha") }}</a></li>
+          {#- There is no one page for the four cycles; Mishnah Yomit's lists the other
+              three under "Also today". -#}
+          <li><a href="/mishna-yomi">{{ t("foot.daily", "Daily learning") }}</a></li>
+          {%- endif %}
+        </ul>
+      </nav>
+      {%- endif %}
+      <nav class="sf-col" aria-labelledby="sf-targum">
+        {#- The name, as the name: lowercase and never translated (§6). -#}
+        <p class="sf-head" id="sf-targum">targum</p>
+        <ul>
+          <li><a href="/about">{{ t("foot.about", "About") }}</a></li>
+          {#- The way into Claude and ChatGPT lives in the foot (design.md §12,
+              2026-09-24): always true and rarely wanted. Named for what it does, "Install
+              MCP", since 2026-09-28 (David); /connect still explains it for anybody who
+              has never added one. -#}
+          {%- if connector_is_open() %}
+          <li><a href="/connect">{{ t("foot.install-mcp", "Install MCP") }}</a></li>
+          {%- endif %}
+          <li><a href="https://github.com/DLangellotti/targum">{{ t("foot.source", "Source") }}</a></li>
+          {#- Privacy and terms rather than four legal links; the schedule and the
+              erasure procedure are one click on from privacy. -#}
+          {%- if legal_is_public() %}
+          <li><a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a></li>
+          <li><a href="/terms">{{ t("foot.terms", "Terms") }}</a></li>
+          {%- endif %}
+        </ul>
+      </nav>
+      {%- if social %}
+      <nav class="sf-col" aria-labelledby="sf-follow">
+        <p class="sf-head" id="sf-follow">{{ t("foot.follow", "Follow") }}</p>
+        {#- targum's own accounts (`builder.SOCIAL`), as §7's glyphs: 16 units, a 1.4
+            stroke, no fill — line drawings of the platforms' marks, never their colours
+            (§10). The name is the label, and the title for a pointer. `rel="me"` says
+            the account is this site's, for anyone checking. -#}
+        <ul class="sf-social">
+          {%- for name, address in social %}
+          <li><a href="{{ address }}" rel="me" aria-label="{{ name }}" title="{{ name }}">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              {%- if name == 'X' %}
+              <path d="M3 2.5h2.6l7.4 11h-2.6z"/><path d="M13 2.5 3 13.5"/>
+              {%- elif name == 'Instagram' %}
+              <rect x="2.5" y="2.5" width="11" height="11" rx="3.2"/><circle cx="8" cy="8" r="2.6"/><path d="M11.3 4.7h0"/>
+              {%- elif name == 'LinkedIn' %}
+              <rect x="2.5" y="2.5" width="11" height="11" rx="1.8"/><path d="M5.5 7.2v3.8M5.5 5h0M8 11V7.2M8 8.8c0-1.1.8-1.7 1.6-1.7s1.5.6 1.5 1.7V11"/>
+              {%- else %}
+              <circle cx="8" cy="8" r="5.5"/>
+              {%- endif %}
+            </svg>
+          </a></li>
+          {%- endfor %}
+        </ul>
+      </nav>
+      {%- endif %}
+    </div>
+  </div>
+  <div class="sf-base">
+    <span>© 2026 targum · AGPL-3.0</span>
+    {#- Two codes and a slash, as in the front door's bar: the one being read is ink,
+        the other a link. `?lang=` on this same page, which is how every public page
+        is addressed in another language (targum-internal#188). -#}
+    {%- if public %}
+    <p class="sf-tongue">
+      {%- if page_language|default('en') == 'ru' %}<a href="?lang=en" lang="en">EN</a><span>/</span><b>RU</b>
+      {%- else %}<b>EN</b><span>/</span><a href="?lang=ru" lang="ru">RU</a>{% endif %}
+    </p>
+    {%- endif %}
+  </div>
+</footer>

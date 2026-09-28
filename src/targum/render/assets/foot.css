@@ -1,0 +1,115 @@
+/* The one foot (`_site_foot.html.j2`; design.md §12, 2026-09-28).
+
+   Carried inside the foot rather than by the pages around it, because the pages load
+   four different sets of sheets — the landing its own, the public pages the reader's,
+   the desk its chrome — and six of them used to style the foot each their own way.
+   Everything here is under `.site-footer`, and every token has its value beside it, so
+   the foot looks the same whichever sheets stand above it on the page. */
+
+.site-footer {
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 64rem;
+  margin: 3rem auto 0;
+  padding: 2.5rem 1.25rem 2rem;
+  border-block-start: 1px solid var(--hairline, rgb(28 26 23 / 0.08));
+  color: var(--ink-soft, #6b645c);
+  font: 400 0.875rem/1.5 var(--chrome, "Source Sans 3", "Segoe UI", system-ui, sans-serif);
+  text-align: start;
+}
+.site-footer * { box-sizing: border-box; }
+.site-footer p,
+.site-footer ul { margin: 0; padding: 0; }
+.site-footer ul { list-style: none; }
+.site-footer a { color: inherit; text-decoration: none; }
+.site-footer a:hover { color: var(--ink, #1c1a17); }
+.site-footer a:focus-visible { outline: 2px solid var(--focus, #b8935e); outline-offset: 2px; border-radius: 4px; }
+
+/* The lockup and what targum is, then the columns: two tracks on a wide window, one
+   on a phone. */
+.site-footer .sf-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: 2rem 3rem;
+}
+.site-footer .sf-brand { display: grid; gap: 0.75rem; align-content: start; justify-items: start; }
+.site-footer .sf-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink, #1c1a17);
+  font: 600 1.25rem/1 var(--reading, "Iowan Old Style", Palatino, Georgia, serif);
+  letter-spacing: -0.01em;
+}
+.site-footer .sf-mark svg { inline-size: 1rem; block-size: auto; }
+.site-footer .sf-tag { max-inline-size: 22rem; color: var(--ink-soft, #6b645c); }
+/* The waitlist, where the page is public: the call to action's words in ink (§9), as
+   a line rather than a second button under the page's own. */
+.site-footer .sf-join { color: var(--ink, #1c1a17); font-weight: 600; }
+.site-footer .sf-join:hover { text-decoration: underline; text-underline-offset: 0.15em; }
+/* Sign in under it, quieter: the door for somebody who already has a key. The grid's gap
+   would set it as far from the waitlist as the description is; it belongs to the line
+   above. */
+.site-footer .sf-signin { margin-block-start: -0.35rem; }
+
+.site-footer .sf-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 1.5rem 2rem;
+}
+/* Sentence case, not the tracked capitals of a label: one of the three is the name, and
+   the name is lowercase everywhere (§6) — "TARGUM" would be the one place it was not. */
+.site-footer .sf-head {
+  margin-block-end: 0.75rem;
+  color: var(--ink, #1c1a17);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.site-footer .sf-col ul { display: grid; gap: 0.45rem; }
+
+/* The accounts as §7's glyphs, a row of them, each a 2.25rem press. */
+.site-footer .sf-col .sf-social { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-inline-start: -0.5rem; }
+.site-footer .sf-social a {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 999px;
+}
+.site-footer .sf-social a:hover { background: var(--teal-wash, rgb(31 111 107 / 0.09)); color: var(--teal, #1f6f6b); }
+.site-footer .sf-social svg {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The licence, and the language where there is one to choose. */
+.site-footer .sf-base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+  margin-block-start: 2.5rem;
+  padding-block-start: 1.25rem;
+  border-block-start: 1px solid var(--hairline, rgb(28 26 23 / 0.08));
+  font-size: 0.8125rem;
+}
+.site-footer .sf-tongue { display: flex; align-items: center; gap: 0.3rem; letter-spacing: 0.04em; }
+.site-footer .sf-tongue b { color: var(--ink, #1c1a17); font-weight: 600; }
+.site-footer .sf-tongue span { opacity: 0.5; }
+
+@media (max-width: 40rem) {
+  .site-footer { padding-block-start: 2rem; }
+  .site-footer .sf-inner { grid-template-columns: minmax(0, 1fr); }
+  .site-footer .sf-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* §8: a thumb gets 44px, and the links in a column sit further apart to give it. */
+@media (hover: none) and (pointer: coarse) {
+  .site-footer .sf-social a { inline-size: 44px; block-size: 44px; }
+  .site-footer .sf-col ul { gap: 0.75rem; }
+}

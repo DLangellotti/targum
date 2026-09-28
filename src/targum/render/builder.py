@@ -303,6 +303,8 @@ def section_minutes(sections: list[Section], by_id: Mapping[str, Segment]) -> di
 #: stranger can reach (2026-09-27). The handle is the domain wherever plain "targum" was
 #: taken. Only accounts that exist: a link to a page nobody made is worse than none.
 SOCIAL: tuple[tuple[str, str], ...] = (
+    # X cannot hold a dot, so the handle there is @targum_app rather than the domain.
+    ("X", "https://x.com/targum_app"),
     ("Instagram", "https://www.instagram.com/targum.page/"),
     ("LinkedIn", "https://www.linkedin.com/company/targum-page/"),
 )
@@ -330,6 +332,10 @@ def _environment() -> Environment:
     # line above it, so a template cannot be rendered against a stale answer.
     env.globals["connector_is_open"] = _connector_is_open
     env.globals["social"] = SOCIAL
+    # The foot links the reading pages and the waitlist only where they answer, read at
+    # call time for the reason `connector_is_open` is (design.md §12, 2026-09-28).
+    env.globals["shelves_are_public"] = _shelves_are_public
+    env.globals["front_door_is_open"] = _front_door_is_open
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
     env.globals["t"] = page_words("en")
@@ -1505,6 +1511,20 @@ LEGAL = {
         "The procedure for deleting a targum or closing an account, and the consequences of each.",
     ),
 }
+
+
+def _shelves_are_public() -> bool:
+    """Whether the reading pages answer a stranger, for the foot to know."""
+    from ..serve import shelves_are_public
+
+    return shelves_are_public()
+
+
+def _front_door_is_open() -> bool:
+    """Whether the waitlist takes an address, for the foot to know."""
+    from ..serve import front_door_is_open
+
+    return front_door_is_open()
 
 
 def _connector_is_open() -> bool:
