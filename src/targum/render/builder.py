@@ -332,9 +332,8 @@ def _environment() -> Environment:
     # line above it, so a template cannot be rendered against a stale answer.
     env.globals["connector_is_open"] = _connector_is_open
     env.globals["social"] = SOCIAL
-    # The foot links the reading pages and the waitlist only where they answer, read at
-    # call time for the reason `connector_is_open` is (design.md §12, 2026-09-28).
-    env.globals["shelves_are_public"] = _shelves_are_public
+    # The foot offers the waitlist only while it takes an address, read at call time
+    # for the reason `connector_is_open` is (design.md §12, 2026-09-28).
     env.globals["front_door_is_open"] = _front_door_is_open
     # The English, for any template that says a catalogued sentence and is not told
     # another language; a reader's render passes its own (`page_words`).
@@ -1511,13 +1510,6 @@ LEGAL = {
         "The procedure for deleting a targum or closing an account, and the consequences of each.",
     ),
 }
-
-
-def _shelves_are_public() -> bool:
-    """Whether the reading pages answer a stranger, for the foot to know."""
-    from ..serve import shelves_are_public
-
-    return shelves_are_public()
 
 
 def _front_door_is_open() -> bool:

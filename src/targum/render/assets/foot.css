@@ -52,10 +52,13 @@
    above. */
 .site-footer .sf-signin { margin-block-start: -0.35rem; }
 
+/* Two short columns, set together at the far edge rather than spread across it: with
+   three links and a row of glyphs, spread columns left holes between them. */
 .site-footer .sf-cols {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-  gap: 1.5rem 2rem;
+  grid-template-columns: repeat(2, max-content);
+  justify-content: end;
+  gap: 1.5rem 5rem;
 }
 /* Sentence case, not the tracked capitals of a label: one of the three is the name, and
    the name is lowercase everywhere (§6) — "TARGUM" would be the one place it was not. */
@@ -99,6 +102,7 @@
   border-block-start: 1px solid var(--hairline, rgb(28 26 23 / 0.08));
   font-size: 0.8125rem;
 }
+.site-footer .sf-small { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 1.25rem; }
 .site-footer .sf-tongue { display: flex; align-items: center; gap: 0.3rem; letter-spacing: 0.04em; }
 .site-footer .sf-tongue b { color: var(--ink, #1c1a17); font-weight: 600; }
 .site-footer .sf-tongue span { opacity: 0.5; }
@@ -106,7 +110,7 @@
 @media (max-width: 40rem) {
   .site-footer { padding-block-start: 2rem; }
   .site-footer .sf-inner { grid-template-columns: minmax(0, 1fr); }
-  .site-footer .sf-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .site-footer .sf-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: stretch; }
 }
 /* §8: a thumb gets 44px, and the links in a column sit further apart to give it. */
 @media (hover: none) and (pointer: coarse) {

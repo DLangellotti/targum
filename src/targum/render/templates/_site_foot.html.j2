@@ -3,18 +3,18 @@
     There were two — the app's and the one the public pages wore — drawn by six
     stylesheets, and they had drifted into six slightly different rows of small links.
     Now one file and one stylesheet, carried inside the foot itself so no page can draw
-    it differently: the lockup and what targum is, then Read, targum and Follow, then a
-    line with the licence and, on a public page, the language.
+    it differently: the lockup and what targum is, then targum and Follow at the far
+    edge, then a line with the licence, the legal pages and, on a public page, the
+    language. The Read column came out the same day (David, 2026-09-28).
 
     Expects `public` — true on the pages in front of the door, where the foot also
     offers the waitlist, Sign in and EN / RU; false inside the app, where the reader has
     an account and the desk's own menu says the language.
 
-    Every link it draws is to a page that answers: the reading pages only while the
-    shelves are public, the connector only while it is open, the legal pages only once
-    they are published, the waitlist only while the front door is. -#}
+    Every link it draws is to a page that answers: the connector only while it is open,
+    the legal pages only once they are published, the waitlist only while the front
+    door is. -#}
 {%- set public = public|default(false) %}
-{%- set shelves = shelves_are_public() %}
 <style>{{ asset('foot.css') }}</style>
 <footer class="site-footer">
   <div class="sf-inner">
@@ -37,21 +37,6 @@
       {%- endif %}
     </div>
     <div class="sf-cols">
-      {%- if shelves or not public %}
-      <nav class="sf-col" aria-labelledby="sf-read">
-        <p class="sf-head" id="sf-read">{{ t("foot.read", "Read") }}</p>
-        <ul>
-          <li><a href="/library">{{ t("nav.library", "Library") }}</a></li>
-          {%- if shelves %}
-          <li><a href="/weekly">{{ t("foot.weekly", "This week's news") }}</a></li>
-          <li><a href="/parasha">{{ t("foot.parasha", "This week's parasha") }}</a></li>
-          {#- There is no one page for the four cycles; Mishnah Yomit's lists the other
-              three under "Also today". -#}
-          <li><a href="/mishna-yomi">{{ t("foot.daily", "Daily learning") }}</a></li>
-          {%- endif %}
-        </ul>
-      </nav>
-      {%- endif %}
       <nav class="sf-col" aria-labelledby="sf-targum">
         {#- The name, as the name: lowercase and never translated (§6). -#}
         <p class="sf-head" id="sf-targum">targum</p>
@@ -65,12 +50,6 @@
           <li><a href="/connect">{{ t("foot.install-mcp", "Install MCP") }}</a></li>
           {%- endif %}
           <li><a href="https://github.com/DLangellotti/targum">{{ t("foot.source", "Source") }}</a></li>
-          {#- Privacy and terms rather than four legal links; the schedule and the
-              erasure procedure are one click on from privacy. -#}
-          {%- if legal_is_public() %}
-          <li><a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a></li>
-          <li><a href="/terms">{{ t("foot.terms", "Terms") }}</a></li>
-          {%- endif %}
         </ul>
       </nav>
       {%- if social %}
@@ -102,7 +81,16 @@
     </div>
   </div>
   <div class="sf-base">
-    <span>© 2026 targum · AGPL-3.0</span>
+    {#- The licence and the legal pages on one line, where a foot keeps them: privacy
+        and terms rather than four legal links, since the schedule and the erasure
+        procedure are one click on from privacy. -#}
+    <p class="sf-small">
+      <span>© 2026 targum · AGPL-3.0</span>
+      {%- if legal_is_public() %}
+      <a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a>
+      <a href="/terms">{{ t("foot.terms", "Terms") }}</a>
+      {%- endif %}
+    </p>
     {#- Two codes and a slash, as in the front door's bar: the one being read is ink,
         the other a link. `?lang=` on this same page, which is how every public page
         is addressed in another language (targum-internal#188). -#}
