@@ -342,6 +342,9 @@ THUMBED = (
     ".gloss-card .verb .root-open",
     # The vowel switch on /how (targum-internal#401).
     ".how-switch",
+    # The Tanakh map's Read, the press a phone's tap on a square leads to (design.md §12,
+    # "The Tanakh map is the knowledge ramp", 2026-09-28).
+    ".tanakh-read",
 )
 
 

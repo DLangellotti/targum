@@ -238,6 +238,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Yiddish text as it reads now and the page keeps calling a finite past "past".
   `targum rebuild --reread fr` is the paid re-read, and `--dry-run` says what it costs
   first; it reads again only the segments a text already had words for.
+- The Tanakh map, `/tanakh-map` (targum-internal#144): every chapter of the Tanakh a
+  square, in the Torah, the Prophets and the Writings, grouped by book in the Hebrew
+  order and count, and shaded on the knowledge ramp by the share of its running words
+  the reader has marked known — `coverage.chapter_map` from #490, asked once a visit
+  through `/tanakh-map.json`. Every square links to where its chapter is read
+  (`/open/<book>#<chapter>:1`), so the map is also a table of contents; hover or focus
+  shows the chapter's card, and on a phone a tap shows it and the card's Read is the
+  press. The Aramaic chapters are marked as Aramaic and never shaded as Hebrew, a book
+  the library lacks is drawn as unavailable, and this week's portion is ringed in ink.
+  Reached from Your Progress under Hebrew. design.md §12 (2026-09-28) records the ramp's
+  turns and the Aramaic treatment. The public test (`/tanakh-hebrew-test`) is not here.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

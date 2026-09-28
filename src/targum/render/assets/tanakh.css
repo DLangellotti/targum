@@ -1,0 +1,180 @@
+/* The Tanakh map (targum-internal#144; design.md §12, 2026-09-28).
+ *
+ * 929 squares, one a chapter, ten to a row inside each book so a chapter's number can be
+ * counted off the grid. The fill is the knowledge ramp (§12, 2026-08-28), the same four
+ * leaf steps the charts use, with one more below them: a chapter measured and not yet
+ * within reach is the rule's tone, the "nothing yet" the day strip already uses. What is
+ * not on the Hebrew scale never wears a leaf: Aramaic is the charts' own "off", and a
+ * book the library does not have is an outline with nothing in it.
+ *
+ * On a card, not the desk: the rule's tone and the first step are both too close to the
+ * ground to be told apart on it.
+ */
+
+.tanakh .tanakh-lede {
+  margin: 0;
+  max-inline-size: 34rem;
+  color: var(--ink);
+}
+.tanakh .tanakh-sum {
+  margin: 0;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.tanakh .tanakh-sum:empty { display: none; }
+
+/* --- the squares ---------------------------------------------------------------- */
+
+.tanakh .cell {
+  --cell: 0.75rem;
+  display: block;
+  inline-size: var(--cell);
+  block-size: var(--cell);
+  box-sizing: border-box;
+  border-radius: 4px;
+  /* Drawn and not yet shaded: the structure of the Tanakh, before anything is known of
+     the reader. A hairline, so it reads as a place and not as a verdict. */
+  background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.tanakh .cell[data-step="0"] { background: var(--rule); box-shadow: none; }
+.tanakh .cell[data-step="1"] { background: var(--step-1); box-shadow: none; }
+.tanakh .cell[data-step="2"] { background: var(--step-2); box-shadow: none; }
+.tanakh .cell[data-step="3"] { background: var(--step-3); box-shadow: none; }
+.tanakh .cell[data-step="4"] { background: var(--step-4); box-shadow: none; }
+.tanakh .cell.aramaic { background: var(--off); box-shadow: none; }
+.tanakh .cell.away {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed var(--axis);
+}
+/* This week's portion is ink (the issue's word, and §9's: the reader acts here). A ring
+   inside the square, so the shade under it still says what it says. */
+.tanakh .cell.week { box-shadow: inset 0 0 0 2px var(--ink); }
+.tanakh a.cell:hover { box-shadow: inset 0 0 0 2px var(--ink-soft); }
+.tanakh a.cell.week:hover { box-shadow: inset 0 0 0 2px var(--ink); }
+.tanakh .cell:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+/* --- the parts and the books ------------------------------------------------------ */
+
+.tanakh .tanakh-map {
+  display: grid;
+  gap: 1.5rem;
+}
+.tanakh .tanakh-part h2 { margin-block-end: 0.75rem; }
+.tanakh .tanakh-books {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  align-items: start;
+}
+.tanakh .tanakh-name {
+  margin: 0 0 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+  max-inline-size: calc(10 * 0.75rem + 9 * 2px);
+}
+/* §5: the Hebrew is never the smaller of the two. */
+.tanakh .tanakh-name bdi {
+  font-family: var(--reading-hebrew);
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.tanakh .tanakh-name span,
+.tanakh .tanakh-half {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.tanakh .tanakh-half { margin: 0.35rem 0 0.2rem; }
+.tanakh .tanakh-cells {
+  display: grid;
+  grid-template-columns: repeat(10, var(--cell, 0.75rem));
+  gap: 2px;
+}
+
+/* --- the legend ------------------------------------------------------------------- */
+
+.tanakh .tanakh-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.tanakh .tanakh-legend li { display: inline-flex; align-items: center; gap: 0.4rem; }
+.tanakh .tanakh-legend .cell { display: inline-block; }
+
+/* --- the card --------------------------------------------------------------------- */
+
+/* Floating at the foot of the window while the map is under it, so what a square is
+   stays in view wherever on the map the pointer is. A floating panel's tier (§13). */
+.tanakh .tanakh-card {
+  position: sticky;
+  inset-block-end: 1rem;
+  /* Clear of the conversation's pill, which stands at the window's far corner. */
+  max-inline-size: 34rem;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: start;
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-sheet);
+  background: var(--card);
+  box-shadow: var(--shadow-floating);
+}
+.tanakh .tanakh-card[hidden] { display: none; }
+.tanakh .tanakh-card p { margin: 0; }
+.tanakh .tanakh-card-title {
+  font-family: var(--chrome);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.tanakh .tanakh-card-meta { font-size: 0.875rem; color: var(--ink-soft); }
+.tanakh .tanakh-card-share { color: var(--ink); }
+.tanakh .tanakh-card-share:empty { display: none; }
+/* Tonal (§13): the ordinary press, and the one this card is for. */
+.tanakh .tanakh-read {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 40px;
+  margin-block-start: 0.5rem;
+  padding: 0 1.1rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.tanakh .tanakh-read[hidden] { display: none; }
+
+/* §8: the Read press reaches 44px under a thumb. The squares do not and are not meant
+   to: on a phone they are pointed at, and this is what is pressed. */
+@media (hover: none) and (pointer: coarse) {
+  .tanakh .tanakh-read { min-block-size: 44px; }
+}
+
+/* A phone: seven-pixel squares, as the issue asks, and three books to a row. */
+@media (max-width: 40rem) {
+  .tanakh .cell { --cell: 7px; border-radius: 0; }
+  .tanakh .tanakh-cells { grid-template-columns: repeat(10, 7px); gap: 1px; }
+  .tanakh .tanakh-books { gap: 0.9rem 1rem; }
+  .tanakh .tanakh-name { max-inline-size: calc(10 * 7px + 9 * 1px); }
+  .tanakh .tanakh-name span { display: none; }
+  .tanakh .cell.week { box-shadow: inset 0 0 0 1px var(--ink); }
+  .tanakh .tanakh-legend .cell { --cell: 0.75rem; border-radius: 4px; }
+  /* Above the places' bar at the foot of the window, and beside the pill over it. */
+  .tanakh .tanakh-card {
+    inset-block-end: calc(4.75rem + env(safe-area-inset-bottom));
+    margin-inline-end: 4.25rem;
+  }
+}

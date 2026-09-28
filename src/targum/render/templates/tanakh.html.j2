@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{ t("tanakh.page.title-targum", "The Tanakh — targum") }}</title>
+{% include '_icons.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('progress.css') }}{{ asset('tanakh.css') }}</style>
+{{ hebrew_face() }}
+<script>{{ asset('keep.js') }}</script>
+<script>window.TARGUM_KEY = "{{ token }}";</script>
+</head>
+{#- The Tanakh map (targum-internal#144; design.md §12, 2026-09-28). Every chapter a
+    square, in three parts and the Hebrew count, shaded on the knowledge ramp by the share
+    of its running words the reader has marked known. Reached from Your Progress, so the
+    nav lights that. `words` for the ramp's four steps, which are defined on it. -#}
+<body class="words progress tanakh">
+{% set here = 'progress' %}{% set title = t("tanakh.page.title", "The Tanakh") %}
+{% include '_nav.html.j2' %}
+<script>{{ asset('building.js') }}</script>
+
+<main>
+  <p class="tanakh-lede">{{ t("tanakh.page.lede", "Every chapter, shaded by how many of its words you know. Press one to read it.") }}</p>
+  {#- The one sentence the shading adds up to, filled by `tanakh.js`. Signed out it says
+      where the shading comes from instead. -#}
+  <p class="tanakh-sum" id="tanakh-sum" aria-live="polite"></p>
+
+  {#- The ramp and the three things that are not on it: a square is a share of words
+      known, Aramaic, or a book that is not on the shelf — never two of these at once. -#}
+  <section class="panel tanakh-panel" aria-label="{{ t("tanakh.page.every-chapter", "Every chapter") }}">
+  <ul class="tanakh-legend" id="tanakh-legend" data-steps="{{ steps|join(' ') }}">
+    <li><i class="cell" data-step="0"></i>{{ t("tanakh.page.under-half", "Under half") }}</li>
+    {%- for turn in steps %}
+    <li><i class="cell" data-step="{{ loop.index }}"></i>{{ turn }}%</li>
+    {%- endfor %}
+    <li><i class="cell aramaic"></i>{{ t("tanakh.page.aramaic", "Aramaic, not measured yet") }}</li>
+    <li><i class="cell away"></i>{{ t("tanakh.page.not-in-the-library", "Not in the library yet") }}</li>
+    <li><i class="cell week"></i>{{ t("tanakh.page.this-week", "This week's portion") }}</li>
+  </ul>
+
+  {#- The squares are links, so the map is a table of contents for the whole Tanakh and
+      works with no script at all. `aria-label` is the chapter; the card says the rest. -#}
+  <div class="tanakh-map" id="tanakh-map">
+    {%- for part in parts %}
+    <section class="tanakh-part" aria-labelledby="part-{{ part.part }}">
+      <h2 id="part-{{ part.part }}">
+        {%- if part.part == 'torah' %}{{ t("tanakh.page.torah", "Torah") }}
+        {%- elif part.part == 'prophets' %}{{ t("tanakh.page.prophets", "Prophets") }}
+        {%- else %}{{ t("tanakh.page.writings", "Writings") }}{% endif -%}
+      </h2>
+      <div class="tanakh-books">
+        {%- for book in part.books %}
+        <div class="tanakh-book">
+          <p class="tanakh-name"><bdi lang="he" dir="rtl">{{ book.hebrew }}</bdi> <span>{{ book.name }}</span></p>
+          {%- for half in book.halves %}
+          {%- if half.mark %}<p class="tanakh-half">{{ half.mark }}</p>{% endif %}
+          <div class="tanakh-cells">
+            {%- for chapter in half.chapters %}
+            {%- set aramaic = chapter.language != 'he' %}
+            {%- if chapter.href %}
+            <a class="cell{% if aramaic %} aramaic{% endif %}" href="{{ chapter.href }}" aria-label="{{ chapter.ref }}" data-ref="{{ chapter.ref }}" data-verses="{{ chapter.verses }}"{% if aramaic %} data-language="{{ chapter.language }}"{% endif %}{% if chapter.portion %} data-portion="{{ chapter.portion }}"{% endif %}></a>
+            {%- else %}
+            <span class="cell away{% if aramaic %} aramaic{% endif %}" role="img" aria-label="{{ chapter.ref }}" data-ref="{{ chapter.ref }}" data-verses="{{ chapter.verses }}"{% if aramaic %} data-language="{{ chapter.language }}"{% endif %}{% if chapter.portion %} data-portion="{{ chapter.portion }}"{% endif %}></span>
+            {%- endif %}
+            {%- endfor %}
+          </div>
+          {%- endfor %}
+        </div>
+        {%- endfor %}
+      </div>
+    </section>
+    {%- endfor %}
+  </div>
+  </section>
+
+  {#- The card: what a square is, said on hover and on focus, and on a phone on a tap —
+      where a seven-pixel square is a thing to point at, not to press, so the card's Read
+      is the press. `aria-live`, so a keyboard walking the squares hears each one. -#}
+  <div class="tanakh-card" id="tanakh-card" aria-live="polite" hidden>
+    <p class="tanakh-card-title" id="card-title"></p>
+    <p class="tanakh-card-meta" id="card-meta"></p>
+    <p class="tanakh-card-share" id="card-share"></p>
+    <a class="tanakh-read" id="card-read" href="#" hidden>{{ t("tanakh.page.read", "Read") }}</a>
+  </div>
+</main>
+{% include '_foot.html.j2' %}
+
+<script>
+window.TARGUM_KEY = "{{ token }}";
+window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
+{% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
+{% endif %}</script>
+<script>{{ asset('strings.js') }}</script>
+<script>{{ asset('account.js') }}</script>
+<script>{{ asset('tanakh.js') }}</script>
+</body>
+</html>

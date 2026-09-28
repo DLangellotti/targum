@@ -651,3 +651,24 @@ def chapter_estimate(
         )
         out[ref] = weighed / part.tokens
     return out
+
+
+#: Where the map's leaf ramp turns, as whole percentages of a chapter's running words
+#: (design.md §12, 2026-09-28). Under the first a chapter is measured and plainly not
+#: yet within reach; the last is the share at which reading goes on without stopping.
+#: Running words climb fast — the commonest hundred dictionary forms are about half of
+#: any chapter — so the steps are packed at the top, where one more word known is a
+#: chapter changing hands.
+MAP_STEPS = (50, 75, 90, 95)
+
+
+def map_percent(share: float) -> int:
+    """A share as the whole percentage the map says, rounded down: a chapter at 94.6%
+    is not yet at 95%, and the square and the card must not disagree about it."""
+    return int(min(max(share, 0.0), 1.0) * 100)
+
+
+def map_step(percent: int) -> int:
+    """Which of the ramp's steps a percentage stands on: 0 below the first turn, 4 at
+    the last. `tanakh.js` counts the same way off the page's own copy of the turns."""
+    return sum(1 for turn in MAP_STEPS if percent >= turn)
