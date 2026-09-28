@@ -358,6 +358,11 @@ accounts active, incidents. The open tab is named in the address, so a form's an
 lands on it; the panel's id is not the tab's name, so the browser never scrolls past the
 tabs to reach it. Without the script every panel shows, as the page always did.
 
+Each person is let in by hand (David, the same day): a **Let in** on every row that
+confirmed and has not been let in, beside the batch's "Open the door", and the row says
+the date once they are. The state is said as what it is, "Confirmed their email", because
+`on` read as let in and nobody had been.
+
 The Visitors headline is a rate, "about 3 visitors a day this week", because the sum of
 thirty days' visitors read as that many people. What counts as a visitor is `visits.py`'s
 to say: a browser's own page load, signed out, not from an address signed in the same

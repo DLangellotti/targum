@@ -79,18 +79,38 @@ def open_the_door(
     if not address:
         raise ValueError("No address for this install, so the mail would carry no link.")
 
-    opened: list[Opened] = []
-    for email, language in waiting:
-        try:
-            store.invite(email)
-            letter = invitation(address, language)
-            mailer.notify(email, letter.subject, letter.text, None, letter.html)
-        except Exception as error:  # noqa: BLE001 — one bad address must not stop the rest
-            # Left unstamped on purpose: the next run picks them up again. Reported
-            # rather than raised, because a batch of ten in which one address bounces
-            # should let the other nine in.
-            opened.append(Opened(email, language, failed=str(error) or error.__class__.__name__))
-            continue
-        store.waiting_invited(email)
-        opened.append(Opened(email, language))
-    return opened
+    return [_let(store, mailer, address, email, language) for email, language in waiting]
+
+
+def let_in(store: Store, mailer: Mailer | None, address: str, email: str) -> Opened | None:
+    """Let one person in, chosen by the operator from the waitlist (2026-09-28).
+
+    David wanted to accept each person himself rather than the next few in order. The
+    rule above still holds: only an address that asked and confirmed, and has not been
+    let in, can be let in here — anything else answers None and changes nothing, so a
+    form cannot be made to invite an address that never joined.
+    """
+    wanted = email.strip().lower()
+    for waiting, language in store.waiting_for_a_way_in():
+        if waiting.lower() == wanted:
+            if mailer is None:
+                raise ValueError("No mailer configured, so nobody can be told their turn has come.")
+            if not address:
+                raise ValueError("No address for this install, so the mail would carry no link.")
+            return _let(store, mailer, address, waiting, language)
+    return None
+
+
+def _let(store: Store, mailer: Mailer, address: str, email: str, language: str) -> Opened:
+    """Invite, mail, stamp: the three acts, in the order the module's docstring gives."""
+    try:
+        store.invite(email)
+        letter = invitation(address, language)
+        mailer.notify(email, letter.subject, letter.text, None, letter.html)
+    except Exception as error:  # noqa: BLE001 — one bad address must not stop the rest
+        # Left unstamped on purpose: the next run picks them up again. Reported rather
+        # than raised, because a batch of ten in which one address bounces should let
+        # the other nine in.
+        return Opened(email, language, failed=str(error) or error.__class__.__name__)
+    store.waiting_invited(email)
+    return Opened(email, language)

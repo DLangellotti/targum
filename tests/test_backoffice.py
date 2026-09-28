@@ -302,3 +302,51 @@ def test_the_page_is_four_tabs_with_the_numbers_above_them() -> None:
     assert page.index('class="bo-tabs"') < page.index('id="tab-people"')
     assert page.index("waiting &middot;") < page.index('class="bo-tabs"')
     assert "incidents" in page[: page.index('class="bo-tabs"')]
+
+
+def test_each_confirmed_person_has_their_own_let_in() -> None:
+    """David, 2026-09-28: "I want to be able to manually accept each person." A Let in
+    on each confirmed row not yet let in; the date where they were; and the state said
+    as what it is, since `on` read as let in and only meant the address was confirmed."""
+    from targum.backoffice import Survey, Waiting
+
+    found = Survey(
+        waiting={"pending": 1, "on": 2, "off": 0},
+        waiting_list=[
+            Waiting("a@example.com", "on", "2026-09-16", "2026-09-16"),
+            Waiting("b@example.com", "on", "2026-09-17", "2026-09-17", invited="2026-09-20"),
+            Waiting("c@example.com", "pending", "2026-09-28"),
+        ],
+    )
+    page = back_office_page(found, 30)
+    assert page.count('action="/back-office/let-in"') == 1, "only the confirmed, not let in"
+    assert '<input type="hidden" name="email" value="a@example.com">' in page
+    assert "2026-09-20" in page
+    assert "Confirmed their email" in page and "Not confirmed yet" in page
+    assert ">on<" not in page and ">pending<" not in page
+    assert "1 let in" in page
+
+
+def test_let_in_takes_only_somebody_waiting(tmp_path: Path) -> None:
+    """The door's rule holds for one address: an address that never joined, or has not
+    confirmed, or is already in, is not let in and nothing is sent."""
+    from targum.doorway import let_in
+
+    store = Store(tmp_path / "targum.db")
+    sent: list[str] = []
+
+    class Mailer:
+        def notify(self, to: str, *_: object) -> None:
+            sent.append(to)
+
+    token = store.join_waitlist("in@example.com", "en")
+    assert token is not None
+    store.confirm_waiting(token)
+    store.join_waitlist("unconfirmed@example.com", "en")
+
+    assert let_in(store, Mailer(), "https://targum.page", "stranger@example.com") is None
+    assert let_in(store, Mailer(), "https://targum.page", "unconfirmed@example.com") is None
+    assert sent == []
+    row = let_in(store, Mailer(), "https://targum.page", "IN@example.com")
+    assert row is not None and row.ok and sent == ["in@example.com"]
+    assert let_in(store, Mailer(), "https://targum.page", "in@example.com") is None, "once"
