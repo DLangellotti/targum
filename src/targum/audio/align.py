@@ -42,7 +42,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from ..errors import TargumError
+from ..errors import OffHere, TargumError
 from ..paths import model_dir
 from .tools import samples
 
@@ -350,7 +350,7 @@ class CtcAligner:
         """
         usable, hint = self.available()
         if not usable:
-            raise TargumError("The forced aligner is not installed.", hint)
+            raise OffHere("The forced aligner is not installed.", hint)
         code = _code(language)
         if code not in MODELS:
             raise TargumError(

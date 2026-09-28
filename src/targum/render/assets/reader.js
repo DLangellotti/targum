@@ -9567,6 +9567,9 @@ var targumReader = function () {
   var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that. Try again.");
 
   press.hidden = false;
+  // Its cost beside it, where the page knows one; shown with the press it prices.
+  var costs = document.getElementById("waiting-cost");
+  if (costs) costs.hidden = false;
   press.onclick = function () {
     press.disabled = true;
     // The page says which work is owed — a translation, or for an imported recording a

@@ -17,7 +17,7 @@ from . import annotate as annotate_module
 from . import ingest, render
 from . import vocalize as vocalize_module
 from .cache import Cache
-from .errors import TargumError, UnsupportedSource
+from .errors import OffHere, TargumError, UnsupportedSource
 from .ids import slug
 from .models import (
     Alignment,
@@ -1348,7 +1348,7 @@ class Build:
             if not target.is_file() or probe_module.load(workspace) is None:
                 usable, hint = ffmpeg_available()
                 if not usable:
-                    raise TargumError("ffmpeg is not installed.", hint)
+                    raise OffHere("ffmpeg is not installed.", hint)
                 if watching:
                     # Through the YouTube door, not `download()` — see video/youtube.
                     # The door names the file; taking its answer keeps that knowledge
@@ -1395,7 +1395,7 @@ class Build:
         if source.resolve() != target.resolve() or probe_module.load(workspace) is None:
             usable, hint = ffmpeg_available()
             if not usable:
-                raise TargumError("ffmpeg is not installed.", hint)
+                raise OffHere("ffmpeg is not installed.", hint)
             adopted = probe_module.adopt(source, workspace, allow_video=self.is_video_source)
             self.source = str(adopted)
         else:

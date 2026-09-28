@@ -168,7 +168,7 @@
     // "0% of its words" on the first card a new reader sees is true and unkind; the
     // line starts once there is something to say.
     if (!reader.known) return "";
-    return t("learn.known-share", "You know {share}%", { share: Math.round(reader.known * 100) });
+    return t("learn.known-share", "You know {share}% of its words", { share: Math.round(reader.known * 100) });
   }
 
   // The title in English under the Hebrew one, where the catalogue has one. An upload
@@ -426,7 +426,7 @@
     document.getElementById("carry-meta").textContent = door.meta !== undefined ? door.meta : facts(reader, door);
 
     var known = document.getElementById("carry-known");
-    var said = share(reader);
+    var said = door.shareSaid ? "" : share(reader);
     known.hidden = !said;
     known.textContent = said;
     // The line along the foot: how far through the text the reader is.
@@ -907,7 +907,7 @@
     }
     var meta = door.meta !== undefined ? door.meta : facts(reader, door);
     if (meta) what.appendChild(el("span", "learn-card-meta", meta));
-    var said = share(reader);
+    var said = door.shareSaid ? "" : share(reader);
     if (said) what.appendChild(el("span", "learn-card-known", said));
     if (lead) {
       what.appendChild(
@@ -1228,6 +1228,9 @@
       register: row.register === "biblical" ? "biblical" : row.register === "modern" ? "modern" : "",
       primary: true,
       meta: row.minutes ? why + " · " + t("learn.minutes", "{n} min", { n: row.minutes }) : why,
+      /* The reason line already says the known share ("You know 80% of its words."),
+         and the chip under it said it again (copy audit, 2026-09-28). */
+      shareSaid: !!(row.reason && row.reason.key === "suggest.known"),
     };
     if (row.reader) {
       door.src = row.reader;

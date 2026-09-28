@@ -31,6 +31,10 @@
       on the door itself rather than on a page of its own, because the way out of every
       one of them is the form underneath. -#}
   {%- if said %}<p class="said trouble" role="status">{{ said }}</p>{% endif %}
+  {#- Why they are here, when an app sent them: Connect in Claude or ChatGPT asks for an
+      account first, and a door that said nothing about it looked like a different
+      errand (copy audit, 2026-09-28). -#}
+  {%- if connecting %}<p class="said connecting" role="status">{{ connecting }}</p>{% endif %}
   {% if landing %}
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}

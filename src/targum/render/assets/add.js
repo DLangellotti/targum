@@ -846,20 +846,11 @@
         box.appendChild(foundCard(row));
       });
     }
-    // What the turn cost, after it is over and never before (targum-internal#253). In
-    // the clock the rest of the page uses, never in money: design.md §10 takes that
-    // position and this page keeps it.
-    ask("/job/chat-" + encodeURIComponent(state.chat) + "-" + state.n)
-      .then(function (job) {
-        if (!job || !job.seconds) return;
-        box.appendChild(
-          line(t("add.looking.cost", "Looking used {clock} of your credits.", { clock: clock(job.seconds) }))
-        );
-        say(box);
-      })
-      .catch(function () {
-        say(box);
-      });
+    // No cost line. It said what the turn took as a clock ("Looking used 0:07 of your
+    // credits"), and chatting is included (design.md §12, 2026-09-24): a search is a
+    // turn of it, so there is nothing to charge and nothing to say (copy audit,
+    // 2026-09-28).
+    say(box);
   }
 
   // Said in the conversation, by the reader's own press: a description is a turn of it.
@@ -1437,11 +1428,23 @@
         if (job.blocked) return refuse(job);
         offer(job);
       })
-      .catch(function () {
+      .catch(function (why) {
         go.disabled = false;
         // Never the exception itself: "TypeError: Failed to fetch" is not a sentence
-        // anybody should be handed (2026-09-14).
-        say(line(t("add.unreachable", "We couldn't reach targum. Check your connection and try again.")), true);
+        // anybody should be handed (2026-09-14). But a sentence the upload door said —
+        // a picture over its size, a protected file, a full recording allowance — is
+        // the answer, and blaming the connection for it sent the reader to check their
+        // wifi. `bringing.upload` rejects with the server's `error`, a string; a failed
+        // fetch or a file the browser could not read rejects with an object. The post
+        // form below already told the two apart (copy audit, 2026-09-28).
+        say(
+          line(
+            typeof why === "string"
+              ? why
+              : t("add.unreachable", "We couldn't reach targum. Check your connection and try again.")
+          ),
+          true
+        );
       });
   };
 
@@ -1720,6 +1723,14 @@
     cost.className = "cost";
     cost.textContent = price(job);
     box.appendChild(cost);
+    // And what the press spends, beside it (copy audit, 2026-09-28).
+    var spends = bringing.uses(job);
+    if (spends) {
+      var uses = document.createElement("span");
+      uses.className = "cost uses";
+      uses.textContent = spends;
+      box.appendChild(uses);
+    }
 
     var row = document.createElement("div");
     row.className = "row";
@@ -1734,7 +1745,9 @@
       });
     };
     row.appendChild(confirm);
-    if (job.pictures_offered > 0) row.appendChild(readPictures(job.pictures_offered));
+    if (job.pictures_offered > 0) {
+      row.appendChild(readPictures(job.pictures_offered, true, job.pictures_are === "pages"));
+    }
     box.appendChild(row);
     say(box);
   }
@@ -1743,11 +1756,18 @@
      never run unasked: this press is the consent, and it sends the link again with the
      pictures asked for, to be read and quoted like pictures brought in by hand
      (targum-internal#255). */
-  function readPictures(count) {
+  /* `also` where something was read already — a post's caption — and the pictures
+     are more of it; not where the pictures are all there is. `pages` for a scanned PDF,
+     whose pictures are its pages and are called so (copy audit, 2026-09-28). */
+  function readPictures(count, also, pages) {
     var more = document.createElement("button");
     more.type = "button";
     more.className = "ghost";
-    more.textContent = tn("add.read-pictures", count, "Also read the picture", "Also read the {n} pictures");
+    more.textContent = pages
+      ? tn("add.read-pages", count, "Read the page", "Read the {n} pages")
+      : also
+        ? tn("add.read-pictures", count, "Also read the picture", "Also read the {n} pictures")
+        : tn("add.read-pictures-only", count, "Read the picture", "Read the {n} pictures");
     more.onclick = function () {
       more.disabled = true;
       var payload = options();
@@ -1804,7 +1824,7 @@
     box.appendChild(line(job.error));
     var row = document.createElement("div");
     row.className = "row";
-    row.appendChild(readPictures(job.pictures_offered));
+    row.appendChild(readPictures(job.pictures_offered, false, job.pictures_are === "pages"));
     box.appendChild(row);
     say(box, true);
   }

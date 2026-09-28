@@ -2255,6 +2255,13 @@ class Store:
         row = self.db.execute("SELECT language FROM follow WHERE stop = ?", (token,)).fetchone()
         return str(row["language"] or "en") if row is not None else "en"
 
+    def following_series(self, token: str) -> str:
+        """Which series a stop token is for, or "" — so the page it opens can name it."""
+        if not token:
+            return ""
+        row = self.db.execute("SELECT series FROM follow WHERE stop = ?", (token,)).fetchone()
+        return str(row["series"] or "") if row is not None else ""
+
     def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
         with self.write() as db:
             db.execute(
@@ -2677,6 +2684,29 @@ class Store:
             return False
         found = self.db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone()
         return found is not None
+
+    def is_leaving(self, email: str) -> bool:
+        """Whether this address's account is inside its deletion grace period.
+
+        Every door refuses such an account, and each used to say why wrongly — "That
+        link no longer works", "targum isn't open yet" — so a person who changed their
+        mind was never told how to keep it (copy audit, 2026-09-28)."""
+        address = tidy(email)
+        if not address:
+            return False
+        row = self.db.execute("SELECT leaving FROM person WHERE email = ?", (address,)).fetchone()
+        return row is not None and row["leaving"] is not None
+
+    def leaving_link(self, token: str) -> bool:
+        """Whether this sign-in link would have worked but for its account closing."""
+        cutoff = now() - LINK_MINUTES * 60 * 1000
+        row = self.db.execute(
+            "SELECT 1 FROM link JOIN person ON person.id = link.person "
+            "WHERE link.hash = ? AND link.used IS NULL AND link.made >= ? "
+            "AND link.purpose = ? AND person.leaving IS NOT NULL",
+            (digest(token), cutoff, SIGN_IN),
+        ).fetchone()
+        return row is not None
 
     def start_sign_in(self, email: str) -> str:
         """Mint a link for this address, making the account if there is not one.

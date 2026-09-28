@@ -122,13 +122,16 @@
     </section>
   </div>
 </main>
-{% include '_foot.html.j2' %}
 
+{#- Before the foot, not after it: it was drawn under the foot, so a reader with
+    nothing yet saw the site's foot and then the page's one line (2026-09-28). -#}
 <p class="nothing" id="nothing" hidden>
   {#- "your library" meant the catalogue and the reader's own shelf at once, and the
       link went to the upload page, which was neither. Both have their own page now. -#}
   {{ t("progress.page.nothing-yet", "Your progress starts with the first word you mark.") }} <a id="library-link" href="/library">{{ t("progress.page.open-something-from-the-library", "Open something from the Library.") }}</a>
 </p>
+{% include '_foot.html.j2' %}
+
 
 <script>
 window.TARGUM_KEY = "{{ token }}";

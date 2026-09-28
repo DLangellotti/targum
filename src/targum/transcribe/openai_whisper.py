@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from ..errors import TargumError
+from ..errors import OffHere, TargumError
 from ..usage import Usage
 from .base import Progress, language_tag
 from .models import Transcript, Word
@@ -125,7 +125,7 @@ class WhisperTranscriber:
 
         key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
-            raise TargumError("No transcriber key.", self.available()[1])
+            raise OffHere("No transcriber key.", self.available()[1])
         data: dict[str, Any] = {
             "model": self.model,
             "response_format": "verbose_json",

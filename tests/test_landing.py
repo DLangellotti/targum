@@ -217,6 +217,20 @@ def test_joining_takes_the_address_and_mails_a_link(
     assert "/waitlist/confirm?t=" in sent
 
 
+def test_the_waitlist_s_answer_has_a_tab_of_its_own(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy audit, 2026-09-28 (Q23): it borrowed the weekly's furniture and its title
+    with it, so the tab said "Weekly News Digest" over an answer about the waitlist."""
+    port, _, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    _, body = post(port, "/waitlist", {"email": "tab@example.com"})
+    head = body.split("</head>")[0]
+    assert "<title>The waitlist — targum</title>" in head
+    assert "Weekly News Digest" not in head
+    assert 'rel="canonical"' not in head or "/weekly" not in head
+
+
 def test_a_typo_is_refused_before_anything_is_stored(
     served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
 ) -> None:

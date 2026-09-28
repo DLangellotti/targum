@@ -1745,6 +1745,7 @@ def signin_page(
     language: str = "en",
     said: str = "",
     asked: str = "",
+    connecting: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -1752,6 +1753,10 @@ def signin_page(
     account it would sign in without having spent anything to find out. `expired` is
     what a link that has been used or has aged out arrives at, which is a normal thing
     to hit rather than an error.
+
+    `connecting` is the line that says why they are here when Claude or ChatGPT sent
+    them — "Sign in to finish connecting Claude" — said by the server, which is what
+    knows (copy audit, 2026-09-28).
     """
     from .. import google as google_module
 
@@ -1766,6 +1771,7 @@ def signin_page(
             token=token,
             expired=expired,
             said=said,
+            connecting=connecting,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).
             google=google_module.configured(),
@@ -2193,8 +2199,13 @@ def weekly_page(
     archive: list[WeeklyIssue] | None = None,
     language: str = "en",
     edition: str = "en",
+    signed_in: bool = False,
 ) -> str:
     """A landing page for the weekly, with the issue's own reader inside it.
+
+    `signed_in` takes the waitlist off the page — the bar's call, the hero's form and the
+    closing section — for a reader who already has an account (§6; copy audit,
+    2026-09-28).
 
     `edition` is which language's reader the frame opens — the page's own where the
     issue was built into it, English otherwise. The caller asks the index, because only
@@ -2207,7 +2218,9 @@ def weekly_page(
     the template had stopped using — and it meant a box serving the weekly needed the
     source files as well as the built readers. It needs the readers and the index.
     """
-    from ..strings import text
+    from datetime import date as _date
+
+    from ..strings import said_on, text
     from ..weekly.models import LEVELS, label_in
     from ..weekly.models import folder as weekly_folder
 
@@ -2215,6 +2228,15 @@ def weekly_page(
     said = page_words(language)
     blurb = issue.blurb
     press = _press(issue)
+    # An issue in the archive is not this week's, and its hero said so anyway (copy
+    # audit, 2026-09-28): the newest published issue is "this week's", every older one
+    # is worded around its own date.
+    published = [one for one in (archive or []) if one.id != issue.id]
+    is_newest = not any(one.dated > issue.dated for one in published)
+    try:
+        dated_on = said_on(_date.fromisoformat(issue.dated), language)
+    except ValueError:
+        dated_on, is_newest = "", True
     _weekly_at = f"{address}/weekly/{issue.id}/{level.value}" if address else ""
     return (
         _environment()
@@ -2245,7 +2267,10 @@ def weekly_page(
             },
             shelf_name=SHELF[0],
             press=press,
-            archive=[other for other in (archive or []) if other.id != issue.id],
+            archive=published,
+            is_newest=is_newest,
+            dated_on=dated_on,
+            signed_in=signed_in,
         )
     )
 
@@ -2261,8 +2286,11 @@ def daily_page(
     is_today: bool = True,
     address: str = "",
     language: str = "en",
+    signed_in: bool = False,
 ) -> str:
     """One day of a learning cycle, with its own reader inside it.
+
+    `signed_in`, as on the weekly: no waitlist for a reader with an account.
 
     Drawn as the front door is (design.md §12, 2026-09-27): the landing's bar and hero,
     the cycle's manuscript beside the headline, and the waitlist at the foot.
@@ -2294,6 +2322,7 @@ def daily_page(
             absent=absent or [],
             opens=opens,
             is_today=is_today,
+            signed_in=signed_in,
             translation_said=_translation_said(day, language),
         )
     )
@@ -2383,6 +2412,7 @@ def parasha_page(
         _environment()
         .get_template("parasha.html.j2")
         .render(
+            signed_in=signed_in,
             t=page_words(language),
             tn=page_counts(language),
             page_language=_page_language(language),
@@ -2447,6 +2477,8 @@ def weekly_note(
     heading: str = "Weekly News Digest",
     home: str = "/weekly",
     language: str = "en",
+    title: str = "",
+    description: str = "",
 ) -> str:
     """A sentence back from the weekly's own door — or, since 2026-09-11, from a series'
     (`heading`, `home`): the same furniture, read out of a mail client.
@@ -2460,6 +2492,10 @@ def weekly_note(
     the page's `lang`, the foot, and the door at the bottom — which took `t` from the
     environment's English global and so was English on a page that was otherwise not.
     The page's own title and description are said in it too (targum-internal#288).
+
+    `title` and `description` are the caller's where the page is not the weekly's: the
+    waitlist's notes and a series' stop page carried the Weekly News Digest's tab title
+    and description (copy audit, 2026-09-28). Such a page is canonical to nothing.
     """
     from ..strings import text
 
@@ -2469,9 +2505,9 @@ def weekly_note(
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            title=text("weekly.note.title", language),
-            description=text("weekly.note.description", language),
-            canonical=f"{address}/weekly" if address else "",
+            title=title or text("weekly.note.title", language),
+            description=description or text("weekly.note.description", language),
+            canonical=f"{address}/weekly" if address and not title else "",
             message=message,
             done=done,
             pending=pending,
@@ -2981,12 +3017,43 @@ def render(
     from ..audio import manifest as manifest_module
 
     has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
+    # What the contents page's presses spend and what its first one says (copy audit,
+    # 2026-09-28): each part's length off the manifest, so a waiting row's Transcribe can
+    # say its credits and Prepare all theirs; and the verb, by medium, as Learn's rows
+    # choose it (§6) — a recording is listened to, a film watched.
+    part_seconds: dict[int, float] = {}
+    medium = "read"
+    if has_audio and folder is not None:
+        kept_manifest = manifest_module.load(folder)
+        if kept_manifest is not None:
+            part_seconds = {
+                part.number: part.end - part.start
+                for part in kept_manifest.parts
+                if part.end > part.start
+            }
+            medium = "watch" if any(part.video for part in kept_manifest.parts) else "listen"
+    by_id = {segment.id: segment for segment in segmented.segments}
+    section_parts = {
+        section.number: sorted(
+            {
+                int(head[5:])
+                for head in (
+                    by_id[sid].ref.split(":", 1)[0] for sid in section.segment_ids if sid in by_id
+                )
+                if head.startswith("part ") and head[5:].isdigit()
+            }
+        )
+        for section in sections
+    }
     # The language the page's own words are said in: its first rendering's
     # (targum-internal#184). The text keeps its own on `data-language`.
     chrome = translations[0].target_language if translations else "en"
     offers = offers_in(next_after(document), chrome)
     shared = {
         "has_audio": has_audio,
+        "medium": medium,
+        "section_parts": section_parts,
+        "part_seconds": part_seconds,
         # What to read next, worked out here because a reader cannot ask anybody. The
         # first is the offer; the rest are what "something else" draws, written into the
         # page because the page fetches nothing (targum-internal#233).
@@ -3374,6 +3441,22 @@ def render(
         # Whether this section is an imported recording's part still waiting for its
         # transcript. The page says which work is owed, and the button asks for it.
         audio_waiting = any(segment.ref.endswith(":waiting") for segment in segments)
+        # What transcribing it would use, beside the press (copy audit, 2026-09-28): the
+        # waiting parts' length off the manifest, a credit a minute. None where the
+        # manifest does not say — the page then says no figure rather than a guess.
+        waiting_credits: int | None = None
+        if audio_waiting and folder is not None:
+            from ..audio import manifest as manifest_module
+
+            kept = manifest_module.load(folder)
+            owed = {
+                int(head[5:])
+                for head in (segment.ref.split(":", 1)[0] for segment in segments)
+                if head.startswith("part ") and head[5:].isdigit()
+            }
+            lengths = [p.end - p.start for p in (kept.parts if kept else []) if p.number in owed]
+            if lengths and all(length > 0 for length in lengths):
+                waiting_credits = credits_of(sum(lengths))
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -3438,6 +3521,7 @@ def render(
             section=section,
             translated=translated,
             audio_waiting=audio_waiting,
+            waiting_credits=waiting_credits,
             # Words to tap: the Hebrew's, or Onkelos's beside it (targum-internal#202).
             words=bool(words)
             or any(

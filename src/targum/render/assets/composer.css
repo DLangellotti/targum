@@ -182,6 +182,8 @@
   color: var(--ink-soft);
 }
 .quote-note { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+/* What the press spends, beside it (copy audit, 2026-09-28). */
+.quote-uses { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
 /* How much of the text the reader already has, said in words (targum-internal#244). */
 .quote-known { margin: 0; font-size: 0.8125rem; color: var(--ink); }
 /* What could be done with it after it is built, not now: a note, so it does not read

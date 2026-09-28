@@ -378,6 +378,41 @@ in: "your monthly credits". That is true, since a turn is metered into the month
 (2026-09-23), which is also why "Chatting uses no credits" was rejected.
 
 
+### The copy audit's answers, where they were behaviour — 2026-09-28
+
+The entry above is the wording. These are the answers that needed code (`COPY_QUESTIONS.md`
+§B, §C and §E), each because a page said something the code did not do.
+
+- **A signed-in reader is not asked to join.** This amends "The weekly, the parasha and
+  the dailies are drawn as the front door is" (2026-09-27, below), which ends each page on
+  the waitlist. §6 says somebody who has chosen targum is not sold to again, so for a
+  reader with a session the bar's Join the waitlist, the hero's form and the closing
+  section are not drawn, and the Read button leads the hero, ink-filled. A stranger sees
+  the page as it was.
+- **A spending press has its cost beside it.** The press page, the set page and Telegram
+  already said "Uses N credits"; now the Add page's card, the chat's card, a waiting
+  chapter's Translate or Transcribe, the contents page's per-chapter press and Prepare
+  all say it too. A recording or a film in credits — a minute each, any part of one a
+  whole one, as `credits_of` counts — and a text "Uses none of your credits". Only where
+  the figure is known where it is drawn: a recording whose length the page does not
+  carry says nothing rather than a guess. And the description search on Add says no cost
+  at all: it is a turn of chat, and chatting is included (2026-09-24).
+- **The verbs follow the medium in two more places** (§6). The contents page's first
+  press is Start listening or Start watching for a recording or a film, and the ready
+  email's button is Read, Listen or Watch, chosen as its subject is. A scanned PDF offers
+  "Read the 12 pages" and a post whose words are all in its pictures "Read the 3
+  pictures"; "Also read" stays for a post whose caption was read.
+- **An archived issue of the weekly is worded around its date.** "This week's" is said
+  of the newest published issue only; an older one's hero reads "as it was on {date}".
+- **On a hosted box a refusal never hands a reader the machine's words.** A status code,
+  a curl exception, "install yt-dlp", "set OPENAI_API_KEY": the reader is told the
+  `job.unreadable.*` sentence for what happened, and the detail goes to the log. On a
+  machine somebody runs themselves the reader is the operator, and keeps the detail.
+- **Every door says what is true of a closing account**: "This account is being closed.
+  To keep it, email hello@targum.page." And an uninvited address is pointed at the
+  waitlist while the front door is open.
+
+
 ### The arrival opens with a welcome, and says what is optional — 2026-09-28
 
 David, trying the arrival as a new reader on the live site: "very weird to come and see

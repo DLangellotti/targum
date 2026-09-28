@@ -181,6 +181,12 @@
         .then(function (state) {
           if (state.reader) return open(state.reader);
           if (state.error) return stop(state.error);
+          /* Watching a quote that was still being costed: once it has a cost there is
+             something to press, and only the page drawn for that state has the button. */
+          if (!form && (state.stage === "ready" || state.stage === "blocked")) {
+            window.location.reload();
+            return;
+          }
           if (state.message) say(doing, state.message);
           say(left, howLong(state));
           watch();

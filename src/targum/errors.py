@@ -42,6 +42,17 @@ class TargumError(Exception):
         self.fill = fill
 
 
+class OffHere(TargumError):
+    """Something this machine has not got — a program, a package, a key — rather than
+    anything about what the reader brought.
+
+    The message and hint are the operator's ("install yt-dlp", "set OPENAI_API_KEY"),
+    which is right on a machine somebody runs themselves and wrong on a box strangers
+    read on: there `serve.told` says the reader's sentence and logs these (copy audit,
+    2026-09-28).
+    """
+
+
 class UnsupportedSource(TargumError):
     """A source targum cannot read yet."""
 

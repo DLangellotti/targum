@@ -51,12 +51,17 @@
         {{ t("parasha.page.the-hebrew-as-the-masorah-wrote-it", "The Hebrew as the Masorah wrote it, with the chanting marks or without, a
       translation beside every verse, and any word you tap remembered.") }}
       </p>
+      {#- The waitlist is for a stranger. Somebody who has chosen targum is not sold
+          to again (§6), so for them the Read button leads the hero (copy audit,
+          2026-09-28). -#}
+      {%- if not signed_in %}
       {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
+      {%- endif %}
       {#- The name is Hebrew inside an English sentence, so it is isolated wherever it
           appears: without that the bidi algorithm drags the surrounding punctuation to
           the wrong end and the button reads backwards. -#}
       <p class="actions">
-        <a class="btn tonal" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
+        <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
       </p>
     </div>
     {#- Decoration: it says nothing the words have not said, so it is hidden from a
@@ -283,7 +288,9 @@
 
   {#- The door is the waitlist (2026-09-27): a stranger who has read this far has no
       account to sign in to. The landing's own section, from the same file. -#}
+  {%- if not signed_in %}
   {% include '_front_join.html.j2' %}
+  {%- endif %}
 </main>
 
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>

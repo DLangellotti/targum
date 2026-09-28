@@ -402,6 +402,22 @@ def test_a_word_with_no_difficulty_is_not_a_kind_of_word() -> None:
     assert "easy" in drawn["bands"]
 
 
+def test_a_language_with_no_word_list_says_so_rather_than_nothing_marked() -> None:
+    """Copy audit, 2026-09-28 (Q4). Yiddish and Aramaic have no frequency bands, so none
+    of a reader's words falls in one, and the chart said "Nothing marked yet." to a
+    reader with hundreds marked."""
+    drawn = draw(
+        {
+            "targum:vocab:yi": banded(unrated=300),
+            "targum:docs": {"a": {"language": "yi", "title": "One"}},
+            "targum:opened": {"a": 1},
+            "targum:days": {"2026-08-25": 1},
+        }
+    )
+    assert "We have no word list for this language" in drawn["bands"]
+    assert "Nothing marked yet" not in drawn["bands"]
+
+
 # --- what targum taught, and what you already had -----------------------------
 
 

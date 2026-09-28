@@ -258,6 +258,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2026-09-28).
 
 ### Fixed
+- What the copy audit found the code saying wrongly (`COPY_QUESTIONS.md` 2–11, 14, 20–23,
+  28; design.md §12, 2026-09-28). The build page says "We're making it" to a queued build
+  and one still being costed, not "We can't make this one". Add shows the upload door's
+  own sentence for a refused file instead of blaming the connection. Your Progress says a
+  language has no word list rather than "Nothing marked yet", and its empty state sits
+  above the foot. On a hosted box a link refusal is the reader's sentence for its status,
+  never "HTTP 403", curl or an operator's hint; errors mid-build are said in the reader's
+  language with their hint. A closing account is told how to keep it at every sign-in
+  door, and an uninvited address is pointed at the waitlist. Ticking a translation
+  language again writes its translations back into the readers, as /you promised. The
+  sign-in page says which Connect it is finishing, and says so when one was lost. Learn's
+  Suggested door says the known share once. Every press that spends says its cost beside
+  it, and the description search no longer prices a chat turn. Signed-in readers are not
+  pitched the waitlist on the weekly, parasha and daily pages; an archived issue is not
+  "this week's"; the waitlist and series-stop pages have their own titles, and the stop
+  page names its series. The contents page and the ready email say Read, Listen or Watch,
+  and a scan offers "Read the 12 pages".
 - The arrival opens a text the reader can follow. The rung picked a row by its place in
   the subject's list, so the one row filed under a subject was every rung's answer, and
   "Just starting" opened a vav article. It reads the rung each text was written for now,

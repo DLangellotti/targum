@@ -403,7 +403,7 @@ def test_nothing_known_is_not_said_on_the_first_card() -> None:
     drawn = draw([], shared=[reader("ruth", "רות", "ruth", known=0.0)])
     assert drawn["carry"]["known"] == ""
     later = draw([reader("a", "א", known=0.4)])
-    assert later["carry"]["known"] == "You know 40%"
+    assert later["carry"]["known"] == "You know 40% of its words"
 
 
 def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
@@ -919,7 +919,27 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
     # copy where they have one and to its row with the offer up where they have not —
     # which is what this text is, and which the library row still handles.
     assert pressed["carry"]["href"] == "/open/esther?k=k", "Open goes to the text"
-    assert pressed["carry"]["known"] == "You know 50%"
+    # Said once. Where the reason line is the known share the chip under it is not
+    # drawn (copy audit, 2026-09-28, Q10); `reason` is what says which reason it is.
+    assert pressed["carry"]["known"] == "You know 50% of its words"
+    said = draw(
+        [mine],
+        stored,
+        suggest=dict(pick, reason={"key": "suggest.known", "share": 50}),
+        do=[{"door": "suggested"}],
+    )
+    assert said["carry"]["known"] == "", "the reason already says it"
+    other = draw(
+        [mine],
+        stored,
+        suggest=dict(
+            pick,
+            because="30% of its words are rare in everyday use.",
+            reason={"key": "suggest.looked-up", "share": 30},
+        ),
+        do=[{"door": "suggested"}],
+    )
+    assert other["carry"]["known"] == "You know 50% of its words"
     built_ = draw(
         [mine],
         stored,

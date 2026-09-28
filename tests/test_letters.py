@@ -177,6 +177,23 @@ def test_a_ready_mail_says_why_it_came_in_the_readers_language() -> None:
     assert film.subject == "Можно смотреть: ⁨Ruth⁩", "a film is watched before it is heard"
 
 
+def test_a_ready_mail_s_button_says_what_the_subject_does() -> None:
+    """Copy audit, 2026-09-28 (Q28), and §6: "Open" under "Ready to watch" named no
+    action. The button's verb is chosen as the subject's is."""
+    for listen, watch, verb in (
+        (False, False, "Read"),
+        (True, False, "Listen"),
+        (True, True, "Watch"),
+    ):
+        mail = letters.build_ready(
+            "Ruth", f"{SITE}/r", SITE, "en", asked=False, listen=listen, watch=watch
+        )
+        assert f">{verb}<" in mail.html, verb
+        assert ">Open<" not in mail.html
+    russian = letters.build_ready("Ruth", f"{SITE}/r", SITE, "ru", asked=False, listen=True)
+    assert ">Слушать<" in russian.html
+
+
 def test_a_daily_series_is_never_mailed(tmp_path: Any) -> None:
     """Its instalment lands on Learn and in the bell; a mail every day is the ping a
     reader deletes an app over (design.md §12, 2026-09-27)."""

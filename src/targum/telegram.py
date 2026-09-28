@@ -574,9 +574,9 @@ class Door:
                         )
             except TargumError as error:
                 shutil.rmtree(folder, ignore_errors=True)
-                from .serve import refused_in
+                from .serve import told
 
-                return self._reply(chat_id, refused_in(ui, error))
+                return self._reply(chat_id, told(ui, error, hosted=self.library.hosted))
             # Numbered as `Handler._gathered` numbers a set of pages, and the folder is the
             # source for a picture as it is there.
             numbered = folder / f"01-{target.name}"

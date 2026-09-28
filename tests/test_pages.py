@@ -125,6 +125,13 @@ def test_the_progress_page_is_only_the_numbers() -> None:
     assert 'id="ledger"' in progress and 'id="milestones"' in progress
 
 
+def test_the_progress_page_says_it_is_empty_above_its_foot() -> None:
+    """The empty state was drawn after the foot's include, so a reader with nothing
+    marked saw the site's foot and then, under it, the page's one line (2026-09-28)."""
+    progress = PAGES["progress"]
+    assert progress.index('id="nothing"') < progress.index('<footer class="site-footer"')
+
+
 # -- the nav -------------------------------------------------------------------
 
 
@@ -469,6 +476,21 @@ def test_translate_it_anyway_works_for_a_dropped_file() -> None:
     assert "readFile(chosen[0])" in retry, "a file has to be able to take this branch"
     assert "bringing.upload(chosen" in retry, "and so has a picture or a recording"
     assert ".catch(" in retry, "and a dropped connection must not leave the buttons dead"
+
+
+def test_a_refused_upload_says_what_the_server_said_not_check_your_connection() -> None:
+    """Copy audit, 2026-09-28 (Q3). A picture over its size, a protected file or a full
+    recording allowance came back as a sentence from the upload door, and Continue's
+    catch threw it away for "We couldn't reach targum. Check your connection". The door
+    rejects with the server's `error`, a string; a failed fetch rejects with an object."""
+    source = (ASSETS / "add.js").read_text(encoding="utf-8")
+    press = source[source.index("go.onclick = function") :]
+    caught = press[press.index("    prepared\n") :][:1800]
+    assert ".catch(function (why)" in caught
+    assert 'typeof why === "string"' in caught
+    assert caught.index('typeof why === "string"') < caught.index('t("add.unreachable"')
+    bring = (ASSETS / "bring.js").read_text(encoding="utf-8")
+    assert "if (opened.error) throw opened.error;" in bring, "the door rejects with its sentence"
 
 
 # -- one catalogue, and what each text is ----------------------------------------
