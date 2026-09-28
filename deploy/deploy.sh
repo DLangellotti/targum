@@ -245,12 +245,29 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   systemctl daemon-reload
   systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer
   rm -f /etc/cron.d/targum-backup
-  # The two tools the off-box copy needs, from Ubuntu's own archive: age seals a copy to
-  # a public key, rclone carries it. Installed when missing and never fatal here, because
-  # the backup names whichever is absent the first night it is switched on.
-  if ! command -v age >/dev/null || ! command -v rclone >/dev/null; then
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends age rclone \
-      >/dev/null 2>&1 || echo "   could not install age and rclone; the backup will say so" >&2
+  # The two tools the off-box copy needs: age seals a copy to a public key, rclone carries
+  # it. Installed when missing and never fatal here, because the backup names whichever is
+  # absent the first night it is switched on.
+  if ! command -v age >/dev/null; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends age \
+      >/dev/null 2>&1 || echo "   could not install age; the backup will say so" >&2
+  fi
+  # rclone comes from rclone.org, pinned and checked, not from Ubuntu's archive: 26.04 ships
+  # 1.60, which speaks B2's API version 1, and Backblaze refuses that on a new account ("not
+  # currently supported on API version number 1") — the first off-box copy never left
+  # (2026-09-28, targum-internal#16). Replaced whenever the installed one is not this one.
+  RCLONE_VERSION=1.75.1
+  RCLONE_SHA256=09c9f7606ed9e31eecc1eec26a89992cf2931a8d2d1a5f0ae2bb1c11630ffb15
+  if ! rclone version 2>/dev/null | head -1 | grep -qx "rclone v\$RCLONE_VERSION"; then
+    deb="\$(mktemp --suffix=.deb)"
+    if curl -fsSL -o "\$deb" "https://downloads.rclone.org/v\$RCLONE_VERSION/rclone-v\$RCLONE_VERSION-linux-amd64.deb" \
+      && echo "\$RCLONE_SHA256  \$deb" | sha256sum -c --quiet - \
+      && DEBIAN_FRONTEND=noninteractive apt-get install -y -q "\$deb" >/dev/null 2>&1; then
+      echo "   rclone \$RCLONE_VERSION"
+    else
+      echo "   could not install rclone \$RCLONE_VERSION; the backup will say so" >&2
+    fi
+    rm -f "\$deb"
   fi
 
   # Every reader carries the stylesheet and the script it was written with, baked in, so
