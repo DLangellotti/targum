@@ -28,11 +28,21 @@ def line(
     status: int = 200,
     kind: str = "text/html; charset=utf-8",
     method: str = "GET",
+    dest: str = "document",
+    language: str = "en-US,en;q=0.9",
+    cookie: bool = False,
 ) -> str:
-    """One line as Caddy's JSON access log writes it."""
+    """One line as Caddy's JSON access log writes it, from a browser unless told not."""
     headers = {"User-Agent": [agent]} if agent else {}
     if referrer:
         headers["Referer"] = [referrer]
+    if dest:
+        headers["Sec-Fetch-Dest"] = [dest]
+    if language:
+        headers["Accept-Language"] = [language]
+    if cookie:
+        # How Caddy writes it: the header is kept, its value is not.
+        headers["Cookie"] = ["REDACTED"]
     return json.dumps(
         {
             "level": "info",
@@ -68,6 +78,24 @@ def test_only_a_person_opening_a_page_is_a_visit() -> None:
     assert visits.parse(line(at(20), agent="facebookexternalhit/1.1")) is None
     assert visits.parse(line(at(20), uri="/back-office")) is None, "the operator"
     assert visits.parse("not json") is None
+
+
+def test_only_a_strangers_browser_is_counted() -> None:
+    """2026-09-28: the first rules counted scripts in browser clothing, reader frames
+    and the operator's own reading, and 50 visitors a day were 5."""
+    assert visits.parse(line(at(20), dest="")) is None, "a script sends no Sec-Fetch-Dest"
+    assert visits.parse(line(at(20), dest="iframe")) is None, "a framed reader, not a page"
+    assert visits.parse(line(at(20), language="")) is None, "a browser says what it reads"
+    assert visits.parse(line(at(20), cookie=True)) is None, "a signed-in reader"
+    assert visits.parse(line(at(20), agent="Mozilla/5.0 HeadlessChrome/131.0")) is None
+    for private in ("/reader/abc/reader/index.html", "/progress", "/chat", "/words"):
+        assert visits.parse(line(at(20), uri=private)) is None, private
+    assert visits.parse(line(at(20), uri="/account/me")) is None
+    assert visits.parse(line(at(20), uri="/account/signin")) is not None, "the door is public"
+
+
+def test_a_hebrew_address_is_counted_as_hebrew() -> None:
+    assert visits.page_of("/library/%D7%A8%D7%95%D7%AA") == "/library/רות"
 
 
 def test_identifiers_fold_so_texts_are_one_row() -> None:
@@ -234,3 +262,19 @@ def test_the_back_office_without_a_roll_up(tmp_path: Path) -> None:
     assert not found.any()
     page = back_office_page(Survey(), 30, visits=found)
     assert "Nothing counted yet" in page
+
+
+def test_a_recount_forgets_what_the_old_rules_kept(tmp_path: Path) -> None:
+    logs = tmp_path / "caddy"
+    logs.mkdir()
+    live = write_log(logs / "targum.log", [line(at(21, 8)), line(at(21, 9), dest="")])
+    into = tmp_path / "visits.sqlite"
+    db = visits.open_db(into)
+    visits.keep(
+        db, {"2026-09-01": visits.Tally(day="2026-09-01", views=99, visitors=50, whole=True)}
+    )
+    db.close()
+    visits.roll_up(into, log=live, recount=True)
+    db = sqlite3.connect(into)
+    assert db.execute("SELECT day, views FROM visit_day").fetchall() == [("2026-09-21", 1)]
+    db.close()

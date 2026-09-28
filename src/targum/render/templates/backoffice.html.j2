@@ -50,7 +50,13 @@
   .bo .days { inline-size: 100%; block-size: 4rem; display: block; margin: 0 0 0.5rem; }
   .bo .days rect { fill: var(--leaf); }
   .bo .days rect.part { fill: var(--rule); }
-  .bo .tallies { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0 1.5rem; margin-block-end: 1.5rem; }
+  .bo .tallies { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 0 2rem; margin-block-end: 1.5rem; }
+  /* A long address wraps in its own cell. Unbroken, a reader's percent-encoded path
+     widened its table past the grid's column and its counts stood under the next
+     heading (2026-09-28). */
+  .bo .tallies table { table-layout: fixed; }
+  .bo .tallies td:first-child { overflow-wrap: anywhere; }
+  .bo .tallies td.n { inline-size: 4rem; }
   .bo .tallies h3 { font-size: 0.875rem; margin: 1rem 0 0.25rem; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
@@ -151,8 +157,9 @@
       {%- endfor %}
     </tbody>
   </table>
-  <p class="note">Pages and referring sites are counted in pages; campaigns and countries in
-    visitors. Campaigns are <code>?utm_source=</code> on the link. Countries:
+  <p class="note">A visitor is a browser opening a public page while signed out: no
+    scripts, no framed readers, no accounts. Pages and referring sites are counted in pages;
+    campaigns and countries in visitors. Campaigns are <code>?utm_source=</code> on the link. Countries:
     <a href="https://db-ip.com">IP Geolocation by DB-IP</a>, CC BY 4.0.</p>
   {%- endif %}
 
