@@ -30,6 +30,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   answer a different question are set aside), subject 0.708, recall on accept 0.996.
   Precision cannot be measured: the rejected half of the research runs was deleted on
   2026-09-27, so the set holds no reject.
+- `scripts/eval_rail.py` measures whether a rail that can only say no, in front of
+  `record_turn`, would stop anything the tool's own checks let through
+  (targum-internal#324). It scores 86 hand-labelled arguments. The checks alone stop 15 of
+  the 59 that should not spend, and wrongly stop none of the 27 that should. With a Jev
+  "no" in front, at a refusal weight of 0.7 or more, 48 are stopped, still with no false
+  blocks. Nothing is wired in; this is the measurement the card asked for first.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
