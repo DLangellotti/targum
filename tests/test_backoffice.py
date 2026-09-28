@@ -300,7 +300,7 @@ def test_the_page_is_four_tabs_with_the_numbers_above_them() -> None:
         assert f'href="#{name}" role="tab" aria-controls="tab-{name}"' in page, name
         assert f'<section class="tab-panel" id="tab-{name}"' in page, name
     assert page.index('class="bo-tabs"') < page.index('id="tab-people"')
-    assert page.index("waiting &middot;") < page.index('class="bo-tabs"')
+    assert page.index("waiting to be let in") < page.index('class="bo-tabs"')
     assert "incidents" in page[: page.index('class="bo-tabs"')]
 
 
