@@ -106,8 +106,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   manifest attached before today has no `clocks` and reads exactly as it did. Getting
   them is `targum parasha leyning --again`, and costs no alignment where the old one is
   still cached: Bereshit came back in about a second with the same verse spans. Where it
-  is not, about a minute an aliyah. design.md §12 carries a proposed entry, not yet
-  approved, for naming a word's accent on its card.
+  is not, about a minute an aliyah.
+- A word of scripture names its accent on its card (targum-internal#329): one muted line
+  under the reading, "tipcha · disjunctive", while the chanting marks are shown. The
+  accent is the one that rules the word, read by `vocalize/trope.py` at build time;
+  meteg is never named, and Psalms, Proverbs and Job get no line, their accents being
+  another system. In Russian the name is transliterated and the class translated
+  («типха · разделительный»). design.md §12, "A word in scripture names its accent".
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

@@ -1133,6 +1133,16 @@ body.marking .w.here,
   font-size: 0.8125rem;
 }
 .gloss-card .guessed[hidden] { display: none; }
+/* A word of scripture's accent, named (design.md §12, "A word in scripture names its
+   accent"): its own line under the reading, muted, at the card's size, and wrapping to
+   the card for the reason the line above does. */
+.gloss-card .accent {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
 
 /* A Hebrew verb taken apart: its root and the binyan it is built in. Its own line
    rather than a tag beside the level, because it is the answer to a different

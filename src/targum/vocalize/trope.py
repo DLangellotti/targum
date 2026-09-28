@@ -258,7 +258,9 @@ class Word:
     `joined` is a maqaf after it, which makes it one accentual unit with the next word.
     `token` is which whitespace-separated token of the text it was written in — words
     joined by maqaf share one — so a phrase can be found in anything else counted by
-    token, a recording's word clocks among them.
+    token, a recording's word clocks among them. `start` and `end` are where it is
+    written in the text, each word of a maqaf pair its own, so a page can put the name
+    of its accent under the word a reader tapped.
     """
 
     text: str
@@ -268,6 +270,8 @@ class Word:
     paseq: bool = False
     verse_end: bool = False
     token: int = 0
+    start: int = 0
+    end: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -330,11 +334,13 @@ def ruling(accents: tuple[Accent, ...]) -> Accent | None:
     return accents[-1] if accents else None
 
 
-def _tokens(text: str) -> list[tuple[str, bool, bool, bool, int]]:
-    """(word, joined, paseq, verse_end, token) for each written word, in order."""
+def _tokens(text: str) -> list[tuple[str, bool, bool, bool, int, int, int]]:
+    """(word, joined, paseq, verse_end, token, start, end) for each written word, in
+    order: `token` counts whitespace-separated tokens, `start` and `end` are characters."""
     words: list[list[object]] = []
     stopped = SOF_PASUQ in text
-    for place, token in enumerate(text.split()):
+    for place, found in enumerate(re.finditer(r"\S+", text)):
+        token = found.group()
         if _SECTION.match(token) or (words and words[-1][3] and _BARE_SECTION.match(token)):
             continue
         if not any("א" <= char <= "ת" for char in token):
@@ -345,16 +351,29 @@ def _tokens(text: str) -> list[tuple[str, bool, bool, bool, int]]:
             continue
         end = SOF_PASUQ in token
         stroke = PASEQ in token
-        token = token.replace(SOF_PASUQ, "").replace(PASEQ, "")
         pieces = token.split(MAQAF)
-        for number, piece in enumerate(pieces):
+        at = found.start()
+        for number, written in enumerate(pieces):
             last = number == len(pieces) - 1
-            if not piece:
-                continue
-            words.append([piece, not last, stroke and last, end and last, place])
+            piece = written.replace(SOF_PASUQ, "").replace(PASEQ, "")
+            if piece:
+                row = [piece, not last, stroke and last, end and last, place]
+                words.append([*row, at, at + len(written)])
+            at += len(written) + len(MAQAF)
     if words and not stopped:
         words[-1][3] = True
-    return [(str(w[0]), bool(w[1]), bool(w[2]), bool(w[3]), cast(int, w[4])) for w in words]
+    return [
+        (
+            str(w[0]),
+            bool(w[1]),
+            bool(w[2]),
+            bool(w[3]),
+            cast(int, w[4]),
+            cast(int, w[5]),
+            cast(int, w[6]),
+        )
+        for w in words
+    ]
 
 
 def read(text: str, ref: str | None = None) -> Verse:
@@ -370,11 +389,13 @@ def read(text: str, ref: str | None = None) -> Verse:
     if ref is not None and system(ref) == "poetic":
         raise PoeticAccents(ref)
     words: list[Word] = []
-    for surface, joined, stroke, end, token in _tokens(text):
+    for surface, joined, stroke, end, token, start, stop in _tokens(text):
         accents = accents_of(surface, verse_end=end, paseq=stroke)
         if any(accent.poetic for accent in accents):
             raise PoeticAccents(ref or "This verse")
-        words.append(Word(surface, accents, ruling(accents), joined, stroke, end, token))
+        words.append(
+            Word(surface, accents, ruling(accents), joined, stroke, end, token, start, stop)
+        )
     return Verse(tuple(words), _phrases(words))
 
 

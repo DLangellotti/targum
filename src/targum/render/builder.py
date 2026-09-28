@@ -230,6 +230,35 @@ def said_strings(translations: list[Translation]) -> dict[str, Any]:
     return {"saidWords": said} if said else {}
 
 
+def accent_rows(text: str, ref: str | None, bare: str) -> list[list[Any]]:
+    """Each accented word of a verse as [bareStart, bareEnd, key, disjunctive].
+
+    Read by `vocalize.trope`, so the card says what the tikkun would: the accent that
+    rules the word, never meteg. Offsets are into the bare text, where the page's words
+    keep theirs. Empty for a verse in the poetic books, whose accents are another system
+    and would be named wrongly by the prose one, and for a pointed text whose letters are
+    not the bare text's — a gap rather than a name under the wrong word.
+    """
+    from ..vocalize.trope import PoeticAccents, read
+
+    here, to_bare = strip_nikkud(text)
+    if here != bare:
+        return []
+    try:
+        verse = read(text, ref or None)
+    except PoeticAccents:
+        return []
+    return [
+        [
+            *js_span(bare, to_bare[word.start], to_bare[word.end]),
+            word.accent.key,
+            int(word.accent.disjunctive),
+        ]
+        for word in verse.words
+        if word.accent is not None
+    ]
+
+
 def beside_words(
     translation: Translation, section: Section, by_id: Mapping[str, Segment]
 ) -> dict[str, Any]:
@@ -3001,6 +3030,20 @@ def render(
     mark_guessed = bool(machine) and len(machine) * 2 < len(pointed)
 
     biblical = is_biblical(document.source)
+    # The accent that rules each word, named on its card while the chanting marks are
+    # shown (design.md §12, "A word in scripture names its accent", 2026-09-28). Only
+    # scripture, only where the switch exists, and never the poetic books.
+    refs = {segment.id: segment.ref for segment in segmented.segments}
+    accents = {
+        segment_id: chant
+        for segment_id in unaccented
+        if biblical
+        and (
+            chant := accent_rows(
+                pointed[segment_id], refs.get(segment_id), bare.get(segment_id, "")
+            )
+        )
+    }
     # Which verse each row is, by the address a learner would write. The number stands in
     # the margin and the row answers to `#2:1`, so a link to Ruth 2:1 opens on Ruth 2:1
     # (targum-internal#28). Only a verse carries one: prose has no address, and a heading
@@ -3604,6 +3647,7 @@ def render(
                 standing = now
         # This page's share of the rows in another language, for the payload.
         tongues = {sid: languages[sid] for sid in section.segment_ids if sid in languages}
+        chanted = {sid: accents[sid] for sid in section.segment_ids if sid in accents}
         html = env.get_template("reader.html.j2").render(
             **shared,
             # The page's own words in the language it is read in (targum-internal#184).
@@ -3767,6 +3811,9 @@ def render(
                     # decide — but a row that says what it is beats one a script would
                     # have to infer from a missing table.
                     **({"languages": tongues} if tongues else {}),
+                    # Each word's ruling accent, [bareStart, bareEnd, key, disjunctive],
+                    # on scripture that carries them; left out everywhere else.
+                    **({"accents": chanted} if chanted else {}),
                     "levelNames": BAND_NAMES,
                     # The reader's own words in the language it is read in, where that
                     # is not English and has a catalogue (targum-internal#184). An
