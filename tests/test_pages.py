@@ -355,7 +355,7 @@ def test_your_subscriptions_stand_on_the_profile_and_every_page_hears_them() -> 
     profile, the account panel links to it, the Library carries nothing of it, and the
     script that asks is in the bar on every page so the bell hears a landed instalment."""
     you = PAGES["you"]
-    assert 'id="subscriptions"' in you and 'id="series"' in you and "Your subscriptions" in you
+    assert 'id="subscriptions"' in you and 'id="series"' in you and "Following" in you
     assert 'id="subscriptions"' not in PAGES["library"] and 'id="series"' not in PAGES["learn"]
     for name, page in PAGES.items():
         if 'class="site-head"' in page:

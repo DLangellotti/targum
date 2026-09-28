@@ -427,7 +427,7 @@
       // them to the drawer; Continue does it in place now.
       return t(
         "add.description.look",
-        "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your credits."
+        "That sounds like what you want to read. Press Continue and we'll look for it."
       );
     }
     if (read.kind === "foreign") {
@@ -2104,7 +2104,7 @@
               t("add.credits.rate", "That's about {clock} of audio, and the library costs none of it.", {
                 clock: clockOf(left),
               })
-            : t("add.credits.none", "You've used all your credits this month. They come back on {date}, and the library is always free.", {
+            : t("add.credits.none", "You've used all your credits this month. They come back on {date}, and the library still opens.", {
                 date: hours.ends || "",
               });
         hoursLine.hidden = false;

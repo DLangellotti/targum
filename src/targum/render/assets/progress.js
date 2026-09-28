@@ -359,7 +359,7 @@
        §9 makes the inverted surface the only place the bright set is legal, and §4 says
        which is which — leaf for what has been reached, iris for phrases, sun for turning
        up. Everything without one stays paper-white. */
-    function count(value, label, hue) {
+    function count(value, label, hue, title) {
       // A zero is not a peak moment. The bright set is for what happened, and spending
       // --sun on "0 words learned" paints the loudest colour in the system on the one
       // line that has nothing to report; §6 keeps what has not happened quiet.
@@ -368,6 +368,7 @@
       // Singular where there is one of it. These sit at display size beside the figure
       // they belong to, which is where "1 words learned" is impossible not to read.
       box.appendChild(el("span", null, label));
+      if (title) box.title = title;
       counts.appendChild(box);
     }
 
@@ -395,7 +396,8 @@
     count(
       sums.learned,
       tn("progress.count.learned", sums.learned, "word learned on targum", "words learned on targum"),
-      "sun"
+      "sun",
+      t("progress.count.learned.title", "Saved as new and since marked known.")
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
@@ -441,8 +443,12 @@
     basis.hidden = !ladder;
     if (ladder) {
       if (title) title.textContent = ladder.title;
-      // The limit is all that is said (§6, and the 2026-08-24 amendment in §12).
-      basis.textContent = t("progress.basis", "A guide, not a placement.");
+      // What the ladder is, then its limit (David, 2026-09-28, COPY_QUESTIONS 29): a
+      // newcomer meets "ב+" or "A2" here with nothing to say which end is the start.
+      basis.textContent =
+        code === "he"
+          ? t("progress.basis.ulpan", "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.")
+          : t("progress.basis.cefr", "The European scale runs from A1, for beginners, to C2. A guide, not a placement.");
       drawLevel(inside, entry.words, ladder);
       return;
     }

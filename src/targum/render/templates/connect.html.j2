@@ -81,7 +81,7 @@
   <div class="col">
     <div class="hero c-hero">
       <div class="headline">
-        <p class="kicker">{{ mark() }}<span>targum Connect</span></p>
+        <p class="kicker">{{ mark() }}<span>targum</span></p>
         {#- The app's name turns over, one each couple of seconds, because the whole
             claim is "the one you already use", and each reader uses a different one.
             Without JavaScript it stands still on the first. Only apps the steps below
@@ -234,7 +234,7 @@
         </div>
         <div class="tile">
           <h3>{{ t("connect.page.something-to-read-next", "Something to read next") }}</h3>
-          <p>{{ t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "Nearly 500 free texts and videos, sorted by the words you know. Or paste a link to your own.") }}</p>
+          <p>{{ t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "More than 500 texts and videos, sorted by the words you know. Or paste a link to your own.") }}</p>
           <div class="spec">
             <span class="t">{{ t("connect.demo.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span>
             <span class="meter"><i class="p80"></i></span>
@@ -402,7 +402,7 @@
         <ul class="grant-list">
           <li><span class="can"></span><span>{{ t("connect.scope.library", "Search the library and look up what is at a link") }}</span></li>
           <li><span class="can"></span><span>{{ t("connect.scope.record", "Read your words, your mistakes and your progress") }}</span></li>
-          <li><span class="can"></span><span>{{ t("connect.scope.chat", "Read what you write in the language you're learning, keep the lines we correct, get texts and playlists ready for you to confirm, and add a language you practise") }}<small>{{ t("connect.page.chatting-is-included", "Chatting is included") }}</small></span></li>
+          <li><span class="can"></span><span>{{ t("connect.scope.chat", "Send us what you write in a language you're learning, for us to correct. Add texts to your playlists, and get new ones ready for you to confirm.") }}<small>{{ t("connect.page.chatting-is-included", "Chatting is included") }}</small></span></li>
         </ul>
         <p class="grant-press"><span class="btn cta small">{{ t("connect.page.connect", "Connect") }}</span><span class="btn ghost small">{{ t("connect.page.not-now", "Not now") }}</span></p>
       </figure>
@@ -417,7 +417,7 @@
       </div>
       <div class="faq">
         <details><summary>{{ t("connect.page.q-do-i-need-an-account", "Do I need a targum account?") }}</summary><p>{{ t("connect.page.a-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your AI reads. We’re opening in small groups, so join the waitlist and we’ll email you when it’s your turn.") }}</p></details>
-        <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}</summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so is searching the library and your word list. Chatting is included.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}</summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so are searching the library and your word list. Chatting is included in your monthly credits. A new text you ask for uses credits, and you confirm it first.") }}</p></details>
         <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}</summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
         <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}</summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. We give your AI the rules our own chat follows: short replies in simple Hebrew, built from the words you know, with the English when you ask.") }}</p></details>
         <details><summary>{{ t("connect.page.q-can-it-spend-on-its-own", "Can it start anything on its own?") }}</summary><p>{{ t("connect.page.a-can-it-spend-on-its-own", "No. When you ask for a text, it sends you a link. Nothing is made until you confirm it on targum.") }}</p></details>

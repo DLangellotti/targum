@@ -1077,7 +1077,7 @@
     var save = document.createElement("button");
     save.type = "button";
     save.className = "chat-save";
-    save.textContent = t("chat.save", "Save as targum");
+    save.textContent = t("chat.save", "Save as a text");
     var note = document.createElement("p");
     note.className = "note";
     save.onclick = function () {

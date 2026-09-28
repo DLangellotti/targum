@@ -1616,7 +1616,7 @@ class Library:
                 "job.out-of.credits",
                 "You've used your {credits} credits for this month, and a credit is a "
                 "minute of audio. They come back on {date}. Text uploads still work, and "
-                "the library is always free.",
+                "the library still opens.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
@@ -1627,8 +1627,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.account",
-                "That's a lot to build at once. Try again in {hours} hours. The library is "
-                "always free.",
+                "That's a lot to get ready at once. Try again in {hours} hours. The library "
+                "still opens.",
                 hours=BUDGET_HOURS,
             )
         if whose == "talk-hours":
@@ -1640,7 +1640,7 @@ class Library:
                 "job.out-of.talk-credits",
                 "You've used your {credits} credits of audio and chat for this month, and "
                 "a credit is a minute. They come back on {date}. "
-                "Everything you have stays open, and the library is always free.",
+                "Your texts and the library still open.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
@@ -1651,7 +1651,7 @@ class Library:
                 ui,
                 "job.out-of.chat",
                 "That's a lot of chatting for one day. Try again in {hours} hours. The "
-                "library is always free.",
+                "library still opens.",
                 hours=BUDGET_HOURS,
             )
         return said_in(

@@ -759,7 +759,7 @@
   var doors = [];
   var showing = null;
   var RECENTLY_READ = t("learn.recent", "Recently opened");
-  var SUBSCRIPTIONS = t("learn.subscriptions", "Subscriptions");
+  var SUBSCRIPTIONS = t("learn.subscriptions", "Following");
   function kind(one) {
     return one.id.indexOf("series:") === 0 ? "series" : one.id.indexOf("recent:") === 0 ? "recent" : "pill";
   }

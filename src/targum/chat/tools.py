@@ -2429,7 +2429,7 @@ REGISTRY: tuple[Tool, ...] = (
         "your own correction of it: targum checks it itself. Returns targum's recast, its "
         "meaning and one line of why — show them that. A line that was already right keeps "
         "nothing, and a line in another language is not checked. Chatting is included in "
-        "the reader's plan.",
+        "the reader's monthly credits.",
         _schema(
             {
                 "wrote": {

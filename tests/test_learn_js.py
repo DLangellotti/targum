@@ -795,7 +795,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
         ("Recently opened", False),
-        ("Subscriptions", False),
+        ("Following", False),
     ]
     assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
     assert [(i["id"], i["label"], i["fresh"]) for i in drawn["menu"]["items"]] == [

@@ -16,7 +16,7 @@
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="words you">
-{% set here = 'you' %}{% set title = t("you.page.title", "You") %}
+{% set here = 'you' %}{% set title = t("you.page.title", "Your profile") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
@@ -163,7 +163,7 @@
   </section>
 
   <section class="panel" id="subscriptions" hidden>
-    <h2>{{ t("you.page.your-subscriptions", "Your subscriptions") }}</h2>
+    <h2>{{ t("you.page.your-subscriptions", "Following") }}</h2>
     <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on a schedule. Follow one and we'll put each new instalment on Learn when it's out, and email you about the weekly ones.") }}</p>
     <ul class="series" id="series"></ul>
   </section>
@@ -183,7 +183,7 @@
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is
         the fact somebody about to press this needs, and it is true either way. -#}
-    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting.") }}
+    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting. To change your mind, email hello@targum.page.") }}
       {%- if legal_is_public() %}
       <a href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.
       {%- endif %}</p>
