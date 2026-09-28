@@ -3896,7 +3896,9 @@ def export_mikra(
     ] = False,
     reader: Annotated[
         str | None,
-        typer.Option("--for", help="An account's email: add the words it kept this week."),
+        typer.Option(
+            "--for", help="An account's email: add the words it looked up (or kept) this week."
+        ),
     ] = None,
     out: Annotated[
         Path | None,
@@ -3925,7 +3927,7 @@ def export_mikra(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
     """The week's shnayim mikra sheet as a PDF (targum-internal#105): the portion with
-    Onkelos beside each verse, the haftarah, and with --for the words kept this week.
+    Onkelos beside each verse, the haftarah, and with --for the words looked up this week.
 
     For the Shabbat that has no screen. The portion and the haftarah are cut again from
     the books on the shelf, which costs nothing; the only thing that may go out to the
@@ -3977,6 +3979,7 @@ def export_mikra(
             "language stands beside it.[/yellow]"
         )
     week: list[Word] = []
+    looked = True
     reads: tuple[str, ...] = ("en",)
     if reader:
         from .accounts import Store
@@ -3990,15 +3993,21 @@ def export_mikra(
         reads = tuple(sorted(keeping.reads(person.id), key=lambda code: code != "en"))
         language = own_language(portion.translations, reads)
         began = reading_calendar.week_began(shabbat)
-        kept = keeping.kept_between(
+        window = (
             person.id,
             int(began.timestamp() * 1000),
             int((began + timedelta(days=7)).timestamp() * 1000),
-            languages=("he", "arc"),
-            target=language,
         )
+        # The words looked up that week, where the record names them; where it names none
+        # — the record off or stopped, or a week before look-ups carried their word — the
+        # words kept that week, and the list's heading says which it is.
+        found = keeping.looked_up_between(*window, languages=("he", "arc"), target=language)
+        looked = bool(found)
+        if not looked:
+            found = keeping.kept_between(*window, languages=("he", "arc"), target=language)
+            console.print("[dim]No look-ups recorded that week: listing the words kept.[/dim]")
         week = week_words(
-            kept, [one for one in (portion, haftarah) if one is not None], target=language
+            found, [one for one in (portion, haftarah) if one is not None], target=language
         )
     try:
         html = mikra_html(
@@ -4009,6 +4018,7 @@ def export_mikra(
             when=reading.hdate,
             haftarah_note=reading.haftarah.reason if reading.haftarah is not None else "",
             week=week,
+            looked=looked,
             into=into,
             reads=reads,
             vowels=vowels,
@@ -4021,7 +4031,7 @@ def export_mikra(
         fail(error)
     console.print(f"[green]Wrote[/green] {written}")
     if reader and not week:
-        console.print("[dim]No words kept this week, so the sheet has no list.[/dim]")
+        console.print("[dim]No words with a meaning that week, so the sheet has no list.[/dim]")
 
 
 def main() -> None:

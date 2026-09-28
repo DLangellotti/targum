@@ -1,6 +1,6 @@
 /* What a reader did in a text, handed to the account (targum-internal#127).
  *
- * A word looked up, a stretch of a recording played, a page turned, a section finished,
+ * A word looked up (which word, since 2026-09-28), a stretch of a recording played, a page turned, a section finished,
  * where a sitting stopped, a control pressed. "It is worthless retroactively", which is
  * the whole argument for keeping it — and it is a record of a person, so most of this file
  * is about when it does nothing:
@@ -113,6 +113,12 @@
       row.medium = event.medium || "read";
       row.segment = event.segment || "";
       row.amount = event.amount || 0;
+      // A look-up names its word, in the language of the row it was met in: Onkelos
+      // beside a Hebrew text is Aramaic (targum-internal#105). Nothing else names one.
+      if (event.kind === "lookup" && event.word) {
+        row.word = String(event.word);
+        if (event.language) row.language = String(event.language);
+      }
     }
     held.push(row);
     if (held.length > MOST) held.shift();

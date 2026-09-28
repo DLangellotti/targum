@@ -7,7 +7,8 @@
 
     The week's sheet is the same page with two parts — the portion beside Onkelos, the
     haftarah beside the reader's language — and the reader's own words of the week after
-    them (design.md §12, 2026-09-28). A part after the first takes a title of its own. -#}
+    them: the words they looked up, or where no look-up names one, the words they kept,
+    and the heading says which (design.md §12, 2026-09-28). A part after the first takes a title of its own. -#}
 <html lang="{{ page_language }}" dir="{{ page_direction }}">
 <head>
 <meta charset="utf-8">
@@ -63,7 +64,7 @@
 {% endfor %}
 {% if week %}
 <aside class="words week">
-  <h2 class="label" lang="{{ page_language }}">{{ t("print.week.words", "Your words this week") }}</h2>
+  <h2 class="label" lang="{{ page_language }}">{% if week_looked %}{{ t("print.week.looked", "Words you looked up this week") }}{% else %}{{ t("print.week.kept", "Words you kept this week") }}{% endif %}</h2>
   <dl>
     {% for word in week %}
     <div class="word">

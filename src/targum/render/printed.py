@@ -240,6 +240,7 @@ def _page(
     under: bool,
     size: str,
     week: list[Word] | None = None,
+    looked: bool = True,
 ) -> str:
     """The parts, and the week's words after them where there are any, as one page."""
     env = _environment()
@@ -252,6 +253,7 @@ def _page(
         english=english,
         parts=parts,
         week=week or [],
+        week_looked=looked,
         chrome=chrome,
         chrome_direction=direction_for(chrome),
         hebrew_face=_hebrew_face(biblical=accented),
@@ -352,7 +354,7 @@ def own_language(translations: list[Translation], reads: Collection[str] = ("en"
 
 
 def week_words(kept: Iterable[Kept], texts: Iterable[Cut], target: str = "en") -> list[Word]:
-    """The words a reader kept this week, as the sheet lists them.
+    """The words of a reader's week — looked up, or kept — as the sheet lists them.
 
     Each with the meaning the reader kept beside it — their own note first, then what the
     page said when they kept it — and failing both, the first sense the week's texts give
@@ -405,6 +407,7 @@ def mikra_html(
     when: str = "",
     haftarah_note: str = "",
     week: list[Word] | None = None,
+    looked: bool = True,
     into: str | None = None,
     reads: Collection[str] = ("en",),
     vowels: bool = True,
@@ -414,7 +417,9 @@ def mikra_html(
 ) -> str:
     """The week's shnayim mikra sheet (targum-internal#105): the portion with Onkelos
     beside each verse, the haftarah with the reader's own language beside it, and the
-    words the reader kept this week — one page, set once, for a Shabbat without a screen.
+    reader's words of the week — one page, set once, for a Shabbat without a screen.
+    `looked` says which words they are: looked up, or where no look-up names its word,
+    kept; the list's heading says which.
 
     Built from the cut rather than from a folder, because the corpus keeps no artifact
     beside its readers (`parasha.build`): the portion is cut again from the books on the
@@ -468,6 +473,7 @@ def mikra_html(
         under=under,
         size=size,
         week=week,
+        looked=looked,
     )
 
 

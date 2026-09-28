@@ -351,8 +351,8 @@ fallen behind the entries by half; the dates are the index.)
 
 `targum export mikra` prints the week's shnayim mikra sheet (targum-internal#105): the
 portion with Onkelos beside each verse, the haftarah with the reader's language beside it,
-and with `--for` the words the reader kept that week. Everything under "A text can be
-printed" below holds; this says only what the sheet adds.
+and with `--for` the words the reader looked up that week. Everything under "A text can
+be printed" below holds; this says only what the sheet adds.
 
 - **Two readings, one page.** The portion leads under the page's title; the haftarah
   follows under a title of its own, on the same run of paper rather than a fresh sheet,
@@ -362,13 +362,20 @@ printed" below holds; this says only what the sheet adds.
   the shelf has no Onkelos, the reader's language stands beside the portion and the
   command says so; paper does not.
 - **One list, at the end, and it is the reader's.** No list after an aliyah: a portion's
-  hard words would be pages of them. The one list is the words kept that week and still
-  being learned, each with the reader's own note, or the meaning the page gave when it was
-  kept, or the week's texts' first sense — and left off where there is none, as the
-  edition leaves one off. Kept and not tapped, because a tap is counted only in the
-  browser and the account does not see it.
+  hard words would be pages of them. The one list is the words looked up that week, once
+  each, leaving out any since marked known or ignored — read off the record of use, whose
+  look-ups name their word since this day (David, 2026-09-28). Where the record names none
+  — off on the box, stopped by the reader, or a week before it did — the list is the words
+  kept that week instead, and **its heading says which**: "Words you looked up this week"
+  or "Words you kept this week". Each word carries the reader's own note, or the meaning
+  the page gave when it was kept, or the week's texts' first sense, and is left off where
+  there is none, as the edition leaves one off.
 - **The week is the portion page's week**: it begins when `pointing_at` turns, motzei
-  Shabbat on the one clock, so the sheet and the page agree on which week a word was kept in.
+  Shabbat on the one clock, so the sheet and the page agree on which week a word belongs to.
+- **A look-up names its word, and nothing else does.** The dictionary form, under the
+  language of the row it was met in, so an Onkelos word is Aramaic. The privacy notice
+  (clause 3.6) and the account page's plain account both say so, and the record is still
+  behind `TARGUM_EVENTS` and the reader's own switch.
 
 ### The back office is four tabs — 2026-09-28
 

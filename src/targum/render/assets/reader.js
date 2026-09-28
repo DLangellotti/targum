@@ -4754,7 +4754,15 @@ var targumReader = function () {
     //
     noteLookUp(index);
     var askedIn = word.closest ? word.closest("[data-id]") : null;
-    happened({ kind: "lookup", segment: askedIn ? askedIn.getAttribute("data-id") || "" : "" });
+    // And which word, as the ledger files it — its dictionary form, under the language of
+    // the row it stands in — so the week's sheet can list what was looked up
+    // (targum-internal#105). A name is not vocabulary and goes without one.
+    happened({
+      kind: "lookup",
+      segment: askedIn ? askedIn.getAttribute("data-id") || "" : "",
+      word: isNameAt(index) ? "" : wordOf(lemma),
+      language: wordLanguage(index),
+    });
 
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.

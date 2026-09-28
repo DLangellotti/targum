@@ -224,10 +224,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    in it, and so a Russian reader is sent the Russian edition. On a table every box has,
 #    so it is in MIGRATIONS; empty means English, which every row before it was.
 #
+# 36→37: event.word — the dictionary form a `lookup` was for (targum-internal#105, David
+#    2026-09-28), so the week's sheet can list the words a reader actually looked up and
+#    not only the ones they kept. On a table every box with the record has, so it is in
+#    MIGRATIONS; empty for every lookup before it, and for every other kind of event.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 36
+SCHEMA_VERSION = 37
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -315,6 +320,10 @@ CREATE TABLE IF NOT EXISTS reads (
 # person, and only over texts whose licence lets them leave — never over an upload. A
 # control pressed carries no document and no segment: a name, a width and a day.
 #
+# A look-up carries the word, as its dictionary form (David, 2026-09-28,
+# targum-internal#105): the week's sheet lists the words a reader looked up, and the
+# segment alone could not say which. Only a look-up carries one; the aggregate never reads it.
+#
 # And what is *not* decided here: the privacy notice names a legal basis for every
 # category of data it lists, and this is a new category. So the whole of it stands behind
 # `TARGUM_EVENTS`, off unless the deployment says otherwise — see `serve.py`.
@@ -331,7 +340,8 @@ CREATE TABLE IF NOT EXISTS event (
   segment   TEXT    NOT NULL DEFAULT '',
   amount    REAL    NOT NULL DEFAULT 0,
   control   TEXT    NOT NULL DEFAULT '',
-  width     TEXT    NOT NULL DEFAULT ''
+  width     TEXT    NOT NULL DEFAULT '',
+  word      TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
@@ -479,6 +489,10 @@ MIGRATIONS: tuple[str, ...] = (
     # since 2026-09-27 there is a Russian edition every issue to send instead. Empty
     # means English, which is what every row written before this was sent.
     "ALTER TABLE subscriber ADD COLUMN language TEXT NOT NULL DEFAULT ''",
+    # The dictionary form a look-up was for (targum-internal#105, 2026-09-28): the lemma
+    # the ledger keys a word on, so a week's look-ups meet the reader's own words and
+    # meanings. Empty on every lookup recorded before it and on every other kind.
+    "ALTER TABLE event ADD COLUMN word TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -1207,7 +1221,8 @@ class Person:
 
 @dataclass(frozen=True)
 class Kept:
-    """One word a reader kept, with what it means to them: `Store.kept_between`."""
+    """One word of a reader's week, with what it means to them: `Store.looked_up_between`
+    and `Store.kept_between`."""
 
     language: str
     lemma: str
@@ -1215,6 +1230,18 @@ class Kept:
     #: Their own note where they wrote one, else the meaning the page gave when they kept
     #: it, else "". Either may run on past its first sense; the sheet cuts it there.
     meaning: str
+
+
+def _kept(row: sqlite3.Row) -> Kept:
+    return Kept(
+        language=str(row["language"]),
+        lemma=str(row["lemma"]),
+        surface=str(row["surface"] or ""),
+        # Theirs before the page's, and the meaning table's — which is per language —
+        # before the word row's, which is what it held before that table was split off
+        # and may be in another language.
+        meaning=str(row["note"] or row["meaning"] or row["own"] or row["said"] or ""),
+    )
 
 
 # The four kinds of thing a person accumulates, and the columns each one syncs. Kept as
@@ -1702,6 +1729,8 @@ class Store:
                     0.0 if control else min(amount, 86400.0),
                     str(raw.get("control") or "")[:60] if control else "",
                     width if control and width in EVENT_WIDTHS else "",
+                    # Which word, and only for a look-up: nothing else is about a word.
+                    str(raw.get("word") or "")[:80] if kind == "lookup" else "",
                 )
             )
         if not rows:
@@ -1709,7 +1738,8 @@ class Store:
         with self.write() as db:
             db.executemany(
                 "INSERT INTO event (person, kind, day, at, language, medium, document, "
-                "segment, amount, control, width) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "segment, amount, control, width, word)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
         return len(rows)
@@ -3126,14 +3156,12 @@ class Store:
         target: str,
     ) -> list[Kept]:
         """The words a reader first kept between two moments (ms), still learning, in the
-        order they were kept — what the week's sheet lists (targum-internal#105).
+        order they were kept — the week's sheet's list where there are no look-ups to read
+        (targum-internal#105): the record is off, stopped, or older than the word it carries.
 
-        Kept rather than looked up, because a look-up leaves nothing here that names a
-        word: the tally of taps is the browser's own (`targum:cards:<language>`), and the
-        event log says which segment a card was opened in and not which word. A word kept
-        this week and since marked known, or ignored, is not one to carry into Shabbat.
-        Names and numbers are not vocabulary. The meaning is the one in `target`, the
-        language the sheet is read in.
+        A word kept this week and since marked known, or ignored, is not one to carry into
+        Shabbat. Names and numbers are not vocabulary. The meaning is the one in `target`,
+        the language the sheet is read in.
         """
         codes = sorted({code.split("-")[0].lower() for code in languages})
         if person_id is None or not codes:
@@ -3149,18 +3177,47 @@ class Store:
             f" AND w.language IN ({marks}) ORDER BY w.at",
             (target.split("-")[0].lower(), int(person_id), int(start), int(end), *codes),
         ).fetchall()
-        return [
-            Kept(
-                language=str(row["language"]),
-                lemma=str(row["lemma"]),
-                surface=str(row["surface"] or ""),
-                # Theirs before the page's, and the meaning table's — which is per
-                # language — before the word row's, which is what it held before that
-                # table was split off and may be in another language.
-                meaning=str(row["note"] or row["meaning"] or row["own"] or row["said"] or ""),
-            )
-            for row in rows
-        ]
+        return [_kept(row) for row in rows]
+
+    def looked_up_between(
+        self,
+        person_id: int | None,
+        start: int,
+        end: int,
+        *,
+        languages: Iterable[str],
+        target: str,
+    ) -> list[Kept]:
+        """The words a reader looked up between two moments (ms), once each, in the order
+        they were first looked up — what the week's sheet lists (targum-internal#105).
+
+        Read off the event log's look-ups, which name their word since 2026-09-28; one
+        recorded before that, or by a box that keeps no record, names none and is not here.
+        A word looked up and then marked known, or ignored, has been answered already, and
+        a name or a number is not vocabulary, where the ledger says so. The meaning is the
+        reader's in `target`, as `kept_between` gives it.
+        """
+        codes = sorted({code.split("-")[0].lower() for code in languages})
+        if person_id is None or not codes:
+            return []
+        marks = ", ".join("?" for _ in codes)
+        rows = self.db.execute(
+            "SELECT e.language AS language, e.word AS lemma, MIN(e.at) AS first,"
+            " COALESCE(w.surface, '') AS surface, w.note AS own, w.meaning AS said,"
+            " m.note AS note, m.meaning AS meaning FROM event e"
+            " LEFT JOIN word w ON w.person = e.person AND w.language = e.language"
+            " AND w.lemma = e.word AND w.gone = 0"
+            " LEFT JOIN meaning m ON m.person = e.person AND m.source = e.language"
+            " AND m.target = ? AND m.term = e.word AND m.gone = 0"
+            " WHERE e.person = ? AND e.kind = 'lookup' AND e.word <> ''"
+            " AND e.at >= ? AND e.at < ?"
+            f" AND e.language IN ({marks})"
+            " AND (w.status IS NULL OR w.status IN (1, 2, 3))"
+            " AND COALESCE(w.band, '') NOT IN ('name', 'number')"
+            " GROUP BY e.language, e.word ORDER BY first",
+            (target.split("-")[0].lower(), int(person_id), int(start), int(end), *codes),
+        ).fetchall()
+        return [_kept(row) for row in rows]
 
     def activity(self, person_id: int | None) -> dict[str, Any]:
         """The days someone read on, and how many sections and texts they finished."""

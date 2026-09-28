@@ -390,9 +390,103 @@ def test_the_sheets_list_takes_its_meanings_from_the_reader_or_the_week(
     listed = mikra_html(portion, haftarah, name="N", hebrew="נ", week=week).partition(
         '<aside class="words week">'
     )[2]
-    assert "Your words this week" in listed
+    assert "Words you looked up this week" in listed
+    kept = mikra_html(portion, haftarah, name="N", hebrew="נ", week=week, looked=False)
+    assert "Words you kept this week" in kept and "looked up" not in kept
     assert ("שלום", "peace") in _words(listed)
     assert '<dt lang="arc" dir="rtl">אנון</dt>' in listed
+
+
+def _looked(store: Store, person: Person) -> None:
+    """A week of look-ups as the reader's page sends them, and one on either side."""
+    began, hour = _began(), 3_600_000
+
+    def lookup(word: str, at: int, language: str = "he") -> dict:
+        return {
+            "kind": "lookup",
+            "day": "2026-09-01",
+            "at": at,
+            "language": language,
+            "document": "d" * 16,
+            "segment": "s1",
+            "word": word,
+        }
+
+    store.add_events(
+        person,
+        [
+            lookup("שלום", began + hour),  # kept this week, with the reader's note
+            lookup("אתם", began + 2 * hour),  # not kept: the portion gives its meaning
+            lookup("שלום", began + 3 * hour),  # the same word again: listed once
+            lookup("בית", began + 4 * hour),  # looked up, and known already
+            lookup("ארץ", began - hour),  # last week
+            lookup("אנון", began + 5 * hour, language="arc"),  # a word of the Onkelos column
+            lookup("", began + 6 * hour),  # a name: no word goes with it
+            {"kind": "page", "day": "2026-09-01", "at": began, "amount": 30, "word": "עולם"},
+        ],
+    )
+
+
+def test_a_lookup_names_its_word_and_nothing_else_does(tmp_path: Path) -> None:
+    store, person = _kept(tmp_path)
+    _looked(store, person)
+    rows = store.db.execute("SELECT kind, word FROM event ORDER BY id").fetchall()
+    assert ("page", "") in [(row["kind"], row["word"]) for row in rows], "a page names none"
+    assert ("lookup", "אתם") in [(row["kind"], row["word"]) for row in rows]
+
+
+def test_the_week_is_the_words_looked_up_in_it_once_each(tmp_path: Path) -> None:
+    store, person = _kept(tmp_path)
+    _looked(store, person)
+    looked = store.looked_up_between(
+        person.id, _began(), _began() + 7 * 86_400_000, languages=("he", "arc"), target="en"
+    )
+    assert [(one.language, one.lemma, one.meaning) for one in looked] == [
+        ("he", "שלום", "peace; wellbeing"),
+        ("he", "אתם", ""),
+        ("arc", "אנון", "they"),
+    ]
+
+
+def test_a_reader_who_stopped_the_record_leaves_no_lookups_to_list(tmp_path: Path) -> None:
+    store, person = _kept(tmp_path)
+    store.set_collects(person, False)
+    _looked(store, person)
+    assert not store.looked_up_between(
+        person.id, _began(), _began() + 7 * 86_400_000, languages=("he",), target="en"
+    )
+
+
+def test_export_mikra_lists_the_weeks_lookups_where_there_are_some(
+    shelf: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+    from targum.render import printed
+
+    store, person = _kept(tmp_path)
+    _looked(store, person)
+    written: dict[str, str] = {}
+
+    def fake(html: str, out: Path) -> Path:
+        written["html"] = html
+        return out
+
+    monkeypatch.setattr(printed, "write_pdf", fake)
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(
+        app,
+        [
+            *("export", "mikra", "--on", "2026-09-01", "--library", str(shelf)),
+            *("--for", "r@example.com", "--store", str(tmp_path / "db")),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    listed = written["html"].partition('<aside class="words week">')[2]
+    assert "Words you looked up this week" in listed
+    # Looked up and kept, looked up only, and from Onkelos; kept and never looked up is not.
+    assert _words(listed) == [("שלום", "peace"), ("אתם", "you"), ("אנון", "they")]
 
 
 def test_export_mikra_finds_the_week_and_writes_one_sheet(
@@ -424,6 +518,8 @@ def test_export_mikra_finds_the_week_and_writes_one_sheet(
     assert written["out"] == tmp_path / "nitzavim-vayeilech-2026-09-05.pdf"
     html = str(written["html"])
     assert ONKELOS in html and "Isaiah 61:10-63:9" in html
+    # No look-ups recorded, so the list is the words kept, and its heading says so.
+    assert "Words you kept this week" in html and "No look-ups recorded" in result.output
     assert ("שלום", "peace") in _words(html)
 
 
