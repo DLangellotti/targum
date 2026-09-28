@@ -561,6 +561,29 @@ is left the rung chooses from the modern shelf, as it already did for a reader w
 no subject — reach first and the voice after it, since the second moment (below) is found
 on a page the reader can follow. A shelf that does not say its rung keeps the old rule.
 
+### The words to know before a chapter — 2026-09-28
+
+A reader may carry, above a chapter's first line, the words worth learning before reading
+it (targum-internal#97): the Learning Biblical Hebrew Workbook's list at the head of a
+passage. **Behind `TARGUM_PREREAD`, off**, because the card's gate — readers seen building
+it by hand from the export — cannot be met while there are no readers, and David chose to
+build it to be looked at rather than wait (2026-09-28).
+
+- **The printed page's words, before the text rather than after it.** The rule is the
+  printed edition's (2026-09-27, below): no names or numbers, the looked-up bands, a word
+  only where there is a meaning to set beside it, the first sense. Ordered by how often a
+  word comes round in the chapter, with the count typed as §7's multiplier; forty shown.
+- **The reader's own words come off it, in the browser.** A page on the shared shelf is
+  built once for everybody, so the page carries more than it shows and the script takes
+  off what this reader has marked known or put aside. Nothing is asked of the server and
+  nothing is fetched. Nothing left, nothing drawn.
+- **Folded, flat and above the text.** One quiet line in the UI face with a count
+  in the detail face; opened, the source at the reading size in its carried face and the
+  meaning muted beside it as a translation at rest is (§9). A list on the page, not a
+  card over it: the page's hairline, no shadow (§8). On pages, the first page only.
+- **A `<details>`, not the fold's button** (`_fold.html.j2`), because it has no controls
+  in its heading to protect and it opens with no script. Its summary is in the thumb
+  registry.
 
 ### The back office is four tabs — 2026-09-28
 

@@ -1,0 +1,16 @@
+{#- The words to know before this chapter (targum-internal#97; `render/preread.py`): its
+    hard words, the commonest first, each with its first sense and how often it comes
+    round here. Folded, so a reader who does not want it reads on under one line.
+
+    The page carries more than it shows. It is built once for everybody, so the first
+    forty are shown here, and `preread.js` takes off the ones this reader has marked known
+    and brings the next ones up. A `<details>` rather than the fold's button, because it
+    opens and closes with no script: a reader off a disk with scripts off still has it. -#}
+<details class="preread" id="preread" data-shown="{{ preread_shown }}">
+  <summary><svg class="preread-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6.5 8 10.5l4-4"/></svg><span dir="ltr">{{ t("reader.preread.words-to-know-first", "Words to know first") }}</span> <b class="preread-total" id="preread-total">{{ [preread|length, preread_shown]|min }}</b></summary>
+  <ol class="preread-words">
+    {%- for word in preread %}
+    <li data-lemma="{{ word.lemma }}"{% if loop.index > preread_shown %} hidden{% endif %}><span class="preread-form" lang="{{ source_language }}" dir="{{ source_direction }}">{{ word.form }}</span><span class="preread-meaning" lang="{{ target_language }}" dir="{{ target_direction }}">{{ word.meaning }}</span><span class="preread-times" dir="ltr">{% if word.count > 1 %}{{ word.count }}×{% endif %}</span></li>
+    {%- endfor %}
+  </ol>
+</details>

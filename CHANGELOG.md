@@ -56,6 +56,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a precision–coverage curve over the confidence (`targum/speakers.py`). A play's turns
   are explicit and alternate, so the number is an upper bound for prose. Nothing is
   voiced and the reader is untouched.
+- The words to know before a chapter, behind `TARGUM_PREREAD` and off
+  (targum-internal#97). A folded list above a chapter's first line: its hard words by the
+  printed edition's rule, the commonest first with how often each comes round, forty at
+  a time, each with its first sense. The page carries more than it shows, and a word the
+  reader has marked known or put aside comes off as the page opens, in the browser, with
+  nothing asked of the server. Decided when a reader is written: with the switch unset a
+  page is byte for byte what it was. design.md §12 (2026-09-28).
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
