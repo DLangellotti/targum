@@ -281,6 +281,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and takes the hardest at or under the rung said; a subject whose texts are all more
   than a rung past it gives way to the next; and where no subject is left, the rung
   chooses from the modern shelf, ahead of whether a text can be heard.
+- A Russian public page says its title and description in Russian (targum-internal#188).
+  The shelf, the text pages, the parasha and the daily cycles took both from English
+  whatever language the page spoke, so a search result for a Russian page read
+  "Library — targum" over a Russian body. They come from the catalogue now, and so do
+  the shelf's heading and the link back to it; the names a calendar spells (a portion, a
+  day's reading) stay as it spells them.
 - The reader's keys card lists two sets of keys it left out: with the recording's track in
   focus, the arrows go back and on five seconds and Home and End go to its ends; with the
   picture's Move or its size handle in focus, the arrows move or resize it, further with
