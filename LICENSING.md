@@ -601,7 +601,8 @@ which dropped 6. The coding agent that built it read the rest and dropped 26 mor
 leaving 315. Nothing from the lexicon ships.
 
 **No person has reviewed it.** The card said "reviewed by hand", and until somebody has,
-the table says `"reviewed": false`, and nothing claims otherwise.
+the table says `"reviewed": false`, and nothing claims otherwise. The card's line stays
+behind `TARGUM_FALSE_FRIENDS`, off, until David has read it (2026-09-28).
 
 ## Content is not code
 

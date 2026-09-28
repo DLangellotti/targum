@@ -977,5 +977,10 @@
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
 <script>{{ asset('list.js') }}</script>
 <script>{{ asset('talk.js') }}</script>
+{% if false_friends %}
+{#- A French word's false friend on its card (targum-internal#267), only on a page written
+    with `TARGUM_FALSE_FRIENDS` on; without it the page ends as it did. #}
+<script>{{ asset('false-friends.js') }}</script>
+{% endif %}
 </body>
 </html>
