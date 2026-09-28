@@ -207,7 +207,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Aramaic's list rather than Hebrew's, while a word Hebrew's list already held stays put.
   The drawer in a reader opens the conversation of the line's own language.
 
+### Changed
+- The arrival is a page of its own at every width. While a new reader answers the three
+  questions, Learn draws nothing else: not the fold of words to work on, which somebody
+  who has read nothing has never marked, and not the rail or the sheet. The questions
+  stand in one card, the question at 1.5rem, where the reader is drawn as three bars in
+  leaf beside "2 of 3"; a picked subject takes the primary's tint and a ring of it, and
+  the kitah letter beside each rung sits on a disc in the Hebrew face. Each screen comes
+  in on the desk's curve, and nothing moves under reduced motion. design.md §12
+  (2026-09-28).
+
 ### Fixed
+- The arrival opens a text the reader can follow. The rung picked a row by its place in
+  the subject's list, so the one row filed under a subject was every rung's answer, and
+  "Just starting" opened a vav article. It reads the rung each text was written for now,
+  and takes the hardest at or under the rung said; a subject whose texts are all more
+  than a rung past it gives way to the next; and where no subject is left, the rung
+  chooses from the modern shelf, ahead of whether a text can be heard.
 - The reader's keys card lists two sets of keys it left out: with the recording's track in
   focus, the arrows go back and on five seconds and Home and End go to its ends; with the
   picture's Move or its size handle in focus, the arrows move or resize it, further with

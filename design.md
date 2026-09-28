@@ -347,6 +347,50 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The arrival is a page of its own, and a text they can follow — 2026-09-28
+
+"This needs to be much prettier, delightful, and more inviting," David wrote of the
+arrival, and then: "the what to work on is really weird to have on the page right away. I
+think the onboarding step by step should be on another initial page." And having
+finished it: "it didn't bring me to a reader — it should bring me to a reader at my level
+that I'll enjoy."
+
+**It is the screen at every width.** "The arrival is two questions" (2026-09-19, below)
+kept it on the desk ground above the sheet at a desk, so that "somebody who ignores it
+still has a text open", and made it the screen only under 40rem. At a desk that put the
+fold, the rail and a framed reader under three questions a new reader had not answered,
+and the first thing they met was a list of words they had never marked. Now nothing else
+is drawn while it is up — the greeting, and the questions — at every width, and the last
+answer (or the last Skip) opens the text as it already did.
+The pill that opens the conversation keeps its corner (§13).
+
+**It is one card, and it is the brightest thing on the page.** There is no sheet under
+it to compete with any more, so the argument for leaving it on the ground is gone: the
+question stands in a card at the sheet's corner (24) and the raised tier, a column
+narrower than the page, with the question at 1.5rem. Where they are is said in words and
+drawn as three short bars in leaf, since how far along is progress (§4); the words stay
+for anybody not looking. A screen arrives with the desk's curve (§13) and nothing moves
+under `prefers-reduced-motion`.
+
+**A picked subject is on, and on is the primary.** The chips were quiet ink when picked,
+after §4's "selection is quiet ink, never accent". The accent is the reader's brown and
+§13 says the desk does not use it; what §13 gives the "on" state is the primary. A picked
+subject takes the primary's tint, its text and a ring of it; an unpicked one sits on the
+ground's tone inside the card. It is not filled: Next is the one filled press (§13), and
+the chips are answers, not actions — a first cut that filled them put four primaries on
+the page, and `test_pages_browser` refused it.
+
+**The first text is at their rung, read off the text.** The rung picked a row by its
+place in the subject's list — aleph the first, vav the last — so the one row filed under
+a subject was every rung's answer, and "Just starting" opened a vav article. Now the rung
+is matched against the rung a row was written for (`level.name`), the hardest at or
+under it; a subject whose rows are all more than a rung past it gives way to the next
+subject, because a text they cannot read is not one they will enjoy; and where no subject
+is left the rung chooses from the modern shelf, as it already did for a reader who named
+no subject — reach first and the voice after it, since the second moment (below) is found
+on a page the reader can follow. A shelf that does not say its rung keeps the old rule.
+
+
 ### The back office is four tabs — 2026-09-28
 
 "The back office has so much going on now, time to organize into menus and tabs," David

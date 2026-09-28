@@ -1293,170 +1293,260 @@ a.way:hover { text-decoration: none; }
 
 /* --- the arrival (targum-internal#294) -------------------------------------- */
 
-/* What a new reader is asked, a question a screen (design.md §12, 2026-09-19). At a desk
-   it sits on the desk ground rather than in a card, above the sheet: the sheet under it
-   is the brightest thing on the page and this must not compete with it, and somebody who
-   ignores it still has a text open. On a phone there is no sheet, so that was never true
-   there — see the phone block at the foot of this section, where it is the screen. */
-.arrival { margin: 0 0 1.25rem; }
+/* What a new reader is asked, a question a screen (design.md §12, 2026-09-19), and since
+   2026-09-28 a page of its own at every width: while it is up nothing else on Learn is
+   drawn — not the sheet, the rail or the fold, which is a list of words somebody who has
+   read nothing has never marked. The greeting stays, over one card in a narrower
+   column: the question is the brightest thing on the page because it is the only thing
+   on it. On a phone the card gives way to the screen itself — see the phone block at
+   the foot of this section. */
+body.arriving .front > .carry-on,
+body.arriving .front > .learn-cards,
+body.arriving .front > .front-work,
+body.arriving .connect-banner,
+body.arriving .claim,
+body.arriving ~ .claim,
+body.arriving .today-line { display: none; }
+@media (min-width: 40.01rem) {
+  body.arriving .front {
+    display: block;
+    /* The width, not only its limit: the column is shrink-wrapped by what holds it, and
+       without one the card was as wide as its question — narrower on the first screen
+       than the second, so the page jumped under the reader's hand on Next. */
+    inline-size: 100%;
+    max-inline-size: 44rem;
+    margin-inline: auto;
+    padding-block-start: 1.5rem;
+  }
+  body.arriving .front > .learn-head { margin-block-end: 1.25rem; }
+}
+
+.arrival {
+  margin: 0 0 1.25rem;
+  padding: 2rem 2.25rem 1.5rem;
+  background: var(--card);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-raised);
+}
 .arrival[hidden], .arrival-screen[hidden] { display: none; }
-/* Where they are, in words, in the resting colour: "1 of 2". */
+
+/* A screen arrives, on the desk's one curve (§13): up a little and in. Re-run each time
+   a screen is shown, because `hidden` takes it out of the box tree and back. */
+@keyframes arrival-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.arrival-screen { animation: arrival-in 240ms var(--ease) both; }
+
+/* Where they are, in words and in leaf: three short bars, the ones behind and the one
+   they are on filled, because how far along is progress (§4). The words stay, in the
+   resting colour, for anybody not looking at the bars. */
 .arrival-step {
-  margin: 0 0 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
   font-family: var(--chrome);
   font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }
-/* The question is the one thing a new reader is asked, and at a desk it was set at
-   the size of the hint under it: the greeting above and the pills below both outranked
-   it, and the eye went to nineteen pills before it found what they were for. A card
-   title's size and weight (§13) — a heading, and still well short of the sheet. */
+.arrival-bars {
+  display: flex;
+  gap: 0.3rem;
+}
+.arrival-bar {
+  inline-size: 1.75rem;
+  block-size: 4px;
+  border-radius: 999px;
+  background: var(--hairline);
+  transition: background-color 240ms var(--ease);
+}
+.arrival-bar.is-done { background: var(--leaf); }
+
+/* The question is the page's heading, and there is nothing to share the page with. */
 .arrival-asks {
-  margin: 0 0 0.6rem;
+  margin: 0 0 0.35rem;
   font-family: var(--chrome);
-  font-size: 1.0625rem;
+  font-size: 1.5rem;
   font-weight: 600;
+  line-height: 1.25;
   color: var(--ink);
   text-wrap: balance;
 }
+.arrival-asks > span { display: block; }
+.arrival-hint {
+  margin: 0 0 1.25rem;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+/* The language screen has no hint; the question takes the room under it instead. */
+#arrival-language .arrival-asks { margin-block-end: 1.25rem; }
+
 .arrival-doors {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-/* Each door a pill on the desk, the shape the ways row already uses, so the two read as
-   the same kind of control. */
+/* Each subject a chip in the ground's tone inside the card — a well's colour, the quiet
+   state of a thing that can be turned on. */
 .arrival-door {
   font: inherit;
   font-family: var(--chrome);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   color: var(--ink);
-  padding: 0.5rem 0.9rem;
+  min-block-size: 2.5rem;
+  padding: 0.45rem 1rem;
   border: 0;
   border-radius: 999px;
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+  background: color-mix(in srgb, var(--ground) 70%, var(--card));
   cursor: pointer;
+  transition:
+    background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    transform 160ms var(--ease);
 }
-.arrival-door:hover { background: var(--card-hover, var(--card)); }
+.arrival-door:hover { background: var(--teal-wash); color: var(--teal); }
+.arrival-door:active { transform: scale(0.98); }
 .arrival-door:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
-/* §4: selection in UI is quiet ink, never the accent — the accent belongs to the one
-   primary action in a view, which here is Done. A picked subject is not an action; it
-   is where you are. Same rule the library's filter chips follow.
+/* A picked subject is on, and on the desk on is the primary (§13; §12, 2026-09-28 —
+   it was quiet ink, after §4's rule for the reader). In the primary's tint, its text and
+   a ring of it — not filled: filled is Next's, one per view (§13), and a first cut that
+   filled the chips gave the page four primaries (`test_pages_browser` said so).
 
-   This was a grouped selector, `.arrival-door` beside `.arrival-rung`, and a clean-up
-   that dropped every rule naming `.arrival-rung` took the door half with it: a picked
-   subject stopped looking picked on the live site and nothing failed. The rung is back
-   (#306, 2026-09-19) and is deliberately *not* grouped in here again: a rung is never
-   left pressed — pressing one is the answer and the screen goes — so it has no pressed
-   state to share. `test_brand` reads the pressable controls out of `learn.js` and
-   insists the stylesheet answers for each. */
-.arrival-door[aria-pressed="true"] {
-  background: var(--ink-soft);
-  color: var(--paper);
-  box-shadow: none;
-}
-
-.arrival-hint {
-  margin: -0.35rem 0 0.6rem;
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
+   Not grouped with `.arrival-rung`: a clean-up that dropped every rule naming the rung
+   once took the door half with it (2026-09-17), and a rung is never left pressed — the
+   press is the answer and the screen goes — so it has no pressed state to share.
+   `test_brand` reads the pressable controls out of `learn.js` and insists this answers
+   for each. */
+.arrival-door[aria-pressed="true"],
+.arrival-door[aria-pressed="true"]:hover {
+  background: color-mix(in srgb, var(--teal) 14%, var(--card));
+  color: var(--teal);
+  box-shadow: inset 0 0 0 1.5px var(--teal);
 }
 
 /* The ladder, on its own screen. Full-width rows rather than pills: each one is a
    sentence a person reads, not a word they scan, and eight pills wrapping is a hedge. */
 .arrival-levels {
   display: grid;
-  gap: 0.4rem;
-  max-inline-size: 30rem;
+  gap: 0.5rem;
 }
 /* At a desk the ladder is two columns of four, read down and then across — the order
-   the keyboard walks it in. Eight rows in one column is 24rem of question, and the
-   arrival's whole argument at this width is that "somebody who ignores it still has a
-   text open": at 1440x900 the text was under the fold. */
+   the keyboard walks it in. */
 @media (min-width: 48rem) {
   .arrival-levels {
     grid-template-rows: repeat(4, auto);
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
     column-gap: 0.6rem;
-    max-inline-size: 46rem;
   }
 }
-/* Two rows, not eight: the ladder's two columns would set them side by side across
-   46rem, and a choice between two is read down. The question above them is said once in
-   each language, a line each. */
-.arrival-tongues { max-inline-size: 30rem; }
+/* Two rows, not eight, and read down: a choice between two. */
+.arrival-tongues { max-inline-size: 26rem; }
 @media (min-width: 48rem) {
   .arrival-tongues { grid-template-rows: none; grid-auto-flow: row; }
 }
-.arrival-asks > span { display: block; }
 .arrival-rung {
   font: inherit;
   font-family: var(--chrome);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   color: var(--ink);
   display: flex;
-  /* Centred, not `baseline`: a row is 2.75rem tall for the thumb and its words are one
-     line, and on the baseline they sat against the top of it with the room all below. */
+  /* Centred, not `baseline`: a row is taller than its one line of words. */
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: 0.75rem;
   text-align: start;
-  min-block-size: 2.75rem;
-  padding: 0.5rem 0.9rem;
+  min-block-size: 3.25rem;
+  padding: 0.5rem 0.6rem 0.5rem 1rem;
   border: 0;
-  border-radius: 12px;
-  background: var(--card);
-  box-shadow: var(--shadow-rest);
+  border-radius: var(--radius-row);
+  background: color-mix(in srgb, var(--ground) 70%, var(--card));
   cursor: pointer;
+  transition:
+    background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    transform 160ms var(--ease);
 }
-.arrival-rung:hover { background: var(--teal-wash); }
+.arrival-rung:hover { background: var(--teal-wash); color: var(--teal); }
+.arrival-rung:active { transform: scale(0.98); }
 .arrival-rung:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 /* The kitah beside the words: the whole label to somebody who did an ulpan, and noise
-   to everybody else, so it is the smaller half and never the only half. */
+   to everybody else, so it is the smaller half and never the only half — set in the
+   Hebrew face on a disc of card, where it reads as a letter rather than a symbol. */
 .arrival-rung-letter {
-  font-size: 0.8125rem;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding-inline: 0.35rem;
+  border-radius: 999px;
+  background: var(--card);
+  font-family: var(--reading-hebrew);
+  font-size: 1.0625rem;
+  line-height: 1;
   color: var(--ink-soft);
 }
+.arrival-rung:hover .arrival-rung-letter { color: var(--teal); }
 
+/* The foot: the ways out on the start side, where they are and Next on the end, under a
+   hairline — the card's own edge between the question and what to do about it. */
 .arrival-foot {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin: 0.9rem 0 0;
+  gap: 0.5rem;
+  margin: 1.5rem 0 0;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--hairline);
 }
+.arrival-count { order: 3; margin-inline-start: auto; }
+.arrival-done { order: 4; }
 /* Next is the one filled press on the page while the arrival is up, and on the desk a
-   filled press is the primary's (§13) — it was the reader's brown until 2026-09-19,
-   which §13 says the desk does not use. */
+   filled press is the primary's (§13). */
 .arrival-done {
   font: inherit;
   font-family: var(--chrome);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   min-block-size: 2.75rem;
-  padding: 0.5rem 1.3rem;
-  border: 1px solid var(--teal);
+  padding: 0.5rem 1.6rem;
+  border: 0;
   border-radius: 999px;
   background: var(--teal);
   color: var(--teal-ink);
   cursor: pointer;
+  transition:
+    background-color 160ms var(--ease),
+    color 160ms var(--ease),
+    transform 160ms var(--ease);
 }
+.arrival-done:active:not(:disabled) { transform: scale(0.98); }
 .arrival-done[hidden] { display: none; }
-/* Skip is a ghost (§13): declining is not an action of equal weight to answering, and it
-   must still be unmissable that a reader may. */
+/* Asleep rather than hidden: the press is the shape of the answer, and a button that
+   appears once enough is picked is a page that moves under the hand. Tint, the ordinary
+   press, with the resting colour — plainly a button, plainly not yet. */
+.arrival-done:disabled {
+  background: var(--teal-wash);
+  color: var(--ink-soft);
+  cursor: default;
+}
+/* Skip and Back are ghosts (§13): declining is not an action of equal weight to
+   answering, and it must still be unmissable that a reader may. */
 .arrival-skip {
   font: inherit;
   font-family: var(--chrome);
-  font-size: 0.875rem;
+  font-size: 0.9375rem;
   min-block-size: 2.75rem;
   padding: 0.5rem 0.9rem;
   border: 0;
@@ -1467,50 +1557,56 @@ a.way:hover { text-decoration: none; }
 }
 .arrival-skip:hover { color: var(--ink); background: var(--teal-wash); }
 .arrival-back[hidden] { display: none; }
-.arrival-skip:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
+.arrival-skip:focus-visible,
 .arrival-done:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
-/* Disabled rather than hidden: the press is the shape of the answer, and a button that
-   appears once enough is picked is a page that moves under the hand. */
-.arrival-done:disabled {
-  background: none;
-  border-color: var(--hairline);
-  color: var(--ink-soft);
-  cursor: default;
-}
 .arrival-count {
   font-family: var(--chrome);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
 }
-/* On a phone the arrival is the screen (design.md §12, 2026-09-19). There is no sheet
-   under it to fall back on, so nothing else is drawn while it is up: the greeting, the
-   question, and Next and Skip at the foot of the window — the one place a fixed control
-   is right, because there is no page under it yet. The pill that opens the conversation
-   keeps its corner (§13: it is on every page, and a first draft that put it away failed
-   two tests that were right): the foot stops short of it, and stands under it.
 
-   The subjects wrap as pills. They were one full-width row each under 30rem — nineteen
-   rows, more than two screens, with the only filled button on the page below all of
-   them and disabled (2026-09-17, when there were four doors and "four rows that line
-   up" was the better answer). Nineteen is a different number. */
+@media (prefers-reduced-motion: reduce) {
+  .arrival-screen { animation: none; }
+  .arrival-bar,
+  .arrival-door,
+  .arrival-rung,
+  .arrival-done { transition: none; }
+  .arrival-door:active,
+  .arrival-rung:active,
+  .arrival-done:active:not(:disabled) { transform: none; }
+}
+
+/* On a phone the arrival is the screen (design.md §12, 2026-09-19). There is no card:
+   the page is the card, the greeting and the question on it and Next and Skip at the
+   foot of the window — the one place a fixed control is right, because there is no page
+   under it yet. The pill that opens the conversation keeps its corner (§13: it is on
+   every page, and a first draft that put it away failed two tests that were right): the
+   foot stops short of it, and stands under it.
+
+   The subjects wrap as pills. Nineteen full-width rows were more than two screens, with
+   the only filled button on the page below all of them. */
 @media (max-width: 40rem) {
-  body.arriving .learn-cards,
-  body.arriving .front-work,
-  body.arriving ~ .claim,
-  body.arriving .claim { display: none; }
-  /* And the line under the greeting, which tells a reader how to read a text they have
-     not got yet. It is back, and true, the moment there is one. */
-  body.arriving .today-line { display: none; }
-  body.arriving .arrival { margin: 0; padding: 0 1rem 5.5rem; }
-  body.arriving .arrival-asks { font-size: 1.25rem; font-weight: 600; }
-  body.arriving .arrival-door { min-block-size: 2.75rem; }
-  body.arriving .arrival-levels { max-inline-size: none; }
+  body.arriving .arrival {
+    margin: 0;
+    padding: 0 1rem 7rem;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  body.arriving .arrival-asks { font-size: 1.25rem; }
+  body.arriving .arrival-door { min-block-size: 2.75rem; background: var(--card); }
+  /* And on stays on: the line above outranks the pressed rule by its `body.arriving`,
+     and a picked subject was card on card text — a blank pill (found 2026-09-28). */
+  body.arriving .arrival-door[aria-pressed="true"] {
+    background: color-mix(in srgb, var(--teal) 14%, var(--card));
+    color: var(--teal);
+  }
+  body.arriving .arrival-rung { background: var(--card); box-shadow: var(--shadow-rest); }
+  body.arriving .arrival-rung-letter { background: color-mix(in srgb, var(--ground) 70%, var(--card)); }
   body.arriving .arrival-foot {
     position: fixed;
     inset-inline: 0;
@@ -1529,10 +1625,9 @@ a.way:hover { text-decoration: none; }
     flex-wrap: wrap;
     row-gap: 0.1rem;
   }
-  body.arriving .arrival-count { order: -1; flex: 1 0 100%; }
+  body.arriving .arrival-count { order: -1; flex: 1 0 100%; margin-inline-start: 0; }
   body.arriving .arrival-count:empty { display: none; }
-  /* And the page clears the taller foot. */
-  body.arriving .arrival { padding-block-end: 7rem; }
+  body.arriving .arrival-done { order: 0; }
 }
 /* --- words you may already know, on the way in (targum-internal#297) --------- */
 
