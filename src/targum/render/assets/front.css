@@ -291,23 +291,3 @@ body.front .join-points svg { inline-size: 1.05rem; block-size: 1.05rem; color: 
   body.front .btn:active { transform: none; }
 }
 
-/* --- the foot: the landing's, one row under a hairline ------------------------------- */
-body.front .foot {
-  box-sizing: border-box;
-  max-inline-size: 64rem;
-  margin: 0 auto;
-  padding: 1.5rem 1.25rem 3rem;
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem 1.25rem;
-  border-block-start: 1px solid var(--hairline);
-  font-family: var(--chrome);
-  color: var(--muted);
-  font-size: 0.8125rem;
-  text-align: start;
-}
-body.front .foot > * { white-space: nowrap; margin: 0; }
-body.front .foot a { color: var(--muted); text-decoration: none; }
-body.front .foot a:hover { color: var(--ink); }

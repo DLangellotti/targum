@@ -4359,16 +4359,37 @@ def test_the_about_page_is_not_a_list_of_commits() -> None:
 
 def test_both_feet_link_targums_own_accounts() -> None:
     """The app's foot and the one every public page wears carry the same accounts, from
-    one list (`builder.SOCIAL`), so adding an account is one line and neither foot drifts."""
+    one list (`builder.SOCIAL`), so adding an account is one line and neither foot drifts.
+    Since 2026-09-28 they are one foot (`_site_foot.html.j2`), and the accounts are its
+    Follow column, drawn as §7 glyphs with the platform's name as the label."""
     from targum.render.builder import SOCIAL, _environment
 
     env = _environment()
     for foot in ("_foot.html.j2", "_public_foot.html.j2"):
         html = env.get_template(foot).render()
+        assert 'class="site-footer"' in html, foot
         for name, address in SOCIAL:
-            assert f'<a href="{address}" rel="me">{name}</a>' in html, (foot, name)
-        # Beside the source, which stays last but for the licence.
-        assert html.index(SOCIAL[-1][1]) < html.index("github.com/DLangellotti/targum")
+            assert f'<a href="{address}" rel="me" aria-label="{name}"' in html, (foot, name)
+        follow = html[html.index('id="sf-follow"') :]
+        assert all(address in follow for _, address in SOCIAL), foot
+        assert "https://x.com/targum_app" in html, "X, asked for 2026-09-28"
+        glyphs = re.findall(r'<ul class="sf-social">.*?</ul>', html, re.S)[0]
+        assert "fill=" not in glyphs, "§7: a glyph is a stroke, never a fill"
+
+
+def test_the_foot_names_what_each_link_does() -> None:
+    """David, 2026-09-28: About, not "What's built"; Install MCP, not "targum in your AI".
+    And the app's foot offers neither the waitlist nor Sign in: the reader has an account."""
+    from targum.render.builder import _environment
+
+    env = _environment()
+    app = env.get_template("_foot.html.j2").render()
+    public = env.get_template("_public_foot.html.j2").render()
+    for html in (app, public):
+        assert '<a href="/about">About</a>' in html
+        assert "What's built" not in html and "What&#39;s built" not in html
+    assert 'href="/account/signin"' not in app
+    assert 'href="/account/signin"' in public
 
 
 def test_the_about_page_says_targum_is_under_construction_and_little_else() -> None:

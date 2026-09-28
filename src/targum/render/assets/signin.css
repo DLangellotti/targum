@@ -152,23 +152,6 @@ body.signin {
   .gate .go { transition: none; }
 }
 
-/* Somebody handing over an address deserves to read what happens to it first, so the
-   door carries the same foot as everywhere else. Inside the gate rather than beside it:
-   the page is a centred grid of one column, and a second child would move the door.
-   Each item keeps its words together, so a narrow screen wraps between items and never
-   leaves half of one on a line of its own. */
-.gate .foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 1rem;
-  margin-block-start: 1.25rem;
-  padding-inline: 0.25rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.gate .foot > * { white-space: nowrap; }
-.gate .foot a { color: var(--ink-soft); text-decoration: none; }
-.gate .foot a:hover { color: var(--ink); }
 
 /* --- the second door (targum-internal#304) ---------------------------------- */
 

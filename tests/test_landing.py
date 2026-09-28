@@ -97,7 +97,8 @@ def test_the_page_fetches_nothing() -> None:
     outbound = set(re.findall(r'(?:src|href)="(https?://[^"]+)', html))
     assert outbound == {
         "https://github.com/DLangellotti/targum",  # the foot, a link to press
-        "https://www.instagram.com/targum.page/",  # and targum's own accounts beside it
+        "https://x.com/targum_app",  # and targum's own accounts beside it
+        "https://www.instagram.com/targum.page/",
         "https://www.linkedin.com/company/targum-page/",
         f"{ADDRESS}/",  # its own canonical
         f"{ADDRESS}/?lang=ru",  # and the same page in the other language
@@ -107,13 +108,14 @@ def test_the_page_fetches_nothing() -> None:
 
 def test_the_foot_links_targums_own_accounts_in_both_languages() -> None:
     """The accounts are the brand's, not the page's language: the Russian door links the
-    same ones, under their own names, marked as this site's own."""
+    same ones, named by their platforms, marked as this site's own. Drawn as glyphs since
+    2026-09-28, so the name is the label rather than the text."""
     from targum.render.builder import SOCIAL
 
     for language in ("en", "ru"):
         html = front_page(language, ADDRESS)
         for name, address in SOCIAL:
-            assert f'<a href="{address}" rel="me">{name}</a>' in html, (language, name)
+            assert f'<a href="{address}" rel="me" aria-label="{name}"' in html, (language, name)
 
 
 def test_the_page_says_what_it_is_to_a_crawler() -> None:

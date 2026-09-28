@@ -1,26 +1,3 @@
-{#- The same footer on every page inside the app. Quiet, and mostly there so the open
-    source half is reachable from the product rather than only from the front door.
-
-    Privacy and terms sit here rather than four legal links, which is a footer nobody
-    reads. The schedule and the erasure procedure are one click on from privacy.
-
-    They appear only once the documents are open, which they are not during the alpha —
-    a link to a 404 is worse than no link. `legal_is_public()` is the same switch the
-    routes themselves answer to, so the two cannot drift apart. -#}
-<footer class="site-foot">
-  <a href="/about">{{ t("foot.whats-built", "What's built") }}</a>
-  {#- The way into Claude and ChatGPT lives here (design.md §12, 2026-09-24). It was a
-      fourth door in Learn's row, where it competed with the two that carry texts; the
-      foot is where a thing that is always true and rarely wanted belongs, and the banner
-      on Learn does the announcing once. Only where there is a connector to offer. -#}
-  {%- if connector_is_open() %}
-  <a href="/connect">{{ t("foot.targum-in-your-ai", "targum in your AI") }}</a>
-  {%- endif %}
-  {%- if legal_is_public() %}
-  <a href="/privacy">{{ t("foot.privacy", "Privacy") }}</a>
-  <a href="/terms">{{ t("foot.terms", "Terms") }}</a>
-  {%- endif %}
-  {%- include '_social.html.j2' %}
-  <a href="https://github.com/DLangellotti/targum">{{ t("foot.source", "Source") }}</a>
-  <span>AGPL-3.0</span>
-</footer>
+{#- The foot inside the app: the one foot (`_site_foot.html.j2`), without the waitlist,
+    Sign in or the language, which the desk says for itself. -#}
+{% with public = false %}{% include '_site_foot.html.j2' %}{% endwith %}

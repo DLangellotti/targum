@@ -122,24 +122,3 @@ body.about {
 
 .log-more { margin: 1.5rem 0 0; font-size: 0.9375rem; color: var(--ink-soft); }
 
-/* The foot the rest of the site carries. This page had none, so nothing on it reached
-   the terms — and the inline-link rule above would have underlined every item in it. */
-.about .foot {
-  max-width: 40rem;
-  margin: 1.5rem auto 0;
-  padding-inline: 0.25rem;
-  display: flex;
-  /* A row, like the foot everywhere else: reader.css, loaded first, stands a reader's
-     own .foot in a column, and it stacked this one link over the next (2026-09-27). */
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0.4rem 1.2rem;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.about .foot > * { white-space: nowrap; }
-.about .foot a {
-  color: var(--ink-soft);
-  text-decoration: none;
-}
-.about .foot a:hover { color: var(--ink); }
