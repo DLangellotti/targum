@@ -1164,6 +1164,32 @@ body.marking .w.here,
   cursor: pointer;
 }
 .gloss-card .verb .here:hover { border-block-end-color: var(--accent); }
+/* The root as a way in to the words of it the reader has met (targum-internal#96), on
+   a box that shows where words come round (`TARGUM_OCCURRENCES`). Drawn as the other
+   ways on this line are — accent, a hairline under it — and still set as a root. */
+.gloss-card .verb .root-open {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.gloss-card .verb .root-open:hover { border-block-end-color: var(--accent); }
+.gloss-card .verb .root-open bdi { color: inherit; }
+/* Where the word comes round, and where the reader met it (targum-internal#95, #96).
+   Metadata, set as the register line is: muted, a line each. */
+.gloss-card .card-round {
+  display: block;
+  margin-block-start: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.gloss-card .card-round > span { display: block; }
+.gloss-card .card-round bdi { font-family: var(--reading); color: var(--ink); }
+.gloss-card .card-root-words { display: block; }
 /* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
    is one. Muted like the other metadata; the answer above it is the ink. The register
    line is the same kind of fact and is set the same way: which Hebrew the word belongs
@@ -1778,7 +1804,9 @@ body[data-case="Loc"] .w.case-Loc {
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
-    .gloss-card .inferred
+    .gloss-card .inferred,
+    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
+    .gloss-card .verb .root-open
   ) {
     position: relative;
   }
@@ -1798,7 +1826,9 @@ body[data-case="Loc"] .w.case-Loc {
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
-    .gloss-card .inferred
+    .gloss-card .inferred,
+    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
+    .gloss-card .verb .root-open
   )::after {
     content: "";
     position: absolute;

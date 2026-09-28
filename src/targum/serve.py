@@ -657,6 +657,21 @@ def connector_is_open() -> bool:
     return os.environ.get("TARGUM_CONNECTOR", "").strip().lower() in {"1", "true", "yes"}
 
 
+def shows_occurrences() -> bool:
+    """Whether the word card says where a word comes round and where the reader met it
+    (targum-internal#95, #96).
+
+    Off unless the deployment says so. Both cards were gated on readers — Biblical
+    readers reaching the modern shelf, the card being where readers linger — and a gate
+    of that kind cannot be met while there are none, so on 2026-09-28 David had it built
+    behind this instead. Turning it on is the decision the gate was standing in for.
+
+    While it is off, `/word/met` answers 404, `/account/me` says so, and the card is
+    what it was: its root is a plain word and it has no line of counts.
+    """
+    return os.environ.get("TARGUM_OCCURRENCES", "").strip().lower() in {"1", "true", "yes"}
+
+
 def front_door_is_open() -> bool:
     """Whether a stranger at `/` gets the front door or the holding page.
 
@@ -2322,6 +2337,15 @@ class Library:
                 if facts.get("content_hash") == document_hash:
                     return folder, str(facts.get("language") or "")
         return None
+
+    def document_title(self, folder: Path) -> str:
+        """A built text's title, as the shelf has it — for naming a place a word was met
+        where the text has no verse to name it by (targum-internal#95)."""
+        document = folder / "document.json"
+        facts = self.remembered.get(
+            folder, "document", [document], partial(self._document_facts, document)
+        )
+        return str(facts.get("title") or "")
 
     @staticmethod
     def _recording_seconds(folder: Path) -> int:
@@ -6211,6 +6235,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._totals()
         if route == "/account/reading":
             return self._reading()
+        if route == "/word/met":
+            if not shows_occurrences():
+                return self._send(404, b"not found", "text/plain")
+            return self._word_met(parse_qs(urlparse(self.path).query))
         if route == "/suggest":
             return self._suggest()
         if route == "/account/follows":
@@ -7398,6 +7426,9 @@ class Handler(BaseHTTPRequestHandler):
             # a record at all, and whether this reader has left it on (#127). A page sends
             # nothing unless both are true.
             "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+            # Whether the card may ask `/word/met` (targum-internal#95, #96). A page that
+            # has not heard yes asks nothing and draws the card as it always was.
+            "occurrences": shows_occurrences(),
             # Which connectors hold a token for this account, and what each may do
             # (targum-internal#80). A grant that lasts has to be visible somewhere the
             # reader can take it back, and this is that somewhere — see design.md §12,
@@ -8953,6 +8984,81 @@ class Handler(BaseHTTPRequestHandler):
             held = {str(lemma) for lemma in said[: self.KNOWN_AHEAD_CAP]}
             known |= offered & on_page & held
         answer({"known": len(known)})
+
+    #: The most words of one root the card lists. A root with more met than this still
+    #: counts them all; it names these.
+    FAMILY_NAMED = 12
+
+    def _word_met(self, query: dict[str, list[str]]) -> None:
+        """What the card says about where a word comes round (targum-internal#95, #96):
+        how often in this text and in the Tanakh, where this reader has met it, and the
+        words of its root they have met and how many of those they know.
+
+        Asked by the card when it opens, lazily and once a word, and only where
+        `shows_occurrences` is on. `document` and `section` name the page it is on — a
+        content hash, as `/known-ahead` takes it — so the server finds the text, and the
+        place the reader is on is not counted as a place they met the word. "Met" is
+        `occurrences.met`'s: a section they finished. Places are named by verse where the
+        text has verses and by title where it does not; a text not built on this box is
+        left out, never guessed at.
+        """
+        from . import coverage as coverage_module
+        from . import occurrences as occurrences_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+
+        def one(name: str) -> str:
+            return str((query.get(name) or [""])[0]).strip()
+
+        lemma, root, document = one("lemma"), one("root"), one("document")
+        if not lemma:
+            return self._json({"error": "no word"}, 400)
+        try:
+            section = int(one("section") or 0)
+        except ValueError:
+            return self._json({"error": "bad section"}, 400)
+
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        # One text's folder is looked for once a request, however many sections of it
+        # the reader finished.
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        def title_of(hash_: str) -> str:
+            found = folder_for(hash_)
+            return self.library.document_title(found[0]) if found else ""
+
+        here = folder_for(document)
+        language = (here[1] if here else one("language")).split("-")[0].lower()
+        counted = occurrences_module.text_occurrences(here[0]) if here else None
+        finished = self.store.finished(person.id)
+        places, more = occurrences_module.places_named(
+            occurrences_module.met(lemma, finished, folder_for, language),
+            title_of,
+            leave_out=(document, section) if section else None,
+        )
+        answer: dict[str, Any] = {
+            "here": counted.count(lemma) if counted else 0,
+            "tanakh": occurrences_module.in_tanakh(lemma, language) if language else 0,
+            "met": places,
+            "more": more,
+        }
+        if root:
+            kin = occurrences_module.family(root, finished, folder_for, language)
+            marked = self.store.marked(person, language) if kin else {}
+            known = [word for word in kin if marked.get(word) == coverage_module.KNOWN]
+            answer["family"] = {
+                "met": len(kin),
+                "known": len(known),
+                "words": kin[: self.FAMILY_NAMED],
+            }
+        self._json(answer)
 
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language

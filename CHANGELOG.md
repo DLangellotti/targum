@@ -121,6 +121,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   will be waiting. And the text the arrival opens is one that can be heard, where the
   reader's subject has one. Nothing opens on its own, nothing moves the page, and nothing
   is counted (design.md §12, targum-internal#335).
+- Where a word comes round, on its card. Behind `TARGUM_OCCURRENCES`, off unless the
+  deployment sets it; off, the card is the card it was and asks nothing. On, the card
+  asks `GET /word/met` once when it opens and says how often the word comes round in
+  this text and in the Tanakh ("4× in this text · 241× in the Tanakh"), where the reader
+  met it ("met in Jonah 1:4, Ruth 2:1 and 6 more": a verse by its reference, any other
+  text by its title, latest first, three named), and for a verb how many words of its
+  root they have met and know ("6 words from כ־ת־ב met, 3 known"). The root becomes the
+  way in to those words. "Met" is the index's: inside a section the reader finished,
+  never the page they are on. The index now keeps each form's root, so its cache is
+  counted again on first ask, which reads the annotation and spends nothing
+  (design.md §12, targum-internal#95, #96).
 - A record of what happens in a text, and Time and words on Your Progress. Behind
   `TARGUM_EVENTS`, off unless the deployment sets it: a word looked up, a stretch of a
   recording played, a page turned, a section finished, where a sitting stopped and which

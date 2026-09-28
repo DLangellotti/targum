@@ -636,6 +636,33 @@ One file draws it (`_site_foot.html.j2`), and it carries its own stylesheet
 (`foot.css`), with every token's value written beside it, so it looks the same under
 the landing's sheets, the reader's and the desk's.
 
+### "Met" means a section you finished — 2026-09-28
+
+The word card can say where a reader has met a word ("met in Jonah 1:4, Ruth 2:1 and 6
+more"), how often it comes round ("4× in this text · 241× in the Tanakh") and how many
+words of a verb's root they have met ("6 words from כ־ת־ב met, 3 known"), with the root
+the way in to those words (targum-internal#95, #96). It is a line that tells somebody
+what they have done, so what it claims is set down here.
+
+- **Met is inside a section the reader finished.** Not a text opened — Genesis is one
+  document, and opening it is not meeting fifty chapters of words — and not a word
+  marked, which has no place. A chapter read and never finished is not claimed: the
+  line undercounts rather than tells a reader they did something they did not.
+- **The page the reader is on is not a place they met the word.** They are meeting it now.
+- **A verse is named by its reference; anything else by its title, once.** A recording's
+  "part 1:2" and a page's "p1" name nothing a reader would know. Three places are named,
+  latest first, and the rest are a number.
+- **Nothing with nothing to say.** A count of zero, a root with no word met, a text not
+  built on this box: no line, never a zero and never a guess. The root is a plain word,
+  as it always was, until there is a word of it to open.
+- **It is metadata, drawn as the register line is**: muted, a line each, Hebrew in its
+  own `bdi`. The root, where it opens something, is drawn as the other ways on its line
+  are — accent with a hairline — and is in §8's thumb registry.
+- **Behind `TARGUM_OCCURRENCES`, off unless the box says so.** Both cards were gated on
+  readers — Biblical readers reaching the modern shelf, the card being where readers
+  linger — and that gate cannot be met with none; David had it built behind a switch
+  instead (2026-09-28). Off, the card is byte for byte what it was and asks nothing.
+
 ### The weekly, the parasha and the dailies are drawn as the front door is — 2026-09-27
 
 "Parasha and dailies and weekly digest pages should be updated to fit design of rest of
