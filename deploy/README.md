@@ -87,8 +87,14 @@ connections and the texts it built — and keeps the account and its invitation,
 next sign-in is a first visit. Made on the box:
 
 ```
-targum test-account tester@example.com
+ssh root@targum.page 'runuser -u targum -- targum test-account tester@example.com --store /var/lib/targum/targum.db'
 ```
+
+As the service's own user and against the service's own database, both on purpose. Left
+to itself `targum` reads `~/.targum/targum.db`, which for root is a database the site never
+opens — the account is made there and does not exist on the site (found 2026-09-28, the
+first time this ran). And a database file written as root is one the service can no
+longer write to.
 
 It is refused for an address that already has an account: a test account is emptied
 the next time it signs out, so a real reader's account must never become one. For
@@ -96,7 +102,7 @@ testing without reading the address's mail, `--link` prints a one-time sign-in l
 only for a test account:
 
 ```
-ssh root@targum.page 'set -a; . /etc/targum/targum.env; set +a; targum test-account tester@example.com --link'
+ssh root@targum.page 'runuser -u targum -- targum test-account tester@example.com --link --store /var/lib/targum/targum.db --address https://targum.page'
 ```
 
 The link opens the ordinary sign-in page; press its button. `targum test-account` with
