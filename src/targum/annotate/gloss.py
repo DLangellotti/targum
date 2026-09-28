@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Mapping
 from typing import Any, NamedTuple, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from ..cache import Cache
 from ..errors import ProviderError, TargumError
@@ -184,8 +184,9 @@ class AnthropicGlosses:
             source=language_name(source_language), target=language_name(target_language)
         )
         out: dict[str, Sense] = {}
-        for start in range(0, len(lemmas), self.batch_size):
-            batch = lemmas[start : start + self.batch_size]
+
+        def ask(batch: list[str]) -> Any:
+            """One request, and its parsed answer; raises on an answer that is not JSON."""
             try:
                 response = self._provider.client().messages.parse(
                     model=self.model,
@@ -207,18 +208,42 @@ class AnthropicGlosses:
                 int(getattr(response.usage, "input_tokens", 0) or 0),
                 int(getattr(response.usage, "output_tokens", 0) or 0),
             )
-            parsed: Any = response.parsed_output
-            if isinstance(parsed, _Batch):
-                wanted = filed_as(batch)
-                for entry in parsed.entries:
-                    asked = wanted.get(entry.lemma.strip())
-                    if asked and entry.gloss.strip():
-                        out[asked] = Sense(
-                            entry.gloss.strip(),
-                            entry.part_of_speech.strip(),
-                            entry.citation.strip(),
-                            entry.plural.strip(),
-                        )
+            return response.parsed_output
+
+        def answered(batch: list[str], tries: int = 2) -> list[tuple[list[str], Any]]:
+            """Each part of the batch with its answer, the unanswerable left out.
+
+            An answer that is not valid JSON — cut off mid-string, 189 characters in,
+            with 8,000 tokens allowed (the box, 2026-09-28) — used to raise out of
+            `messages.parse` and end the whole rebuild, every text after it unbuilt.
+            Now it is asked again, then in halves, the way the translator answers a
+            refused batch; a single word that still comes back broken is skipped, and
+            its meaning is bought on demand like any word never glossed.
+            """
+            for _ in range(tries):
+                try:
+                    return [(batch, ask(batch))]
+                except ValidationError:
+                    continue
+            if len(batch) == 1:
+                return []
+            half = len(batch) // 2
+            return answered(batch[:half], 1) + answered(batch[half:], 1)
+
+        for start in range(0, len(lemmas), self.batch_size):
+            batch = lemmas[start : start + self.batch_size]
+            for part, parsed in answered(batch):
+                if isinstance(parsed, _Batch):
+                    wanted = filed_as(part)
+                    for entry in parsed.entries:
+                        asked = wanted.get(entry.lemma.strip())
+                        if asked and entry.gloss.strip():
+                            out[asked] = Sense(
+                                entry.gloss.strip(),
+                                entry.part_of_speech.strip(),
+                                entry.citation.strip(),
+                                entry.plural.strip(),
+                            )
             if on_progress:
                 on_progress(len(batch))
         return out
