@@ -106,6 +106,37 @@ LEVELS: tuple[tuple[str, str], ...] = (
     ),
 )
 
+#: The same ladder with the register taken off its top rungs (targum-internal#320,
+#: 2026-09-28): hey, vav and beyond say how rare their words are and no longer call them
+#: literary, classical, archaic, poetic or rabbinic. The rungs below are `LEVELS`' own,
+#: word for word, so the only thing that differs is what the top of the ladder says old
+#: Hebrew is. Measured on a sample of scripture and modern prose matched on coverage
+#: (`scripts/sentence_bias.py`); switchable, and not the default.
+WITHOUT_REGISTER: tuple[tuple[str, str], ...] = (
+    *LEVELS[:6],
+    (
+        "hey",
+        "Uses formal or academic words, about ten thousand. An advanced learner follows it.",
+    ),
+    (
+        "vav",
+        "Uses rare words, about twelve thousand. Only a reader close to native follows it.",
+    ),
+    (
+        "beyond",
+        "Uses words so rare or specialised that even a native reader of Hebrew would look them up.",
+    ),
+)
+
+#: The wordings a sentence can be asked in, by name. An answer is only comparable with
+#: answers asked in the same wording, so the name travels with them.
+PROMPTS: dict[str, tuple[tuple[str, str], ...]] = {
+    "situations": LEVELS,
+    "without-register": WITHOUT_REGISTER,
+}
+#: The wording the library was scored in, and the one asked unless another is named.
+PROMPT = "situations"
+
 #: The level past the ladder's top.
 BEYOND = len(ULPAN)
 
@@ -233,21 +264,23 @@ def chunks(
         yield current
 
 
-def question(sentence: str) -> dict[str, Any]:
+def question(sentence: str, prompt: str = PROMPT) -> dict[str, Any]:
     return {
         "type": "score",
         "instructions": INSTRUCTIONS.format(sentence=sentence),
-        "criteria": [description for _, description in LEVELS],
+        "criteria": [description for _, description in PROMPTS[prompt]],
     }
 
 
-def request(chunk: Chunk, asking: set[str] | None = None) -> tuple[Any, dict[str, Any]]:
+def request(
+    chunk: Chunk, asking: set[str] | None = None, prompt: str = PROMPT
+) -> tuple[Any, dict[str, Any]]:
     """The state and the questions for one chunk: the whole passage as state, and a
-    question for each sentence in `asking` (every one, by default). A sentence already
-    answered somewhere else in the library stays in the passage as context and is not
-    asked, or paid for, twice."""
+    question for each sentence in `asking` (every one, by default), in the wording named
+    `prompt`. A sentence already answered somewhere else in the library stays in the
+    passage as context and is not asked, or paid for, twice."""
     questions = {
-        k: question(text)
+        k: question(text, prompt)
         for k, text in zip(chunk.keys, chunk.sentences, strict=True)
         if asking is None or k in asking
     }
@@ -267,13 +300,14 @@ def path() -> Path | None:
     return None
 
 
-def write(levels: dict[str, Level], to: Path, model: str) -> None:
+def write(levels: dict[str, Level], to: Path, model: str, prompt: str = PROMPT) -> None:
     """The kept answers, whole or not at all: a file beside the target, then a rename."""
     to.parent.mkdir(parents=True, exist_ok=True)
     body = {
         "version": 1,
         "model": model,
-        "levels": [name for name, _ in LEVELS],
+        "prompt": prompt,
+        "levels": [name for name, _ in PROMPTS[prompt]],
         "sentences": {k: level.row() for k, level in sorted(levels.items())},
     }
     temporary = to.with_name(to.name + ".tmp")

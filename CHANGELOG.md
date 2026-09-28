@@ -44,6 +44,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   7 of the 9 number errors and 11 of the 18 construct errors, in 25 findings of which 22
   are settled corrections and the other 3 read as real errors the settled set lacks. The
   free gate goes from 10 settled errors to 32.
+- A second wording for how hard a sentence is, `without-register`, which takes "literary",
+  "classical", "archaic", "poetic" and "rabbinic" off the top three rungs, and
+  `scripts/sentence_bias.py`, which asks it and the library's wording of 200 verses and
+  200 lines of modern prose matched on the share of their words a reader at gimel knows,
+  and on length (targum-internal#320). Switchable with `--prompt`; the library's wording
+  stays the default, and the compiled file now says which wording it holds.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
