@@ -13,7 +13,17 @@ Two numbers come out, and the second matters more than the first:
   person all missed, or a false positive. A check that produces these in quantity is a
   check that will be ignored, which is worse than a check that finds nothing.
 
+With `--dicta`, the checks in `dialogue/agreement.py` are scored too, one at a time,
+because they are the ones on trial (targum-internal#134): each reports its recall on the
+corrections of its own kind (`KINDS`), what else in the gold it caught, and a sample of
+what it found that the gold does not have, with the line, for a person to read. They
+need DICTA's syntax, which the stored annotation does not keep, so the scenes are read
+with the local model — free, and slow on a laptop's CPU, so the reading is kept at the
+path given and read back from there next time.
+
     python3 scripts/score_scene_checks.py --scenes ~/…/dialogues --gold …/decisions.json
+    PYTHONPATH=src .venv/bin/python scripts/score_scene_checks.py --scenes … --gold … \
+        --dicta ~/…/scenes-dicta.json
 """
 
 from __future__ import annotations
@@ -21,16 +31,71 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import random
 import sys
+import unicodedata
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from targum.dialogue.agreement import CHECKS, GATED, words_from_dicta  # noqa: E402
 from targum.dialogue.checks import (  # noqa: E402
     bare,
     check_turn,
     inconsistent_pointing,
 )
+
+#: Which settled corrections are of the kinds the agreement checks are for, labelled by
+#: hand from the audit's own explanation before any check was scored against them. Keyed
+#: as the gold is, (scene, turn, the word's consonants).
+KINDS: dict[str, set[tuple[str, int, str]]] = {
+    # The numeral's gender or state is wrong for what it counts. The last two are the
+    # construct 'two of' written where the day, Monday, was meant.
+    "number": {
+        ("58-second-opinion", 17, "ובשלושה החודשים"),
+        ("38-the-estimate", 5, "שמונה מאות"),
+        ("38-the-estimate", 6, "שמונה מאות"),
+        ("73-the-inheritance", 14, "שמונה יחידות"),
+        ("22-at-the-bank", 9, "עשר"),
+        ("26-the-appointment", 6, "שמונה"),
+        ("79-the-double-booking", 10, "בשמונה עשר"),
+        ("09-the-office", 16, "שני"),
+        ("60-the-deadline", 11, "שני"),
+    },
+    # The construct state is wrong: the article on the head of a chain, an absolute
+    # where the construct belongs or the reverse, or a word pointed as a construct noun
+    # where none stands. The last eleven are that: a verb or an adjective pointed as the
+    # construct noun its letters also spell (הַפְרָעַת for הִפְרַעְתְּ, חוּקֵּי for חוּקִּי).
+    "smichut": {
+        ("49-the-quiet-carriage", 2, "בקרון השקט"),
+        ("84-the-new-manager", 21, "וחצי שנה"),
+        ("65-the-leak", 19, "לרוב"),
+        ("67-the-demonstration", 3, "מעבר"),
+        ("77-the-bad-review", 8, "כוכב"),
+        ("82-the-landlady", 28, "בכתב"),
+        ("84-the-new-manager", 26, "בראש שקט"),
+        ("78-the-driving-test", 25, "פני"),
+        ("89-the-tender", 15, "חוקי"),
+        ("09-the-office", 32, "חוקי"),
+        ("95-the-eviction-notice", 12, "חוקי"),
+        ("41-the-neighbour-upstairs", 1, "הפרעת"),
+        ("47-the-tickets", 0, "הצלחת"),
+        ("69-the-lawyer", 9, "והשכרת"),
+        ("74-the-group-chat", 28, "הפסקת"),
+        ("84-the-new-manager", 9, "העדפת"),
+        ("64-the-partner", 1, "החלטת"),
+        ("82-the-landlady", 1, "החלטת"),
+    },
+}
+
+#: Which kind each agreement check is for.
+KIND_OF = {
+    "numeral_agreement": "number",
+    "numeral_state": "number",
+    "article_on_construct": "smichut",
+    "construct_governs_nothing": "smichut",
+}
 
 
 def gold_from(path: Path) -> set[tuple[str, int, str]]:
@@ -47,11 +112,47 @@ def gold_from(path: Path) -> set[tuple[str, int, str]]:
     return out
 
 
+def dicta_reading(files: list[Path], path: Path) -> dict[str, list[dict[str, Any]]]:
+    """DICTA's JSON for every turn, by scene id: read from `path`, or with the local
+    model and written there.
+
+    Kept rather than recomputed because it is slow on a CPU — about a second a turn —
+    and because it is a fact about the scenes as they were, which do not change.
+    """
+    if path.exists():
+        held: dict[str, list[dict[str, Any]]] = json.loads(path.read_text(encoding="utf-8"))
+        return held
+    import torch
+
+    from targum.annotate.dicta import BATCH, DictaLemmatizer
+
+    model, tokenizer = DictaLemmatizer(auto_download=False).model()
+    out: dict[str, list[dict[str, Any]]] = {}
+    for n, one in enumerate(files):
+        scene = json.loads(one.read_text(encoding="utf-8"))
+        texts = [unicodedata.normalize("NFC", t["text"]) for t in scene["turns"]]
+        said: list[dict[str, Any]] = []
+        with torch.inference_mode():
+            for at in range(0, len(texts), BATCH):
+                said += model.predict(texts[at : at + BATCH], tokenizer, output_style="json")
+        out[scene["id"]] = said
+        print(f"  read {n + 1}/{len(files)} {scene['id']}", file=sys.stderr)
+    path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n\n")[0])
     parser.add_argument("--scenes", type=Path, required=True, help="the scenes as they were")
     parser.add_argument("--gold", type=Path, required=True, help="decisions.json")
     parser.add_argument("--show", type=int, default=40, help="how many findings to print")
+    parser.add_argument(
+        "--dicta",
+        type=Path,
+        default=None,
+        help="DICTA's reading of the scenes, kept here; also scores dialogue/agreement.py",
+    )
+    parser.add_argument("--sample", type=int, default=20, help="findings not in the gold to show")
     args = parser.parse_args()
 
     files = sorted(args.scenes.expanduser().glob("*.json"))
@@ -113,12 +214,83 @@ def main() -> None:
         if len(miss) > args.show:
             print(f"  … and {len(miss) - args.show} more")
 
+    if args.dicta is not None:
+        gated = score_agreement(files, args.dicta.expanduser(), gold, matches, args.sample)
+        both = caught | gated
+        print(
+            f"\n  the gate, free checks and gated agreement checks together: {len(both)}/"
+            f"{len(gold)} gold errors -> recall {100 * len(both) / max(len(gold), 1):.1f}%"
+            f" (was {len(caught)})"
+        )
+
     clashes = inconsistent_pointing(lines_by_scene)
     print(f"\n{len(clashes)} words the corpus points more than one way:")
     for row in clashes[: args.show]:
         print(f"  {row}")
     if len(clashes) > args.show:
         print(f"  … and {len(clashes) - args.show} more")
+
+
+def score_agreement(
+    files: list[Path],
+    path: Path,
+    gold: set[tuple[str, int, str]],
+    matches: Any,
+    sample: int,
+) -> set[tuple[str, int, str]]:
+    """Each agreement check on its own: recall on its kind, and what it found besides.
+
+    Returns the gold the gated ones caught, so the gate can be counted whole.
+    """
+    reading = dicta_reading(files, path)
+    lines: dict[tuple[str, int], str] = {}
+    by_check: dict[str, list[tuple[str, int, str, str, str]]] = {name: [] for name in CHECKS}
+    for one in files:
+        scene = json.loads(one.read_text(encoding="utf-8"))
+        sid = scene["id"]
+        for n, turn in enumerate(scene["turns"]):
+            text = unicodedata.normalize("NFC", turn["text"])
+            lines[(sid, n)] = text
+            words = words_from_dicta(reading[sid][n], text)
+            for name, check in CHECKS.items():
+                for f in check(words, n):
+                    by_check[name].append((sid, n, bare(f.word), f.kind, f.what))
+
+    for kind, keys in KINDS.items():
+        unknown = keys - gold
+        if unknown:
+            sys.exit(f"KINDS names {kind} corrections that are not in the gold: {unknown}")
+
+    print("\nthe agreement checks, one at a time (dialogue/agreement.py):")
+    for name, found in by_check.items():
+        kind = KINDS[KIND_OF[name]]
+        caught = {k for f in found if (k := matches(f))}
+        miss = [f for f in found if not matches(f)]
+        mine = caught & kind
+        gate = "gated" if name in GATED else "not gated"
+        print(f"\n  {name} [{KIND_OF[name]}, {gate}]: {len(found)} findings")
+        print(
+            f"    recall on its kind: {len(mine)}/{len(kind)}"
+            f" = {100 * len(mine) / max(len(kind), 1):.0f}%"
+        )
+        print(f"    other gold caught: {len(caught - kind)}")
+        print(f"    not in the gold: {len(miss)}")
+        for key in sorted(caught):
+            print(f"    caught  {key[0]} t{key[1]} «{key[2]}»")
+        shown = random.Random(134).sample(miss, min(sample, len(miss)))
+        for sid, n, word, _, what in sorted(shown):
+            print(f"    ?  {sid} t{n} «{word}»: {what}")
+            print(f"         {lines[(sid, n)]}")
+
+    for kind, keys in KINDS.items():
+        names = [name for name, of in KIND_OF.items() if of == kind]
+        every = {k for name in names for f in by_check[name] if (k := matches(f))} & keys
+        gated = {k for name in names if name in GATED for f in by_check[name] if (k := matches(f))}
+        print(
+            f"\n  {kind}: {len(every)}/{len(keys)} caught by any check here,"
+            f" {len(gated & keys)}/{len(keys)} by the gated ones"
+        )
+    return {k for name in GATED for f in by_check[name] if (k := matches(f))}
 
 
 if __name__ == "__main__":

@@ -36,6 +36,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the 59 that should not spend, and wrongly stop none of the 27 that should. With a Jev
   "no" in front, at a refusal weight of 0.7 or more, 48 are stopped, still with no false
   blocks. Nothing is wired in; this is the measurement the card asked for first.
+- The scene gate checks numbers and construct chains (targum-internal#134):
+  `dialogue/agreement.py` reads DICTA's morphology and syntax for a numeral in the wrong
+  gender or state for what it counts (שְׁמוֹנָה יְחִידוֹת, בִּשְׁלוֹשָׁה הַחוֹדָשִׁים) and for a
+  construct chain the points break (לָרוֹב הַדִּירוֹת, a verb pointed as הַפְרָעַת).
+  `scripts/score_scene_checks.py --dicta` scores each against the 384 settled corrections:
+  7 of the 9 number errors and 11 of the 18 construct errors, in 25 findings of which 22
+  are settled corrections and the other 3 read as real errors the settled set lacks. The
+  free gate goes from 10 settled errors to 32.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
