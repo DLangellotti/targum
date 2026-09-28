@@ -272,7 +272,7 @@
       });
       write(LEDGER, ledger);
       write(PASSED, passed);
-      said.textContent = tn("claim.marked", known.length, "We've marked {n} as known.", "We've marked {n} as known.");
+      said.textContent = tn("claim.marked", known.length, "We've marked {n} word as known.", "We've marked {n} words as known.");
       if (window.TargumSync && window.TargumSync.touched) window.TargumSync.touched();
       if (window.TargumLists && window.TargumLists.changed) window.TargumLists.changed();
       if (options.onMarked) options.onMarked(known.length);

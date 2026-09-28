@@ -213,6 +213,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- The English copy, audited end to end (`COPY_AUDIT.md`): 151 catalogue strings and some
+  thirty literals rewritten against design.md §6 — mostly claims the code did not keep
+  ("One press and you're on the list", "That link has been used", "we can't read scans
+  yet", "This is this week's"), refusals without a way forward, singular forms that said
+  "words", and team words reaching readers (build, quote, thread, shelf, conversation).
+  No behaviour changed. `COPY_VOICE_GUIDE.md` is the checklist for English written from
+  here; `COPY_QUESTIONS.md` holds what needs David.
 - The arrival opens with a welcome: where you are, what happens next, and an optional
   "What should we call you?" that the greeting uses at once. The connector's card says
   it is optional and has one press, Continue; the bars count only the questions.

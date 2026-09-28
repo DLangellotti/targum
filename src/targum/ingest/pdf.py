@@ -34,8 +34,11 @@ from .pages import document_from_pages, mixed
 #: Below this many letters a page, on average, the PDF is pictures of pages.
 SCAN_LETTERS_PER_PAGE = 20
 
-SCAN = "This PDF is a scan, and we can't read scans yet."
-PROTECTED = "This PDF is protected, so we can't read it."
+SCAN = (
+    "This PDF is a scan, so there's no text in it to read. "
+    "Try a copy with text, or paste the text itself."
+)
+PROTECTED = "This PDF is protected, so we can't read it. Try a copy without a password."
 MISSING = "Reading PDFs needs the `bring` extra: uv sync --extra bring"
 
 _LETTER = re.compile(r"[^\W\d_]")
@@ -57,7 +60,10 @@ def _reader(path: Path) -> Any:
     except TargumError:
         raise
     except Exception as broken:
-        raise TargumError("We couldn't open that PDF.", key="pdf.unopenable") from broken
+        raise TargumError(
+            "We couldn't open that PDF. Try another copy, or paste the text itself.",
+            key="pdf.unopenable",
+        ) from broken
 
 
 def page_count(path: Path) -> int:

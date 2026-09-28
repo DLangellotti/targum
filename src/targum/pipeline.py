@@ -390,7 +390,10 @@ class Build:
                 return existing
         segmented = segment_document(document, self.segmenter)
         if not segmented.segments:
-            raise TargumError(f"We couldn't find any text in {self.source}.")
+            # The file's own name, never the path it was written to on this disk: an
+            # upload's path is the server's, and a reader was being shown it.
+            named = Path(self.source).name if Path(self.source).exists() else self.source
+            raise TargumError(f"We couldn't find any text to read in {named}.")
         segmented.write(path)
         return segmented
 
@@ -1798,7 +1801,10 @@ class Build:
             # Every part heard so far came back empty. Music, or silence — either way
             # an honest sentence beats a reader with nothing on its pages.
             minutes = max(1, round(sum(by_number[n].end - by_number[n].start for n in owed) / 60))
-            raise TargumError(f"We didn't hear anyone speak in the first {minutes} minutes.")
+            raise TargumError(
+                f"We didn't hear anyone speak in the first {minutes} minutes. "
+                "Check that it's the recording you meant."
+            )
         return heard
 
     def _probe_language(self, recording: Path, found: Any, drafted: Any, workspace: Path) -> Any:

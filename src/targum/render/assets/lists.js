@@ -1120,7 +1120,7 @@
     wordsEmpty.textContent = rows.length
       ? ""
       : search.value.trim()
-        ? t("lists.no-match", "Nothing here matches that.")
+        ? t("lists.no-match", "Nothing here matches that. Try another word or filter.")
         : entry.words.length
           ? t("lists.no-stage", "Nothing at that stage yet.")
           // Nothing at all, which is every new account: say what fills the list and

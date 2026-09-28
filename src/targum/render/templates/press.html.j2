@@ -56,7 +56,7 @@
     <p class="said">{{ job.title }}</p>
     <div id="press-watch" data-job="{{ job.id }}" data-made="{{ job.made|int }}"
          data-usually="{{ job.usually|round|int }}"></div>
-    <p class="said" id="press-doing" role="status">{{ job.message or t("press.page.getting-started", "Getting started.") }}</p>
+    <p class="said" id="press-doing" role="status">{{ job.message or t("press.page.getting-started", "We're getting it ready.") }}</p>
     <p class="said" id="press-left" role="status"></p>
     <form method="get" action="/build/{{ job.id }}">
       <button class="go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
@@ -108,7 +108,7 @@
 
   {% else %}
     <h1>{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
-    <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "That quote has gone stale. Ask again where you asked before.") }}</p>
+    <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "We couldn't get this one ready. Ask for it again where you asked before.") }}</p>
     <p class="aside"><a href="/texts">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
   {% endif %}
   </div>

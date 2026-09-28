@@ -266,7 +266,7 @@ def test_an_unlinked_chat_gets_one_reply_and_nothing_is_kept(world: World) -> No
     assert len(world.telegram.sent) == 1
     chat, text = world.telegram.sent[0]
     assert chat == CHAT
-    assert f"{PUBLIC}/you" in text and "Link your targum account first" in text
+    assert f"{PUBLIC}/you" in text and "Link this chat to your targum account first" in text
     # Nothing fetched, nothing written, nothing built, nothing spent.
     assert world.telegram.fetched == []
     assert not [path for path in world.out.rglob("*") if path.is_file()]
@@ -349,7 +349,7 @@ def test_stop_unlinks_and_the_chat_is_a_stranger_again(world: World) -> None:
     assert world.store.telegram_person(CHAT) is None
     assert "Unlinked" in world.said()[0]
     world.door.handle(voice(2))
-    assert "Link your targum account first" in world.said()[1]
+    assert "Link this chat to your targum account first" in world.said()[1]
     assert world.telegram.fetched == []
 
 
@@ -380,7 +380,8 @@ def test_a_short_voice_note_builds_on_send_through_the_same_job_path(world: Worl
     assert kept.read_bytes() == world.telegram.files["VOICE1"]
     assert kept.suffix == ".ogg"
     assert world.said() == [
-        f"Thanks. We're getting it ready, and it'll be on your shelf: {PUBLIC}/build/{job.id}"
+        "Thanks. We're getting it ready, and it'll be in Your targums. "
+        f"Follow it here: {PUBLIC}/build/{job.id}"
     ]
 
 
@@ -398,7 +399,7 @@ def test_a_recording_over_ten_minutes_asks_before_it_builds(world: World) -> Non
     # The same button a link gets, and its press is what starts it.
     assert world.said() == []
     [(chat, text, button, data)] = world.telegram.offered
-    assert (chat, text, button) == (CHAT, "Voice note. It uses 12 credits.", "Build")
+    assert (chat, text, button) == (CHAT, "Voice note. It uses 12 credits.", "Open this")
     world.door.handle(pressed(2, data))
     assert job.stage == "queued"
     assert world.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()[
@@ -497,7 +498,7 @@ def test_a_link_is_quoted_with_a_build_button_and_nothing_is_spent(world: World)
     row = world.store.db.execute("SELECT claimed, length FROM job WHERE id = ?", (job.id,))
     assert tuple(row.fetchone()) in {(None, None), (0, 0), (0.0, 0.0)}
     [(chat, text, button, data)] = world.telegram.offered
-    assert chat == CHAT and button == "Build"
+    assert chat == CHAT and button == "Open this"
     assert text == "מה קרה השבוע בכנסת. It's a text, so it uses none of your credits."
     # Telegram's limit, and nothing in it a stranger could make for themselves.
     assert data.startswith("b:") and len(data.encode()) <= 64
@@ -546,7 +547,10 @@ def test_the_press_claims_once_through_library_press(
     assert row["length"] == pytest.approx(300.0), "counted against the month, as /build counts"
     assert world.telegram.answered == [("q2", "")]
     # The quote is said again with the way to it, and its button is gone.
-    started = f"Thanks. We're getting it ready, and it'll be on your shelf: {PUBLIC}/build/{job.id}"
+    started = (
+        "Thanks. We're getting it ready, and it'll be in Your targums. "
+        f"Follow it here: {PUBLIC}/build/{job.id}"
+    )
     assert world.telegram.edited == [(CHAT, 77, f"{quote}\n{started}")]
 
 
@@ -561,7 +565,7 @@ def test_a_second_press_is_heard_and_changes_nothing(
     world.door.handle(pressed(2, data))
     world.door.handle(pressed(3, data))
     assert claimed == [job.id] and world.library.queue.qsize() == 1
-    assert world.telegram.answered == [("q2", ""), ("q3", "It's on its way.")]
+    assert world.telegram.answered == [("q2", ""), ("q3", "We're already getting it ready.")]
     assert len(world.telegram.edited) == 1 and world.said() == []
 
 
@@ -600,10 +604,10 @@ def test_a_stranger_cannot_press_somebody_elses_button(
     world.door.handle(pressed(4, f"b:{job.id}"))
     world.door.handle(pressed(5, f"b:{job.id}:AAAAAAAAAAAAAAAAAAAAAA"))
     assert claimed == [] and job.stage == "ready" and world.library.queue.empty()
-    stale = "That button doesn't work any more. Send the link again."
+    stale = "That button doesn't work any more. Send it to us again."
     assert world.telegram.sent == [
         (CHAT + 1, stale),
-        (CHAT + 2, f"Link your targum account first, from {PUBLIC}/you."),
+        (CHAT + 2, f"Link this chat to your targum account first: {PUBLIC}/you"),
         (CHAT, stale),
         (CHAT, stale),
     ]
@@ -623,7 +627,7 @@ def test_a_chat_linked_to_somebody_else_since_cannot_press_its_old_quotes(
     claimed = _claims(world, monkeypatch)
     world.door.handle(pressed(3, data))
     assert claimed == []
-    assert world.said()[-1] == "That button doesn't work any more. Send the link again."
+    assert world.said()[-1] == "That button doesn't work any more. Send it to us again."
 
 
 def test_a_press_on_a_quote_that_is_gone_is_refused_politely(world: World) -> None:
@@ -632,7 +636,7 @@ def test_a_press_on_a_quote_that_is_gone_is_refused_politely(world: World) -> No
     [(_, _, _, data)] = world.telegram.offered
     world.library.jobs = {}
     world.door.handle(pressed(2, data))
-    assert world.said() == ["That button doesn't work any more. Send the link again."]
+    assert world.said() == ["That button doesn't work any more. Send it to us again."]
     assert world.telegram.answered == [("q2", "")]
 
 
@@ -884,7 +888,7 @@ def test_the_webhook_answers_telegram_and_the_bot_replies(
     status, _ = request(port, "POST", telegram_module.HOOK, json.dumps(voice(90)).encode(), right)
     assert status == 200
     _wait_for(stand, before + 1)
-    assert "Link your targum account first" in stand.sent[before][1]
+    assert "Link this chat to your targum account first" in stand.sent[before][1]
 
 
 def test_account_hands_over_a_link_and_takes_a_chat_back(
@@ -943,7 +947,7 @@ def test_a_press_through_the_webhook_is_answered(armed: tuple[int, str, Stand]) 
     status, _ = request(port, "POST", telegram_module.HOOK, json.dumps(update).encode(), right)
     assert status == 200
     _wait_for(stand, before + 1)
-    assert "Link your targum account first" in stand.sent[before][1]
+    assert "Link this chat to your targum account first" in stand.sent[before][1]
     assert ("q92", "") in stand.answered
 
 

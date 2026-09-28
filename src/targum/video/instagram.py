@@ -401,7 +401,7 @@ def pictures_into(post: Post, folder: Path) -> list[Path]:
 
     if len(post.pictures) > MAX_PAGES:
         raise TargumError(
-            f"That post has more than {MAX_PAGES} pictures.",
+            f"That post has too many pictures. We can read up to {MAX_PAGES} from one post.",
             key="video.post-too-many-pictures",
             most=MAX_PAGES,
         )

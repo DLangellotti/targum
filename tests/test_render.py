@@ -3301,7 +3301,7 @@ def test_a_phrase_asks_only_where_the_page_can() -> None:
     chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     for caption in (
         "word by word — looking…",
-        "word by word — the sentence is in parallel",
+        "word by word — the line's translation has the whole sentence",
     ):
         assert caption in chip, caption
     for gone in ("in the parallel text", "as it is used here"):
@@ -4052,8 +4052,8 @@ def test_the_queue_keys_are_written_down() -> None:
     # The arrows are not each other's mirror and the card says so: forward walks the
     # words still owed, back walks the chapter as it is written. A back key built on the
     # queue skipped everything the reader had just marked.
-    assert "forward through the words you have not finished with" in template
-    assert "back through the words as they are written" in template
+    assert "on to the next word you haven't finished with" in template
+    assert "back through every word in order" in template
     # Nothing steps a sentence, so nothing says it does.
     for gone in ("<dt>&uarr; &darr;</dt>", "<dt>j</dt>", "next sentence", "previous sentence"):
         assert gone not in template, gone

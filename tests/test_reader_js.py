@@ -735,7 +735,7 @@ def test_every_finish_offers_the_connector_where_targum_says_to() -> None:
         [], chapter=words, lemmas=lemmas, ask={"known": 2, "connect": True}, presses=[True]
     )["finished"]
     assert offered["connect"] == {
-        "said": "Practise the words you marked in Claude or ChatGPT. ",
+        "said": "Practise the words you marked, in Claude or ChatGPT. ",
         "link": "Connect",
         "href": "/connect#install",
     }

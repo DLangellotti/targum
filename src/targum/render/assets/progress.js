@@ -359,7 +359,7 @@
        §9 makes the inverted surface the only place the bright set is legal, and §4 says
        which is which — leaf for what has been reached, iris for phrases, sun for turning
        up. Everything without one stays paper-white. */
-    function count(value, label, hue) {
+    function count(value, label, hue, title) {
       // A zero is not a peak moment. The bright set is for what happened, and spending
       // --sun on "0 words learned" paints the loudest colour in the system on the one
       // line that has nothing to report; §6 keeps what has not happened quiet.
@@ -368,6 +368,7 @@
       // Singular where there is one of it. These sit at display size beside the figure
       // they belong to, which is where "1 words learned" is impossible not to read.
       box.appendChild(el("span", null, label));
+      if (title) box.title = title;
       counts.appendChild(box);
     }
 
@@ -395,7 +396,8 @@
     count(
       sums.learned,
       tn("progress.count.learned", sums.learned, "word learned on targum", "words learned on targum"),
-      "sun"
+      "sun",
+      t("progress.count.learned.title", "Saved as new and since marked known.")
     );
     count(sums.phrases, tn("progress.count.phrases", sums.phrases, "phrase saved", "phrases saved"), "iris");
     // Said finished, at the foot of the text, by the reader. A real count of a real
@@ -441,8 +443,12 @@
     basis.hidden = !ladder;
     if (ladder) {
       if (title) title.textContent = ladder.title;
-      // The limit is all that is said (§6, and the 2026-08-24 amendment in §12).
-      basis.textContent = t("progress.basis", "A guide, not a placement.");
+      // What the ladder is, then its limit (David, 2026-09-28, COPY_QUESTIONS 29): a
+      // newcomer meets "ב+" or "A2" here with nothing to say which end is the start.
+      basis.textContent =
+        code === "he"
+          ? t("progress.basis.ulpan", "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.")
+          : t("progress.basis.cefr", "The European scale runs from A1, for beginners, to C2. A guide, not a placement.");
       drawLevel(inside, entry.words, ladder);
       return;
     }
@@ -479,11 +485,11 @@
     if (next === null) {
       line.textContent = t("progress.milestone.past", "You're past every milestone we keep.");
     } else if (known === 0) {
-      line.textContent = t("progress.milestone.start", "Mark a word as you go and it starts here.");
+      line.textContent = t("progress.milestone.start", "Mark a word as known and your count starts here.");
     } else {
       boldIn(
         line,
-        tn("progress.milestone.next", next - known, "Another {bold} to {next}.", "Another {bold} to {next}.", {
+        tn("progress.milestone.next", next - known, "Another {bold} known word to reach {next}.", "Another {bold} known words to reach {next}.", {
           next: grouped(next),
         }),
         grouped(next - known)
@@ -535,7 +541,7 @@
 
     var line = el("p", "next");
     if (!got.words) {
-      line.textContent = t("progress.level.start", "Mark a word as known and this starts.");
+      line.textContent = t("progress.level.start", "Mark a word as known and your level starts here.");
     } else if (!found.next) {
       line.textContent = weighted
         ? t("progress.level.past-ulpan", "You're past every rung an ulpan keeps.")
@@ -550,11 +556,11 @@
       boldIn(
         line,
         weighted
-          ? tn("progress.level.next-ulpan", more, "Another {bold} words to {letter} ({name}).", "Another {bold} words to {letter} ({name}).", {
+          ? tn("progress.level.next-ulpan", more, "Another {bold} word to {letter} ({name}).", "Another {bold} words to {letter} ({name}).", {
               letter: found.next.letter,
               name: found.next.name,
             })
-          : tn("progress.level.next-cefr", more, "Another {bold} common words to {name}.", "Another {bold} common words to {name}.", {
+          : tn("progress.level.next-cefr", more, "Another {bold} common word to {name}.", "Another {bold} common words to {name}.", {
               name: found.next.name,
             }),
         grouped(more)
@@ -650,12 +656,12 @@
             "{n} day on targum in the last twelve weeks",
             "{n} days on targum in the last twelve weeks"
           )
-        : t("progress.days.none", "No days on targum in the last twelve weeks yet")
+        : t("progress.days.none", "No days on targum in the last twelve weeks")
     );
     host.appendChild(strip);
 
     var said = el("p", "legend-days");
-    if (!days.length) said.textContent = t("progress.days.first", "Today is the first.");
+    if (!days.length) said.textContent = t("progress.days.first", "Open something and today is your first.");
     else {
       said.textContent = tn(
         "progress.days.counted",
@@ -762,7 +768,7 @@
       );
     }
     if (!figures.children.length) {
-      figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing here yet.")));
+      figures.appendChild(el("p", "note", t("progress.spent.nothing", "Nothing recorded for this choice yet.")));
     }
   }
 
@@ -858,7 +864,7 @@
           mine.months
             ? t(
                 "progress.reading.so-far",
-                "We'll draw this once you've finished sections in three different months. So far: {n}.",
+                "We'll draw this once you've finished sections in three different months. Months so far: {n}.",
                 { n: mine.months }
               )
             : t("progress.reading.waiting", "We'll draw this once you've finished sections in three different months.")

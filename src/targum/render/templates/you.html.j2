@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>{{ t("you.page.you-targum", "You — targum") }}</title>
+<title>{{ t("you.page.you-targum", "Your profile — targum") }}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}{{ asset('chrome.css') }}{{ asset('words.css') }}{{ asset('library.css') }}{{ asset('you.css') }}</style>
 {{ hebrew_face() }}
@@ -16,7 +16,7 @@
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="words you">
-{% set here = 'you' %}{% set title = t("you.page.title", "You") %}
+{% set here = 'you' %}{% set title = t("you.page.title", "Your profile") %}
 {% include '_nav.html.j2' %}
 <script>{{ asset('building.js') }}</script>
 
@@ -65,14 +65,14 @@
       <span class="ticks-label" id="reads-label">{{ t("you.page.translations-in", "Translations in") }}</span>
       <span class="tick-list" id="you-reads" role="group" aria-labelledby="reads-label"></span>
     </div>
-    <p class="note">{{ t("you.page.hebrew-is-always-on-everything-else-is", "Hebrew is always on. Everything else is experimental, and you lose nothing when you untick one.") }}</p>
+    <p class="note">{{ t("you.page.hebrew-is-always-on-everything-else-is", "Hebrew always stays on. Apart from Hebrew and English, every language here is experimental. You lose nothing when you untick one.") }}</p>
     <p class="said" id="you-languages-said" hidden></p>
   </section>
 
   <section class="panel" id="reading" hidden>
     <h2>{{ t("you.page.your-reading", "Your reading") }}</h2>
     <p class="tally" id="you-kept"></p>
-    <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the whole of it.") }}</p>
+    <p class="elsewhere"><a href="/progress">{{ t("you.page.your-progress", "Your Progress") }}</a> {{ t("you.page.has-the-whole-of-it", "has the details.") }}</p>
   </section>
 
   {#- What is recorded of a sitting (targum-internal#127): on from the first session, by
@@ -129,7 +129,7 @@
       fresh one-time link, and one row a chat with the press that ends it. -#}
   <section class="panel" id="telegram" hidden>
     <h2>{{ t("you.telegram.heading", "Telegram") }}</h2>
-    <p class="note">{{ t("you.telegram.says", "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll put it on your shelf. We keep what you send, never who sent it first.") }}</p>
+    <p class="note">{{ t("you.telegram.says", "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll add it to Your targums. If you forward a message, we don't keep who it came from.") }}</p>
     <ul class="series" id="telegram-rows"></ul>
     <p class="ending-row">
       <button type="button" class="tonal" id="telegram-go">{{ t("you.telegram.link", "Link Telegram") }}</button>
@@ -163,9 +163,8 @@
   </section>
 
   <section class="panel" id="subscriptions" hidden>
-    <h2>{{ t("you.page.your-subscriptions", "Your subscriptions") }}</h2>
-    <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on their own clock. Follow one and we'll put each
-      new instalment on Learn when it lands, and email you the weekly ones.") }}</p>
+    <h2>{{ t("you.page.your-subscriptions", "Following") }}</h2>
+    <p class="note">{{ t("you.page.series-that-come-out-on-their-own", "Series that come out on a schedule. Follow one and we'll put each new instalment on Learn when it's out, and email you about the weekly ones.") }}</p>
     <ul class="series" id="series"></ul>
   </section>
 
@@ -184,7 +183,7 @@
     {#- Next to the button it describes, which is the only place anybody looks for it.
         The sentence stands without the link while the documents are shut: seven days is
         the fact somebody about to press this needs, and it is true either way. -#}
-    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting.") }}
+    <p class="note">{{ t("you.page.we-wait-seven-days-before-deleting", "We wait seven days before deleting. To change your mind, email hello@targum.page.") }}
       {%- if legal_is_public() %}
       <a href="/deletion">{{ t("you.page.what-that-means", "What that means") }}</a>.
       {%- endif %}</p>

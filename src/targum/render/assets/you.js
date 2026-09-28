@@ -487,7 +487,7 @@
       // Put back here rather than sent, so the box never shows a state the account
       // would refuse.
       box.checked = true;
-      return say("you-languages-said", t("you.keep-one", "Keep at least one."));
+      return say("you-languages-said", t("you.keep-one", "Keep at least one language ticked."));
     }
     saveLanguages();
   }

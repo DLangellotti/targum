@@ -49,7 +49,7 @@
   <section class="panel spent" id="spent" hidden>
     <h2>{{ t("progress.spent.title", "Time and words") }}</h2>
     <div class="spent-filters">
-      <div class="chips" id="spent-medium" role="group" aria-label="{{ t("progress.spent.which", "Which") }}"></div>
+      <div class="chips" id="spent-medium" role="group" aria-label="{{ t("progress.spent.which", "What you did") }}"></div>
       <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
     </div>
     <div class="spent-figures" id="spent-figures"></div>
@@ -64,7 +64,7 @@
       the account, so absent signed out, like Time and words. Drawn by `progress.js`. -#}
   <section class="panel reading" id="reading" hidden>
     <h2>{{ t("progress.reading.title", "What you knew of what you read") }}</h2>
-    <p class="note">{{ t("progress.reading.note", "Each section you finish, measured against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
+    <p class="note">{{ t("progress.reading.note", "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.") }}</p>
     <div id="reading-line"></div>
     <div class="reading-words" id="reading-said"></div>
   </section>
@@ -103,7 +103,7 @@
   </div>
 
   <section class="panel">
-    <h2>{{ t("progress.page.where-they-are", "Where they are") }}</h2>
+    <h2>{{ t("progress.page.where-they-are", "How well you know them") }}</h2>
     <p class="note" id="progress-note"></p>
     <div id="progress"></div>
   </section>
@@ -127,7 +127,7 @@
 <p class="nothing" id="nothing" hidden>
   {#- "your library" meant the catalogue and the reader's own shelf at once, and the
       link went to the upload page, which was neither. Both have their own page now. -#}
-  {{ t("progress.page.nothing-yet", "Nothing yet.") }} <a id="library-link" href="/library">{{ t("progress.page.open-something-from-the-library", "Open something from the Library.") }}</a>
+  {{ t("progress.page.nothing-yet", "Your progress starts with the first word you mark.") }} <a id="library-link" href="/library">{{ t("progress.page.open-something-from-the-library", "Open something from the Library.") }}</a>
 </p>
 
 <script>

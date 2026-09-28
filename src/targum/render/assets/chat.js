@@ -17,7 +17,7 @@
   // The conversation is Hebrew whatever they are.
   var t = window.TargumStrings.t;
   var tn = window.TargumStrings.tn;
-  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer questions right now. Everything you have still opens.");
+  var CANNOT_ANSWER = t("chat.cannot-answer", "We can't answer questions right now. Your texts and the library still open.");
 
   var key = window.TARGUM_KEY || "";
   function keyed(path) {
@@ -106,7 +106,7 @@
   // The language a word's meaning is looked up in: the one the conversation's meanings
   // arrive in, which the list names (targum-internal#287).
   var meaningsIn = "en";
-  var UNREACHED = { error: t("chat.unreached", "We couldn't connect. Try again.") };
+  var UNREACHED = { error: t("chat.unreached", "We couldn't connect. Check your connection and try again.") };
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
@@ -1064,7 +1064,7 @@
     var marked = Object.keys(ledger()).length > 0;
     if (!marked) {
       parts.push(
-        tn("chat.foot.words", vocabulary, "{n} word", "{n} words") + " · " + t("chat.foot.none-marked", "none marked yet")
+        tn("chat.foot.words", vocabulary, "{n} word", "{n} words") + " · " + t("chat.foot.none-marked", "none marked as known yet")
       );
     } else {
       parts.push(tn("chat.foot.unmet", count, "{n} word you have not met", "{n} words you have not met"));
@@ -1077,7 +1077,7 @@
     var save = document.createElement("button");
     save.type = "button";
     save.className = "chat-save";
-    save.textContent = t("chat.save", "Save as targum");
+    save.textContent = t("chat.save", "Save as a text");
     var note = document.createElement("p");
     note.className = "note";
     save.onclick = function () {

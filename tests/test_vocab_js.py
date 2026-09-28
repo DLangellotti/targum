@@ -211,7 +211,7 @@ def test_pressing_save_keeps_what_was_typed() -> None:
 
 
 def test_the_placeholder_says_what_to_do() -> None:
-    assert run()["placeholder"] == "Enter text"
+    assert run()["placeholder"] == "Your own meaning"
     assert run(placeholder="Your own reading")["placeholder"] == "Your own reading"
 
 

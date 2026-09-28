@@ -321,7 +321,7 @@
       note.className = "note-field";
       note.dir = "auto";
       note.value = options.note || "";
-      note.placeholder = options.placeholder || t("vocab.enter-text", "Enter text");
+      note.placeholder = options.placeholder || t("vocab.enter-text", "Your own meaning");
       note.setAttribute("aria-label", t("vocab.own-meaning", "Your own meaning"));
       note.addEventListener("click", function (event) {
         event.stopPropagation();

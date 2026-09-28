@@ -157,7 +157,7 @@
     });
     if (dated.length < 2) {
       host.appendChild(
-        el("p", "empty", t("charts.growth.empty", "We'll draw a line after your second day."))
+        el("p", "empty", t("charts.growth.empty", "We'll draw a line once you've saved a second word."))
       );
       return;
     }

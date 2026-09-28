@@ -2598,7 +2598,7 @@ class Store:
         if strange:
             raise ValueError(f"We don't offer {language_name(strange[0])}.")
         if not wanted:
-            raise ValueError("Keep at least one.")
+            raise ValueError("Keep at least one language ticked.")
         if kind == "learning" and not wanted >= set(REQUIRED_LEARNING):
             raise ValueError(f"{language_name(REQUIRED_LEARNING[0])} stays on.")
         with self.write() as db:

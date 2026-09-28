@@ -209,7 +209,7 @@ def test_a_recording_is_quoted_in_hours() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
     )
     meta = page["cards"][0]["meta"]
-    assert meta.startswith("1.5 hours of audio · Your first part will be ready in")
+    assert meta.startswith("1.5 h of audio · Your first part will be ready in")
 
 
 def test_a_refused_press_says_why_on_the_card() -> None:
@@ -253,7 +253,7 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
     # cost is counted in.
     assert page["hours"] == (
         "90 credits left this month. That's about 1 hour 30 minutes of audio. "
-        "They reset on 1 October."
+        "They come back on 1 October."
     )
     assert not page["hoursHidden"]
     quiet = run(
@@ -677,7 +677,7 @@ def test_a_file_chosen_by_the_plus_is_held_and_sent_as_a_card_in_the_thread() ->
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"]
     assert card["button"] == "", "Send was the press: no button to press again"
-    assert card["note"] == "We're getting it ready. It'll appear above when it's done."
+    assert card["note"] == "We're getting it ready. You'll find it in Your targums."
     assert "started" in card["cls"]
     assert page["turns"][-1]["cls"] == "chat-turn them"
     assert page["sendDisabled"] is False and page["held"] == []
@@ -748,7 +748,7 @@ def test_a_recording_chosen_by_the_plus_goes_up_in_pieces_first() -> None:
     ]
     assert page["posted"][-2]["body"]["upload"] == "u1"
     (card,) = page["cards"]
-    assert card["meta"].startswith("10 minutes of audio")
+    assert card["meta"].startswith("10 min of audio")
 
 
 PAGES = dict(
@@ -802,7 +802,7 @@ def test_a_reader_with_nothing_marked_is_not_told_they_knew_nothing() -> None:
         answers={"/chat/say": {"chat": "abc", "turn": 1}},
         ledger={},
     )
-    assert page["foot"]["counts"] == "1 min · 4 words · none marked yet"
+    assert page["foot"]["counts"] == "1 min · 4 words · none marked as known yet"
     assert "%" not in page["foot"]["counts"] and "not met" not in page["foot"]["counts"]
 
 
@@ -1253,7 +1253,7 @@ def test_a_silent_text_s_card_says_it_can_be_read_aloud_later() -> None:
         answers={"/prepare": quoted, "/build": dict(quoted, stage="working")},
     )
     card = page["cards"][0]
-    assert card["voice"] == "Audio can be added in the reader."
+    assert card["voice"] == "You can add audio later, in the reader."
     assert card["button"] == "", "a note, not another thing to press"
 
 

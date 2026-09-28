@@ -61,13 +61,12 @@
   {#- The page's spine: one small label over each block, in the one register the page
       already has for it (Mondays, Sources). On a phone they read as a table of
       contents while scrolling. -#}
-  <h2 class="label">{{ t("weekly.page.this-week", "This week") }}</h2>
+  <h2 class="label">{{ t("weekly.page.this-week", "This issue") }}</h2>
   {#- The dateline: where the weekly is introduced as what it is — the reader,
       demonstrated on the week's news, free, every Monday. The hero above says what
       targum is; this says why an issue is sitting on the page. -#}
   <p class="dateline">
-    {{ t("weekly.page.every-monday-targum-publishes-a-free-issue", "Every Monday, targum publishes a free issue of the week's news, written three times
-    over. This is this week's — pick a level:") }}
+    {{ t("weekly.page.every-monday-targum-publishes-a-free-issue", "Every Monday, targum publishes a free issue of the week's news, written at three levels. Pick one:") }}
   </p>
 
   {#- The three levels, each a way in. A reader has to choose one before they can
@@ -86,7 +85,7 @@
     <a href="/weekly/{{ issue.id }}/{{ other.value }}" data-level="{{ other.value }}"
        data-what="{{ explained[other] }}"{% if other == level %} class="here" aria-current="page"{% endif %}>
       <b>{{ level_names[other] }}</b>
-      <span class="figure"><span class="for">{{ t("weekly.page.for", "for") }} </span>{{ t("weekly.page.figure-words", "{figure} words", figure=other_spec.figure_in(page_language|default("en"))) }}</span>
+      <span class="figure"><span class="for">{{ t("weekly.page.for", "if you know") }} </span>{{ t("weekly.page.figure-words", "{figure} words", figure=other_spec.figure_in(page_language|default("en"))) }}</span>
       <span class="what">{{ explained[other] }}</span>
     </a>
     {%- endfor %}
@@ -230,7 +229,7 @@
 
   {%- if archive %}
   <section class="archive">
-    <h2>{{ t("weekly.page.earlier", "Earlier") }}</h2>
+    <h2>{{ t("weekly.page.earlier", "Earlier issues") }}</h2>
     <ul>
       {%- for other in archive %}
       <li><a href="/weekly/{{ other.id }}/{{ level.value }}">{{ other.dated }}</a></li>

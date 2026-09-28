@@ -922,7 +922,7 @@ def test_progress_says_what_would_draw_the_line_under_three_months(browser) -> N
     context.close()
     assert got["shown"] and got["points"] == 0, got
     assert got["said"] == [
-        "We'll draw this once you've finished sections in three different months. So far: 1."
+        "We'll draw this once you've finished sections in three different months. Months so far: 1."
     ]
 
 
@@ -1827,7 +1827,7 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
         "and the text opened in the sheet"
     )
     assert "preview=1" in landed["frame"] and "preview" not in landed["open"]
-    assert landed["heading"] == "From the conversation"
+    assert landed["heading"] == "From the chat"
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -2222,7 +2222,7 @@ def test_a_pasted_link_says_what_was_found_before_it_says_the_price(
     context.close()
 
     assert order[:2] == ["describe", "prepare"], "what it is, before what it costs"
-    assert "What targum found" in found_text
+    assert "What we found" in found_text
     assert "12:34" in found_text, "the length, as a clock"
     assert "standard YouTube licence" in found_text
     assert "No written Hebrew subtitles" in found_text

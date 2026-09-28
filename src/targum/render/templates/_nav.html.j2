@@ -89,7 +89,7 @@
             2026-09-11 ("a dedicated page you access by clicking on your picture in the
             top right"). Above both halves of the panel: it is yours signed in or not. -#}
         <p class="yours-link"><a class="to-you" href="/words">{{ t("nav.your-words-and-phrases", "Your words and phrases") }}</a>
-          <a class="to-you" href="/you#subscriptions">{{ t("nav.your-subscriptions", "Your subscriptions") }}</a>
+          <a class="to-you" href="/you#subscriptions">{{ t("nav.your-subscriptions", "Following") }}</a>
           <a class="to-you" href="/playlists">{{ t("nav.your-playlists", "Your playlists") }}</a></p>
         {#- On a phone the top bar keeps the mark, the language, the bell and the account
             (design.md §13), so find and the light switch are here (2026-09-14). -#}
@@ -142,7 +142,7 @@
     a conversation, and one press that goes there. Drawn by `palette.js`. -#}
 <div class="palette-scrim" id="palette-scrim" hidden></div>
 <div class="palette" id="palette" role="dialog" aria-label="{{ t("nav.find-anything", "Find anything") }}" hidden>
-  <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="{{ t("nav.find-a-text-a-page-a-conversation", "Find a text, a page, a conversation") }}" autocomplete="off" spellcheck="false">
+  <input type="search" id="palette-find" class="palette-find" dir="auto" placeholder="{{ t("nav.find-a-text-a-page-a-conversation", "Find a text, a page, a chat") }}" autocomplete="off" spellcheck="false">
   <ul class="palette-list" id="palette-list" role="listbox"></ul>
 </div>
 <script>{{ asset('palette.js') }}</script>

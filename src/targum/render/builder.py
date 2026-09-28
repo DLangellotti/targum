@@ -1484,7 +1484,7 @@ def not_found_page() -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "27 September 2026"
+LEGAL_CHANGED = "28 September 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -2004,16 +2004,16 @@ def progress_page(token: str, language: str = "en") -> str:
 #: level named after the person reading it grades them, which the voice rules refuse.
 WEEKLY_LEVELS: dict[str, str] = {
     "aleph": (
-        "Short sentences, one clause each, present and past. Every place and person "
-        "is said in a few words the first time it appears."
+        "Short sentences, one clause each, in the present and past. Every place and "
+        "person is explained in a few words the first time it appears."
     ),
     "bet": (
-        "Ordinary reporting: subordinate clauses, past and future, the register a "
-        "news site writes in when it is not trying to be difficult."
+        "Ordinary reporting, the way a news site writes when it isn't trying to be "
+        "difficult: longer sentences, past and future."
     ),
     "gimel": (
-        "Unsimplified. Officialese inside quotation marks, idiom, and the "
-        "constructions a paper actually uses. The week's biggest story runs at length."
+        "Not simplified: official statements quoted as they were said, idioms, and the "
+        "sentences a real paper uses. The week's biggest story runs at length."
     ),
 }
 

@@ -57,7 +57,7 @@
       pinned = !pinned;
       embed.classList.toggle("pinned", pinned);
       handle.setAttribute("aria-expanded", pinned ? "true" : "false");
-      handle.textContent = pinned ? t("parasha.close", "Close") : t("parasha.full-screen", "Full screen");
+      handle.textContent = pinned ? t("parasha.close", "Exit full screen") : t("parasha.full-screen", "Full screen");
     });
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape" && pinned) unpin();

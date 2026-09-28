@@ -132,9 +132,7 @@ def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
         reader("genesis-he", "בראשית", entry="genesis", opened=1),
     ]
     drawn = draw(shelf, do=[{"offer": "genesis-he/reader/sec-0003.html"}])
-    assert (
-        drawn["carry"]["title"] == "בראשית" and drawn["carry"]["heading"] == "From the conversation"
-    )
+    assert drawn["carry"]["title"] == "בראשית" and drawn["carry"]["heading"] == "From the chat"
     assert drawn["carry"]["frame"].endswith("genesis-he/reader/sec-0003.html?k=k&preview=1")
     assert drawn["carry"]["href"].endswith("genesis-he/reader/sec-0003.html?k=k")
     unknown = draw(shelf, do=[{"offer": "negev-he/reader/index.html"}])
@@ -343,7 +341,7 @@ def test_a_reader_with_no_texts_is_pointed_at_the_easiest_thing() -> None:
     # as a link to its library row, where building is pressed for.
     assert drawn["carry"]["heading"] == "Start here"
     assert drawn["carry"]["title"] == "קל"
-    assert drawn["carry"]["meta"] == "Where most people start · 10 min"
+    assert drawn["carry"]["meta"] == "An easy place to start · 10 min"
     assert drawn["carry"]["entry"] == "easy"
     # `/open/<id>` since targum-internal#313: the door, which sends them to their copy
     # where they have one and to its row with the offer up where they have not.
@@ -797,7 +795,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
         ("Recently opened", False),
-        ("Subscriptions", False),
+        ("Following", False),
     ]
     assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
     assert [(i["id"], i["label"], i["fresh"]) for i in drawn["menu"]["items"]] == [
@@ -1056,7 +1054,7 @@ def test_the_page_says_its_words_in_the_readers_language() -> None:
     )
     assert drawn["known"] == "Вы знаете 12 слов: Hebrew."
     assert drawn["carry"]["heading"] == "Start here"
-    assert drawn["carry"]["meta"] == "Where most people start · 10 мин"
+    assert drawn["carry"]["meta"] == "An easy place to start · 10 мин"
 
 
 # --- the arrival (targum-internal#294, subjects since 2026-09-17) -------------------

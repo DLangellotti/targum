@@ -362,7 +362,7 @@ def test_a_video_longer_than_the_ceiling_is_refused(tmp_path: Path, monkeypatch)
     job = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
     library.prepare(job)
     assert job.stage == "failed"
-    assert "longer than" in job.error
+    assert "over 4 hours" in job.error
 
 
 def test_ytdlps_own_sentence_is_what_the_reader_is_told(tmp_path: Path, monkeypatch) -> None:

@@ -227,7 +227,7 @@
     {#- Only YouTube's address takes a time; any other home opens at the video's start, so
         its control does not promise the line. -#}
     {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
-    <div class="group" data-what="Where it lives">
+    <div class="group" data-what="The original">
       <a class="home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
          title="{{ home_says }}" aria-label="{{ home_says }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -901,17 +901,17 @@
       long the page took to draw, which is for whoever is building targum rather than for
       whoever is reading. -#}
   <dl>
-    {% if words %}<dt>&larr; &rarr;</dt><dd>{{ t("reader.page.forward-through-the-words-you-have-not", "forward through the words you have not finished with, then the foot of the page, then the next page — and, off the last, the next chapter; back through the words as they are written") }}</dd>
+    {% if words %}<dt>&larr; &rarr;</dt><dd>{{ t("reader.page.forward-through-the-words-you-have-not", "on to the next word you haven't finished with, then the foot of the page, the next page and, after the last, the next chapter; back through every word in order") }}</dd>
     <dt>k 4</dt><dd>{{ t("reader.page.known", "known") }}</dd>
     <dt>1 2 3</dt><dd>{{ t("reader.page.just-met-getting-there-nearly-there", "just met, getting there, nearly there") }}</dd>
     <dt>i</dt><dd>{{ t("reader.page.ignore-it-a-name-a-numeral-a", "ignore it — a name, a numeral, a word from another language") }}</dd>
     <dt>Enter</dt><dd>{{ t("reader.page.what-the-word-you-are-on-means", "what the word you are on means; again to look it up") }}</dd>
-    <dt>u</dt><dd>{{ t("reader.page.take-back-the-last-level-and-stand", "take back the last level, and stand on that word again") }}</dd>
-    <dt>Esc</dt><dd>{{ t("reader.page.close-this-then-a-word-then-your", "close this, then a word, then your saved words, then the queue") }}</dd>
+    <dt>u</dt><dd>{{ t("reader.page.take-back-the-last-level-and-stand", "take back the last level and return to that word") }}</dd>
+    <dt>Esc</dt><dd>{{ t("reader.page.close-this-then-a-word-then-your", "close this, then a word's card, then your saved words, then stop stepping through words") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>
     <dt>{{ t("reader.page.hard", "hard") }}</dt><dd>{{ t("reader.page.the-level-on-a-word-s-card", "the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you") }}</dd>
     <dt>s</dt><dd>{{ t("reader.page.your-saved-words", "your saved words") }}</dd>
-    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you go") }}</dd>
+    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "highlight the words you haven't learned") }}</dd>
     <dt>b</dt><dd>{{ t("reader.page.pages-or-one-long-scroll", "pages, or one long scroll") }}</dd>
     <dt>f</dt><dd>{{ t("reader.page.full-screen-and-out-of-it", "full screen, and out of it") }}</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
@@ -919,7 +919,7 @@
     {#- Real keys the card never listed (targum-internal#341, 2026-09-20): the recording's
         track is a slider and answers like one, and the picture's grip and its size handle
         move by the arrows. They work only with the thing itself in focus, and say so. -#}
-    {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back and on five seconds; Home and End for its two ends") }}</dd>{% endif %}
+    {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back or forward five seconds; Home and End jump to its start and end") }}</dd>{% endif %}
     {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>
     <dt>Tab ↑ ↓ ← →</dt><dd>{{ t("reader.page.keys-on-the-picture", "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps") }}</dd>{% endif %}
     <dt>PageDown</dt><dd>{{ t("reader.page.next-page-pageup-back-on-the-last", "next page; PageUp back. On the last page, the next chapter") }}</dd>

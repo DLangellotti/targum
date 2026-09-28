@@ -370,7 +370,8 @@ def test_a_quote_is_refused_on_the_add_page_s_grounds(world, monkeypatch) -> Non
     monkeypatch.setattr(library, "prepare", priced)
     ctx = context(library, store, person, home)
     ctx.reads = {"en"}
-    assert "profile" in tools.quote_build(ctx, {"source": "https://x.org/a", "to": "ru"})["error"]
+    refused = tools.quote_build(ctx, {"source": "https://x.org/a", "to": "ru"})["error"]
+    assert "Your languages" in refused
     assert (
         "translates into"
         in tools.quote_build(ctx, {"source": "https://x.org/a", "to": "fr"})["error"]
@@ -1152,9 +1153,9 @@ def test_a_suggestion_names_which_hebrew_only_for_hebrew(world, monkeypatch) -> 
     monkeypatch.setattr(catalogue, "everything", lambda: entries)
     monkeypatch.setattr(tools, "_shelf", lambda ctx: ([], []))
     italian = tools.suggest_next(ctx, {"language": "it"})["suggestions"]
-    assert italian[0]["because"] == "A learner looks up 4% of its words."
+    assert italian[0]["because"] == "4% of its words are rare in everyday use."
     hebrew = tools.suggest_next(ctx, {"language": "he"})["suggestions"]
-    assert hebrew[0]["because"] == "A learner looks up 4% of its words. Modern Hebrew."
+    assert hebrew[0]["because"] == "4% of its words are rare in everyday use. Modern Hebrew."
 
 
 def test_suggest_next_leaves_out_what_the_page_says_is_finished(world) -> None:

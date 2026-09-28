@@ -66,7 +66,10 @@ def test_a_search_looks_at_the_word_its_dictionary_form_and_its_meaning() -> Non
     )
     assert [row["term"] for row in draw(kept, search="book")["words"]] == ["ספר"]
     assert [row["term"] for row in draw(kept, search="הלך")["words"]] == ["הולך"]
-    assert draw(kept, search="zzz")["wordsEmpty"] == "Nothing here matches that."
+    assert (
+        draw(kept, search="zzz")["wordsEmpty"]
+        == "Nothing here matches that. Try another word or filter."
+    )
 
 
 def test_only_one_language_of_meanings_is_shown_and_it_says_which() -> None:

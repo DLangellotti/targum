@@ -104,8 +104,8 @@ def test_a_link_moves_the_switch_to_where_it_was_posted() -> None:
     [
         ({"words": "שורה"}, [], "Add the handle it was posted under."),
         ({"handle": "h"}, [], "Paste what the post says, or add its pictures or its video."),
-        ({"handle": "h"}, ["a.jpg", "b.mp4"], "A post's media is its pictures, or one video."),
-        ({"handle": "h"}, ["a.mp4", "b.mov"], "A post's media is its pictures, or one video."),
+        ({"handle": "h"}, ["a.jpg", "b.mp4"], "Add either its pictures or a single video."),
+        ({"handle": "h"}, ["a.mp4", "b.mov"], "Add either its pictures or a single video."),
     ],
 )
 def test_the_form_says_what_is_missing_before_anything_goes_up(
