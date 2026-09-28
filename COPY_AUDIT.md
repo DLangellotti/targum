@@ -56,6 +56,20 @@ final. Two of its lines were corrected before it merged, in coordination with th
 Every changed or new key has Russian, and each is stamped. design.md §12 has one dated
 entry recording the five answers that undo earlier §12 names or silences.
 
+**Rechecked in the running app** (hosted mode, test account, 390px and 1280px, English and
+Russian). All render as written, with no horizontal scroll:
+- the sign-in heading and its footer
+- the ulpan note and the "learned" tooltip
+- /you: heading, Following, and the deletion note
+- the account menu
+- the /connect kicker, FAQ and "More than 500"
+- the From targum note (forced visible: the local library is empty)
+- the waitlist spent link
+
+The /you tab title still said "You — targum". It is fixed to "Your profile — targum". The
+"learned" tooltip is a `title` on a plain div, so touch and screen-reader users don't get
+it. That's a note, not fixed.
+
 **In the stacked follow-up PR (behaviour):** Q2–11, the display half of Q14, Q20–23 and
 Q28, with tests. See that PR for per-item status.
 
