@@ -120,6 +120,8 @@ byId["next-up"].hidden = true;
 // hidden as the template ships it.
 byId["next-up-known"] = element("span");
 byId["next-up-known"].hidden = true;
+byId["next-up-connect"] = element("span");
+byId["next-up-connect"].hidden = true;
 
 // The first-time line as the template ships it: hidden, with its sentence in it. The
 // script decides whether to show it and what it says after the first word is marked.
@@ -302,6 +304,15 @@ process.stdout.write(
       // The line under the offer: how many of its words are known, said once.
       ahead: byId["next-up-known"].hidden ? "" : byId["next-up-known"].textContent,
       told: localStorage.getItem("targum:taught-the-share") || "",
+      // The way into Claude and ChatGPT, off the same answer: its words, and the link.
+      connect: byId["next-up-connect"].hidden
+        ? null
+        : {
+            said: byId["next-up-connect"]._text || "",
+            link: (byId["next-up-connect"].children[0] || {}).textContent || "",
+            href: (byId["next-up-connect"].children[0] || {}).href || "",
+          },
+      toldConnect: localStorage.getItem("targum:taught-the-connector") || "",
     },
     // The Anki file, written from cards the test hands over: what a deck is made of
     // is decided on the page, but what the file says is decided here.

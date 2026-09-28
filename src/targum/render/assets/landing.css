@@ -587,3 +587,7 @@ footer .mock { max-inline-size: 48rem; }
   font-size: 0.6875rem;
   color: var(--ink-soft);
 }
+
+/* targum inside Claude or ChatGPT, one line under the conversation's points (design.md
+   §12, 2026-09-28): a line clear of the list, its link in the page's own link colour. */
+.talk-elsewhere { margin-block-start: 1.25rem; }

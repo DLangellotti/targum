@@ -1998,6 +1998,26 @@ var targumReader = function () {
     }
   }
 
+  /* And the way into Claude and ChatGPT, in the same row and off the same answer
+     (design.md §12, "The connector is met on the way in"): the moment a reader has words
+     to practise is the moment practising them elsewhere means something. Said at every
+     finish, not once (David, 2026-09-28: "why can't we have it always?") — it goes when
+     it has been taken up, which only the server knows, so the server decides each time:
+     open, and a reader with no connection. The count beside it is still said once. */
+  function sayConnect() {
+    var line = document.getElementById("next-up-connect");
+    if (!line) return;
+    line.textContent = t(
+      "reader.next.connect",
+      "Practise the words you marked in Claude or ChatGPT."
+    ) + " ";
+    var way = document.createElement("a");
+    way.href = "/connect#install";
+    way.textContent = t("reader.next.connect-go", "Connect");
+    line.appendChild(way);
+    line.hidden = false;
+  }
+
   // What the foot is offering, as the server names it: the next section of this text,
   // or a catalogue text by its id off the `/open/<id>` link. Null for anything else.
   function offerNamed(offer) {
@@ -2012,7 +2032,9 @@ var targumReader = function () {
     var offer = document.getElementById("next-up");
     var line = document.getElementById("next-up-known");
     if (!offer || !line || PREVIEW || !canAsk() || typeof fetch !== "function") return;
-    if (askedShare || toldShare()) return;
+    // Asked at each page's finish, even where the count has been said: the answer also
+    // says whether to offer the connector, and that is said every time it is true.
+    if (askedShare) return;
     var named = offerNamed(offer);
     if (!named) return;
     askedShare = true;
@@ -2035,8 +2057,10 @@ var targumReader = function () {
       })
       .then(function (answer) {
         var known = answer && typeof answer.known === "number" ? answer.known : 0;
+        if (!finishedAt()) return;
+        if (answer && answer.connect) sayConnect();
         // Taken back while the question was out, or said by an earlier answer.
-        if (!known || !finishedAt() || toldShare()) return;
+        if (!known || toldShare()) return;
         line.textContent = tn(
           "reader.next.known-ahead",
           known,
@@ -2058,6 +2082,8 @@ var targumReader = function () {
   function unsayKnownAhead() {
     var line = document.getElementById("next-up-known");
     if (line) line.hidden = true;
+    var connect = document.getElementById("next-up-connect");
+    if (connect) connect.hidden = true;
   }
 
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A

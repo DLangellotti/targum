@@ -208,6 +208,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- targum in Claude and ChatGPT is met on the way in, in four places, each only while the
+  connector is open and, inside the product, only to a reader with no connection yet. The
+  arrival ends on a card with the address to copy and Open as its press, so the first text
+  is still one press away; the first finished section says, once, "Practise the words you
+  marked in Claude or ChatGPT"; the banner on Learn is a card with the two steps and the
+  address; the front door mentions it twice, lightly, in its list of what you get and in
+  the part about talking to targum; and the invitation mail gives it a paragraph with the
+  way to `/connect`. The reader's line is said at every finish while there is no
+  connection. `/known-ahead` says `connect` for the reader's
+  line. design.md §12 (2026-09-28).
+- The arrival asks which language a reader reads only where the browser gives a sign of
+  Russian (Russian, or a language of the Russian-reading world); nobody else is shown any
+  Cyrillic, and an EN · RU switch in the card's corner is the way in for the rest. The
+  level question reads "How much Hebrew do you know?". design.md §12 (2026-09-28).
+- The mail's English can be edited as notes in `~/Desktop/targum marketing/emails`:
+  `scripts/mail_notes.py push` writes one note per mail, `pull` takes the edits back into
+  `en.json` and refuses a note that drops a `{link}`.
 - The arrival is a page of its own at every width. While a new reader answers the three
   questions, Learn draws nothing else: not the fold of words to work on, which somebody
   who has read nothing has never marked, and not the rail or the sheet. The questions

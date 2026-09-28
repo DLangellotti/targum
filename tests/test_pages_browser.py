@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -564,13 +565,21 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     assert got["round"], f"the account is a circle: {got}"
 
 
-def _arrival_page(browser, width: int, height: int = 667, language: str | None = "English"):
+def _arrival_page(
+    browser,
+    width: int,
+    height: int = 667,
+    language: str | None = "English",
+    locale: str = "ru-RU",
+):
     """Learn for a brand-new account on a shelf of three, at a phone's size.
 
-    A brand-new account is asked which language it reads before anything else (design.md
-    §12, 2026-09-20), so the page handed back is the one after that answer — the subjects
-    — unless `language` is None, which leaves it on the first screen for the test that
-    is about it."""
+    A brand-new account whose browser gives a sign of Russian is asked which language it
+    reads before anything else (design.md §12, 2026-09-20 and 2026-09-28), so the page
+    handed back is the one after that answer — the subjects — unless `language` is None,
+    which leaves it on the first screen for the test that is about it. The browser says
+    Russian unless `locale` says otherwise; with no sign, nothing is asked and the page
+    starts on the subjects."""
     html = learn_page(TOKEN)
     shelf = [
         {
@@ -599,11 +608,18 @@ def _arrival_page(browser, width: int, height: int = 667, language: str | None =
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     context = browser.new_context(
-        viewport={"width": width, "height": height}, is_mobile=True, has_touch=True
+        viewport={"width": width, "height": height},
+        is_mobile=True,
+        has_touch=True,
+        locale=locale,
     )
     page = context.new_page()
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/?k={TOKEN}")
+    if not locale.startswith("ru"):
+        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+        page.wait_for_timeout(150)
+        return context, page, went
     page.wait_for_selector("#arrival-language:not([hidden]) .arrival-rung")
     if language is not None:
         page.locator("#arrival-tongues .arrival-rung", has_text=language).tap()
@@ -2390,3 +2406,23 @@ def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_pat
     context.close()
 
     assert not drawn
+
+
+def test_an_english_phone_is_shown_no_russian(browser) -> None:
+    """ "I don't want a non russian to see any russian" (David, 2026-09-28). A browser with
+    no sign of Russian starts on the subjects; the one way into Russian is EN · RU, and
+    nothing on the screen is Cyrillic."""
+    context, page, _ = _arrival_page(browser, 375, locale="en-US")
+    try:
+        seen = page.evaluate(
+            """() => ({
+              language: !document.getElementById('arrival-language').hidden,
+              switch: document.getElementById('arrival-switch').innerText,
+              text: document.getElementById('arrival').innerText,
+            })"""
+        )
+        assert not seen["language"]
+        assert "EN" in seen["switch"] and "RU" in seen["switch"]
+        assert not re.search("[\u0400-\u04ff]", seen["text"]), seen["text"]
+    finally:
+        context.close()

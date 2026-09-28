@@ -719,7 +719,49 @@ def test_the_first_finish_asks_targum_how_much_of_the_next_one_is_known() -> Non
         stored={"targum:taught-the-share": "1"},
     )
     assert again["finished"]["ahead"] == "", "not on the next finish"
-    assert not [q for q in again["asked"] if "/known-ahead" in q["url"]], "nor asked"
+    # Still asked, once a page: the same answer says whether to offer the connector,
+    # which is said at every finish while it is true (2026-09-28).
+    assert len([q for q in again["asked"] if "/known-ahead" in q["url"]]) == 1
+
+
+def test_every_finish_offers_the_connector_where_targum_says_to() -> None:
+    """At a finished foot, under the count, the way into Claude and ChatGPT (design.md
+    §12, "The connector is met on the way in"). Not once: at every finish while the
+    server says so — open, and a reader with no connection (David, 2026-09-28: "why
+    can't we have it always?"). It does not wait on the count, which is still said once,
+    and nothing is kept in the browser to put it away."""
+    words, lemmas = chapter(["a", "b"])
+    offered = run(
+        [], chapter=words, lemmas=lemmas, ask={"known": 2, "connect": True}, presses=[True]
+    )["finished"]
+    assert offered["connect"] == {
+        "said": "Practise the words you marked in Claude or ChatGPT. ",
+        "link": "Connect",
+        "href": "/connect#install",
+    }
+    assert offered["ahead"] == "You already know 2 words in this one.", "beside the count"
+    assert offered["toldConnect"] == "", "nothing kept: the server says when it is over"
+
+    later = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        ask={"known": 2, "connect": True},
+        presses=[True],
+        stored={"targum:taught-the-share": "1"},
+    )["finished"]
+    assert later["connect"] is not None and later["ahead"] == "", "said again; the count is not"
+
+    nothing = run(
+        [], chapter=words, lemmas=lemmas, ask={"known": 0, "connect": True}, presses=[True]
+    )["finished"]
+    assert nothing["connect"] is not None and nothing["ahead"] == "", "it does not wait on it"
+
+    for no in ({"known": 2, "connect": False}, {"known": 2}):
+        quiet = run([], chapter=words, lemmas=lemmas, ask=no, presses=[True])["finished"]
+        assert quiet["connect"] is None
+    before = run([], chapter=words, lemmas=lemmas, ask={"known": 2, "connect": True})
+    assert before["finished"]["connect"] is None, "never on load"
 
 
 @pytest.mark.parametrize(

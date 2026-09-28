@@ -347,6 +347,84 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### Russian is shown to somebody who may read it — 2026-09-28
+
+"I don't want a non russian to see any russian. Figure out how to design this as such,"
+David wrote of the arrival's first screen, which asked every new reader "What is your
+native language?" and "Какой у вас родной язык?", and offered "Other · Другой".
+
+**This amends "The arrival asks which language first" (2026-09-20, below) in one rule:**
+it said the question is asked "of everybody who has never said … not only of a browser
+that says Russian", because an olah's phone is as often set to Hebrew or English. The
+question is now asked only where the browser gives a sign: one of its languages is
+Russian, or a language of the countries where Russian is the language people share
+(Ukrainian, Belarusian, Kazakh, Kyrgyz, Uzbek, Tajik). Everybody else starts on the
+subjects and sees no Cyrillic anywhere in the arrival.
+
+The reader that entry was written for still has a way in, and it is the front door's own:
+**EN · RU**, in the card's corner, beside the step. Two Latin codes, so it shows no Russian
+to anybody, and a Russian reader knows it on sight. It is drawn only where the question is
+not asked and nothing has been said; pressing RU is the answer the question would have
+taken — kept in the browser, told to the account, the page loaded again in Russian. The
+signals that were already answers stay answers: a press on the front door's switcher,
+the operator's mark on an invited address, the account's own rows.
+
+What is not touched: a language menu a reader opens lists each language in its own name
+(§12, 2026-09-14), because opening it is asking; the conversation's own question was
+already asked only of a browser that says Russian.
+
+And the level question reads **"How much Hebrew do you know?"**, with "You'll start there,
+and we'll adjust as you mark words." under it; the third rung is "I can hold a simple
+conversation", in the first person like the rest.
+
+
+### The connector is met on the way in, and in four places — 2026-09-28
+
+"We need to make sure the user understands the existence of the MCP and how to install it
+earlier," David wrote, and chose all four places offered: the arrival's last step, a line
+in the reader, a fuller banner on Learn, and before sign-up. What stood was "The connector
+is a banner and a line in the foot" (2026-09-24, below): a banner above Learn's row and a
+line in the foot. Since the arrival became a page of its own and opens a text directly
+(the entry after this), a new reader could go days without standing on Learn, and the
+banner was hidden while they answered — so the one announcement came late or never.
+
+The rule that entry kept — **it goes when it has been taken up**, which the account
+already knows — holds in all four. Each is drawn only while the connector is open
+(`TARGUM_CONNECTOR`) and, inside the product, only to a signed-in reader with no
+connection. And the thing each one does is the same: say in a line what a reader gets,
+and put the address, with Copy, where the first step of installing it is one press.
+
+- **The arrival's last card.** After the rung, one more screen, counted in the bars: what
+  the connector is, the address and Copy, and "Learn more" to `/connect` in a
+  new tab. The filled press is **Open** — the text the answers chose, as before, and §6's
+  neutral verb, since the card cannot know yet whether it is read, heard or watched — so
+  installing is offered and never stands between a reader and their first page. Skip
+  does the same. It is not a question and asks for no answer; it is the one card in the
+  arrival that tells rather than asks, and it is last so that nothing about it holds up
+  the three that are asked.
+- **A line in the reader, at every finish.** Under the count the offer already carries
+  ("You already know 14 words in this one"), and in the same row: "Practise the words you
+  marked in Claude or ChatGPT", and Connect. In answer to a press and never on load, and
+  nothing above it moves — the third moment's manners (the entry "Three moments in ten
+  minutes", below) — but not once: at every finish while the reader has no connection
+  (David, the same day: "why can't we have it always?"). It goes when it has been taken
+  up, which only the server knows, so the server says whether, in the answer the finish
+  already asks for, and a page on the shared shelf carries nothing about the reader. The
+  count beside it is still said once. A finish is the moment a reader has words to
+  practise, which is what the connector is for.
+- **The banner is a card.** It said one line and Connect. It says what a reader gets,
+  shows the two steps — copy the address, add it in the app — with the address and Copy
+  in a well, and links to every app's steps. Still above the row, still gone once
+  connected, the cross still per-browser.
+- **Before sign-up, it is mentioned lightly, twice.** One point in the list under the front
+  door's headline, "Works in Claude and ChatGPT", and one line in the part about talking to
+  targum — "You can also talk to targum inside Claude or ChatGPT", and the way to
+  `/connect`. A part of its own was drawn first and David took it out the same day
+  ("remove this, and simply make a mention in the AI assistant section"). The invitation
+  mail says it in a paragraph with the way to `/connect`. All of it only while the
+  connector is open.
+
+
 ### The arrival is a page of its own, and a text they can follow — 2026-09-28
 
 "This needs to be much prettier, delightful, and more inviting," David wrote of the

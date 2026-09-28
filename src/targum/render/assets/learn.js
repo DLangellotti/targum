@@ -957,18 +957,60 @@
     }
   }
 
+  /* Whether to tell this reader about the connector at all: while it is open, to a
+     signed-in reader holding no connection (design.md §12, 2026-09-24 and 2026-09-28).
+     The banner and the arrival's last card ask the same question. */
+  function offersConnector() {
+    if (!window.TARGUM_CONNECTOR) return false;
+    // `who` is null until `/account/me` answers, and for a reader who is not signed in.
+    // Neither is somebody to invite.
+    if (!who || !who.signedIn) return false;
+    return !(who.connections || []).length;
+  }
+
+  /* The two steps, the first of them one press: the address in a well and Copy beside
+     it, then where it goes (design.md §12, "The connector is met on the way in"). The
+     address is this site's own `/mcp`, the one `/connect` shows. `where` names the
+     place for the count, and nothing else goes with it. */
+  function connectSteps(where) {
+    var origin = (window.location && window.location.origin) || "";
+    var address = origin + "/mcp";
+    var list = el("ol", "connect-steps");
+    var one = el("li", "connect-step");
+    one.appendChild(el("span", "connect-step-say", t("learn.connect.step-copy", "Copy this address")));
+    var well = el("span", "connect-address");
+    well.appendChild(el("code", "connect-url", address));
+    var copy = el("button", "connect-copy", t("learn.connect.copy", "Copy"));
+    copy.type = "button";
+    copy.addEventListener("click", function () {
+      counted(where + "-copy");
+      try {
+        window.navigator.clipboard.writeText(address).then(function () {
+          copy.textContent = t("learn.connect.copied", "Copied");
+        });
+      } catch (e) {}
+    });
+    well.appendChild(copy);
+    one.appendChild(well);
+    list.appendChild(one);
+    list.appendChild(
+      el("li", "connect-step", t("learn.connect.step-add", "Add it as a connector in Claude or ChatGPT."))
+    );
+    return list;
+  }
+
   function drawConnectBanner() {
     var host = document.getElementById("connect-banner");
-    if (!host || !window.TARGUM_CONNECTOR) return;
-    // `who` is null until `/account/me` answers, and for a reader who is not signed in.
-    // Neither is somebody to invite, so neither draws it.
-    if (!who || !who.signedIn) return;
-    if ((who.connections || []).length) return;
+    if (!host || !offersConnector()) return;
     if (shutBanner()) return;
 
+    /* A card, not a line (2026-09-28): what a reader gets, and the two steps with the
+       address to copy, so installing starts here rather than a page away. The first
+       three children keep their places — the line, the way to every app's steps, the
+       cross — and the stylesheet sets them out. */
     var says = el("p", "connect-says", t("learn.connect.practise-hebrew-in-claude",
-      "Practise Hebrew in Claude or ChatGPT, with the words you know."));
-    var way = el("a", "connect-go", t("learn.connect.connect", "Connect"));
+      "Practise Hebrew in Claude or ChatGPT"));
+    var way = el("a", "connect-go", t("learn.connect.every-app", "Learn more"));
     way.href = "/connect";
     way.addEventListener("click", function () {
       counted("banner-connect");
@@ -983,9 +1025,13 @@
       host.hidden = true;
       counted("banner-shut");
     });
+    var lead = el("p", "connect-lead", t("learn.connect.lead",
+      "Add targum to the AI you already use, and it practises Hebrew with you using the words you know."));
     host.appendChild(says);
     host.appendChild(way);
     host.appendChild(shut);
+    host.appendChild(lead);
+    host.appendChild(connectSteps("banner"));
     host.hidden = false;
   }
 
@@ -1425,7 +1471,7 @@
     return {
       aleph: t("learn.level.aleph", "Just starting"),
       "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
-      bet: t("learn.level.bet", "Simple conversations"),
+      bet: t("learn.level.bet", "I can hold a simple conversation"),
       "bet-plus": t("learn.level.bet-plus", "I follow slow Hebrew with help"),
       gimel: t("learn.level.gimel", "I follow the news with a dictionary"),
       dalet: t("learn.level.dalet", "I follow most things comfortably"),
@@ -1637,13 +1683,69 @@
     return (lang && lang.into && lang.into()) || "";
   }
 
+  /* Whether this browser gives any sign its reader may read Russian (design.md §12,
+     "Russian is shown to somebody who may read it", 2026-09-28): one of its languages is
+     Russian, or a language of the countries where Russian is the language people share.
+     Nobody else is shown a word of Cyrillic by the arrival. It is a sign and not an
+     answer — the question is still asked — and a reader it misses has the EN · RU
+     switch, which is Latin letters. */
+  var RUSSIAN_WORLD = ["ru", "uk", "be", "kk", "ky", "uz", "tg"];
+
+  function mayReadRussian() {
+    var nav = window.navigator || (typeof navigator !== "undefined" ? navigator : null);
+    if (!nav) return false;
+    var said = nav.languages && nav.languages.length ? nav.languages : [nav.language || ""];
+    for (var i = 0; i < said.length; i++) {
+      var code = String(said[i] || "").split("-")[0].toLowerCase();
+      if (RUSSIAN_WORLD.indexOf(code) >= 0) return true;
+    }
+    return false;
+  }
+
+  //: Whether the reader has said, or the page knows, which language they read.
+  function tongueSaid() {
+    if (held(ASKED_READ) || readsInto()) return true;
+    if (pageTongue() !== "en") return true;
+    return !!(who && who.signedIn && who.readsSaid);
+  }
+
   function asksTongue() {
     if (offered().length < 2) return false;
     if (thisVisit()) return true;
-    if (held(ASKED_READ) || readsInto()) return false;
-    if (pageTongue() !== "en") return false;
-    if (who && who.signedIn && who.readsSaid) return false;
-    return true;
+    if (tongueSaid()) return false;
+    return mayReadRussian();
+  }
+
+  /* The way in for a Russian reader the browser did not give away — an olah whose phone
+     is set to Hebrew or English, the reader the question was first asked for (2026-09-20).
+     Two codes in the corner of the arrival, the front door's own EN · RU, so nothing in
+     it is Cyrillic. Drawn while the question is not asked and nothing has been said;
+     pressing RU is the answer the question would have taken. */
+  function drawTongueSwitch(host) {
+    if (!host) return;
+    host.textContent = "";
+    host.hidden = true;
+    if (offered().indexOf("ru") < 0 || tongueSaid()) return;
+    [
+      ["en", "EN", "English"],
+      ["ru", "RU", t("learn.arrival.switch-russian", "Russian")],
+    ].forEach(function (one, at) {
+      if (at) host.appendChild(el("span", "arrival-switch-dot", "\u00b7"));
+      var press = el("button", "arrival-switch-key", one[1]);
+      press.type = "button";
+      press.setAttribute("aria-label", one[2]);
+      press.setAttribute("aria-pressed", one[0] === "en" ? "true" : "false");
+      if (one[0] === "ru") {
+        press.addEventListener("click", function () {
+          counted("arrival-switch-ru");
+          sayTongue("ru", function () {
+            if (window.location.reload) window.location.reload();
+          });
+        });
+      }
+      host.appendChild(press);
+    });
+    host.hidden = false;
   }
 
   /* The account hears it the way the profile page's boxes say it: the whole set. Then
@@ -1799,6 +1901,7 @@
       tongue: document.getElementById("arrival-language"),
       subjects: document.getElementById("arrival-subjects"),
       level: document.getElementById("arrival-level"),
+      connect: document.getElementById("arrival-connect"),
     };
     if (!host || !row || !rungs || !done || !skip || !screenOf.subjects || !screenOf.level) return;
     if (!asking) {
@@ -1814,18 +1917,29 @@
        in the language chosen — comes back on the second of three, not the first of two. */
     var withTongue = !!(screenOf.tongue && tongues && asksIn && asksTongue());
     var order = withTongue ? ["tongue", "subjects", "level"] : ["subjects", "level"];
+    /* And last, where the reader can take it up, the way into Claude and ChatGPT
+       (design.md §12, "The connector is met on the way in"): a card that tells rather
+       than asks, with the address to copy, and Open as its filled press so the text the
+       answers chose is still one press away. Counted in the bars like the others. */
+    var connectHost = document.getElementById("arrival-connect-steps");
+    if (screenOf.connect && connectHost && offersConnector()) {
+      order.push("connect");
+      connectHost.textContent = "";
+      connectHost.appendChild(connectSteps("arrival"));
+    }
     var step = withTongue && thisVisit() ? 1 : 0;
     row.textContent = "";
     rungs.textContent = "";
     if (tongues) tongues.textContent = "";
     if (!withTongue) handOverTongue();
+    drawTongueSwitch(withTongue ? null : document.getElementById("arrival-switch"));
 
     /* One question a screen (David, 2026-09-19). The step is said in words, in the
        resting colour; Next belongs to the subjects alone, because on the second screen
        pressing a row *is* the answer and a second button would be a second question. */
     function settle() {
       var now = order[step];
-      ["tongue", "subjects", "level"].forEach(function (name) {
+      ["tongue", "subjects", "level", "connect"].forEach(function (name) {
         if (screenOf[name]) screenOf[name].hidden = name !== now;
       });
       if (where) {
@@ -1847,8 +1961,10 @@
         where.appendChild(bars);
         where.appendChild(words);
       }
-      done.hidden = now !== "subjects";
-      done.disabled = picked.length < WANTED;
+      done.hidden = now !== "subjects" && now !== "connect";
+      done.disabled = now === "subjects" && picked.length < WANTED;
+      done.textContent =
+        now === "connect" ? t("learn.arrival.open", "Open") : t("learn.arrival.next", "Next");
       if (back) back.hidden = step === 0;
       if (!count) return;
       var short = WANTED - picked.length;
@@ -1879,6 +1995,7 @@
       var first =
         now === "level" ? rungs.children[0] : now === "tongue" ? tongues.children[0] : null;
       if (now === "subjects") first = done.disabled ? row.children[0] : done;
+      if (now === "connect") first = done;
       if (first && first.focus) first.focus({ preventScroll: true });
     }
 
@@ -1961,12 +2078,17 @@
       rung.appendChild(letter);
       rung.addEventListener("click", function () {
         rememberLevel(level.id);
-        finish();
+        onward();
       });
       rungs.appendChild(rung);
     });
 
     done.onclick = function () {
+      if (order[step] === "connect") {
+        counted("arrival-open");
+        finish();
+        return;
+      }
       if (picked.length < WANTED) return;
       remember(picked);
       onward();
