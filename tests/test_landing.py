@@ -445,3 +445,23 @@ def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None
     assert "Posts from X</li>" in armed
     assert "Posts from Facebook and Reddit" in armed
     assert "Posts from X, Facebook and Reddit" not in armed
+
+
+def test_the_connector_is_mentioned_twice_while_it_is_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lightly, twice (design.md §12, "The connector is met on the way in"): one point in
+    the list near the top, and a line in the part about talking to targum, with the way
+    to `/connect`. Dark, neither is said: a door to a 404 is worse than none."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    page = front_page()
+    facts = page[page.index('<ul class="facts">') :]
+    assert "Works in Claude and ChatGPT" in facts[: facts.index("</ul>")]
+    talk = page[page.index('id="talk"') :]
+    talk = talk[: talk.index("</section>")]
+    assert "You can also talk to targum inside Claude or ChatGPT." in talk
+    assert 'href="/connect"' in talk
+    monkeypatch.delenv("TARGUM_CONNECTOR")
+    quiet = front_page()
+    assert "Works in Claude and ChatGPT" not in quiet
+    assert "You can also talk to targum inside" not in quiet

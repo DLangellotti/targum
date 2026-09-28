@@ -47,6 +47,11 @@
           <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
           <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
           <li>{{ t("landing.page.no-credit-card-required", "No credit card required") }}</li>
+          {#- A light first mention of the connector, where the page lists what you get
+              (design.md §12, "The connector is met on the way in"). -#}
+          {%- if connector_is_open() %}
+          <li>{{ t("landing.page.works-in-claude-and-chatgpt", "Works in Claude and ChatGPT") }}</li>
+          {%- endif %}
         </ul>
       </div>
     </div>
@@ -274,6 +279,11 @@
           <li>{{ t("landing.page.bring-a-link-or-a-file-straight-into", "Bring a link or a file straight into the conversation.") }}</li>
           <li>{{ t("landing.page.keep-a-conversation-as-a-text-to-read", "Keep a conversation as a text to read again.") }}</li>
         </ul>
+        {#- And the same targum inside the AI a reader already uses: said here, where the
+            page is about talking to it (design.md §12, 2026-09-28). -#}
+        {%- if connector_is_open() %}
+        <p class="talk-elsewhere">{{ t("landing.page.also-inside-claude-or-chatgpt", "You can also talk to targum inside Claude or ChatGPT.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p>
+        {%- endif %}
       </div>
       <div class="thread" aria-label="{{ t("landing.page.example-conversation", "Example conversation") }}">
         <div class="turn">

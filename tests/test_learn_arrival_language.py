@@ -9,11 +9,27 @@ reader would have to read — in every language it offers at once.
 
 from __future__ import annotations
 
+import re
 import shutil
 from typing import Any
 
 import pytest
-from test_learn_js import THREE, draw, reader, seeded
+from test_learn_js import THREE, reader, seeded
+from test_learn_js import draw as _draw
+
+
+def draw(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    """With the connector dark unless a test says otherwise. These are about the language
+    question and count the screens; a signed-in reader with no connection is offered the
+    connector as a last card when it is open (design.md §12, "The connector is met on the
+    way in"), and `test_learn_js` pins that card."""
+    kwargs.setdefault("connector", False)
+    # And from a browser that says Russian: the question is asked only where there is a
+    # sign the reader may read it (2026-09-28), and these are about the question. The
+    # rule itself is pinned at the foot of this file.
+    kwargs.setdefault("browser", ["ru-RU", "en"])
+    return _draw(*args, **kwargs)
+
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 
@@ -153,3 +169,44 @@ def test_other_is_an_answer_and_reads_english() -> None:
     assert after["kept"].get("targum:asked-read") == "1"
     assert languages_sent(after) == [{"learning": ["he"], "reads": ["en"]}]
     assert after["reloaded"] == 0 and after["step"] == "2 of 3"
+
+
+# --- Russian is shown to somebody who may read it (design.md §12, 2026-09-28) ----------
+
+CYRILLIC = re.compile("[\u0400-\u04ff]")
+
+
+@pytest.mark.parametrize("browser", [["en-US"], ["he-IL", "en"], ["fr-FR"]], ids=["en", "he", "fr"])
+def test_a_reader_with_no_sign_of_russian_is_shown_none(browser: list[str]) -> None:
+    """ "I don't want a non russian to see any russian" (David, 2026-09-28). No question
+    in two languages and no row in Cyrillic: the arrival starts on the subjects, and the
+    one way into Russian is EN · RU, which is Latin letters."""
+    page = draw([], shared=seeded(), into=BOTH, me=NEW, browser=browser)
+    assert page["tongues"] == [] and page["tongueAsks"] == []
+    assert page["subjectsUp"] and page["step"] == "1 of 2"
+    assert page["switchKeys"] == ["EN", "·", "RU"]
+    shown = " ".join([page["step"], *page["switchKeys"], *page["levels"], *page["tongues"]])
+    assert not CYRILLIC.search(shown)
+
+
+@pytest.mark.parametrize("browser", [["ru-RU"], ["uk-UA", "en"], ["en-US", "kk"]])
+def test_a_browser_of_the_russian_reading_world_is_asked(browser: list[str]) -> None:
+    page = draw([], shared=seeded(), into=BOTH, me=NEW, browser=browser)
+    assert page["tongues"] == ["English", "Русский", "Other · Другой"]
+    assert page["switchKeys"] == [], "the question is the way in; no second one beside it"
+
+
+def test_ru_on_the_switch_is_the_answer_the_question_would_have_taken() -> None:
+    """The olah whose phone is set to Hebrew, the reader the question was first asked for
+    (2026-09-20): RU keeps Russian, tells the account and loads the page again in it."""
+    after = draw([], shared=seeded(), into=BOTH, me=NEW, browser=["he-IL"], do=[{"switchTo": "RU"}])
+    assert after["heldInto"] == "ru"
+    assert after["kept"].get("targum:asked-read") == "1"
+    assert languages_sent(after) == [{"learning": ["he"], "reads": ["ru"]}]
+    assert after["reloaded"] == 1
+
+
+def test_somebody_who_has_said_is_offered_no_switch() -> None:
+    said = {**NEW, "readsSaid": True}
+    page = draw([], shared=seeded(), into=BOTH, me=said, browser=["en-US"])
+    assert page["switchKeys"] == [] and page["tongues"] == []

@@ -21,8 +21,12 @@ const payload = JSON.parse(fs.readFileSync(process.argv[2], "utf-8"));
 const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 
 const windowListeners = {};
+// The browser's languages (2026-09-28): the arrival asks which language a reader reads
+// only where one of them is of the Russian-reading world. English unless a test says.
+const browserLanguages = payload.browser || ["en-US"];
 install({
   TARGUM_KEY: "k",
+  navigator: { language: browserLanguages[0], languages: browserLanguages },
   TARGUM_LANGUAGES: { he: "Hebrew" },
   TARGUM_STRINGS: payload.strings,
   addEventListener: (type, handler) => {
@@ -241,6 +245,13 @@ function act(step) {
     );
     if (press) press.fire("click", {});
   }
+  // A code on the arrival's EN · RU switch (2026-09-28).
+  if (step.switchTo) {
+    const key = Array.from(at("arrival-switch").children).find(
+      (p) => p.textContent === step.switchTo
+    );
+    if (key) key.fire("click", {});
+  }
   // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
@@ -319,6 +330,10 @@ function report() {
         : {
             says: (at("connect-banner").children[0] || {}).textContent || "",
             goes: (at("connect-banner").children[1] || {}).href || "",
+            // The steps it carries since 2026-09-28: each step's words, and the address.
+            steps: Array.from(at("connect-banner").children)
+              .filter((c) => c.className === "connect-steps")
+              .flatMap((list) => Array.from(list.children).map((step) => step.textContent)),
           },
       doors: at("doors").hidden
         ? []
@@ -382,6 +397,11 @@ function report() {
           ? []
           : Array.from(at("arrival-tongues").children).map((p) => p.textContent),
       tongueAsks: Array.from(at("arrival-asks-language").children || []).map((p) => p.textContent),
+      // EN · RU where it is drawn: its codes, in order, or nothing.
+      switchKeys:
+        at("arrival").hidden || at("arrival-switch").hidden
+          ? []
+          : Array.from(at("arrival-switch").children).map((p) => p.textContent),
       heldInto,
       reloaded,
       visit,
@@ -391,6 +411,20 @@ function report() {
       subjectsUp: !at("arrival").hidden && !at("arrival-subjects").hidden,
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
       nextShown: !at("arrival").hidden && !at("arrival-done").hidden,
+      /* The arrival's last card, where it is drawn (design.md §12, 2026-09-28): whether it
+         is up, the address it offers to copy, and what the filled press says. */
+      connectUp: !at("arrival").hidden && !at("arrival-connect").hidden,
+      connectAddress: (() => {
+        const found = [];
+        const walk = (node) => {
+          if (!node) return;
+          if (node.className === "connect-url") found.push(node.textContent);
+          (node.children || []).forEach(walk);
+        };
+        walk(at("arrival-connect-steps"));
+        return found[0] || "";
+      })(),
+      doneSays: at("arrival-done").textContent,
       arriving: global.document.body.classList.contains("arriving"),
       // What the page put in the browser, and where it posted. Both are here so a test
       // can assert something was *not* kept — an assertion that is worthless unless the

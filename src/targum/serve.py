@@ -8669,6 +8669,12 @@ class Handler(BaseHTTPRequestHandler):
         just marked, which may not have reached the account yet. Only the words that are
         really on that page are taken from it, so the page cannot count anything else.
         `known` is None where the offer cannot be measured, and the page says nothing.
+
+        And `connect`: whether to offer the connector in the same row (design.md §12,
+        "The connector is met on the way in"). It rides this answer because this is the
+        one moment the page asks the server anything about the reader, and a page on the
+        shared shelf can carry nothing about them. True only while the connector is open
+        and the reader holds no connection — the rule the banner already keeps.
         """
         from . import catalogue as catalogue_module
         from . import coverage as coverage_module
@@ -8676,10 +8682,15 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        invite = connector_is_open() and not self.store.connections(person.id)
+
+        def answer(said: dict[str, Any]) -> None:
+            self._json({**said, "connect": invite})
+
         homes = [self.library.home(person), self.library.shared, self.library.weekly]
         found = self.library.document_folder(homes, str(payload.get("document") or ""))
         if found is None:
-            return self._json({"known": None})
+            return answer({"known": None})
         folder, language = found
         language = language.split("-")[0].lower()
         try:
@@ -8696,7 +8707,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             offered = set()
         if not offered or not language:
-            return self._json({"known": None})
+            return answer({"known": None})
         marked = self.store.marked(person, language)
         known = {lemma for lemma in offered if marked.get(lemma) == coverage_module.KNOWN}
         said = payload.get("known")
@@ -8704,7 +8715,7 @@ class Handler(BaseHTTPRequestHandler):
             on_page = set(coverage_module.section_lemmas(folder, here) or [])
             held = {str(lemma) for lemma in said[: self.KNOWN_AHEAD_CAP]}
             known |= offered & on_page & held
-        self._json({"known": len(known)})
+        answer({"known": len(known)})
 
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language

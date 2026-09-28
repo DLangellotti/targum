@@ -762,6 +762,10 @@
       ten minutes"). Written by the script after the press, never on load, with a count
       targum's own server works out: the page carries no list of anybody's words. -#}
   <span class="next-up-known" id="next-up-known" hidden></span>
+  {#- And, in the same answer, the way into Claude and ChatGPT: said once, at the moment
+      the reader has words to practise, to a reader the server says has no connection
+      (design.md §12, "The connector is met on the way in"). -#}
+  <span class="next-up-connect" id="next-up-connect" hidden></span>
 </aside>
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
@@ -783,6 +787,7 @@
   {% if suggested.because %}<span class="next-up-why">{{ suggested.because }}{% if suggested.minutes %} · {{ t("reader.next.minutes", "{n} min", n=suggested.minutes) }}{% endif %}</span>{% endif %}
   {#- The same line, for a text from the library (targum-internal#335). -#}
   <span class="next-up-known" id="next-up-known" hidden></span>
+  <span class="next-up-connect" id="next-up-connect" hidden></span>
   {#- A way to disagree, and nothing more (targum-internal#233). It draws again from a
       list written into the page — the page fetches nothing — and remembers nothing: a
       refusal the server kept would turn a door into a profile nobody asked to build.

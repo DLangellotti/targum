@@ -776,22 +776,47 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
    on the desk instead, raised by its resting shadow and not by a line (§13), with the
    primary's tonal pill: the brown accent is the reader's and is not used on the desk. */
 .connect-banner {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "says  shut"
+    "lead  lead"
+    "steps steps"
+    "go    go";
+  align-items: start;
   gap: 0.5rem 0.85rem;
   margin-block-start: 1rem;
-  padding: 0.7rem 0.9rem;
+  padding: 1.1rem 1.25rem 1.2rem;
   border-radius: var(--radius-card);
   background: var(--card);
-  box-shadow: var(--shadow-rest);
+  box-shadow: var(--shadow-raised);
 }
 .connect-banner[hidden] { display: none; }
-.connect-says { margin: 0; flex: 1 1 16rem; min-inline-size: 0; color: var(--ink); }
+/* Since 2026-09-28 a card rather than a line (design.md §12, "The connector is met on
+   the way in"): what a reader gets, the two steps with the address to copy, and the way
+   to every app's steps. The script keeps the first three children where they were —
+   the line, the way, the cross — and the grid sets them out. */
+.connect-says {
+  grid-area: says;
+  margin: 0;
+  min-inline-size: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.connect-lead {
+  grid-area: lead;
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.connect-banner > .connect-steps { grid-area: steps; }
 /* A link that asks somebody to act, as §13's tonal pill: the ordinary press, since the
    one filled press on Learn belongs to reading. */
 .connect-go {
-  flex: none;
+  grid-area: go;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   min-block-size: 2.5rem;
@@ -806,7 +831,7 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
 .connect-go:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
 /* Not now. Quiet, because refusing must be easy and must not be the loud thing. */
 .connect-shut {
-  flex: none;
+  grid-area: shut;
   border: 0;
   background: none;
   color: var(--ink-soft);
@@ -818,6 +843,82 @@ body.yours .site-head-row { max-width: 62rem; padding-inline: 1.25rem; }
   border-radius: 6px;
 }
 .connect-shut:hover { color: var(--ink); }
+
+/* The two steps, on the banner and on the arrival's last card alike: numbered, the first
+   with the address in a well and Copy beside it, so the first step of installing is one
+   press wherever the connector is met. */
+.connect-steps {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: connect-step;
+}
+.connect-step {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  counter-increment: connect-step;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+  color: var(--ink);
+}
+.connect-step::before {
+  content: counter(connect-step);
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.connect-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-inline-size: 100%;
+  padding-block: 0.25rem;
+  padding-inline: 0.75rem 0.25rem;
+  border-radius: var(--radius-row);
+  background: color-mix(in srgb, var(--ground) 70%, var(--card));
+}
+.connect-url {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875rem;
+  color: var(--ink);
+}
+.connect-copy {
+  flex: none;
+  min-block-size: 2rem;
+  padding: 0 0.8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--teal-wash);
+  color: var(--teal);
+  font: inherit;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.connect-copy:hover { background: color-mix(in srgb, var(--teal) 16%, transparent); }
+.connect-copy:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.arrival-connect-more {
+  margin: 1rem 0 0;
+  font-family: var(--chrome);
+  font-size: 0.9375rem;
+}
+.arrival-connect-more a { color: var(--teal); font-weight: 600; }
+
 /* The subscriptions door: one pill however many there are, a menu under it. */
 .ways-menu-host { position: relative; }
 .way-menu::after {
@@ -1363,6 +1464,43 @@ body.arriving .today-line { display: none; }
   transition: background-color 240ms var(--ease);
 }
 .arrival-bar.is-done { background: var(--leaf); }
+
+/* The step and, on its right, EN · RU where it is drawn (design.md §12, 2026-09-28,
+   "Russian is shown to somebody who may read it"): the front door's own switch, two
+   Latin codes, the current one in ink. */
+.arrival-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+}
+.arrival-top .arrival-step { margin: 0; }
+.arrival-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.arrival-switch[hidden] { display: none; }
+.arrival-switch-key {
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  min-block-size: 2rem;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.arrival-switch-key[aria-pressed="true"] { color: var(--ink); cursor: default; }
+.arrival-switch-key:hover:not([aria-pressed="true"]) { background: var(--teal-wash); color: var(--teal); }
+.arrival-switch-key:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* The question is the page's heading, and there is nothing to share the page with. */
 .arrival-asks {

@@ -1171,7 +1171,7 @@ def test_the_last_answer_opens_the_text_it_chose() -> None:
             {"subject": "History"},
             {"subject": "Archaeology"},
             {"press": "arrival-done"},
-            {"rung": "Simple conversations"},
+            {"rung": "I can hold a simple conversation"},
         ],
     )
     assert not after["broke"]
@@ -1604,3 +1604,63 @@ def test_a_box_with_no_connector_offers_none() -> None:
 def test_nobody_signed_out_is_asked() -> None:
     """There is no account to connect, so there is nothing to offer."""
     assert draw(a_shelf(), {}, me={"signedIn": False})["banner"] is None
+
+
+# --- the connector, met on the way in (design.md §12, 2026-09-28) ------------------------
+
+UNCONNECTED = {"signedIn": True, "connections": []}
+ANSWERED = [
+    {"subject": "Sport"},
+    {"subject": "History"},
+    {"subject": "Art"},
+    {"press": "arrival-done"},
+    {"rung": "Just starting"},
+]
+
+
+def test_the_arrival_ends_on_the_connector_and_open_is_still_one_press() -> None:
+    """After the rung, a last card for a signed-in reader with no connection: the
+    address to copy, and Open as its filled press, so the text the answers chose is one
+    press away and installing never stands in front of it."""
+    shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
+    up = draw([], shared=shelf, me=UNCONNECTED, do=ANSWERED)
+    assert up["connectUp"], "the rung leads to the card, not straight into the text"
+    assert up["step"] == "3 of 3", "counted in the bars like the screens before it"
+    assert up["connectAddress"].endswith("/mcp"), "this site's own address, as /connect shows"
+    assert up["doneSays"] == "Open" and up["nextShown"] and up["done"]
+    assert not up["went"], "nothing is opened until the press"
+
+    opened = draw([], shared=shelf, me=UNCONNECTED, do=[*ANSWERED, {"press": "arrival-done"}])
+    assert "/reader/holon/" in opened["went"], opened["went"]
+    skipped = draw([], shared=shelf, me=UNCONNECTED, do=[*ANSWERED, {"press": "arrival-skip"}])
+    assert "/reader/holon/" in skipped["went"], "Skip opens it too: the card asks nothing"
+
+
+@pytest.mark.parametrize(
+    ("me", "connector"),
+    [
+        ({"signedIn": True, "connections": [{"client": "c"}]}, True),
+        (UNCONNECTED, False),
+        (None, True),
+    ],
+    ids=["connected", "dark", "signed-out"],
+)
+def test_the_connector_card_is_only_for_somebody_who_can_take_it_up(
+    me: dict[str, Any] | None, connector: bool
+) -> None:
+    """The banner's rule: open, signed in, and no connection yet. Anybody else goes from
+    the rung straight into the text, as before."""
+    shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
+    done = draw([], shared=shelf, me=me, connector=connector, do=ANSWERED)
+    assert not done["connectUp"]
+    assert "/reader/holon/" in done["went"], done["went"]
+
+
+def test_the_banner_shows_the_steps_with_the_address() -> None:
+    """A card now, not a line: what a reader gets, and the two steps with the address in
+    a well beside Copy — installing starts on Learn, not a page away."""
+    drawn = draw(a_shelf(), {}, me=UNCONNECTED)
+    assert drawn["banner"] and drawn["banner"]["goes"] == "/connect"
+    first, second = drawn["banner"]["steps"]
+    assert first.startswith("Copy this address") and "/mcp" in first and first.endswith("Copy")
+    assert second == "Add it as a connector in Claude or ChatGPT."

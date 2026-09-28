@@ -2302,6 +2302,12 @@ body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
    row's soft grey: it is the one thing on the row about the reader. Type, not motion. */
 .next-up-known { flex: 1 0 100%; color: var(--ink); }
 .next-up-known[hidden] { display: none; }
+/* The way into Claude and ChatGPT, under the count and in the same row, said once
+   (design.md §12, "The connector is met on the way in"). The line in ink like the
+   count; the link the reader's working accent, since it is a thing to press. */
+.next-up-connect { flex: 1 0 100%; color: var(--ink); }
+.next-up-connect[hidden] { display: none; }
+.next-up-connect a { color: var(--accent); font-weight: 600; }
 
 /* A way to disagree with the offer, and it is meant to be quieter than the offer: the
    reader who wants this one takes it, and the one who does not should find the door
