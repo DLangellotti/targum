@@ -592,6 +592,29 @@ def test_a_signed_in_reader_is_sent_to_the_portion_on_their_own_shelf() -> None:
     assert 'class="all" href="/library#parasha-bereshit"' in page
 
 
+def test_a_signed_in_reader_is_not_asked_to_join() -> None:
+    """§6: somebody who has already chosen targum is not sold to again (copy audit,
+    2026-09-28, Q21). The bar's call, the hero's form and the closing section go, and
+    the Read button leads the hero — here and on the daily pages, drawn from the same
+    parts."""
+    from pathlib import Path
+
+    from targum.render.builder import parasha_page
+
+    listed = _cycle()
+    stranger = parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed)
+    assert stranger.count('action="/waitlist"') == 2 and 'href="#join"' in stranger
+    reader = parasha_page(listed[1], schedule=cal.Schedule.diaspora, listed=listed, signed_in=True)
+    assert 'action="/waitlist"' not in reader
+    assert 'href="#join"' not in reader and 'id="join"' not in reader
+    assert 'class="btn cta" href="#embed"' in reader
+    daily = (Path(__file__).parents[1] / "src/targum/render/templates/daily.html.j2").read_text(
+        encoding="utf-8"
+    )
+    assert daily.count("{%- if not signed_in %}") == 2, "the hero's form and the closing one"
+    assert "btn {{ 'cta' if signed_in else 'tonal' }}" in daily
+
+
 def test_the_served_page_carries_the_way_round_the_year(serving: int, built: Index) -> None:
     listed = [one for one in built.listed()]
     assert listed, "the fixture builds at least one portion"

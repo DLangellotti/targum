@@ -25,7 +25,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
-from ..errors import TargumError, UnsupportedSource
+from ..errors import OffHere, TargumError, UnsupportedSource
 from ..models import Document
 from ..vision import MAX_PAGES
 from .base import normalize
@@ -48,7 +48,7 @@ def _reader(path: Path) -> Any:
     try:
         from pypdf import PdfReader
     except ImportError as missing:  # pragma: no cover - the extra is installed in CI
-        raise TargumError(MISSING) from missing
+        raise OffHere(MISSING) from missing
     try:
         reader = PdfReader(str(path))
         if reader.is_encrypted:

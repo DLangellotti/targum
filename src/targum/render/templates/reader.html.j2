@@ -430,6 +430,13 @@
       click will not keep. -#}
   <p>{% if audio_waiting %}We haven't transcribed this part yet.{% else %}We haven't translated this chapter yet.{% endif %}</p>
   <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
+  {#- What the press spends, beside it and shown with it (copy audit, 2026-09-28): a
+      transcript by its part's minutes, a translation none. -#}
+  {%- if not audio_waiting %}
+  <span class="waiting-cost" id="waiting-cost" hidden>{{ t("reader.chapter.uses-no-credits", "Uses none of your credits") }}</span>
+  {%- elif waiting_credits %}
+  <span class="waiting-cost" id="waiting-cost" hidden>{{ tn("reader.chapter.uses-credits", waiting_credits, "Uses {n} credit", "Uses {n} credits") }}</span>
+  {%- endif %}
 </div>
 {% endif %}
 {#- The player. Shown on a dialogue the moment it opens, because a reader who does not

@@ -12,7 +12,8 @@
     - `home` — the landing's own address for its places, "" on the landing itself (the
       places are anchors on the page) and "/" elsewhere.
     - `here` — this page's path, for the language links; the landing's is "/".
-    - `asked` — a language the visitor chose, carried to sign-in as the landing does. -#}
+    - `asked` — a language the visitor chose, carried to sign-in as the landing does.
+    - `signed_in` — a reader with an account, who is not asked to join (§6). -#}
 {%- set home = home|default('') %}
 {%- set here = here|default('/') %}
 <header class="{{ bar_class|default('front-bar') }}">
@@ -42,7 +43,10 @@
         {%- else %}<b>EN</b><span>/</span><a href="{{ here }}?lang=ru" hreflang="ru">RU</a>{% endif %}
       </p>
       <a class="signin" href="/account/signin{% if asked %}?lang={{ asked }}{% endif %}">{{ t("landing.page.sign-in", "Sign in") }}</a>
+      {#- Not to somebody who has already chosen targum (§6; copy audit, 2026-09-28). -#}
+      {%- if not signed_in|default(false) %}
       <a class="btn cta small" href="#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+      {%- endif %}
     </div>
   </div>
 </header>

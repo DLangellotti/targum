@@ -631,7 +631,9 @@ def build_ready(
             Label(text(f"mail.ready.label.{verb}", code)),
             Title(title),
             Para(text("mail.ready.lead", code)),
-            Button(text("mail.ready.button", code), link),
+            # Its verb, chosen as the subject's is (§6; copy audit, 2026-09-28): "Open"
+            # under "Ready to watch" named no action.
+            Button(text(f"mail.ready.button.{verb}", code), link),
         ],
         [Foot(text("mail.ready.asked" if asked else "mail.ready.why", code))],
         address=address,

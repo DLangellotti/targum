@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gc
 import gzip
+import html
 import io
 import json
 import os
@@ -621,6 +622,51 @@ def test_the_switcher_s_language_is_kept_on_the_account(
     # A language the reader is not learning is not one a page can ask in.
     _, asked, _ = call(port, "GET", f"/words/common?language=fr&k={token}", cookie=cookie)
     assert asked["language"] == "yi", "the switcher's, not the page's"
+
+
+def test_ticking_a_language_again_writes_its_translations_back_into_the_readers(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy audit, 2026-09-28 (Q8). /you says "You lose nothing when you untick one".
+    Unticking rewrote every reader without the language, and ticking it again rewrote
+    nothing — the translation was still in the folder, and no reader showed it until
+    that text was next built. Both directions rewrite now; a rewrite spends nothing."""
+    import threading
+
+    from targum import cli
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    written: list[list[str]] = []
+    done = threading.Event()
+
+    def rebuild_home(home: Path, *, reads: list[str] | None) -> int:
+        written.append(list(reads or []))
+        done.set()
+        return 0
+
+    monkeypatch.setattr(cli, "rebuild_home", rebuild_home)
+    for reads in (["en", "ru"], ["en"], ["en", "ru"]):
+        done.clear()
+        call(
+            port,
+            "POST",
+            f"/account/languages?k={token}",
+            {"learning": ["he"], "reads": reads},
+            cookie=cookie,
+        )
+        done.wait(5)
+    assert written[-2:] == [["en"], ["en", "ru"]], written
+    # Saying the same set again rewrites nothing.
+    before = len(written)
+    call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he"], "reads": ["en", "ru"]},
+        cookie=cookie,
+    )
+    assert len(written) == before
 
 
 def test_a_text_shows_under_every_language_it_is_written_in(tmp_path: Path) -> None:
@@ -3268,8 +3314,15 @@ def test_a_follower_can_stop_from_the_email_with_one_press(
     status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
     assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
     assert book.followers("parasha"), "fetching the link spent nothing"
+    # Named, and under its own title: the page never said which series it was stopping,
+    # and its tab said "Weekly News Digest" (copy audit, 2026-09-28, Q23).
+    asked = html.unescape(body.decode("utf-8"))
+    assert "Stop emails about The weekly portion?" in asked
+    assert "<title>The weekly portion — targum</title>" in asked
+    assert "Weekly News Digest" not in asked.split("</head>")[0]
     status, body, _ = form(port, "/series/stop", {"t": stop})
-    assert status == 200 and b"tell you about it again" in body
+    assert status == 200
+    assert "We won't email you about The weekly portion again." in html.unescape(body.decode())
     assert book.followers("parasha") == []
 
 
@@ -3316,8 +3369,8 @@ def test_the_way_out_is_in_the_language_the_reader_followed_in(
 
     status, body, _ = form(port, "/series/stop", {"t": stop})
     page = body.decode("utf-8")
-    assert status == 200 and "Больше не сообщим." in page
-    assert "tell you about it again" not in page
+    assert status == 200 and "Мы больше не будем присылать вам письма о серии" in page
+    assert "email you about" not in page
     assert book.followers("parasha") == [], "and it still stops them"
 
     # A token matching nothing is English rather than an error: it is a link out of a mail

@@ -501,6 +501,42 @@ def test_the_page_asks_for_nothing_but_the_one_door(open_shelves: tuple[int, Pat
     assert 'id="join"' in page
 
 
+def _as_reader(port: int, path: str) -> str:
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("GET", path, skip_host=True)
+    conn.putheader("Host", HOST)
+    conn.putheader("Cookie", f"targum_session={SESSION[0]}")
+    conn.endheaders()
+    body = conn.getresponse().read().decode()
+    conn.close()
+    return body
+
+
+def test_a_signed_in_reader_is_not_asked_to_join(open_shelves: tuple[int, Path]) -> None:
+    """§6: somebody who has already chosen targum is not sold to again (copy audit,
+    2026-09-28, Q21). The bar's call, the hero's form and the closing section go, and
+    the Read button leads the hero."""
+    page = _as_reader(open_shelves[0], f"/weekly/{WEEK}/bet")
+    assert 'action="/waitlist"' not in page
+    assert 'href="#join"' not in page and 'id="join"' not in page
+    assert 'class="btn cta" href="#embed"' in page, "Read leads"
+    stranger = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()
+    assert 'class="btn tonal" href="#embed"' in stranger
+
+
+def test_an_older_issue_is_not_called_this_week_s(open_shelves: tuple[int, Path]) -> None:
+    """Copy audit, 2026-09-28 (Q22): the archive's hero said "this week's news" of an
+    issue weeks old. The newest says it; an older one is worded around its date."""
+    import html
+
+    newest = html.unescape(ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode())
+    assert "Read this week's news in Hebrew." in newest
+    older = html.unescape(ask(open_shelves[0], "/weekly/2026-w35/bet")[1].decode())
+    assert "this week's" not in older.lower()
+    assert "Read the news in Hebrew, as it was on Monday, August 24, 2026." in older
+    assert "Read this issue" in older
+
+
 def test_the_page_still_offers_only_the_one_door(open_shelves: tuple[int, Path]) -> None:
     """Adding a dialog must not have added a route that needs an account."""
     page = ask(open_shelves[0], f"/weekly/{WEEK}/bet")[1].decode()

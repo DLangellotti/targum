@@ -267,6 +267,21 @@
       : t("bring.wait.minutes", "Ready in about {n} minutes.", { n: mins });
   }
 
+  /* What pressing spends, said beside the press (copy audit, 2026-09-28): a recording
+     or a film in credits — a credit is a minute and any part of one is a whole one, the
+     way the server counts it (`builder.credits_of`) — and a text none, as Telegram's
+     quote already said. "" for a recording whose length is not known: no guess. */
+  function uses(job) {
+    if (!job) return "";
+    if (job.audio) {
+      var seconds = Number(job.seconds) || 0;
+      if (seconds <= 0) return "";
+      var n = Math.ceil(seconds / 60 - 1e-9);
+      return tn("bring.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+    }
+    return t("bring.uses-no-credits", "Uses none of your credits");
+  }
+
   //: Past this share of the month's hours the box says so, above the field. Below it
   //: the count is on Your Progress and in the account panel, and nowhere else
   //: (2026-09-10, targum-internal#237).
@@ -486,6 +501,13 @@
     var note = document.createElement("p");
     note.className = "quote-note";
     if (job.stage === "ready") {
+      var spends = uses(job);
+      if (spends) {
+        var cost = document.createElement("p");
+        cost.className = "quote-uses";
+        cost.textContent = spends;
+        card.appendChild(cost);
+      }
       var go = document.createElement("button");
       go.type = "button";
       go.className = "quote-go";
@@ -572,6 +594,7 @@
     options: options,
     bring: bring,
     wait: wait,
+    uses: uses,
     hours: hours,
     hoursWarning: hoursWarning,
     HOURS_WARN: HOURS_WARN,

@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from .cache import Cache
-from .errors import TargumError
+from .errors import OffHere, TargumError
 from .usage import Usage
 
 #: The pictures a reader can bring. HEIC is what an iPhone takes; the rest is what a
@@ -102,7 +102,7 @@ def _pillow() -> Any:
     try:
         from PIL import Image, ImageOps
     except ImportError as missing:  # pragma: no cover - the extra is installed in CI
-        raise TargumError(MISSING) from missing
+        raise OffHere(MISSING) from missing
     try:
         import pillow_heif
     except ImportError:

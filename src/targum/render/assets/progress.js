@@ -250,14 +250,29 @@
       return 0;
     });
     var any = false;
-    charts.kept(words).forEach(function (word) {
+    var kept = charts.kept(words);
+    kept.forEach(function (word) {
       var index = BANDS.indexOf(word.band);
       if (index < 0) return;
       counts[index] += 1;
       any = true;
     });
     if (!any) {
-      host.appendChild(el("p", "empty", t("progress.empty", "Nothing marked yet.")));
+      /* Words marked and none of them banded is a language with no frequency list —
+         Yiddish, Aramaic — and "Nothing marked yet" told a reader with hundreds marked
+         that they had marked nothing (copy audit, 2026-09-28). */
+      host.appendChild(
+        el(
+          "p",
+          "empty",
+          kept.length
+            ? t(
+                "progress.bands.no-list",
+                "We have no word list for this language, so we can't say how common its words are."
+              )
+            : t("progress.empty", "Nothing marked yet.")
+        )
+      );
       return;
     }
 

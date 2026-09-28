@@ -9,6 +9,38 @@ function readInto() {
   }
 }
 
+/* What a waiting press spends, said beside it (copy audit, 2026-09-28): a translation
+ * none, and a transcript its parts' minutes — a credit a minute, any part of one a whole
+ * one, as the server counts (`builder.credits_of`). The page carries each part's length
+ * on `.whole[data-part-seconds]` and each row's parts on `data-parts`; "" where either
+ * is missing, rather than a guess. `parts` is a list of part numbers. */
+function spends(hearing, parts) {
+  var t = window.TargumStrings.t;
+  var tn = window.TargumStrings.tn;
+  if (!hearing) return t("contents.uses-no-credits", "Uses none of your credits");
+  var whole = document.querySelector(".whole[data-part-seconds]");
+  if (!whole || !parts.length) return "";
+  var seconds = {};
+  whole
+    .getAttribute("data-part-seconds")
+    .split(" ")
+    .forEach(function (pair) {
+      var bits = pair.split(":");
+      seconds[bits[0]] = Number(bits[1]) || 0;
+    });
+  var sum = 0;
+  for (var i = 0; i < parts.length; i++) {
+    if (!seconds[parts[i]]) return "";
+    sum += seconds[parts[i]];
+  }
+  var n = Math.ceil(sum / 60 - 1e-9);
+  return tn("contents.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+}
+
+function partsOf(row) {
+  return (row.getAttribute("data-parts") || "").split(" ").filter(Boolean);
+}
+
 /* The contents page, when it is being served rather than opened off the disk.
  *
  * Section links are relative, and a served reader run locally is behind a key held in
@@ -214,6 +246,13 @@ function readInto() {
           });
       };
       row.appendChild(get);
+      var cost = spends(hearing, partsOf(row));
+      if (cost) {
+        var said = document.createElement("span");
+        said.className = "get-cost";
+        said.textContent = cost;
+        row.appendChild(said);
+      }
     });
   }
 
@@ -285,9 +324,22 @@ function readInto() {
   }
 
   function show() {
-    var waiting = document.querySelectorAll("[data-chapter].waiting").length;
+    var rows = document.querySelectorAll("[data-chapter].waiting");
+    var waiting = rows.length;
     var box = press.parentNode;
     box.hidden = waiting === 0;
+    // What preparing the rest spends, beside the press: every waiting part once.
+    var cost = document.getElementById("prepare-cost");
+    if (!cost || !waiting) return;
+    var hearing = rows[0].hasAttribute("data-audio");
+    var parts = [];
+    Array.prototype.forEach.call(rows, function (row) {
+      partsOf(row).forEach(function (n) {
+        if (parts.indexOf(n) < 0) parts.push(n);
+      });
+    });
+    cost.textContent = spends(hearing, parts);
+    cost.hidden = !cost.textContent;
   }
 
   press.onclick = function () {
