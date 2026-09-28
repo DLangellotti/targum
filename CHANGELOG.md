@@ -95,6 +95,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `scripts/measure_pronunciation.py` does: 97.9% of the French shelf's word tokens and
   96.1% of its types on 2026-09-28, every text above 95%, with the misses mostly names,
   `M.` and hyphenated compounds.
+- The chanted Torah keeps a clock for every word (targum-internal#329). `parasha
+  leyning` used to collapse the aligner's word timings to one span per verse before it
+  stored them; the manifest now keeps them, as `clocks` on each part, verse ref to one
+  [start, end] per word, and still writes the verse spans, read off the words, so
+  nothing that asks for a verse changes. A reader built from a re-attached portion gets
+  the same word rows prose already has, so the card's ear and the player's word-by-word
+  step work on the Torah too. A trope phrase's span is read off the same clocks at build
+  time (`Part.phrase_spans`), for "hear the phrase" later; nothing draws it yet. A
+  manifest attached before today has no `clocks` and reads exactly as it did. Getting
+  them is `targum parasha leyning --again`, and costs no alignment where the old one is
+  still cached: Bereshit came back in about a second with the same verse spans. Where it
+  is not, about a minute an aliyah. design.md §12 carries a proposed entry, not yet
+  approved, for naming a word's accent on its card.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

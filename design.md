@@ -614,6 +614,49 @@ floor, a precision of 0.98, is only as good as the gold under it.
 - **The source is named at the foot** of any page that shows a reading: Morphalou, its
   licence and the one reading targum corrects, which the licence decision asks.
 
+### A word in scripture names its accent — 2026-09-28, proposed
+
+**Proposed, and waiting for David. Nothing in this entry is built.** Until he approves it
+or rewrites it, no card names an accent, and this entry is the gate
+(targum-internal#329). What it needs underneath is built: `vocalize/trope.py` names every
+accent of the prose system and divides a verse into its phrases, and since the same day
+the chanted Torah keeps a clock for every word rather than one per verse.
+
+The page already shows every mark the Masorah wrote. What a learner cannot do is read
+them: a tipcha looks like a mercha turned round, and nothing on the page says which one
+ends a phrase. The card is where a word is asked about, so the card is where the mark
+gets its name. The page stays as it is.
+
+- **One line, naming the accent that rules the word, and its class.** "tipcha ·
+  disjunctive", "munach · conjunctive" — `Accent.label`, as `trope.py` writes it. Under
+  the pronunciation line, in the card's own quiet style: muted ink (§4) at the card's own
+  size. No icon, no glyph of the mark (the word above already shows it), no colour for
+  the class, and no rank: "king" and "count" are the reference page's words, not the
+  card's. A class drawn in two hues would put a second colour system on a page that has
+  one.
+- **Only while the marks are shown.** With the chanting marks taken off (the ⋯ control,
+  "Scripture has a third form of its text", 2026-09-01) the line goes too: it would
+  describe something the page is not showing. A text without cantillation never has it.
+- **The ruling accent, and nothing that is not one.** A word carrying two names the one
+  that governs it, its strongest disjunctive. Meteg shares silluq's codepoint and is not
+  an accent, so it is never named. A word with no accent of its own — the first of a
+  maqaf pair, mostly — has no line; it is chanted with the word after it, and saying so
+  on every such card would be noise.
+- **The poetic books get no line.** Psalms, Proverbs and Job outside its prose frame are
+  accented in another system, and a prose name on a psalm is wrong with a straight face.
+  No line, rather than an approximation, until that system has a table of its own.
+- **The line is where "hear the phrase" will go, and is not a control yet.** The phrase is
+  the run of words one disjunctive closes, the conjunctives leading up to it included,
+  and its sound is their clocks, first to last (`Part.phrase_spans`). Playing it on a tap, and lighting the phrase while
+  it plays, is its own entry when it is built; until then the line is text.
+
+Two things for David to settle before it is built. **The names' spelling in each
+interface:** the tikkun's (tipcha, zakef katan, telisha ketanah) in English, and in
+Russian either those transliterated or the Hebrew name itself (טִפְחָא), which would be
+the one line on a Russian card not in Russian. **And whether the class says what it
+does** — "disjunctive" is the grammar's word; "pause" and "joins" are a learner's, and
+shorter.
+
 ### The back office is four tabs — 2026-09-28
 
 "The back office has so much going on now, time to organize into menus and tabs," David

@@ -9,9 +9,15 @@ recording keeps what does not move instead: each part's word timings, from one f
 alignment paid for (in time, not money — it is local) when the recording was attached.
 Spans are then derived at every build by matching words, the same way the imported-audio
 manifest derives its own, so a re-split costs nothing and breaks nothing.
+
+Scripture keeps its word timings too, since 2026-09-28 (targum-internal#329): by ref, one
+clock per word in the order the verse writes them. A verse's span is read off its words,
+and so is a word's and a trope phrase's.
 """
 
 from __future__ import annotations
+
+import re
 
 from pydantic import BaseModel, Field
 
@@ -32,11 +38,18 @@ class Part(BaseModel):
     #: copied between machines without rewriting anything.
     audio: str
     #: Verse ref to [start, end] in seconds, into this part's own file. Scripture only;
-    #: a prose part carries `words` instead.
+    #: a prose part carries `words` instead. Written from `clocks` where there are any,
+    #: and still written, so a manifest reads the same to code that knows only verses.
     spans: dict[str, list[float]] = Field(default_factory=dict)
+    #: Scripture's word timings: verse ref to one [start, end] per word the aligner was
+    #: given, in the order the verse writes them, as `spoken_words` counts them. Inline
+    #: rather than a file beside the audio, as prose keeps them, because a verse's words
+    #: are addressed by ref and the ref is already here. Empty in a manifest attached
+    #: before 2026-09-28, which collapsed them to `spans` and reads exactly as it did.
+    clocks: dict[str, list[list[float]]] = Field(default_factory=dict)
     #: A prose part's word timings: a JSON file beside the audio, rows of
     #: [word, start, end, score] in seconds into this part's own file. Empty for
-    #: scripture, whose spans were cut on verses at attach time.
+    #: scripture, which keeps its own in `clocks`.
     words: str = ""
     #: The part's video cut, named like `audio`, or "" for a recording that is sound
     #: alone — which is every recording in the library today. Here so that whether a
@@ -49,6 +62,64 @@ class Part(BaseModel):
     #: while a source that does change leaves the section silent rather than wrong,
     #: which is the same rule a missing span follows.
     blocks: list[int] = Field(default_factory=list)
+
+    def word_clocks(self, ref: str, text: str) -> list[list[float]]:
+        """A verse's words as the card's ear wants them: [charStart, charEnd, start, end].
+
+        The char offsets are into the verse's bare text, the one the page's words carry
+        in `data-bare`, so the card finds the clock under a tapped word by overlap alone —
+        the same rows `audio.spans.word_spans_for` makes for prose. Empty where the text
+        no longer counts as many words as were timed: the edition moved under the
+        recording, and a gap beats a clock on the wrong word.
+        """
+        from ..vocalize import js_span, strip_nikkud
+
+        rows = self.clocks.get(ref, [])
+        places = spoken_words(text)
+        if not rows or len(rows) != len(places):
+            return []
+        bare, to_bare = strip_nikkud(text)
+        out: list[list[float]] = []
+        for (first, last), (start, end) in zip(places, rows, strict=True):
+            if end > start:
+                out.append([*js_span(bare, to_bare[first], to_bare[last]), start, end])
+        return out
+
+    def phrase_spans(self, ref: str, text: str) -> list[list[float]]:
+        """Each trope phrase of a verse as [start, end], in the order they are chanted.
+
+        What "hear the phrase" plays, read off the word clocks and the marks
+        (`vocalize.trope`) at build time rather than stored: the grouping is in the text,
+        and a manifest that kept it would be a second copy that could disagree. Empty
+        where the words were not timed, where the counts disagree, and for a verse in
+        the poetic books, whose accents are another system.
+        """
+        from ..vocalize.trope import PoeticAccents, read
+
+        rows = self.clocks.get(ref, [])
+        if not rows or len(rows) != len(spoken_words(text)):
+            return []
+        try:
+            verse = read(text, ref)
+        except PoeticAccents:
+            return []
+        # Which timed word each whitespace token is. A token that is all accent was never
+        # said and has no number; a paseq standing alone and a section mark were timed,
+        # and fall in no phrase because the trope reading skips them.
+        numbered: dict[int, int] = {}
+        for token, word in enumerate(text.split()):
+            if _spoken(word):
+                numbered[token] = len(numbered)
+        out: list[list[float]] = []
+        for phrase in verse.phrases:
+            held = sorted(
+                numbered[verse.words[index].token]
+                for index in phrase.words
+                if verse.words[index].token in numbered
+            )
+            if held:
+                out.append([rows[held[0]][0], rows[held[-1]][1]])
+        return out
 
 
 class Recording(BaseModel):
@@ -105,6 +176,32 @@ class Recording(BaseModel):
             if mine > held:
                 best, held = part, mine
         return best
+
+
+def _spoken(token: str) -> bool:
+    from ..vocalize import strip_taamim
+
+    return bool(strip_taamim(token))
+
+
+def spoken_words(text: str) -> list[tuple[int, int]]:
+    """Where each word the aligner is given sits in a verse, as (start, end) offsets.
+
+    The aligner hears `strip_taamim(text).split()`, and taking the marks off never splits
+    a token, so word n is the nth whitespace token with anything left once the marks are
+    gone. Counted here, once, so the attach that numbers the clocks and the build that
+    puts them under the page's words cannot count differently.
+    """
+    return [
+        (found.start(), found.end())
+        for found in re.finditer(r"\S+", text)
+        if _spoken(found.group())
+    ]
+
+
+def verse_spans(clocks: dict[str, list[list[float]]]) -> dict[str, list[float]]:
+    """Each verse's [start, end]: its first word's start and its last word's end."""
+    return {ref: [rows[0][0], rows[-1][1]] for ref, rows in clocks.items() if rows}
 
 
 #: One aligned word as the manifest stores it: [word, start, end, score].

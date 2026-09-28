@@ -71,6 +71,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import IntEnum
+from typing import cast
 
 from ..errors import TargumError
 
@@ -255,6 +256,9 @@ class Word:
     `accents` is every accent it carries, once each, in reading order; `accent` is the
     one that rules it: its strongest disjunctive, otherwise its last conjunctive.
     `joined` is a maqaf after it, which makes it one accentual unit with the next word.
+    `token` is which whitespace-separated token of the text it was written in — words
+    joined by maqaf share one — so a phrase can be found in anything else counted by
+    token, a recording's word clocks among them.
     """
 
     text: str
@@ -263,6 +267,7 @@ class Word:
     joined: bool = False
     paseq: bool = False
     verse_end: bool = False
+    token: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -325,11 +330,11 @@ def ruling(accents: tuple[Accent, ...]) -> Accent | None:
     return accents[-1] if accents else None
 
 
-def _tokens(text: str) -> list[tuple[str, bool, bool, bool]]:
-    """(word, joined, paseq, verse_end) for each written word, in order."""
+def _tokens(text: str) -> list[tuple[str, bool, bool, bool, int]]:
+    """(word, joined, paseq, verse_end, token) for each written word, in order."""
     words: list[list[object]] = []
     stopped = SOF_PASUQ in text
-    for token in text.split():
+    for place, token in enumerate(text.split()):
         if _SECTION.match(token) or (words and words[-1][3] and _BARE_SECTION.match(token)):
             continue
         if not any("א" <= char <= "ת" for char in token):
@@ -346,10 +351,10 @@ def _tokens(text: str) -> list[tuple[str, bool, bool, bool]]:
             last = number == len(pieces) - 1
             if not piece:
                 continue
-            words.append([piece, not last, stroke and last, end and last])
+            words.append([piece, not last, stroke and last, end and last, place])
     if words and not stopped:
         words[-1][3] = True
-    return [(str(w[0]), bool(w[1]), bool(w[2]), bool(w[3])) for w in words]
+    return [(str(w[0]), bool(w[1]), bool(w[2]), bool(w[3]), cast(int, w[4])) for w in words]
 
 
 def read(text: str, ref: str | None = None) -> Verse:
@@ -365,11 +370,11 @@ def read(text: str, ref: str | None = None) -> Verse:
     if ref is not None and system(ref) == "poetic":
         raise PoeticAccents(ref)
     words: list[Word] = []
-    for surface, joined, stroke, end in _tokens(text):
+    for surface, joined, stroke, end, token in _tokens(text):
         accents = accents_of(surface, verse_end=end, paseq=stroke)
         if any(accent.poetic for accent in accents):
             raise PoeticAccents(ref or "This verse")
-        words.append(Word(surface, accents, ruling(accents), joined, stroke, end))
+        words.append(Word(surface, accents, ruling(accents), joined, stroke, end, token))
     return Verse(tuple(words), _phrases(words))
 
 

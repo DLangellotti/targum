@@ -710,15 +710,16 @@ class Spoken(NamedTuple):
     #: the card's own ear. Everywhere else the card simply offers no sound, the way the
     #: phrase chip asks only where the page can.
     #:
-    #: Only `_imported` and `_read_along` fill this, and not because the other branches
-    #: forgot: a word clock exists only where something timed the audio word by word.
-    #: ASR returns word timings for an upload, and `recording.attach` runs the forced
-    #: aligner over a LibriVox reading. Scripture was attached verse by verse and no
-    #: word-level pass was ever run over it, a dialogue's turns come back from the voice
-    #: with turn boundaries and nothing finer, and the weekly is read straight through.
-    #: So `_read_aloud`, `_scene` and `_read_through` have nothing to put here, and
-    #: passing them an empty dict would be the same silence spelled longer. Giving the
-    #: library's readers a card that speaks is a data pass, not an argument.
+    #: Only `_imported`, `_read_along` and `_read_aloud` fill this, and not because the
+    #: other branches forgot: a word clock exists only where something timed the audio
+    #: word by word. ASR returns word timings for an upload, `recording.attach` runs the
+    #: forced aligner over a LibriVox reading, and `parasha.leyning` over the chanted
+    #: Torah, whose word clocks are kept since 2026-09-28 (targum-internal#329) — a
+    #: scripture recording attached before then was cut on verses and still has none. A
+    #: dialogue's turns come back from the voice with turn boundaries and nothing finer,
+    #: and the weekly is read straight through, so `_scene` and `_read_through` have
+    #: nothing to put here. Giving the library's readers a card that speaks is a data
+    #: pass, not an argument.
     words: dict[str, list[list[float]]] = {}
     #: The part's video cut on disk, or "". Never a data URI: the one file too heavy to
     #: inline rides beside the reader instead — `render()` copies it and writes the
@@ -809,6 +810,11 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
     audio = _inlined(recording_index.folder(document.source) / part.audio)
     if not audio:
         return SILENT
+    words = {
+        segment.id: rows
+        for segment in segments
+        if segment.id in spans and (rows := part.word_clocks(segment.ref, segment.text))
+    }
     return Spoken(
         {},
         spans,
@@ -817,6 +823,7 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
         recording.licence,
         recording.licence_url,
         "the reading",
+        words,
     )
 
 
