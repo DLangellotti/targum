@@ -56,6 +56,9 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   registers: payload.registers || [],
   // The annotator's pipe strings, which a token points into by its ninth field.
   grammar: payload.grammar || [],
+  // Whether a finite past is the passé simple, and what a pronoun stands for (#264).
+  ...(payload.tensesApart ? { tensesApart: true } : {}),
+  ...(payload.stands ? { stands: payload.stands } : {}),
   sourceRegister: payload.sourceRegister || "",
   document: "a-chapter",
   // Which part of the document this file is, and how many there are. A targum finishes
@@ -329,6 +332,10 @@ process.stdout.write(
       Array.isArray(line) ? reader.useLine(line[0], line[1]) : reader.useLine(line),
     ),
     persons: (payload.personLines || []).map((line) => reader.personWord(line)),
+    // What a pronoun stands for: [segment id, row index], read from `texts`.
+    standing: (payload.standingAsks || []).map((ask) =>
+      reader.standingAt(ask[0], ask[1], payload.texts || {}),
+    ),
     // A French compound tense: [participle line, verb, auxiliary line, auxiliary, reflexive].
     compounds: (payload.compoundLines || []).map((ask) => reader.compoundLine(...ask)),
     // A French noun kept with its article: [dictionary form, grammar line].

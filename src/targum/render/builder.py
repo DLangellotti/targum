@@ -41,6 +41,7 @@ from ..annotate.base import (
     kind_of,
     method_label,
 )
+from ..annotate.model_lemma import antecedents_shown, tenses_apart
 from ..annotate.pronounce import guessed
 from ..models import (
     Annotation,
@@ -49,6 +50,7 @@ from ..models import (
     Glossary,
     Segment,
     SegmentedDocument,
+    Token,
     Translation,
     Vocalization,
     direction_for,
@@ -2674,6 +2676,31 @@ COVER_SUFFIXES = ((".webp", "image/webp"), (".png", "image/png"), (".jpg", "imag
 PLATE_WIDTH = 128
 
 
+def _stands_at(
+    token: Token,
+    sid: str,
+    earlier: str | None,
+    bare: Mapping[str, str],
+    to_bare: Mapping[str, list[int]],
+) -> list[object] | None:
+    """Where the words a pronoun stands for are, as [segment, start, end] in the page's
+    coordinates: the last place they are written before the pronoun in its own segment,
+    or the last in the segment before. None where they are not there — the reading is
+    shared by every text with the sentence, and this one may not have them."""
+    if not token.stands_for:
+        return None
+    back, words = token.stands_for
+    target = sid if back == 0 else earlier
+    if target is None or target not in bare:
+        return None
+    text = bare[target]
+    limit = map_span(token.start, token.end, to_bare[sid])[0] if back == 0 else len(text)
+    at = text.rfind(words, 0, limit)
+    if at < 0:
+        return None
+    return [target, *js_span(text, at, at + len(words))]
+
+
 def cover_bytes(covers: Path | None, name: str) -> bytes | None:
     """A drawn cover, whatever it was saved as, or None where nobody has drawn one."""
     if covers is None or not name:
@@ -2997,8 +3024,12 @@ def render(
     # learning. Both are the same page. See `/parasha` and §12 of design.md.
     bare: dict[str, str] = {}
     to_bare: dict[str, list[int]] = {}
+    # The segment before each, in the document's order: where a pronoun's words may be.
+    before_of: dict[str, str] = {}
     for segment in segmented.segments:
         bare[segment.id], to_bare[segment.id] = strip_nikkud(segment.text)
+    for earlier, later in zip(segmented.segments, segmented.segments[1:], strict=False):
+        before_of[later.id] = earlier.id
     pointed = dict(vocalization.segments) if vocalization is not None else {}
     machine = set(vocalization.machine) if vocalization is not None else set()
 
@@ -3340,6 +3371,11 @@ def render(
         words: dict[str, list[list[int]]] = {}
         # The "as said" marks, per row, where the page says how its French is said.
         said_marks: dict[str, list[list[object]]] = {}
+        # What a French pronoun stands for, placed on this page: per segment, rows of
+        # [the pronoun's row, the segment that names it, start, end]. Only once the words
+        # are measured to be right (`model_lemma.antecedents_shown`), and only where they
+        # are on this page to be gone to (targum-internal#264).
+        stands: dict[str, list[list[object]]] = {}
         # Every form each verb is written in on this page, so the conjugation table a
         # word gets is one all of them agree on and not the first one's (#307).
         verb_forms: dict[tuple[str, str], list[str]] = {}
@@ -3446,6 +3482,10 @@ def render(
                     if label:
                         row.append(label)
                     rows.append(row)
+                    if token.stands_for and antecedents_shown():
+                        placed = _stands_at(token, sid, before_of.get(sid), bare, to_bare)
+                        if placed and placed[0] in section.segment_ids:
+                            stands.setdefault(sid, []).append([len(rows) - 1, *placed])
                 words[sid] = rows
         # One table of meanings per target language, each parallel to `lemmas`. A reader
         # holding an English and a Russian translation carries both and shows whichever
@@ -3798,6 +3838,16 @@ def render(
                     # or a language they say nothing about — gave the tables nothing.
                     **({"built": builts} if len(builts) > 1 else {}),
                     **({"grammar": grammar} if len(grammar) > 1 else {}),
+                    # Whether a finite past is the passé simple, which only a text read
+                    # wholly by a question that tells it from the imparfait can say
+                    # (`model_lemma.tenses_apart`). Left out everywhere else, and the
+                    # card then says "past", as it always did.
+                    **(
+                        {"tensesApart": True}
+                        if annotation is not None and tenses_apart(annotation.annotator)
+                        else {}
+                    ),
+                    **({"stands": stands} if stands else {}),
                     # A verb's citation form and a noun's lying plural, parallel to the
                     # lemmas. Left out while nothing on the page has either — which is
                     # every text glossed before they existed.

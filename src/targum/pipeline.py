@@ -2079,7 +2079,7 @@ class Build:
             if fresh is None:
                 return existing
             existing.tokens.update(fresh.tokens)
-            existing.annotator = fresh.annotator
+            existing.annotator = model_lemma.merged(existing.annotator, fresh.annotator)
             existing.write(path)
             return existing
         fresh = self.annotate_segments(segmented, wanted)

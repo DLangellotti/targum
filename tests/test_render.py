@@ -6069,3 +6069,78 @@ def test_pressing_the_commentary_separates_its_comments(tmp_path: Path) -> None:
         Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.js"
     ).read_text(encoding="utf-8")
     assert 'cell.classList.toggle("commented", !!entry.commented);' in js
+
+
+def _french_page(tmp_path: Path, annotator: str) -> dict[str, Any]:
+    """A two-sentence French page whose *le* stands for *le livre* in the sentence before."""
+    from targum.models import Annotation, Token
+
+    segments = [
+        paragraph(0).model_copy(update={"text": "Paul a le livre."}),
+        paragraph(1).model_copy(update={"text": "Il le lit."}),
+    ]
+    segmented = make_segmented(segments).model_copy(update={"language": "fr"})
+    document = Document(source="m", title="T", language="fr", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="fr",
+        target_language="en",
+        provider="null",
+        segments={s.id: "tr" for s in segments},
+    )
+    pronoun = Token(
+        start=3,
+        end=5,
+        surface="le",
+        lemma="le",
+        band=1,
+        pos="PRON",
+        feats="UPOS=PRON|Role=Obj",
+        stands_for=(1, "le livre"),
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="fr",
+        annotator=annotator,
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [Token(start=10, end=15, surface="livre", lemma="livre", band=1)],
+            segments[1].id: [pronoun],
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+    assert found is not None
+    data: dict[str, Any] = json.loads(found.group(1))
+    return data
+
+
+def test_a_french_page_says_whether_its_tenses_are_apart(tmp_path: Path) -> None:
+    """Only a text read wholly by prompt 3 can call a finite past the passé simple; one
+    still holding prompt 2's readings ships nothing, and its card says "past" as it did
+    (targum-internal#264)."""
+    now = _french_page(tmp_path / "a", "model-lemma/claude-haiku-4-5/3+wordfreq+register/2")
+    assert now["tensesApart"] is True
+    for annotator in (
+        "model-lemma/claude-haiku-4-5/2+wordfreq+register/2",
+        "model-lemma/claude-haiku-4-5/3/with-2+wordfreq+register/2",
+    ):
+        assert "tensesApart" not in _french_page(tmp_path / annotator[-12:], annotator)
+
+
+def test_what_a_pronoun_stands_for_ships_only_once_it_is_measured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The words are kept on the token whatever the measure; the page carries them only at
+    a precision of 0.9, placed in the segment before as [row, segment, start, end]."""
+    from targum.annotate import model_lemma
+
+    name = "model-lemma/claude-haiku-4-5/3+wordfreq"
+    assert "stands" not in _french_page(tmp_path / "a", name)
+    monkeypatch.setattr(model_lemma, "ANTECEDENT_PRECISION", 0.93)
+    data = _french_page(tmp_path / "b", name)
+    assert data["stands"] == {paragraph(1).id: [[0, paragraph(0).id, 7, 15]]}
