@@ -1829,9 +1829,23 @@
         if (screenOf[name]) screenOf[name].hidden = name !== now;
       });
       if (where) {
-        where.textContent = t("learn.arrival.step", "{n} of {of}")
+        /* And drawn, as a bar a step in leaf (design.md §12, 2026-09-28). The bars carry
+           no text, so what is read aloud, and what `textContent` says, is the words. */
+        var bars = document.createElement("span");
+        bars.className = "arrival-bars";
+        bars.setAttribute("aria-hidden", "true");
+        for (var b = 0; b < order.length; b++) {
+          var bar = document.createElement("span");
+          bar.className = b <= step ? "arrival-bar is-done" : "arrival-bar";
+          bars.appendChild(bar);
+        }
+        var words = document.createElement("span");
+        words.textContent = t("learn.arrival.step", "{n} of {of}")
           .replace("{n}", String(step + 1))
           .replace("{of}", String(order.length));
+        where.textContent = "";
+        where.appendChild(bars);
+        where.appendChild(words);
       }
       done.hidden = now !== "subjects";
       done.disabled = picked.length < WANTED;
