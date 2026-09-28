@@ -67,13 +67,17 @@ code that makes it true. The audit found these five failures most often:
   figure alone is fine.
 - A wait is a time, in minutes: "about 4 minutes".
 - Chatting is **included**. Don't put a per-message cost on it.
-- Avoid "free", "price", "quote" and "sale" in the product. (Public pages may sell; see §6.)
+- Don't use "free", "price", "quote" or "sale" inside the product. Say "The library still opens" or "uses no credits". Public pages may sell; see §6.
+- Chatting is "included". The approval page names no allowance (§12, 2026-09-24). Only the /connect FAQ says what it is included in: "your monthly credits". Don't write "uses no credits" for chat: a chat turn is metered.
 
 ## Terminology
 
 | Thing | Say | Don't say (to readers) |
 |---|---|---|
 | The product | targum (lowercase) | Targum, the app |
+| The account page | **Your profile** | You, the profile page (except in the legal text) |
+| Keeping a chat as a text | **Save as a text** | Save as targum |
+| Leaving a mailing | **Unsubscribe** | Stop these emails |
 | A text with its translation held line by line, in the reader's collection | a targum; the collection is **Your targums** | your shelf, your build |
 | Everyone's catalogue | **the library** in a sentence, **Library** as the nav label and page name | the catalogue, the shelf |
 | One item in the library or a playlist | a text | a doc, a book (unless it is one) |
@@ -85,9 +89,9 @@ code that makes it true. The audit found these five failures most often:
 | The allowance | credits | hours, minutes (as a pool), balance points |
 | Confirming a build or a set that Claude or ChatGPT set up | confirm it on targum | press Start, open it |
 | The weekly publication | the Weekly News Digest; one issue | newsletter |
-| Linking targum to Claude or ChatGPT | connect; "targum in Claude and ChatGPT" | the MCP, the connector (except in the host's own menus) |
+| Linking targum to Claude or ChatGPT | connect; the feature is **targum in Claude and ChatGPT** | targum Connect, the MCP, the connector (except in the host's own menus and the public foot's "Install MCP") |
 | A unit of a text you read | section | chunk. (Add and the build card still say “part” for what a build makes first.) |
-| A followed series | follow / Following | subscription (reserve for billing) — see open question |
+| A followed series | follow; the list is **Following** | subscription (kept for billing) |
 
 Capitalise named pages as they appear in the nav: Your targums, Your Progress, Library,
 Add. Otherwise use sentence case.

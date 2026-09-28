@@ -3311,7 +3311,7 @@ def test_the_way_out_is_in_the_language_the_reader_followed_in(
     page = body.decode("utf-8")
     assert status == 200
     assert "Да, перестать" in page and "Yes, stop" not in page
-    assert "ваши подписки" in page
+    assert "Ваши серии" in page
     assert 'lang="ru"' in page, "the page says which language it is in"
 
     status, body, _ = form(port, "/series/stop", {"t": stop})

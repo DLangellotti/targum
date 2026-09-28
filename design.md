@@ -347,6 +347,37 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The copy audit's answers — 2026-09-28
+
+The English copy was audited end to end (`COPY_AUDIT.md`). Its open questions went to
+David, and he answered them (`COPY_QUESTIONS.md`). Five of the answers undo names or
+silences recorded in earlier entries below. They are listed here so nobody restores the
+old wording.
+
+- **"Save as a text", not "Save as targum"** (2026-09-06). A newcomer doesn't know that
+  "a targum" is our word for a bilingual text, and without the article the label read
+  like a file-dialog item.
+- **The sign-in page is headed "Sign in to targum"** (2026-08-24 cut its copy). The
+  tagline headed a page people reach by pressing Sign in, and the only "Sign in" on it
+  was a link back to itself. The sign-in email already used this heading.
+- **The ladders say what they are** (2026-08-24: "the limit is all that is said"). A
+  newcomer meets "ב+" or "A2" with nothing to say which end is the start. Hebrew: "Ulpan
+  classes in Israel run from aleph, for beginners, to vav." Other languages: "The
+  European scale runs from A1, for beginners, to C2." The limit, "A guide, not a
+  placement", still follows each.
+- **No "free" inside the product.** This applies §6 ("inside the product there is no
+  price") to two places that had drifted: the refusals that ended "The library is always
+  free" now say "The library still opens", and the From targum playlists (#415) now say
+  "Opening them uses no credits".
+- **Followed series are "Following", not "Your subscriptions"**, so the word stays free
+  for a paid plan. /you is "Your profile" everywhere.
+
+What does **not** change: the approval page still says "Chatting is included" and names
+no allowance (2026-09-24). Only the public /connect FAQ says what chatting is included
+in: "your monthly credits". That is true, since a turn is metered into the monthly pool
+(2026-09-23), which is also why "Chatting uses no credits" was rejected.
+
+
 ### The arrival opens with a welcome, and says what is optional — 2026-09-28
 
 David, trying the arrival as a new reader on the live site: "very weird to come and see

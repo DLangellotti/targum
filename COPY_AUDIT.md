@@ -1,9 +1,63 @@
-# English copy audit — Pass 1
+# English copy audit
 
 Branch `copy-audit`, from `origin/master` at 92027c5, 2026-09-28. This covers the English
 user-facing copy inside targum and in every email it sends. The standards are David's
 brief and `design.md` §6, with the §12 decisions left standing. Open decisions are in
 `COPY_QUESTIONS.md`. The voice and terms are in `COPY_VOICE_GUIDE.md`.
+
+## Pass 2 — David's answers applied (2026-09-28)
+
+This branch was rebased onto master after #535 (the welcome, the waitlist's per-step
+pages, the sign-in foot) merged. #535's `waitlist.note.*` keys and their Russian are
+final. Two of its lines were corrected before it merged, in coordination with that PR:
+- "This link no longer works" replaces "has expired". Waitlist links have no age limit.
+- Joining now says an email went out only if the address wasn't already on the list.
+
+**In this PR (wording):**
+- **Q1:** the 38 stale Russian lines are rewritten and stamped. `test_strings` passes.
+- **Q12:** the set page says unticked texts come out of the playlist.
+- **Q13:** "The library still opens" replaces "is always free" in five refusals. The From
+  targum playlists say "Opening them uses no credits". "That's a lot to build at once" is
+  now "to get ready".
+- **Q14:** the look on Add is no longer priced. Three orphaned keys are deleted.
+- **Q15:** the /connect FAQ says "Chatting is included in your monthly credits. A new text
+  you ask for uses credits, and you confirm it first."
+  - *Changed from the approved text:* the recommendation said "Chatting uses no credits".
+    That is false, because a turn is metered into the monthly pool (§12 2026-09-23).
+  - The approval page keeps "Chatting is included" with no allowance named, as §12
+    2026-09-24 requires (and `test_oauth_serve` holds). The model-facing `record_turn`
+    note says the same thing.
+- **Q16:** "More than 500 texts and videos". The catalogue has 532 Hebrew entries.
+- **Q17:** the privacy notice gains:
+  - clause 3.10 (the waitlist and the digest)
+  - the ten-minute connect cookie
+  - OpenAI, ElevenLabs, Google (spoken audio) and DataImpulse as processors
+  - Resend's full list of mail, and Anthropic's chat and pictures
+  - five US processors in the transfers clause
+  - `LEGAL_CHANGED` set to 28 September 2026
+
+  Clause numbers 3.1–3.9 are unchanged, so no cross-reference moved. Google sign-in is
+  left out: it isn't configured on the box (`deploy/box.env.op`).
+  **Confirm before `legal_is_public()`:** the legal entity names (OpenAI OpCo, LLC;
+  ElevenLabs, Inc.; Google LLC) are from public knowledge, not from your contracts, and
+  DataImpulse's entity and country are unstated.
+- **Q18:** the consent line in `oauth.SCOPES` and the catalogue now reads "Send us what you
+  write in a language you're learning, for us to correct. Add texts to your playlists, and
+  get new ones ready for you to confirm." The line under it now carries "add that language
+  to the ones you're learning".
+- **Q19:** /you says to email hello@targum.page to take back a deletion.
+- **Q24:** "Following" for series, and "Your profile" for /you.
+- **Q25:** "Save as a text".
+- **Q26:** the /connect kicker says "targum", not "targum Connect".
+- **Q27:** the sign-in page h1 is "Sign in to targum".
+- **Q29:** the ulpan and CEFR ladders say what they are. "Learned on targum" has a tooltip.
+- **Q30:** "Unsubscribe" in both mail feet.
+
+Every changed or new key has Russian, and each is stamped. design.md §12 has one dated
+entry recording the five answers that undo earlier §12 names or silences.
+
+**In the stacked follow-up PR (behaviour):** Q2–11, the display half of Q14, Q20–23 and
+Q28, with tests. See that PR for per-item status.
 
 ## Scope
 
@@ -95,8 +149,7 @@ wrong plurals, internal words leaking out, and inconsistent terms.
 
 - **/progress with no words:** the empty-state line is placed after the footer include, so
   it renders **below the footer** and the page body is blank.
-- **Sign-in pages at 1280px:** the footer is squeezed into the card column, and the wordmark
-  overlaps "targum / About".
+- ~~**Sign-in pages at 1280px:** the footer is squeezed into the card column.~~ Fixed in #535.
 - **/you at 390px:** the "In Hebrew, targum calls you" choices wrap, so the Hebrew options
   read out of order.
 - **/library at 390px:** the Cards/List switch wraps below the sort, leaving its divider
@@ -121,46 +174,7 @@ These predate the audit. They are listed for a future i18n pass.
 
 ## Russian keys left stale (Q1)
 
-| Key | New English | Russian now (still says) |
-|---|---|---|
-| `add.page.plain-text-or-markdown-in-reading-order` | A text file or an ebook, in reading order | Обычный текст или markdown, в порядке чтения |
-| `add.page.something-else` | Remove file | Что-то другое |
-| `progress.page.where-they-are` | How well you know them | Где они |
-| `reader.mode.marking` | Highlighting the words you haven't learned. | Отмечаем слова по ходу дела. |
-| `reader.mode.not-marking` | Not highlighting. | Не отмечаем. |
-| `reader.page.mark-words-as-you-read` | highlight the words you haven't learned | отмечать слова по ходу дела |
-| `reader.page.close-this-then-a-word-then-your` | close this, then a word's card, then your saved words, then stop stepping through words | закрыть это, затем слово, затем сохранённые слова, затем очередь |
-| `reader.pick.in-parallel` | word by word — the line's translation has the whole sentence | по словам — предложение идёт параллельно |
-| `you.page.hebrew-is-always-on-everything-else-is` | Hebrew always stays on. Apart from Hebrew and English, every language here is experimental. You lose nothing when you untick one. | Иврит включён всегда. Всё остальное — эксперимент, и, сняв галочку, вы ничего не теряете. |
-| `progress.milestone.start` | Mark a word as known and your count starts here. | Отметьте слово по ходу дела — и отсчёт начнётся здесь. |
-| `progress.days.first` | Open something and today is your first. | Сегодня — первый. |
-| `charts.growth.empty` | We'll draw a line once you've saved a second word. | Мы построим линию после вашего второго дня. |
-| `learn.why.start` | An easy place to start | С этого начинают чаще всего |
-| `account.expired` | That link no longer works. Enter your email for a new one. | Эта ссылка уже использована. Попросите у нас новую. |
-| `signin.page.that-link-has-been-used` | That link no longer works | Эта ссылка уже использована |
-| `follow.nothing-this-week` | The latest one isn't ready yet. | На этой неделе пока ничего. |
-| `bring.started` | We're getting it ready. You'll find it in Your targums. | Мы готовим текст. Он появится выше, когда будет готов. |
-| `weekly.page.this-week` | This issue | Эта неделя |
-| `weekly.page.every-monday-targum-publishes-a-free-issue` | Every Monday, targum publishes a free issue of the week's news, written at three levels. Pick one: | Каждый понедельник targum выпускает бесплатный выпуск новостей недели, написанный в трёх вариантах. Это выпуск этой недели — выберите уровень: |
-| `daily.page.made-honestly-says` | The Hebrew is the published edition, cut to this day's reading and not edited. The English beside it is {translation}. The cycle and its calendar come from Hebcal. The picture is {picture}. | Иврит — это опубликованное издание, вырезанное под сегодняшнее чтение и не отредактированное. Перевод рядом — {translation}. Цикл и его календарь взяты из Hebcal. Изображение — {picture}. |
-| `parasha.page.made-honestly-says` | The Hebrew is the Masoretic text as it is published, cut to this reading and not edited. The English beside it is {translation}. The haftarah is cut from the Prophets on the same shelf, with the translation each book carries there: the Metsudah Tanach for Judges, Samuel and I Kings, the 1917 JPS for the rest. The division into aliyot, the haftarah for each Shabbat and the calendar behind them — including which portion Israel reads and which the diaspora reads — come from Hebcal. | Иврит — это масоретский текст в опубликованном виде, вырезанный под чтение этой недели и не отредактированный. Перевод рядом — {translation}. Гафтара вырезана из Пророков на той же полке, с переводом, который несёт каждая книга: Мецуда Танах для Судей, Самуила и I Царей, JPS 1917 года для остальных. Деление на алиёт, гафтара для каждой субботы и календарь за ними — включая то, какую главу читают в Израиле и какую в диаспоре — взяты из Hebcal. |
-| `parasha.page.credits-say` | The scroll at the top was {photograph}, and the photograph is in the public domain under CC0. Where a reading has a recording, it is {recording}, chanted in the Avery-Binder trope and used under {licence}. | Свиток наверху — {photograph}, в общественном достоянии по CC0. Там, где у чтения есть запись, это {recording}, пропетая в тропе Эйвери-Биндера и используемая по {licence}. |
-| `suggest.looked-up` | {share}% of its words are rare in everyday use. | Ученик смотрит в словаре {share}% его слов. |
-| `suggest.passage` | Try {title} first. It's easier than the text as a whole. | {title} читается на вашем уровне, хотя весь текст сложнее. |
-| `waitlist.note.link-spent` | That link no longer works. If you've already confirmed, you're on the list. If not, join again. | Эта ссылка уже использована или устарела. |
-| `waitlist.note.keep-me` | Add {email} to the waitlist? | Оставить {email} в списке ожидания? |
-| `mail.waitlist.preheader` | Confirm your email address to join the waitlist. | Одно нажатие — и вы в списке. |
-| `mail.waitlist.lead` | Thanks for signing up. Press Confirm to finish joining the waitlist. | Спасибо, что записались. Нажмите «Подтвердить» — и вы в списке ожидания. |
-| `mail.weekly.confirm.preheader` | Confirm your email address to get it every Monday. | Одно нажатие — и он будет приходить по понедельникам. |
-| `press.page.that-quote-has-gone-stale` | We couldn't get this one ready. Ask for it again where you asked before. | Эта оценка устарела. Попросите снова там, где просили. |
-| `set.page.only-this-many-fit` | These texts need {total} credits and you have {n} left. Untick some and try again. | Этому плейлисту нужно кредитов: {total}, а у вас осталось {n}. Снимите отметку с части текстов и попробуйте снова. |
-| `playlists.page.none-yet` | No playlists yet. Use Add to playlist on any text to start one. | Плейлистов пока нет. Добавьте текст из его меню ⋯. |
-| `connect.page.a-can-it-spend-on-its-own` | No. When you ask for a text, it sends you a link. Nothing is made until you confirm it on targum. | Нет. Когда вы просите текст, он говорит, сколько времени это займёт, и присылает ссылку. Ничего не начнётся, пока вы не нажмёте «Начать» в targum. |
-| `connect.page.before-you-connect-we-show-you` | Before you connect, we show you what your AI will be able to do. It can’t make a text on its own: it sends a link, and you confirm it on targum. | Перед подключением мы показываем, что сможет делать ваш ИИ. Сам начать текст он не может: он присылает ссылку, а открываете её вы. |
-| `telegram.press-stale` | That button doesn't work any more. Send it to us again. | Эта кнопка больше не работает. Пришлите ссылку ещё раз. |
-| `pdf.is-a-scan` | This PDF is a scan, so there's no text in it to read. Try a copy with text, or paste the text itself. | Этот PDF — скан, а сканы мы пока не читаем. |
-| `pdf.scan-read-the-pages` | This PDF is a scan, so its words are in pictures of its pages. We can read those pictures for you. | Этот PDF — скан, поэтому его слова находятся на изображениях страниц. Прочитайте страницы, чтобы его добавить. |
-| `serve.post-too-long` | That's longer than a post. Press Back and paste it into the box instead. | Для поста это слишком длинно. Вставьте текст в поле выше. |
+Resolved in Pass 2: all 38 rewritten and stamped.
 
 ## Coverage by area
 
