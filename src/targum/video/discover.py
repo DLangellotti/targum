@@ -288,6 +288,13 @@ def _search(
 
 
 def _details(get: Fetch, api_key: str, ids: list[str]) -> list[dict[str, Any]]:
+    """The second asking, for at most `PAGE` ids: `videos.list` refuses more with a 400.
+
+    A search asked for fifty can answer with more — the first real Hebrew run came back
+    with 53 (2026-09-29) — so the caller splits, and this refuses rather than trusts it.
+    """
+    if len(ids) > PAGE:
+        raise TargumError(f"videos.list takes at most {PAGE} ids, not {len(ids)}.")
     answer = get(
         VIDEOS,
         {"key": api_key, "part": "status,contentDetails,snippet", "id": ",".join(ids)},
@@ -369,9 +376,15 @@ def discover(
                     else:
                         fresh.append(identifier)
                         seen.add(identifier)
-                if fresh:
+                details: list[dict[str, Any]] = []
+                for start in range(0, len(fresh), PAGE):
+                    if start and not quota.affords(VIDEOS_UNITS):
+                        found.short = True
+                        break
                     quota.spend(VIDEOS_UNITS)
-                    for item in _details(get, api_key, fresh):
+                    details += _details(get, api_key, fresh[start : start + PAGE])
+                if details:
+                    for item in details:
                         if kept >= count:
                             break
                         reason = check(item, language)

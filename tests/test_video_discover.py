@@ -215,3 +215,15 @@ def test_the_batch_total_is_the_sum_and_the_table_says_it() -> None:
     written = d.to_json(found)
     assert written["units"] == found.units
     assert [c["id"] for c in written["candidates"]] == ["a", "b"]
+
+
+def test_a_search_answering_more_than_fifty_is_asked_about_in_fifties() -> None:
+    # The first real Hebrew run: a search asked for 50 answered with 53, and one
+    # videos.list call for all 53 came back 400 (2026-09-29).
+    items = {f"v{n}": _item(f"v{n}") for n in range(53)}
+    api = Recorded([list(items)], items)
+    found = _run(api, count=53)
+    asked = [query["id"].split(",") for address, query in api.calls if address == d.VIDEOS]
+    assert [len(ids) for ids in asked] == [50, 3]
+    assert len(found.candidates) == 53
+    assert found.units == d.SEARCH_UNITS + 2 * d.VIDEOS_UNITS
