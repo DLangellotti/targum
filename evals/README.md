@@ -28,7 +28,9 @@ nothing is here that no script writes, except where it says so:
 after the stage to the script: `targum eval vocalize --corpus dicta-modern`. `lemma` and
 `stress` are each measured by two scripts, so they are named by corpus:
 `lemma/iahlt` and `lemma/ud`, `stress/tanakh-taamim` and `stress/wiktionary-ru`
-(`evals.SCRIPTS`). Calling the script by path still works; the command is only the way in.
+(`evals.SCRIPTS`). `targum eval rail` runs `scripts/eval_rail.py` (targum-internal#324),
+which writes no ledger row. Calling the script by path still works; the command is only
+the way in.
 
 What each corpus is, where it comes from, its licence and what it may be used for:
 `SOURCES.md`. Each row a script writes now ends its note with `gold=<12 hex>`, the
