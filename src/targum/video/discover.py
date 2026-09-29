@@ -105,6 +105,33 @@ TOPICS: dict[str, tuple[str, ...]] = {
     "fr": ("vlog", "recette", "voyage", "conversation", "une journée", "faire les courses"),
 }
 
+#: Where a language's batch is steered by subject rather than by topic alone: each
+#: subject asks its own search terms and gets an even share of the count, so a batch can
+#: be read — and balanced — by what it is about. Hebrew's four are everyday life in
+#: Israel at the level an oleh arrives at (targum-internal#386, decided 2026-09-29): the
+#: first unsteered run came back ten vlogs, none of them about any of this.
+SUBJECTS: dict[str, dict[str, tuple[str, ...]]] = {
+    "he": {
+        "bureaucracy and money": (
+            "ביטוח לאומי",
+            "ארנונה",
+            "משרד הפנים",
+            "חשבון בנק",
+            "חשבונות בית",
+        ),
+        "health": ("קופת חולים", "תור לרופא", "בית מרקחת", "הפניה לבדיקה"),
+        "kids and school": ("גן ילדים", "אסיפת הורים", "בית ספר יסודי", "חוגים לילדים"),
+        "home and work": (
+            "שכירת דירה",
+            "בעל הבית",
+            "ועד בית",
+            "תיקונים בבית",
+            "תלוש משכורת",
+            "ראיון עבודה",
+        ),
+    },
+}
+
 #: The search's own length bands, shortest first: `short` is under four minutes, which is
 #: where the Easy spec's three sits, and `medium` is four to twenty. Each is its own
 #: search, so each costs its own hundred units, and the short band is asked first.
@@ -153,6 +180,8 @@ class Candidate:
     licence_url: str = LICENCE_URL
     #: The topic query that found it, so a batch can be read for what it is short of.
     found_by: str = ""
+    #: Which of the language's `SUBJECTS` it was searched for, or "" where none steer.
+    subject: str = ""
     transcription: float = 0.0
     translation: float = 0.0
 
@@ -328,6 +357,26 @@ def check(item: Mapping[str, Any], language: str) -> str:
     return ""
 
 
+def _candidate(item: Mapping[str, Any], language: str, topic: str, subject: str) -> Candidate:
+    """A video that passed `check`, priced."""
+    length = seconds(str(item["contentDetails"]["duration"]))
+    hearing, translating = estimate(length)
+    snippet = item["snippet"]
+    identifier = str(item["id"])
+    return Candidate(
+        id=identifier,
+        language=language,
+        title=str(snippet.get("title", "")),
+        channel=str(snippet.get("channelTitle", "")),
+        seconds=length,
+        home=f"{youtube.WATCH}{identifier}",
+        found_by=topic,
+        subject=subject,
+        transcription=round(hearing, 4),
+        translation=round(translating, 4),
+    )
+
+
 def discover(
     languages: Iterable[str],
     count: int,
@@ -341,8 +390,10 @@ def discover(
 
     Topics are asked in turn, the short band before the medium, a page at a time, until
     the language has its count, the topics run out, or the next search would overrun the
-    budget. Anything already on
-    the shelf, or already found this run, is skipped before it is asked about again.
+    budget. A language in `SUBJECTS` is asked subject by subject instead, each held to an
+    even share of the count, so one easy subject cannot fill the batch alone. Anything
+    already on the shelf, or already found this run, is skipped before it is asked about
+    again.
     """
     wanted = list(languages)
     for language in wanted:
@@ -358,60 +409,52 @@ def discover(
     found = Found()
 
     for language in wanted:
+        if language in SUBJECTS:
+            share = -(-count // len(SUBJECTS[language]))
+            groups = [(name, terms, share) for name, terms in SUBJECTS[language].items()]
+        else:
+            groups = [("", TOPICS[language], count)]
         kept = 0
-        for topic, duration in [(t, d) for t in TOPICS[language] for d in DURATIONS]:
-            page = ""
-            while kept < count:
-                if not quota.affords(SEARCH_UNITS + VIDEOS_UNITS):
-                    found.short = True
-                    break
-                quota.spend(SEARCH_UNITS)
-                ids, page = _search(get, api_key, language, topic, duration, page)
-                fresh = []
-                for identifier in ids:
-                    if identifier in held:
-                        found.drop("already on the shelf")
-                    elif identifier in seen:
-                        found.drop("found twice")
-                    else:
-                        fresh.append(identifier)
-                        seen.add(identifier)
-                details: list[dict[str, Any]] = []
-                for start in range(0, len(fresh), PAGE):
-                    if start and not quota.affords(VIDEOS_UNITS):
+        for subject, terms, allowed in groups:
+            limit = min(count, kept + allowed)
+            for topic, duration in [(t, d) for t in terms for d in DURATIONS]:
+                page = ""
+                while kept < limit:
+                    if not quota.affords(SEARCH_UNITS + VIDEOS_UNITS):
                         found.short = True
                         break
-                    quota.spend(VIDEOS_UNITS)
-                    details += _details(get, api_key, fresh[start : start + PAGE])
-                if details:
+                    quota.spend(SEARCH_UNITS)
+                    ids, page = _search(get, api_key, language, topic, duration, page)
+                    fresh = []
+                    for identifier in ids:
+                        if identifier in held:
+                            found.drop("already on the shelf")
+                        elif identifier in seen:
+                            found.drop("found twice")
+                        else:
+                            fresh.append(identifier)
+                            seen.add(identifier)
+                    details: list[dict[str, Any]] = []
+                    for start in range(0, len(fresh), PAGE):
+                        if start and not quota.affords(VIDEOS_UNITS):
+                            found.short = True
+                            break
+                        quota.spend(VIDEOS_UNITS)
+                        details += _details(get, api_key, fresh[start : start + PAGE])
                     for item in details:
-                        if kept >= count:
+                        if kept >= limit:
                             break
                         reason = check(item, language)
                         if reason:
                             found.drop(reason)
                             continue
-                        length = seconds(str(item["contentDetails"]["duration"]))
-                        hearing, translating = estimate(length)
-                        snippet = item["snippet"]
-                        identifier = str(item["id"])
-                        found.candidates.append(
-                            Candidate(
-                                id=identifier,
-                                language=language,
-                                title=str(snippet.get("title", "")),
-                                channel=str(snippet.get("channelTitle", "")),
-                                seconds=length,
-                                home=f"{youtube.WATCH}{identifier}",
-                                found_by=topic,
-                                transcription=round(hearing, 4),
-                                translation=round(translating, 4),
-                            )
-                        )
+                        found.candidates.append(_candidate(item, language, topic, subject))
                         kept += 1
-                if not page:
+                    if not page or found.short:
+                        break
+                if kept >= limit or found.short:
                     break
-            if kept >= count or found.short:
+            if found.short:
                 break
         if found.short:
             break
@@ -426,14 +469,15 @@ def _clock(total: int) -> str:
 def table(found: Found) -> str:
     """The batch as a markdown table, to paste onto the issue for approval."""
     lines = [
-        "| | lang | title | channel | licence | length | est. cost | link |",
-        "|---|---|---|---|---|---|---|---|",
+        "| | lang | subject | title | channel | licence | length | est. cost | link |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for candidate in found.candidates:
         title = candidate.title.replace("|", "\\|")
         channel = candidate.channel.replace("|", "\\|")
         lines.append(
-            f"| [ ] | {candidate.language} | {title} | {channel} | {candidate.licence} | "
+            f"| [ ] | {candidate.language} | {candidate.subject or '—'} | {title} | {channel} | "
+            f"{candidate.licence} | "
             f"{_clock(candidate.seconds)} | ${candidate.cost:.2f} | {candidate.home} |"
         )
     lines.append("")

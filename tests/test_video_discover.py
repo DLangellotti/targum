@@ -127,7 +127,7 @@ def test_what_is_on_the_shelf_or_found_twice_is_not_asked_about() -> None:
 def test_the_count_is_per_language_and_stops_the_asking() -> None:
     items = {f"v{n}": _item(f"v{n}") for n in range(6)}
     api = Recorded([list(items)], items)
-    found = _run(api, count=2)
+    found = _run(api, count=2, languages=["ru"])
     assert len(found.candidates) == 2
     assert sum(1 for address, _ in api.calls if address == d.SEARCH) == 1
 
@@ -205,10 +205,10 @@ def test_the_estimate_is_the_pipelines_arithmetic() -> None:
 
 def test_the_batch_total_is_the_sum_and_the_table_says_it() -> None:
     items = {"a": _item("a", duration="PT1M"), "b": _item("b", duration="PT3M")}
-    found = _run(Recorded([["a", "b"]], items))
+    found = _run(Recorded([["a", "b"]], items), languages=["ru"])
     assert found.total == pytest.approx(sum(c.cost for c in found.candidates))
     printed = d.table(found)
-    assert "| [ ] | he | video a | Kan Digital | CC BY 3.0 | 1:00 |" in printed
+    assert "| [ ] | ru | — | video a | Kan Digital | CC BY 3.0 | 1:00 |" in printed
     assert "https://www.youtube.com/watch?v=b" in printed
     assert "2 candidates, 4 minutes" in printed
     assert f"${found.total:.2f}" in printed
@@ -222,8 +222,28 @@ def test_a_search_answering_more_than_fifty_is_asked_about_in_fifties() -> None:
     # videos.list call for all 53 came back 400 (2026-09-29).
     items = {f"v{n}": _item(f"v{n}") for n in range(53)}
     api = Recorded([list(items)], items)
-    found = _run(api, count=53)
+    found = _run(api, count=53, languages=["ru"])
     asked = [query["id"].split(",") for address, query in api.calls if address == d.VIDEOS]
     assert [len(ids) for ids in asked] == [50, 3]
     assert len(found.candidates) == 53
     assert found.units == d.SEARCH_UNITS + 2 * d.VIDEOS_UNITS
+
+
+def test_hebrew_is_asked_subject_by_subject_in_even_shares() -> None:
+    # targum-internal#386: four subjects, each held to its share, so a batch of eight
+    # is two of each even when the first subject's search could fill it alone.
+    items = {f"v{n}": _item(f"v{n}") for n in range(40)}
+    pages = [[f"v{n}" for n in range(start, start + 10)] for start in range(0, 40, 10)]
+    api = Recorded(pages, items)
+    found = _run(api, count=8)
+    subjects = [c.subject for c in found.candidates]
+    assert subjects == [s for s in d.SUBJECTS["he"] for _ in range(2)]
+    first = [q["q"] for address, q in api.calls if address == d.SEARCH]
+    assert first == [terms[0] for terms in d.SUBJECTS["he"].values()]
+    assert "| [ ] | he | health |" in d.table(found)
+
+
+def test_an_unsteered_language_has_no_subject() -> None:
+    items = {"a": _item("a")}
+    found = _run(Recorded([["a"]], items), count=1, languages=["fr"])
+    assert [c.subject for c in found.candidates] == [""]
