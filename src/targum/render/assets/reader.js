@@ -276,6 +276,11 @@ var targumReader = function () {
   // Beside each sound, what of it we guessed: 1 the stress, 2 the vowels, 3 both
   // (design.md §12, "What we inferred says so"). Absent where nothing was.
   var guesses = data.guessed || [];
+  // Scripture's accents, one row per accented word: [bareStart, bareEnd, key,
+  // disjunctive], read by `vocalize/trope.py` at build time (design.md §12, "A word in
+  // scripture names its accent"). Absent on every page without the chanting marks, and
+  // on the poetic books, which the build refuses to name.
+  var accentRows = data.accents || {};
   // How split words are put together and how each occurrence is conjugated or declined
   // — tables of distinct strings, like the sounds, with an index on each token. Absent
   // on annotations written before they existed, and the card then simply says less.
@@ -4329,6 +4334,60 @@ var targumReader = function () {
     return t("reader.card.inferred-stress", "The text doesn't mark the stress, so we inferred it.");
   }
 
+  // The accent under a tapped word, named: "tipcha · disjunctive". Only while the
+  // chanting marks are on the page — the line describes what the reader can see — and
+  // for a word of the pointed text, never Onkelos beside it. A maqaf pair is one unit
+  // and takes the accent of its last word, which is the one that rules it.
+  var accentNames = null;
+  function accentOf(word) {
+    if (!prefs.nikkud || !prefs.taamim || besideCell(word)) return "";
+    var pair = word.closest ? word.closest(".pair") : null;
+    var span = (word.getAttribute("data-bare") || "").split(",");
+    if (!pair || span.length !== 2) return "";
+    var id = pair.getAttribute("data-id");
+    var rows = cells.unaccented[id] ? accentRows[id] || [] : [];
+    var start = parseInt(span[0], 10);
+    var end = parseInt(span[1], 10);
+    var found = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i][0] < end && rows[i][1] > start) found = rows[i];
+    }
+    if (!found) return "";
+    accentNames = accentNames || {
+      "silluq": t("reader.card.accent.silluq", "silluk"),
+      "etnachta": t("reader.card.accent.etnachta", "etnachta"),
+      "segol": t("reader.card.accent.segol", "segol"),
+      "shalshelet": t("reader.card.accent.shalshelet", "shalshelet"),
+      "zakef-katan": t("reader.card.accent.zakef-katan", "zakef katan"),
+      "zakef-gadol": t("reader.card.accent.zakef-gadol", "zakef gadol"),
+      "tipcha": t("reader.card.accent.tipcha", "tipcha"),
+      "revia": t("reader.card.accent.revia", "revia"),
+      "zarka": t("reader.card.accent.zarka", "zarka"),
+      "pashta": t("reader.card.accent.pashta", "pashta"),
+      "yetiv": t("reader.card.accent.yetiv", "yetiv"),
+      "tevir": t("reader.card.accent.tevir", "tevir"),
+      "geresh": t("reader.card.accent.geresh", "geresh"),
+      "gershayim": t("reader.card.accent.gershayim", "gershayim"),
+      "pazer": t("reader.card.accent.pazer", "pazer"),
+      "karnei-farah": t("reader.card.accent.karnei-farah", "karnei farah"),
+      "telisha-gedolah": t("reader.card.accent.telisha-gedolah", "telisha gedolah"),
+      "munach-legarmeh": t("reader.card.accent.munach-legarmeh", "munach legarmeh"),
+      "munach": t("reader.card.accent.munach", "munach"),
+      "mahpach": t("reader.card.accent.mahpach", "mahpach"),
+      "mercha": t("reader.card.accent.mercha", "mercha"),
+      "mercha-kefulah": t("reader.card.accent.mercha-kefulah", "mercha kefulah"),
+      "darga": t("reader.card.accent.darga", "darga"),
+      "kadma": t("reader.card.accent.kadma", "kadma"),
+      "telisha-ketanah": t("reader.card.accent.telisha-ketanah", "telisha ketanah"),
+      "yerach-ben-yomo": t("reader.card.accent.yerach-ben-yomo", "yerach ben yomo"),
+    };
+    var name = accentNames[found[2]] || String(found[2]).replace(/-/g, " ");
+    var kind = found[3]
+      ? t("reader.card.accent-disjunctive", "disjunctive")
+      : t("reader.card.accent-conjunctive", "conjunctive");
+    return name + " · " + kind;
+  }
+
   function readingOf(word) {
     if (!sounds.length) return "";
     var row = rowOf(word);
@@ -5051,6 +5110,17 @@ var targumReader = function () {
       if (hear) saying.appendChild(hear);
       card.appendChild(saying);
       if (guessedLine) card.appendChild(guessedLine);
+    }
+
+    // Its accent, under how it is said, in the card's quiet style (design.md §12,
+    // "A word in scripture names its accent"). Text, not a control, until the phrase
+    // can be heard.
+    var accent = accentOf(word);
+    if (accent) {
+      var accentLine = document.createElement("span");
+      accentLine.className = "accent";
+      accentLine.textContent = accent;
+      card.appendChild(accentLine);
     }
 
     // How the string is put together. A split token names its pieces — that is the
