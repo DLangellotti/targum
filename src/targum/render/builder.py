@@ -1542,6 +1542,45 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     )
 
 
+def aliyah_page(
+    language: str = "en", address: str = "", asked: str = "", signed_in: bool = False
+) -> str:
+    """The olim's own door, at `/aliyah` (targum-internal#385, 2026-09-29).
+
+    The front door speaks to every learner at once and stays as it is; this is the page
+    for the one the ICP names first, somebody in Israel whose ulpan ended and whose
+    Hebrew stopped where it did. It leads with what they would pay for, their own
+    Hebrew, and leaves the Torah to the front door.
+
+    Drawn from the front door's parts and held to its rules: everything is baked in and
+    nothing is fetched. It carries no script, because nothing on it moves.
+
+    `signed_in` takes the waitlist off the page, as it does on `/connect`: somebody who
+    has already chosen targum is not asked to join (§6).
+    """
+    words = page_words(language)
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/aliyah" if address else "", language)
+    return (
+        _environment()
+        .get_template("aliyah.html.j2")
+        .render(
+            t=words,
+            page_language=_page_language(language),
+            asked=asked,
+            signed_in=signed_in,
+            title=words("aliyah.head.title", "targum — Hebrew for life in Israel"),
+            description=words(
+                "aliyah.head.description",
+                "Learn Hebrew from your own life in Israel. Bring a letter, a message or "
+                "a video, and read it with vowels on every word and English beside every "
+                "line.",
+            ),
+            canonical=here,
+            alternates=alternates,
+        )
+    )
+
+
 def holding_page(language: str = "en") -> str:
     """What a stranger sees while the product is not open yet.
 

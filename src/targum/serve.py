@@ -59,6 +59,7 @@ from .remembered import Remembered
 from .render.builder import (
     LEGAL,
     about_page,
+    aliyah_page,
     approve_page,
     back_office_page,
     connect_page,
@@ -448,6 +449,9 @@ OPEN_TO_STRANGERS = frozenset(
         "/waitlist",
         "/waitlist/confirm",
         "/waitlist/stop",
+        # The olim's own door (targum-internal#385): a page in front of the door, read
+        # by somebody who has no account yet, like the front door it stands beside.
+        "/aliyah",
         # The connector (targum-internal#80). A client registering itself, asking for
         # tokens or giving one back has no account and is not a person; the reader is,
         # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
@@ -5519,6 +5523,8 @@ class Handler(BaseHTTPRequestHandler):
         # `/connect` is here because it is a page a stranger searches for by name —
         # "targum ChatGPT" is how somebody finds out this exists at all (#80).
         paths = ["/", "/about", "/library"]
+        if front_door_is_open():
+            paths.append("/aliyah")
         if connector_is_open():
             paths.append("/connect")
         if legal_is_public():
@@ -5581,7 +5587,7 @@ class Handler(BaseHTTPRequestHandler):
         # which serves one language at one address, teaches a crawler to distrust the
         # claims it makes about the pages that do have one.
         bilingual = (
-            {"/", "/library"}
+            {"/", "/aliyah", "/library"}
             | {path for path in paths if path.startswith("/library/")}
             | set(weekly_paths)
         )
@@ -5931,6 +5937,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(404, b"not found", "text/plain")
             page = connect_page(
                 self._public_language(), self.address, signed_in=self._person() is not None
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        # The olim's own door (targum-internal#385). There while the front door is, and
+        # 404 while it is not: its one ask is the waitlist, and a page asking for an
+        # address the waitlist will not take is a page that should not answer.
+        if route == "/aliyah":
+            if not front_door_is_open():
+                return self._send(404, b"not found", "text/plain")
+            page = aliyah_page(
+                language=self._public_language(),
+                address=self.address,
+                asked=self._asked(),
+                signed_in=self._person() is not None,
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
