@@ -1,8 +1,10 @@
 """Where a word comes round, and where a reader met it (targum-internal#95, #96).
 
-Built with no UI (David, 2026-09-27), so what is under test is the index a later card
-will ask: counts per text, across the library, and the places a reader met a word —
-which means inside a section they finished, and nowhere else.
+Built with no UI (David, 2026-09-27); the card asks it since 2026-09-28, behind
+`TARGUM_OCCURRENCES`. What is under test here is the index: counts per text, across the
+library, the places a reader met a word — which means inside a section they finished, and
+nowhere else — the words of a root they met, and how the card names the places. The
+route and the card are `test_occurrences_card.py`.
 """
 
 from __future__ import annotations
@@ -23,8 +25,10 @@ from targum.occurrences import (
     Meeting,
     Place,
     count_text,
+    family,
     in_tanakh,
     met,
+    places_named,
     text_occurrences,
 )
 
@@ -241,3 +245,84 @@ def test_catalogue_lemmas_writes_the_counts(
     assert index.count_in("il-declaration", "רוח") == 2
     assert index.count_across("ים") == (2, 1)
     assert (folder / OCCURRENCES).is_file(), "the text's places are left cached"
+
+
+# -- what the card asks (behind TARGUM_OCCURRENCES, 2026-09-28) -------------------------
+
+#: Two forms given one root, so a family has more than one member; a made-up root, since
+#: what is under test is that the annotation's root is the one used, not what it is.
+ROOTS = {"ים": "ימם", "דג": "ימם", "רוח": "רוח"}
+
+
+def rooted(folder: Path) -> Path:
+    """The annotation as a build leaves it for a verb: each token carrying its root."""
+    tokens = json.loads((folder / "annotation.json").read_text(encoding="utf-8"))
+    for found in tokens["tokens"].values():
+        for token in found:
+            if token["lemma"] in ROOTS:
+                token["root"] = ROOTS[token["lemma"]]
+    (folder / "annotation.json").write_text(json.dumps(tokens), encoding="utf-8")
+    return folder
+
+
+def test_a_text_keeps_the_root_its_annotation_gave_and_caches_it(tmp_path: Path) -> None:
+    folder = rooted(_jonah(tmp_path / "jonah"))
+    counted = text_occurrences(folder)
+    assert counted is not None and counted.roots == ROOTS
+    occurrences._cached.cache_clear()
+    assert text_occurrences(folder) == counted, "read back from the cache, roots and all"
+
+
+def test_a_cache_from_before_the_roots_is_counted_again(tmp_path: Path) -> None:
+    """Version 1 had no roots. It is rebuilt, which is free: it is read off the annotation."""
+    folder = rooted(_jonah(tmp_path / "jonah"))
+    text_occurrences(folder)
+    cached = json.loads((folder / OCCURRENCES).read_text(encoding="utf-8"))
+    cached.update(version=1)
+    del cached["roots"]
+    (folder / OCCURRENCES).write_text(json.dumps(cached), encoding="utf-8")
+    occurrences._cached.cache_clear()
+    assert (text_occurrences(folder) or pytest.fail()).roots == ROOTS
+
+
+def test_a_family_is_the_forms_of_a_root_met_in_finished_sections(tmp_path: Path) -> None:
+    folder = rooted(_jonah(tmp_path / "jonah"))
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he") if document == "jonah-hash" else None
+
+    one = [("jonah-hash", "1", 10)]
+    both = [*one, ("jonah-hash", "2", 20)]
+    assert family("ימם", one, folder_for) == ["ים"], "דג is in chapter 2, not yet finished"
+    assert family("ימם", both, folder_for) == ["ים", "דג"]
+    assert family("ימם", both, folder_for, language="arc") == []
+    assert family("", both, folder_for) == [], "no root, no family"
+    assert family("היה", both, folder_for) == [], "a form the annotation gave no root has none"
+
+
+def meeting(document: str, section: int, ref: str, at: int) -> Meeting:
+    return Meeting(document=document, section=section, ref=ref, count=1, at=at)
+
+
+def test_the_card_names_verses_by_reference_and_the_rest_by_title() -> None:
+    """Latest finish first; a text with no verses once, by its title, however many of its
+    sections the word came round in; the page the reader is on is not a place they met
+    it; three named, and how many more."""
+    titles = {"jonah": "יונה", "news": "A Paper", "gone": ""}
+    meetings = [
+        meeting("jonah", 1, "Jonah 1:4", 10),
+        meeting("news", 1, "p1", 20),
+        meeting("news", 2, "part 1:2", 30),
+        meeting("jonah", 2, "Jonah 2:1", 40),
+        meeting("gone", 1, "", 45),
+        meeting("ruth", 2, "Ruth 2:1", 50),
+        meeting("talmud", 1, "Berakhot 2a:3", 60),
+    ]
+    named, more = places_named(meetings, lambda d: titles.get(d, ""))
+    assert named == ["Berakhot 2a:3", "Ruth 2:1", "Jonah 2:1"]
+    assert more == 2, "A Paper, once, and Jonah 1:4; a text with no title is not named"
+
+    named, more = places_named(meetings, titles.__getitem__, leave_out=("jonah", 2), most=10)
+    assert "Jonah 2:1" not in named and "Jonah 1:4" in named
+    assert more == 0
+    assert places_named([], str) == ([], 0)

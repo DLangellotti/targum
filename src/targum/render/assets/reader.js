@@ -4770,11 +4770,135 @@ var targumReader = function () {
     return row;
   }
 
+  /* Where a word comes round, and where this reader has met it (targum-internal#95, #96):
+     "met in Jonah 1:4, Ruth 2:1 and 6 more", "4× in this text · 12× in the Tanakh", and
+     the words of its root they have met, with the root the way in to them.
+
+     Behind `TARGUM_OCCURRENCES` (serve.shows_occurrences), off unless the box says so.
+     Until `/account/me` has said yes the card asks nothing and draws nothing new, so
+     with it off the card is the card it always was. Asked of `/word/met` once a word,
+     when its card opens and never with the page: a reader fetches nothing up front.
+     "Met" is the server's to say — inside a section the reader finished — and a word
+     with nothing to say about it gets no line, never a zero. */
+  var comesRound = {};
+  var rootOpen = {};
+
+  function showsOccurrences() {
+    var who = served && window.TargumSync && window.TargumSync.who;
+    return !!(who && who.occurrences && typeof fetch === "function");
+  }
+
+  // What the server said about a word, or null while it has not answered, or never will.
+  function roundOf(index, root, redraw) {
+    var lemma = lemmas[index];
+    if (!showsOccurrences()) return null;
+    if (Object.prototype.hasOwnProperty.call(comesRound, lemma)) return comesRound[lemma];
+    comesRound[lemma] = null;
+    var query =
+      "?lemma=" + encodeURIComponent(lemma) +
+      "&root=" + encodeURIComponent(root || "") +
+      "&document=" + encodeURIComponent(documentId) +
+      "&section=" + encodeURIComponent(sectionId) +
+      "&language=" + encodeURIComponent(language);
+    fetch(keyed("/word/met" + query), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (said) {
+        if (!said) return;
+        comesRound[lemma] = said;
+        redraw();
+      })
+      .catch(function () {
+        // Nothing said is the answer: this line is never worth an error on a card.
+      });
+    return null;
+  }
+
+  // The root, as a way in to the words of it the reader has met. Only where there are
+  // any: a root with no family met is the plain word the card always drew.
+  function rootLink(shoresh, index, root, redraw) {
+    var said = roundOf(index, root, redraw);
+    if (!said || !said.family || !said.family.met) return shoresh;
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "root-open";
+    open.setAttribute("aria-expanded", rootOpen[root] ? "true" : "false");
+    open.appendChild(shoresh);
+    open.onclick = function (event) {
+      event.stopPropagation();
+      rootOpen[root] = !rootOpen[root];
+      redraw();
+    };
+    return open;
+  }
+
+  // "6 words from כ־ת־ב met, 3 known", and, with the root pressed, the words themselves.
+  function rootFamilyLine(index, root, redraw) {
+    var said = roundOf(index, root, redraw);
+    var kin = said && said.family;
+    if (!kin || !kin.met) return null;
+    var box = document.createElement("span");
+    box.className = "card-round card-root-met";
+    // The root is Hebrew in a line that is not, so it is drawn in a `bdi` of its own.
+    mixedLine(box, tn(
+      "reader.card.root-met",
+      kin.met,
+      "{n} word from {root} met, {known} known",
+      "{n} words from {root} met, {known} known",
+      { root: root.split("").join("\u05be"), known: kin.known }
+    ));
+    if (rootOpen[root] && kin.words && kin.words.length) {
+      var words = document.createElement("bdi");
+      words.className = "card-root-words";
+      words.setAttribute("lang", language);
+      words.textContent = kin.words.join(" · ");
+      box.appendChild(words);
+    }
+    return box;
+  }
+
+  // How often here and in the Tanakh, and where the reader met it. Null for nothing.
+  function roundLines(index, root, redraw) {
+    var said = roundOf(index, root, redraw);
+    if (!said) return null;
+    var box = document.createElement("span");
+    box.className = "card-round";
+    var counts = [];
+    if (said.here) counts.push(t("reader.card.times-here", "{n}× in this text", { n: said.here }));
+    if (said.tanakh) {
+      counts.push(t("reader.card.times-tanakh", "{n}× in the Tanakh", { n: said.tanakh }));
+    }
+    if (counts.length) {
+      var often = document.createElement("span");
+      often.className = "card-often";
+      often.textContent = counts.join(" · ");
+      box.appendChild(often);
+    }
+    if (said.met && said.met.length) {
+      var places = said.met.join(", ");
+      var where = document.createElement("span");
+      where.className = "card-met";
+      // A title may be Hebrew in an English line; each run gets its own `bdi`.
+      mixedLine(
+        where,
+        said.more
+          ? t("reader.card.met-in-more", "met in {places} and {n} more", { places: places, n: said.more })
+          : t("reader.card.met-in", "met in {places}", { places: places })
+      );
+      box.appendChild(where);
+    }
+    return box.firstChild ? box : null;
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
     var lemma = lemmas[index];
     if (!lemma) return;
+    function redrawCard() {
+      if (lookedUp === word) showCard(word);
+    }
     // A card opened is a look-up, whether a tap or Enter asked for it: the reader wanted
     // to know what the word was, and that is the whole of the signal the foot reports.
     //
@@ -4988,7 +5112,7 @@ var targumReader = function () {
         // Spaced out the way a root is written, so it reads as three letters rather
         // than as a word: כ־ת־ב, not כתב.
         shoresh.textContent = root.split("").join("\u05be");
-        verb.appendChild(shoresh);
+        verb.appendChild(rootLink(shoresh, index, root, redrawCard));
       }
       if (binyan) {
         if (root) verb.appendChild(document.createTextNode(" · "));
@@ -5022,6 +5146,8 @@ var targumReader = function () {
       if (drawn) card.appendChild(drawn);
       var kin = siblingLine(index);
       if (kin) card.appendChild(kin);
+      var rootMet = root ? rootFamilyLine(index, root, redrawCard) : null;
+      if (rootMet) card.appendChild(rootMet);
     }
 
     // The part of speech's own line. A name and a number say which they are — that is
@@ -5120,6 +5246,11 @@ var targumReader = function () {
       belongs.textContent = where;
       card.appendChild(belongs);
     }
+
+    // Where it comes round and where the reader met it (targum-internal#95, #96); nothing
+    // at all unless the box shows it.
+    var round = roundLines(index, root, redrawCard);
+    if (round) card.appendChild(round);
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
     // for either is `i`. Everything else keeps the editor exactly as it was.

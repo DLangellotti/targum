@@ -337,6 +337,9 @@ THUMBED = (
     ".gloss-card .inferred",
     # The fold over the words to know before a chapter (design.md §12, 2026-09-28).
     ".preread > summary",
+    # The root on a word card, where it opens the words of it a reader has met
+    # (targum-internal#96, behind `TARGUM_OCCURRENCES`).
+    ".gloss-card .verb .root-open",
 )
 
 

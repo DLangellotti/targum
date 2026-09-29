@@ -1,10 +1,10 @@
 """Where a word comes round: per text, across the library, and where a reader met it.
 
 The index under targum-internal#95 ("met in Jonah 1:4, Ruth 2:1") and #96 ("4× in
-Jonah, 12× in the Tanakh"). **Built with no UI, on David's call of 2026-09-27**: nothing
-a reader sees reads it yet, and the card line stays behind both cards' gates. What is
-here is the part that had no source — the counts — so that the card, when it is built,
-is a question asked of something that exists.
+Jonah, 12× in the Tanakh"). Built with no UI on David's call of 2026-09-27; since
+2026-09-28 the word card reads it, behind `TARGUM_OCCURRENCES`, off unless the deployment
+says so (`serve.shows_occurrences`), because neither card's gate can be met while there
+are no readers to meet it.
 
 **Nothing here is a source of truth.** Every number is derived from the annotation a
 build already writes beside each reader, and can be thrown away and rebuilt from it:
@@ -22,7 +22,8 @@ build already writes beside each reader, and can be thrown away and rebuilt from
   often across the shelf, or across one register" without opening a build. `across`
   below narrows by register. The Tanakh has its own answer that needs no build at all:
   `in_tanakh` sums the chapter file that already ships in the package.
-- **Where a reader met it** — `met`, from the sections they have finished.
+- **Where a reader met it** — `met`, from the sections they have finished; and `family`,
+  the words of one root a reader has met, from the root the annotation already carries.
 
 **"Met" means a section the reader finished.** Three definitions were on the table, and
 the store holds the data for each:
@@ -51,8 +52,9 @@ four-byte arrays. Nothing is annotated, bought or renamed: the annotator and
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+import re
+from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -67,8 +69,8 @@ if TYPE_CHECKING:
 OCCURRENCES = "occurrences.json"
 
 #: The file's shape. Bumped when the encoding changes; an older file is then rebuilt,
-#: which is free — it is read off the annotation, not off a model.
-VERSION = 1
+#: which is free — it is read off the annotation, not off a model. 2 added the roots.
+VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -86,11 +88,13 @@ class Occurrences:
     """Every dictionary form in one built text, and where each one comes round.
 
     `places` is the text's places in reading order, as (section, ref); `lemmas` maps a
-    dictionary form to a flat run of (place, count) pairs into it, in the same order.
+    dictionary form to a flat run of (place, count) pairs into it, in the same order;
+    `roots` maps a form to the root its annotation gave it, where it gave one.
     """
 
     places: tuple[tuple[int, str], ...]
     lemmas: dict[str, tuple[int, ...]]
+    roots: dict[str, str] = field(default_factory=dict)
 
     def count(self, lemma: str) -> int:
         """How many running words in the text have this dictionary form."""
@@ -157,7 +161,8 @@ def _from(loaded: object) -> Occurrences | None:
         for lemma, flat in (loaded.get("lemmas") or {}).items()
         if isinstance(flat, list) and len(flat) % 2 == 0
     }
-    return Occurrences(places=places, lemmas=lemmas)
+    roots = {str(lemma): str(root) for lemma, root in (loaded.get("roots") or {}).items()}
+    return Occurrences(places=places, lemmas=lemmas, roots=roots)
 
 
 def count_text(folder: Path) -> Occurrences | None:
@@ -186,6 +191,7 @@ def count_text(folder: Path) -> Occurrences | None:
     place_at: dict[tuple[int, str], int] = {}
     # lemma -> place -> count, insertion-ordered, so a lemma's places stay in reading order.
     tally: dict[str, dict[int, int]] = {}
+    roots: dict[str, str] = {}
     for segment in segmented.segments:
         found = tokens.get(segment.id)
         if not found:
@@ -203,6 +209,8 @@ def count_text(folder: Path) -> Occurrences | None:
             at = place_at.setdefault(key, len(place_at))
             row = tally.setdefault(lemma, {})
             row[at] = row.get(at, 0) + 1
+            if token.get("root") and lemma not in roots:
+                roots[lemma] = str(token["root"])
     # Drop the parsed annotation before building the answer: Jeremiah's is 10 MB on disk
     # and several times that as objects, and it is the one large thing here.
     del tokens
@@ -212,6 +220,7 @@ def count_text(folder: Path) -> Occurrences | None:
             lemma: tuple(n for at, count in row.items() for n in (at, count))
             for lemma, row in tally.items()
         },
+        roots=roots,
     )
 
 
@@ -253,6 +262,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> Occurrences | None:
                     "stamp": list(stamp),
                     "places": [list(place) for place in counted.places],
                     "lemmas": {lemma: list(flat) for lemma, flat in counted.lemmas.items()},
+                    "roots": counted.roots,
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -352,25 +362,8 @@ def met(
     A section whose text is not built here, or not annotated, is left out rather than
     guessed at. One text's places are read at a time.
     """
-    by_document: dict[str, dict[int, int]] = {}
-    for document, section, at in finished:
-        try:
-            number = int(section)
-        except (TypeError, ValueError):
-            continue
-        by_document.setdefault(document, {})[number] = int(at or 0)
-
     out: list[Meeting] = []
-    for document, sections in by_document.items():
-        found = folder_for(document)
-        if found is None:
-            continue
-        folder, its_language = found
-        if language and its_language.split("-")[0].lower() != language:
-            continue
-        counted = text_occurrences(folder)
-        if counted is None:
-            continue
+    for document, sections, counted in _finished_texts(finished, folder_for, language):
         for place in counted.where(lemma, sections):
             out.append(
                 Meeting(
@@ -384,3 +377,93 @@ def met(
     # Stable, so places inside one section keep their reading order.
     out.sort(key=lambda meeting: (meeting.at, meeting.document, meeting.section))
     return out
+
+
+def family(
+    root: str,
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "",
+) -> list[str]:
+    """Every dictionary form of one root a reader has met, in the order the texts give
+    them (targum-internal#96: "6 words from כ־ת־ב met").
+
+    Met the way `met` means it — inside a finished section — and the root is the one the
+    annotation gave the form, which is the one the card draws, so the card and this
+    count never disagree about which root a word has. A form the annotation gave no root
+    is in no family: nothing is guessed.
+    """
+    if not root:
+        return []
+    out: dict[str, None] = {}
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        for lemma, its_root in counted.roots.items():
+            if its_root == root and lemma not in out and counted.where(lemma, sections):
+                out[lemma] = None
+    return list(out)
+
+
+def _finished_texts(
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str,
+) -> Iterator[tuple[str, dict[int, int], Occurrences]]:
+    """Each text a reader has finished a section of, with those sections (number -> when)
+    and its occurrences; one text's places read at a time.
+
+    `language`, where named, keeps to texts in it: Hebrew and Aramaic share spellings, and
+    a word is kept in the language of the row it was met in. A section whose text is not
+    built here, or not annotated, is left out rather than guessed at.
+    """
+    by_document: dict[str, dict[int, int]] = {}
+    for document, section, at in finished:
+        try:
+            number = int(section)
+        except (TypeError, ValueError):
+            continue
+        by_document.setdefault(document, {})[number] = int(at or 0)
+    for document, sections in by_document.items():
+        found = folder_for(document)
+        if found is None:
+            continue
+        folder, its_language = found
+        if language and its_language.split("-")[0].lower() != language:
+            continue
+        counted = text_occurrences(folder)
+        if counted is not None:
+            yield document, sections, counted
+
+
+# -- what the card says ----------------------------------------------------------------
+
+#: How many places the card names before it says how many more (targum-internal#95: "a
+#: common word is met hundreds of times").
+NAMED = 3
+
+#: A verse's reference as a text carries it — "Jonah 1:4", "Berakhot 2a:3" — and not a
+#: recording's "part 1:2" or a page's "p1", which name nothing a reader would recognise.
+_VERSE = re.compile(r"(?!part )[^\d\s][^:]*\s\d+[ab]?:\d+")
+
+
+def places_named(
+    meetings: Iterable[Meeting],
+    title_of: Callable[[str], str],
+    leave_out: tuple[str, int] | None = None,
+    most: int = NAMED,
+) -> tuple[list[str], int]:
+    """The places the card names, latest finish first, and how many more there are.
+
+    A verse is named by its reference; anything else by its text's title, once however
+    many sections of it the word came round in. `leave_out` is the (document, section)
+    the reader is on: being told you met a word on the page you are reading it on says
+    nothing.
+    """
+    named: dict[str, None] = {}
+    for meeting in sorted(meetings, key=lambda m: -m.at):
+        if leave_out and (meeting.document, meeting.section) == leave_out:
+            continue
+        label = meeting.ref if _VERSE.fullmatch(meeting.ref) else title_of(meeting.document)
+        if label:
+            named.setdefault(label, None)
+    labels = list(named)
+    return labels[:most], max(0, len(labels) - most)
