@@ -34,11 +34,12 @@
   <h1>{{ t("about.page.targum-is-built-in-public", "targum is built in public") }}</h1>
 
   {% if work.commits %}
-  {#- The day the count ends on, not "the last 30 days": served from a wheel these
-      numbers are as old as the deploy, and the sentence has to stay true for as long
-      as the wheel does. -#}
+  {#- The two days the count runs between, not "the last 30 days": served from a wheel
+      these numbers are as old as the deploy, and the sentence has to stay true for as
+      long as the wheel does. It said "in the 30 days to 29 September", which was true
+      and was not English (David, 2026-09-29). -#}
   <p class="figures">
-    <b>{{ work.commits }}</b> {{ t("about.page.changes", "changes in the {days} days to {through}", days=days, through=through) if work.commits != 1 else t("about.page.change", "change in the {days} days to {through}", days=days, through=through) }}
+    <b>{{ commits }}</b> {{ tn("about.page.changes-between", work.commits, "change from {since} to {through}", "changes from {since} to {through}", since=since, through=through) }}
   </p>
   {#- One square a day. Colour says how much landed, and an empty day is left as the
       quiet grey it was rather than dressed up. -#}
