@@ -45,9 +45,10 @@ DEFAULT = Path("evals/ledger.jsonl")
 FLOORS = Path("evals/floors.json")
 
 #: The stages #163 names, the chat's (`grading`, #213; `recast`, #219; `chat`, #242;
-#: `ask`, #223), and `stress` (#260) and `suggest` (#244). `evals/README.md` says what
-#: writes each. Not an enum: a stage nobody has written yet should be recordable the day
-#: somebody does, without this file being the thing in the way.
+#: `ask`, #223), `stress` (#260), `suggest` (#244) and `rail` (#324, which writes no
+#: rows yet). `evals/README.md` says what writes each. Not an enum: a stage nobody has
+#: written yet should be recordable the day somebody does, without this file being the
+#: thing in the way.
 STAGES = (
     "segment",
     "lemma",
@@ -61,6 +62,7 @@ STAGES = (
     "chat",
     "ask",
     "suggest",
+    "rail",
 )
 
 
@@ -80,6 +82,7 @@ SCRIPTS = {
     "chat": "eval_why.py",
     "ask": "eval_ask.py",
     "suggest": "eval_suggest.py",
+    "rail": "eval_rail.py",
 }
 
 
