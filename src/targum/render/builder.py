@@ -2024,13 +2024,6 @@ WEEKLY_LEVELS: dict[str, str] = {
 }
 
 
-SHELF = (
-    "Library",
-    "Hebrew — Tanakh, novels, essays and speeches — each with a translation beside it, "
-    "sentence by sentence.",
-)
-
-
 def shelf_page(address: str = "", language: str = "en") -> str:
     """The catalogue, for somebody who has not signed in.
 
@@ -2038,8 +2031,11 @@ def shelf_page(address: str = "", language: str = "en") -> str:
     search engine to find but a page saying "Coming soon".
     """
     from ..catalogue import everything
+    from ..strings import text
 
-    name, blurb = SHELF
+    # The name and the line under it in the page's language, since these are the title
+    # and the description a search result shows (targum-internal#188).
+    name, blurb = text("nav.library", language), text("library.head.description", language)
     _shelf_at = _addressed_in(f"{address}/library" if address else "", language)
     return (
         _environment()
@@ -2124,8 +2120,9 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     book, and the sample is the reason the page is worth indexing at all.
     """
     from ..models import direction_for
+    from ..strings import text
 
-    name = SHELF[0]
+    name = text("nav.library", language)
     here, alternates = _addressed_in(f"{address}/library/{entry.id}" if address else "", language)
     return (
         _environment()
@@ -2265,7 +2262,7 @@ def weekly_page(
                 one: said(f"weekly.level.{one}.explained", text)
                 for one, text in WEEKLY_LEVELS.items()
             },
-            shelf_name=SHELF[0],
+            shelf_name=text("nav.library", language),
             press=press,
             archive=published,
             is_newest=is_newest,
@@ -2296,6 +2293,10 @@ def daily_page(
     the cycle's manuscript beside the headline, and the waitlist at the foot.
     Everything it needs was decided at build time; what is left at serve time is a lookup.
     """
+    from ..strings import text
+
+    # The cycle's name and sentence as the follow button already says them (#188).
+    named = text(f"series.{cycle.slug}.name", language)
     return (
         _environment()
         .get_template("daily.html.j2")
@@ -2304,14 +2305,17 @@ def daily_page(
             tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
-            title=f"{day.title} — {cycle.name} — targum",
+            title=f"{day.title} — {named} — targum",
             # The reference goes in the description because it is how somebody who keeps
             # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
             # sentence about it.
-            description=(
-                f"{cycle.name} for {day.hdate}: {day.title}. {cycle.blurb} "
-                "The Hebrew pointed, a translation beside every line, and every word "
-                "explained."
+            description=text(
+                "daily.head.description",
+                language,
+                name=named,
+                date=day.hdate,
+                title=day.title,
+                blurb=text(f"series.{cycle.slug}.what", language),
             ),
             canonical=f"{address}/{cycle.slug}" if address and is_today else "",
             og_type="article",
@@ -2390,7 +2394,7 @@ def parasha_page(
     """
     from ..parasha.build import COLLECTION_ID
     from ..parasha.models import neighbours
-    from ..strings import said_on
+    from ..strings import said_on, text
 
     said = said_on(shabbat, language) if shabbat is not None else "Shabbat"
     previous, following = neighbours(portion, listed or [])
@@ -2425,19 +2429,18 @@ def parasha_page(
             # a query. The chapter range is what a reader searching the name wants to see
             # confirmed, and it is different for all fifty-four.
             title=(
-                f"{portion.name} — this week's parasha — targum"
+                text("parasha.head.this-week", language, name=portion.name)
                 if shabbat is not None
                 else f"{portion.name} — {portion.summary} — targum"
                 if portion.summary
-                else f"{portion.name} — the weekly Torah portion — targum"
+                else text("parasha.head.a-portion", language, name=portion.name)
             ),
             # The opening words go in the description because they are how somebody
             # who knows the portion recognises it — a search result that leads with
             # אתם נצבים says which reading this is faster than the chapter numbers do.
             description=(
-                f"{portion.name} — {portion.opening} — {portion.summary}. The Hebrew with "
-                "its chanting marks or without, a translation beside every verse, and "
-                "every word explained."
+                f"{portion.name} — {portion.opening} — {portion.summary}. "
+                + text("parasha.head.description", language)
             ).replace(" —  — ", " — "),
             canonical=f"{address}/parasha/{portion.slug}" if address else "",
             portion=portion,
