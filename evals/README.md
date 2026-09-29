@@ -11,7 +11,7 @@ nothing is here that no script writes, except where it says so:
 
 | stage | corpus | metric | script |
 | --- | --- | --- | --- |
-| `lemma` | `iahltwiki`, `iahltknesset` (none yet) | the annotator against the IAHLT treebanks. The script writes a JSON scorecard, not rows; `targum evals --record scorecard.json` turns it into `lemma` rows | `scripts/score_annotation.py`, then `targum evals --record` |
+| `lemma` | `iahltwiki`, `iahltknesset` | the annotator against the IAHLT treebanks, system `dicta/…`; the first rows are the dev split. The script writes a JSON scorecard, not rows; `targum evals --record scorecard.json` turns it into `lemma` rows | `scripts/score_annotation.py`, then `targum evals --record` |
 | `lemma` | `ud-fr-gsd`, `ud-it-isdt`, `ud-ru-syntagrus`, `ud-yi-yitb`; `ud-fr-gsd-curly`, `ud-it-isdt-curly` | `token_recall`, `lemma_accuracy`, `upos_accuracy` and the grammar features (`case_`, `aspect_`, `gender_`, `number_`, `tense_`, `mood_`, `person_`, `verbform_accuracy`): the model's reading of French, Russian, Italian and Yiddish against the Universal Dependencies dev sets, system `model-lemma`, or `ru-local` for the Russian reader that runs on the machine. `-curly` is the same sentences written with ’ (`--curly`) | `scripts/eval_lemma.py` (targum-internal#258, #262) |
 | `vocalize` | `dicta-modern`, `ben-yehuda`, `scene-corrections` | `letter_vowel`, `letter_dagesh`, `shin_dot`, `qamats_qatan_recall`, `qamats_qatan_precision`, `word_exact`, `skeleton_kept`, and `*_folded`, which reads a vowel beside a vav one way. Nakdimon and DICTA's menaked on `dicta-modern`, the Wikipedia third of DICTA's diacritization test corpora, and `ben-yehuda`, 26 pointed works by 12 authors, none in Nakdimon's training set; the menaked on `scene-corrections`, the scenes' lines as a person settled them (targum#396), private, with the settled words scored on their own as `settled_*` (targum-internal#351) | `scripts/measure_pointing.py` (targum-internal#148); the scene set is built by `scripts/scene_nikkud_gold.py` |
 | `stress` | `wiktionary-ru` | `stress_precision`, `stress_coverage`, `yo_precision`, `yo_recall`, and `silero_precision` (system `silero-stress`, silero alone, the independent number): Russian stress marks against sentences stressed by hand in English Wiktionary's examples and quotations, evaluation only | `scripts/eval_stress.py` (targum-internal#260) |
@@ -23,6 +23,12 @@ nothing is here that no script writes, except where it says so:
 | `chat` | `tatoeba-correct` | `why_on_correct_lines`, `why_shown_on_correct_lines`: `~ ` lines the chat writes, and the reader is shown, under a correct line a native speaker wrote | `scripts/eval_why.py` (targum-internal#242) |
 | `ask` | `heq` | `span_found_share`, `span_found_share_ktiv`, `token_f1`, `unanswered`: the chat's reply to a question about a paragraph on a stubbed page against the span a person marked as the answer | `scripts/eval_ask.py` (targum-internal#223) |
 | `suggest` | `shelf-<n>` | `suggested_known_share`, `suggested_with_known_share`: the known share of the texts `suggest_next` offers a reader who knows the commonest words, and how many offers carry one, over the texts built on this machine. Calls no model | `scripts/eval_suggest.py` (targum-internal#244) |
+
+`targum eval <stage>` runs any of these from the repository root, passing everything
+after the stage to the script: `targum eval vocalize --corpus dicta-modern`. `lemma` and
+`stress` are each measured by two scripts, so they are named by corpus:
+`lemma/iahlt` and `lemma/ud`, `stress/tanakh-taamim` and `stress/wiktionary-ru`
+(`evals.SCRIPTS`). Calling the script by path still works; the command is only the way in.
 
 What each corpus is, where it comes from, its licence and what it may be used for:
 `SOURCES.md`. Each row a script writes now ends its note with `gold=<12 hex>`, the

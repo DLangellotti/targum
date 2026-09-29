@@ -639,6 +639,38 @@ def evals(
         console.print("[green]Every floor holds.[/green]")
 
 
+@app.command(
+    name="eval",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def eval_command(
+    ctx: typer.Context,
+    name: Annotated[str, typer.Argument(help="A stage, or stage/<corpus> where two measure it.")],
+) -> None:
+    """Run one stage's eval: `targum eval vocalize --corpus dicta-modern`.
+
+    A dispatch over the harnesses in `scripts/`, so running any stage is one command
+    rather than a path to remember (targum-internal#351). Everything after the name goes
+    to the script as it was given, and its exit code comes back. `targum eval lemma`
+    lists the two ways lemmas are measured. The scripts are not in the wheel, so this
+    runs from a checkout.
+
+    A chat eval spends: load the keys first with `op run --env-file op.env --`.
+    """
+    from . import evals as ledger_module
+
+    try:
+        script = Path(__file__).resolve().parents[2] / "scripts" / ledger_module.script_for(name)
+    except ValueError as error:
+        err.print(f"[red]{error}[/red]")
+        raise typer.Exit(code=2) from None
+    if not script.exists():
+        err.print(f"[red]{script} is not here[/red]; the evals run from a source checkout.")
+        raise typer.Exit(code=2)
+    done = subprocess.run([sys.executable, str(script), *ctx.args], check=False)
+    raise typer.Exit(code=done.returncode)
+
+
 def _cached(row: dict[str, Any]) -> str:
     """One account's cache column: tokens read / written, and their dollars."""
     read, wrote = int(row.get("cache_read") or 0), int(row.get("cache_write") or 0)

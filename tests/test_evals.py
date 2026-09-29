@@ -227,6 +227,64 @@ def test_rows_are_written_one_per_line_and_stay_readable(tmp_path: Path) -> None
     assert json.loads(lines[0])["stage"] == "lemma"
 
 
+# --- targum eval: one command for any stage ---------------------------------------
+
+SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "scripts"
+
+
+def test_every_eval_script_has_a_name_and_every_name_a_script() -> None:
+    """A harness added to `scripts/` without a line in the table is one nobody finds."""
+    named = set(evals.SCRIPTS.values())
+    assert {path.name for path in SCRIPTS_DIR.glob("eval_*.py")} <= named
+    assert all((SCRIPTS_DIR / script).exists() for script in named)
+    assert {name.split("/")[0] for name in evals.SCRIPTS} <= set(evals.STAGES)
+
+
+def test_a_stage_measured_two_ways_names_both_rather_than_picking() -> None:
+    assert evals.script_for("lemma/iahlt") == "score_annotation.py"
+    with pytest.raises(ValueError, match="lemma/iahlt, lemma/ud"):
+        evals.script_for("lemma")
+    with pytest.raises(ValueError, match="no eval called 'segment'"):
+        evals.script_for("segment")
+
+
+def test_targum_eval_hands_the_rest_to_the_script_and_its_exit_code_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    ran: list[list[str]] = []
+
+    def run(argv: list[str], check: bool) -> subprocess.CompletedProcess[str]:
+        ran.append(argv)
+        return subprocess.CompletedProcess(argv, 3)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    result = CliRunner().invoke(
+        app, ["eval", "vocalize", "--corpus", "dicta-modern", "--ledger", "x.jsonl"]
+    )
+    assert result.exit_code == 3, result.output
+    assert Path(ran[0][1]) == SCRIPTS_DIR / "measure_pointing.py"
+    assert ran[0][2:] == ["--corpus", "dicta-modern", "--ledger", "x.jsonl"]
+
+
+def test_targum_eval_on_a_bare_split_stage_runs_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: pytest.fail("ran a script"))
+    result = CliRunner().invoke(app, ["eval", "stress"])
+    assert result.exit_code == 2
+    assert "stress/tanakh-taamim" in result.output
+
+
 # --- floors: the line a PR may not cross ------------------------------------------
 
 

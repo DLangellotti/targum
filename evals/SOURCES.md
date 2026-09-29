@@ -25,7 +25,7 @@ found one, and is not read as free.
 
 | set | reference kind | licence | use | ledger `stage/corpus` |
 | --- | --- | --- | --- | --- |
-| IAHLT treebanks | human-marked | CC BY-SA 4.0 | eval only | none yet (scorecard JSON) |
+| IAHLT treebanks | human-marked | CC BY-SA 4.0 | eval only | `lemma/iahltwiki`, `iahltknesset` |
 | UD French GSD, dev | human-marked | CC BY-SA 4.0 | eval only | `lemma/ud-fr-gsd`, `ud-fr-gsd-curly` |
 | UD Russian SynTagRus, dev | human-marked | CC BY-NC-SA 4.0 | eval only | `lemma/ud-ru-syntagrus` |
 | UD Italian ISDT, dev | human-marked | CC BY-NC-SA 3.0 | eval only | `lemma/ud-it-isdt`, `ud-it-isdt-curly` |
@@ -96,8 +96,9 @@ word tagged by people.
 - **Use:** evaluation only. Never trained on, never read by a build, nothing derived ships.
 - **Scored by:** `scripts/score_annotation.py` (the annotator), `scripts/score_dictionary.py`
   (the paid dictionary stage).
-- **Ledger:** no rows yet. `score_annotation.py` writes a JSON scorecard, and
-  `targum evals` imports one as `stage=lemma` rows (`evals.rows_from_scorecard`, `cli.py:558`).
+- **Ledger:** `lemma/iahltwiki`, `iahltknesset`, first on 2026-09-28 over the dev split.
+  `score_annotation.py` writes a JSON scorecard, and `targum evals --record` imports one
+  as `stage=lemma` rows (`evals.rows_from_scorecard`).
 
 ## Universal Dependencies dev sets
 

@@ -11,6 +11,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   so the next sign-in is a new reader's first visit. Refused for an address that already
   has a real account; `--link` prints a one-time sign-in link for a test account only.
   deploy/README.md, "A test account".
+- `targum eval <stage>`, one command for any stage's eval (targum-internal#351). A thin
+  dispatch over the harnesses in `scripts/`, which stay where they are; everything after
+  the stage goes to the script. `lemma` and `stress` are each measured two ways, so they
+  are named by corpus: `lemma/iahlt`, `lemma/ud`, `stress/tanakh-taamim`,
+  `stress/wiktionary-ru`.
+- The first Hebrew lemma rows in the ledger, from a human-tagged source: the shelf's
+  DICTA annotator against the IAHLT dev split, lemma 0.8244 on `iahltwiki` and 0.7836 on
+  `iahltknesset`, part of speech 0.9789 and 0.9745 (targum-internal#351). With floors
+  a little under each.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
