@@ -4438,21 +4438,32 @@ def test_the_about_page_keeps_its_numbers_where_there_is_no_repository(
 
     page = about_page()
     assert page.count('class="day level-') >= about.DAYS
-    assert f"<b>{live.commits}</b>" in page
+    assert f"<b>{live.commits:,}</b>" in page
 
 
 def test_the_about_page_names_the_day_its_count_ends_on() -> None:
     """ "In the last 30 days" is true of a wheel for about a day. The numbers are stamped
     when it is built and served until the next deploy, so the sentence has to name the
     day it counted to rather than implying today."""
+    from datetime import date
+
     from targum import about
     from targum.render.builder import about_page
 
     found = about.work()
     if not found.days:
         pytest.skip("no repository to read the numbers out of")
-    assert found.through in about_page()
-    assert "in the last" not in about_page()
+    page = about_page()
+    assert found.through in page
+    assert "in the last" not in page
+    # And in English a person would say (David, 2026-09-29): it read "changes in the 30
+    # days to 29 September".
+    first = date.fromisoformat(found.days[0][0]).strftime("%-d %B")
+    assert f"from {first} to {found.through}" in page
+    assert "days to" not in page
+    russian = about_page(language="ru")
+    assert " с " in russian.split('class="figures"')[1].split("</p>")[0]
+    assert found.through not in russian.split('class="figures"')[1].split("</p>")[0]
 
 
 def test_the_stamp_is_packed_into_the_wheel() -> None:

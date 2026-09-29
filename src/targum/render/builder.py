@@ -1483,8 +1483,12 @@ def about_page(language: str = "en", address: str = "") -> str:
             t=page_words(language),
             page_language=_page_language(language),
             work=found,
-            # The day the count ends on, in the page's language: «по 29 сентября», where
-            # `Work.through` alone said "по 29 September".
+            tn=page_counts(language),
+            # The count as a person writes it: 1,174, and 1 174 in Russian.
+            commits=f"{found.commits:,}".replace(",", "\u00a0" if language == "ru" else ","),
+            # The days the count runs between, in the page's language: «с 31 августа по
+            # 29 сентября», where `Work.through` alone said "по 29 September".
+            since=said_day(date.fromisoformat(found.days[0][0]), language) if found.days else "",
             through=(
                 said_day(date.fromisoformat(found.days[-1][0]), language) if found.days else ""
             ),

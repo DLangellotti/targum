@@ -357,6 +357,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- `/about` says its count in English a person would say: "1,174 changes from 31 August
+  to 29 September", where it said "1174 changes in the 30 days to 29 September". The
+  Russian takes its three plural forms, «1 174 изменения с 31 августа по 29 сентября».
 - The English copy, audited end to end (`COPY_AUDIT.md`): 151 catalogue strings and some
   thirty literals rewritten against design.md §6 — mostly claims the code did not keep
   ("One press and you're on the list", "That link has been used", "we can't read scans
