@@ -149,3 +149,16 @@ def test_a_deploy_reads_the_vault_as_the_service_account_when_it_can() -> None:
     assert lookup < script.index("op inject -i deploy/box.env.op"), "before the vault is read"
     weekly = (DEPLOY / "weekly-run.sh").read_text(encoding="utf-8")
     assert "targum-op-service-account" in weekly, "the same item the weekly reads"
+
+
+def test_the_deploy_takes_the_tool_back_before_it_replaces_it() -> None:
+    """A targum command run as root on the box, `--help` included, leaves root-owned
+    `__pycache__` inside the tool's environment, and `uv tool install --force` runs as
+    the service account, which cannot remove them. It stopped a deploy on 2026-09-29
+    part-way through taking the old environment apart. So root hands the environment
+    back first, and only where there is one."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    owns = "chown -R targum:targum /srv/targum/.local/share/uv/tools/targum"
+    assert owns in script
+    assert script.index(owns) < script.index("uv tool install --force")
+    assert "if [ -d /srv/targum/.local/share/uv/tools/targum ]; then" in script
