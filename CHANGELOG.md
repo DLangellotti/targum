@@ -20,6 +20,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   DICTA annotator against the IAHLT dev split, lemma 0.8244 on `iahltwiki` and 0.7836 on
   `iahltknesset`, part of speech 0.9789 and 0.9745 (targum-internal#351). With floors
   a little under each.
+- The shelf-search questions, asked of Jev (targum-internal#319). `shelf_screen.py` asks
+  what every research run asked of every candidate — in the language it claims, original
+  or translation, which subject, prose or not, would a learner get through it — over what
+  a candidate says before anybody takes it, and reads the licence line in code, never
+  through the model. `scripts/screen_shelf.py` sweeps the catalogue with it and scores
+  each answer against what the owner wrote on the rows they kept. Over all 967 rows, for
+  $0.044: language 0.996, prose 0.997, origin 0.932 (0.991 once fifteen rows whose notes
+  answer a different question are set aside), subject 0.708, recall on accept 0.996.
+  Precision cannot be measured: the rejected half of the research runs was deleted on
+  2026-09-27, so the set holds no reject.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
