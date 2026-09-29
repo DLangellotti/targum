@@ -319,11 +319,13 @@ def test_the_grammar_is_kept_with_the_words(tmp_path: Path) -> None:
     assert [t.feats for t in again["0000.000-x"]] == ["UPOS=NOUN", "UPOS=VERB"]
 
 
-def test_the_question_is_version_two_and_names_the_features() -> None:
-    """Prompt 2 asks the grammar; a stored prompt-1 row is under another key and is read
-    again rather than shown without it."""
-    assert model_lemma.provider_name().endswith("/2")
+def test_the_question_is_version_three_and_names_the_features() -> None:
+    """Prompt 3 lets the imparfait be said and asks a French clitic's role
+    (targum-internal#264); a stored prompt-2 row is under another key."""
+    assert model_lemma.provider_name().endswith("/3")
     assert "Case (Nom Gen Dat Acc Ins Loc Par Voc)" in model_lemma.SYSTEM
+    assert "Tense (Past Pres Fut Imp)" in model_lemma.SYSTEM
+    assert "Role (Obj Iobj En Y Refl)" in model_lemma.SYSTEM
     for name in model_lemma.FEATURES:
         assert name in model_lemma.SYSTEM
 
@@ -337,3 +339,159 @@ def test_a_language_keeps_only_the_grammar_it_has() -> None:
     assert model_lemma.features(line, "NOUN", "ru") == (
         "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Anim|Aspect=Perf"
     )
+
+
+def test_the_imparfait_is_kept_and_a_role_only_in_french() -> None:
+    """*mangeait* is `Tense=Imp` from prompt 3; a role is kept on a French pronoun and
+    dropped from an Italian or a Russian one, where nothing asked for it."""
+    assert model_lemma.features("Tense=Imp|Person=3|Number=Sing", "VERB", "fr") == (
+        "UPOS=VERB|Number=Sing|Tense=Imp|Person=3"
+    )
+    assert model_lemma.features("Tense=Imp", "VERB", "it") == "UPOS=VERB|Tense=Imp"
+    line = "Gender=Masc|Number=Sing|Person=3|Role=Obj"
+    assert model_lemma.features(line, "PRON", "fr").endswith("|Person=3|Role=Obj")
+    for language in ("it", "ru", "yi"):
+        assert "Role" not in model_lemma.features(line, "PRON", language)
+
+
+def test_a_pronoun_says_what_it_stands_for() -> None:
+    """The sixth column names the words, in this segment or the one before, and they are
+    kept only where the text has them: before the pronoun in its own segment, or anywhere
+    in the one before. A phrase the model made up, a segment out of reach and a reflexive
+    all keep nothing (targum-internal#264)."""
+    texts = ["Marie a acheté le livre.", "Elle le lit et en parle à Paul, qui s’en moque."]
+    answer = "\n".join(
+        [
+            "1\tMarie\tMarie\tPROPN\t_",
+            "1\tlivre\tlivre\tNOUN\tGender=Masc|Number=Sing",
+            "2\tElle\til\tPRON\tPerson=3|Gender=Fem|Number=Sing",
+            "2\tle\tle\tPRON\tGender=Masc|Number=Sing|Person=3|Role=Obj\t1:le livre",
+            "2\tlit\tlire\tVERB\tTense=Pres|Person=3|Number=Sing",
+            "2\ten\ten\tPRON\tRole=En\t1:le roman",
+            "2\tparle\tparler\tVERB\tTense=Pres",
+            "2\tPaul\tPaul\tPROPN\t_",
+            "2\ts’\tse\tPRON\tPerson=3|Role=Refl\t2:Paul",
+            "2\ten\ten\tPRON\tRole=En\t2:Paul",
+            "2\tmoque\tmoquer\tVERB\tTense=Pres",
+        ]
+    )
+    [first, second] = model_lemma.parse(answer, texts, "fr")
+    assert first is not None and second is not None
+    said = {(t.surface, t.start): t.stands_for for t in second}
+    assert said[("le", 5)] == (1, "le livre")
+    assert said[("en", 15)] is None, "le roman is not in the text"
+    assert said[("s’", 36)] is None, "a reflexive stands for its subject"
+    assert said[("en", 38)] == (0, "Paul")
+    [alone] = model_lemma.parse("1\tle\tle\tPRON\tRole=Obj\t0:le livre", ["Il le lit."], "fr")
+    assert alone is not None and alone[0].stands_for is None, "no segment before the first"
+    [italian] = model_lemma.parse(
+        "1\tlo\tlo\tPRON\tRole=Obj\t1:Il\n", ["Il libro, lo leggo."], "it"
+    )
+    assert italian is not None and italian[0].stands_for is None
+
+
+def test_what_it_stands_for_is_kept_and_settled_against_the_text(tmp_path: Path) -> None:
+    """Kept in the cache as a seventh column, and settled against the segment before this
+    one in the text being read: the reading is shared by every text with the sentence,
+    and another text's sentence before may not name the book."""
+    from targum.models import Token
+
+    cache = Cache(tmp_path / "cache")
+    text = "Je le lis."
+    held = [
+        Token(
+            start=3,
+            end=5,
+            surface="le",
+            lemma="le",
+            band=0,
+            pos="PRON",
+            feats="UPOS=PRON|Role=Obj",
+            stands_for=(1, "le livre"),
+        ),
+    ]
+    provider = model_lemma.provider_name()
+    cache.put(
+        "lemma",
+        model_lemma.key(cache, text, "fr", provider),
+        {"text": text, "provider": provider, "tokens": model_lemma._stored(held)},
+    )
+    here = [segment(0, "Paul a le livre."), segment(1, text)]
+    elsewhere = [segment(0, "Paul a la clé."), segment(1, text)]
+    got = ModelLemmatizer(cache=cache).lemmas(here, "fr")
+    assert got[here[1].id][0].stands_for == (1, "le livre")
+    got = ModelLemmatizer(cache=cache).lemmas(elsewhere, "fr")
+    assert got[elsewhere[1].id][0].stands_for is None
+    assert model_lemma._restored([[3, 5, "le", "le", "PRON", "", [2, "x"]]], text) == [
+        held[0].model_copy(update={"feats": None, "stands_for": None})
+    ], "a row that reaches further back than one segment keeps nothing of it"
+
+
+def test_an_earlier_question_still_serves_a_text_nobody_is_buying(tmp_path: Path) -> None:
+    """A French text read with prompt 2 keeps its words through a rebuild, which buys
+    nothing, rather than losing them to the new key; the name says it took them, so the
+    page does not call its past the passé simple and the next rebuild after a re-read
+    takes the new reading. A reader that is buying asks again. Prompt 1 had no grammar
+    and serves nothing."""
+    cache = Cache(tmp_path / "cache")
+    fake = FakeModel()
+    text = segment(0, "Le chat dort.")
+    rows = [[0, 2, "Le", "le", "DET", "UPOS=DET"]]
+    for version in (1, 2):
+        provider = model_lemma.provider_name(version=version)
+        cache.put(
+            "lemma",
+            model_lemma.key(cache, text.text, "fr", provider),
+            {"text": text.text, "provider": provider, "tokens": rows},
+        )
+
+    rebuilding = ModelLemmatizer(cache=cache)
+    assert rebuilding.name == model_lemma.provider_name()
+    words = rebuilding.lemmas([text], "fr")
+    assert [t.surface for t in words[text.id]] == ["Le"]
+    assert rebuilding.name == model_lemma.provider_name() + "/with-2"
+    assert not model_lemma.tenses_apart(f"{rebuilding.name}+wordfreq")
+
+    buying = reader(tmp_path, fake, buy=True)
+    bought = buying.lemmas([text], "fr")
+    assert len(fake.asked) == 1 and buying.name == model_lemma.provider_name()
+    assert [t.lemma for t in bought[text.id]] == ["le", "chat", "dormir"]
+    assert model_lemma.tenses_apart(f"{buying.name}+wordfreq+register/2")
+
+    first = ModelLemmatizer(cache=Cache(tmp_path / "other"))
+    provider = model_lemma.provider_name(version=1)
+    first.cache.put(
+        "lemma",
+        model_lemma.key(first.cache, text.text, "fr", provider),
+        {"text": text.text, "provider": provider, "tokens": rows},
+    )
+    assert first.lemmas([text], "fr") == {} and first.name == model_lemma.provider_name()
+
+
+def test_tenses_are_apart_only_under_the_third_question() -> None:
+    assert model_lemma.tenses_apart("model-lemma/claude-haiku-4-5/3+wordfreq+register/2")
+    assert not model_lemma.tenses_apart("model-lemma/claude-haiku-4-5/2+wordfreq+register/2")
+    assert not model_lemma.tenses_apart("model-lemma/claude-haiku-4-5/3/with-2+wordfreq")
+    assert not model_lemma.tenses_apart("dicta/1+wordfreq")
+    assert not model_lemma.tenses_apart("")
+
+
+def test_the_antecedent_waits_for_its_measure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The card names what a pronoun stands for only at a precision of 0.9 or better, and
+    nothing has measured it yet (targum-internal#264, criterion 2)."""
+    assert model_lemma.ANTECEDENT_PRECISION is None and not model_lemma.antecedents_shown()
+    monkeypatch.setattr(model_lemma, "ANTECEDENT_PRECISION", 0.89)
+    assert not model_lemma.antecedents_shown()
+    monkeypatch.setattr(model_lemma, "ANTECEDENT_PRECISION", 0.9)
+    assert model_lemma.antecedents_shown()
+
+
+def test_a_chapter_merged_into_an_older_reading_is_not_apart() -> None:
+    """A chapter bought under prompt 3 beside chapters read under prompt 2 makes a book
+    whose finite pasts are not all the passé simple, and its name says so."""
+    new = "model-lemma/claude-haiku-4-5/3+wordfreq"
+    old = "model-lemma/claude-haiku-4-5/2+wordfreq"
+    assert model_lemma.merged(old, new) == "model-lemma/claude-haiku-4-5/3/with-2+wordfreq"
+    assert not model_lemma.tenses_apart(model_lemma.merged(old, new))
+    assert model_lemma.merged(new, new) == new
+    assert model_lemma.merged("dicta/1+x", "dicta/2+x") == "dicta/2+x"

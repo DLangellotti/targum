@@ -286,6 +286,12 @@ var targumReader = function () {
   // on annotations written before they existed, and the card then simply says less.
   var builts = data.built || [];
   var grammarTable = data.grammar || [];
+  // Whether a finite past is the passé simple: only on a text read wholly by the question
+  // that tells it from the imparfait (targum-internal#264). Absent, a past is "past".
+  var tensesApart = !!data.tensesApart;
+  // What a French pronoun stands for, per segment: [row, segment, start, end]. Absent
+  // until the words are measured right nine times in ten; the card then gives the role.
+  var stands = data.stands || {};
   // A verb's citation form and a noun's lying plural, parallel to the lemmas. Facts
   // about the source word, so one table serves every target language — and grown at
   // runtime as words are looked up, since most texts were glossed before they existed.
@@ -3748,6 +3754,18 @@ var targumReader = function () {
     if (code === "Past") return gt("reader.grammar.past", "past");
     if (code === "Pres") return gt("reader.grammar.present", "present");
     if (code === "Fut") return gt("reader.grammar.future", "future");
+    // The imparfait and the imperfetto, from prompt 3 (targum-internal#264).
+    if (code === "Imp") return gt("reader.grammar.imperfect", "imperfect");
+    return "";
+  }
+  // What a French object pronoun is to its verb (targum-internal#264). An object *le*
+  // read "he" before this, and *en* and *y* read nothing.
+  function roleWord(code) {
+    if (code === "Obj") return gt("reader.grammar.direct-object", "direct object");
+    if (code === "Iobj") return gt("reader.grammar.indirect-object", "indirect object");
+    if (code === "En") return gt("reader.grammar.of-it", "of it / some");
+    if (code === "Y") return gt("reader.grammar.there", "there / to it");
+    if (code === "Refl") return gt("reader.grammar.reflexive", "reflexive");
     return "";
   }
   // The moods a French or Italian verb is met in besides the indicative. Said in place
@@ -3771,9 +3789,10 @@ var targumReader = function () {
    * the card says which: *a mangé* is the passé composé, *avait mangé* the pluperfect.
    * The tense is the auxiliary's. *Être* makes a compound tense only for the verbs that
    * take it and for a reflexive verb; with any other participle it is the passive, which
-   * is the one reading "passé composé" would get wrong. The imparfait is still tagged
-   * as the past (it waits for the prompt change #264 shares), so an auxiliary in the past
-   * is read as the pluperfect, which is what it nearly always is.
+   * is the one reading "passé composé" would get wrong. An auxiliary in the imparfait
+   * makes the pluperfect, and one in the passé simple the past anterior — told apart only
+   * on a text whose tenses are (`tensesApart`); elsewhere a past auxiliary is read as the
+   * pluperfect, which is what it nearly always is.
    */
   var AUXILIARIES = { avoir: true, "être": true };
   var ETRE_VERBS = {};
@@ -3796,7 +3815,12 @@ var targumReader = function () {
     if (mood === "Sub") return gt("reader.grammar.past-subjunctive", "past subjunctive");
     var tense = feat(auxLine, "Tense");
     if (tense === "Pres") return gt("reader.grammar.passe-compose", "passé composé");
-    if (tense === "Past") return gt("reader.grammar.pluperfect", "pluperfect");
+    if (tense === "Imp") return gt("reader.grammar.pluperfect", "pluperfect");
+    if (tense === "Past") {
+      return tensesApart
+        ? gt("reader.grammar.past-anterior", "past anterior")
+        : gt("reader.grammar.pluperfect", "pluperfect");
+    }
     if (tense === "Fut") return gt("reader.grammar.future-perfect", "future perfect");
     return "";
   }
@@ -3923,6 +3947,11 @@ var targumReader = function () {
       var form = feat(line, "VerbForm");
       var tense = tenseWord(feat(line, "Tense"));
       var past = feat(line, "Tense") === "Past";
+      // A French finite past is the passé simple, where the imparfait was read apart from
+      // it: the tense of books, which a learner meets in print and never hears.
+      if (past && form !== "Part" && language === "fr" && tensesApart) {
+        tense = gt("reader.grammar.simple-past", "simple past · literary");
+      }
       // A Russian participle declines, so it is the only verb form with a case, and the
       // case is what tells it from the beinoni, which is tagged the same and has none.
       if (form === "Part" && inCase) {
@@ -3990,6 +4019,14 @@ var targumReader = function () {
       return agree.join(" · ");
     }
     if (pos === "PRON") {
+      var role = roleWord(feat(line, "Role"));
+      if (role) {
+        // *la* is her or it and *les* them: the agreement is what the pronoun keeps of
+        // what it stands for. Only the third person's; *me* is not "I".
+        var person3 = !feat(line, "Person") || feat(line, "Person") === "3";
+        var kept = person3 && role !== roleWord("Refl") ? agreement(line) : "";
+        return kept ? role + " · " + kept : role;
+      }
       var person = personWord(line);
       if (!inCase) return person;
       return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
@@ -4011,6 +4048,21 @@ var targumReader = function () {
       return kind + " · " + inCase;
     }
     return posWord(pos);
+  }
+
+  // What the pronoun on a row stands for, where the page carries it: the segment that names
+  // it and the words as written. Null wherever the page carries nothing, which is every
+  // page until the words are measured to be right (`model_lemma.antecedents_shown`).
+  function standingAt(segmentId, row, textOf) {
+    var read = textOf || segmentText;
+    var at = (wordData[segmentId] || []).indexOf(row);
+    var said = stands[segmentId] || [];
+    for (var i = 0; i < said.length; i++) {
+      if (said[i][0] !== at) continue;
+      var words = read(said[i][1]).slice(said[i][2], said[i][3]);
+      return words ? { segment: said[i][1], words: words } : null;
+    }
+    return null;
   }
 
   // Gender and number as one mark, the way a Russian table heads its columns: the plural
@@ -5263,6 +5315,27 @@ var targumReader = function () {
       use.className = "use";
       mixedLine(use, usage);
       card.appendChild(use);
+    }
+
+    // What a pronoun stands for, and a way to go to it (targum-internal#264).
+    var standsIn = word.closest ? word.closest(".pair") : null;
+    var standsHere = standsIn && row ? standingAt(standsIn.getAttribute("data-id"), row) : null;
+    if (standsHere) {
+      var stand = document.createElement("span");
+      stand.className = "verb stands-for";
+      stand.appendChild(document.createTextNode(t("reader.card.stands-for", "stands for ")));
+      var standsWords = document.createElement("button");
+      standsWords.type = "button";
+      standsWords.className = "here";
+      standsWords.setAttribute("lang", language);
+      standsWords.textContent = standsHere.words;
+      standsWords.addEventListener("click", function (event) {
+        event.stopPropagation();
+        hideCard();
+        jumpTo(standsHere.segment);
+      });
+      stand.appendChild(standsWords);
+      card.appendChild(stand);
     }
 
     // The verb's other aspect. Aspect is decided by the sentence far more often than by a
@@ -9500,6 +9573,13 @@ var targumReader = function () {
     // grammar string comes out as, and who a form is about.
     useLine: useLine,
     personWord: personWord,
+    // What a pronoun stands for, by segment and row index into that segment's words, with
+    // the segments' text handed in: a stub document has no cells to read it from.
+    standingAt: function (segmentId, index, texts) {
+      return standingAt(segmentId, (wordData[segmentId] || [])[index], function (id) {
+        return texts[id] || "";
+      });
+    },
     // And the register line: which Hebrew a word belongs to, from where the reader is.
     registerLine: registerLine,
     // Which rendering the translation column draws from, and switching it: settled in

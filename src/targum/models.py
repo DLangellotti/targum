@@ -334,6 +334,13 @@ class Token(Artifact):
     # `annotate.base.not_vocabulary`. Only DICTA reads entities; absent everywhere else,
     # and on annotations written before it did (targum-internal#149).
     entity: str | None = None
+    # What a French object pronoun stands for, where the words that name it are in reach:
+    # how many segments back they are (0 this one, 1 the one before) and the words as
+    # written — `[0, "le livre"]` on the *le* of *je le lis*. Words rather than offsets,
+    # because a sentence's reading is cached and shared by every text that has it, and
+    # only the page knows which segment comes before; it places them (targum-internal#264).
+    # Only the model's French reading says it, from prompt 3; absent everywhere else.
+    stands_for: tuple[int, str] | None = None
 
     @property
     def glossed_as(self) -> str:

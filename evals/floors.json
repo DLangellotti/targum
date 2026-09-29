@@ -236,8 +236,8 @@
     "corpus": "ud-it-isdt",
     "metric": "lemma_accuracy",
     "system": "model-lemma",
-    "at_least": 0.96,
-    "why": "0.9783 on 2026-09-13 over 120 dev sentences, Haiku 4.5, prompt 1"
+    "at_least": 0.95,
+    "why": "0.9783 on 2026-09-13 over 120 dev sentences, Haiku 4.5, prompt 1. Lowered from 0.96 on 2026-09-28: prompt 3 read the same 120 sentences three times at 0.9692, 0.9595 and 0.9702 (targum-internal#264), so a run sits a point either side of its mean and the ledger holds the low one"
   },
   {
     "stage": "lemma",
@@ -460,8 +460,16 @@
     "corpus": "ud-fr-gsd",
     "metric": "tense_accuracy",
     "system": "model-lemma",
-    "at_least": 0.86,
-    "why": "0.8933 on 2026-09-15 over 120 dev sentences, Haiku 4.5, prompt 2 (targum-internal#263); 13 of the 178 are the imparfait, which prompt 2 cannot say, so 0.927 is the ceiling until it can"
+    "at_least": 0.95,
+    "why": "0.9831 on 2026-09-28 over 120 dev sentences, Haiku 4.5, prompt 3 (targum-internal#264), which can say the imparfait; 0.8933 under prompt 2, which could not"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "ud-fr-gsd",
+    "metric": "role_accuracy",
+    "system": "model-lemma",
+    "at_least": 0.85,
+    "why": "0.9286 on 2026-09-28 over the 28 object pronouns in 120 dev sentences, Haiku 4.5, prompt 3 (targum-internal#264). Read off the treebank's relations, a stand-in for the hand-written set; a small n, so the floor sits two misses below"
   },
   {
     "stage": "lemma",
@@ -492,8 +500,8 @@
     "corpus": "ud-it-isdt",
     "metric": "tense_accuracy",
     "system": "model-lemma",
-    "at_least": 0.72,
-    "why": "0.7545 on 2026-09-15 over 120 dev sentences, Haiku 4.5, prompt 2 (targum-internal#263); 28 are the imperfetto, which prompt 2 cannot say, and 38 past participles came back with no tense"
+    "at_least": 0.94,
+    "why": "0.971 on 2026-09-28 over 120 dev sentences, Haiku 4.5, prompt 3 (targum-internal#264), which can say the imperfetto; 0.7545 under prompt 2, which could not"
   },
   {
     "stage": "lemma",

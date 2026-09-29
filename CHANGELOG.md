@@ -113,6 +113,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   meteg is never named, and Psalms, Proverbs and Job get no line, their accents being
   another system. In Russian the name is transliterated and the class translated
   («типха · разделительный»). design.md §12, "A word in scripture names its accent".
+- A French object pronoun says what it is to its verb, and a French verb says the
+  imparfait and the passé simple (targum-internal#264, with #263's two deferred lines).
+  An object *le* read "he" and *en* and *y* read nothing; now *la* reads "direct object ·
+  f", *leur* "indirect object · pl.", *en* "of it / some", *y* "there / to it" and *se*
+  "reflexive". *Mangeait* reads "imperfect · he/she", *mangea* "simple past · literary",
+  and *eut mangé* the past anterior beside *avait mangé*'s pluperfect.
+
+  One grammar question for all of it, prompt 3 (`model_lemma.PROMPT_VERSION`): `Tense`
+  takes `Imp`, a French clitic takes a `Role`, and a sixth column copies the words it
+  stands for from its own segment or the one before. Scored on GSD dev: French tense
+  0.8933 → **0.9831**, Italian 0.7545 → **0.971**, French role 0.9286 over 28 clitics, with
+  floors. The words a pronoun stands for are read and kept but not shown: the card names
+  them only at a measured precision of 0.9 (`ANTECEDENT_PRECISION`), and the hand-written
+  set that measures it waits for a person. The page and its "stands for" button are built
+  behind that gate.
+
+  **Nothing on the shelf is read again by this.** A lemmatizer that is not buying a
+  segment takes its prompt-2 reading rather than dropping the words, and says so in its
+  name (`/with-2`), so a deploy's `rebuild --words` keeps every French, Italian and
+  Yiddish text as it reads now and the page keeps calling a finite past "past".
+  `targum rebuild --reread fr` is the paid re-read, and `--dry-run` says what it costs
+  first; it reads again only the segments a text already had words for.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each

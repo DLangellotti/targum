@@ -35,6 +35,19 @@ names neither leaves the grammar line empty. Asked in the same pass rather than 
 one, because the words are already being read and a second pass would bill every word
 twice: a fifth column of Universal Dependencies features, from a fixed list
 (`FEATURES`), scored against the same dev sets as the dictionary forms.
+
+**And a French object pronoun says what it stands for** (prompt 3, 2026-09-28,
+targum-internal#264, with #263's imperfect). The tense list takes `Imp`, so the imparfait
+is no longer written as the past and a finite past is the passé simple; a French clitic
+takes its `Role`; and where the words that name what it stands for are in the same segment
+or the one before, a sixth column copies them. One bump for all three, because a bump
+re-reads every text these languages have.
+
+**A reading from an earlier prompt still serves** (`EARLIER`). Until a text is read again
+— `targum rebuild --words --reread fr`, which spends — a lemmatizer that is not buying a
+segment takes its prompt-2 reading rather than dropping its words, and says so in its name
+(`/with-2`), so the page knows its tenses are not yet apart and a rebuild after the
+re-read picks the new reading up.
 """
 
 from __future__ import annotations
@@ -58,7 +71,12 @@ LANGUAGES = frozenset({"fr", "ru", "it", "yi"})
 MODEL = "claude-haiku-4-5"
 
 #: The question's version. See the module docstring for what moving it costs.
-PROMPT_VERSION = 2
+PROMPT_VERSION = 3
+
+#: The earlier versions whose cached readings still serve a segment nobody is buying now,
+#: newest first. Prompt 2's facts are prompt 3's less the imparfait and the clitic's role,
+#: so a card drawn from one says less and nothing wrong. Prompt 1 had no grammar at all.
+EARLIER = (2,)
 
 #: How much text goes in one request. Small enough that a batch cut off at `max_tokens`
 #: loses little, and is split and asked again rather than dropped.
@@ -72,9 +90,12 @@ BATCH_SEGMENTS = 30
 #: 12.2 in Russian and 15.8 in Yiddish, whose script tokenizes densely. Prompt 2 is 873
 #: tokens by the counting endpoint (2026-09-14), and its per-word figures are the eval's
 #: own usage over 120 dev sentences a language (`scripts/eval_lemma.py` prints them).
-#: Quoted a little high on purpose, as `dictionary.py` does: a cap fed high refuses less
-#: than it should, fed low it lets through more.
-TOKENS_PER_BATCH = 900
+#: Prompt 3 is 1,291 tokens by the counting endpoint (2026-09-28), and its eval came back
+#: at 20.7 tokens a word in French and 21.4 in Italian: a role and a sixth column ride on
+#: a pronoun or two a sentence, so the per-word figures stand. Russian and Yiddish were not
+#: read again. Quoted a little high on purpose, as `dictionary.py` does: a cap fed high
+#: refuses less than it should, fed low it lets through more.
+TOKENS_PER_BATCH = 1300
 TOKENS_PER_WORD_OUT = {"fr": 22, "it": 22, "ru": 30, "yi": 26}
 
 #: The features a card can say something with, and the values each may take. Anything
@@ -88,21 +109,41 @@ FEATURES: dict[str, frozenset[str]] = {
     "Number": frozenset({"Sing", "Plur"}),
     "Animacy": frozenset({"Anim", "Inan"}),
     "Aspect": frozenset({"Perf", "Imp"}),
-    "Tense": frozenset({"Past", "Pres", "Fut"}),
+    "Tense": frozenset({"Past", "Pres", "Fut", "Imp"}),
     "Person": frozenset({"1", "2", "3"}),
     "VerbForm": frozenset({"Inf", "Fin", "Part", "Conv"}),
     "Mood": frozenset({"Ind", "Imp", "Cnd", "Sub"}),
+    # Not Universal Dependencies, which says this with the relation rather than a feature:
+    # what a French clitic is to its verb (prompt 3, targum-internal#264). `En` and `Y`
+    # are named for the pronoun, because "of it, some" and "there, to it" are theirs alone.
+    "Role": frozenset({"Obj", "Iobj", "En", "Y", "Refl"}),
 }
 
 #: The features a language's card may show, where that is narrower than `FEATURES`. French
 #: and Italian keep no case, animacy or aspect: their nouns have none, and the model's
 #: case for a French pronoun agreed with the treebank 39% of the time on 2026-09-14 — a
-#: card must not say what is measured to be a guess. Yiddish has case and no aspect.
+#: card must not say what is measured to be a guess. Yiddish has case and no aspect. A
+#: clitic's role is asked of French alone.
 KEPT: dict[str, frozenset[str]] = {
     "fr": frozenset(FEATURES) - {"Case", "Animacy", "Aspect"},
-    "it": frozenset(FEATURES) - {"Case", "Animacy", "Aspect"},
-    "yi": frozenset(FEATURES) - {"Animacy", "Aspect"},
+    "it": frozenset(FEATURES) - {"Case", "Animacy", "Aspect", "Role"},
+    "ru": frozenset(FEATURES) - {"Role"},
+    "yi": frozenset(FEATURES) - {"Animacy", "Aspect", "Role"},
 }
+
+#: The card names what a pronoun stands for only once the words it copies are measured to
+#: be right nine times in ten (targum-internal#264, criterion 2). The measure is a hand-
+#: written set of 150 sentences that waits for a person, so until it is written this is
+#: `None` and the card gives the role alone. The words are read and kept all the same:
+#: they cost next to nothing in the same pass, and asked later they would cost a re-read.
+ANTECEDENT_PRECISION: float | None = None
+ANTECEDENT_FLOOR = 0.9
+
+
+def antecedents_shown() -> bool:
+    """Whether the page carries what a pronoun stands for (`ANTECEDENT_PRECISION`)."""
+    return ANTECEDENT_PRECISION is not None and ANTECEDENT_PRECISION >= ANTECEDENT_FLOOR
+
 
 #: The Universal POS tags, which is what a token's `pos` holds for every other lemmatizer.
 UPOS = frozenset(
@@ -110,6 +151,8 @@ UPOS = frozenset(
 )
 _SKIPPED = frozenset({"PUNCT", "SYM"})
 _NUMBER = re.compile(r"^[#(\[]?(\d+)(?:[.:)\]][\d.]*)?$")
+#: The sixth column: the segment that names what a pronoun stands for, and the words.
+_NAMED = re.compile(r"^(\d+)\s*:\s*(\S.*)$")
 
 #: The apostrophes a text is written with, read as one when a word is placed. French and
 #: Italian usually arrive with the curly one (`l’école`, `dell’anno`) and the model often
@@ -148,9 +191,25 @@ NUM PART PRON PROPN SCONJ VERB X.
 - The features are the word's grammar as it is used in this sentence, in Universal \
 Dependencies form, joined with |, and only these: Case (Nom Gen Dat Acc Ins Loc Par Voc), \
 Gender (Masc Fem Neut), Number (Sing Plur), Animacy (Anim Inan), Aspect (Perf Imp), Tense \
-(Past Pres Fut), Person (1 2 3), VerbForm (Inf Fin Part Conv), Mood (Ind Imp Cnd Sub). For \
-example Case=Acc|Gender=Fem|Number=Sing, or Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|\
-VerbForm=Fin|Mood=Ind. Write _ when none apply.
+(Past Pres Fut Imp), Person (1 2 3), VerbForm (Inf Fin Part Conv), Mood (Ind Imp Cnd Sub), \
+Role (Obj Iobj En Y Refl). For example Case=Acc|Gender=Fem|Number=Sing, or \
+Gender=Masc|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Fin|Mood=Ind. Write _ when none apply.
+- In French and Italian, Tense=Imp is the imperfect (il mangeait, mangiava) and Tense=Past \
+on a finite verb is the simple past (il mangea, mangiò). A past participle is Tense=Past \
+with VerbForm=Part.
+- In French, a pronoun that is the object of a verb (le, la, l', les, lui, leur, en, y, and \
+se, me, te, nous, vous where they are not the subject) has a Role: Obj, the direct object \
+(je le vois); Iobj, the indirect object (je lui parle); En for en (j'en veux, il en parle); \
+Y for y (j'y vais, il y pense); Refl where it stands for the subject (il se lave, je me \
+souviens). Se and s' always have Role=Refl. Le, la, l', les before a verb, or after an \
+imperative with a hyphen, are the pronoun, PRON and never DET: in ils la donnent, il \
+l'oppose, prends-le, the pronoun is PRON with Role=Obj. Only before a noun or an adjective \
+are they the article, DET with no Role; a subject pronoun has no Role either.
+- For a French pronoun with the Role Obj, Iobj, En or Y, where the person or thing it \
+stands for is named in the same segment or the one before it, add a sixth column: the \
+number of the segment that names it, a colon, and the words that name it copied exactly as \
+written, with their article (3:le livre). Leave the sixth column off where it stands for \
+nothing named there, or for a whole clause.
 - In Russian, Loc is the prepositional case. Every noun, pronoun, adjective, determiner, \
 declined numeral and participle has its Case, and every verb form, participles and \
 converbs included, has its Aspect. A participle (описанный, идущий, заданных) is tagged \
@@ -265,6 +324,28 @@ def features(raw: str, pos: str, language: str = "") -> str:
     return "|".join([f"UPOS={pos}", *(f"{name}={said[name]}" for name in FEATURES if name in said)])
 
 
+def _named(field: str, number: int, texts: Sequence[str], before: str) -> tuple[int, str] | None:
+    """The sixth column as a token keeps it: how many segments back, and the words as the
+    text writes them. Only the segment itself or the one before, and only words that are
+    there — in this segment, before the pronoun — so a phrase the model made up, or
+    placed in a segment it never saw, is dropped rather than shown."""
+    said = _NAMED.match(field.strip())
+    if said is None:
+        return None
+    back = number - (int(said.group(1)) - 1)
+    if back not in (0, 1) or number - back < 0:
+        return None
+    within = before if back == 0 else texts[number - 1]
+    words = said.group(2).strip().translate(_APOSTROPHES)
+    plain = within.translate(_APOSTROPHES)
+    at = plain.rfind(words)
+    if at < 0 and len(plain.casefold()) == len(plain):
+        at = plain.casefold().rfind(words.casefold())
+    if at < 0 or not _has_letters(words):
+        return None
+    return back, within[at : at + len(words)]
+
+
 def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[Token] | None]:
     """Tokens per segment from the model's lines, placed by searching each segment's text.
 
@@ -275,7 +356,7 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
     A segment the answer never mentioned is `None`, which is different from a segment that
     was read and held no word.
     """
-    lines: list[list[tuple[str, str, str, str]]] = [[] for _ in texts]
+    lines: list[list[tuple[str, str, str, str, str]]] = [[] for _ in texts]
     mentioned = [False for _ in texts]
     for line in answer.splitlines():
         fields = [field.strip() for field in line.split("\t")]
@@ -283,8 +364,8 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
         # the word's place too — `3.1`, `3.2` — which lost whole batches until it was
         # read for what it leads with (measured on the French dev set, 2026-09-13).
         # Four columns is an answer that left the features off, which still has words in
-        # it worth keeping.
-        numbered = _NUMBER.match(fields[0]) if len(fields) in (4, 5) else None
+        # it worth keeping; six is a French pronoun that says what it stands for.
+        numbered = _NUMBER.match(fields[0]) if len(fields) in (4, 5, 6) else None
         if numbered is None:
             continue
         number = int(numbered.group(1)) - 1
@@ -292,10 +373,12 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
             continue
         mentioned[number] = True
         surface, lemma, pos = fields[1], fields[2], fields[3].upper()
-        grammar = fields[4] if len(fields) == 5 else ""
+        grammar = fields[4] if len(fields) >= 5 else ""
+        named = fields[5] if len(fields) == 6 else ""
         if surface and pos not in _SKIPPED:
             tag = pos if pos in UPOS else "X"
-            lines[number].append((surface, lemma or surface, tag, features(grammar, tag, language)))
+            kept = features(grammar, tag, language)
+            lines[number].append((surface, lemma or surface, tag, kept, named))
 
     out: list[list[Token] | None] = []
     for text, words, said in zip(texts, lines, mentioned, strict=True):
@@ -306,7 +389,7 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
         cursor = 0
         plain = text.translate(_APOSTROPHES)
         folded = plain.casefold()
-        for surface, lemma, pos, feats in words:
+        for surface, lemma, pos, feats, named in words:
             surface = surface.translate(_APOSTROPHES)
             at = _place(plain, surface, cursor)
             if at < 0 and len(folded) == len(text):
@@ -320,6 +403,8 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
                 end += 1
             if not _has_letters(text[at:end]) and pos != "NUM":
                 continue
+            # Only a pronoun that has a role other than the reflexive stands for something.
+            refers = "Role=" in feats and "Role=Refl" not in feats and named
             tokens.append(
                 Token(
                     start=at,
@@ -329,6 +414,7 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
                     band=0,
                     pos=pos,
                     feats=feats,
+                    stands_for=_named(named, len(out), texts, text[:at]) if refers else None,
                 )
             )
             cursor = end
@@ -337,7 +423,12 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
 
 
 def _stored(tokens: list[Token]) -> list[list[Any]]:
-    return [[t.start, t.end, t.surface, t.lemma, t.pos, t.feats or ""] for t in tokens]
+    """A row a token, with a seventh column only on a pronoun that stands for something."""
+    return [
+        [t.start, t.end, t.surface, t.lemma, t.pos, t.feats or ""]
+        + ([list(t.stands_for)] if t.stands_for else [])
+        for t in tokens
+    ]
 
 
 def _restored(rows: Any, text: str) -> list[Token] | None:
@@ -345,11 +436,20 @@ def _restored(rows: Any, text: str) -> list[Token] | None:
         return None
     tokens: list[Token] = []
     for row in rows:
-        if not isinstance(row, list) or len(row) != 6:
+        if not isinstance(row, list) or len(row) not in (6, 7):
             return None
-        start, end, surface, lemma, pos, feats = row
+        start, end, surface, lemma, pos, feats = row[:6]
         if not (isinstance(start, int) and isinstance(end, int) and text[start:end] == surface):
             return None
+        named = row[6] if len(row) == 7 else None
+        stands_for = (
+            (named[0], named[1])
+            if isinstance(named, list)
+            and len(named) == 2
+            and named[0] in (0, 1)
+            and isinstance(named[1], str)
+            else None
+        )
         tokens.append(
             Token(
                 start=start,
@@ -359,9 +459,46 @@ def _restored(rows: Any, text: str) -> list[Token] | None:
                 band=0,
                 pos=str(pos),
                 feats=str(feats) or None,
+                stands_for=stands_for,
             )
         )
     return tokens
+
+
+def _in_reach(tokens: list[Token], before: str | None) -> list[Token]:
+    """The tokens, less any that stands for words the segment before this one does not
+    have. A reading is cached by the sentence and shared by every text that has it, and
+    a text is read in batches of the segments nobody has paid for, so "the one before" is
+    settled against the document here rather than trusted from when it was read."""
+    return [
+        token
+        if not token.stands_for
+        or token.stands_for[0] == 0
+        or (before is not None and token.stands_for[1] in before)
+        else token.model_copy(update={"stands_for": None})
+        for token in tokens
+    ]
+
+
+def tenses_apart(annotator: str) -> bool:
+    """Whether an annotation's tenses were all read by a question that tells the
+    imparfait from the passé simple (prompt 3 on). Where it was not — prompt 2, or a
+    prompt-3 text that still holds prompt-2 readings — a finite past is either, and the
+    card says "past" rather than guess."""
+    found = re.search(r"model-lemma/[^/+]+/(\d+)(/with-[\d,]+)?", annotator or "")
+    return found is not None and int(found.group(1)) >= 3 and not found.group(2)
+
+
+def merged(older: str, newer: str) -> str:
+    """The name of an annotation holding `older`'s words beside a chapter read as `newer`.
+
+    A book bought a chapter at a time keeps its earlier chapters' words when the next is
+    merged in, so where those were read before the tenses came apart, the whole is not
+    apart either, and says so the way a lemmatizer that fell back does."""
+    found = re.search(r"model-lemma/[^/+]+/\d+", newer)
+    if found is None or tenses_apart(older) or not tenses_apart(newer):
+        return newer
+    return f"{newer[: found.end()]}/with-{EARLIER[0]}{newer[found.end() :]}"
 
 
 class ModelLemmatizer:
@@ -386,10 +523,18 @@ class ModelLemmatizer:
         self.cache = cache or Cache()
         self.spent = Usage()
         self._provider: Any = None
+        #: The earlier prompts the last `lemmas` call took a reading from (`EARLIER`).
+        self.earlier: set[int] = set()
 
     @property
     def name(self) -> str:
-        return provider_name(self.model)
+        """The provider's name, and after a call that served a segment an earlier prompt's
+        reading, which prompts it took: that is a different annotation, and the page and
+        the next rebuild both need to know it."""
+        base = provider_name(self.model)
+        if not self.earlier:
+            return base
+        return f"{base}/with-{','.join(str(v) for v in sorted(self.earlier, reverse=True))}"
 
     def provider(self) -> Any:
         if self._provider is None:
@@ -411,18 +556,24 @@ class ModelLemmatizer:
             )
         out: dict[str, list[Token]] = {}
         owed: list[Segment] = []
+        self.earlier = set()
         for segment in segments:
             if not _has_letters(segment.text):
                 out[segment.id] = []
                 continue
-            stored = self.cache.get("lemma", key(self.cache, segment.text, code, self.name))
-            held = (
-                _restored(stored.get("tokens"), segment.text) if isinstance(stored, dict) else None
-            )
+            held = self._held(segment.text, code, provider_name(self.model))
             if held is not None:
                 out[segment.id] = held
             elif self.buy and (self.allowed is None or segment.id in self.allowed):
                 owed.append(segment)
+            else:
+                # Not being bought now: an earlier question's reading rather than no words.
+                for version in EARLIER:
+                    held = self._held(segment.text, code, provider_name(self.model, version))
+                    if held is not None:
+                        out[segment.id] = held
+                        self.earlier.add(version)
+                        break
         if owed:
             usable, why = self.available()
             if not usable:
@@ -430,7 +581,16 @@ class ModelLemmatizer:
             for segment, tokens in zip(owed, self._read(owed, code), strict=True):
                 if tokens is not None:
                     out[segment.id] = tokens
+        before: str | None = None
+        for segment in segments:
+            if segment.id in out:
+                out[segment.id] = _in_reach(out[segment.id], before)
+            before = segment.text
         return out
+
+    def _held(self, text: str, code: str, provider: str) -> list[Token] | None:
+        stored = self.cache.get("lemma", key(self.cache, text, code, provider))
+        return _restored(stored.get("tokens"), text) if isinstance(stored, dict) else None
 
     def _read(self, segments: list[Segment], code: str) -> list[list[Token] | None]:
         """Every segment's tokens, in batches, splitting any batch the answer overran.
@@ -449,10 +609,11 @@ class ModelLemmatizer:
             found = self._ask(batch, code)
             for segment, tokens in zip(batch, found, strict=True):
                 if tokens is not None:
+                    provider = provider_name(self.model)
                     self.cache.put(
                         "lemma",
-                        key(self.cache, segment.text, code, self.name),
-                        {"text": segment.text, "provider": self.name, "tokens": _stored(tokens)},
+                        key(self.cache, segment.text, code, provider),
+                        {"text": segment.text, "provider": provider, "tokens": _stored(tokens)},
                     )
             results.extend(found)
 

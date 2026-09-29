@@ -1758,3 +1758,95 @@ def test_a_noun_outside_french_keeps_the_form_it_was_met_in() -> None:
             vocab={lemma: {"status": 2}},
         )["list"]
         assert [row["shown"] for row in rows] == [lemma], language
+
+
+def test_a_french_verb_says_the_imparfait_and_the_passe_simple() -> None:
+    """Prompt 3 tells the imparfait from the passé simple (targum-internal#264, carried
+    from #263). A finite past is the passé simple only on a page whose tenses were all read
+    apart; on a text still holding prompt 2's reading it is "past", as it always was, and
+    Italian's past is left alone."""
+    imparfait = "UPOS=VERB|Number=Sing|Tense=Imp|Person=3|VerbForm=Fin|Mood=Ind"
+    passe_simple = "UPOS=VERB|Number=Sing|Tense=Past|Person=3|VerbForm=Fin|Mood=Ind"
+    apart = run(
+        [], grammarLines=[imparfait, passe_simple, PARTICIPLE], language="fr", tensesApart=True
+    )
+    assert apart["grammar"] == [
+        "imperfect · he/she",
+        "simple past · literary · he/she",
+        "past participle · f · pl.",
+    ]
+    assert grammar(imparfait, passe_simple, language="fr") == [
+        "imperfect · he/she",
+        "past · he/she",
+    ]
+    assert run([], grammarLines=[passe_simple], language="it", tensesApart=True)["grammar"] == [
+        "past · he/she"
+    ]
+
+
+def test_a_french_auxiliary_in_the_imparfait_or_the_passe_simple_names_its_tense() -> None:
+    """*avait mangé* is the pluperfect and *eut mangé* the past anterior, where the page
+    can tell the auxiliary's tenses apart; where it cannot, a past auxiliary is still read
+    as the pluperfect (targum-internal#264)."""
+    imparfait = "UPOS=AUX|Number=Sing|Person=3|Tense=Imp|VerbForm=Fin|Mood=Ind"
+    past = "UPOS=AUX|Number=Sing|Person=3|Tense=Past|VerbForm=Fin|Mood=Ind"
+    asks = [
+        [PARTICIPLE, "manger", imparfait, "avoir", False],
+        [PARTICIPLE, "manger", past, "avoir", False],
+    ]
+    assert run([], language="fr", compoundLines=asks, tensesApart=True)["compounds"] == [
+        "pluperfect · with avoir · f · pl.",
+        "past anterior · with avoir · f · pl.",
+    ]
+    assert run([], language="fr", compoundLines=asks)["compounds"] == [
+        "pluperfect · with avoir · f · pl.",
+        "pluperfect · with avoir · f · pl.",
+    ]
+
+
+def test_a_french_object_pronoun_says_its_role() -> None:
+    """An object *le* read "he", and *en* and *y* read nothing. The role now, with the
+    agreement a third-person pronoun keeps of what it stands for; a subject pronoun and a
+    Russian one are unchanged (targum-internal#264)."""
+    assert grammar(
+        "UPOS=PRON|Gender=Fem|Number=Sing|Person=3|Role=Obj",
+        "UPOS=PRON|Number=Plur|Person=3|Role=Iobj",
+        "UPOS=PRON|Role=En",
+        "UPOS=PRON|Role=Y",
+        "UPOS=PRON|Person=3|Role=Refl",
+        "UPOS=PRON|Number=Sing|Person=1|Role=Obj",
+        "UPOS=PRON|Gender=Fem|Number=Sing|Person=3",
+        language="fr",
+    ) == [
+        "direct object · f",
+        "indirect object · pl.",
+        "of it / some",
+        "there / to it",
+        "reflexive",
+        "direct object",
+        "she",
+    ]
+    assert grammar("UPOS=PRON|Case=Acc|Gender=Fem|Number=Sing|Person=3", language="ru") == [
+        "she · accusative"
+    ]
+
+
+def test_a_pronoun_says_what_it_stands_for_only_where_the_page_carries_it() -> None:
+    """The page carries what a pronoun stands for only once it is measured right nine
+    times in ten; where it does, the card reads the words out of the segment named, and
+    where it does not the card has nothing to add to the role (targum-internal#264)."""
+    chapter = {"s1": [[0, 5, 0, 0, 0, 0, 0, 0, 0]], "s2": [[3, 5, 0, 0, 1, 0, 0, 0, 1]]}
+    texts = {"s1": "Paul a le livre.", "s2": "Il le lit."}
+    carried = run(
+        [],
+        language="fr",
+        chapter=chapter,
+        texts=texts,
+        lemmas=["Paul", "le"],
+        grammar=["", "UPOS=PRON|Role=Obj"],
+        stands={"s2": [[0, "s1", 7, 15]]},
+        standingAsks=[["s2", 0], ["s1", 0]],
+    )["standing"]
+    assert carried == [{"segment": "s1", "words": "le livre"}, None]
+    bare = run([], language="fr", chapter=chapter, texts=texts, standingAsks=[["s2", 0]])
+    assert bare["standing"] == [None]

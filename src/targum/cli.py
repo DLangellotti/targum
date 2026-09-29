@@ -1156,6 +1156,62 @@ def warm(
     )
 
 
+def _read_before(folder: Path) -> set[str]:
+    """The segments a text already has words for: what a re-read may buy again."""
+    from .models import Annotation, read_artifact
+
+    annotation = read_artifact(Annotation, folder / "annotation.json")
+    return {sid for sid, tokens in annotation.tokens.items() if tokens} if annotation else set()
+
+
+def _reread_quote(root: Path, languages: set[str], dry_run: bool) -> None:
+    """Say what `rebuild --reread` will spend, and ask above `CONFIRM_ABOVE_USD`.
+
+    Priced the way a build is (`model_lemma.estimate`), over the segments each text
+    already has words for that the cache holds no reading of under the current question.
+    A sentence two texts share is counted once, because it is read once.
+    """
+    from .annotate import model_lemma
+    from .models import Annotation, SegmentedDocument, read_artifact
+
+    owed: dict[str, dict[str, Any]] = {}
+    texts = 0
+    for folder in sorted(_targums(root)):
+        annotation = read_artifact(Annotation, folder / "annotation.json")
+        if annotation is None:
+            continue
+        code = annotation.language.split("-")[0].lower()
+        if code not in languages or not model_lemma.reads(code):
+            continue
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        if segmented is None:
+            continue
+        had = {sid for sid, tokens in annotation.tokens.items() if tokens}
+        wanted = [segment for segment in segmented.segments if segment.id in had]
+        unpaid = model_lemma.unpaid(wanted, code, model_lemma.provider_name())
+        if unpaid:
+            texts += 1
+            for segment in unpaid:
+                owed.setdefault(code, {}).setdefault(segment.text, segment)
+    cost = sum(
+        model_lemma.estimate(list(segments.values()), code) for code, segments in owed.items()
+    )
+    words = sum(len(text.split()) for segments in owed.values() for text in segments)
+    sentences = sum(len(segments) for segments in owed.values())
+    console.print(
+        f"[bold]{texts} text{'' if texts == 1 else 's'}[/bold] "
+        f"[dim]{sentences} sentences, {words} words to read again with question "
+        f"{model_lemma.PROMPT_VERSION}, about ${cost:.2f}.[/dim]"
+    )
+    if dry_run or not owed:
+        return
+    usable, detail = model_lemma.ModelLemmatizer().available()
+    if not usable:
+        fail(TargumError("Cannot read the words again without a key.", detail))
+    if cost > CONFIRM_ABOVE_USD and not typer.confirm("Read them again?", default=True):
+        raise typer.Abort()
+
+
 def _targums(where: Path) -> list[Path]:
     """Every targum under a library root, whichever home it sits in.
 
@@ -1654,6 +1710,19 @@ def rebuild(
             help="Buy the meanings the cache lacks. Spends: one lookup per word nobody has met.",
         ),
     ] = False,
+    reread: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--reread",
+            help=(
+                "Buy the words again in this language (fr, it, yi, ru) where the model read "
+                "them with an earlier question. Spends, and says what first. Implies --words."
+            ),
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="With --reread: say what it would cost, and stop.")
+    ] = False,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -1667,10 +1736,23 @@ def rebuild(
     worked out by an older annotator has them worked out again, on this machine, before
     the page is written — and its vowel points first, where a newer diacritizer would
     point it, since the readings are worked out from the pointing.
+
+    `--reread fr` is the one road by which a new `model_lemma.PROMPT_VERSION` reaches the
+    French already on a shelf (targum-internal#264). Until it runs, those texts keep the
+    earlier question's reading and read as they did. It reads again only the segments a
+    text already had words for, so a chapter nobody bought stays unbought.
     """
     root = out or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"No targums in {root}.", "Build one first: targum serve"))
+    rereading = {code.split("-")[0].lower() for code in reread or ()}
+    words = words or bool(rereading)
+    #: Every lemmatizer that bought, so the run can say what it spent.
+    buying: list[Any] = []
+    if rereading:
+        _reread_quote(root, rereading, dry_run)
+        if dry_run:
+            return
 
     annotate: Callable[[Path, Document], Annotator] | None = None
     vocalize: Callable[[Document], Vocalizer] | None = None
@@ -1715,20 +1797,27 @@ def rebuild(
         phonikud = PhonikudPronouncer()
         has_phonikud = phonikud.available()[0]
 
-        def lemmatizer_for(source: str, language: str) -> LemmatizerProtocol:
+        def lemmatizer_for(folder: Path, source: str, language: str) -> LemmatizerProtocol:
             from .annotate import model_lemma
 
-            # A language the model reads gets its own, cache only: a rebuild re-reads
-            # what was bought and buys nothing.
-            held = (is_biblical(source), language if model_lemma.reads(language) else "")
+            # A language the model reads gets its own for each text, which costs nothing
+            # to make: its name says whether this text took an earlier prompt's reading,
+            # and one shared across texts would say it of every text after the first. It
+            # is cache only, so a rebuild buys nothing — unless this language is being
+            # read again, and then only what the text already had words for.
+            if model_lemma.reads(language):
+                again = language.split("-")[0].lower() in rereading
+                made = lemma.for_text(
+                    source, language, buy=again, allowed=_read_before(folder) if again else None
+                )
+                if again:
+                    buying.append(made)
+                return made
+            held = (is_biblical(source), "")
             if held not in lemmatizers:
                 # Unwrapped: an Aramaic text is wrapped per text by `for_language`, so a
                 # lemmatizer shared with the Hebrew texts of the run is never wrapped.
-                lemmatizers[held] = (
-                    lemma.for_text(source, language)
-                    if model_lemma.reads(language)
-                    else lemma.for_source(source)
-                )
+                lemmatizers[held] = lemma.for_source(source)
             return lemmatizers[held]
 
         def annotate(folder: Path, document: Document) -> Annotator:
@@ -1738,7 +1827,8 @@ def rebuild(
                     pronouncer = phonikud
             return Annotator(
                 lemmatizer=lemma.for_language(
-                    lemmatizer_for(document.source, document.language), document.language
+                    lemmatizer_for(folder, document.source, document.language),
+                    document.language,
                 ),
                 bands=biblical.for_source(document.source),
                 pronouncer=pronouncer,
@@ -1825,8 +1915,11 @@ def rebuild(
 
     for name, why in skipped:
         console.print(f"[dim]  skipped {name} — {why}[/dim]")
+    if buying:
+        read_for = sum((made.spent.cost() for made in buying), 0.0)
+        console.print(f"[dim]Read the words again for ${read_for:.2f}.[/dim]")
     if provider is None:
-        spent = "Nothing was fetched and nothing was spent."
+        spent = "Nothing was fetched and nothing was spent." if not buying else ""
     else:
         from .annotate.gloss import GLOSS_MODEL, estimate
 
