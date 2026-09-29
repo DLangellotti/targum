@@ -37,6 +37,13 @@ bought has nothing to count and says so. A text not yet in the catalogue, or one
 lives deeper than `<out>/<shelf>/<text>` — the Italian shelf keeps Global Voices a level
 down — is measured by naming its built folder.
 
+**And sentence length beside it** (targum-internal#382): mean words per sentence, off
+the same segmentation, printed as `sentence=` and written into the catalogue as
+`sentence`. The share cannot tell an easy text from a simplified one and this can — the
+weekly learned that on its own editions — so the level map needs both. It costs nothing
+the share has not already paid for: a built folder carries its `segments.json`, and a
+text measured afresh has just been segmented.
+
 Run when the catalogue changes; write what it prints into the catalogue. Kept out of
 the package because it is minutes of work over a hundred thousand words, and no reader
 should ever wait for it — but the counting itself moved into `annotate/difficulty.py`,
@@ -58,9 +65,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import ingest  # noqa: E402
 from targum.annotate import Annotator, biblical, lemma  # noqa: E402
-from targum.annotate.difficulty import hard_share  # noqa: E402
+from targum.annotate.difficulty import hard_share, sentence_length  # noqa: E402
 from targum.catalogue import CATALOGUE, Entry  # noqa: E402
-from targum.models import Annotation, is_biblical, read_artifact  # noqa: E402
+from targum.models import (  # noqa: E402
+    Annotation,
+    SegmentedDocument,
+    is_biblical,
+    read_artifact,
+)
 from targum.segment import HebrewSegmenter, segment_document  # noqa: E402
 
 #: The part of speech only the hand tagging emits. `annotate/scripture.py` maps the Open
@@ -96,8 +108,9 @@ def by_scripture_path(annotation: Annotation) -> bool:
     )
 
 
-def on_disk(root: Path, source: str) -> Annotation | None:
-    """An annotation a build already wrote, which is the same lemmas for free.
+def on_disk(root: Path, source: str) -> tuple[Path, Annotation] | None:
+    """An annotation a build already wrote, and the folder it lives in — the same lemmas,
+    and the same segmentation, for free.
 
     The bands in it may have been counted against the Tanakh; only the lemmas are read
     here, and they are re-banded against one ruler above.
@@ -133,11 +146,20 @@ def on_disk(root: Path, source: str) -> Annotation | None:
         wrong_path = is_biblical(source) and not by_scripture_path(annotation)
         return (int(wrong_path), 0 if home.parent.name == "library" else 1)
 
-    return min(candidates, key=rank)[1]
+    return min(candidates, key=rank)
 
 
-def measured(entry: Entry, root: Path) -> tuple[int | None, str]:
-    """This text's difficulty, or None where it cannot be measured honestly.
+def sentences_in(folder: Path) -> float:
+    """Mean words per sentence off a built folder's segmentation, or 0.0 where it has
+    none. Segmentation does not depend on which annotator read the text, so the
+    scripture question above does not arise: any copy of a text gives the same answer."""
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    return sentence_length(segmented) if segmented is not None else 0.0
+
+
+def measured(entry: Entry, root: Path) -> tuple[int | None, float, str]:
+    """This text's difficulty and sentence length, the difficulty None where it cannot
+    be measured honestly.
 
     Scripture read on the modern path comes out far too hard — the Torah portions moved
     11 to 21, 12 to 26, 15 to 29 — and writing those numbers into the catalogue would
@@ -146,9 +168,11 @@ def measured(entry: Entry, root: Path) -> tuple[int | None, str]:
     one (targum-internal#172).
     """
     scripture = is_biblical(entry.source)
-    annotation = on_disk(root, entry.source)
-    if annotation is not None and not (scripture and not by_scripture_path(annotation)):
-        return hard_share(annotation, entry.language), "on disk"
+    found = on_disk(root, entry.source)
+    if found is not None:
+        home, annotation = found
+        if not (scripture and not by_scripture_path(annotation)):
+            return hard_share(annotation, entry.language), sentences_in(home), "on disk"
     # Nothing built yet, or nothing built the right way: fetch it and read it here. No
     # spend — the network, the rule splitter and DICTA — though DICTA on a box without a
     # GPU is about a minute a text.
@@ -163,6 +187,7 @@ def measured(entry: Entry, root: Path) -> tuple[int | None, str]:
     # `Annotator()` is the modern path, so every biblical entry not already on disk was
     # measured as though it were a news article, deterministically and without a word of
     # complaint.
+    sentence = sentence_length(segmented)
     annotation = Annotator(
         lemmatizer=lemma.for_text(document.source, entry.language),
         bands=biblical.for_source(document.source),
@@ -171,16 +196,16 @@ def measured(entry: Entry, root: Path) -> tuple[int | None, str]:
         # `lemma.for_source` wraps the scripture lookup only where the Open Scriptures
         # tagging is actually on disk, so a box without that data quietly returns the
         # modern reading under the same annotator name. Refusing is the whole point.
-        return None, "refused — the hand tagging is not on this box"
+        return None, sentence, "refused — the hand tagging is not on this box"
     if not any(annotation.tokens.values()):
         # The model's lemmatizer reads the cache and buys nothing, so a text whose words
         # were never bought comes back empty — and 0 would read as the easiest text on
         # the shelf.
-        return None, "no words read yet — build it with its words first"
-    return hard_share(annotation, entry.language), "measured now"
+        return None, sentence, "no words read yet — build it with its words first"
+    return hard_share(annotation, entry.language), sentence, "measured now"
 
 
-def in_folder(folder: Path) -> tuple[int | None, str]:
+def in_folder(folder: Path) -> tuple[int | None, float, str]:
     """A built folder's difficulty, off its own `annotation.json`, in its own language.
 
     For the texts the catalogue sweep cannot reach: one not catalogued yet, or one built
@@ -189,9 +214,10 @@ def in_folder(folder: Path) -> tuple[int | None, str]:
     """
     if folder.name == "annotation.json":
         folder = folder.parent
+    sentence = sentences_in(folder)
     annotation = read_artifact(Annotation, folder / "annotation.json")
     if annotation is None:
-        return None, "no annotation.json — build it with its words first"
+        return None, sentence, "no annotation.json — build it with its words first"
     try:
         source = str(
             json.loads((folder / "document.json").read_text(encoding="utf-8")).get("source", "")
@@ -199,10 +225,15 @@ def in_folder(folder: Path) -> tuple[int | None, str]:
     except (OSError, json.JSONDecodeError):
         source = ""
     if is_biblical(source) and not by_scripture_path(annotation):
-        return None, "refused — read the modern way, not by the hand tagging"
+        return None, sentence, "refused — read the modern way, not by the hand tagging"
     if not any(annotation.tokens.values()):
-        return None, "no words read yet"
-    return hard_share(annotation, annotation.language), f"on disk, {annotation.language}"
+        return None, sentence, "no words read yet"
+    return hard_share(annotation, annotation.language), sentence, f"on disk, {annotation.language}"
+
+
+def said(sentence: float) -> str:
+    """The sentence half of a printed line, or nothing where there was nothing to count."""
+    return f"sentence={sentence:4.1f}  " if sentence else ""
 
 
 def main() -> None:
@@ -216,25 +247,31 @@ def main() -> None:
 
     if args.folders:
         for folder in args.folders:
-            share, how = in_folder(folder)
+            share, sentence, how = in_folder(folder)
             shown = "" if share is None else f"difficulty={share:3}  "
-            print(f"{folder}  {shown}({how})", flush=True)
+            print(f"{folder}  {shown}{said(sentence)}({how})", flush=True)
         return
 
     for entry in CATALOGUE:
         if args.only and entry.id != args.only:
             continue
         try:
-            share, how = measured(entry, args.out)
+            share, sentence, how = measured(entry, args.out)
         except Exception as error:  # a catalogue entry that will not fetch is not fatal
             print(f"{entry.id:22} — {error}", flush=True)
             continue
         if share is None:
             # Printed rather than skipped: a run that measures nothing and says nothing
             # reads exactly like a run that measured everything.
-            print(f"{entry.id:22} keeping {entry.difficulty:3}  ({how})", flush=True)
+            print(
+                f"{entry.id:22} keeping {entry.difficulty:3}  {said(sentence)}({how})", flush=True
+            )
             continue
-        print(f"{entry.id:22} difficulty={share:3}  ({how}, was {entry.difficulty})", flush=True)
+        print(
+            f"{entry.id:22} difficulty={share:3}  {said(sentence)}"
+            f"({how}, was {entry.difficulty}/{entry.sentence:g})",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

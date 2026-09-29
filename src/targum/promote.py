@@ -189,6 +189,25 @@ def _difficulty(folder: Path, language: str) -> int:
         return 0
 
 
+def _sentence(folder: Path) -> float:
+    """Mean words per sentence, off the segmentation already on disk (targum-internal#382).
+
+    The other half of a level, written into the row at the same moment as the share so
+    an accepted text arrives on the level map measured. 0.0 where there is nothing to
+    read, which the map counts as unmeasured, never as easy.
+    """
+    from .models import SegmentedDocument
+
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if segmented is None:
+        return 0.0
+    try:
+        from .annotate.difficulty import sentence_length
+    except ImportError:
+        return 0.0
+    return sentence_length(segmented)
+
+
 def warm_folder(folder: Path, cache: Cache, model: str | None = None) -> int:
     """Write the chapter-shaped public cache keys for one built text; how many.
 
@@ -325,6 +344,7 @@ def accept(
         "kind": kind or row["kind"],
         "register": register or row["register"],
         "difficulty": int(row["difficulty"]),
+        "sentence": _sentence(folder),
         # Naming the model is what makes the next reader's build free: the cache is
         # keyed on it, and a build that did not name it would translate the book again.
         "model": _model_of(folder),

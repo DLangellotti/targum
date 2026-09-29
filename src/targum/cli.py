@@ -4501,6 +4501,61 @@ def video_discover(
     console.print(f"[dim]Written to {target}[/dim]")
 
 
+@app.command()
+def levels(
+    out: Annotated[
+        Path,
+        typer.Option(help="Where builds live, read for a sentence length the catalogue lacks."),
+    ] = Path("targum-out"),
+    videos: Annotated[
+        Path | None,
+        typer.Option(help="The curated video shelf. Defaults to TARGUM_VIDEO_DIR's."),
+    ] = None,
+    language: Annotated[
+        list[str] | None, typer.Option("--language", "-l", help="Only these languages.")
+    ] = None,
+) -> None:
+    """How the catalogue sits on the weekly's levels, per language (targum-internal#382).
+
+    Every text placed on Easy, Simplified and Native by its hard-word share and its
+    sentence length, split into text, audio and video, with the texts meeting the Easy
+    spec in full counted against the target. Reads the catalogue and the disk; fetches
+    nothing and spends nothing.
+    """
+    from . import levelmap, spoken
+    from .catalogue import CATALOGUE
+    from .video import store as video_store
+
+    wanted = {code.lower() for code in language or []}
+    entries = [entry for entry in CATALOGUE if not wanted or entry.language in wanted]
+    shelves = levelmap.tally(
+        entries,
+        sentence=levelmap.Sentences(out, videos or video_store.root()),
+        spoken=spoken.is_spoken,
+        video=spoken.is_video,
+    )
+    if not shelves:
+        console.print("[dim]No catalogue texts in those languages.[/dim]")
+        return
+    for shelf in shelves.values():
+        table = Table(title=f"{shelf.language} · {shelf.total} texts", title_justify="left")
+        table.add_column("Level")
+        for how in (*levelmap.MEDIA, "all"):
+            table.add_column(how, justify="right")
+        for name, counts in levelmap.rows(shelf):
+            table.add_row(name, *(str(count) for count in counts))
+        console.print(table)
+        if not shelf.targeted:
+            console.print("[dim]No Easy target set for this language.[/dim]\n")
+            continue
+        short = max(0, levelmap.TARGET - shelf.easy_total)
+        console.print(
+            f"[dim]{shelf.easy_total} of {levelmap.TARGET} Easy"
+            + (f" — {short} to go" if short else " — target met")
+            + "[/dim]\n"
+        )
+
+
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
 # then calls main(), so anything defined below the guard is not registered yet when the
 # app is invoked — the parasha commands were added after it and `python -m targum.cli
