@@ -10,6 +10,9 @@
 <title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
 <style>{{ asset('reader.css') }}</style>
+{%- if preread %}
+<style>{{ asset('preread.css') }}</style>
+{% endif %}
 {#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
     script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
     it, Yiddish and Aramaic included. -#}
@@ -620,6 +623,9 @@
   </button>
 </div>
 {% endif %}
+{% if preread %}
+{% include '_preread.html.j2' %}
+{% endif %}
 {#- A way to hear one line. Drawn once and called twice: a dialogue's turn and a verse of
     a recorded book are the same control over the same audio, and two copies of an inline
     SVG is how the two quietly stop matching. -#}
@@ -964,6 +970,9 @@
 <script>{{ asset('events.js') }}</script>
 <script>{{ asset('playlist-menu.js') }}</script>
 <script>{{ asset('reader.js') }}</script>
+{%- if preread %}
+<script>{{ asset('preread.js') }}</script>
+{% endif %}
 {#- A reader opened from a playlist: Next, Back and the swipe (targum-internal#366). Does
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
 <script>{{ asset('list.js') }}</script>

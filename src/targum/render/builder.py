@@ -3000,6 +3000,13 @@ def render(
     # pictures and the link home, and the rows the head takes the place of.
     chrome_language = translations[0].target_language if translations else "en"
     post, post_covers = post_card(folder, segmented, chrome_language)
+    # Read once for the whole text, so a switch thrown mid-build cannot give one chapter
+    # the list and the next none.
+    from .preread import SHOWN as PREREAD_SHOWN
+    from .preread import chapter_words
+    from .preread import is_on as preread_is_on
+
+    preread_on = preread_is_on()
     # Its hashtags, mentions and addresses, which are names and not words: nothing in
     # them is tapped or counted on the page (David, 2026-09-27). At render, not in the
     # annotator, so no text is annotated again for it.
@@ -3492,6 +3499,13 @@ def render(
         # runs right to left on both sides, and against English on one.
         drawn_at = covering[0] if covering else 0
         drawing = translations[drawn_at]
+        # The words to know before this chapter (targum-internal#97), behind its switch.
+        # Not on a post, which is not a chapter, and not where there is nothing to tap.
+        preread = (
+            chapter_words(section.segment_ids, annotation, glossaries, drawing, translations)
+            if preread_on and words and post is None
+            else []
+        )
         target_direction = direction_for(drawing.target_language)
         # Where the language turns, said once at the row where it does — "Aramaic" over
         # Daniel 2:4, "Hebrew" over 8:1 — rather than on every row of a chapter. Counted
@@ -3558,6 +3572,8 @@ def render(
             or "stress" in extensions
             or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
             segments=[segment for segment in segments if segment.id not in post_covers],
+            preread=preread,
+            preread_shown=PREREAD_SHOWN,
             # The post's card, on the page that opens the text (a post is one page).
             post=post if section.number == 1 else None,
             # And where a film's caption starts, on whichever page it falls.

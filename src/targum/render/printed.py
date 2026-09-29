@@ -39,6 +39,7 @@ from ..models import (
     Document,
     Glossary,
     SegmentedDocument,
+    Token,
     Translation,
     Vocalization,
     direction_for,
@@ -102,6 +103,29 @@ def first_sense(meaning: str) -> str:
     has room for and a word list does not. The first sense is the one a reader keeps.
     """
     return meaning.split(";", 1)[0].strip()
+
+
+def listed_word(token: Token, glossary: Glossary, known: Collection[str] | None) -> Word | None:
+    """One word of the text as a line of a word list, or None where it is not one.
+
+    The rule the page's list keeps, said once so the reader's list before a chapter
+    (`render.preread`, targum-internal#97) keeps the same one: never a name or a number;
+    a word the reader has not marked known, where `known` says what they have, and a
+    word in the looked-up bands where it does not; and only with a meaning to set beside
+    it. Which words are listed once, and in what order, is the caller's.
+    """
+    if token.lemma in NOT_A_WORD or not_vocabulary(token.pos, token.entity):
+        return None
+    if known is None:
+        if token.band < LOOKED_UP:
+            return None
+    elif strip_nikkud(token.lemma)[0] in known or strip_nikkud(token.surface)[0] in known:
+        return None
+    key = token.glossed_as
+    meaning = first_sense(glossary.entries.get(key, ""))
+    if not meaning:
+        return None
+    return Word(form=glossary.citations.get(key) or token.headword or token.lemma, meaning=meaning)
 
 
 def _translation(translations: list[Translation], into: str | None) -> Translation:
@@ -201,24 +225,13 @@ def print_html(
             if annotation is None or glossary is None:
                 continue
             for token in annotation.tokens.get(sid, []):
-                if token.lemma in NOT_A_WORD or not_vocabulary(token.pos, token.entity):
+                if token.glossed_as in listed:
                     continue
-                key = token.glossed_as
-                if key in listed:
+                word = listed_word(token, glossary, known)
+                if word is None:
                     continue
-                if known is None:
-                    if token.band < LOOKED_UP:
-                        continue
-                elif (
-                    strip_nikkud(token.lemma)[0] in known or strip_nikkud(token.surface)[0] in known
-                ):
-                    continue
-                meaning = first_sense(glossary.entries.get(key, ""))
-                if not meaning:
-                    continue
-                listed.add(key)
-                form = glossary.citations.get(key) or token.headword or token.lemma
-                chapter.words.append(Word(form=form, meaning=meaning))
+                listed.add(token.glossed_as)
+                chapter.words.append(word)
         chapters.append(chapter)
 
     # The reader's rule, not the shelf's, and not the switches': the face follows what the

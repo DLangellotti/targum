@@ -2368,6 +2368,7 @@
   "x.not-shown": "X wouldn't show us that post.",
   "x.not-shown.hint": "It may be deleted, private or age-restricted. Copy its words and paste them here.",
   "reader.post.thread-in-part": "Some of this thread may be missing. The rest is on {service}.",
+  "reader.preread.words-to-know-first": "Words to know first",
   "progress.reading.title": "What you knew of what you read",
   "progress.reading.note": "We measure each section you finish against the words you'd marked known that day. Sections finished before we began measuring aren't in it.",
   "progress.reading.said-all": "In {month} you knew nearly every word of what you read.",
