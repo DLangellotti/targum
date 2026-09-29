@@ -71,6 +71,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `scripts/false_friends.py` and checked against Grammalecte's lexicon for the lemma. **No
   person has reviewed it yet**, and the table says `"reviewed": false` until one has.
   LICENSING.md says how it was made and why nothing was copied.
+- Morphalou 3.1, the ATILF's open lexicon of French, as a fetchable lookup:
+  `targum models fetch morphalou` downloads it from ORTOLANG, checks a pinned sha256 and
+  keeps it in the model directory, never in the repository (targum-internal#266). LGPL-LR,
+  whose text is now at the end of `LICENSING.md`. Nothing reads it yet. The first step of
+  the French pronunciation card was to count how much of the shelf it reaches, and
+  `scripts/measure_pronunciation.py` does: 97.9% of the French shelf's word tokens and
+  96.1% of its types on 2026-09-28, every text above 95%, with the misses mostly names,
+  `M.` and hyphenated compounds.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
