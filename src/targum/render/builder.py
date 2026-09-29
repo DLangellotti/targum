@@ -3364,6 +3364,14 @@ def render(
             from ..annotate.endings import ending_of
 
             endings = [ending_of(lemma) for lemma in lemmas]
+        # And the English it looks like and does not mean, from targum's own list
+        # (targum-internal#267), behind its switch until a person has read the list. The
+        # card says it only while the text is read into English.
+        friends: list[list[str]] = []
+        from ..annotate.false_friends import friend_of, is_on
+
+        if is_on() and segmented.language.split("-")[0].lower() == "fr":
+            friends = [friend_of(lemma) for lemma in lemmas]
         partners: list[str] = []
         stresses: list[str] = []
         if lexicon is not None:
@@ -3392,6 +3400,7 @@ def render(
                 ),
                 ("partners", partners),
                 ("stress", stresses),
+                ("friends", friends),
             )
             if any(table)
         }
@@ -3566,6 +3575,8 @@ def render(
                 and vocalization.machine
                 and vocalization.vocalizer.startswith("dicta/")
             ),
+            # The false friends' script, only where the page carries the table.
+            false_friends="friends" in extensions,
             # CC BY-SA asks the same naming, on a page that quoted the tables — which the
             # stress marks do too, since every mark was confirmed against them.
             lexicon_credit="partners" in extensions

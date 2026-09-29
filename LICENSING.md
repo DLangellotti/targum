@@ -585,6 +585,25 @@ licence are named in the table itself anyway. The card said to count from Dicoll
 than from Lexique, which is CC BY-SA, and this does. Lefff (LGPL-LR) was kept in reserve
 as a lookup for nouns this lexicon lacks, and was not needed.
 
+### The false friends — targum's own list, drafted by a model and not yet read by a person (2026-09-28)
+
+A French word's card, read into English, says what it looks like and does not mean:
+*actuellement* reads "false friend: not *actually* — currently" (targum-internal#267). No
+permissively licensed English–French list exists. Wiktionary's appendix is CC BY-SA, and
+it is used to look a word up and never copied from.
+
+`annotate/false_friends.json` is targum's own work, under the same licence as the code.
+`scripts/false_friends.py` asked Claude Opus 5 to write it from its own knowledge of
+French, a slice of the alphabet at a time, told not to reproduce or follow any published
+list. A second request judged every entry and kept 347 of 549. Every lemma that survived
+was then looked up in Grammalecte's lexicon above, only to ask whether it is a headword,
+which dropped 6. The coding agent that built it read the rest and dropped 26 more,
+leaving 315. Nothing from the lexicon ships.
+
+**No person has reviewed it.** The card said "reviewed by hand", and until somebody has,
+the table says `"reviewed": false`, and nothing claims otherwise. The card's line stays
+behind `TARGUM_FALSE_FRIENDS`, off, until David has read it (2026-09-28).
+
 ## Content is not code
 
 Nothing above covers what targum *reads*. A text, a translation and a recording each
