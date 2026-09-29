@@ -591,3 +591,15 @@ footer .mock { max-inline-size: 48rem; }
 /* targum inside Claude or ChatGPT, one line under the conversation's points (design.md
    §12, 2026-09-28): a line clear of the list, its link in the page's own link colour. */
 .talk-elsewhere { margin-block-start: 1.25rem; }
+
+/* /aliyah, the olim's own door (design.md §12, 2026-09-29). It is drawn from this
+   sheet's parts, and these are the places four things, a letter or three figures did
+   not fit them. */
+.parts.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 40rem) { .parts.pair { grid-template-columns: 1fr; } }
+.letters { gap: 0; }
+.letters .vsample { padding-block: 0.9rem; }
+.letters .vsample:first-child { border-block-start: 0; padding-block-start: 0; }
+.letters .vsample:last-child { padding-block-end: 0; }
+.letters .he { font-size: 1.25rem; line-height: 1.9; }
+.ledger.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }

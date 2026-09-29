@@ -1,0 +1,190 @@
+{#- The olim's own door, at `/aliyah` (targum-internal#385, 2026-09-29).
+
+    The front door speaks to every learner at once, and David kept it that way. This is
+    the page for one of them: somebody living in Israel, or on the way, whose ulpan ended
+    and whose Hebrew stopped where it did. It says so in its first line, and it is the
+    address a post in an olim group carries.
+
+    Drawn from the front door's own parts and its one stylesheet, and held to the same
+    rules: everything is baked in, nothing is fetched (§11), and the waitlist's form is a
+    plain post that works with JavaScript off. It carries no script at all: nothing on it
+    moves.
+
+    What it leaves out is on purpose. No Torah, no "one list, from Genesis to the news":
+    the GTM note had already said that line reads as "bible tool" to an oleh.
+
+    Every claim is one the product keeps today: a photo of a page and a screenshot of a
+    chat both become a text (`ingest/pages.py`). -#}
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('landing.css') }}</style>
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="landing">
+{#- The bar's places are the front door's, so `home` is its address: this page has no
+    parts by those names, and the front door is where they are. -#}
+{% with bar_class = 'bar', home = '/', here = '/aliyah' %}{% include '_front_bar.html.j2' %}{% endwith %}
+
+<main id="top">
+  <div class="col">
+    <div class="hero">
+      <div class="headline">
+        <h1>{{ t("aliyah.page.learn-hebrew-from-your-own-life-in-israel", "Learn Hebrew from your own life in Israel.") }}</h1>
+        <p class="lede">{{ t("aliyah.page.bring-a-video-a-voice-note-or-a", "Bring a video, a voice note or a photo of a letter. Every line arrives with vowels and English.") }}</p>
+      </div>
+      <div class="side">
+        {%- if not signed_in|default(false) %}
+        {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
+        {%- endif %}
+        <ul class="facts">
+          <li>{{ t("aliyah.page.for-after-ulpan", "For after ulpan") }}</li>
+          <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
+          <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
+          <li>{{ t("landing.page.no-credit-card-required", "No credit card required") }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <section class="part" id="after-ulpan">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("aliyah.page.after-ulpan", "After ulpan") }}</p>
+        <h2>{{ t("aliyah.page.ulpan-ended-your-hebrew-can-keep-going", "Ulpan ended. Your Hebrew can keep going.") }}</h2>
+        <p>{{ t("aliyah.page.you-get-by-in-english-and-the-hebrew", "You get by in English, and the Hebrew around you stays just out of reach. targum starts from that Hebrew, and from the words you already know.") }}</p>
+      </div>
+      <div class="parts pair">
+        <div class="tile">
+          <h3>{{ t("aliyah.page.start-where-ulpan-stopped", "Start where ulpan stopped") }}</h3>
+          <p>{{ t("aliyah.page.tell-us-how-much-hebrew-you-know-and", "Tell us how much Hebrew you know, and tick off the words you have. Everything is sorted from there, so you never begin at aleph again.") }}</p>
+        </div>
+        <div class="tile">
+          <h3>{{ t("aliyah.page.read-what-arrives", "Read what arrives") }}</h3>
+          <p>{{ t("aliyah.page.a-letter-from-the-bank-a-message-from", "A letter from the bank, a message from the school, a notice in the stairwell. Take a photo or a screenshot, and read it line by line.") }}</p>
+        </div>
+        <div class="tile">
+          <h3>{{ t("aliyah.page.follow-what-everyone-is-talking-about", "Follow what everyone is talking about") }}</h3>
+          <p>{{ t("aliyah.page.this-week-s-news-in-easy-hebrew-and", "This week’s news in easy Hebrew, and any video or podcast you paste a link to, with every word one tap away.") }}</p>
+        </div>
+        <div class="tile">
+          <h3>{{ t("aliyah.page.made-for-adults", "Made for adults") }}</h3>
+          <p>{{ t("aliyah.page.no-points-and-no-drills-you-read-real", "No points and no drills. You read real Hebrew, and we keep count of every word you learn.") }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="part" id="your-own">
+    <div class="col split">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</p>
+        <h2>{{ t("aliyah.page.if-it-arrived-in-hebrew-you-can-read", "If it arrived in Hebrew, you can read it here.") }}</h2>
+        <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file, whatever shape the Hebrew comes in. We tell you what we found, how much of it you already know, and when it’ll be ready.") }}</p>
+      </div>
+      {#- Four lines of the Hebrew an oleh is sent, one from each part of the week: money,
+          school, home and health. The Hebrew is the page's own and stands here pointed;
+          what is under each line goes through the catalogue. -#}
+      <div class="vcard letters" aria-label="{{ t("aliyah.page.examples-hebrew-from-everyday-life", "Examples: Hebrew from everyday life") }}">
+        <div class="vsample">
+          <span class="label">{{ t("aliyah.page.from-the-bank", "From the bank") }}</span>
+          <p class="he">כַּרְטִיס חָדָשׁ נִשְׁלַח אֵלֶיךָ בַּדֹּאַר.</p>
+          <p class="vs-en">{{ t("aliyah.page.a-new-card-was-sent-to-you-by", "A new card was sent to you by post.") }}</p>
+        </div>
+        <div class="vsample">
+          <span class="label">{{ t("aliyah.page.from-the-school", "From the school") }}</span>
+          <p class="he">מָחָר אֵין לִמּוּדִים.</p>
+          <p class="vs-en">{{ t("aliyah.page.there-is-no-school-tomorrow", "There is no school tomorrow.") }}</p>
+        </div>
+        <div class="vsample">
+          <span class="label">{{ t("aliyah.page.from-the-building", "From the building") }}</span>
+          <p class="he">הַמַּעֲלִית לֹא תַּעֲבֹד מָחָר בַּבֹּקֶר.</p>
+          <p class="vs-en">{{ t("aliyah.page.the-lift-will-not-work-tomorrow-morning", "The lift will not work tomorrow morning.") }}</p>
+        </div>
+        <div class="vsample">
+          <span class="label">{{ t("aliyah.page.from-the-clinic", "From the clinic") }}</span>
+          <p class="he">הַתּוֹר שֶׁלְּךָ בְּיוֹם שְׁלִישִׁי בְּשָׁעָה עֶשֶׂר.</p>
+          <p class="vs-en">{{ t("aliyah.page.your-appointment-is-on-tuesday-at-ten", "Your appointment is on Tuesday at ten.") }}</p>
+        </div>
+      </div>
+      <ul class="mediums">
+        <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3" width="12.4" height="10" rx="2"/><circle cx="5.6" cy="6.4" r="1"/><path d="M2.6 11.4l3.2-3 2.4 2.2 2-1.8 3.2 2.9"/></svg>{{ t("aliyah.page.a-photo-of-a-letter", "A photo of a letter") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4a1.6 1.6 0 011.6-1.6h5.8a1.6 1.6 0 011.6 1.6v3a1.6 1.6 0 01-1.6 1.6H5.4L3 11.3V9H3.4z"/><path d="M6.6 11.4h5.4l2.2 2v-2h.2V7.6"/></svg>{{ t("landing.page.a-whatsapp-or-telegram-chat", "A WhatsApp or Telegram chat") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h1.6M5 5.2v5.6M8 3.4v9.2M11 5.8v4.4M14 7.4h0.5"/></svg>{{ t("landing.page.a-voice-note", "A voice note") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3" width="12.4" height="10" rx="1.8"/><path d="M4.4 6h4M4.4 8.4h4M4.4 10.8h7.2M10.8 6h1.2v2.4h-1.2z"/></svg>{{ t("landing.page.today-s-news-from-any-site", "Today’s news, from any site") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.8 6.4l3.4 1.9-3.4 1.9z"/></svg>{{ t("landing.page.a-youtube-link-or-a-video-file", "A YouTube link or a video file") }}</li>
+        <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="1.8" width="4" height="7" rx="2"/><path d="M3.8 7.6a4.2 4.2 0 008.4 0M8 11.8v2.4"/></svg>{{ t("landing.page.a-podcast", "A podcast") }}</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="part" id="progress">
+    <div class="col split">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.your-progress", "Your progress") }}</p>
+        <h2>{{ t("landing.page.see-your-hebrew-grow-one-word-at-a", "See your Hebrew grow, one word at a time.") }}</h2>
+        <p>{{ t("landing.page.every-word-you-know-moves-you-up-the", "Every word you know moves you up the ulpan ladder, from aleph to vav.") }}</p>
+        <ul class="points">
+          <li>{{ t("landing.page.already-know-some-hebrew-start-where-you-are", "Already know some Hebrew? Start where you are.") }}</li>
+          <li>{{ t("landing.page.words-known-days-reading-chapters-finished", "Words known, days on targum, chapters finished.") }}</li>
+        </ul>
+      </div>
+      <figure class="ladder-card" aria-label="{{ t("landing.page.example-progress-2-140-words-known", "Example progress: 2,140 words known") }}">
+        <div class="ladder-top">
+          <span class="big">2,140</span>
+          <span class="rung">{{ t("landing.page.words-known", "words known ·") }} <span class="he">ב</span> {{ t("landing.page.bet", "bet") }}</span>
+          <span class="next tnum">{{ t("landing.page.860-more-to-bet-plus", "860 more to bet plus") }}</span>
+        </div>
+        <div class="ledger three">
+          <div><span class="v">2,140</span><span class="k">{{ t("landing.page.words-known-2", "words known") }}</span></div>
+          <div><span class="v">61</span><span class="k">{{ t("landing.page.days-reading", "days on targum") }}</span></div>
+          <div><span class="v">48</span><span class="k">{{ t("landing.page.chapters-finished", "chapters finished") }}</span></div>
+        </div>
+      </figure>
+    </div>
+  </section>
+
+  {#- Not to somebody who has already chosen targum (§6; copy audit, 2026-09-28). -#}
+  {%- if not signed_in|default(false) %}
+  <section class="part" id="join">
+    <div class="col split">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.the-waitlist", "The waitlist") }}</p>
+        <h2>{{ t("landing.page.be-among-the-first-to-learn-hebrew-this", "Be among the first to learn Hebrew this way.") }}</h2>
+        <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
+      </div>
+      <div class="join-card">
+        {% include '_join_form.html.j2' %}
+        <ul class="join-points">
+          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</li>
+          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.no-card-and-nothing-to-pay-to-join", "No card, and nothing to pay to join.") }}</li>
+          <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.your-email-and-nothing-else-we-won-t", "Your email and nothing else. We won’t pass it on.") }}</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  {%- endif %}
+
+  <section class="part" id="questions">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
+        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
+      </div>
+      <div class="faq">
+        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("aliyah.page.if-you-live-in-israel-or-are-on", "If you live in Israel, or are on your way, and know the alphabet, yes. It’s made for the point where ulpan or an app stops: you know the letters and some words, and the Hebrew around you is still too hard.") }}</p></details>
+        <details><summary>{{ t("aliyah.page.can-i-bring-a-letter-or-a-message", "Can I bring a letter or a message?") }}</summary><p>{{ t("aliyah.page.yes-take-a-photo-of-the-letter-or", "Yes. Take a photo of the letter or a screenshot of the chat, and add it. We write out the Hebrew with its vowels and put English under every line.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring is yours, and we never train a model on it.") }}</p></details>
+        <details><summary>{{ t("aliyah.page.does-it-replace-ulpan", "Does it replace ulpan?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us. Everyone on the waitlist hears what it costs before anybody else.") }}</p></details>
+        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups rather than all at once. Join the waitlist and we’ll email you when your turn comes. The earlier you join, the earlier that is.") }}</p></details>
+      </div>
+    </div>
+  </section>
+</main>
+
+{% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+</body>
+</html>
