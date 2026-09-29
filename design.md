@@ -347,6 +347,30 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### /about says what was built, day by day — 2026-09-29
+
+"I want /about to show that we're building in public, and display day by day what's been
+built or improved, without getting too technical, without saying what doesn't need to be
+said out loud," David wrote, and chose the rest. The heading is **targum is built in
+public**. The calendar stays, and under it each day has one to three lines, newest first,
+from the first day. The page draws the newest ninety.
+
+- **It is written for peers and partners**, and it is plain outcomes: what changed for
+  somebody using targum, and nothing about how. This is §6's "the specific line", without
+  the selling; the page asks for nothing.
+- **Two subjects are not said: the back office, and where a text comes from.** Work that
+  is built and not switched on is said like anything else.
+- **Nobody reads a day's lines before they are shown**, as nobody reads the weekly. The
+  guard is `about.refused()`, asked by a test and again by the page, so a refused line
+  that reached the file is still not drawn. A word comes off its list when David takes
+  it off.
+- **The lines are English on every page.** The Russian page says its own heading and
+  dates, and marks the list `lang="en"`.
+- The list is ink and ink-soft on the card, with a rule between days. Leaf stays the
+  calendar's (§4), and the date stands over its lines on a phone.
+
+`deploy/built.md` is the brief.
+
 ### The copy audit's answers — 2026-09-28
 
 The English copy was audited end to end (`COPY_AUDIT.md`). Its open questions went to

@@ -1,4 +1,4 @@
-/* That targum is under construction, and thirty days of evidence that it is.
+/* That targum is built in public, thirty days of evidence, and what each day was.
 
    The page was a wall of information — what it does, what shipped, what it cannot do
    yet — and is now four things. §9's hue budget holds easily: the desk and ink carry it
@@ -119,6 +119,36 @@ body.about {
 .key i { width: 11px; height: 11px; display: block; }
 .key .less { margin-inline-end: 0.2rem; }
 .key .more { margin-inline-start: 0.2rem; }
+
+/* What was built, a day to a row: the date in a column of its own, so the eye runs down
+   the days and across to what they held. Ink and ink-soft only — the calendar above
+   keeps the page's one colour. */
+.built {
+  margin: 1.75rem 0 0;
+  border-block-start: 1px solid var(--rule);
+}
+.built-day {
+  display: grid;
+  grid-template-columns: 7.5rem 1fr;
+  gap: 0.25rem 1rem;
+  padding-block: 0.85rem;
+  border-block-end: 1px solid var(--rule);
+}
+.built-day h2 {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.built-day ul { list-style: none; margin: 0; padding: 0; }
+.built-day li { font-size: 0.9375rem; line-height: 1.45; text-wrap: pretty; }
+.built-day li + li { margin-block-start: 0.35rem; }
+/* On a phone the date stands over its lines; a column that narrow holds three words. */
+@media (max-width: 30rem) {
+  .built-day { grid-template-columns: 1fr; }
+}
 
 .log-more { margin: 1.5rem 0 0; font-size: 0.9375rem; color: var(--ink-soft); }
 

@@ -6,6 +6,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- `/about` says what was built, day by day. Under the calendar, every day since the
+  first has one to three plain lines, newest first, from `src/targum/built.txt`. The
+  heading is "targum is built in public". The lines are English on every page, and the
+  Russian page says its own heading and dates around them. Nobody reads a day's lines
+  before they are shown, so `about.refused()` does: it holds each line to design.md §6
+  and refuses the workings, the back office and where a text comes from. It is asked by
+  `tests/test_about.py` over the file and by the page over every line it draws.
+  `deploy/built.md` is the brief the lines are written to. The count's last day is said
+  in the page's language, where the Russian page said "по 29 September".
 - Test accounts, wiped at every sign-out: `targum test-account EMAIL` marks and invites
   an address, and signing out of it empties everything it holds while keeping the account,
   so the next sign-in is a new reader's first visit. Refused for an address that already

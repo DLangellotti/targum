@@ -141,6 +141,19 @@ def said_date(when: date, language: str = SOURCE) -> str:
     return f"{days[when.weekday()]}, {when.day} {months[when.month - 1]} {when.year}"
 
 
+def said_day(when: date, language: str = SOURCE, year: bool = False) -> str:
+    """A day and its month as `language` writes them, with the year where it is asked for.
+
+    For a list of days, where the weekday is noise and the year is the same all the way
+    down: "28 September", «28 сентября». English puts the day first here, as /about's own
+    count does, because a column of dates is read down its numbers.
+    """
+    code = language.split("-")[0].lower()
+    months = _MONTHS.get(code)
+    said = f"{when.day} {months[when.month - 1]}" if months else when.strftime("%-d %B")
+    return f"{said} {when.year}" if year else said
+
+
 #: "on Saturday" in each language. Russian takes the accusative after «в» — «в субботу»,
 #: not «в суббота» — and Tuesday takes «во» rather than «в», so the preposition travels
 #: with the day rather than being glued on in a template. The whole phrase is the unit.
