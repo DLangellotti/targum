@@ -193,6 +193,15 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # exactly where PyPI put it and changes torch alone, from 2.14.0 to 2.14.0+cpu,
   # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
   # extras for x86_64 Linux both ways and diffing (targum-internal#93).
+  # The tool is the service account's, all of it, before the account is asked to replace
+  # it. Any targum command run as root on the box, a --help included, imports the
+  # package and leaves root-owned __pycache__ directories inside the environment, which
+  # the account then cannot remove: the install stops at "failed to remove directory
+  # .../tools/targum/lib: Permission denied", after it has begun taking the old
+  # environment apart (2026-09-29). Nothing on a fresh box, where there is no tool yet.
+  if [ -d /srv/targum/.local/share/uv/tools/targum ]; then
+    chown -R targum:targum /srv/targum/.local/share/uv/tools/targum
+  fi
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring,stress,russian]" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \

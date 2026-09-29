@@ -402,6 +402,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2026-09-28).
 
 ### Fixed
+- A deploy no longer stops at the install when somebody has run a targum command on the
+  box as root. Such a run, `--help` included, leaves root-owned `__pycache__` inside the
+  tool's environment, and the service account could not remove it: "failed to remove
+  directory .../tools/targum/lib: Permission denied", on 2026-09-29. `deploy.sh` hands
+  the environment back to the account before the install.
 - What the copy audit found the code saying wrongly (`COPY_QUESTIONS.md` 2–11, 14, 20–23,
   28; design.md §12, 2026-09-28). The build page says "We're making it" to a queued build
   and one still being costed, not "We can't make this one". Add shows the upload door's
