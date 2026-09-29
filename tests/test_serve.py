@@ -1785,7 +1785,7 @@ def test_the_about_page_is_open_to_strangers(tmp_path: Path) -> None:
     try:
         status, body, _ = call(port, "GET", "/about")
         assert status == 200
-        assert b"under construction" in body
+        assert b"built in public" in body
         assert b"Coming soon" not in body, "the holding page must not swallow it"
     finally:
         server.shutdown()
@@ -3502,7 +3502,7 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         strings,
         "catalogue",
         lambda code: (
-            {"about.page.targum-is-under-construction": "targum строится"}
+            {"about.page.targum-is-built-in-public": "targum строится"}
             if code == "ru"
             else real(code)
         ),
@@ -3521,7 +3521,7 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         connection = HTTPConnection("127.0.0.1", port, timeout=5)
         connection.request("GET", "/about", headers={"Accept-Language": "fr-FR"})
         page = connection.getresponse().read().decode("utf-8")
-        assert "targum is under construction" in page and '<html lang="en"' in page
+        assert "targum is built in public" in page and '<html lang="en"' in page
     finally:
         server.shutdown()
 

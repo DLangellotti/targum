@@ -1442,16 +1442,33 @@ def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[di
 
 
 def about_page(language: str = "en", address: str = "") -> str:
-    """That targum is under construction, and how much has landed lately.
+    """That targum is built in public: how much has landed lately, and what it was.
 
-    Nothing here is written by hand: the count and the calendar both come from `git
-    log`, and the rest of what this page used to say is on GitHub.
+    The count and the calendar come from `git log`. The days under them come from
+    `built.txt`, a line or three each, and every line is asked of `about.refused` before
+    it is drawn (2026-09-29). They are English on every page: the Russian page says its
+    own words around them and marks the list as English.
 
     Indexed, and in the sitemap, so it names its own address like every other page a
     crawler is sent to. One address for every language: this page reads the browser's
     language rather than `?lang=`, so there is no second address to name.
     """
-    from ..about import DAYS, work
+    from ..about import DAYS, built, work
+    from ..strings import said_day
+
+    # The year is said only on a day that is not in the newest day's year, which is the
+    # one place a column of days and months can be misread.
+    found = work()
+    days = built()
+    newest = days[0][0].year if days else 0
+    log = [
+        {
+            "iso": day.isoformat(),
+            "said": said_day(day, language, year=day.year != newest),
+            "lines": lines,
+        }
+        for day, lines in days
+    ]
 
     def level(count: int, busiest: int) -> int:
         """Which of five shades a day gets. Zero stays zero rather than rounding up."""
@@ -1465,9 +1482,15 @@ def about_page(language: str = "en", address: str = "") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            work=work(),
+            work=found,
+            # The day the count ends on, in the page's language: «по 29 сентября», where
+            # `Work.through` alone said "по 29 September".
+            through=(
+                said_day(date.fromisoformat(found.days[-1][0]), language) if found.days else ""
+            ),
             days=DAYS,
             level=level,
+            log=log,
             canonical=f"{address.rstrip('/')}/about" if address else "",
         )
     )

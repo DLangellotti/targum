@@ -4401,14 +4401,16 @@ def test_the_foot_names_what_each_link_does() -> None:
     assert 'href="/account/signin"' in public
 
 
-def test_the_about_page_says_targum_is_under_construction_and_little_else() -> None:
+def test_the_about_page_says_targum_is_built_in_public_and_little_else() -> None:
     """It described targum at length — what it does, what had shipped, what it could not
     do yet — and none of that is what somebody arriving early needs to be told. What is
-    left is the state of the thing, the evidence for it, and where the work is."""
+    left is the state of the thing, the evidence for it, what each day was, and where
+    the work is (2026-09-29)."""
     from targum.render.builder import about_page
 
     page = about_page()
-    assert "targum is under construction" in page
+    assert "targum is built in public" in page
+    assert "under construction" not in page
     assert 'href="https://github.com/DLangellotti/targum"' in page
     for gone in ("What it does", "Recently shipped", "What it cannot do yet", "reading app"):
         assert gone not in page, f"{gone!r} was cut from this page"
