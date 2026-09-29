@@ -12,10 +12,10 @@ against a pinned checksum, and read here. No row of it is in this repository or 
 wheel, no model is trained on it, and any correction to its data is published under
 LGPL-LR. The licence text is in `LICENSING.md`, and a copy is fetched beside the data.
 
-**Only a lookup, and nothing shown yet.** This module answers which transcriptions a
-written form has. `scripts/measure_pronunciation.py` counts how much of the French shelf
-that reaches, which is the first step of the card: below about 95%, espeak-ng is
-reconsidered, and that is the owner's call. No card reads this yet.
+**Only a lookup.** This module answers which transcriptions a written form has.
+`scripts/measure_pronunciation.py` counted how much of the French shelf that reaches
+(97.9%), and David decided on Morphalou alone (2026-09-28). `annotate/french_said.py`
+reads it for the card, behind `TARGUM_FRENCH_IPA`.
 
 The transcriptions are in Morphalou's own notation, close to SAMPA: `@` schwa, `E/` and
 `O/` the mid vowels where either height is heard, `~` nasal, `2` and `9` the front
@@ -168,11 +168,17 @@ class Lexicon:
         is the whole list given back. Readings that share a variant are one way of saying
         the word, not two.
         """
+        return distinct(row.variants() for row in self.agreeing(form, lemma, pos, feats))
+
+    def agreeing(self, form: str, lemma: str = "", pos: str = "", feats: str = "") -> list[Reading]:
+        """The form's rows that agree with its lemma, part of speech and features, or all
+        of them where none does. In the table's order, so a row's first variant is still
+        the one the table gives first."""
         found = self.lookup(form)
         if lemma or pos or feats:
             kept = [row for row in found if _agrees(row, lemma, pos, feats)]
             found = kept or found
-        return _distinct(row.variants() for row in found)
+        return found
 
 
 def _bare_lemma(lemma: str) -> str:
@@ -208,7 +214,8 @@ def _agrees(row: Reading, lemma: str, pos: str, feats: str) -> bool:
     return True
 
 
-def _distinct(groups: Iterable[frozenset[str]]) -> list[frozenset[str]]:
+def distinct(groups: Iterable[frozenset[str]]) -> list[frozenset[str]]:
+    """Readings that share a variant, merged: one set per distinct way of saying it."""
     out: list[frozenset[str]] = []
     for group in groups:
         joined = [known for known in out if known & group]

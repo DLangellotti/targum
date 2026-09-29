@@ -598,5 +598,13 @@
     "system": "dicta/dicta-il/dictabert-joint",
     "at_least": 0.96,
     "why": "0.9745 on 2026-09-28 over the dev split, the shelf's annotator (targum-internal#351)"
+  },
+  {
+    "stage": "said",
+    "corpus": "pd-fr-drafted",
+    "metric": "liaison_precision",
+    "system": "morphalou-3.1+gruut-liaison",
+    "at_least": 0.98,
+    "why": "the card's own floor (targum-internal#266); 1.0 on 2026-09-28, 80 of 80, against a model-drafted gold with its own tags"
   }
 ]

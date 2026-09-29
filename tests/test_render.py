@@ -228,6 +228,14 @@ RUSSIAN_WORDS = (
     "https://stanfordnlp.github.io/stanza/",
     "https://opencorpora.org",
 )
+#: Morphalou, the lexicon a French page's readings come from, its LGPL-LR licence and the
+#: one reading targum corrects, named at the foot of a page that shows them, as David
+#: decided on 2026-09-14 (targum-internal#266). Only where `TARGUM_FRENCH_IPA` is on.
+MORPHALOU = (
+    "https://www.ortolang.fr/market/lexicons/morphalou",
+    "https://repository.ortolang.fr/api/content/morphalou/5/licenceLGPLLR.txt",
+    "https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/morphalou_corrections.tsv",
+)
 OUTBOUND = (
     PEALIM,
     LICENCE,
@@ -238,6 +246,7 @@ OUTBOUND = (
     SVG_NAMESPACE,
     OPENRUSSIAN,
     *RUSSIAN_WORDS,
+    *MORPHALOU,
 )
 
 

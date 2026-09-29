@@ -623,8 +623,68 @@ what the licence's section 2 asks of a modified copy. LGPL-LR is not the GPL: it
 licence for data, and it reaches a work only where that work contains the resource. No
 GPL code is used for pronunciation (espeak-ng is GPL-3.0, and is not on the box).
 
-Nothing reads it yet. The first step was to measure how much of the French shelf it
-covers (`scripts/measure_pronunciation.py`); the card comes after that number is read.
+The first step was to measure how much of the French shelf it covers
+(`scripts/measure_pronunciation.py`): 97.9% of tokens, and on 2026-09-28 David decided on
+**Morphalou alone**. A word it has no reading for shows none, a hyphenated compound is said
+by its parts, and nothing supplements it under LGPL-LR or any other licence.
+
+**Where it is read, and the one correction** (2026-09-28, targum-internal#266). A French
+word's card and the "as said" switch read it through `annotate/french_said.py`, behind
+`TARGUM_FRENCH_IPA`, which is off. A page that shows its readings names Morphalou and the
+licence at its foot and links the correction. Two things in the table are not taken as
+they stand:
+
+- **`un`**: its numeral row reads `y n @`, *une*'s reading. That reading is dropped for the
+  spelling `un`, and the table's own masculine determiner row (`9~`) is used. This is a
+  choice between two of the table's readings of one form, and asserts nothing the table
+  does not say, so it is not counted as a correction to its data.
+- **`c'`**: the table reads `k`; the elided *ce* is /s/. That asserts a reading the table
+  does not give the form, so it **is** a correction to its data, and David's rule of
+  2026-09-14 above applies. It is published as the smallest thing it can be:
+  `src/targum/annotate/morphalou_corrections.tsv`, one row, under LGPL-LR rather than the
+  AGPL, with a notice in its header that targum changed it and when (section 2b). The
+  table itself is never altered and never shipped; the row is applied in code, at lookup.
+
+Whether a page of readings is itself "a work based on the Linguistic Resource" is the
+question LGPL-LR's section 0 leaves to what the program does. A page carries one reading per
+word it shows, never the table, so this document reads it the way it reads OpenRussian's
+facts, and names Morphalou on the page anyway, as the decision asks.
+
+### gruut's French liaison rule — MIT, ported (2026-09-28)
+
+Which liaisons the "as said" switch marks, and the consonant each carries, is ported from
+`fr_post_process_sentence` in **[gruut](https://github.com/rhasspy/gruut)**
+(`gruut/lang.py`, archived), with its `fr_has_silent_consonant` and `fr_is_vowel`
+(targum-internal#266). It is a few lines of logic, rewritten rather than copied, and
+narrowed to the liaisons every speaker makes; no gruut code, lexicon or model is a
+dependency. The notice travels with the port anyway, as MIT asks of a substantial portion:
+
+```
+MIT License
+
+Copyright (c) 2020 Michael Hansen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+gruut credits `fr_has_silent_consonant` to PoemesProfonds
+(`Remiphilius/PoemesProfonds`, `lecture.py`); the credit is kept.
 
 ## Content is not code
 

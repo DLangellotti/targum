@@ -71,6 +71,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `scripts/false_friends.py` and checked against Grammalecte's lexicon for the lemma. **No
   person has reviewed it yet**, and the table says `"reviewed": false` until one has.
   LICENSING.md says how it was made and why nothing was copied.
+- How a French word is said, behind `TARGUM_FRENCH_IPA` and off (targum-internal#266). The
+  word card gives the word's IPA as it is said in its sentence, from Morphalou alone, and
+  a French reader's `n` is the "as said" switch: a tie and its consonant over the
+  liaisons every speaker makes (a determiner before its noun, a clitic before its verb, a
+  verb before its inverted pronoun, with gruut's consonants), the elisions, and the final
+  consonants nobody says in muted ink. Drawn by a stylesheet over characters already in
+  the text, so no offset moves and a word saved with it on is the word saved with it off.
+  Optional liaisons are left unmarked. A word Morphalou has no reading for shows none; a
+  hyphenated compound is said by its parts. `un` never takes `une`'s reading, and `c'` is
+  /s/ by a one-row correction published under LGPL-LR
+  (`annotate/morphalou_corrections.tsv`). Against a model-drafted gold of 342 sentences
+  from four public-domain texts on the shelf, not yet read by a person
+  (`evals/french-said-gold.jsonl`, `scripts/eval_liaison.py`): liaison precision 1.0 (80 of
+  80, floor 0.98), recall 0.71, IPA word accuracy 0.9998, coverage 0.976, all with the
+  gold's own tags. Decided when a reader is written: with the switch unset a page is byte
+  for byte what it was. design.md §12 (2026-09-28).
 - Morphalou 3.1, the ATILF's open lexicon of French, as a fetchable lookup:
   `targum models fetch morphalou` downloads it from ORTOLANG, checks a pinned sha256 and
   keeps it in the model directory, never in the repository (targum-internal#266). LGPL-LR,
