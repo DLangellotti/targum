@@ -50,6 +50,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   200 lines of modern prose matched on the share of their words a reader at gimel knows,
   and on length (targum-internal#320). Switchable with `--prompt`; the library's wording
   stays the default, and the compiled file now says which wording it holds.
+- Who says a line, measured before anything is voiced (targum-internal#77):
+  `scripts/measure_speakers.py` takes the catalogue's Hebrew plays as free gold, strips
+  the names, asks Sonnet who says each line and how sure it is, and prints accuracy and
+  a precision–coverage curve over the confidence (`targum/speakers.py`). A play's turns
+  are explicit and alternate, so the number is an upper bound for prose. Nothing is
+  voiced and the reader is untouched.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
