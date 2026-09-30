@@ -6,6 +6,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- `targum video discover`: finds Creative Commons videos to curate through YouTube's Data
+  API and prices building them, for approval before anything is bought
+  (targum-internal#382).
+  - It searches each of he, ru, it and fr by everyday topics in the language's own words,
+    short videos first.
+  - It asks `videos.list` for each hit's licence again and keeps only `creativeCommon`
+    that is public, embeddable, 30 seconds to 20 minutes long, credits a channel, and is
+    not labelled as another language.
+  - It skips what is already on the curated shelf.
+  - It prints the batch as a markdown table with a tick box per row and an estimated
+    cost, using the pipeline's own before-hearing arithmetic. It writes the candidates
+    to `targum-out/discover/`.
+  - Data API quota is budgeted per run (`--quota`, 2,000 units by default of the day's
+    10,000) and reported.
+  - Nothing is fetched, built or spent. The key is `TARGUM_YOUTUBE_API_KEY`.
 - `/about` says what was built, day by day. Under the calendar, every day since the
   first has one to three plain lines, newest first, from `src/targum/built.txt`. The
   heading is "targum is built in public". The lines are English on every page, and the

@@ -4414,6 +4414,93 @@ def video_list() -> None:
     console.print(f"[dim]{len(names)} on the shelf at {video_store.root()}.[/dim]")
 
 
+@video_app.command("speech")
+def video_speech(
+    built: Annotated[list[Path], typer.Argument(help="Built clip folders to check.")],
+) -> None:
+    """Say which built clips carry too little speech to review.
+
+    Words a minute off each build's own segments against its length, with nothing
+    fetched or bought (targum-internal#382). A clip under the floor — music over
+    pictures, a silent recipe — is marked, and the command fails if any is, so a batch
+    script can stop on it.
+    """
+    from .video import discover as discover_module
+
+    silent = 0
+    for folder in built:
+        rate = discover_module.speech_rate(folder)
+        if rate is None:
+            console.print(f"{folder.name}  [dim]no build to read[/dim]")
+            silent += 1
+        elif rate < discover_module.MIN_WORDS_PER_MINUTE:
+            console.print(f"{folder.name}  {rate:.0f} words a minute  [red]too little speech[/red]")
+            silent += 1
+        else:
+            console.print(f"{folder.name}  {rate:.0f} words a minute")
+    if silent:
+        raise typer.Exit(1)
+
+
+@video_app.command("discover")
+def video_discover(
+    lang: Annotated[
+        list[str] | None,
+        typer.Option("--lang", help="A language to search; repeat it. Default: he, ru, it, fr."),
+    ] = None,
+    count: Annotated[int, typer.Option("--count", help="Candidates wanted per language.")] = 10,
+    quota: Annotated[
+        int, typer.Option("--quota", help="Data API units this run may spend (100 a search).")
+    ] = 2_000,
+    videos: Annotated[
+        Path | None,
+        typer.Option("--videos", help="The curated shelf to skip. Default: TARGUM_VIDEO_DIR."),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where to write the candidates. Default: targum-out/discover/"),
+    ] = None,
+    skip: Annotated[
+        list[Path] | None,
+        typer.Option("--skip", help="An earlier run's candidates, not to list again. Repeat it."),
+    ] = None,
+) -> None:
+    """Find Creative Commons videos worth curating, and price building them.
+
+    Asks YouTube's Data API for CC videos in each language, asks again for each one's
+    own licence, length and status, skips what is already on the shelf, and prints the
+    batch as a table to approve (targum-internal#382). Nothing is fetched, built or
+    bought: the only thing spent is Data API quota, and the run says how much. The key
+    is TARGUM_YOUTUBE_API_KEY.
+    """
+    from datetime import datetime
+
+    from .video import discover as discover_module
+
+    if videos is not None:
+        os.environ["TARGUM_VIDEO_DIR"] = str(videos.expanduser())
+    languages = lang or list(discover_module.LANGUAGES)
+    try:
+        earlier = [
+            str(candidate["id"])
+            for path in skip or []
+            for candidate in json.loads(path.expanduser().read_text(encoding="utf-8"))["candidates"]
+        ]
+        found = discover_module.discover(languages, count, budget=quota, skip=earlier)
+    except TargumError as error:
+        fail(error)
+    target = out or Path("targum-out") / "discover" / f"{datetime.now():%Y-%m-%d-%H%M}.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic(target, json.dumps(discover_module.to_json(found), ensure_ascii=False, indent=2))
+    console.print(discover_module.table(found), markup=False, highlight=False)
+    if found.dropped:
+        dropped = ", ".join(f"{n} {why}" for why, n in sorted(found.dropped.items()))
+        console.print(f"[dim]Dropped: {dropped}.[/dim]")
+    if found.short:
+        console.print("[yellow]The quota ran out before every language had its count.[/yellow]")
+    console.print(f"[dim]Written to {target}[/dim]")
+
+
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and
 # then calls main(), so anything defined below the guard is not registered yet when the
 # app is invoked — the parasha commands were added after it and `python -m targum.cli
