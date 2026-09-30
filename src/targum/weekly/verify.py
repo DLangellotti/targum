@@ -152,7 +152,7 @@ def gauge(markdown: str, language: str = "he") -> Gauge:
     so the number here is the number the entry will carry rather than an approximation.
     """
     from ..annotate import Annotator
-    from ..annotate.difficulty import hard_share
+    from ..annotate.difficulty import hard_share, sentence_length
     from ..ingest.base import blocks_from_paragraphs, build_document
     from ..models import BlockKind
     from ..segment import HebrewSegmenter, segment_document
@@ -176,8 +176,6 @@ def gauge(markdown: str, language: str = "he") -> Gauge:
         language=language,
     )
     segmented = segment_document(document, HebrewSegmenter())
-    sentences = segmented.segments
-    words = sum(len(segment.text.split()) for segment in sentences)
     annotation = Annotator().annotate(segmented)
 
     def surfaces(wanted: Callable[[Token], bool]) -> frozenset[str]:
@@ -191,7 +189,7 @@ def gauge(markdown: str, language: str = "he") -> Gauge:
 
     return Gauge(
         difficulty=hard_share(annotation, language),
-        sentence=round(words / len(sentences), 1) if sentences else 0.0,
+        sentence=sentence_length(segmented),
         names=surfaces(lambda token: not_vocabulary(token.pos, token.entity)),
         verbs=surfaces(lambda token: token.pos in {"VERB", "AUX"}),
     )

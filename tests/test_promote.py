@@ -347,3 +347,31 @@ def test_the_back_office_decides_and_a_stranger_cannot(world, shelf, monkeypatch
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_an_accepted_row_carries_its_sentence_length(world, shelf, monkeypatch: Any) -> None:
+    """The other half of a level, written with the share so an accepted text arrives on
+    the level map measured (targum-internal#382) — and 0.0, unmeasured, without one."""
+    from targum.models import Segment, SegmentedDocument
+
+    library, store, home = world
+    monkeypatch.setattr(promote, "warm_folder", lambda f, cache, model=None: 1)
+    folder = built(home, "hazon-he", "wikisource:חזון")
+    (folder / "segments.json").write_text(
+        SegmentedDocument(
+            document_hash="h",
+            language="he",
+            segmenter="rules",
+            segments=[
+                Segment(id="s1", block_id="b0000", block_index=0, index=1, text="אחת שתיים"),
+                Segment(
+                    id="s2", block_id="b0000", block_index=0, index=2, text="אחת שתיים שלוש ארבע"
+                ),
+            ],
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    promote.candidate(library, store, finished(library, home, "hazon-he", "wikisource:חזון"))
+    entry = catalogue.by_id("hazon-he")
+    assert entry is not None and entry.sentence == 3.0
+    assert promote._sentence(home / "nowhere") == 0.0

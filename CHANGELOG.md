@@ -30,6 +30,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `tests/test_about.py` over the file and by the page over every line it draws.
   `deploy/built.md` is the brief the lines are written to. The count's last day is said
   in the page's language, where the Russian page said "по 29 September".
+- `targum levels`, the level map (targum-internal#382): every catalogue text placed on the
+  weekly's Easy, Simplified and Native by both halves the weekly checks its own editions
+  against — hard-word share and words per sentence — per language, split into text, audio
+  and video, with the texts meeting the Easy spec in full (both bands, three minutes or
+  less) counted against a target of 100 each in he, ru, it and fr. Reads the catalogue and
+  the disk; fetches nothing and spends nothing. Catalogue rows carry `sentence` beside
+  `difficulty`: `scripts/measure_difficulty.py` prints it, `promote.accept` writes it, and
+  until a sweep has, the map reads it off a build's `segments.json` or segments a curated
+  video's document on the spot. The weekly's gauge counts sentences by the same
+  `annotate.difficulty.sentence_length`.
 - Test accounts, wiped at every sign-out: `targum test-account EMAIL` marks and invites
   an address, and signing out of it empties everything it holds while keeping the account,
   so the next sign-in is a new reader's first visit. Refused for an address that already
