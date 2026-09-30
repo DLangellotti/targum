@@ -4432,6 +4432,10 @@ def video_discover(
         Path | None,
         typer.Option("--out", help="Where to write the candidates. Default: targum-out/discover/"),
     ] = None,
+    skip: Annotated[
+        list[Path] | None,
+        typer.Option("--skip", help="An earlier run's candidates, not to list again. Repeat it."),
+    ] = None,
 ) -> None:
     """Find Creative Commons videos worth curating, and price building them.
 
@@ -4449,7 +4453,12 @@ def video_discover(
         os.environ["TARGUM_VIDEO_DIR"] = str(videos.expanduser())
     languages = lang or list(discover_module.LANGUAGES)
     try:
-        found = discover_module.discover(languages, count, budget=quota)
+        earlier = [
+            str(candidate["id"])
+            for path in skip or []
+            for candidate in json.loads(path.expanduser().read_text(encoding="utf-8"))["candidates"]
+        ]
+        found = discover_module.discover(languages, count, budget=quota, skip=earlier)
     except TargumError as error:
         fail(error)
     target = out or Path("targum-out") / "discover" / f"{datetime.now():%Y-%m-%d-%H%M}.json"

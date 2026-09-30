@@ -266,6 +266,32 @@ def speaks(language: str, snippet: Mapping[str, Any]) -> bool:
     return said.split("-")[0].lower() in LANGUAGES[language]
 
 
+#: YouTube's own category for music videos. Batch 1 brought three children's songs in
+#: under "kindergarten" (2026-09-30): sung Hebrew is not the Hebrew a reader is after.
+MUSIC = "10"
+
+#: The letters a language is written in, where that is not the Latin alphabet.
+SCRIPTS: dict[str, str] = {"he": "\u0590-\u05ff", "ru": "\u0400-\u04ff"}
+
+
+def titled_in(language: str, title: str) -> bool:
+    """Whether a title is not plainly in another non-Latin script than the language's.
+
+    Most uploads name no language (`speaks` lets those through), so the title is the
+    next evidence: batch 1's kindergarten promo was titled in Russian and spoken in it.
+    Latin letters prove nothing either way — Hebrew titles are full of "VLOG" — so only a
+    rival script outnumbering the language's own is refused.
+    """
+    own = SCRIPTS.get(language)
+    if own is None:
+        return True
+    ours = len(re.findall(f"[{own}]", title))
+    for other, letters in SCRIPTS.items():
+        if other != language and len(re.findall(f"[{letters}]", title)) > ours:
+            return False
+    return True
+
+
 def estimate(duration_s: int) -> tuple[float, float]:
     """USD to hear a video of this length and to put it into English, on the high side.
 
@@ -354,6 +380,10 @@ def check(item: Mapping[str, Any], language: str) -> str:
         return "names nobody to credit"
     if not speaks(language, snippet):
         return "in another language"
+    if str(snippet.get("categoryId", "")) == MUSIC:
+        return "music"
+    if not titled_in(language, str(snippet.get("title", ""))):
+        return "titled in another script"
     return ""
 
 
@@ -377,6 +407,97 @@ def _candidate(item: Mapping[str, Any], language: str, topic: str, subject: str)
     )
 
 
+@dataclass
+class _Search:
+    """One term in one length band: where its pages have got to, and what passed."""
+
+    topic: str
+    duration: str
+    page: str = ""
+    done: bool = False
+    passed: list[dict[str, Any]] = field(default_factory=list)
+
+
+def _rotate(
+    found: Found,
+    quota: Quota,
+    get: Fetch,
+    api_key: str,
+    language: str,
+    subject: str,
+    terms: tuple[str, ...],
+    wanted: int,
+    held: set[str],
+    seen: set[str],
+) -> int:
+    """Up to `wanted` candidates taken one at a time from each term in turn.
+
+    The short band only, round and round the terms for as long as any short search still
+    has pages or waiting candidates; the medium band only after that. Short is where the
+    Easy spec's three minutes sit, and asking it alone first keeps a subject to about
+    one search per term. Taking one per turn is what spreads a batch
+    over a subject's terms: the first Hebrew run filled each subject from its first term
+    alone, and ארנונה, ועד בית and תלוש משכורת were never asked (2026-09-30). What a page
+    brings beyond its turn waits in `passed` for the next round rather than being asked
+    for again.
+    """
+    kept = 0
+    for duration in DURATIONS:
+        searches = [_Search(t, duration) for t in terms]
+        while kept < wanted and any(s.passed or not s.done for s in searches):
+            for search in searches:
+                if kept >= wanted:
+                    break
+                if not search.passed and not search.done:
+                    if not quota.affords(SEARCH_UNITS + VIDEOS_UNITS):
+                        found.short = True
+                        return kept
+                    _refill(found, quota, get, api_key, language, search, held, seen)
+                    if found.short:
+                        return kept
+                if search.passed:
+                    item = search.passed.pop(0)
+                    found.candidates.append(_candidate(item, language, search.topic, subject))
+                    kept += 1
+    return kept
+
+
+def _refill(
+    found: Found,
+    quota: Quota,
+    get: Fetch,
+    api_key: str,
+    language: str,
+    search: _Search,
+    held: set[str],
+    seen: set[str],
+) -> None:
+    """Ask one more page of `search`, and keep what passes `check`."""
+    quota.spend(SEARCH_UNITS)
+    ids, search.page = _search(get, api_key, language, search.topic, search.duration, search.page)
+    search.done = not search.page
+    fresh = []
+    for identifier in ids:
+        if identifier in held:
+            found.drop("already on the shelf")
+        elif identifier in seen:
+            found.drop("found twice")
+        else:
+            fresh.append(identifier)
+            seen.add(identifier)
+    for start in range(0, len(fresh), PAGE):
+        if start and not quota.affords(VIDEOS_UNITS):
+            found.short = True
+            return
+        quota.spend(VIDEOS_UNITS)
+        for item in _details(get, api_key, fresh[start : start + PAGE]):
+            reason = check(item, language)
+            if reason:
+                found.drop(reason)
+            else:
+                search.passed.append(item)
+
+
 def discover(
     languages: Iterable[str],
     count: int,
@@ -385,6 +506,7 @@ def discover(
     get: Fetch | None = None,
     api_key: str | None = None,
     shelf: Iterable[str] | None = None,
+    skip: Iterable[str] = (),
 ) -> Found:
     """Up to `count` new candidates in each language, inside a quota budget.
 
@@ -403,7 +525,7 @@ def discover(
             )
     api_key = api_key if api_key is not None else key()
     get = get or fetch
-    held = set(store.every() if shelf is None else shelf)
+    held = set(store.every() if shelf is None else shelf) | set(skip)
     seen: set[str] = set()
     quota = Quota(budget=budget)
     found = Found()
@@ -417,43 +539,9 @@ def discover(
         kept = 0
         for subject, terms, allowed in groups:
             limit = min(count, kept + allowed)
-            for topic, duration in [(t, d) for t in terms for d in DURATIONS]:
-                page = ""
-                while kept < limit:
-                    if not quota.affords(SEARCH_UNITS + VIDEOS_UNITS):
-                        found.short = True
-                        break
-                    quota.spend(SEARCH_UNITS)
-                    ids, page = _search(get, api_key, language, topic, duration, page)
-                    fresh = []
-                    for identifier in ids:
-                        if identifier in held:
-                            found.drop("already on the shelf")
-                        elif identifier in seen:
-                            found.drop("found twice")
-                        else:
-                            fresh.append(identifier)
-                            seen.add(identifier)
-                    details: list[dict[str, Any]] = []
-                    for start in range(0, len(fresh), PAGE):
-                        if start and not quota.affords(VIDEOS_UNITS):
-                            found.short = True
-                            break
-                        quota.spend(VIDEOS_UNITS)
-                        details += _details(get, api_key, fresh[start : start + PAGE])
-                    for item in details:
-                        if kept >= limit:
-                            break
-                        reason = check(item, language)
-                        if reason:
-                            found.drop(reason)
-                            continue
-                        found.candidates.append(_candidate(item, language, topic, subject))
-                        kept += 1
-                    if not page or found.short:
-                        break
-                if kept >= limit or found.short:
-                    break
+            kept += _rotate(
+                found, quota, get, api_key, language, subject, terms, limit - kept, held, seen
+            )
             if found.short:
                 break
         if found.short:

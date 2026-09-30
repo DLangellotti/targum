@@ -125,11 +125,13 @@ def test_what_is_on_the_shelf_or_found_twice_is_not_asked_about() -> None:
 
 
 def test_the_count_is_per_language_and_stops_the_asking() -> None:
-    items = {f"v{n}": _item(f"v{n}") for n in range(6)}
-    api = Recorded([list(items)], items)
+    items = {f"{p}{n}": _item(f"{p}{n}") for p in "vw" for n in range(6)}
+    api = Recorded([[f"v{n}" for n in range(6)], [f"w{n}" for n in range(6)]], items)
     found = _run(api, count=2, languages=["ru"])
-    assert len(found.candidates) == 2
-    assert sum(1 for address, _ in api.calls if address == d.SEARCH) == 1
+    # One from each term in turn, so the second comes from the second term's search.
+    assert [c.id for c in found.candidates] == ["v0", "w0"]
+    assert [c.found_by for c in found.candidates] == list(d.TOPICS["ru"][:2])
+    assert sum(1 for address, _ in api.calls if address == d.SEARCH) == 2
 
 
 def test_the_budget_stops_the_next_search_and_says_so() -> None:
@@ -226,24 +228,70 @@ def test_a_search_answering_more_than_fifty_is_asked_about_in_fifties() -> None:
     asked = [query["id"].split(",") for address, query in api.calls if address == d.VIDEOS]
     assert [len(ids) for ids in asked] == [50, 3]
     assert len(found.candidates) == 53
-    assert found.units == d.SEARCH_UNITS + 2 * d.VIDEOS_UNITS
+    searches = len(d.TOPICS["ru"])  # the short band only: it held all 53
+    assert found.units == searches * d.SEARCH_UNITS + 2 * d.VIDEOS_UNITS
+
+
+class ByTerm(Recorded):
+    """The API, answering each search by its term: one page per term, then nothing."""
+
+    def __init__(self, by_term: dict[str, list[str]], items: dict[str, dict[str, Any]]) -> None:
+        super().__init__([], items)
+        self.by_term = {term: list(ids) for term, ids in by_term.items()}
+
+    def __call__(self, address: str, query: Any) -> dict[str, Any]:
+        if address != d.SEARCH:
+            return super().__call__(address, query)
+        self.calls.append((address, dict(query)))
+        return {"items": [{"id": {"videoId": i}} for i in self.by_term.pop(query["q"], [])]}
 
 
 def test_hebrew_is_asked_subject_by_subject_in_even_shares() -> None:
     # targum-internal#386: four subjects, each held to its share, so a batch of eight
-    # is two of each even when the first subject's search could fill it alone.
-    items = {f"v{n}": _item(f"v{n}") for n in range(40)}
-    pages = [[f"v{n}" for n in range(start, start + 10)] for start in range(0, 40, 10)]
-    api = Recorded(pages, items)
-    found = _run(api, count=8)
+    # is two of each even when one subject's first term could fill it alone.
+    by_term = {
+        terms[0]: [f"{n}-{k}" for k in range(10)]
+        for n, terms in enumerate(d.SUBJECTS["he"].values())
+    }
+    items = {i: _item(i) for ids in by_term.values() for i in ids}
+    found = _run(ByTerm(by_term, items), count=8)
     subjects = [c.subject for c in found.candidates]
     assert subjects == [s for s in d.SUBJECTS["he"] for _ in range(2)]
-    first = [q["q"] for address, q in api.calls if address == d.SEARCH]
-    assert first == [terms[0] for terms in d.SUBJECTS["he"].values()]
     assert "| [ ] | he | health |" in d.table(found)
+
+
+def test_a_subject_is_spread_over_its_terms() -> None:
+    # The first real run filled every subject from its first term; ארנונה and the rest
+    # were never asked (2026-09-30). Each term now gives one before any gives a second.
+    money = d.SUBJECTS["he"]["bureaucracy and money"]
+    by_term = {term: [f"{n}-{k}" for k in range(5)] for n, term in enumerate(money)}
+    items = {i: _item(i) for ids in by_term.values() for i in ids}
+    found = _run(ByTerm(by_term, items), count=4 * len(money))
+    first = [c for c in found.candidates if c.subject == "bureaucracy and money"]
+    assert [c.found_by for c in first] == list(money)
 
 
 def test_an_unsteered_language_has_no_subject() -> None:
     items = {"a": _item("a")}
     found = _run(Recorded([["a"]], items), count=1, languages=["fr"])
     assert [c.subject for c in found.candidates] == [""]
+
+
+def test_music_and_a_rival_script_are_dropped() -> None:
+    song = _item("song")
+    song["snippet"]["categoryId"] = "10"
+    russian = _item("russian")
+    russian["snippet"]["title"] = "Приглашаем в детсад ארץ הקטקטים"
+    mixed = _item("mixed")
+    mixed["snippet"]["title"] = "VLOG פסטיבל התלתלים"
+    assert d.check(song, "he") == "music"
+    assert d.check(russian, "he") == "titled in another script"
+    assert d.check(mixed, "he") == ""
+    assert d.check(russian, "ru") == ""
+
+
+def test_an_earlier_batch_is_skipped_like_the_shelf() -> None:
+    items = {i: _item(i) for i in ("listed", "new")}
+    found = _run(Recorded([["listed", "new"]], items), count=2, languages=["ru"], skip=["listed"])
+    assert [c.id for c in found.candidates] == ["new"]
+    assert found.dropped == {"already on the shelf": 1}
