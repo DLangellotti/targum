@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-09-29
+The about page shows what was built, day by day.
+A French word's card names a pronoun's role, and tells the imperfect from the simple past.
+A word of the Torah names its chanting accent on its card while the marks are shown.
+
 2026-09-28
 A first visit opens a text you can follow.
 The site's own words were checked against what the app does, and corrected.
