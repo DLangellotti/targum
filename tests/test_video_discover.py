@@ -295,3 +295,27 @@ def test_an_earlier_batch_is_skipped_like_the_shelf() -> None:
     found = _run(Recorded([["listed", "new"]], items), count=2, languages=["ru"], skip=["listed"])
     assert [c.id for c in found.candidates] == ["new"]
     assert found.dropped == {"already on the shelf": 1}
+
+
+def _built(tmp_path: Any, words: int, seconds: float) -> Any:
+    import json
+
+    folder = tmp_path / f"clip-{words}"
+    (folder / "audio").mkdir(parents=True)
+    (folder / "audio" / "probe.json").write_text(
+        json.dumps({"duration": seconds, "sha256": "x", "title": "t", "has_video": True})
+    )
+    spoken = [{"kind": "paragraph", "text": " ".join(["מילה"] * words)}]
+    title = [{"kind": "title", "text": " ".join(["כותרת"] * 40)}]
+    (folder / "segments.json").write_text(json.dumps({"segments": title + spoken}))
+    return folder
+
+
+def test_a_clip_with_little_speech_is_not_worth_reviewing(tmp_path: Any) -> None:
+    # Batch 1's rental listing: 34 words over a minute of music (2026-09-30).
+    quiet = _built(tmp_path, 34, 58.0)
+    talking = _built(tmp_path, 318, 152.0)
+    assert d.speech_rate(quiet) == pytest.approx(34 / (58 / 60))
+    assert not d.speaks_enough(quiet)
+    assert d.speaks_enough(talking)
+    assert d.speech_rate(tmp_path / "missing") is None

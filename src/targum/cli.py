@@ -4414,6 +4414,34 @@ def video_list() -> None:
     console.print(f"[dim]{len(names)} on the shelf at {video_store.root()}.[/dim]")
 
 
+@video_app.command("speech")
+def video_speech(
+    built: Annotated[list[Path], typer.Argument(help="Built clip folders to check.")],
+) -> None:
+    """Say which built clips carry too little speech to review.
+
+    Words a minute off each build's own segments against its length, with nothing
+    fetched or bought (targum-internal#382). A clip under the floor — music over
+    pictures, a silent recipe — is marked, and the command fails if any is, so a batch
+    script can stop on it.
+    """
+    from .video import discover as discover_module
+
+    silent = 0
+    for folder in built:
+        rate = discover_module.speech_rate(folder)
+        if rate is None:
+            console.print(f"{folder.name}  [dim]no build to read[/dim]")
+            silent += 1
+        elif rate < discover_module.MIN_WORDS_PER_MINUTE:
+            console.print(f"{folder.name}  {rate:.0f} words a minute  [red]too little speech[/red]")
+            silent += 1
+        else:
+            console.print(f"{folder.name}  {rate:.0f} words a minute")
+    if silent:
+        raise typer.Exit(1)
+
+
 @video_app.command("discover")
 def video_discover(
     lang: Annotated[

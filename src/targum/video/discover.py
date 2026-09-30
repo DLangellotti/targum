@@ -47,6 +47,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ..errors import OffHere, TargumError
@@ -587,3 +588,41 @@ def to_json(found: Found) -> dict[str, Any]:
         "short": found.short,
         "total": round(found.total, 4),
     }
+
+
+#: The fewest words a minute a built clip may carry and still go to review. Speech runs
+#: 100 to 150; batch 1's seven clips with none — rental listings set to music, a meal
+#: cooked in silence — came in at 6 to 35, and its slowest real speaker at 62
+#: (2026-09-30). David: "no videos like this… little or no speech bad."
+MIN_WORDS_PER_MINUTE = 50
+
+#: Segments that are not what anybody says: the build writes the title and the channel
+#: into the document as its first lines.
+_NOT_SPOKEN = frozenset({"title", "byline", "heading"})
+
+
+def speech_rate(built: Path) -> float | None:
+    """Words a minute spoken in a built clip, or None when it has no build to read.
+
+    Counted off the build's own `segments.json` against the recording's length, so it
+    costs nothing and runs after the build it follows — the one place the words exist.
+    """
+    from ..audio import probe as probe_module
+
+    probe = probe_module.load(built / "audio")
+    segments = built / "segments.json"
+    if probe is None or not probe.duration or not segments.is_file():
+        return None
+    loaded = json.loads(segments.read_text(encoding="utf-8"))
+    words = sum(
+        len(str(segment.get("text", "")).split())
+        for segment in loaded.get("segments", [])
+        if segment.get("kind") not in _NOT_SPOKEN
+    )
+    return words / (probe.duration / 60)
+
+
+def speaks_enough(built: Path) -> bool:
+    """Whether a built clip is worth a reviewer's time: enough speech to read."""
+    rate = speech_rate(built)
+    return rate is not None and rate >= MIN_WORDS_PER_MINUTE
