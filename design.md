@@ -1044,6 +1044,12 @@ film panel, the transcript its text and the caption after it, and its head says 
 TikTok". TikTok gives no author's picture without a fetch of its own, so the disc wears
 the first letter of their name.
 
+Amended 2026-09-30, for a Facebook video: **a Facebook video is a reel's shape too**, "On
+Facebook" in the head. Facebook gives a page's name and a number, and no handle anybody
+knows a page by, so its head carries the name and the day and no "@" line; the disc wears
+the name's first letter. A post brought by hand is not yet taken from Facebook: most of
+what is posted there is words, at addresses the video door does not read.
+
 And for X, the same day: **a post on X is a post's shape, and a thread is one post an
 item**, each with its own photos under its own lines, in the order written, "On X" in the
 head. The thread is read back from the post pasted to its start, then on

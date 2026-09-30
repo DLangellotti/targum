@@ -494,6 +494,42 @@ def test_a_tiktok_kept_as_a_post_says_on_tiktok(tmp_path: Path) -> None:
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
 
+def test_a_facebook_video_kept_as_a_post_says_on_facebook_with_no_handle(
+    tmp_path: Path,
+) -> None:
+    """Facebook gives no handle, only a number (2026-09-30): the head carries the page's
+    name and the day, never a bare "@", and goes home "On Facebook" to the one prefix."""
+    from targum.ingest import post as post_module
+
+    home = "https://www.facebook.com/watch/?v=28842223192082067"
+    document, segmented, translation = imported(tmp_path, home)
+    post_module.write(
+        tmp_path,
+        post_module.Manifest(
+            platform="facebook",
+            author=post_module.Author("", "כאן חדשות"),
+            items=[
+                post_module.Item(
+                    block_ids=["b0001"],
+                    media=[post_module.Media("video", "audio/parts/part-001.mp4", 270, 480)],
+                    kind="clip",
+                ),
+                post_module.Item(block_ids=["b0002"], kind="caption"),
+            ],
+            url=home,
+            posted_at="2026-09-30T09:00:38Z",
+        ),
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'class="post-home" href="{home}"' in html and ">On Facebook</a>" in html
+    assert 'class="post-handle' not in html and ">@<" not in html
+    assert '<bdi class="post-name" dir="auto">כאן חדשות</bdi>' in html
+    assert '<time datetime="2026-09-30"' in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
 def test_a_post_from_x_says_on_x_and_goes_home_to_the_one_prefix(tmp_path: Path) -> None:
     """X's head (targum-internal#158): "On X", to the one address the allowlist pins,
     whatever spelling the reader pasted."""

@@ -2493,10 +2493,12 @@ class Library:
                     return self._prepare_reel(job)
                 if host is hosts_module.TIKTOK:
                     return self._prepare_tiktok(job)
+                if host is hosts_module.FACEBOOK:
+                    return self._prepare_facebook(job)
                 if host is not None:
-                    # A service we can name and cannot fetch from: TikTok, Vimeo, Reddit,
-                    # Facebook. Said by name with the way that works, rather than read
-                    # as an article and answered with "save the page as .txt".
+                    # A service we can name and cannot fetch from: Vimeo, Reddit. Said
+                    # by name with the way that works, rather than read as an article
+                    # and answered with "save the page as .txt".
                     job.error = said_in(
                         job.ui,
                         "job.video-host-closed",
@@ -2857,6 +2859,49 @@ class Library:
             platform="tiktok",
             handle=str(said.get("uploader") or ""),
             name=str(said.get("channel") or ""),
+            posted_at=posted_from(said.get("timestamp")),
+            caption=str(said.get("description") or ""),
+        )
+
+    def _prepare_facebook(self, job: Job) -> None:
+        """A Facebook video, priced through `_prepare_video` (2026-09-30).
+
+        TikTok's shape: a shared link names no video until it is followed, so yt-dlp
+        follows it at the quote and the job then carries the one canonical address —
+        taken from the answer's id, because a shared link can land on a group's post
+        (`facebook.home_from`).
+        """
+        from .ingest.post import posted_from
+        from .video import facebook as facebook_module
+
+        said: dict[str, Any] = {}
+
+        def described(url: str) -> dict[str, Any]:
+            info = facebook_module.describe(url)
+            said.update(info)
+            found = facebook_module.home_from(info)
+            if found:
+                job.source = found
+            return info
+
+        self._prepare_video(
+            job,
+            vetted=facebook_module.is_facebook,
+            described=described,
+            unavailable=said_in(
+                job.ui, "job.facebook-unavailable", "We can't fetch from Facebook here."
+            ),
+        )
+        if job.stage == "failed":
+            return
+        # A Facebook video arrives as a post, as a TikTok does (targum-internal#158).
+        # yt-dlp gives the page's name as `uploader` and a number as its id, which is no
+        # handle anybody would know them by, so the head carries the name alone.
+        self._keep_film_post(
+            job,
+            platform="facebook",
+            handle="",
+            name=str(said.get("uploader") or ""),
             posted_at=posted_from(said.get("timestamp")),
             caption=str(said.get("description") or ""),
         )
@@ -9923,7 +9968,7 @@ class Handler(BaseHTTPRequestHandler):
             platform, url = found
         else:
             platform = str(told.get("platform") or "")
-            if platform not in post_module.PLATFORMS:
+            if platform not in post_module.BROUGHT_FROM:
                 raise TargumError(
                     self._say(
                         "serve.post-platform", "Choose where it was posted: Instagram, TikTok or X."

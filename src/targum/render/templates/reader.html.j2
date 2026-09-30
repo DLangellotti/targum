@@ -419,7 +419,9 @@
       {% if post.name %}<bdi class="post-name" dir="auto">{{ post.name }}</bdi>{% endif %}
       {#- Each piece its own isolate, so a Latin handle and an English date on a Hebrew
           page keep their own order, and a narrow window wraps between them, not inside. -#}
-      <span class="post-meta"><bdi class="post-handle{% if not post.name %} alone{% endif %}" dir="ltr">@{{ post.handle }}</bdi>{% if post.day %}<span aria-hidden="true">·</span><time datetime="{{ post.stamp }}" dir="auto">{{ post.day }}</time>{% endif %}</span>
+      {#- Facebook gives no handle a reader would know its pages by, only a number, so a
+          Facebook video's head carries the name and the day alone. -#}
+      {% if post.handle or post.day %}<span class="post-meta">{% if post.handle %}<bdi class="post-handle{% if not post.name %} alone{% endif %}" dir="ltr">@{{ post.handle }}</bdi>{% endif %}{% if post.day %}{% if post.handle %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ post.stamp }}" dir="auto">{{ post.day }}</time>{% endif %}</span>{% endif %}
     </span>
     {#- The one way home. A film's stands here too, and the bar's gives way to it. -#}
     {% if post.home %}
