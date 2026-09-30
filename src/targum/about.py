@@ -280,6 +280,7 @@ UNSAID: dict[str, tuple[str, ...]] = {
         r"youtube",
         r"instagram",
         r"tiktok",
+        r"facebook",
         r"yt-dlp",
     ),
 }

@@ -446,19 +446,28 @@ def test_the_way_out_cannot_be_used_to_ask_who_is_waiting(
 
 def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None:
     """targum-internal#158: X is a door the deployment arms. The list says so only where
-    it is: 'Posts from X' on its own line when the switch is on, and inside the 'soon'
-    line when it is off. Facebook and Reddit stay 'soon' either way."""
+    it is: 'Posts from X' on its own when the switch is on, and 'soon' when it is off.
+    Reddit is not promised at all: it refused every route on 2026-09-30."""
     from targum.ingest import x as x_door
     from targum.render.builder import front_page
 
     monkeypatch.delenv(x_door.ENV, raising=False)
     shut = front_page()
-    assert "Posts from X, Facebook and Reddit" in shut and ">Posts from X<" not in shut
+    assert re.search(r"Posts from X<span class=\"soon\">", shut)
     monkeypatch.setenv(x_door.ENV, "1")
     armed = front_page()
     assert "Posts from X</li>" in armed
-    assert "Posts from Facebook and Reddit" in armed
-    assert "Posts from X, Facebook and Reddit" not in armed
+    for page in (shut, armed):
+        assert "Reddit" not in page
+
+
+def test_facebook_videos_are_listed_with_the_doors_that_open() -> None:
+    """Facebook's videos are fetched since 2026-09-30, so they are named with the reels,
+    Shorts and TikToks, and never as 'soon'."""
+    from targum.render.builder import front_page
+
+    page = front_page()
+    assert "Reels, Shorts, TikToks and Facebook videos</li>" in page
 
 
 def test_the_connector_is_mentioned_twice_while_it_is_open(

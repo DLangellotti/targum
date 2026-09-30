@@ -648,7 +648,7 @@ def test_a_profile_is_one_video_at_a_time_without_the_binary(tmp_path: Path, mon
 
 
 def test_a_host_we_name_and_cannot_fetch_says_so_by_name(tmp_path: Path, monkeypatch) -> None:
-    """Vimeo, Reddit, Facebook: refused by name with the way that works, never
+    """Vimeo, Reddit: refused by name with the way that works, never
     read as an article and answered with "save the page as .txt"."""
     import targum.audio.episode as episode_module
 
@@ -659,7 +659,6 @@ def test_a_host_we_name_and_cannot_fetch_says_so_by_name(tmp_path: Path, monkeyp
     for address, name in (
         ("https://vimeo.com/76979871", "Vimeo"),
         ("https://www.reddit.com/r/hebrew/comments/1c1ux0h/a_slug/", "Reddit"),
-        ("https://www.facebook.com/reel/123456789", "Facebook"),
     ):
         job = Job(id="a", source=address)
         library.prepare(job)
@@ -682,6 +681,10 @@ def test_a_dropped_video_keeps_the_link_it_was_refused_at(tmp_path: Path) -> Non
         (
             "https://www.tiktok.com/@a/video/7123456789012345678",
             "https://www.tiktok.com/@/video/7123456789012345678",
+        ),
+        (
+            "https://www.facebook.com/reel/1445068414180254/",
+            "https://www.facebook.com/watch/?v=1445068414180254",
         ),
         ("https://evil.example/reel/DSkLv4UE196", ""),
         ("javascript:alert(1)", ""),
@@ -728,6 +731,47 @@ def test_a_shared_tiktok_link_is_priced_and_carried_as_its_one_address(
     assert job.seconds == 11.0 and job.title == "חידה: שלג"
     # A track TikTok lists is not one the build fetches, so the hearing is still priced.
     assert job.options["subtitles"] is False and job.transcription > 0
+
+
+def test_a_shared_facebook_link_is_priced_and_carried_as_its_films_number(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The app's Copy link names no video until followed. The quote follows it, and the
+    job carries the film's one address — from the answer's id, because the link can land
+    on a group's post, whose address is the post's (measured 2026-09-30)."""
+    from targum.video import facebook as facebook_module
+
+    asked: list[str] = []
+
+    def pretend(url: str) -> dict:
+        asked.append(url)
+        return {
+            "id": "2342010796191740",
+            "title": "Pan & Zoom feature for small devices",
+            "duration": 25.0,
+            "webpage_url": "https://www.facebook.com/groups/g/permalink/9263929620305536/",
+            "subtitles": {},
+            "formats": [{"acodec": "aac"}],
+        }
+
+    monkeypatch.setattr(facebook_module, "describe", pretend)
+    monkeypatch.setattr(facebook_module, "fetch", lambda *a, **k: pytest.fail("no download"))
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    job = Job(id="a", source="https://www.facebook.com/share/v/1AbVYzrYAk/")
+    Library(tmp_path).prepare(job)
+    assert job.error == "" and job.stage in ("ready", "blocked"), job.error
+    assert asked == ["https://www.facebook.com/share/v/1AbVYzrYAk/"]
+    assert job.source == "https://www.facebook.com/watch/?v=2342010796191740"
+    assert job.seconds == 25.0 and job.title == "Pan & Zoom feature for small devices"
+    assert job.options["subtitles"] is False and job.transcription > 0
+
+
+def test_a_facebook_group_is_one_video_at_a_time(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (False, "install yt-dlp."))
+    job = Job(id="a", source="https://www.facebook.com/groups/hebrew")
+    Library(tmp_path).prepare(job)
+    assert job.stage == "failed"
+    assert "one video at a time" in job.error
 
 
 """--- the part door ---"""
