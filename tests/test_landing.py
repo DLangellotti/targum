@@ -457,6 +457,63 @@ def test_no_join_form_drops_the_language_that_was_pressed() -> None:
             assert "?lang={{ asked }}" in action, f"{template.name}: {action}"
 
 
+@pytest.mark.parametrize(
+    ("said", "kept"),
+    [
+        ("/", "/"),
+        ("https://targum.page/", "/"),
+        ("/aliyah", "/aliyah"),
+        ("https://targum.page/aliyah?lang=ru", "/aliyah"),
+        ("/connect", "/connect"),
+        ("/weekly/2026-w39/simplified", "/weekly"),
+        ("https://targum.page/parasha/bereshit", "/parasha"),
+        ("/mishna-yomi", "/mishna-yomi"),
+        ("/tehillim/day-3", "/tehillim"),
+        ("", ""),
+        ("/library/ruth", ""),
+        ("/anything-at-all", ""),
+        ("javascript:alert(1)", ""),
+    ],
+)
+def test_the_waitlist_keeps_only_a_page_of_targum_s_own(said: str, kept: str) -> None:
+    """targum-internal#388. One word on a row somebody made by pressing Join, narrowed
+    to the pages worth counting; anything else is unknown rather than stored as sent."""
+    from targum.serve import joined_from
+
+    assert joined_from(said) == kept
+
+
+def test_the_front_door_says_which_page_its_form_is_on(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every form on the front door says `/`, and the row keeps it."""
+    port, store, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, page = get(port, "/")
+    assert status == 200
+    said = re.findall(r'<input type="hidden" name="from" value="([^"]*)">', page)
+    assert said and set(said) == {"/"}, said
+
+    post(port, "/waitlist", {"email": "noa@example.com", "from": said[0]})
+    row = store.db.execute(
+        "SELECT page FROM waiting WHERE email = ?", ("noa@example.com",)
+    ).fetchone()
+    assert row["page"] == "/"
+
+
+def test_a_page_with_no_name_of_its_own_is_known_by_its_address() -> None:
+    """`/aliyah` (targum#543) renders the shared form without naming itself; the form
+    falls back to the page's canonical address, which the server narrows."""
+    from targum.render.builder import _environment
+
+    form = (
+        _environment()
+        .get_template("_join_form.html.j2")
+        .render(t=lambda _key, default, **_: default, canonical="https://targum.page/aliyah")
+    )
+    assert '<input type="hidden" name="from" value="https://targum.page/aliyah">' in form
+
+
 def test_an_english_visitor_is_answered_as_they_always_were(
     served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
 ) -> None:

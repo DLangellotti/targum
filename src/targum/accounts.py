@@ -224,10 +224,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    in it, and so a Russian reader is sent the Russian edition. On a table every box has,
 #    so it is in MIGRATIONS; empty means English, which every row before it was.
 #
+# 36→37: waiting.page — which of targum's own pages somebody pressed Join on
+#    (targum-internal#388), now that `/aliyah` stands beside the front door and the list
+#    cannot otherwise say whether it brings anybody. Empty means unknown, which every row
+#    before it is. On a table every box has, so it is in MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 36
+SCHEMA_VERSION = 37
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -517,6 +522,9 @@ MIGRATIONS: tuple[str, ...] = (
     # since 2026-09-27 there is a Russian edition every issue to send instead. Empty
     # means English, which is what every row written before this was sent.
     "ALTER TABLE subscriber ADD COLUMN language TEXT NOT NULL DEFAULT ''",
+    # Which of targum's pages somebody joined the waitlist from (targum-internal#388).
+    # Empty is unknown, and the truth about every row written before it.
+    "ALTER TABLE waiting ADD COLUMN page TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -1034,7 +1042,10 @@ CREATE TABLE IF NOT EXISTS waiting (
   invited  INTEGER NOT NULL DEFAULT 0,
   -- The language the front door was in when they joined. Empty means English, which is
   -- what the door was before it had a second language to be in.
-  language TEXT    NOT NULL DEFAULT ''
+  language TEXT    NOT NULL DEFAULT '',
+  -- Which of targum's own pages they pressed Join on: '/', '/aliyah', '/weekly'.
+  -- Empty means unknown. Never where they were before targum (targum-internal#388).
+  page     TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 
@@ -2045,7 +2056,7 @@ class Store:
     # person decides to let them in, and letting them in is `allow` on `invited`, which
     # is a separate act with a separate record.
 
-    def join_waitlist(self, email: str, language: str = "") -> str | None:
+    def join_waitlist(self, email: str, language: str = "", page: str = "") -> str | None:
         """Take an address. Mint a token to confirm it, or None if it is already on.
 
         Idempotent for the same reason `subscribe` is: asking twice is what somebody
@@ -2055,6 +2066,10 @@ class Store:
         `language` is the language the front door was in when they pressed, and it is
         kept so the invitation can be written in it. A second ask overwrites it: the
         door they came through most recently is the better guess at what they read.
+
+        `page` is which of targum's pages they pressed Join on, already narrowed to one
+        the caller recognises; empty is unknown. A second ask keeps the first answer,
+        because the question it answers is which page brought them.
         """
         address = tidy(email)
         if not address:
@@ -2066,10 +2081,11 @@ class Store:
         with self.write() as db:
             db.execute(
                 """
-                INSERT INTO waiting (email, state, confirm, stop, asked, language)
-                VALUES (?, 'pending', ?, ?, ?, ?)
+                INSERT INTO waiting (email, state, confirm, stop, asked, language, page)
+                VALUES (?, 'pending', ?, ?, ?, ?, ?)
                 ON CONFLICT(email) DO UPDATE SET
-                    state = 'pending', confirm = ?, asked = ?, language = ?
+                    state = 'pending', confirm = ?, asked = ?, language = ?,
+                    page = CASE WHEN page = '' THEN excluded.page ELSE page END
                 """,
                 (
                     address,
@@ -2077,6 +2093,7 @@ class Store:
                     secrets.token_urlsafe(TOKEN_BYTES),
                     now(),
                     spoken,
+                    page,
                     digest(token),
                     now(),
                     spoken,

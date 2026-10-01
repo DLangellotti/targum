@@ -1532,6 +1532,7 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
                 "Vowels on every word, English beside every line, and any word explained "
                 "the moment you tap it.",
             ),
+            joined_from="/",
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),
@@ -2055,6 +2056,7 @@ def connect_page(
                 "you at your level and shows you how to fix each mistake.",
             ),
             signed_in=signed_in,
+            joined_from="/connect",
             asked=asked,
             canonical=here,
             alternates=alternates,
@@ -2375,6 +2377,7 @@ def weekly_page(
             is_newest=is_newest,
             dated_on=dated_on,
             signed_in=signed_in,
+            joined_from="/weekly",
             asked=asked,
         )
     )
@@ -2436,6 +2439,7 @@ def daily_page(
             opens=opens,
             is_today=is_today,
             signed_in=signed_in,
+            joined_from=f"/{cycle.slug}",
             asked=asked,
             translation_said=_translation_said(day, language),
         )
@@ -2528,6 +2532,7 @@ def parasha_page(
         .get_template("parasha.html.j2")
         .render(
             signed_in=signed_in,
+            joined_from="/parasha",
             asked=asked,
             t=page_words(language),
             tn=page_counts(language),
