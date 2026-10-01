@@ -2225,7 +2225,10 @@ def test_a_pasted_link_says_what_was_found_before_it_says_the_price(
     assert "What we found" in found_text
     assert "12:34" in found_text, "the length, as a clock"
     assert "standard YouTube licence" in found_text
-    assert "No written Hebrew subtitles" in found_text
+    assert "No written Hebrew subtitles" not in found_text, (
+        "the advice is written for the model: English, Hebrew-only, and it says the cost "
+        "the card says again (2026-10-01)"
+    )
     assert "7 words in 10" in found_text, "how much of it the reader already has"
     assert still_there, "the price is drawn under what was found, not over it"
     assert let_price_through, "the price still follows"
@@ -2338,6 +2341,52 @@ def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> 
 
     assert isolated, "the title in a <bdi>"
     assert len(built) == 1, "two presses, one build"
+
+
+def test_the_card_says_each_thing_once(browser, tmp_path: Path) -> None:
+    """2026-10-01. The length was said by what was found and again beside the title; the
+    line under the box promised the card while the card was up; and a text priced after
+    a link was shown under the link's facts."""
+    html = add_page(TOKEN)
+    heard = dict(PRICED, title="זו מדינת אויב?", audio=True, seconds=754, parts=1)
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(FOUND))
+        elif "/prepare" in request.url:
+            body = heard if request.post_data_json.get("source") else PRICED
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    assert open_page.is_visible("#understood"), "the box says what it was given"
+    open_page.click("#go")
+    open_page.wait_for_selector("#status button.filled", timeout=4000)
+    status = open_page.inner_text("#status")
+    note_while_card = open_page.is_visible("#understood")
+
+    open_page.fill("#given", "בארץ־ישראל קם העם היהודי, בה עוצבה דמותו הרוחנית.")
+    note_after_edit = open_page.is_visible("#understood")
+    open_page.click("#go")
+    open_page.wait_for_function(
+        "() => document.querySelector('#status button.filled') && "
+        "!document.getElementById('status').textContent.includes('זו מדינת')",
+        timeout=4000,
+    )
+    stale = open_page.is_visible("#status .found")
+    context.close()
+
+    assert status.count("12:34") == 1, status
+    assert not note_while_card, "the card is up, so its promise is put away"
+    assert note_after_edit, "and back when the box holds something else"
+    assert not stale, "a text is not priced under the last link's facts"
 
 
 def test_a_link_nothing_can_be_found_about_is_still_priced(browser, tmp_path: Path) -> None:
