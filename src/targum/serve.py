@@ -5622,11 +5622,11 @@ class Handler(BaseHTTPRequestHandler):
             for edition in issue.editions
         ]
         # The pages that really answer in both languages, and only those
-        # (targum-internal#188). A sitemap that claims a Russian version of `/about`,
-        # which serves one language at one address, teaches a crawler to distrust the
-        # claims it makes about the pages that do have one.
+        # (targum-internal#188; `/connect` since #392). A sitemap that claims a Russian
+        # version of `/about`, which serves one language at one address, teaches a
+        # crawler to distrust the claims it makes about the pages that do have one.
         bilingual = (
-            {"/", "/library"}
+            {"/", "/library", "/connect"}
             | {path for path in paths if path.startswith("/library/")}
             | set(weekly_paths)
         )
