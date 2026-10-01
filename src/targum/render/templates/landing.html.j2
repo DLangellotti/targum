@@ -443,7 +443,7 @@
 
   <div class="col close">
     <h2>{{ t("landing.page.start-learning-hebrew-with-something-you-d-watch", "Start learning Hebrew with something you’d watch anyway.") }}</h2>
-    <form class="join-form" method="post" action="/waitlist">
+    <form class="join-form" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
       <label class="field">
         <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}" required>
         <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>

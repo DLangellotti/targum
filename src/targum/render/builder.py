@@ -2021,7 +2021,9 @@ def set_page(
     )
 
 
-def connect_page(language: str = "en", address: str = "", signed_in: bool = False) -> str:
+def connect_page(
+    language: str = "en", address: str = "", signed_in: bool = False, asked: str = ""
+) -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 
     A public page, so §6's selling register applies and the feature names we use inside
@@ -2053,6 +2055,7 @@ def connect_page(language: str = "en", address: str = "", signed_in: bool = Fals
                 "you at your level and shows you how to fix each mistake.",
             ),
             signed_in=signed_in,
+            asked=asked,
             canonical=here,
             alternates=alternates,
             address=address,
@@ -2300,6 +2303,7 @@ def weekly_page(
     language: str = "en",
     edition: str = "en",
     signed_in: bool = False,
+    asked: str = "",
 ) -> str:
     """A landing page for the weekly, with the issue's own reader inside it.
 
@@ -2371,6 +2375,7 @@ def weekly_page(
             is_newest=is_newest,
             dated_on=dated_on,
             signed_in=signed_in,
+            asked=asked,
         )
     )
 
@@ -2387,6 +2392,7 @@ def daily_page(
     address: str = "",
     language: str = "en",
     signed_in: bool = False,
+    asked: str = "",
 ) -> str:
     """One day of a learning cycle, with its own reader inside it.
 
@@ -2430,6 +2436,7 @@ def daily_page(
             opens=opens,
             is_today=is_today,
             signed_in=signed_in,
+            asked=asked,
             translation_said=_translation_said(day, language),
         )
     )
@@ -2479,6 +2486,7 @@ def parasha_page(
     signed_in: bool = False,
     week: dict[str, Any] | None = None,
     language: str = "en",
+    asked: str = "",
 ) -> str:
     """This week's portion, with its own reader inside it.
 
@@ -2520,6 +2528,7 @@ def parasha_page(
         .get_template("parasha.html.j2")
         .render(
             signed_in=signed_in,
+            asked=asked,
             t=page_words(language),
             tn=page_counts(language),
             page_language=_page_language(language),

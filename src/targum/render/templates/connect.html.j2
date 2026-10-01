@@ -429,7 +429,7 @@
 
   <div class="col close">
     <h2>{{ t("connect.page.learn-hebrew-in-the-ai-you-already-use", "Learn Hebrew in the AI you already use.") }}</h2>
-    <form class="join-form" id="join" method="post" action="/waitlist">
+    <form class="join-form" id="join" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
       <label class="field">
         <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("connect.page.you-example-com", "you@example.com") }}" aria-label="{{ t("connect.page.your-email", "Your email") }}">
         <button class="btn cta" type="submit">{{ t("connect.page.join-the-waitlist", "Join the waitlist") }}</button>
