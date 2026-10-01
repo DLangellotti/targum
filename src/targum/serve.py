@@ -38,6 +38,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
+from . import look as look_module
 from . import mcp_http, oauth
 from . import telegram as telegram_module
 from .accounts import (
@@ -540,7 +541,15 @@ WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"
 #: The front door's three, and the only doors that answer while the product is shut
 #: (2026-09-16, targum-internal#69). Joining is a plain form post; confirming and
 #: leaving are a page with a button, for the reason the weekly's two are.
-WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
+WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop", "/waitlist/look"})
+
+#: How many links one visitor may have the front door's box describe in an hour, and how
+#: many it describes for everybody together (targum-internal#399). Each is a yt-dlp call
+#: or a fetch through the proxy, which is paid for by the byte, for somebody with no
+#: account: a few is a demonstration, and more than that is somebody using the box as a
+#: free metadata service.
+LOOKS_PER_VISITOR = 6
+LOOKS_PER_HOUR = 300
 
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
@@ -5256,6 +5265,39 @@ class Handler(BaseHTTPRequestHandler):
             pending={"action": route, "token": token, "button": button},
         )
 
+    def _visitor(self) -> str:
+        """Who is asking, as far as a public form can tell: the address Caddy saw.
+
+        The server listens on loopback behind Caddy, which appends the connecting
+        address to `X-Forwarded-For`; the last entry is the one Caddy wrote, and the
+        earlier ones are whatever the visitor sent. Anywhere else the socket is the
+        answer. Hashed before it is stored, and the row is gone within the hour.
+        """
+        socket = str(self.client_address[0]) if self.client_address else ""
+        if socket in {"127.0.0.1", "::1"}:
+            forwarded = (self.headers.get("X-Forwarded-For") or "").split(",")[-1].strip()
+            if forwarded:
+                return forwarded
+        return socket
+
+    def _waitlist_look(self, form: dict[str, str]) -> None:
+        """The front door's box: what is at the end of a link (targum-internal#399).
+
+        Public, describing only, and limited per visitor and overall. Nothing is built,
+        nothing is claimed and no model runs — see `look.py`.
+        """
+        from .accounts import digest
+        from .strings import text
+
+        said = self._public_language()
+        store = self.library.store
+        assert store is not None  # checked by the caller
+        if store.asking_too_often("look", limit=LOOKS_PER_HOUR) or store.asking_too_often(
+            "look:" + digest(self._visitor()), limit=LOOKS_PER_VISITOR
+        ):
+            return self._json({"ok": False, "said": text("landing.look.too-often", said)}, 429)
+        return self._json(look_module.look(form.get("url", ""), said))
+
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
         """Joining, confirming and leaving. Public by necessity, and public by design:
         nobody joining a waitlist has an account, and the whole point is that they
@@ -5266,6 +5308,9 @@ class Handler(BaseHTTPRequestHandler):
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
+
+        if route == "/waitlist/look":
+            return self._waitlist_look(form)
 
         if route == "/waitlist":
             address = (form.get("email") or "").strip()
@@ -5286,7 +5331,14 @@ class Handler(BaseHTTPRequestHandler):
                 )
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, said, joined_from(form.get("from", "")))
+            # And the link pasted into the box above it, if there was one, to hand back
+            # in the invitation (targum-internal#399).
+            token = store.join_waitlist(
+                address,
+                said,
+                joined_from(form.get("from", "")),
+                look_module.kept_link(form.get("link", "")),
+            )
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)

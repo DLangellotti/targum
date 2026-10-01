@@ -43,7 +43,7 @@ class Opened:
         return not self.failed
 
 
-def invitation(address: str, language: str) -> Letter:
+def invitation(address: str, language: str, brought: str = "") -> Letter:
     """The mail, in the language they joined in, drawn by `letters.invitation`.
 
     It carries no sign-in token. The address is on the guest list by the time this is
@@ -53,7 +53,7 @@ def invitation(address: str, language: str) -> Letter:
     """
     from . import letters
 
-    return letters.invitation(address, language)
+    return letters.invitation(address, language, brought=brought)
 
 
 def open_the_door(
@@ -105,7 +105,8 @@ def _let(store: Store, mailer: Mailer, address: str, email: str, language: str) 
     """Invite, mail, stamp: the three acts, in the order the module's docstring gives."""
     try:
         store.invite(email)
-        letter = invitation(address, language)
+        # The link they pasted at the front door, handed back (targum-internal#399).
+        letter = invitation(address, language, store.waiting_link(email))
         mailer.notify(email, letter.subject, letter.text, None, letter.html)
     except Exception as error:  # noqa: BLE001 — one bad address must not stop the rest
         # Left unstamped on purpose: the next run picks them up again. Reported rather

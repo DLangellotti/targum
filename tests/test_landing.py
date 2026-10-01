@@ -120,31 +120,39 @@ def test_the_foot_links_targums_own_accounts_in_both_languages() -> None:
 
 def test_the_page_says_what_it_is_to_a_crawler() -> None:
     html = front_page("en", ADDRESS)
-    assert "<title>targum — learn modern and biblical Hebrew</title>" in html
+    assert "<title>targum — learn Hebrew from anything</title>" in html
     # And says it in the page's own language: the tab and the search result are the two
     # sentences a stranger reads before the page itself.
-    assert "<title>targum — учите современный и библейский иврит</title>" in front_page(
-        "ru", ADDRESS
-    )
+    assert "<title>targum — учите иврит на чём угодно</title>" in front_page("ru", ADDRESS)
     assert f'<link rel="canonical" href="{ADDRESS}/">' in html
     assert 'property="og:title"' in html
 
 
 def test_the_waitlist_form_needs_no_javascript() -> None:
-    """Three forms, one on each ask, and every one of them a plain post."""
+    """Two forms, and both of them a plain post: the list's own, and the box's, which
+    carries the link that was pasted (targum-internal#399)."""
     html = front_page("en", ADDRESS)
     forms = re.findall(r'<form[^>]*action="/waitlist"[^>]*>', html)
-    assert len(forms) == 3
+    assert len(forms) == 2
     for form in forms:
         assert 'method="post"' in form
-    assert html.count('name="email"') == 3
+    assert html.count('name="email"') == 2
+    assert '<input type="hidden" name="link" id="keepLink" value="">' in html
+
+
+def test_the_box_is_drawn_hidden_for_the_script_to_show() -> None:
+    """The box needs the script to say anything, so a page without one never shows a
+    box that cannot answer; the rest of the page and the list below read without it."""
+    html = front_page("en", ADDRESS)
+    assert re.search(r'<section class="try" id="try"[^>]*\bhidden\b', html)
+    assert re.search(r'<form class="keep" id="keep"[^>]*\bhidden\b', html)
 
 
 def test_the_page_speaks_through_the_catalogue() -> None:
     """A visitor whose browser asks for Russian gets the Russian the catalogue has, and
     English for the rest; nothing on the page is hard-coded past `t`."""
     english = front_page("en", ADDRESS)
-    assert "Learn modern and biblical Hebrew" in english
+    assert "Learn Hebrew from anything." in english
     russian = front_page("ru", ADDRESS)
     assert 'lang="ru"' in russian
 
@@ -359,7 +367,7 @@ def test_the_switcher_offers_the_language_you_are_not_reading() -> None:
 def test_a_russian_page_says_it_is_russian() -> None:
     html = front_page("ru", ADDRESS)
     assert '<html lang="ru"' in html
-    assert "Учите современный и библейский иврит" in html
+    assert "Учите иврит на чём угодно." in html
     assert 'hreflang="ru"' in html, "a crawler is told the two addresses are one page"
 
 
@@ -563,10 +571,10 @@ def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None
 
     monkeypatch.delenv(x_door.ENV, raising=False)
     shut = front_page()
-    assert re.search(r"Posts from X<span class=\"soon\">", shut)
+    assert '<span class="name">X<span class="soon">' in shut
     monkeypatch.setenv(x_door.ENV, "1")
     armed = front_page()
-    assert "Posts from X</li>" in armed
+    assert '<span class="name">X</span>' in armed
     for page in (shut, armed):
         assert "Reddit" not in page
 
@@ -577,24 +585,150 @@ def test_facebook_videos_are_listed_with_the_doors_that_open() -> None:
     from targum.render.builder import front_page
 
     page = front_page()
-    assert "Reels, Shorts, TikToks and Facebook videos</li>" in page
+    assert '<span class="name">Facebook</span><span class="how">Reels and videos</span>' in page
 
 
-def test_the_connector_is_mentioned_twice_while_it_is_open(
+def test_the_connector_has_a_part_of_its_own_while_it_is_open(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lightly, twice (design.md §12, "The connector is met on the way in"): one point in
-    the list near the top, and a line in the part about talking to targum, with the way
-    to `/connect`. Dark, neither is said: a door to a 404 is worse than none."""
+    """Claude and ChatGPT get a part of the page (2026-10-01): what to read next, asked
+    of the AI a reader already uses, with the way to `/connect`, and a question in the
+    FAQ. Dark, neither is said: a door to a 404 is worse than none."""
     monkeypatch.setenv("TARGUM_CONNECTOR", "1")
     page = front_page()
-    facts = page[page.index('<ul class="facts">') :]
-    assert "Works in Claude and ChatGPT" in facts[: facts.index("</ul>")]
-    talk = page[page.index('id="talk"') :]
-    talk = talk[: talk.index("</section>")]
-    assert "You can also talk to targum inside Claude or ChatGPT." in talk
-    assert 'href="/connect"' in talk
+    part = page[page.index('id="claude"') :]
+    part = part[: part.index("</section>")]
+    assert "Ask Claude or ChatGPT what to read next." in part
+    assert 'href="/connect"' in part
+    assert "Can I use it in Claude or ChatGPT?" in page
     monkeypatch.delenv("TARGUM_CONNECTOR")
     quiet = front_page()
-    assert "Works in Claude and ChatGPT" not in quiet
-    assert "You can also talk to targum inside" not in quiet
+    assert 'id="claude"' not in quiet
+    assert "Can I use it in Claude or ChatGPT?" not in quiet
+
+
+# -- the box (targum-internal#399) ----------------------------------------------------
+
+
+def look(port: int, url: str, lang: str = "") -> tuple[int, dict[str, object]]:
+    import json
+
+    status, body = post(port, f"/waitlist/look{lang}", {"url": url})
+    return status, json.loads(body)
+
+
+def test_the_box_says_what_a_link_is_and_spends_nothing(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Metadata only, said in the page's language, with no percentage: a stranger has no
+    record to measure against, and that number is what joining gets them."""
+    from targum.chat import tools
+
+    port, store, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    asked: list[object] = []
+
+    def described(ctx: object, args: dict[str, str]) -> dict[str, object]:
+        asked.append(ctx)
+        return {
+            "kind": "video",
+            "title": "Sabich, step by step",
+            "seconds": 544,
+            "hebrew_subtitles": True,
+            "quote_with": "https://www.youtube.com/watch?v=abc",
+        }
+
+    monkeypatch.setattr(tools, "_describe", described)
+    status, said = look(port, "https://youtu.be/abc")
+    assert status == 200 and said["ok"]
+    assert said["said"] == (
+        "That’s a YouTube video, 9 minutes. It has Hebrew subtitles a person wrote."
+    )
+    assert said["wait"] == "Once you’re in, it’s ready in about a minute."
+    assert said["link"] == "https://www.youtube.com/watch?v=abc"
+    assert "%" not in str(said)
+    # Read with nobody behind it: no person, no store, nothing recorded as wanted.
+    assert asked == [None]
+    assert store.db.execute("SELECT COUNT(*) AS n FROM job").fetchone()["n"] == 0
+
+    _, russian = look(port, "https://youtu.be/abc", "?lang=ru")
+    assert russian["said"].startswith("Это видео на YouTube, 9 минут.")
+
+
+def test_the_box_refuses_plainly(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.chat import tools
+
+    port, _, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    monkeypatch.setattr(tools, "_describe", lambda ctx, args: {"error": "private address"})
+    _, said = look(port, "not a link")
+    assert not said["ok"] and "as a link" in str(said["said"])
+    _, said = look(port, "https://example.com/private")
+    assert not said["ok"] and "couldn’t open that link" in str(said["said"])
+    # The model-facing reason is never shown to a stranger.
+    assert "private address" not in str(said)
+
+
+def test_the_box_answers_only_a_few_times_an_hour_per_visitor(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.chat import tools
+    from targum.serve import LOOKS_PER_VISITOR
+
+    port, _, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    monkeypatch.setattr(
+        tools, "_describe", lambda ctx, args: {"kind": "article", "words": 400, "hebrew_share": 0.9}
+    )
+    for _ in range(LOOKS_PER_VISITOR):
+        status, said = look(port, "https://news.example/a")
+        assert status == 200 and said["ok"]
+    status, said = look(port, "https://news.example/a")
+    assert status == 429 and not said["ok"]
+    assert "a few links an hour" in str(said["said"])
+
+
+def test_the_box_is_shut_while_the_door_is(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, _, _ = served
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    status, body = post(port, "/waitlist/look", {"url": "https://youtu.be/abc"})
+    # Refused before anything is read: the route is not there while the switch is off.
+    assert status in (401, 403, 404)
+    assert '"ok"' not in body
+
+
+def test_joining_from_the_box_keeps_the_link(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Kept on the row, handed back only once the address is confirmed, and gone when
+    they leave."""
+    port, store, posted = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    link = "https://www.instagram.com/reel/abc/"
+    post(port, "/waitlist", {"email": "maya@example.com", "from": "/", "link": link})
+    assert store.waiting_link("maya@example.com") == "", "not until the address is confirmed"
+    token = re.search(r"/waitlist/confirm\?t=(\S+)", posted.getvalue()).group(1)
+    assert store.confirm_waiting(token)
+    assert store.waiting_link("maya@example.com") == link
+
+    stop = store.db.execute(
+        "SELECT stop FROM waiting WHERE email = ?", ("maya@example.com",)
+    ).fetchone()["stop"]
+    assert store.leave_waitlist(stop)
+    row = store.db.execute("SELECT link FROM waiting WHERE email = ?", ("maya@example.com",))
+    assert row.fetchone()["link"] == ""
+
+
+@pytest.mark.parametrize(
+    "said",
+    ["javascript:alert(1)", "ftp://example.com/a", "https://user:pw@example.com/", "x" * 3000],
+)
+def test_the_waitlist_keeps_only_a_plain_web_link(said: str) -> None:
+    from targum.look import kept_link
+
+    assert kept_link(said) == ""
+    assert kept_link(" https://youtu.be/abc ") == "https://youtu.be/abc"

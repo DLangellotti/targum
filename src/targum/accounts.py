@@ -229,10 +229,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    cannot otherwise say whether it brings anybody. Empty means unknown, which every row
 #    before it is. On a table every box has, so it is in MIGRATIONS.
 #
+# 37→38: waiting.link — the link somebody pasted into the front door's box before they
+#    joined (targum-internal#399), handed back to them in the invitation so the first
+#    thing they open is the thing they came with. Empty for everybody who pasted nothing,
+#    which is every row before it. Cleared when they leave the list.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 37
+SCHEMA_VERSION = 38
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -525,6 +530,9 @@ MIGRATIONS: tuple[str, ...] = (
     # Which of targum's pages somebody joined the waitlist from (targum-internal#388).
     # Empty is unknown, and the truth about every row written before it.
     "ALTER TABLE waiting ADD COLUMN page TEXT NOT NULL DEFAULT ''",
+    # The link pasted into the front door's box, if any (targum-internal#399). Empty is
+    # nothing pasted, which every row written before it is.
+    "ALTER TABLE waiting ADD COLUMN link TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -1045,7 +1053,10 @@ CREATE TABLE IF NOT EXISTS waiting (
   language TEXT    NOT NULL DEFAULT '',
   -- Which of targum's own pages they pressed Join on: '/', '/aliyah', '/weekly'.
   -- Empty means unknown. Never where they were before targum (targum-internal#388).
-  page     TEXT    NOT NULL DEFAULT ''
+  page     TEXT    NOT NULL DEFAULT '',
+  -- The link they pasted into the front door's box before joining, handed back in the
+  -- invitation (targum-internal#399). Empty means none. Cleared when they leave.
+  link     TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 
@@ -2056,7 +2067,9 @@ class Store:
     # person decides to let them in, and letting them in is `allow` on `invited`, which
     # is a separate act with a separate record.
 
-    def join_waitlist(self, email: str, language: str = "", page: str = "") -> str | None:
+    def join_waitlist(
+        self, email: str, language: str = "", page: str = "", link: str = ""
+    ) -> str | None:
         """Take an address. Mint a token to confirm it, or None if it is already on.
 
         Idempotent for the same reason `subscribe` is: asking twice is what somebody
@@ -2070,22 +2083,32 @@ class Store:
         `page` is which of targum's pages they pressed Join on, already narrowed to one
         the caller recognises; empty is unknown. A second ask keeps the first answer,
         because the question it answers is which page brought them.
+
+        `link` is what they pasted into the front door's box, already checked by the
+        caller (targum-internal#399). A newer link replaces an older one and an empty one
+        keeps it, and somebody already on the list who pastes again has theirs replaced
+        without a second confirmation: it is their own row, and the link is only ever
+        sent back to the address that confirmed it.
         """
         address = tidy(email)
         if not address:
             raise ValueError("No address given.")
         if self.waiting_state(address) == "on":
+            if link:
+                with self.write() as db:
+                    db.execute("UPDATE waiting SET link = ? WHERE email = ?", (link, address))
             return None
         token = secrets.token_urlsafe(TOKEN_BYTES)
         spoken = tidy(language)
         with self.write() as db:
             db.execute(
                 """
-                INSERT INTO waiting (email, state, confirm, stop, asked, language, page)
-                VALUES (?, 'pending', ?, ?, ?, ?, ?)
+                INSERT INTO waiting (email, state, confirm, stop, asked, language, page, link)
+                VALUES (?, 'pending', ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(email) DO UPDATE SET
                     state = 'pending', confirm = ?, asked = ?, language = ?,
-                    page = CASE WHEN page = '' THEN excluded.page ELSE page END
+                    page = CASE WHEN page = '' THEN excluded.page ELSE page END,
+                    link = CASE WHEN excluded.link = '' THEN link ELSE excluded.link END
                 """,
                 (
                     address,
@@ -2094,6 +2117,7 @@ class Store:
                     now(),
                     spoken,
                     page,
+                    link,
                     digest(token),
                     now(),
                     spoken,
@@ -2166,8 +2190,10 @@ class Store:
             row = db.execute("SELECT email FROM waiting WHERE stop = ?", (token,)).fetchone()
             if row is None:
                 return False
+            # The link goes with them: it was kept to hand back at the invitation, and
+            # there will not be one (targum-internal#399).
             db.execute(
-                "UPDATE waiting SET state = 'off', ended = ? WHERE email = ?",
+                "UPDATE waiting SET state = 'off', ended = ?, link = '' WHERE email = ?",
                 (now(), row["email"]),
             )
             return True
@@ -2182,9 +2208,10 @@ class Store:
         """Confirmed addresses not yet let in, oldest first, each with the language it
         joined in: the order they would be let in, and what to write to them in.
 
-        Oldest first because the front door promises it — "The earlier you join, the
-        earlier that is" — and a waitlist that let people in in any other order would be
-        making that sentence untrue quietly.
+        Oldest first, so the batch press takes whoever has waited longest. The front
+        door no longer promises an order (2026-10-01): the operator also lets people in
+        one at a time, by hand (`doorway.let_in`), so a sentence about order would be
+        untrue whichever way it was put.
         """
         sql = (
             "SELECT email, language FROM waiting WHERE state = 'on' AND invited = 0 ORDER BY asked"
@@ -2193,6 +2220,13 @@ class Store:
             sql + (" LIMIT ?" if limit else ""), (limit,) if limit else ()
         ).fetchall()
         return [(str(row["email"]), str(row["language"] or "")) for row in rows]
+
+    def waiting_link(self, email: str) -> str:
+        """The link somebody pasted at the front door before joining, or empty."""
+        row = self.db.execute(
+            "SELECT link FROM waiting WHERE email = ? AND state = 'on'", (tidy(email),)
+        ).fetchone()
+        return "" if row is None else str(row["link"] or "")
 
     def waiting_invited(self, email: str) -> None:
         """Stamp an address as let in, so a second opening does not mail them twice."""

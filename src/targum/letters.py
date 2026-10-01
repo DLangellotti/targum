@@ -29,7 +29,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 from .strings import said_date, text
 
@@ -466,13 +466,20 @@ def waitlist_confirm(link: str, language: str = "en") -> Letter:
     )
 
 
-def invitation(address: str, language: str = "en", connector: bool | None = None) -> Letter:
+def invitation(
+    address: str, language: str = "en", connector: bool | None = None, brought: str = ""
+) -> Letter:
     """Off the waitlist. It carries no sign-in token, only the way to ask for one.
 
     And, while the connector is open, a paragraph saying targum works inside Claude and
     ChatGPT, with the way to `/connect` spelt out (design.md §12, "The connector is met on
     the way in"): the mail is the first thing a new reader holds, before any page of
     ours. `connector` is for a caller that knows; left out, the deployment says.
+
+    `brought` is the link they pasted into the front door's box before joining
+    (targum-internal#399). It comes back as a way into Add with the link already in the
+    box, where it is described and priced and waits for their press: being let in is not
+    a press, so nothing is built for them before they make one.
     """
     from .serve import connector_is_open
 
@@ -485,6 +492,16 @@ def invitation(address: str, language: str = "en", connector: bool | None = None
         Para(text("mail.invitation.free", code)),
         Button(text("mail.invitation.button", code), link),
     ]
+    if brought:
+        said.append(
+            Para(
+                text(
+                    "mail.invitation.brought",
+                    code,
+                    link=f"{base}/add?source={quote(brought, safe='')}",
+                )
+            )
+        )
     if connector_is_open() if connector is None else connector:
         said.append(Para(text("mail.invitation.connector", code, link=f"{base}/connect")))
     return compose(

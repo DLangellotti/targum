@@ -347,6 +347,35 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### The front door is one promise, and a box that keeps it — 2026-10-01
+
+A tester called the front page "kinda directionless … what are the killer features
+exactly? Found my answer near the bottom", and the answer he found was section 8 of 10.
+On 2026-09-30 David made that promise the spine of everything public, and on 2026-10-01
+the page was rebuilt around it (targum-internal#399):
+
+- **The headline is "Learn Hebrew from anything."** The lede says how, and nothing stands
+  beside it: no form, no facts, no second button. The waitlist is in the bar and at the
+  foot of the page.
+- **Under it is a box a stranger can use.** Paste a link and targum says what it is, in
+  one sentence, through `/waitlist/look`: metadata only, no build, no spend, no model, a
+  few an hour per visitor. Never a percentage — that needs a record, and is what joining
+  gets them. "Join to save it" keeps the link on the waiting row, and the invitation
+  hands it back as a way into Add with the link in the box; being let in is not a press,
+  so nothing is built before theirs.
+- **Then, in order:** what you can bring, the record of the words you know, the word
+  card, targum in Claude and ChatGPT (while the connector is open), the library, the
+  Tanakh, the waitlist, the questions. The ulpan ladder, the synced subtitles and "start
+  at any level" are not on it, by decision.
+- **No claim about the order people are let in.** The batch press takes the oldest first,
+  but David also lets people in one at a time (2026-09-28), so "the earlier you join, the
+  earlier that is" was untrue whichever way it was put. Nor does the page promise the
+  waitlist hears the price first: the price is not decided.
+- **The hero film is not on the page until it exists.** A placeholder is not a picture of
+  the product.
+- `/connect` (and `/aliyah`, targum#543) drew on the old sheet, so it is kept whole as
+  `landing-classic.css`, and a change to the front door no longer moves them.
+
 ### /about says what was built, day by day — 2026-09-29
 
 "I want /about to show that we're building in public, and display day by day what's been

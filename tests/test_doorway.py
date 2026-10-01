@@ -156,3 +156,22 @@ def test_the_invitation_names_the_connector_while_it_is_open() -> None:
             assert "Claude" in body and "ChatGPT" in body
         quiet = invitation_letter("https://targum.page/", language, connector=False)
         assert "/connect" not in quiet.text and "/connect" not in quiet.html
+
+
+def test_the_link_pasted_at_the_front_door_comes_back_with_the_invitation(
+    store: Store,
+) -> None:
+    """targum-internal#399: as a way into Add with the link in the box, where it is
+    priced and waits for their press. Being let in builds nothing."""
+    token = store.join_waitlist("lea@example.com", "", "/", "https://youtu.be/abc")
+    assert token and store.confirm_waiting(token)
+    post = Postbox()
+    open_the_door(store, post, "https://targum.page", 1)
+    ((_, _, body),) = post.sent
+    assert "https://targum.page/add?source=https%3A%2F%2Fyoutu.be%2Fabc" in body
+    assert store.db.execute("SELECT COUNT(*) AS n FROM job").fetchone()["n"] == 0
+
+
+def test_an_invitation_with_no_link_says_nothing_about_one(store: Store) -> None:
+    letter = invitation("https://targum.page/", "en")
+    assert "/add?source=" not in letter.text

@@ -104,6 +104,9 @@ class Waiting:
     #: Which of targum's pages they pressed Join on (targum-internal#388). Empty is
     #: unknown, which every row before schema 37 is.
     page: str = ""
+    #: The link they pasted into the front door's box (targum-internal#399), which the
+    #: invitation hands back. Empty is none.
+    link: str = ""
 
 
 @dataclass
@@ -149,6 +152,14 @@ def _page(row: sqlite3.Row) -> str:
         return ""
 
 
+def _link(row: sqlite3.Row) -> str:
+    """The link a waiting row pasted, empty where the store predates the column."""
+    try:
+        return str(row["link"] or "")
+    except (IndexError, KeyError):
+        return ""
+
+
 def _rows(db: sqlite3.Connection, sql: str, *args: object) -> list[sqlite3.Row]:
     return list(db.execute(sql, args).fetchall())
 
@@ -186,6 +197,7 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
                 invited=_day(int(row["invited"])) if row["invited"] else "",
                 language=_spoken(row),
                 page=_page(row),
+                link=_link(row),
             )
             # Oldest first: that is the order they would be let in.
             for row in _rows(db, "SELECT * FROM waiting ORDER BY asked")

@@ -118,7 +118,7 @@
   <h2>The waitlist</h2>
   <table>
     <thead>
-      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th><th>Link</th></tr>
     </thead>
     <tbody>
       {% for who in survey.waiting_list %}
@@ -142,6 +142,9 @@
         </td>
         <td class="quiet">{{ who.language or 'en' }}</td>
         <td class="quiet">{{ who.page or '—' }}</td>
+        {#- What they pasted into the front door's box, handed back in the invitation
+            (targum-internal#399). Shown as text, never as a link to press here. -#}
+        <td class="quiet">{{ who.link|truncate(60, true, '…', 0) if who.link else '—' }}</td>
       </tr>
       {% endfor %}
     </tbody>
