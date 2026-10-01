@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
     from .vocalize import Vocalizer
+    from .weekly.models import Edition
 
 app = typer.Typer(
     add_completion=False,
@@ -3570,15 +3571,19 @@ def weekly_publish(
 
     missed = [edition for edition in issue.editions if not edition.ok]
     if missed and not anyway:
-        levels = ", ".join(
-            f"{LEVELS[edition.level].name} at {edition.difficulty}%" for edition in missed
+        # In the words `verify.missed` gives the rewrite, so the refusal names the half
+        # that went wrong (targum-internal#395). It said "Simplified at 17%" for a level
+        # inside its vocabulary band whose sentences were too short, and the refusal is
+        # what the failure mail carries: whoever reads only it fixes the wrong thing.
+        levels = " ".join(
+            f"{LEVELS[edition.level].name}: {_why_refused(edition)}" for edition in missed
         )
         fail(
             TargumError(
-                f"{len(missed)} level(s) missed the band they are labelled with: {levels}.",
-                "Edit the markdown and measure again, or publish it with --anyway. A "
-                "level labelled for a vocabulary it does not have is worse than a "
-                "missing one.",
+                f"{len(missed)} level(s) missed the band they are labelled with. {levels}",
+                f"Edit the markdown, then: targum weekly measure {week}. Or publish it "
+                "with --anyway. A level labelled for a vocabulary it does not have is "
+                "worse than a missing one.",
             )
         )
 
@@ -3590,6 +3595,16 @@ def weekly_publish(
         f"[dim]Out here, not on the box. Send it: TARGUM_HOST=… ./deploy/ship-weekly.sh {week}"
         f"\nThen tell people: targum weekly announce {week}[/dim]"
     )
+
+
+def _why_refused(edition: Edition) -> str:
+    """Why one level may not go out, from what was measured when it was drafted."""
+    from .weekly.verify import Gauge, missed
+
+    said = missed(edition.level, Gauge(difficulty=edition.difficulty, sentence=edition.sentence))
+    # Inside both bands and still not ok: the draft found machine writing in it, which
+    # the index does not keep by name. The draft's notes do.
+    return said or "It measured inside its band and reads as machine-written."
 
 
 @weekly_app.command("announce")
