@@ -75,3 +75,13 @@ src/targum/dialogue/shelf.py
 src/targum/recording/cut.py
 src/targum/recording/attach.py
 src/targum/weekly/voice.py
+
+# The scripts that film targum: the sneak peek, the feed cut, the desktop reel, the olim
+# films (targum-internal#405). Private by decision, 2026-10-01: they hold marketing set-ups
+# and the accounts they film, not product. They live in the main checkout only, so a
+# worktree cannot film; scripts/FILMS.md there says what each one makes.
+scripts/capture_*.py
+scripts/olim_*.py
+scripts/demo_logos.json
+scripts/hero/
+scripts/FILMS.md
