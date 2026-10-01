@@ -1676,7 +1676,10 @@
   function titled(job) {
     var head = document.createElement("p");
     head.style.margin = "0";
-    head.innerHTML = "<b></b>";
+    // Isolated, so a Hebrew title in an English line keeps its own direction and the
+    // facts after it: unisolated, the clock joined the title's run and was drawn in
+    // front of it ("12:35 · זו מדינת אויב?").
+    head.innerHTML = "<bdi><b></b></bdi>";
     head.querySelector("b").textContent = job.title || "";
     var facts = describe(job);
     if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
@@ -1747,10 +1750,24 @@
     confirm.className = "filled";
     confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
-      ask("/build", { id: job.id }).then(function (state) {
-        if (state.blocked) return refuse(state);
-        watch(job);
-      });
+      // Held down until the server answers: the press is what spends, and a second
+      // press while the first was in flight had nothing to tell it the first had landed.
+      confirm.disabled = true;
+      ask("/build", { id: job.id })
+        .then(function (state) {
+          if (state.error) return say(line(state.error), true);
+          if (state.blocked) return refuse(state);
+          watch(job);
+        })
+        .catch(function () {
+          // The card stays, so the press can be tried again where it was.
+          confirm.disabled = false;
+          if (!status.querySelector(".could-not-send")) {
+            var oops = line(t("add.could-not-send", "We couldn't send that. Try again."));
+            oops.className = "could-not-send";
+            status.appendChild(oops);
+          }
+        });
     };
     row.appendChild(confirm);
     if (job.pictures_offered > 0) {
