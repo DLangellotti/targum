@@ -2231,6 +2231,115 @@ def test_a_pasted_link_says_what_was_found_before_it_says_the_price(
     assert let_price_through, "the price still follows"
 
 
+def test_what_was_found_still_says_the_price_is_coming(browser, tmp_path: Path) -> None:
+    """`/prepare` can take minutes on a video. What was found used to replace the
+    waiting line, so the reader saw a finished-looking card with nothing to press and
+    nothing saying more was on its way."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(FOUND))
+        elif "/prepare" in request.url:
+            return  # held open: the price has not arrived yet
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.wait_for_selector(".found", timeout=4000)
+    status = open_page.inner_text("#status")
+    context.close()
+
+    assert "What we found" in status
+    assert "We're reading it" in status, "the waiting line stays under what was found"
+    assert status.index("What we found") < status.index("We're reading it")
+
+
+def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) -> None:
+    """A stage can count what it has done before it knows the total, and done over a
+    total of nothing was drawn as "Infinity%"."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+        elif "/prepare" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif "/job/" in request.url:
+            body = {"stage": "transcribe", "done": 3, "total": 0, "message": ""}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.click("#status button.filled", timeout=4000)
+    open_page.wait_for_selector("#status .bar", timeout=4000)
+    open_page.wait_for_timeout(1200)  # past the first poll
+    status = open_page.inner_text("#status")
+    context.close()
+
+    assert "Infinity" not in status and "NaN" not in status, status
+    assert "We're getting it ready" in status
+
+
+def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> None:
+    """The card's title is isolated, so a Hebrew title keeps its facts after it rather
+    than in front of it. And Open: one press while `/build` is answering, and the
+    server's own sentence when the build was lost to a restart — it used to poll a job
+    that no longer existed."""
+    html = add_page(TOKEN)
+    built: list[object] = []
+    priced = dict(PRICED, title="זו מדינת אויב?")
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+        elif "/prepare" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(priced))
+        elif "/build" in request.url:
+            built.append(request.post_data_json)
+            lost = {"error": "We lost that build when we restarted."}
+            route.fulfill(status=404, content_type="application/json", body=json.dumps(lost))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.wait_for_selector("#status button.filled", timeout=4000)
+    isolated = open_page.evaluate("() => !!document.querySelector('#status bdi > b')")
+    open_page.evaluate(
+        "() => { const b = document.querySelector('#status button.filled'); b.click(); b.click(); }"
+    )
+    open_page.wait_for_function(
+        "() => document.getElementById('status').textContent.includes('lost that build')",
+        timeout=4000,
+    )
+    context.close()
+
+    assert isolated, "the title in a <bdi>"
+    assert len(built) == 1, "two presses, one build"
+
+
 def test_a_link_nothing_can_be_found_about_is_still_priced(browser, tmp_path: Path) -> None:
     """The reading never decides anything. A `/describe` that refuses, or falls over, is
     passed over in silence and the price follows exactly as it did before."""

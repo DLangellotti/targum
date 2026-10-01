@@ -1401,7 +1401,15 @@
         .then(function (said) {
           found = said && !said.error ? said : null;
           var block = foundBlock(found);
-          if (block) say(block);
+          // What was found goes above the waiting line, never in place of it:
+          // `/prepare` can take minutes on a video, and a card with no line saying
+          // more is coming read as finished with nothing to press.
+          if (block) {
+            var both = document.createDocumentFragment();
+            both.appendChild(block);
+            both.appendChild(waiting());
+            say(both);
+          }
         })
         .catch(function () {
           found = null;
@@ -1668,8 +1676,14 @@
   function titled(job) {
     var head = document.createElement("p");
     head.style.margin = "0";
-    head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title || "";
+    // Isolated, so a Hebrew title in an English line keeps its own direction and the
+    // facts after it: unisolated, the clock joined the title's run and was drawn in
+    // front of it ("12:35 · זו מדינת אויב?").
+    var own = document.createElement("bdi");
+    var bold = document.createElement("b");
+    bold.textContent = job.title || "";
+    own.appendChild(bold);
+    head.appendChild(own);
     var facts = describe(job);
     if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
     head.appendChild(facts);
@@ -1739,10 +1753,24 @@
     confirm.className = "filled";
     confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
-      ask("/build", { id: job.id }).then(function (state) {
-        if (state.blocked) return refuse(state);
-        watch(job);
-      });
+      // Held down until the server answers: the press is what spends, and a second
+      // press while the first was in flight had nothing to tell it the first had landed.
+      confirm.disabled = true;
+      ask("/build", { id: job.id })
+        .then(function (state) {
+          if (state.error) return say(line(state.error), true);
+          if (state.blocked) return refuse(state);
+          watch(job);
+        })
+        .catch(function () {
+          // The card stays, so the press can be tried again where it was.
+          confirm.disabled = false;
+          if (!status.querySelector(".could-not-send")) {
+            var oops = line(t("add.could-not-send", "We couldn't send that. Try again."));
+            oops.className = "could-not-send";
+            status.appendChild(oops);
+          }
+        });
     };
     row.appendChild(confirm);
     if (job.pictures_offered > 0) {
@@ -1850,12 +1878,15 @@
           return say(line(state.error), true);
         }
         // The pipeline narrates itself in its own vocabulary. This is the reader's.
-        text.textContent = state.done
-          ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
-              share: Math.round((state.done / state.total) * 100),
-            })
-          : plain(state.message);
-        var share = state.total ? state.done / state.total : 0;
+        // A stage can count what it has done before it knows the total, and done over
+        // nothing read "Infinity%": no total, no percentage.
+        var share = state.total > 0 ? Math.min(1, (state.done || 0) / state.total) : 0;
+        text.textContent =
+          state.done && state.total > 0
+            ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
+                share: Math.round(share * 100),
+              })
+            : plain(state.message) || t("add.getting-ready", "We're getting it ready…");
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
         if (state.stage === "done") {
           clearInterval(timer);
