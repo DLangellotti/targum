@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
     from .vocalize import Vocalizer
-    from .weekly.models import Edition
+    from .weekly.models import Edition, Issue
 
 app = typer.Typer(
     add_completion=False,
@@ -3388,9 +3388,15 @@ def weekly_draft(
     index.issues = [one for one in index.issues if one.id != week] + [issue]
     weekly_index.save(index)
 
-    table = Table(box=None, pad_edge=False)
+    _weekly_table(issue)
+    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+def _weekly_table(issue: Issue) -> None:
+    """How each level measured against its bands, as `draft` and `measure` print it."""
     from .weekly.models import LEVELS
 
+    table = Table(box=None, pad_edge=False)
     table.add_column("level")
     table.add_column("words", justify="right")
     table.add_column("looked up", justify="right")
@@ -3412,7 +3418,51 @@ def weekly_draft(
     console.print(table)
     if issue.notes:
         console.print(f"[yellow]{issue.notes}[/yellow]")
-    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+@weekly_app.command("measure")
+def weekly_measure(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Measure each level's markdown again, after you edit it by hand.
+
+    The checks `draft` runs (the band, a source's own wording, machine writing) with
+    nothing drafted and nothing spent, written to the index so `publish` reads the new
+    result. Running `draft` again would throw the edit away.
+    """
+    from .weekly import index as weekly_index
+    from .weekly.models import State
+    from .weekly.verify import remeasure
+
+    if out is not None:
+        os.environ["TARGUM_WEEKLY_DIR"] = str(out / "weekly")
+    index = weekly_index.load()
+    issue = next((one for one in index.issues if one.id == week), None)
+    if issue is None:
+        fail(TargumError(f"No issue for {week}.", "Draft one first."))
+    if issue.state is not State.draft:
+        fail(TargumError(f"{week} is {issue.state.value}.", "Only a draft is measured again."))
+
+    where = weekly_index.root() / week
+    notes: list[str] = []
+    for edition in issue.editions:
+        page = where / f"weekly-{week}-{edition.level.value}.md"
+        if not page.is_file():
+            fail(TargumError(f"No markdown at {page}.", f"Draft it: targum weekly draft {week}"))
+        notes += remeasure(edition, page.read_text(encoding="utf-8"), issue.sources)
+    issue.notes = " ".join(notes)
+    weekly_index.save(index)
+
+    _weekly_table(issue)
+    if all(edition.ok for edition in issue.editions):
+        console.print(
+            f"[dim]Every level passes. Build it again so the readers match the markdown, "
+            f"then publish: targum weekly build {week} && targum weekly publish {week}[/dim]"
+        )
 
 
 @weekly_app.command("build")

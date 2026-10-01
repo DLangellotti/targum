@@ -126,9 +126,19 @@ PY
 STATE="$(state_of "$WEEK")"
 say "it is currently: $STATE"
 
-if [ "$STATE" = "missing" ] || [ "$STATE" = "draft" ]; then
+# A draft is measured again rather than drafted again (targum-internal#396). The draft
+# that is already here is either last run's, refused at publish and since edited by hand,
+# or one whose build stopped; drafting it again would throw the edit away and spend on a
+# new one. Measuring is local and free, and the build after it brings the readers level
+# with the markdown.
+if [ "$STATE" = "missing" ]; then
   say "drafting (this is the step that spends)"
   "$TARGUM" weekly draft "$WEEK" || die "draft failed — nothing is published and nothing is out"
+  say "building the three levels"
+  "$TARGUM" weekly build "$WEEK" || die "build failed — the issue is drafted and unbuilt"
+elif [ "$STATE" = "draft" ]; then
+  say "measuring the draft again (a hand edit is kept, and nothing is spent)"
+  "$TARGUM" weekly measure "$WEEK" || die "measure failed — the draft is as it was"
   say "building the three levels"
   "$TARGUM" weekly build "$WEEK" || die "build failed — the issue is drafted and unbuilt"
 fi
@@ -139,8 +149,9 @@ if [ "$(state_of "$WEEK")" != "published" ]; then
   # a thing to look at, and a run that waves it through is a run that publishes the one
   # issue nobody should have published.
   "$TARGUM" weekly publish "$WEEK" || die \
-    "publish refused $WEEK. Read what it said: a missed band is edited in the markdown
-     and redrafted, and a lifted phrase is rewritten. Neither is waved through here."
+    "publish refused $WEEK. Read what it said: a missed band is edited in the markdown,
+     and a lifted phrase is rewritten. Then run this again, which measures the edit and
+     builds it. Neither is waved through here."
 fi
 
 # Mail and carriage are separate verbs on purpose: an issue is out whether or not either

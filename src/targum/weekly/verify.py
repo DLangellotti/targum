@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from ..annotate.base import not_vocabulary
 from ..models import Token
-from .models import FACTS_ONLY, LEVELS, Level, Story
+from .models import FACTS_ONLY, LEVELS, Edition, Level, Story
 
 #: How many words in a row count as somebody else's sentence rather than the same facts
 #: told twice. Five is short enough to catch a lifted clause and long enough that two
@@ -290,3 +290,34 @@ def missed(level: Level, measured: Gauge) -> str:
             f"{shortest:g}–{longest:g}. {way} sentences."
         )
     return " ".join(parts)
+
+
+def remeasure(edition: Edition, page: str, sources: list[Story]) -> list[str]:
+    """Measure one level's markdown again, as the draft did, and write it onto `edition`.
+
+    For a level somebody edited by hand after `publish` refused it (targum-internal#396).
+    The same three checks the writer runs, band, borrowed wording and machine writing,
+    and the same `ok`: a level passes only on all three. Returns the notes for whatever
+    still stands in the way, in the draft's words. Local and free.
+    """
+    measured = gauge(page)
+    borrowed = lifted(page, sources, names=measured.names, verbs=measured.verbs)
+    machine = tells(page)
+    landed = in_band(edition.level, measured)
+    edition.words = len(page.split())
+    edition.difficulty = measured.difficulty
+    edition.sentence = measured.sentence
+    edition.ok = landed and not borrowed and not machine
+    edition.lifted = [str(one) for one in borrowed]
+    name = LEVELS[edition.level].name
+    notes: list[str] = []
+    if not landed:
+        notes.append(f"{name}: {missed(edition.level, measured)}")
+    if machine:
+        notes.append(f"{name} still reads as machine-written: {'; '.join(machine)}.")
+    if borrowed:
+        notes.append(
+            f"{name} still carries {len(borrowed)} run(s) of a source's wording and "
+            "cannot go out until they are rewritten."
+        )
+    return notes
