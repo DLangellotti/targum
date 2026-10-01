@@ -3288,6 +3288,48 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
+def test_the_recording_row_wraps_rather_than_splitting_into_columns(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """targum-internal#397. The open menu lays each group out as one flex line, and the
+    recording's row has four things in it since the credit joined: at 390px each got a
+    quarter of the width and broke a word to a line — "Close / the / player". It wraps
+    now: the label, the credit under it, and the two controls together, each on one line."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    page.click(".bar .more")
+    page.wait_for_selector(".bar-more.open")
+    laid = page.evaluate(
+        """() => {
+          const row = document.querySelector('.more-player');
+          const box = (sel) => {
+            const el = row.querySelector(sel);
+            const r = el.getBoundingClientRect();
+            const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
+            return { top: r.top, height: r.height, line };
+          };
+          return {
+            label: box('.label'),
+            credit: box('.more-credit'),
+            get: box('.more-get'),
+            close: box('.more-close'),
+          };
+        }"""
+    )
+    context.close()
+
+    for name in ("label", "get", "close"):
+        part = laid[name]
+        assert part["height"] < part["line"] * 1.6 + 16, (name, part)
+    assert laid["credit"]["top"] > laid["label"]["top"], "the credit stands under the label"
+    assert laid["get"]["top"] > laid["credit"]["top"], "the controls come after the credit"
+    assert abs(laid["get"]["top"] - laid["close"]["top"]) < 2, "the two controls share a line"
+
+
 def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
     laid = read_aloud.evaluate(LAID_OUT)
     assert laid["seat"] and laid["shown"]

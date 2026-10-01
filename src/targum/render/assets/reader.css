@@ -4044,6 +4044,17 @@ html:fullscreen { background: var(--paper); }
   .bar-more.open .group select,
   .bar-more.open .group .home,
   .bar-more.open .group .level { border-color: var(--rule); }
+  /* The recording's row holds four things, and the open menu's one-line flex gave each a
+     quarter of a phone: "Close / the / player", a word to a line (targum-internal#397).
+     It wraps instead: the label, the credit under it, then the two controls together.
+     It has no `data-what`, so its `::before` would only be an empty item taking room. */
+  .bar-more.open .group.more-player { flex-wrap: wrap; column-gap: 1rem; row-gap: 0.1rem; }
+  .bar-more.open .group.more-player::before { content: none; }
+  .bar-more.open .more-player .label,
+  .bar-more.open .more-player .more-credit { flex: 1 0 100%; }
+  .bar-more.open .more-player .more-credit { margin-block-start: 0; }
+  .bar-more.open .more-player .more-get,
+  .bar-more.open .more-player .more-close { order: 1; white-space: nowrap; }
 
   /* --- the docked picture, which is a band occupant here and not in the margin ---
      On a wide window the picture stands in a corner and lifts itself over the strip by
