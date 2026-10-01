@@ -257,3 +257,154 @@ def test_the_back_office_shows_the_link(tmp_path: Path) -> None:
     found = survey(store.db)
     assert [who.link for who in found.waiting_list] == [VIDEO]
     assert f'href="{VIDEO}"' in back_office_page(found, 30)
+
+
+# -- let in, and the saved link is built (David, 2026-10-01) ---------------------------
+
+
+def waiting_with_a_link(store: Store, email: str = "tal@example.com") -> None:
+    """Somebody who tried a link, joined with it, confirmed, and is next in line."""
+    token = store.join_waitlist(email, "en", "/", VIDEO)
+    assert token is not None
+    store.confirm_waiting(token)
+
+
+def quoted(
+    monkeypatch: pytest.MonkeyPatch, *, estimate: float = 0.2, stage: str = "ready"
+) -> list[str]:
+    """`prepare` answering as it would for a nine-minute video, without yt-dlp, and the
+    queue recording what it was given instead of building it."""
+    queued: list[str] = []
+
+    def prepare(self: Library, job: Any) -> None:
+        job.title = "סביח"
+        job.audio = True
+        job.seconds = 540.0
+        job.parts = 1
+        job.estimate = estimate
+        job.stage = stage
+        if stage == "failed":
+            job.error = "That video has no length yet."
+
+    monkeypatch.setattr(Library, "prepare", prepare)
+    monkeypatch.setattr(Library, "enqueue", lambda self, job: queued.append(job.id))
+    return queued
+
+
+def test_letting_somebody_in_builds_their_saved_link_on_targum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum pays, through the same `claim` every build takes: a job row, owned by the
+    new account, held to the box ceiling, and no hours taken from their eight."""
+    from targum.doorway import let_in
+
+    store = Store(tmp_path / "targum.db")
+    library = Library(tmp_path / "out", budget=5.0)
+    library.store = store
+    queued = quoted(monkeypatch)
+    waiting_with_a_link(store)
+    sent: list[str] = []
+
+    class Mailer:
+        def notify(self, to: str, *_: object) -> None:
+            sent.append(to)
+
+    row = let_in(
+        store, Mailer(), "https://targum.page", "tal@example.com", library.build_saved_link
+    )
+    assert row is not None and row.ok and sent == ["tal@example.com"]
+
+    person = store.person_by_email("tal@example.com")
+    assert person is not None, "the account exists before they sign in, to own the build"
+    [job] = list(library.jobs.values())
+    assert job.gift and job.owner == person.id and job.source == VIDEO
+    assert queued == [job.id], "claimed, then queued: the same press any build takes"
+    claimed = store.db.execute(
+        "SELECT owner, claimed, length FROM job WHERE id = ?", (job.id,)
+    ).fetchone()
+    assert claimed["owner"] == person.id
+    assert claimed["claimed"] == pytest.approx(0.2)
+    assert claimed["length"] == 0, "targum pays: none of their hours"
+
+
+def test_the_box_ceiling_still_holds_and_the_link_stays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = Store(tmp_path / "targum.db")
+    library = Library(tmp_path / "out", budget=0.05)
+    library.store = store
+    queued = quoted(monkeypatch, estimate=0.2)
+    waiting_with_a_link(store)
+    store.invite("tal@example.com")
+
+    job = library.build_saved_link("tal@example.com")
+    assert job is not None and job.stage == "blocked" and queued == []
+    assert store.waiting_link("tal@example.com") == VIDEO
+
+
+def test_a_link_that_will_not_open_is_left_saved_and_the_invitation_still_goes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.doorway import open_the_door
+
+    store = Store(tmp_path / "targum.db")
+    library = Library(tmp_path / "out", budget=5.0)
+    library.store = store
+    queued = quoted(monkeypatch, stage="failed")
+    waiting_with_a_link(store)
+    sent: list[str] = []
+
+    class Mailer:
+        def notify(self, to: str, *_: object) -> None:
+            sent.append(to)
+
+    rows = open_the_door(store, Mailer(), "https://targum.page", 5, then=library.build_saved_link)
+    assert [row.ok for row in rows] == [True] and sent == ["tal@example.com"]
+    assert queued == []
+    assert store.waiting_link("tal@example.com") == VIDEO
+
+
+def test_whatever_the_build_raises_never_undoes_the_invitation(tmp_path: Path) -> None:
+    from targum.doorway import open_the_door
+
+    store = Store(tmp_path / "targum.db")
+    waiting_with_a_link(store)
+
+    class Mailer:
+        def notify(self, *_: object) -> None:
+            pass
+
+    def broken(email: str, language: str) -> None:
+        raise RuntimeError("yt-dlp fell over")
+
+    rows = open_the_door(store, Mailer(), "https://targum.page", 5, then=broken)
+    assert [row.ok for row in rows] == [True]
+    assert store.waiting_for_a_way_in() == [], "stamped as let in"
+
+
+def test_nobody_without_a_saved_link_gets_a_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = Store(tmp_path / "targum.db")
+    library = Library(tmp_path / "out", budget=5.0)
+    library.store = store
+    quoted(monkeypatch)
+    token = store.join_waitlist("noa@example.com", "en", "/")
+    assert token is not None
+    store.confirm_waiting(token)
+    store.invite("noa@example.com")
+    assert library.build_saved_link("noa@example.com") is None
+    assert not library.jobs
+
+
+def test_a_request_cannot_make_its_own_build_a_gift(
+    door: tuple[int, Store, Library, io.StringIO],
+) -> None:
+    """`gift` is a field on the job, never read from `options`, which is the request's."""
+    import dataclasses
+
+    from targum.serve import Job
+
+    assert "gift" in {one.name for one in dataclasses.fields(Job)}
+    source = (Path(__file__).parents[1] / "src" / "targum" / "serve.py").read_text("utf-8")
+    assert 'options.get("gift")' not in source and "options['gift']" not in source

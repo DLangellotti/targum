@@ -66,7 +66,7 @@
             {%- if tried.title %}
             <p class="tried-title" dir="auto">{{ tried.title }}</p>
             {%- endif %}
-            <p class="tried-keep">{{ t("landing.try.keep", "Join to keep it. We’ll save the link with your place, and you’ll learn from it when your turn comes.") }}</p>
+            <p class="tried-keep">{{ t("landing.try.keep", "Join to keep it. When your turn comes, it’ll be waiting for you, ready to learn from.") }}</p>
             {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
             {%- endif %}
           </div>

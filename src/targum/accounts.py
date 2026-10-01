@@ -2219,6 +2219,29 @@ class Store:
         with self.write() as db:
             db.execute("UPDATE waiting SET invited = ? WHERE email = ?", (now(), tidy(email)))
 
+    def waiting_link(self, email: str) -> str:
+        """The link somebody tried on the front page and joined with, or "" (#399)."""
+        row = self.db.execute("SELECT link FROM waiting WHERE email = ?", (tidy(email),)).fetchone()
+        return "" if row is None else str(row["link"] or "")
+
+    def account_for_invited(self, email: str) -> Person | None:
+        """The account an invited address will sign in to, made now if it is not there.
+
+        The same row `start_sign_in` makes on the first link, made a little earlier: when
+        somebody is let in with a saved link, the build of it has to belong to somebody
+        before they have signed in (targum-internal#399). Only for an address already on
+        the guest list, so this cannot open an account the door did not.
+        """
+        address = tidy(email)
+        with self.write() as db:
+            if db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone() is None:
+                return None
+            db.execute(
+                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return self.person_by_email(address)
+
     # -- series (2026-09-11) ---------------------------------------------------------
 
     def follow_series(self, email: str, series: str, on: bool = True, language: str = "") -> bool:

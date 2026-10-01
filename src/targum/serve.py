@@ -1008,6 +1008,12 @@ class Job:
     # at claim time and never written down: it is a fact about who they are now, not
     # about this job, and a job recovered after a restart has already been claimed.
     admin: bool = False
+    # targum's own gift (targum-internal#399, David 2026-10-01): the build of the link a
+    # stranger saved on the front page, started when they are let in. Paid from the box's
+    # budget, so it passes the account's money and hours rails and records no hours, and
+    # still claims against the box ceiling like everything else. Never set from a
+    # request: `options` is the request's, this field is not.
+    gift: bool = False
     # The language whoever asked for it reads the product in, so a refusal written later
     # by the thread that runs it is said in theirs (targum-internal#184). Never stored.
     ui: str = "en"
@@ -3560,7 +3566,7 @@ class Library:
             # running up somebody else's bill, and the person paying it is not that
             # reader. The box ceiling below is not waived: that one is the runaway guard,
             # and a loop at three in the morning does not care whose account it is on.
-            admin = bool(job.admin)
+            admin = bool(job.admin) or job.gift
             refused = self.store.claim(
                 job.id,
                 job.estimate,
@@ -3570,8 +3576,9 @@ class Library:
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
                 # Only a recording spends the hours. A text upload is any length and
-                # costs no clock time, so it is not charged against them.
-                length=job.seconds if job.audio else 0.0,
+                # costs no clock time, so it is not charged against them. Nor is a
+                # gift: targum pays for it, and their eight hours are theirs (#399).
+                length=job.seconds if job.audio and not job.gift else 0.0,
                 per_month_length=None if admin else self.upload_seconds,
             )
             if not refused:
@@ -3643,6 +3650,59 @@ class Library:
                 return blocked
             self.enqueue(job)
             return ""
+
+    def build_saved_link(self, email: str, language: str = "en") -> Job | None:
+        """Build the link somebody saved on the front page, now that they are let in
+        (targum-internal#399; David, 2026-10-01: "let-in builds the saved link").
+
+        targum's own budget pays: the job is a `gift`, claimed through `press` and so
+        through `claim` like any other build, against the box ceiling, recorded as a job
+        row and owned by the new account so it lands on their shelf. Nothing here is a
+        second path to the rails. Returns the job, or None where there is no link or no
+        account to give it to; a describe or a build that fails leaves the link saved and
+        never touches the invitation, which has already gone.
+        """
+        import secrets
+
+        from .translate.prompts import INTO
+
+        if self.store is None:
+            return None
+        link = self.store.waiting_link(email)
+        if not link:
+            return None
+        person = self.store.account_for_invited(email)
+        if person is None:
+            return None
+        into = language if language in {code for code, _ in INTO} else "en"
+        job = Job(
+            ui=language or "en",
+            id=secrets.token_hex(8),
+            source=link,
+            options={"to": into, "words": True, "gloss": False},
+            owner=person.id,
+            home=self.home(person),
+            gift=True,
+        )
+        self.jobs[job.id] = job
+        self.remember(job)
+        self.prepare(job)
+        self.remember(job)
+        if job.stage == "ready":
+            self.press(job)
+        return job
+
+    def build_saved_link_later(self, email: str, language: str = "en") -> None:
+        """`build_saved_link` on a thread of its own: preparing reads the link (a yt-dlp
+        call, a page fetch), and the operator's press should not wait on it."""
+
+        def run() -> None:
+            try:
+                self.build_saved_link(email, language)
+            except Exception as error:  # the invitation has gone; the link stays saved
+                incidents_module.record(self.incidents, "saved-link", error)
+
+        threading.Thread(target=run, name="saved-link", daemon=True).start()
 
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
@@ -6148,7 +6208,13 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             count = 5
         try:
-            rows = open_the_door(self.store, self.mailer, self.address, count)
+            rows = open_the_door(
+                self.store,
+                self.mailer,
+                self.address,
+                count,
+                then=self.library.build_saved_link_later,
+            )
         except ValueError as error:
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         let_in = sum(1 for row in rows if row.ok)
@@ -6175,7 +6241,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         email = (form.get("email") or "").strip()
         try:
-            row = let_in(self.store, self.mailer, self.address, email)
+            row = let_in(
+                self.store,
+                self.mailer,
+                self.address,
+                email,
+                then=self.library.build_saved_link_later,
+            )
         except ValueError as error:
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         if row is None:
