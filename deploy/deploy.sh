@@ -156,7 +156,8 @@ scp -q deploy/targum.service "$HOST:/tmp/targum.service"
 ssh "${SSH_OPTS[@]}" "$HOST" "rm -rf /tmp/targum-units && mkdir -p /tmp/targum-units"
 scp -q deploy/targum-backup.service deploy/targum-backup.timer \
   deploy/targum-health.service deploy/targum-health.timer \
-  deploy/targum-visits.service deploy/targum-visits.timer "$HOST:/tmp/targum-units/"
+  deploy/targum-visits.service deploy/targum-visits.timer \
+  deploy/targum-weekly-watch.service deploy/targum-weekly-watch.timer "$HOST:/tmp/targum-units/"
 
 # The keys, over the connection's own stdin rather than scp: nothing holding them is
 # written anywhere on either machine but the file itself. No single quotes inside MERGE:
@@ -247,12 +248,12 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # line goes only after the timer that replaces it is enabled, so there is no night
   # with neither and no night with both. The .bak copy beside it is ignored by cron,
   # which skips any name with a dot in it.
-  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer; do
+  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer; do
     install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
   done
   rm -rf /tmp/targum-units
   systemctl daemon-reload
-  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer
+  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer targum-weekly-watch.timer
   rm -f /etc/cron.d/targum-backup
   # The two tools the off-box copy needs: age seals a copy to a public key, rclone carries
   # it. Installed when missing and never fatal here, because the backup names whichever is

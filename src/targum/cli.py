@@ -1020,6 +1020,43 @@ def watch_health(
     console.print(said)
 
 
+@app.command("watch-weekly")
+def watch_weekly(
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps its record of every week."),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO when a Monday passes and this week's weekly is not out.
+
+    Run every hour by targum-weekly-watch.timer on the box (targum-internal#404). From
+    Monday noon UTC it looks in the box's own weekly index, records what it found, and
+    mails once a week if the issue is not published. Without TARGUM_ALERT_TO it keeps
+    the record and mails nobody; without TARGUM_WEEKLY_DIR it has nothing to look in,
+    says so and does nothing.
+    """
+    from .alerts import tell
+    from .serve import default_store
+    from .weekly import index as weekly_index
+    from .weekly.watch import check
+
+    if not os.environ.get("TARGUM_WEEKLY_DIR", "").strip():
+        # Without it the index is looked for under the working directory, finds nothing,
+        # and every Monday would read as a missed week.
+        console.print("[dim]Weekly alerts not configured: TARGUM_WEEKLY_DIR is not set.[/dim]")
+        return
+
+    def find(week: str) -> str:
+        issue = weekly_index.by_week(week)
+        return issue.state.value if issue is not None else "missing"
+
+    try:
+        said = check(state or default_store().parent / "weekly-watch.json", find, tell)
+    except Exception as error:
+        fail(TargumError("The weekly is not out and the mail about it did not go.", str(error)))
+    console.print(said)
+
+
 @app.command("roll-visits")
 def roll_visits(
     store: Annotated[
@@ -3645,6 +3682,33 @@ def weekly_publish(
         f"[dim]Out here, not on the box. Send it: TARGUM_HOST=… ./deploy/ship-weekly.sh {week}"
         f"\nThen tell people: targum weekly announce {week}[/dim]"
     )
+
+
+@weekly_app.command("stopped")
+def weekly_stopped(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps its record of every week."),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO that a weekly run stopped, with what it said on stdin.
+
+    `deploy/weekly-run.sh` calls this on the box when it stops, so a refused or broken run
+    reaches somebody the same morning (targum-internal#404). Recorded with the week in
+    the watch's file, so `watch-weekly` does not mail about the same week again. Without
+    TARGUM_ALERT_TO the stop is recorded and nobody is mailed.
+    """
+    from .alerts import tell
+    from .serve import default_store
+    from .weekly.watch import stopped
+
+    reason = sys.stdin.read().strip() or "It said nothing."
+    try:
+        said = stopped(state or default_store().parent / "weekly-watch.json", week, reason, tell)
+    except Exception as error:
+        fail(TargumError("The weekly run stopped and the mail about it did not go.", str(error)))
+    console.print(said)
 
 
 def _why_refused(edition: Edition) -> str:

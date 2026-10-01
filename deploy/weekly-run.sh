@@ -39,8 +39,51 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
+WEEK="${1:-$(date +%G-w%V)}"
+
 say() { printf '== %s\n' "$*"; }
-die() { printf '!! %s\n' "$*" >&2; exit 1; }
+
+# Every run is a line here, started and how it ended (targum-internal#404). Three Mondays
+# in September left no issue and no trace, so whether the lid was shut, the job unloaded
+# or the run dead before it wrote anything was a guess. A Monday with no line at all is
+# a run that never started; the box's own watch notices that one and mails about it.
+RUNS="$ROOT/targum-out/weekly/runs.log"
+record() {
+  mkdir -p "$(dirname "$RUNS")" 2>/dev/null
+  printf '%s  %s  %s\n' "$(date -u '+%Y-%m-%dT%H:%MZ')" "$WEEK" "$*" >>"$RUNS" 2>/dev/null || true
+}
+
+# A run that stops says so to the box, which mails TARGUM_ALERT_TO through the mailer the
+# health watch and the backup use: there is no mailer on this laptop, and the log in /tmp
+# reaches nobody. On 2026-09-28 the w40 run was refused at publish at 07:00 and nobody
+# knew until the next day. What is mailed is what the run said, so the reason is in it.
+tell_the_box() {
+  if [ -z "${TARGUM_HOST:-}" ]; then
+    printf '!! no TARGUM_HOST, so nobody was told\n' >&2
+    return 0
+  fi
+  printf '%s\n' "$1" | ssh -o ConnectTimeout=15 -o BatchMode=yes -o ServerAliveInterval=60 \
+    "$TARGUM_HOST" "systemd-run --quiet --wait --pipe --collect \
+      --uid=targum --gid=targum --setenv=HOME=/srv/targum \
+      -p EnvironmentFile=/etc/targum/targum.env \
+      /usr/local/bin/targum weekly stopped '$WEEK' --state /var/lib/targum/weekly-watch.json" \
+    >/dev/null || printf '!! and the box could not be told either\n' >&2
+}
+
+TOLD=""
+die() {
+  printf '!! %s\n' "$*" >&2
+  TOLD=1
+  record "stopped: $(printf '%s' "$*" | head -1)"
+  tell_the_box "$*"
+  exit 1
+}
+# And a run that ends any other way without finishing: killed, or tripped on `set -u`.
+# `die` has already told, so this only speaks for an exit nothing explained.
+trap 'code=$?; if [ "$code" -ne 0 ] && [ -z "$TOLD" ]; then
+  record "stopped: exit $code"
+  tell_the_box "The run exited $code without saying why. The log on the laptop: /tmp/targum-weekly.log"
+fi' EXIT
 
 # The keys live in 1Password and nothing loads them for you — not `uv run`, not the venv's
 # own python. Without them the failure reads "Could not resolve authentication method",
@@ -72,8 +115,8 @@ TARGUM="${TARGUM_BIN:-$ROOT/.venv/bin/targum}"
   "this checkout has no weekly writer (src/targum/weekly/write.py). It is gitignored and
    exists only in the main clone — a worktree cannot draft an issue."
 
-WEEK="${1:-$(date +%G-w%V)}"
 say "$WEEK"
+record "started"
 
 # What this checkout is about to build the issue's readers with (targum-internal#350).
 #
@@ -222,4 +265,5 @@ if [ -n "$MISSING" ]; then
    Run this again — it builds only what is missing, then ships it."
 fi
 
+record "out"
 say "$WEEK is out"
