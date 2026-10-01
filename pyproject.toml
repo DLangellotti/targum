@@ -21,7 +21,13 @@ dependencies = [
   "rich>=13.7",
   "pydantic>=2.7",
   "jinja2>=3.1",
-  "stanza>=1.8",
+  # Capped below 1.15 because 1.15.0 refuses a lemmatizer saved in the older pickle
+  # format, and the Russian one the box fetched (syntagrus_nocharlm.pt) is one. The
+  # lockfile held 1.14.0, so every check passed, while the box's `uv tool install`
+  # resolved fresh, took 1.15.0, and stopped the rebuild at the first Russian text on
+  # 2026-10-01. Lift the cap once the box fetches the model in the newer format:
+  # `tests/test_annotate.py` checks it.
+  "stanza>=1.8,<1.15",
   # Hebrew reads through DICTA since targum-internal#116, and this is what loads the
   # weights — so it is a hard dependency rather than an extra, as Stanza is. It was
   # reachable only through the `speech-align` extra until 2026-09-03, which meant a
