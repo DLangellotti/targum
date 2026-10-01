@@ -1679,8 +1679,11 @@
     // Isolated, so a Hebrew title in an English line keeps its own direction and the
     // facts after it: unisolated, the clock joined the title's run and was drawn in
     // front of it ("12:35 · זו מדינת אויב?").
-    head.innerHTML = "<bdi><b></b></bdi>";
-    head.querySelector("b").textContent = job.title || "";
+    var own = document.createElement("bdi");
+    var bold = document.createElement("b");
+    bold.textContent = job.title || "";
+    own.appendChild(bold);
+    head.appendChild(own);
     var facts = describe(job);
     if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
     head.appendChild(facts);
