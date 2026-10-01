@@ -4796,6 +4796,7 @@ class Handler(BaseHTTPRequestHandler):
             # `?lang=` first, then the browser: the bar's EN / RU is a link, as on
             # the front door and the weekly (design.md §12, 2026-09-27).
             language=self._public_language(),
+            asked=self._asked(),
             schedule=schedule,
             other=elsewhere,
             diaspora=here if schedule is Schedule.diaspora else elsewhere,
@@ -4946,6 +4947,7 @@ class Handler(BaseHTTPRequestHandler):
             # `?lang=` first, then the browser: the bar's EN / RU is a link, as on
             # the front door and the weekly (design.md §12, 2026-09-27).
             language=self._public_language(),
+            asked=self._asked(),
             nearby=nearby,
             others=others,
             absent=list(ABSENT.items()),
@@ -5110,6 +5112,7 @@ class Handler(BaseHTTPRequestHandler):
             address=self.address,
             archive=published,
             language=language,
+            asked=self._asked(),
             # The edition the frame opens: the page's language where every level was
             # built into it, and English otherwise (targum-internal#288).
             edition=weekly.reading_in(issue, language),
@@ -5622,11 +5625,11 @@ class Handler(BaseHTTPRequestHandler):
             for edition in issue.editions
         ]
         # The pages that really answer in both languages, and only those
-        # (targum-internal#188). A sitemap that claims a Russian version of `/about`,
-        # which serves one language at one address, teaches a crawler to distrust the
-        # claims it makes about the pages that do have one.
+        # (targum-internal#188; `/connect` since #392). A sitemap that claims a Russian
+        # version of `/about`, which serves one language at one address, teaches a
+        # crawler to distrust the claims it makes about the pages that do have one.
         bilingual = (
-            {"/", "/library"}
+            {"/", "/library", "/connect"}
             | {path for path in paths if path.startswith("/library/")}
             | set(weekly_paths)
         )
@@ -5975,7 +5978,10 @@ class Handler(BaseHTTPRequestHandler):
             if not connector_is_open():
                 return self._send(404, b"not found", "text/plain")
             page = connect_page(
-                self._public_language(), self.address, signed_in=self._person() is not None
+                self._public_language(),
+                self.address,
+                signed_in=self._person() is not None,
+                asked=self._asked(),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:

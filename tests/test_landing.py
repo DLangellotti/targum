@@ -404,6 +404,59 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
     assert store.waiting_state("dina@example.com") == "on"
 
 
+def test_the_form_posts_in_the_language_that_was_pressed(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#391. The test above posts to `/waitlist?lang=ru` by hand, and the
+    page itself never did: its form posted to `/waitlist`, so a visitor on an English
+    browser who pressed RU was answered, mailed and invited in English. Read the action
+    off the page and post to it, with the browser asking for the other language."""
+    port, store, posted = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+
+    def actions(path: str, browser: str) -> set[str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path, headers={"Accept-Language": browser})
+            page = connection.getresponse().read().decode("utf-8")
+        finally:
+            connection.close()
+        return set(re.findall(r'<form class="join-form" method="post" action="([^"]+)"', page))
+
+    pressed = actions("/?lang=ru", "en-US,en;q=0.9")
+    assert pressed == {"/waitlist?lang=ru"}, pressed
+    # Where nothing was pressed the browser decides, at the post as on the page.
+    assert actions("/", "ru-RU,ru;q=0.9") == {"/waitlist"}
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(
+            "POST",
+            pressed.pop(),
+            urlencode({"email": "lev@example.com"}),
+            {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        body = connection.getresponse().read().decode("utf-8")
+    finally:
+        connection.close()
+    assert "мы отправили на него письмо" in body
+    assert "Подтвердите место в списке ожидания targum" in posted.getvalue()
+    token = re.search(r"/waitlist/confirm\?t=(\S+)", posted.getvalue()).group(1)
+    assert store.waiting_language(token) == "ru", "so the invitation is Russian too"
+
+
+def test_no_join_form_drops_the_language_that_was_pressed() -> None:
+    """#391 was two forms written out by hand beside the shared one, on the landing's
+    close and on `/connect`. Every form that posts to the waitlist carries `asked`."""
+    templates = Path(__file__).parent.parent / "src" / "targum" / "render" / "templates"
+    for template in sorted(templates.glob("*.j2")):
+        for action in re.findall(r'action="(/waitlist[^"]*)"', template.read_text("utf-8")):
+            assert "?lang={{ asked }}" in action, f"{template.name}: {action}"
+
+
 def test_an_english_visitor_is_answered_as_they_always_were(
     served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
 ) -> None:
