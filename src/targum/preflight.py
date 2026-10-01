@@ -844,7 +844,8 @@ def check_alerts() -> Check:
         return Check(
             "alerts",
             False,
-            f"{ALERT_ENV} is not set, so nobody is mailed when /health or the backup fails.",
+            f"{ALERT_ENV} is not set, so nobody is mailed when /health, the backup or "
+            "the weekly fails.",
             f"Set {ALERT_ENV} in /etc/targum/targum.env to the operator's address.",
             fatal=False,
         )

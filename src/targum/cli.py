@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
     from .vocalize import Vocalizer
+    from .weekly.models import Edition, Issue
 
 app = typer.Typer(
     add_completion=False,
@@ -1016,6 +1017,43 @@ def watch_health(
         said = watch(state or default_store().parent / "health-watch.json", where)
     except Exception as error:
         fail(TargumError("/health is down and the mail about it did not go.", str(error)))
+    console.print(said)
+
+
+@app.command("watch-weekly")
+def watch_weekly(
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps its record of every week."),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO when a Monday passes and this week's weekly is not out.
+
+    Run every hour by targum-weekly-watch.timer on the box (targum-internal#404). From
+    Monday noon UTC it looks in the box's own weekly index, records what it found, and
+    mails once a week if the issue is not published. Without TARGUM_ALERT_TO it keeps
+    the record and mails nobody; without TARGUM_WEEKLY_DIR it has nothing to look in,
+    says so and does nothing.
+    """
+    from .alerts import tell
+    from .serve import default_store
+    from .weekly import index as weekly_index
+    from .weekly.watch import check
+
+    if not os.environ.get("TARGUM_WEEKLY_DIR", "").strip():
+        # Without it the index is looked for under the working directory, finds nothing,
+        # and every Monday would read as a missed week.
+        console.print("[dim]Weekly alerts not configured: TARGUM_WEEKLY_DIR is not set.[/dim]")
+        return
+
+    def find(week: str) -> str:
+        issue = weekly_index.by_week(week)
+        return issue.state.value if issue is not None else "missing"
+
+    try:
+        said = check(state or default_store().parent / "weekly-watch.json", find, tell)
+    except Exception as error:
+        fail(TargumError("The weekly is not out and the mail about it did not go.", str(error)))
     console.print(said)
 
 
@@ -3387,9 +3425,15 @@ def weekly_draft(
     index.issues = [one for one in index.issues if one.id != week] + [issue]
     weekly_index.save(index)
 
-    table = Table(box=None, pad_edge=False)
+    _weekly_table(issue)
+    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+def _weekly_table(issue: Issue) -> None:
+    """How each level measured against its bands, as `draft` and `measure` print it."""
     from .weekly.models import LEVELS
 
+    table = Table(box=None, pad_edge=False)
     table.add_column("level")
     table.add_column("words", justify="right")
     table.add_column("looked up", justify="right")
@@ -3411,7 +3455,51 @@ def weekly_draft(
     console.print(table)
     if issue.notes:
         console.print(f"[yellow]{issue.notes}[/yellow]")
-    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+@weekly_app.command("measure")
+def weekly_measure(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Measure each level's markdown again, after you edit it by hand.
+
+    The checks `draft` runs (the band, a source's own wording, machine writing) with
+    nothing drafted and nothing spent, written to the index so `publish` reads the new
+    result. Running `draft` again would throw the edit away.
+    """
+    from .weekly import index as weekly_index
+    from .weekly.models import State
+    from .weekly.verify import remeasure
+
+    if out is not None:
+        os.environ["TARGUM_WEEKLY_DIR"] = str(out / "weekly")
+    index = weekly_index.load()
+    issue = next((one for one in index.issues if one.id == week), None)
+    if issue is None:
+        fail(TargumError(f"No issue for {week}.", "Draft one first."))
+    if issue.state is not State.draft:
+        fail(TargumError(f"{week} is {issue.state.value}.", "Only a draft is measured again."))
+
+    where = weekly_index.root() / week
+    notes: list[str] = []
+    for edition in issue.editions:
+        page = where / f"weekly-{week}-{edition.level.value}.md"
+        if not page.is_file():
+            fail(TargumError(f"No markdown at {page}.", f"Draft it: targum weekly draft {week}"))
+        notes += remeasure(edition, page.read_text(encoding="utf-8"), issue.sources)
+    issue.notes = " ".join(notes)
+    weekly_index.save(index)
+
+    _weekly_table(issue)
+    if all(edition.ok for edition in issue.editions):
+        console.print(
+            f"[dim]Every level passes. Build it again so the readers match the markdown, "
+            f"then publish: targum weekly build {week} && targum weekly publish {week}[/dim]"
+        )
 
 
 @weekly_app.command("build")
@@ -3570,15 +3658,19 @@ def weekly_publish(
 
     missed = [edition for edition in issue.editions if not edition.ok]
     if missed and not anyway:
-        levels = ", ".join(
-            f"{LEVELS[edition.level].name} at {edition.difficulty}%" for edition in missed
+        # In the words `verify.missed` gives the rewrite, so the refusal names the half
+        # that went wrong (targum-internal#395). It said "Simplified at 17%" for a level
+        # inside its vocabulary band whose sentences were too short, and the refusal is
+        # what the failure mail carries: whoever reads only it fixes the wrong thing.
+        levels = " ".join(
+            f"{LEVELS[edition.level].name}: {_why_refused(edition)}" for edition in missed
         )
         fail(
             TargumError(
-                f"{len(missed)} level(s) missed the band they are labelled with: {levels}.",
-                "Edit the markdown and measure again, or publish it with --anyway. A "
-                "level labelled for a vocabulary it does not have is worse than a "
-                "missing one.",
+                f"{len(missed)} level(s) missed the band they are labelled with. {levels}",
+                f"Edit the markdown, then: targum weekly measure {week}. Or publish it "
+                "with --anyway. A level labelled for a vocabulary it does not have is "
+                "worse than a missing one.",
             )
         )
 
@@ -3590,6 +3682,43 @@ def weekly_publish(
         f"[dim]Out here, not on the box. Send it: TARGUM_HOST=… ./deploy/ship-weekly.sh {week}"
         f"\nThen tell people: targum weekly announce {week}[/dim]"
     )
+
+
+@weekly_app.command("stopped")
+def weekly_stopped(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps its record of every week."),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO that a weekly run stopped, with what it said on stdin.
+
+    `deploy/weekly-run.sh` calls this on the box when it stops, so a refused or broken run
+    reaches somebody the same morning (targum-internal#404). Recorded with the week in
+    the watch's file, so `watch-weekly` does not mail about the same week again. Without
+    TARGUM_ALERT_TO the stop is recorded and nobody is mailed.
+    """
+    from .alerts import tell
+    from .serve import default_store
+    from .weekly.watch import stopped
+
+    reason = sys.stdin.read().strip() or "It said nothing."
+    try:
+        said = stopped(state or default_store().parent / "weekly-watch.json", week, reason, tell)
+    except Exception as error:
+        fail(TargumError("The weekly run stopped and the mail about it did not go.", str(error)))
+    console.print(said)
+
+
+def _why_refused(edition: Edition) -> str:
+    """Why one level may not go out, from what was measured when it was drafted."""
+    from .weekly.verify import Gauge, missed
+
+    said = missed(edition.level, Gauge(difficulty=edition.difficulty, sentence=edition.sentence))
+    # Inside both bands and still not ok: the draft found machine writing in it, which
+    # the index does not keep by name. The draft's notes do.
+    return said or "It measured inside its band and reads as machine-written."
 
 
 @weekly_app.command("announce")
