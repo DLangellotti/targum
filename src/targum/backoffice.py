@@ -104,6 +104,8 @@ class Waiting:
     #: Which of targum's pages they pressed Join on (targum-internal#388). Empty is
     #: unknown, which every row before schema 37 is.
     page: str = ""
+    #: The link they tried on the front page and joined with (targum-internal#399).
+    link: str = ""
 
 
 @dataclass
@@ -141,10 +143,11 @@ def _spoken(row: sqlite3.Row) -> str:
         return ""
 
 
-def _page(row: sqlite3.Row) -> str:
-    """The page a waiting row joined from, empty where the store predates the column."""
+def _page(row: sqlite3.Row, column: str = "page") -> str:
+    """The page a waiting row joined from, or the link it joined with, empty where the
+    store predates the column."""
     try:
-        return str(row["page"] or "")
+        return str(row[column] or "")
     except (IndexError, KeyError):
         return ""
 
@@ -186,6 +189,7 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
                 invited=_day(int(row["invited"])) if row["invited"] else "",
                 language=_spoken(row),
                 page=_page(row),
+                link=_page(row, "link"),
             )
             # Oldest first: that is the order they would be let in.
             for row in _rows(db, "SELECT * FROM waiting ORDER BY asked")

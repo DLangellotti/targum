@@ -141,7 +141,7 @@
           {%- else %}<span class="quiet">—</span>{% endif %}
         </td>
         <td class="quiet">{{ who.language or 'en' }}</td>
-        <td class="quiet">{{ who.page or '—' }}</td>
+        <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
