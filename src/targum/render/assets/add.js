@@ -1401,7 +1401,15 @@
         .then(function (said) {
           found = said && !said.error ? said : null;
           var block = foundBlock(found);
-          if (block) say(block);
+          // What was found goes above the waiting line, never in place of it:
+          // `/prepare` can take minutes on a video, and a card with no line saying
+          // more is coming read as finished with nothing to press.
+          if (block) {
+            var both = document.createDocumentFragment();
+            both.appendChild(block);
+            both.appendChild(waiting());
+            say(both);
+          }
         })
         .catch(function () {
           found = null;
@@ -1850,12 +1858,15 @@
           return say(line(state.error), true);
         }
         // The pipeline narrates itself in its own vocabulary. This is the reader's.
-        text.textContent = state.done
-          ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
-              share: Math.round((state.done / state.total) * 100),
-            })
-          : plain(state.message);
-        var share = state.total ? state.done / state.total : 0;
+        // A stage can count what it has done before it knows the total, and done over
+        // nothing read "Infinity%": no total, no percentage.
+        var share = state.total > 0 ? Math.min(1, (state.done || 0) / state.total) : 0;
+        text.textContent =
+          state.done && state.total > 0
+            ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
+                share: Math.round(share * 100),
+              })
+            : plain(state.message) || t("add.getting-ready", "We're getting it ready…");
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
         if (state.stage === "done") {
           clearInterval(timer);
