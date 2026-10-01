@@ -583,6 +583,27 @@ def daily_is_indexed() -> bool:
     return os.environ.get("TARGUM_INDEX_DAILY", "").strip().lower() in {"1", "true", "yes"}
 
 
+def joined_from(said: str) -> str:
+    """Which of targum's own pages a waitlist form stood on, or "" for anything else.
+
+    The form says it (targum-internal#388), as a path or as the page's own canonical
+    address, and the answer is narrowed to the families worth counting: a weekly issue
+    is `/weekly`, a portion `/parasha`, a cycle's day its cycle. Anything not targum's
+    is kept as unknown rather than stored as typed, so the column cannot become a place
+    to write whatever a request says, and nothing about where somebody was before
+    targum is kept at all.
+    """
+    path = urlparse(said.strip()).path or ""
+    first = path.strip("/").split("/", 1)[0]
+    if path == "/":
+        return "/"
+    if first in {"aliyah", "connect", "weekly", "parasha"}:
+        return f"/{first}"
+    if first and first in {cycle.slug for cycle in daily_cycles()}:
+        return f"/{first}"
+    return ""
+
+
 def daily_cycles() -> tuple[Any, ...]:
     """The learning cycles this shelf carries. A function rather than an import at the
     top, because `serve` is imported to answer one request and `daily` pulls the
@@ -5265,7 +5286,7 @@ class Handler(BaseHTTPRequestHandler):
                 )
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, said)
+            token = store.join_waitlist(address, said, joined_from(form.get("from", "")))
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)

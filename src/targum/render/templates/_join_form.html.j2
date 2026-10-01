@@ -7,8 +7,13 @@
 
     The action carries the language the visitor pressed, so the answer, the mail and the
     invitation are in it (targum-internal#391). Where nothing was pressed the browser
-    decides, at the post as it did on the page. -#}
+    decides, at the post as it did on the page.
+
+    `from` says which of targum's pages the form stands on (targum-internal#388): the
+    page's `joined_from` where its renderer gives one, its canonical address where not.
+    The server narrows either to a page it knows, and keeps nothing else. -#}
 <form class="join-form" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
+  <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
   <label class="field">
     <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}">
     <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>

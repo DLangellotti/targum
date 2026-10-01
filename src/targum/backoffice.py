@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import contextlib
 import sqlite3
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -100,6 +101,9 @@ class Waiting:
     #: The language the front door was in when they joined, so the operator can see what
     #: the invitation will be written in. Empty means English.
     language: str = ""
+    #: Which of targum's pages they pressed Join on (targum-internal#388). Empty is
+    #: unknown, which every row before schema 37 is.
+    page: str = ""
 
 
 @dataclass
@@ -112,6 +116,8 @@ class Survey:
     waiting_list: list[Waiting] = field(default_factory=list)
     #: Confirmed and not yet let in — the number the door's own press would take from.
     waiting_for_a_way_in: int = 0
+    #: How many joined through each of targum's pages; "" is unknown.
+    waiting_by_page: dict[str, int] = field(default_factory=dict)
 
     def active(self) -> int:
         """Accounts that did anything at all in the window."""
@@ -131,6 +137,14 @@ def _spoken(row: sqlite3.Row) -> str:
     """
     try:
         return str(row["language"] or "")
+    except (IndexError, KeyError):
+        return ""
+
+
+def _page(row: sqlite3.Row) -> str:
+    """The page a waiting row joined from, empty where the store predates the column."""
+    try:
+        return str(row["page"] or "")
     except (IndexError, KeyError):
         return ""
 
@@ -171,10 +185,14 @@ def survey(db: sqlite3.Connection, today: date | None = None, days: int = DAYS) 
                 joined=_day(int(row["joined"])) if row["joined"] else "",
                 invited=_day(int(row["invited"])) if row["invited"] else "",
                 language=_spoken(row),
+                page=_page(row),
             )
             # Oldest first: that is the order they would be let in.
             for row in _rows(db, "SELECT * FROM waiting ORDER BY asked")
         ]
+        # How many joined through each page, so `/aliyah` can be told from the front
+        # door (targum-internal#388). Unknown is counted too, under "".
+        found.waiting_by_page = dict(Counter(who.page for who in found.waiting_list).most_common())
         found.waiting_for_a_way_in = sum(
             1 for who in found.waiting_list if who.state == "on" and not who.invited
         )
