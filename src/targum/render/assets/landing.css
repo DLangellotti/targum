@@ -259,7 +259,7 @@ h1, h2, h3 { text-wrap: balance; }
 .tongue a:hover { color: var(--ink); text-decoration: none; }
 .bar .end { margin-inline-start: auto; display: flex; align-items: center; gap: var(--space-2); }
 .bar .signin { color: var(--ink); font-size: 0.875rem; padding: var(--space-1) var(--space-2); white-space: nowrap; }
-@media (max-width: 52rem) { .places { display: none; } }
+@media (max-width: 56rem) { .places { display: none; } }
 /* On a phone the bar holds the name, the language and the one thing it is asking for.
    Sign in was the fourth, and it wrapped to a second line and took the bar with it; it
    stands in the foot instead, where somebody who already has a key will look for it. */
@@ -295,7 +295,9 @@ h1, h2, h3 { text-wrap: balance; }
 .join-card .join-form { max-inline-size: none; }
 
 .hero .facts li::before { content: ""; display: inline-block; inline-size: 0.4rem; block-size: 0.4rem; border-radius: 999px; background: var(--leaf); margin-inline-end: var(--space-2); vertical-align: 0.1em; }
-@media (max-width: 52rem) { .hero { grid-template-columns: minmax(0, 1fr); padding-block-start: var(--space-7); } .hero h1 { font-size: 2.25rem; } }
+@media (max-width: 56rem) { .hero { grid-template-columns: minmax(0, 1fr); padding-block-start: var(--space-7); } }
+/* §5: the display step drops on a phone, under 40rem. */
+@media (max-width: 40rem) { .hero h1 { font-size: 2.25rem; } }
 @media (max-width: 30rem) {
   .hero { padding-block: var(--space-6) var(--space-4); gap: var(--space-3); }
   .hero .headline { gap: var(--space-3); }
@@ -390,7 +392,7 @@ section.part { padding-block: var(--space-8); }
 .part-head p { font-size: 1.0625rem; }
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-7) var(--space-8); align-items: start; }
 .split .part-head { margin: 0; }
-@media (max-width: 52rem) { .split { grid-template-columns: minmax(0, 1fr); } .split > * { min-inline-size: 0; } }
+@media (max-width: 56rem) { .split { grid-template-columns: minmax(0, 1fr); } .split > * { min-inline-size: 0; } }
 /* And the page never scrolls sideways whatever a child does: the one axis a
    phone should not have. `clip` rather than `hidden`, so the sticky bar keeps working. */
 html { overflow-x: clip; }
@@ -419,7 +421,10 @@ html { overflow-x: clip; }
 .how-bars i { flex: 1; border-radius: 4px 4px 0 0; background: var(--card); }
 .how-bars i.on { background: var(--leaf); }
 .how-bars i.part { background: var(--leaf); opacity: 0.4; }
-@media (max-width: 56rem) { .how { grid-template-columns: 1fr; } }
+/* Three, then two with the third across both, then one (2026-10-02): a tablet was
+   given three full-width cards. */
+@media (max-width: 56rem) { .how { grid-template-columns: repeat(2, minmax(0, 1fr)); } .how > :last-child { grid-column: 1 / -1; } }
+@media (max-width: 40rem) { .how { grid-template-columns: minmax(0, 1fr); } }
 
 /* the ink band: the page's one inverted block, under the box */
 .media { background: var(--bar); color: var(--bar-ink); border-radius: 24px; padding: var(--space-8) var(--space-7); display: grid; gap: var(--space-7); }
@@ -451,7 +456,7 @@ html { overflow-x: clip; }
 .note-bubble .len { font: 500 0.6875rem/1 var(--chrome); color: var(--rail); }
 .note-line { position: absolute; inset-block-end: 0.5rem; inset-inline: 0.9rem; font-family: var(--reading-hebrew); direction: rtl; font-size: 0.9375rem; color: var(--bar-ink); text-align: start; }
 
-@media (max-width: 60rem) { .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 56rem) { .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 40rem) { .media-grid { grid-template-columns: 1fr; } .media { padding: var(--space-7) var(--space-4); } }
 
 /* the Torah sheet */
@@ -524,7 +529,7 @@ html { overflow-x: clip; }
 .book .k { font-size: 0.8125rem; color: var(--muted); }
 .book .meter { display: block; block-size: 4px; border-radius: 999px; background: var(--field); overflow: hidden; }
 .book .meter i { display: block; block-size: 100%; background: var(--leaf); }
-@media (max-width: 52rem) { .shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 56rem) { .shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* questions */
 .faq { display: grid; gap: var(--space-2); max-inline-size: 46rem; }
@@ -543,7 +548,7 @@ html { overflow-x: clip; }
 .media-grid.eight { grid-template-columns: repeat(4, minmax(0, 1fr)); list-style: none; }
 .media-grid.eight .m-tile h3 { font-size: 0.9375rem; }
 .m-tile h3 .soon { margin-inline-start: var(--space-2); font-size: 0.6875rem; font-weight: 400; color: var(--bar-muted); }
-@media (max-width: 60rem) { .media-grid.eight { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 56rem) { .media-grid.eight { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* On a phone the eight become a row you swipe (2026-10-02): one column made a dark
    column about 1,100px tall, a dark section rather than a band (§9), and two across
    clipped every picture. The next tile shows at the edge, so the row says it moves. */
