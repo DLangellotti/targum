@@ -9,7 +9,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - `/aliyah`, a front door for olim (targum-internal#385). A short page beside the front
   door, which does not change: "Learn Hebrew from your own life in Israel", the four
   moments that send an oleh looking, four lines of everyday Hebrew from the bank, the
-  school, the building and the clinic, the ulpan ladder, six questions and the waitlist.
+  school, the building and the clinic, the places targum reads, six questions and the
+  waitlist, drawn on the rebuilt front door's parts.
   No Torah section. English and Russian, in the sitemap, and there only while the front
   door is open. It is drawn from the front door's parts and carries no script. design.md
   §12, "Olim have a door of their own".

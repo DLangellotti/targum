@@ -151,7 +151,9 @@ def test_the_torah_is_left_to_the_front_door() -> None:
 def test_the_hebrew_it_shows_is_pointed() -> None:
     """The page promises vowels on every line, so the lines it shows carry them."""
     html = aliyah_page("en", ADDRESS)
-    lines = re.findall(r'<p class="he">(.*?)</p>', html)
+    letters = html[html.index('<figure class="letters"') :]
+    letters = letters[: letters.index("</figure>")]
+    lines = re.findall(r'<p class="he">(.*?)</p>', letters)
     assert len(lines) == 4
     for line in lines:
         for word in line.rstrip(".").split():

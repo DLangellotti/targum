@@ -386,6 +386,15 @@ not point at it. It is the address a post in an olim group carries.
 Every claim on it is one the product keeps today: a photo of a page and a screenshot of a
 chat both become a text.
 
+**Redrawn on the rebuilt front door, 2026-10-02.** The new front door (#555) took out
+most of the parts this page was drawn from, and David chose to redraw it on the new ones
+rather than keep the old sheet: the hero with the waitlist where the front door has its
+box, and the four lines beside it where the word card stands; "After ulpan" as the How
+cards, two by two; the band of tiles on ink; the questions; and the front door's ending.
+The band and the ending are partials both pages include. The ulpan ladder's part went,
+as it did on the front door. It still carries no script, so the band's waveforms are
+written into the markup rather than drawn by one.
+
 ### The focus ring on the public pages is teal — 2026-10-02
 
 A design review measured the gold ring at 2.31:1 on the desk's ground and 2.80:1 on its
