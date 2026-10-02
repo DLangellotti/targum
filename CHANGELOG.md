@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The corpus ledger, designed and started (targum-internal#162). `LEDGER.md` is the
+  design: one SQLite file, a table per artefact kind, every row naming the tool and the
+  version that made it, the cache becoming a view of it a stage at a time, rebuild from
+  rows, `targum corpus export --exportable`, the migration and the open questions. The
+  first slice is `src/targum/ledger.py`, for the `vocalize` stage only and **off unless
+  `TARGUM_LEDGER` names a file**. With it on, `Cache.put` writes its JSON as before and
+  then the same pointing as rows (`vocalizations`, `pointings`), and `Cache.drop` drops
+  the row too. A value is kept only if the rows give it back byte for byte. Nothing reads
+  the ledger yet: the cache is still the read path. `ledger.rebuild` writes the cache
+  back from rows and `ledger.backfill` reads today's cache in; against this laptop's
+  cache that recorded 936 pointings and refused none.
 - The Hebrew stress eval measures the pause and a grammar rule, both free
   (targum-internal#325). `scripts/eval_hebrew_stress.py --baseline-only` now also writes
   the share of the gold under a pausal accent, read by `vocalize/trope.py` (10.4% under
