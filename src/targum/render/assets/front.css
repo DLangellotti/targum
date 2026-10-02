@@ -291,3 +291,6 @@ body.front .join-points svg { inline-size: 1.05rem; block-size: 1.05rem; color: 
   body.front .btn:active { transform: none; }
 }
 
+/* The public pages ring in teal: the gold is 2.31:1 on the ground they stand on
+   (design.md §4, §12, 2026-10-02). */
+body.front :focus-visible, body.front .site-footer a:focus-visible { outline-color: var(--teal); }

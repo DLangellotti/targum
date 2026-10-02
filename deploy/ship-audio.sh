@@ -73,6 +73,38 @@ echo "== ship =="
 # script stopped on it, and the box was left looking for a shelf that never arrived.
 command -v rsync >/dev/null || { echo "rsync is not installed here" >&2; exit 1; }
 ssh "$HOST" "install -d -o targum -g targum -m 0755 '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES' '$REMOTE_VIDEOS'"
+
+# Every rsync below runs with --delete, so the box ends up holding exactly what this
+# machine holds. That is right only when this machine holds everything the box does.
+# On 2026-09-30 it did not: 14 French recordings had been shipped from a re-alignment
+# folder, and a run from targum-out would have deleted them (targum-internal#402).
+# So before anything is copied, ask the box what it has and stop on any name that is
+# not here. There is no flag past it: point TARGUM_RECORDING_DIR (or the dialogue or
+# video one) at the folder that holds them, or bring them here first. A shelf item that
+# really should go is taken off the box by hand, on purpose. Dot-files are left out on
+# both sides: they are Finder's litter, and --delete may take them.
+#
+# The box's list is read into a variable rather than a process substitution, so an ssh
+# that fails stops the script here instead of reading as an empty box.
+names() { find "$1" -mindepth 1 -maxdepth 1 ! -name '.*' -exec basename {} \; | LC_ALL=C sort; }
+MISSING=""
+for pair in "$RECORDINGS|$REMOTE_RECORDINGS" "$DIALOGUES|$REMOTE_DIALOGUES" ${VIDEOS:+"$VIDEOS|$REMOTE_VIDEOS"}; do
+  here="${pair%%|*}"
+  there="${pair#*|}"
+  on_box="$(ssh "$HOST" "find '$there' -mindepth 1 -maxdepth 1 ! -name '.*' -exec basename {} \;")"
+  only="$(comm -13 <(names "$here") <(printf '%s\n' "$on_box" | sed '/^$/d' | LC_ALL=C sort))"
+  if [ -n "$only" ]; then
+    MISSING+="   in $there but not in $here:"$'\n'"$(printf '%s\n' "$only" | sed 's/^/     /')"$'\n'
+  fi
+done
+if [ -n "$MISSING" ]; then
+  echo "the box holds things this machine does not, and shipping would delete them:" >&2
+  printf '%s' "$MISSING" >&2
+  echo "point TARGUM_RECORDING_DIR, TARGUM_DIALOGUE_DIR or TARGUM_VIDEO_DIR at the folder" >&2
+  echo "that holds them, or copy them here first. Nothing was sent." >&2
+  exit 1
+fi
+
 rsync -a --delete --delay-updates --stats \
   "$RECORDINGS/" "$HOST:$REMOTE_RECORDINGS/" | sed 's/^/   /'
 rsync -a --delete --delay-updates --stats \

@@ -1,10 +1,10 @@
 """A post, kept as a post: `post.json` beside the reader (targum-internal#158).
 
-A post from Instagram — and from X and TikTok when their doors open — has a shape a
-paragraph does not: who wrote it, when, and which pictures sat where. The text path reads
-its caption like any other text, and until this nothing kept the rest, so a post came back
-as three paragraphs with a title. design.md §12, "A post keeps its shape" (2026-09-27),
-says how it is drawn; this is what is kept for the drawing.
+A post from Instagram — and from X, TikTok and Facebook, whose doors have opened since —
+has a shape a paragraph does not: who wrote it, when, and which pictures sat where. The
+text path reads its caption like any other text, and until this nothing kept the rest, so
+a post came back as three paragraphs with a title. design.md §12, "A post keeps its
+shape" (2026-09-27), says how it is drawn; this is what is kept for the drawing.
 
 **Beside the reader, like `audio.json`**, and not a change to `Document`: no cache key
 moves and nothing is re-translated. A folder without one is a plain text reader, and
@@ -36,8 +36,14 @@ log = logging.getLogger(__name__)
 NAME = "post.json"
 
 #: The platforms a post may come from. An enum rather than free text, so a card can draw
-#: each one it knows and refuse one it does not.
-PLATFORMS = ("instagram", "x", "tiktok")
+#: each one it knows and refuse one it does not. Facebook since 2026-09-30, for its
+#: videos: a pasted one arrives as a post, as a TikTok does.
+PLATFORMS = ("instagram", "x", "tiktok", "facebook")
+
+#: The platforms the Add page's form takes a post by hand from. Not Facebook's yet: most
+#: of what is posted there is words, at addresses the host table does not read, so the
+#: form would refuse the link to nearly every Facebook post a reader brought.
+BROUGHT_FROM = ("instagram", "x", "tiktok")
 
 #: How a post reached targum. `paste`: a link the reader pasted, fetched by the box when
 #: they pressed (the hosted door, open since targum#304). `cli`: the command line on the
@@ -324,6 +330,7 @@ __all__ = [
     "FETCHED_BY",
     "LONG_EDGE",
     "NAME",
+    "BROUGHT_FROM",
     "PLATFORMS",
     "Author",
     "Item",

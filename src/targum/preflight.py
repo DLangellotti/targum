@@ -350,6 +350,44 @@ def check_tiktok(connect: bool = True) -> Check:
     )
 
 
+#: A public reel from כאן חדשות, measured from the box on 2026-09-30: 39 seconds, and it
+#: answered both directly and through the proxy. If it is ever deleted this check reads as
+#: a refusal; swap in another.
+FACEBOOK_CONTROL = "https://www.facebook.com/reel/1445068414180254/"
+
+
+def check_facebook(connect: bool = True) -> Check:
+    """Whether Facebook still shows this box a public video, by any of its routes.
+
+    Asked the way a reader's paste is asked (`facebook.describe`): directly once, then
+    through the proxy. The direct ask failed on every reel one afternoon and the proxy
+    answered (2026-09-30), so the check passes on whichever route answers — which is the
+    question a reader's paste puts — and fails only when none does.
+    """
+    from .errors import TargumError
+    from .video import facebook as facebook_module
+    from .video import ytdlp_available
+
+    if not _hosted() or not ytdlp_available()[0]:
+        return Check("Facebook", True, "not asked from here", fatal=False)
+    if not connect:
+        return Check("Facebook", True, "not asked", fatal=False)
+    try:
+        info = facebook_module.describe(FACEBOOK_CONTROL)
+    except TargumError as error:
+        return Check(
+            "Facebook",
+            False,
+            f"the control reel was refused — {error.message}",
+            "Pasted Facebook videos fail at the button until it answers. A newer yt-dlp is "
+            "the usual fix; a deleted control reel reads the same way.",
+            fatal=False,
+        )
+    return Check(
+        "Facebook", True, f"the control reel answers ({round(info.get('duration') or 0)} s)"
+    )
+
+
 def check_pot(connect: bool = True) -> Check:
     """Whether the token minter is answering, which on a box is what makes yt-dlp work.
 
@@ -806,7 +844,8 @@ def check_alerts() -> Check:
         return Check(
             "alerts",
             False,
-            f"{ALERT_ENV} is not set, so nobody is mailed when /health or the backup fails.",
+            f"{ALERT_ENV} is not set, so nobody is mailed when /health, the backup or "
+            "the weekly fails.",
             f"Set {ALERT_ENV} in /etc/targum/targum.env to the operator's address.",
             fatal=False,
         )
@@ -906,6 +945,7 @@ def preflight(store: Path, out: Path, port: int = 8420, connect: bool = True) ->
     checks.append(check_pot(connect=connect))
     checks.append(check_instagram(connect=connect))
     checks.append(check_tiktok(connect=connect))
+    checks.append(check_facebook(connect=connect))
     checks.append(check_transcriber())
     checks.append(check_scripture())
     checks.append(check_shelf(out))

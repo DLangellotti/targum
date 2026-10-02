@@ -3,8 +3,23 @@
     A plain post to `/waitlist`, which answers with a page of its own, so it works with
     JavaScript off and from any page it stands on. Drawn on the landing twice and on
     every page in front of the door that sells (2026-09-27). `note` adds the line under
-    it that says what happens next. -#}
-<form class="join-form" method="post" action="/waitlist">
+    it that says what happens next.
+
+    The action carries the language the visitor pressed, so the answer, the mail and the
+    invitation are in it (targum-internal#391). Where nothing was pressed the browser
+    decides, at the post as it did on the page.
+
+    `from` says which of targum's pages the form stands on (targum-internal#388): the
+    page's `joined_from` where its renderer gives one, its canonical address where not.
+    The server narrows either to a page it knows, and keeps nothing else.
+
+    `link` is set where the form stands under the front page's box with a link tried in
+    it (targum-internal#399), so joining keeps the link with the place. -#}
+<form class="join-form" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
+  <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
+  {%- if link|default('') %}
+  <input type="hidden" name="link" value="{{ link }}">
+  {%- endif %}
   <label class="field">
     <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}">
     <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>

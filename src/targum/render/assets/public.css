@@ -998,6 +998,30 @@ html:has(main.weekly) {
    shelf, a text, the policies) and is quiet on the weekly — a bordered pill — because
    §9 gives the accent to one action in a view and there it is the door at the foot,
    "Keep what you learn". */
+/* A note (weekly-note.html.j2) fills the window: the masthead at the top, the sentence
+   in the middle, the foot at the bottom, however short the sentence is (2026-10-02). */
+body.public.note {
+  min-block-size: 100vh;
+  min-block-size: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding-block-end: 0;
+}
+body.public.note > main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  box-sizing: border-box;
+}
+.public .note-body {
+  margin-block: auto;
+  padding-block: 2rem 4rem;
+}
+.public .note-body .lede {
+  margin-block-end: 2rem;
+}
+
 .public .masthead {
   display: flex;
   align-items: center;

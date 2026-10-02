@@ -316,6 +316,32 @@ def test_the_sitemap_gives_each_language_its_own_entry(
     assert "/about?lang=ru" not in found
 
 
+def test_every_page_that_declares_its_languages_is_listed_with_them(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#392. `/connect` answered in Russian and said so in its head, and
+    the sitemap listed it in English only. Asked of every page the sitemap names rather
+    than of a list kept by hand, so the next bilingual page cannot be left out the same
+    way. One text stands for the shelf: a thousand fetches would prove nothing more."""
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    xml = ask(port, "/sitemap.xml", "targum.page")[1].decode()
+    found = {
+        url.removeprefix("https://targum.page") for url in re.findall(r"<loc>(.*?)</loc>", xml)
+    }
+    assert "/connect" in found
+    pages = {path for path in found if "?" not in path and not path.startswith("/library/")}
+    pages.add(f"/library/{CATALOGUE[0].id}")
+    for path in sorted(pages):
+        status, body = ask(port, path, "targum.page")
+        if status != 200 or b'hreflang="ru"' not in body.split(b"</head>")[0]:
+            continue
+        assert f"{path}?lang=ru" in found, f"{path} declares Russian and the sitemap omits it"
+
+
 def test_a_public_page_answers_in_the_language_its_address_asks_for(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

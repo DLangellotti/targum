@@ -443,6 +443,14 @@ class Entry:
     #: library page costs no lemmatiser to draw.
     difficulty: int = 0
 
+    #: Mean words per sentence, the other half of a level (targum-internal#382). The
+    #: share above cannot tell an easy text from a simplified one — the weekly measured
+    #: its two editions the wrong way round on it — and sentence length can. Measured off
+    #: the segmentation a build makes, by `annotate.difficulty.sentence_length`, printed
+    #: by the same script and written down here the same way. 0 where nothing has been
+    #: measured yet, and `targum levels` says how many that is rather than guessing.
+    sentence: float = 0.0
+
     @property
     def minutes(self) -> int:
         """How long this takes to read, at the 130 words a minute a learner manages."""
@@ -783,6 +791,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
         kind=Kind(raw.get("kind", Kind.prose.value)),
         register=Register(raw.get("register", Register.none.value)),
         difficulty=int(raw.get("difficulty", 0)),
+        sentence=float(raw.get("sentence", 0)),
         model=str(raw.get("model", "")),
         licence=str(raw.get("licence", "")),
         credit=str(raw.get("credit", "")),

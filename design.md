@@ -124,7 +124,10 @@ two are **ink-panel only**.
 
 ### Supporting
 
-Focus ring `#b8935e`. The mark's translation column on paper is its own value, `#a5824f` —
+Focus ring `#b8935e`, inside the product. On the public pages (the front door, /connect, the
+weekly, the parasha and the dailies), which stand on the desk's ground, the ring is teal
+`#1f6f6b`: the gold measures 2.31:1 on `#ece7de`, under WCAG 1.4.11's 3:1, and teal is
+4.8:1 there and is already a focused field's ring (§13). See §12, 2026-10-02. The mark's translation column on paper is its own value, `#a5824f` —
 the working accent goes muddy at 22 px wide. Deep paper is structural: desk `#ece7de`, rail
 `#e7e1d6`, divider `#e6e1d8` — never a text background.
 
@@ -383,6 +386,84 @@ not point at it. It is the address a post in an olim group carries.
 Every claim on it is one the product keeps today: a photo of a page and a screenshot of a
 chat both become a text.
 
+### The focus ring on the public pages is teal — 2026-10-02
+
+A design review measured the gold ring at 2.31:1 on the desk's ground and 2.80:1 on its
+cards; WCAG 1.4.11 asks 3:1 of a focus indicator. The public pages stand on that ground
+everywhere. There the ring draws in teal, 4.8:1, the colour a focused field already
+rings in (§13), so those pages now have one focus colour rather than two. `--focus`
+itself is unchanged: the reader stands on paper, where the gold is the product's own,
+and `test_brand.py` still holds the token to it.
+
+### The front door keeps its look and moves its promise up — 2026-10-02
+
+A tester called the front page "kinda directionless … what are the killer features
+exactly? Found my answer near the bottom", and the answer he found was section 8 of 10:
+*If it's in Hebrew, you can learn from it here.* A rebuild around that one promise was
+tried on 2026-10-01 and set aside the same day: it lost what the page already did well —
+a hero that says what targum is, and the reader under it proving it. So the page stays,
+and is sharpened (targum-internal#399):
+
+- **The hero is today's headline and lede, with one call to action**: the box, and under
+  it the live page's own four points (start at any level, upload any text or media,
+  hundreds of free texts and videos, no credit card required); written anew they read
+  as generated (David, 2026-10-02).
+  The whole word card stands beside the headline; the reader runs the full width under
+  both and, leaving the top, makes room for the card in one 400ms move, keeping its
+  height so nothing under it rises, and the card stays beside it while the lines are read.
+- **The demos move once you reach them, and only then** (§8's "rare and purposeful" is
+  kept by being the demonstration rather than decoration): the film plays itself when it
+  is mostly in view below the top, each word lit as it is said and the card turning to
+  one word a line; the chat's turns arrive one after another the first time the phone is
+  seen, the correction's double line drawn a beat later; the vowels settle onto the
+  letters one by one in reading order. The first press or key inside the reader hands the
+  film to the reader for good. With reduced motion none of it moves, and without the
+  script it is all simply there.
+- **"Your own Hebrew" is the first part after the reader**, where it was the eighth. The
+  live box stays under the headline (targum-internal#399, the entry below); this part
+  shows what it gives back once you're in, drawn (the sentence about the link, how much
+  you already know, when it's ready), and under it the places it reads, on ink: a photo
+  of a page (a letter, a form, a sign) among them.
+- **Seven stops, each answering one question**: what is it, show me, does it work on my
+  Hebrew, how does it help me learn, can I practise, what is already here, how do I get
+  in; the questions come before the waitlist, so the page ends on it. "Watch and listen",
+  "Every word", the vowels, "Your progress" and the Torah's own part were folded into
+  those or cut, because each said again what another said, and the closing form asked
+  again straight under the waitlist. About a quarter shorter.
+- **What is underneath is said where it is used**, in plain words and without numbers,
+  model names or where texts come from: words reduced to dictionary form, root and
+  binyan from scholars' analysis for the Bible and a language model elsewhere; vowels
+  added and every guess marked; one word list for biblical and modern Hebrew; recordings
+  timed to the voice; the portion chanted, each word lit as it is sung.
+- **"Talk to targum" shows its chat on a phone, drawn as /chat draws it** (§9): turns at
+  opposite edges in one ink, the correction in small capitals, why folded under a
+  hairline, no bubbles. Claude and ChatGPT are one line beside it.
+- **Every colour the page draws is a named token** in its `:root`, and `test_landing.py`
+  keeps literals out of the rules; spacing takes eight steps (`--space-1` to `--space-8`);
+  the page breaks at 30, 40 and 56rem only.
+- **No claim about the order people are let in** (the batch takes the oldest, but David
+  also lets people in by hand, 2026-09-28), and no promise that the waitlist hears the
+  price first, which is not decided.
+
+### A link tried on the front page is built when they are let in, on targum — 2026-10-01
+
+The front page's box (targum-internal#399) lets a stranger paste a link and see what it is.
+Joining keeps the link with their place. David chose on 2026-10-01 that **letting them in
+builds it, and targum pays**: "let-in builds the saved link". It is waiting for them the
+first time they sign in, and the box's copy says so ("When your turn comes, it'll be
+waiting for you, ready to learn from.").
+
+This is the one build nobody presses for, so what keeps it inside the rules is written
+down. The operator's press, Let in or Open the door, is the consent, and only for a link
+the person chose and joined with. The build still goes through `Library.press` and so
+`Library.claim`, is a `job` row like any other, and is owned by the new account. It is a
+`gift`: it passes the account's money and hours rails and records no hours against their
+eight, because targum is paying, and it is held to the box ceiling like everything else.
+`gift` is a field on the job, never read from a request. A describe or a build that
+fails leaves the link saved, and the invitation has already gone by then. `targum
+open-the-door` on the command line has no worker to build with, so it says which saved
+links it left unbuilt.
+
 ### /about says what was built, day by day — 2026-09-29
 
 "I want /about to show that we're building in public, and display day by day what's been
@@ -495,7 +576,8 @@ same thing there, don't they?" They did.
 
 The waitlist's pages had one heading for every answer, "the waitlist", over "Thanks.
 Check your email and press the button in it." Each answer has its own heading now —
-"Thanks for joining", "Confirm your place", "You're on the list", "You're off the list" —
+"You're on the list" (it was "Thanks for joining" until 2026-10-02), "Confirm your place",
+"You're on the list", "You're off the list" —
 and sentences a person would say. Each heading follows from the step alone, so the
 answers that must not say whether an address is waiting still cannot.
 
@@ -569,13 +651,14 @@ and put the address, with Copy, where the first step of installing it is one pre
   shows the two steps — copy the address, add it in the app — with the address and Copy
   in a well, and links to every app's steps. Still above the row, still gone once
   connected, the cross still per-browser.
-- **Before sign-up, it is mentioned lightly, twice.** One point in the list under the front
-  door's headline, "Works in Claude and ChatGPT", and one line in the part about talking to
-  targum — "You can also talk to targum inside Claude or ChatGPT", and the way to
+- **Before sign-up, it is mentioned lightly, once on the front door**: one line in the
+  part about talking to targum, "It works in Claude and ChatGPT too.", and the way to
   `/connect`. A part of its own was drawn first and David took it out the same day
-  ("remove this, and simply make a mention in the AI assistant section"). The invitation
-  mail says it in a paragraph with the way to `/connect`. All of it only while the
-  connector is open.
+  ("remove this, and simply make a mention in the AI assistant section"). The point in
+  the list under the headline came out on 2026-10-02: first thing on the page, Claude and
+  ChatGPT read as what targum is built on ("oh so you're just another chatgpt wrapper"),
+  where further down they read as somewhere else it goes. The invitation mail says it in
+  a paragraph with the way to `/connect`. All of it only while the connector is open.
 
 
 ### The arrival is a page of its own, and a text they can follow — 2026-09-28
@@ -1079,6 +1162,12 @@ Amended again the same day, for a TikTok: **a TikTok is a reel's shape**, 9:16 i
 film panel, the transcript its text and the caption after it, and its head says "On
 TikTok". TikTok gives no author's picture without a fetch of its own, so the disc wears
 the first letter of their name.
+
+Amended 2026-09-30, for a Facebook video: **a Facebook video is a reel's shape too**, "On
+Facebook" in the head. Facebook gives a page's name and a number, and no handle anybody
+knows a page by, so its head carries the name and the day and no "@" line; the disc wears
+the name's first letter. A post brought by hand is not yet taken from Facebook: most of
+what is posted there is words, at addresses the video door does not read.
 
 And for X, the same day: **a post on X is a post's shape, and a thread is one post an
 item**, each with its own photos under its own lines, in the order written, "On X" in the

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
     from .vocalize import Vocalizer
+    from .weekly.models import Edition, Issue
 
 app = typer.Typer(
     add_completion=False,
@@ -350,6 +351,14 @@ def open_the_door(
             console.print(f"[red]Could not write to[/red] {row.email} [dim]{row.failed}[/dim]")
     let_in = sum(1 for row in rows if row.ok)
     console.print(f"[dim]{let_in} of {len(rows)} let in[/dim]")
+    # A saved link is built by the server that lets somebody in (targum-internal#399), and
+    # this command has no worker to build with. Said, so nobody is promised it silently.
+    unbuilt = [row.email for row in rows if row.ok and keeping.waiting_link(row.email)]
+    if unbuilt:
+        console.print(
+            f"[yellow]{len(unbuilt)} saved link(s) not built here[/yellow] "
+            "[dim]— the back office's Let in builds them; from here they wait.[/dim]"
+        )
 
 
 @app.command(name="catalogue-lemmas")
@@ -1016,6 +1025,43 @@ def watch_health(
         said = watch(state or default_store().parent / "health-watch.json", where)
     except Exception as error:
         fail(TargumError("/health is down and the mail about it did not go.", str(error)))
+    console.print(said)
+
+
+@app.command("watch-weekly")
+def watch_weekly(
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps its record of every week."),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO when a Monday passes and this week's weekly is not out.
+
+    Run every hour by targum-weekly-watch.timer on the box (targum-internal#404). From
+    Monday noon UTC it looks in the box's own weekly index, records what it found, and
+    mails once a week if the issue is not published. Without TARGUM_ALERT_TO it keeps
+    the record and mails nobody; without TARGUM_WEEKLY_DIR it has nothing to look in,
+    says so and does nothing.
+    """
+    from .alerts import tell
+    from .serve import default_store
+    from .weekly import index as weekly_index
+    from .weekly.watch import check
+
+    if not os.environ.get("TARGUM_WEEKLY_DIR", "").strip():
+        # Without it the index is looked for under the working directory, finds nothing,
+        # and every Monday would read as a missed week.
+        console.print("[dim]Weekly alerts not configured: TARGUM_WEEKLY_DIR is not set.[/dim]")
+        return
+
+    def find(week: str) -> str:
+        issue = weekly_index.by_week(week)
+        return issue.state.value if issue is not None else "missing"
+
+    try:
+        said = check(state or default_store().parent / "weekly-watch.json", find, tell)
+    except Exception as error:
+        fail(TargumError("The weekly is not out and the mail about it did not go.", str(error)))
     console.print(said)
 
 
@@ -3387,9 +3433,15 @@ def weekly_draft(
     index.issues = [one for one in index.issues if one.id != week] + [issue]
     weekly_index.save(index)
 
-    table = Table(box=None, pad_edge=False)
+    _weekly_table(issue)
+    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+def _weekly_table(issue: Issue) -> None:
+    """How each level measured against its bands, as `draft` and `measure` print it."""
     from .weekly.models import LEVELS
 
+    table = Table(box=None, pad_edge=False)
     table.add_column("level")
     table.add_column("words", justify="right")
     table.add_column("looked up", justify="right")
@@ -3411,7 +3463,51 @@ def weekly_draft(
     console.print(table)
     if issue.notes:
         console.print(f"[yellow]{issue.notes}[/yellow]")
-    console.print(f"[dim]Drafted into {where}. Read it, then: targum weekly publish {week}[/dim]")
+
+
+@weekly_app.command("measure")
+def weekly_measure(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Measure each level's markdown again, after you edit it by hand.
+
+    The checks `draft` runs (the band, a source's own wording, machine writing) with
+    nothing drafted and nothing spent, written to the index so `publish` reads the new
+    result. Running `draft` again would throw the edit away.
+    """
+    from .weekly import index as weekly_index
+    from .weekly.models import State
+    from .weekly.verify import remeasure
+
+    if out is not None:
+        os.environ["TARGUM_WEEKLY_DIR"] = str(out / "weekly")
+    index = weekly_index.load()
+    issue = next((one for one in index.issues if one.id == week), None)
+    if issue is None:
+        fail(TargumError(f"No issue for {week}.", "Draft one first."))
+    if issue.state is not State.draft:
+        fail(TargumError(f"{week} is {issue.state.value}.", "Only a draft is measured again."))
+
+    where = weekly_index.root() / week
+    notes: list[str] = []
+    for edition in issue.editions:
+        page = where / f"weekly-{week}-{edition.level.value}.md"
+        if not page.is_file():
+            fail(TargumError(f"No markdown at {page}.", f"Draft it: targum weekly draft {week}"))
+        notes += remeasure(edition, page.read_text(encoding="utf-8"), issue.sources)
+    issue.notes = " ".join(notes)
+    weekly_index.save(index)
+
+    _weekly_table(issue)
+    if all(edition.ok for edition in issue.editions):
+        console.print(
+            f"[dim]Every level passes. Build it again so the readers match the markdown, "
+            f"then publish: targum weekly build {week} && targum weekly publish {week}[/dim]"
+        )
 
 
 @weekly_app.command("build")
@@ -3570,15 +3666,19 @@ def weekly_publish(
 
     missed = [edition for edition in issue.editions if not edition.ok]
     if missed and not anyway:
-        levels = ", ".join(
-            f"{LEVELS[edition.level].name} at {edition.difficulty}%" for edition in missed
+        # In the words `verify.missed` gives the rewrite, so the refusal names the half
+        # that went wrong (targum-internal#395). It said "Simplified at 17%" for a level
+        # inside its vocabulary band whose sentences were too short, and the refusal is
+        # what the failure mail carries: whoever reads only it fixes the wrong thing.
+        levels = " ".join(
+            f"{LEVELS[edition.level].name}: {_why_refused(edition)}" for edition in missed
         )
         fail(
             TargumError(
-                f"{len(missed)} level(s) missed the band they are labelled with: {levels}.",
-                "Edit the markdown and measure again, or publish it with --anyway. A "
-                "level labelled for a vocabulary it does not have is worse than a "
-                "missing one.",
+                f"{len(missed)} level(s) missed the band they are labelled with. {levels}",
+                f"Edit the markdown, then: targum weekly measure {week}. Or publish it "
+                "with --anyway. A level labelled for a vocabulary it does not have is "
+                "worse than a missing one.",
             )
         )
 
@@ -3590,6 +3690,43 @@ def weekly_publish(
         f"[dim]Out here, not on the box. Send it: TARGUM_HOST=… ./deploy/ship-weekly.sh {week}"
         f"\nThen tell people: targum weekly announce {week}[/dim]"
     )
+
+
+@weekly_app.command("stopped")
+def weekly_stopped(
+    week: Annotated[str, typer.Argument(help="Which week, as 2026-w36.")],
+    state: Annotated[
+        Path | None,
+        typer.Option("--state", help="Where the watch keeps its record of every week."),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO that a weekly run stopped, with what it said on stdin.
+
+    `deploy/weekly-run.sh` calls this on the box when it stops, so a refused or broken run
+    reaches somebody the same morning (targum-internal#404). Recorded with the week in
+    the watch's file, so `watch-weekly` does not mail about the same week again. Without
+    TARGUM_ALERT_TO the stop is recorded and nobody is mailed.
+    """
+    from .alerts import tell
+    from .serve import default_store
+    from .weekly.watch import stopped
+
+    reason = sys.stdin.read().strip() or "It said nothing."
+    try:
+        said = stopped(state or default_store().parent / "weekly-watch.json", week, reason, tell)
+    except Exception as error:
+        fail(TargumError("The weekly run stopped and the mail about it did not go.", str(error)))
+    console.print(said)
+
+
+def _why_refused(edition: Edition) -> str:
+    """Why one level may not go out, from what was measured when it was drafted."""
+    from .weekly.verify import Gauge, missed
+
+    said = missed(edition.level, Gauge(difficulty=edition.difficulty, sentence=edition.sentence))
+    # Inside both bands and still not ok: the draft found machine writing in it, which
+    # the index does not keep by name. The draft's notes do.
+    return said or "It measured inside its band and reads as machine-written."
 
 
 @weekly_app.command("announce")
@@ -4412,6 +4549,148 @@ def video_list() -> None:
         licence = held.licence or "[red]no licence[/red]"
         console.print(f"video:{name}[dim] · {held.title} · {held.credit} · {licence}[/dim]")
     console.print(f"[dim]{len(names)} on the shelf at {video_store.root()}.[/dim]")
+
+
+@video_app.command("speech")
+def video_speech(
+    built: Annotated[list[Path], typer.Argument(help="Built clip folders to check.")],
+) -> None:
+    """Say which built clips carry too little speech to review.
+
+    Words a minute off each build's own segments against its length, with nothing
+    fetched or bought (targum-internal#382). A clip under the floor — music over
+    pictures, a silent recipe — is marked, and the command fails if any is, so a batch
+    script can stop on it.
+    """
+    from .video import discover as discover_module
+
+    silent = 0
+    for folder in built:
+        rate = discover_module.speech_rate(folder)
+        if rate is None:
+            console.print(f"{folder.name}  [dim]no build to read[/dim]")
+            silent += 1
+        elif rate < discover_module.MIN_WORDS_PER_MINUTE:
+            console.print(f"{folder.name}  {rate:.0f} words a minute  [red]too little speech[/red]")
+            silent += 1
+        else:
+            console.print(f"{folder.name}  {rate:.0f} words a minute")
+    if silent:
+        raise typer.Exit(1)
+
+
+@video_app.command("discover")
+def video_discover(
+    lang: Annotated[
+        list[str] | None,
+        typer.Option("--lang", help="A language to search; repeat it. Default: he, ru, it, fr."),
+    ] = None,
+    count: Annotated[int, typer.Option("--count", help="Candidates wanted per language.")] = 10,
+    quota: Annotated[
+        int, typer.Option("--quota", help="Data API units this run may spend (100 a search).")
+    ] = 2_000,
+    videos: Annotated[
+        Path | None,
+        typer.Option("--videos", help="The curated shelf to skip. Default: TARGUM_VIDEO_DIR."),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where to write the candidates. Default: targum-out/discover/"),
+    ] = None,
+    skip: Annotated[
+        list[Path] | None,
+        typer.Option("--skip", help="An earlier run's candidates, not to list again. Repeat it."),
+    ] = None,
+) -> None:
+    """Find Creative Commons videos worth curating, and price building them.
+
+    Asks YouTube's Data API for CC videos in each language, asks again for each one's
+    own licence, length and status, skips what is already on the shelf, and prints the
+    batch as a table to approve (targum-internal#382). Nothing is fetched, built or
+    bought: the only thing spent is Data API quota, and the run says how much. The key
+    is TARGUM_YOUTUBE_API_KEY.
+    """
+    from datetime import datetime
+
+    from .video import discover as discover_module
+
+    if videos is not None:
+        os.environ["TARGUM_VIDEO_DIR"] = str(videos.expanduser())
+    languages = lang or list(discover_module.LANGUAGES)
+    try:
+        earlier = [
+            str(candidate["id"])
+            for path in skip or []
+            for candidate in json.loads(path.expanduser().read_text(encoding="utf-8"))["candidates"]
+        ]
+        found = discover_module.discover(languages, count, budget=quota, skip=earlier)
+    except TargumError as error:
+        fail(error)
+    target = out or Path("targum-out") / "discover" / f"{datetime.now():%Y-%m-%d-%H%M}.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_atomic(target, json.dumps(discover_module.to_json(found), ensure_ascii=False, indent=2))
+    console.print(discover_module.table(found), markup=False, highlight=False)
+    if found.dropped:
+        dropped = ", ".join(f"{n} {why}" for why, n in sorted(found.dropped.items()))
+        console.print(f"[dim]Dropped: {dropped}.[/dim]")
+    if found.short:
+        console.print("[yellow]The quota ran out before every language had its count.[/yellow]")
+    console.print(f"[dim]Written to {target}[/dim]")
+
+
+@app.command()
+def levels(
+    out: Annotated[
+        Path,
+        typer.Option(help="Where builds live, read for a sentence length the catalogue lacks."),
+    ] = Path("targum-out"),
+    videos: Annotated[
+        Path | None,
+        typer.Option(help="The curated video shelf. Defaults to TARGUM_VIDEO_DIR's."),
+    ] = None,
+    language: Annotated[
+        list[str] | None, typer.Option("--language", "-l", help="Only these languages.")
+    ] = None,
+) -> None:
+    """How the catalogue sits on the weekly's levels, per language (targum-internal#382).
+
+    Every text placed on Easy, Simplified and Native by its hard-word share and its
+    sentence length, split into text, audio and video, with the texts meeting the Easy
+    spec in full counted against the target. Reads the catalogue and the disk; fetches
+    nothing and spends nothing.
+    """
+    from . import levelmap, spoken
+    from .catalogue import CATALOGUE
+    from .video import store as video_store
+
+    wanted = {code.lower() for code in language or []}
+    entries = [entry for entry in CATALOGUE if not wanted or entry.language in wanted]
+    shelves = levelmap.tally(
+        entries,
+        sentence=levelmap.Sentences(out, videos or video_store.root()),
+        spoken=spoken.is_spoken,
+        video=spoken.is_video,
+    )
+    if not shelves:
+        console.print("[dim]No catalogue texts in those languages.[/dim]")
+        return
+    for shelf in shelves.values():
+        table = Table(title=f"{shelf.language} · {shelf.total} texts", title_justify="left")
+        table.add_column("Level")
+        for how in (*levelmap.MEDIA, "all"):
+            table.add_column(how, justify="right")
+        for name, counts in levelmap.rows(shelf):
+            table.add_row(name, *(str(count) for count in counts))
+        console.print(table)
+        if not shelf.targeted:
+            console.print("[dim]No Easy target set for this language.[/dim]\n")
+            continue
+        short = max(0, levelmap.TARGET - shelf.easy_total)
+        console.print(
+            f"[dim]{shelf.easy_total} of {levelmap.TARGET} Easy"
+            + (f" — {short} to go" if short else " — target met")
+            + "[/dim]\n"
+        )
 
 
 # Last in the file on purpose. `python -m targum.cli` runs this module top to bottom and

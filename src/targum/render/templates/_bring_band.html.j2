@@ -1,0 +1,39 @@
+{#- Where the Hebrew comes from, each drawn as what it looks like (2026-10-01): the
+    page's one inverted block, eight tiles on ink. The front door and /aliyah both draw
+    it, so a tile changed is changed on both. -#}
+<div class="media bring">
+  <ul class="media-grid eight">
+    <li class="m-tile">
+      <div class="m-vis"><div class="v-frame"></div><div class="v-cap"><span class="he">עַכְשָׁיו שׁוֹבְרִים אֶת הַבֵּיצִים</span><span>{{ t("landing.page.now-crack-the-eggs", "Now crack the eggs") }}</span></div></div>
+      <h3>{{ t("landing.page.a-youtube-link-or-a-video-file", "A YouTube link or a video file") }}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis tall-row"><span class="tall"><span class="v-frame"></span><span class="t-cap he">יַאלְלָה, בּוֹאוּ</span></span><span class="tall"><span class="v-frame b"></span><span class="t-cap he">אֵיזֶה יוֹפִי</span></span><span class="tall"><span class="v-frame c"></span><span class="t-cap he">תִּרְאוּ אֶת זֶה</span></span></div>
+      <h3>{{ t("landing.page.reels-shorts-tiktoks-and-facebook-videos", "Reels, Shorts, TikToks and Facebook videos") }}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis"><div class="wave" id="bringWave"></div><span class="wave-clock tnum">18:40 / 31:06</span></div>
+      <h3>{{ t("landing.page.a-podcast", "A podcast") }}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis"><div class="note-bubble"><span class="dot"></span><span class="mini" id="bringMini"></span><span class="len tnum">0:47</span></div><p class="note-line">הֵי, רָאִיתָ אֶת הַהוֹדָעָה שֶׁשָּׁלַחְתִּי?</p></div>
+      <h3>{{ t("landing.page.a-voice-note", "A voice note") }}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis post-vis"><span class="who"><b class="dot"></b><b class="name">@kan_news</b></span><p class="he">הַיּוֹם בָּעֶרֶב: סִדְרָה חֲדָשָׁה לְכָל הַמִּשְׁפָּחָה</p></div>
+      <h3>{{ t("landing.page.posts-from-x", "Posts from X") }}{% if not x_open %}<span class="soon"> {{ t("landing.page.soon", "soon") }}</span>{% endif %}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis chat-vis"><p class="he in">סַבְתָּא, אֵיךְ עוֹשִׂים שַׁקְשׁוּקָה?</p><p class="he out">רַק עַגְבָנִיּוֹת טוֹבוֹת, בָּצָל וְשׁוּם.</p></div>
+      <h3>{{ t("landing.page.a-whatsapp-or-telegram-chat", "A WhatsApp or Telegram chat") }}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis news-vis"><p class="he head">הַגֶּשֶׁם חוֹזֵר בְּסוֹף הַשָּׁבוּעַ</p><p class="he">הַתַּחֲזִית: גְּשָׁמִים בַּצָּפוֹן וּבַמֶּרְכָּז, וְקַר יוֹתֵר בַּלַּיְלָה.</p></div>
+      <h3>{{ t("landing.page.news-and-articles-from-any-site", "News and articles, from any site") }}</h3>
+    </li>
+    <li class="m-tile">
+      <div class="m-vis page-vis"><span class="sheet-p"><i></i><i></i><i class="s"></i><i></i><i class="s"></i></span><span class="sheet-p back"><i></i><i class="s"></i><i></i></span></div>
+      <h3>{{ t("landing.page.a-photo-of-a-letter-a-form-a-sign", "A photo of a letter, a form or a sign") }}</h3>
+    </li>
+  </ul>
+</div>

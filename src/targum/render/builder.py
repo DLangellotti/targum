@@ -1500,7 +1500,12 @@ def about_page(language: str = "en", address: str = "") -> str:
     )
 
 
-def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
+def front_page(
+    language: str = "en",
+    address: str = "",
+    asked: str = "",
+    tried: dict[str, Any] | None = None,
+) -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
     The page `holding_page` stands in for. It is served at `/` only while
@@ -1509,6 +1514,10 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
 
     Everything it needs is baked in, as a reader's is: the two faces, the stylesheet and
     the one script are inlined, and nothing on the page fetches anything.
+
+    `tried` is what the box under the headline found in a link a visitor pasted
+    (`serve.tried_for`, targum-internal#399): the page comes back with the answer in
+    place of the box's empty state and the waitlist's form carrying the link.
     """
     from ..ingest import x as x_door
 
@@ -1528,10 +1537,13 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
             title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
             description=words(
                 "landing.head.description",
-                "Learn modern and biblical Hebrew from videos, podcasts and books. "
-                "Vowels on every word, English beside every line, and any word explained "
-                "the moment you tap it.",
+                "Learn modern and biblical Hebrew from videos, podcasts and books, or bring "
+                "your own. Vowels on every word, English beside every line, and any word "
+                "explained the moment you tap it.",
             ),
+            joined_from="/",
+            tried=tried,
+            tn=page_counts(language),
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),
@@ -2060,7 +2072,9 @@ def set_page(
     )
 
 
-def connect_page(language: str = "en", address: str = "", signed_in: bool = False) -> str:
+def connect_page(
+    language: str = "en", address: str = "", signed_in: bool = False, asked: str = ""
+) -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 
     A public page, so §6's selling register applies and the feature names we use inside
@@ -2092,6 +2106,8 @@ def connect_page(language: str = "en", address: str = "", signed_in: bool = Fals
                 "you at your level and shows you how to fix each mistake.",
             ),
             signed_in=signed_in,
+            joined_from="/connect",
+            asked=asked,
             canonical=here,
             alternates=alternates,
             address=address,
@@ -2339,6 +2355,7 @@ def weekly_page(
     language: str = "en",
     edition: str = "en",
     signed_in: bool = False,
+    asked: str = "",
 ) -> str:
     """A landing page for the weekly, with the issue's own reader inside it.
 
@@ -2410,6 +2427,8 @@ def weekly_page(
             is_newest=is_newest,
             dated_on=dated_on,
             signed_in=signed_in,
+            joined_from="/weekly",
+            asked=asked,
         )
     )
 
@@ -2426,6 +2445,7 @@ def daily_page(
     address: str = "",
     language: str = "en",
     signed_in: bool = False,
+    asked: str = "",
 ) -> str:
     """One day of a learning cycle, with its own reader inside it.
 
@@ -2469,6 +2489,8 @@ def daily_page(
             opens=opens,
             is_today=is_today,
             signed_in=signed_in,
+            joined_from=f"/{cycle.slug}",
+            asked=asked,
             translation_said=_translation_said(day, language),
         )
     )
@@ -2518,6 +2540,7 @@ def parasha_page(
     signed_in: bool = False,
     week: dict[str, Any] | None = None,
     language: str = "en",
+    asked: str = "",
 ) -> str:
     """This week's portion, with its own reader inside it.
 
@@ -2559,6 +2582,8 @@ def parasha_page(
         .get_template("parasha.html.j2")
         .render(
             signed_in=signed_in,
+            joined_from="/parasha",
+            asked=asked,
             t=page_words(language),
             tn=page_counts(language),
             page_language=_page_language(language),

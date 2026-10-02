@@ -1195,6 +1195,7 @@ class Build:
         from urllib.parse import urlparse
 
         from .video import is_video
+        from .video.facebook import is_facebook
         from .video.instagram import is_reel
         from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
@@ -1206,7 +1207,11 @@ class Build:
             # to an mp3 sounds like audio — left out, it fell through to the article
             # path and read raw mp4 bytes as a page.
             return (
-                is_youtube(source) or is_reel(source) or is_tiktok(source) or is_video(parsed.path)
+                is_youtube(source)
+                or is_reel(source)
+                or is_tiktok(source)
+                or is_facebook(source)
+                or is_video(parsed.path)
             )
         return is_video(source)
 
@@ -1285,6 +1290,7 @@ class Build:
         from .audio import DEFAULT_LANGUAGE, ffmpeg_available
         from .audio import parts as parts_module
         from .audio import probe as probe_module
+        from .video.facebook import is_facebook
         from .video.instagram import is_reel
         from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
@@ -1303,7 +1309,14 @@ class Build:
             watching = is_youtube(address)
             reel = not watching and is_reel(address)
             tok = not watching and not reel and is_tiktok(address)
-            if tok:
+            book = not watching and not reel and not tok and is_facebook(address)
+            if book:
+                from .video.hosts import video_id as book_id
+
+                self.home = address
+                stem = book_id(address) or "facebook"
+                suffix = ".mp4"
+            elif tok:
                 from .video.hosts import video_id as tok_id
 
                 self.home = address
@@ -1367,6 +1380,11 @@ class Build:
 
                     self.notify("Fetching the video…")
                     target = tiktok_module.fetch(address, workspace)
+                elif book:
+                    from .video import facebook as facebook_module
+
+                    self.notify("Fetching the video…")
+                    target = facebook_module.fetch(address, workspace)
                 else:
                     self.notify("Fetching the recording…")
                     download(address, target)

@@ -1638,6 +1638,34 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "quote_with": tiktok_module.home_url(str(info.get("webpage_url") or url)) or url,
             **_licence_row(media.licence),
         }
+    from ..video import facebook as facebook_module
+
+    try:
+        book = facebook_module.is_facebook(url)
+    except TargumError as error:
+        return {"kind": "video", "error": error.message}
+    if book:
+        from .. import screen as screen_module
+
+        try:
+            info = facebook_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
+        media = screen_module.from_ytdlp(info)
+        return {
+            "kind": "video",
+            "title": media.title.strip(),
+            "seconds": round(media.duration),
+            "credits": credits_for(media.duration),
+            "audio_language": "",
+            "hebrew_subtitles": False,
+            "advice": [
+                "A Facebook video: it has no subtitles, so the recording would be "
+                f"transcribed. It uses about {credits_for(media.duration)} credits."
+            ],
+            "quote_with": facebook_module.home_from(info) or url,
+            **_licence_row(media.licence),
+        }
     named = hosts_module.host_for(url)
     if named is not None:
         # Named, and not fetched from: said as the way in that works, so the model can
@@ -2277,11 +2305,11 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "quote_build",
-        "For one text: a link (article, podcast episode, YouTube, Instagram or TikTok "
-        "video, Gutenberg or Wikisource id) or a library id. Free. Returns its length, how "
-        "much of it the reader knows, the credits it uses, and a link the reader opens to "
-        "confirm; you cannot confirm it. For two or more texts use quote_set. A playlist, "
-        "channel or profile address is refused; give single items.",
+        "For one text: a link (article, podcast episode, YouTube, Instagram, TikTok or "
+        "Facebook video, Gutenberg or Wikisource id) or a library id. Free. Returns its "
+        "length, how much of it the reader knows, the credits it uses, and a link the "
+        "reader opens to confirm; you cannot confirm it. For two or more texts use "
+        "quote_set. A playlist, channel or profile address is refused; give single items.",
         _schema(
             {
                 "source": {"type": "string", "description": "A link or fetcher id."},
@@ -2297,11 +2325,11 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "describe_source",
-        "What is at a link before you offer it: a YouTube, Instagram or TikTok video "
-        "(length, the credits it uses, whether it has Hebrew subtitles somebody wrote), a "
-        "podcast episode (length, credits, whether a transcript comes with it), or an "
-        "article (words, minutes, how much is Hebrew). Metadata only; nothing is fetched "
-        "whole and nothing is used.",
+        "What is at a link before you offer it: a YouTube, Instagram, TikTok or Facebook "
+        "video (length, the credits it uses, whether it has Hebrew subtitles somebody "
+        "wrote), a podcast episode (length, credits, whether a transcript comes with it), "
+        "or an article (words, minutes, how much is Hebrew). Metadata only; nothing is "
+        "fetched whole and nothing is used.",
         _schema({"url": {"type": "string"}}, ("url",)),
         describe_source,
         title="Look at a link",

@@ -2,7 +2,9 @@
 
 The front door's mediums list has always named Reels, Shorts and TikToks. Only YouTube
 was ever wired up (`video/youtube.py`), so two thirds of that line was untrue — see
-targum-internal#255.
+targum-internal#255. Facebook's videos joined the line on 2026-09-30, when the front page
+began to lead with "paste any Hebrew from any platform", and Facebook had to be a door
+that opens for that sentence to be true.
 
 **A closed list, and that is the point.** `youtube.HOSTS` says it plainly: yt-dlp "would
 happily fetch a thousand other sites, and each of those is a decision nobody made." This
@@ -25,8 +27,15 @@ the ones a platform has actually answered for, from the box, through the egress.
 * **TikTok** — open, direct and not through the proxy, which it refuses with a 403.
   Four public videos and five runs in a row answered from the box on 2026-09-18.
   `video/tiktok.py` is its door.
-* **Vimeo, Reddit** — want a logged-in account, which a proxy cannot give.
-* **Facebook** — untested with a real address.
+* **Facebook** — open, direct once and then through the proxy. Measured twice from the
+  box on 2026-09-30: in the morning five public reels from כאן חדשות answered five of five
+  directly and four of five through the proxy (one `null`); hours later every reel tried
+  failed directly with "Cannot parse data" and answered through the proxy. The app's
+  shared links (`/share/r/`, `/share/v/`) were followed the same day. `video/facebook.py`
+  is its door.
+* **Vimeo** — wants a logged-in account, which a proxy cannot give.
+* **Reddit** — refused every route on 2026-09-30, direct and through the proxy, with a
+  403.
 
 A host moves from one list to the other only with a measurement like those, and the rest
 are named so the refusal can say what to do instead of pretending not to recognise them.
@@ -108,6 +117,10 @@ INSTAGRAM = Host(
 FACEBOOK = Host(
     name="Facebook",
     hosts=frozenset({"facebook.com", "www.facebook.com", "m.facebook.com", "fb.watch"}),
+    # A reel, a page's video and a group's film are all one number, and every one opens at
+    # `/watch/?v=<id>` — a reel's id included (checked from the box, 2026-09-30). The
+    # shared `/share/r/…` and `fb.watch/…` links name no number until they are followed,
+    # which is yt-dlp's to do (`video/facebook.py`).
     home="https://www.facebook.com/watch/?v=",
     paths=("/watch", "/videos/", "/reel/"),
     shelves=("/groups", "/marketplace"),
@@ -134,7 +147,7 @@ KNOWN: tuple[Host, ...] = (YOUTUBE, VIMEO, TIKTOK, INSTAGRAM, FACEBOOK, REDDIT)
 
 #: The hosts targum fetches from. Each has its own door module, and each was measured from
 #: the box before it was put here — see the module's docstring.
-OPEN: tuple[Host, ...] = (YOUTUBE, INSTAGRAM, TIKTOK)
+OPEN: tuple[Host, ...] = (YOUTUBE, INSTAGRAM, TIKTOK, FACEBOOK)
 
 #: The prefixes a reader page may link home to. `tests/test_render` pins these. Every named
 #: host's, not only the open ones: a TikTok the reader downloaded and dropped in still has
@@ -210,17 +223,18 @@ def _id_in(host: Host, url: str) -> str:
         return ""
 
     if host is FACEBOOK:
+        # Always a number. `fb.watch/<code>` is a short link and not an id, though it
+        # looks like one: taken as an id it made a home address that opened nothing.
+        if name == "fb.watch":
+            return ""
         if path.startswith("/watch"):
-            return (parse_qs(parsed.query).get("v") or [""])[0]
+            found = (parse_qs(parsed.query).get("v") or [""])[0]
+            return found if found.isdigit() else ""
         # /<page>/videos/<id> and /reel/<id>
         steps = [s for s in path.strip("/").split("/") if s]
         for at, step in enumerate(steps):
             if step in ("videos", "reel") and at + 1 < len(steps):
-                return steps[at + 1]
-        # fb.watch/<id>
-        if name == "fb.watch":
-            found = path.strip("/")
-            return found if ID.match(found) else ""
+                return steps[at + 1] if steps[at + 1].isdigit() else ""
         return ""
 
     if host is REDDIT:

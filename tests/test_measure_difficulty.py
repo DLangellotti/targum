@@ -87,7 +87,7 @@ def test_scripture_prefers_the_hand_tagging_over_directory_order(
     copy_at(tmp_path, "zzz", GENESIS, scripture=True)
     found = script.on_disk(tmp_path, GENESIS)
     assert found is not None
-    assert script.by_scripture_path(found)
+    assert script.by_scripture_path(found[1])
 
 
 def test_scripture_prefers_the_hand_tagging_whichever_way_the_names_fall(
@@ -98,7 +98,7 @@ def test_scripture_prefers_the_hand_tagging_whichever_way_the_names_fall(
     copy_at(tmp_path, "zzz", GENESIS, scripture=False)
     found = script.on_disk(tmp_path, GENESIS)
     assert found is not None
-    assert script.by_scripture_path(found)
+    assert script.by_scripture_path(found[1])
 
 
 def test_the_shipped_corpus_breaks_a_tie(script: ModuleType, tmp_path: Path) -> None:
@@ -112,7 +112,7 @@ def test_the_shipped_corpus_breaks_a_tie(script: ModuleType, tmp_path: Path) -> 
     )
     found = script.on_disk(tmp_path, MODERN)
     assert found is not None
-    assert found.document_hash == "library"
+    assert found[1].document_hash == "library"
 
 
 def test_a_source_with_no_copy_is_none(script: ModuleType, tmp_path: Path) -> None:
@@ -147,15 +147,17 @@ def test_a_modern_only_copy_of_scripture_is_not_measured_from_disk(
         SimpleNamespace(load=lambda source, **kwargs: SimpleNamespace(source=source)),
     )
     monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
+    monkeypatch.setattr(script, "sentence_length", lambda segmented: 8.5)
     monkeypatch.setattr(script, "HebrewSegmenter", lambda: None)
     monkeypatch.setattr(
         script,
         "Annotator",
         lambda **kwargs: SimpleNamespace(annotate=lambda segmented: annotation(scripture=False)),
     )
-    share, how = script.measured(entry(GENESIS), tmp_path)
+    share, sentence, how = script.measured(entry(GENESIS), tmp_path)
     assert share is None
     assert "refused" in how
+    assert sentence == 8.5, "the sentences do not depend on which reading was refused"
 
 
 def test_measuring_now_builds_the_annotator_from_the_source(
@@ -175,12 +177,12 @@ def test_measuring_now_builds_the_annotator_from_the_source(
         SimpleNamespace(load=lambda source, **kwargs: SimpleNamespace(source=source)),
     )
     monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
+    monkeypatch.setattr(script, "sentence_length", lambda segmented: 8.5)
     monkeypatch.setattr(script, "HebrewSegmenter", lambda: None)
     monkeypatch.setattr(script, "Annotator", annotator)
     monkeypatch.setattr(script, "hard_share", lambda annotation, language: 12)
 
-    share, how = script.measured(entry(GENESIS), tmp_path)
-    assert (share, how) == (12, "measured now")
+    assert script.measured(entry(GENESIS), tmp_path) == (12, 8.5, "measured now")
     assert seen["bands"] is not None, "scripture must be banded against the Tanakh"
     assert seen["lemmatizer"] is not None, "scripture must be read by the hand tagging"
 
@@ -191,7 +193,7 @@ def test_a_modern_text_is_measured_from_whatever_copy_it_has(
     """None of this may make a non-scripture text harder to measure."""
     copy_at(tmp_path, "aaa", MODERN, scripture=False)
     monkeypatch.setattr(script, "hard_share", lambda annotation, language: 9)
-    assert script.measured(entry(MODERN), tmp_path) == (9, "on disk")
+    assert script.measured(entry(MODERN), tmp_path) == (9, 0.0, "on disk")
 
 
 def test_a_hebrew_text_is_read_by_the_same_lemmatizer_as_before(script: ModuleType) -> None:
@@ -223,11 +225,12 @@ def test_an_italian_entry_is_split_and_read_in_italian(
 
     monkeypatch.setattr(script, "ingest", SimpleNamespace(load=load))
     monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
+    monkeypatch.setattr(script, "sentence_length", lambda segmented: 8.5)
     monkeypatch.setattr(script, "Annotator", annotator)
     monkeypatch.setattr(script, "hard_share", lambda annotation, language: 7)
     italian = entry("gutenberg:52484", "it")
 
-    assert script.measured(italian, tmp_path) == (7, "measured now")
+    assert script.measured(italian, tmp_path) == (7, 8.5, "measured now")
     assert asked["language"] == "it"
     lemmatizer = asked["lemmatizer"]
     assert isinstance(lemmatizer, ModelLemmatizer) and not lemmatizer.buy, "never bought here"
@@ -242,12 +245,13 @@ def test_a_text_with_no_words_read_is_not_the_easiest_on_the_shelf(
         SimpleNamespace(load=lambda source, **kwargs: SimpleNamespace(source=source)),
     )
     monkeypatch.setattr(script, "segment_document", lambda document, segmenter: document)
+    monkeypatch.setattr(script, "sentence_length", lambda segmented: 8.5)
     empty = Annotation(document_hash="h", language="it", annotator="a", method="m", method_note="n")
     monkeypatch.setattr(
         script, "Annotator", lambda **kwargs: SimpleNamespace(annotate=lambda segmented: empty)
     )
     italian = entry("gutenberg:52484", "it")
-    share, how = script.measured(italian, tmp_path)
+    share, _, how = script.measured(italian, tmp_path)
     assert share is None and "no words" in how
 
 
@@ -266,8 +270,8 @@ def test_a_built_folder_is_measured_in_its_own_language(
     monkeypatch.setattr(
         script, "hard_share", lambda annotation, language: seen.append(language) or 14
     )
-    assert script.in_folder(folder) == (14, "on disk, it")
-    assert script.in_folder(folder / "annotation.json") == (14, "on disk, it")
+    assert script.in_folder(folder) == (14, 0.0, "on disk, it")
+    assert script.in_folder(folder / "annotation.json") == (14, 0.0, "on disk, it")
     assert seen == ["it", "it"]
     assert script.in_folder(tmp_path)[0] is None
 
@@ -276,5 +280,42 @@ def test_a_built_folder_of_scripture_read_the_modern_way_is_refused(
     script: ModuleType, tmp_path: Path
 ) -> None:
     folder = copy_at(tmp_path, "aaa", GENESIS, scripture=False)
-    share, how = script.in_folder(folder)
+    share, _, how = script.in_folder(folder)
     assert share is None and "refused" in how
+
+
+def segments_at(folder: Path, *texts: str, heading: str = "") -> None:
+    """A `segments.json` of these sentences, with a title first where one is given."""
+    from targum.models import BlockKind, Segment, SegmentedDocument
+
+    segments = [
+        Segment(id=f"s{i}", block_id="b", block_index=0, index=i, text=text)
+        for i, text in enumerate(texts, start=1)
+    ]
+    if heading:
+        segments.insert(
+            0,
+            Segment(
+                id="s0", block_id="h", block_index=0, index=0, kind=BlockKind.heading, text=heading
+            ),
+        )
+    (folder / "segments.json").write_text(
+        SegmentedDocument(
+            document_hash="h", language="he", segmenter="rules", segments=segments
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+
+
+def test_the_sentences_are_read_off_the_copy_on_disk(
+    script: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other half of a level, from the same folder the share came from, and free
+    (targum-internal#382). A title is nobody's sentence and is left out."""
+    folder = copy_at(tmp_path, "library", MODERN, scripture=False)
+    segments_at(
+        folder, "אחת שתיים שלוש", "אחת שתיים שלוש ארבע חמש", heading="כותרת ארוכה מאוד מאוד"
+    )
+    monkeypatch.setattr(script, "hard_share", lambda annotation, language: 9)
+    assert script.measured(entry(MODERN), tmp_path) == (9, 4.0, "on disk")
+    assert script.in_folder(folder)[1] == 4.0

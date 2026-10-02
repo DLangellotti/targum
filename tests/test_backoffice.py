@@ -350,3 +350,36 @@ def test_let_in_takes_only_somebody_waiting(tmp_path: Path) -> None:
     row = let_in(store, Mailer(), "https://targum.page", "IN@example.com")
     assert row is not None and row.ok and sent == ["in@example.com"]
     assert let_in(store, Mailer(), "https://targum.page", "in@example.com") is None, "once"
+
+
+def test_the_waitlist_says_which_page_each_joined_from(tmp_path: Path) -> None:
+    """targum-internal#388: with `/aliyah` beside the front door there are two ways onto
+    one list, and the list could not say which one brought anybody. Rows from before the
+    column stay unknown. The first page that brought somebody is kept when they ask again."""
+    store = Store(tmp_path / "targum.db")
+    store.join_waitlist("a@example.com", "en", "/aliyah")
+    store.join_waitlist("a@example.com", "ru", "/")
+    store.join_waitlist("b@example.com", "en", "/")
+    store.join_waitlist("c@example.com", "en")
+
+    found = survey(store.db, today=date(2026, 10, 1))
+    pages = {who.email: who.page for who in found.waiting_list}
+    assert pages == {"a@example.com": "/aliyah", "b@example.com": "/", "c@example.com": ""}
+    assert found.waiting_by_page == {"/aliyah": 1, "/": 1, "": 1}
+
+    page = back_office_page(found, 30)
+    assert "<th>From</th>" in page
+    assert '<td class="quiet">/aliyah</td>' in page
+    assert "Joined from /aliyah 1 &middot; / 1 &middot; unknown 1" in page
+
+
+def test_a_store_from_before_the_page_reads_as_unknown(tmp_path: Path) -> None:
+    """A survey over a database written before schema 37 has no `page` column, and the
+    page is not the place to find that out."""
+    db = sqlite3.connect(tmp_path / "old.db")
+    db.executescript(SCHEMA.replace("  page     TEXT    NOT NULL DEFAULT ''", "  _unused  TEXT"))
+    db.execute(
+        "INSERT INTO waiting (email, state, stop, asked) VALUES ('old@example.com', 'on', 's', 0)"
+    )
+    found = survey(db, today=date(2026, 10, 1))
+    assert [who.page for who in found.waiting_list] == [""]

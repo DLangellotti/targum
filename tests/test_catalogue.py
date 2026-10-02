@@ -405,3 +405,12 @@ def test_a_sample_written_before_this_still_reads() -> None:
 
     line = Line(source="ש", target="A line")
     assert line.said == {} and line.said_in("ru") == "A line"
+
+
+def test_a_row_carries_its_sentence_length_and_an_old_row_reads_unmeasured() -> None:
+    """The other half of a level (targum-internal#382), written beside `difficulty`."""
+    from targum.catalogue import _entry
+
+    assert _entry({"id": "x", "title": "ט", "language": "he", "source": "test:x"}).sentence == 0.0
+    row = {"id": "x", "title": "ט", "language": "he", "source": "test:x", "sentence": 7.4}
+    assert _entry(row).sentence == 7.4

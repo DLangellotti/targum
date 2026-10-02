@@ -49,7 +49,7 @@ def test_a_manifest_round_trips_and_its_licence_is_always_none(tmp_path: Path) -
 
 def test_a_platform_or_a_door_it_does_not_know_is_refused() -> None:
     with pytest.raises(ValueError):
-        a_manifest(platform="facebook")
+        a_manifest(platform="reddit")
     with pytest.raises(ValueError):
         a_manifest(fetched_by="scraped")
 
@@ -313,6 +313,46 @@ def test_a_pasted_tiktok_arrives_as_a_post(tmp_path: Path, monkeypatch: pytest.M
     assert said["posted_at"] == "2025-03-23T18:27:07Z"
     assert said["avatar"] == "" and said["film"] is True
     assert library._builder(job).caption == "חידה: מה יורד בחורף?\n#עברית #לשון"
+
+
+#: The shape of `yt-dlp -J` on a public Facebook reel from כאן חדשות, recorded live from the
+#: box on 2026-09-30 and trimmed to the keys the door reads; `title` is what `TITLED` made
+#: of "2.1K views · 43 reactions | …".
+FACEBOOKED = {
+    "id": "28842223192082067",
+    "title": "כשניקו נבון נפצע קשה בראשו במלחמה בעזה",
+    "description": "כשניקו נבון נפצע קשה בראשו במלחמה בעזה\n\nNofar Moshe Ferdo",
+    "uploader": "כאן חדשות",
+    "uploader_id": "100064467291406",
+    "timestamp": 1790758838,
+    "duration": 893.016,
+    "webpage_url": "https://m.facebook.com/watch/?v=28842223192082067&_rdr",
+    "subtitles": {},
+    "formats": [{"acodec": "aac"}],
+}
+
+
+def test_a_pasted_facebook_video_arrives_as_a_post(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Facebook gives the page's name and a number, and no handle a reader knows it by:
+    the head carries the name alone, and the address is the film's one canonical shape."""
+    from targum import serve
+    from targum.video import facebook
+
+    monkeypatch.setattr(facebook, "describe", lambda url: FACEBOOKED)
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    library = serve.Library(tmp_path)
+    job = serve.Job(id="a", source="https://www.facebook.com/reel/28842223192082067/")
+    library.prepare(job)
+    assert job.stage in ("ready", "blocked"), job.error
+    said = job.options["post"]
+    assert (said["platform"], said["handle"], said["name"]) == ("facebook", "", "כאן חדשות")
+    assert said["url"] == "https://www.facebook.com/watch/?v=28842223192082067"
+    assert said["posted_at"] == "2026-09-30T09:00:38Z"
+    assert said["film"] is True
+    assert job.title == "כשניקו נבון נפצע קשה בראשו במלחמה בעזה"
+    assert library._builder(job).caption.startswith("כשניקו")
 
 
 def test_a_tiktoks_manifest_asks_nothing_more_of_anybody(

@@ -4670,7 +4670,7 @@ requires-dist = [
     { name = "ru-core-news-lg", marker = "extra == 'russian'", url = "https://github.com/explosion/spacy-models/releases/download/ru_core_news_lg-3.8.0/ru_core_news_lg-3.8.0-py3-none-any.whl" },
     { name = "silero-stress", marker = "extra == 'stress'", specifier = ">=1.4" },
     { name = "spacy", marker = "extra == 'russian'", specifier = ">=3.8,<3.9" },
-    { name = "stanza", specifier = ">=1.8" },
+    { name = "stanza", specifier = ">=1.8,<1.15" },
     { name = "torchaudio", marker = "extra == 'speech-align'", specifier = ">=2.1" },
     { name = "trafilatura", specifier = ">=1.12" },
     { name = "transformers", specifier = ">=4.40,<5.17" },

@@ -1,0 +1,16 @@
+{#- The page's ending, not a fourth example: the waitlist centred on the page itself,
+    with no paper under it, so the only raised sheets are the product's (§8, one raised
+    layer per view; David, 2026-10-02). The front door and /aliyah both end on it. -#}
+<section class="part" id="join">
+  <div class="col join-end">
+    <div class="part-head">
+      <p class="label">{{ t("landing.page.the-waitlist", "The waitlist") }}</p>
+      <h2>{{ t("landing.page.be-among-the-first-to-learn-hebrew-this", "Be among the first to learn Hebrew this way.") }}</h2>
+      <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
+    </div>
+    <div class="join-body">
+      {% include '_join_form.html.j2' %}
+      <p class="join-note">{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</p>
+    </div>
+  </div>
+</section>

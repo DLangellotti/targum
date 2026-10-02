@@ -310,6 +310,55 @@ def test_publishing_refuses_a_level_that_missed_its_band(
     assert out.published_at, "when it went out is recorded"
 
 
+def test_the_refusal_names_the_half_that_missed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#395: 2026-w40 was refused as "Simplified at 17%", and 17 is inside
+    Simplified's band. What missed was its sentences, and the refusal is what the
+    failure mail carries, so it has to say so."""
+    import typer
+    from rich.console import Console
+
+    from targum import cli
+    from targum.weekly import index as weekly_index
+    from targum.weekly.models import Index
+
+    monkeypatch.setenv("TARGUM_WEEKLY_DIR", str(tmp_path))
+    monkeypatch.setattr(weekly_index, "_cached", None)
+    said = io.StringIO()
+    monkeypatch.setattr(cli, "err", Console(file=said, width=400))
+    weekly_index.save(
+        Index(
+            issues=[
+                Issue(
+                    id="2026-w40",
+                    dated="2026-09-28",
+                    title="השבוע",
+                    editions=[
+                        Edition(
+                            level=Level.bet,
+                            entry_id=entry_id("2026-w40", Level.bet),
+                            folder=folder("2026-w40", Level.bet),
+                            difficulty=17,
+                            sentence=8.3,
+                            ok=False,
+                        )
+                    ],
+                )
+            ]
+        )
+    )
+    _stub_reader(tmp_path, "2026-w40", Level.bet)
+    weekly_index._cached = None
+
+    with pytest.raises(typer.Exit):
+        cli.weekly_publish("2026-w40", anyway=False)
+    text = said.getvalue()
+    assert "Sentences averaged 8.3 words" in text and "Longer sentences" in text
+    assert "vocabulary came out" not in text, "the vocabulary was inside its band"
+    assert "targum weekly measure 2026-w40" in text, "and it names the command that re-measures"
+
+
 def test_a_draft_cannot_be_announced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Publishing and announcing are two verbs, and they only go in one order."""
     import typer

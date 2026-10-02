@@ -181,3 +181,12 @@ drill && rm /var/lib/targum/health-drill.json
 
 It watches from the box, so a box that is off or unreachable sends nothing. An outside
 monitor (UptimeRobot, the other half of targum-internal#20) is what hears that silence.
+
+The weekly reaches the same address two ways (targum-internal#404). A run of
+`deploy/weekly-run.sh` that stops hands what it said to `targum weekly stopped` on the
+box, which mails it the same minute. And `targum-weekly-watch.timer` runs `targum
+watch-weekly` every hour: from Monday 12:00 UTC it looks for the week's issue in the
+box's own index (`TARGUM_WEEKLY_DIR`, which `ship-weekly.sh` writes into `targum.env`)
+and mails once if it is not published, which is the only way a run that never started
+is heard about. Every week it sees is a line in `/var/lib/targum/weekly-watch.json`, out
+or not. On the laptop, every run is a line in `targum-out/weekly/runs.log`.

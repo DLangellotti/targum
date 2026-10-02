@@ -12,11 +12,7 @@
     </div>
     <div class="join-card">
       {% include '_join_form.html.j2' %}
-      <ul class="join-points">
-        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</li>
-        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.no-card-and-nothing-to-pay-to-join", "No card, and nothing to pay to join.") }}</li>
-        <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.your-email-and-nothing-else-we-won-t", "Your email and nothing else. We won’t pass it on.") }}</li>
-      </ul>
+      <p class="join-note">{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</p>
     </div>
   </div>
 </section>
