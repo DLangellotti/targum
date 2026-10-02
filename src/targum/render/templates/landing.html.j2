@@ -29,7 +29,7 @@
 {% with bar_class = 'bar', home = '', here = '/' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main id="top">
-  <div class="col">
+  <div class="col top">
     <div class="hero">
       <div class="headline">
         <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
@@ -89,6 +89,11 @@
       </div>
     </div>
 
+    {#- The word card stands beside the headline (David, 2026-10-02), so the hero and the
+        reader under it read as one composition; the reader runs the full width below.
+        On a phone it follows the reader instead. -#}
+    <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}"></aside>
+    <p class="sr-only" id="cardSaid" aria-live="polite"></p>
     <div class="showcase">
       <article class="reader" id="reader" aria-label="{{ t("landing.page.example-a-cooking-video-in-the-reader", "Example: a cooking video in the reader") }}">
         <div class="reader-head">
@@ -130,8 +135,6 @@
         </div>
       </article>
 
-      <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}"></aside>
-      <p class="sr-only" id="cardSaid" aria-live="polite"></p>
     </div>
   </div>
 

@@ -698,3 +698,15 @@ html { overflow-x: clip; }
 .hero { grid-template-columns: minmax(0, 1fr); max-inline-size: 46rem; }
 .hero .facts { margin-block-start: var(--space-1); }
 
+/* The hero and the reader as one composition (David, 2026-10-02): the word card beside
+   the headline, the reader the full width under both. On a phone the card follows the
+   reader, next to the words that drive it. */
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show show"; column-gap: var(--space-7); row-gap: var(--space-5); align-items: center; }
+.top > .hero { grid-area: hero; max-inline-size: none; }
+.top > #card { grid-area: card; position: static; align-self: start; margin-block-start: var(--space-8); }
+.top > .showcase { grid-area: show; grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 56rem) {
+  .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "show" "card"; }
+  .top > #card { margin-block: 0 var(--space-7); }
+}
+
