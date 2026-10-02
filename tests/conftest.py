@@ -108,6 +108,16 @@ def isolated_cache(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest
 
 
 @pytest.fixture(autouse=True)
+def ledger_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The corpus ledger is off unless a test turns it on (targum-internal#162).
+
+    Read from the environment like the shelves below, so a shell that has it exported
+    would otherwise have every build in the suite writing rows into the real file.
+    """
+    monkeypatch.delenv("TARGUM_LEDGER", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public catalogue is off unless a test says otherwise.
 
