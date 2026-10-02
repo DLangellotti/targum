@@ -65,6 +65,8 @@ SUBJECTS: dict[str, str] = {
     Tag.philosophy: "Ideas, argued.",
     Tag.language: "The language itself: its words, grammar and how it is said, as a "
     "lesson or an explanation.",
+    Tag.israel: "Day-to-day life in Israel: money and paperwork, health and the health "
+    "fund, children and school, home and work.",
 }
 
 #: The subject option for a text that is none of the above — a novel, a folk tale.

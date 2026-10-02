@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- "Life in Israel", a subject of its own (targum-internal#393): `Tag.israel` and the
+  arrival's `israel` door, said "Life in Israel: money, health, school, home" and in
+  Russian, and a Library chip. One subject for the four olim ones of #386, by decision
+  (2026-10-02). The `everyday` door, which files the dialogues by form, is now said
+  "Everyday conversation" so that it does not read as the same thing.
+  `scripts/file_life_in_israel.py` writes the missing catalogue rows for scenes 101–200,
+  which were on the shelf but not in the Library, and tags the 48 olim clips. It is a
+  dry run unless given `--write`.
 - The corpus ledger, designed and started (targum-internal#162). `LEDGER.md` is the
   design: one SQLite file, a table per artefact kind, every row naming the tool and the
   version that made it, the cache becoming a view of it a stage at a time, rebuild from
