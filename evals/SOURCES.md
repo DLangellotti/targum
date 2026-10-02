@@ -225,7 +225,9 @@ off and asking where the stress falls has an answer on the page (`pronounce.stre
   scripture, and the credit ships with it.
 - **Scored by:** `scripts/eval_hebrew_stress.py`. `--baseline-only` needs no key; a model
   run sends the unaccented words to a paid endpoint.
-- **Ledger:** `stress/tanakh-taamim`.
+- **Ledger:** `stress/tanakh-taamim`, and `stress/tanakh-taamim-v2` since 2026-10-02: the
+  same words with an accent written before a holam male read as the holam's
+  (targum-internal#325).
 
 ## Wiktionary Russian examples
 

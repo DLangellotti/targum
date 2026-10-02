@@ -6,6 +6,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The Hebrew stress eval measures the pause and a grammar rule, both free
+  (targum-internal#325). `scripts/eval_hebrew_stress.py --baseline-only` now also writes
+  the share of the gold under a pausal accent, read by `vocalize/trope.py` (10.4% under
+  etnachta; 24.4% with segol, shalshelet and zakef), each accuracy without those words,
+  and `stress-rule/1`, a binyan and mishkal rule — segolates, the dual, furtive patah,
+  the suffixes and perfect endings that keep the stress back — scored on the 3,000 words
+  it was not written against. Pause barely moves the default (0.7630, 0.7649 without
+  etnachta). The rule takes it to 0.9630 with OSHB's tagging and 0.9137 from the pointing
+  alone. Nothing shipped reads the rule: `phonikud/2` and `SCHEMA_VERSION` are unchanged.
 - The week's shnayim mikra sheet as a PDF: `targum export mikra` (targum-internal#105).
   This Shabbat's portion — or the week of `--on` — with Onkelos beside each verse, the
   haftarah the calendar names for it with the reader's language beside it, and with
@@ -450,6 +459,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2026-09-28).
 
 ### Fixed
+- The Hebrew stress gold read an accent written before a holam male — the codex puts
+  גָּדוֹל's on the dalet — as stressing the vowel before it, and filed 296 of its 3,000
+  words as mil'el that are milra (targum-internal#325). Read now as the holam's, under a
+  new corpus name, `tanakh-taamim-v2`, so the old row does not seem to move: the default
+  is 0.7630 there against 0.6863 on the first gold. phonikud already read these words
+  right; only the eval was wrong.
 - A deploy no longer stops at the install when somebody has run a targum command on the
   box as root. Such a run, `--help` included, leaves root-owned `__pycache__` inside the
   tool's environment, and the service account could not remove it: "failed to remove
