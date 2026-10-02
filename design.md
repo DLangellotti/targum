@@ -540,7 +540,7 @@ same thing there, don't they?" They did.
 
 The waitlist's pages had one heading for every answer, "the waitlist", over "Thanks.
 Check your email and press the button in it." Each answer has its own heading now —
-"Check your email" (it was "Thanks for joining" until 2026-10-02), "Confirm your place",
+"You're on the list" (it was "Thanks for joining" until 2026-10-02), "Confirm your place",
 "You're on the list", "You're off the list" —
 and sentences a person would say. Each heading follows from the step alone, so the
 answers that must not say whether an address is waiting still cannot.

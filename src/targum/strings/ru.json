@@ -1449,7 +1449,7 @@
   "landing.try.sentences.many": "{n} предложений",
   "landing.try.sentences.other": "{n} предложения",
   "landing.try.subtitles": "субтитры на иврите, написанные человеком",
-  "landing.try.ready-on-your-first-day": "Запишитесь, и к вашему первому дню всё будет готово.",
+  "landing.try.kept-with-your-place": "Мы сохраним её вместе с вашим местом.",
   "door.not-a-link": "Это не ссылка. Вставьте ссылку, которая начинается с https.",
   "door.empty": "Сначала вставьте ссылку.",
   "door.too-often": "Слишком много ссылок за час. Попробуйте позже или запишитесь и принесите их, когда вас пригласят.",
@@ -1970,7 +1970,7 @@
   "yours.page.lines-corrected-in-conversation": "Исправлено в разговоре",
   "yours.page.what-to-work-on": "Над чем поработать",
   "library.subject.tanakh": "Танах",
-  "waitlist.note.heading-joined": "Проверьте почту",
+  "waitlist.note.heading-joined": "Вы в списке",
   "waitlist.note.heading-on": "Вы в списке",
   "waitlist.note.heading-confirm": "Подтвердите своё место",
   "waitlist.note.heading-leave": "Покинуть список ожидания?",
@@ -1987,7 +1987,7 @@
   "waitlist.note.take-me-off.button": "Да, убрать",
   "waitlist.note.not-an-address": "Не похоже на адрес почты. Проверьте его и попробуйте снова.",
   "waitlist.note.too-often": "С этого адреса уже приходило несколько запросов. Попробуйте через час.",
-  "waitlist.note.check-your-email": "Откройте письмо от targum и подтвердите адрес, чтобы сохранить место. Если вы уже подтверждали адрес, больше ничего делать не нужно.",
+  "waitlist.note.check-your-email": "Мы отправили вам письмо для подтверждения.",
   "waitlist.note.you-are-on": "Спасибо за подтверждение. Мы напишем вам, как только подойдёт ваша очередь.",
   "waitlist.note.taken-off": "Мы больше не будем писать вам о списке ожидания.",
   "mail.waitlist.subject": "Подтвердите место в списке ожидания targum",
@@ -2634,5 +2634,6 @@
   "landing.page.start-at-any-level": "Начните с любого уровня",
   "landing.page.upload-any-text-or-media": "Загрузите любой текст или видео",
   "landing.page.hundreds-of-free-texts-and-videos": "Сотни бесплатных текстов и видео",
-  "landing.page.no-credit-card-required": "Кредитная карта не нужна"
+  "landing.page.no-credit-card-required": "Кредитная карта не нужна",
+  "landing.try.reading": "Смотрим ссылку…"
 }

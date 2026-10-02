@@ -444,6 +444,85 @@
     arrive.observe(phone);
   }
 
+  /* ---- the box and the waitlist, in one popup (David, 2026-10-02) ----
+     Try it opens the popup at once, "Looking at the link…", and fills it with the answer
+     the plain post would have put under the box: what the link is, and the waitlist
+     form. Joining, from there or from the end of the page, turns the popup into the
+     server's own answer. Each is the same page the post returns, read for its words, so
+     nothing is said twice in two places. Any failure falls back to the plain post. */
+  var pop = document.getElementById("pop"), popBody = document.getElementById("popBody");
+  if (pop && pop.showModal && window.fetch) {
+    var popOpen = function (node, label) {
+      popBody.replaceChildren(node);
+      pop.setAttribute("aria-label", label || "");
+      if (!pop.open) pop.showModal();
+      var field = popBody.querySelector("input[type=email]");
+      if (field) field.focus();
+    };
+    var post = function (form) {
+      return fetch(form.action, { method: "POST", body: new URLSearchParams(new FormData(form)), credentials: "same-origin" })
+        .then(function (r) { return r.text().then(function (html) {
+          // Read in an inert template: nothing in it is applied or run, so the answer's
+          // own page brings no styles of its own along.
+          var held = document.createElement("template");
+          held.innerHTML = html;
+          return { ok: r.ok, doc: held.content };
+        }); });
+    };
+    var said = function (doc) {
+      var head = doc.querySelector("main h1"), lede = doc.querySelector("main .lede");
+      return { head: head ? head.textContent.trim() : "", lede: lede ? lede.textContent.trim() : "" };
+    };
+    var envelope = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 7.5 12 13l7.5-5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    var done = function (words, mark) {
+      var box = document.createElement("div");
+      box.className = "pop-done";
+      box.innerHTML = (mark ? '<span class="tried-mark">' + envelope + "</span>" : "") + '<h2 class="pop-head"></h2><p class="pop-said"></p>';
+      box.querySelector(".pop-head").textContent = words.head;
+      box.querySelector(".pop-said").textContent = words.lede;
+      return box;
+    };
+    var join = function (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var button = form.querySelector("button[type=submit]");
+        if (button) button.disabled = true;
+        post(form).then(function (answer) {
+          var words = said(answer.doc);
+          if (!words.head) throw new Error("no answer");
+          if (answer.ok) { popOpen(done(words, true), words.head); form.reset(); return; }
+          // Not an address, or asked too often: said where they typed, so they can mend it.
+          var wrong = form.parentNode.querySelector(".pop-wrong") || document.createElement("p");
+          wrong.className = "pop-wrong"; wrong.setAttribute("role", "alert"); wrong.textContent = words.lede;
+          if (pop.open && popBody.contains(form)) form.parentNode.insertBefore(wrong, form);
+          else popOpen(done(words, false), words.head);
+        }).catch(function () { form.submit(); })
+          .then(function () { if (button) button.disabled = false; });
+      });
+    };
+    document.querySelectorAll(".join-form").forEach(join);
+    var tryForm = document.querySelector(".try-form");
+    if (tryForm) tryForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var reading = document.createElement("div");
+      reading.className = "pop-reading";
+      reading.innerHTML = '<span class="tried-mark"></span><p></p>';
+      reading.querySelector("p").textContent = pop.dataset.reading;
+      popOpen(reading, pop.dataset.reading);
+      post(tryForm).then(function (answer) {
+        var tried = answer.doc.querySelector(".tried");
+        if (!tried) throw new Error("no answer");
+        tried = document.importNode(tried, true);
+        tried.querySelectorAll(".join-form").forEach(join);
+        var title = tried.querySelector(".tried-title, .tried-what");
+        popOpen(tried, title ? title.textContent.trim() : "");
+      }).catch(function () { pop.close(); tryForm.submit(); });
+    });
+    pop.querySelector(".pop-x").addEventListener("click", function () { pop.close(); });
+    // A press on the dim around the popup closes it, as Escape does.
+    pop.addEventListener("click", function (e) { if (e.target === pop) pop.close(); });
+  }
+
   /* ---- the Torah ---- */
   var VERSES = [
     { he: "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃", en: t("landing.demo.in-the-beginning-god-created-the-heaven-and", "In the beginning God created the heaven and the earth."), arc: "בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא" },

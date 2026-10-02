@@ -81,7 +81,7 @@
                   {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
               </div>
             </div>
-            <p class="tried-keep">{{ t("landing.try.ready-on-your-first-day", "Join, and it’s ready for you on your first day.") }}</p>
+            <p class="tried-keep">{{ t("landing.try.kept-with-your-place", "We’ll keep it with your place.") }}</p>
             {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
             {%- endif %}
           </div>
@@ -406,6 +406,14 @@
   </section>
 
 
+  {#- The box's answer and the waitlist's, in one popup (David, 2026-10-02): Try it opens
+      it with what the link is and the form; joining turns it into the server's own
+      answer. Filled by landing.js from the same pages the plain posts return, so with
+      JavaScript off nothing changes and the words are the same either way. -#}
+  <dialog class="pop" id="pop" data-reading="{{ t("landing.try.reading", "Looking at the link…") }}">
+    <button class="pop-x" type="button" aria-label="{{ t("nav.close", "Close") }}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+    <div class="pop-body" id="popBody"></div>
+  </dialog>
 </main>
 
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
