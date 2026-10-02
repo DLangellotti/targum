@@ -16,10 +16,17 @@ failure is the one to choose.
 **It never opens the door to somebody who did not ask.** The only source is
 `waiting_for_a_way_in`: confirmed, not yet invited, oldest first. There is no argument
 for an arbitrary address, because `targum invite` is already that and says so.
+
+**And then their saved link is built** (targum-internal#399; David, 2026-10-01). Somebody
+who tried a link on the front page joined with it, and the door promised it would be
+waiting. `then` is told each address that was let in, after the stamp, and whatever it
+does — the server starts the build, on targum's budget — cannot undo the invitation: it
+runs last and anything it raises is swallowed here.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -43,7 +50,7 @@ class Opened:
         return not self.failed
 
 
-def invitation(address: str, language: str, brought: str = "") -> Letter:
+def invitation(address: str, language: str) -> Letter:
     """The mail, in the language they joined in, drawn by `letters.invitation`.
 
     It carries no sign-in token. The address is on the guest list by the time this is
@@ -53,7 +60,7 @@ def invitation(address: str, language: str, brought: str = "") -> Letter:
     """
     from . import letters
 
-    return letters.invitation(address, language, brought=brought)
+    return letters.invitation(address, language)
 
 
 def open_the_door(
@@ -62,6 +69,7 @@ def open_the_door(
     address: str,
     count: int,
     dry_run: bool = False,
+    then: Callable[[str, str], None] | None = None,
 ) -> list[Opened]:
     """Let the next `count` people in, oldest first, and write to each of them.
 
@@ -79,10 +87,16 @@ def open_the_door(
     if not address:
         raise ValueError("No address for this install, so the mail would carry no link.")
 
-    return [_let(store, mailer, address, email, language) for email, language in waiting]
+    return [_let(store, mailer, address, email, language, then) for email, language in waiting]
 
 
-def let_in(store: Store, mailer: Mailer | None, address: str, email: str) -> Opened | None:
+def let_in(
+    store: Store,
+    mailer: Mailer | None,
+    address: str,
+    email: str,
+    then: Callable[[str, str], None] | None = None,
+) -> Opened | None:
     """Let one person in, chosen by the operator from the waitlist (2026-09-28).
 
     David wanted to accept each person himself rather than the next few in order. The
@@ -97,16 +111,22 @@ def let_in(store: Store, mailer: Mailer | None, address: str, email: str) -> Ope
                 raise ValueError("No mailer configured, so nobody can be told their turn has come.")
             if not address:
                 raise ValueError("No address for this install, so the mail would carry no link.")
-            return _let(store, mailer, address, waiting, language)
+            return _let(store, mailer, address, waiting, language, then)
     return None
 
 
-def _let(store: Store, mailer: Mailer, address: str, email: str, language: str) -> Opened:
+def _let(
+    store: Store,
+    mailer: Mailer,
+    address: str,
+    email: str,
+    language: str,
+    then: Callable[[str, str], None] | None = None,
+) -> Opened:
     """Invite, mail, stamp: the three acts, in the order the module's docstring gives."""
     try:
         store.invite(email)
-        # The link they pasted at the front door, handed back (targum-internal#399).
-        letter = invitation(address, language, store.waiting_link(email))
+        letter = invitation(address, language)
         mailer.notify(email, letter.subject, letter.text, None, letter.html)
     except Exception as error:  # noqa: BLE001 — one bad address must not stop the rest
         # Left unstamped on purpose: the next run picks them up again. Reported rather
@@ -114,4 +134,9 @@ def _let(store: Store, mailer: Mailer, address: str, email: str, language: str) 
         # the other nine in.
         return Opened(email, language, failed=str(error) or error.__class__.__name__)
     store.waiting_invited(email)
+    if then is not None:
+        try:
+            then(email, language)
+        except Exception:  # noqa: BLE001 — the invitation has gone; the link stays saved
+            pass
     return Opened(email, language)

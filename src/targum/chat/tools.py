@@ -1493,11 +1493,8 @@ def describe_source(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return described
 
 
-def _describe(ctx: Ctx | None, args: dict[str, Any]) -> dict[str, Any]:
+def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What is at the other end of a link, before anything is priced or fetched whole.
-
-    `ctx` is None for the front door's box (targum-internal#399): nobody is behind the
-    question, so nothing is measured against a word list and nothing is recorded.
 
     Metadata only: a video is asked what yt-dlp knows without fetching it, a podcast
     page is read for its episode, an article is read once through the same door with

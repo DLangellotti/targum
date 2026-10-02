@@ -298,6 +298,27 @@ h1, h2, h3 { text-wrap: balance; }
 @media (max-width: 56rem) { .hero { grid-template-columns: minmax(0, 1fr); padding-block-start: var(--space-7); } }
 /* §5: the display step drops on a phone, under 40rem. */
 @media (max-width: 40rem) { .hero h1 { font-size: 2.25rem; } }
+
+/* The box (targum-internal#399): a link in, one sentence about it out, and the waitlist
+   on the same card, because joining is what keeps the link. Under the reader in "Your
+   own Hebrew" since 2026-10-02, not under the headline. */
+.try { display: grid; gap: var(--space-3); }
+.try-form .field { background: var(--card); box-shadow: var(--shadow-rest); }
+.try-form .field input::placeholder { color: var(--muted); }
+.tried { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; gap: var(--space-3); }
+.tried-what { font-weight: 600; line-height: 1.45; }
+.tried-title { color: var(--muted); font-size: 0.9375rem; overflow-wrap: anywhere; }
+.tried-keep { font-size: 0.9375rem; }
+.tried .join-form { max-inline-size: none; }
+.tried .join-form .field { background: var(--field); box-shadow: none; }
+
+/* The landing's waitlist is its ending (David, 2026-10-02): centred on the ground under a
+   hairline, not a raised card in the column the example sheets stand in. */
+.join-end { display: grid; justify-items: center; gap: var(--space-6); text-align: center; border-block-start: 1px solid var(--hairline); padding-block-start: var(--space-8); }
+.join-end .part-head { margin: 0; justify-items: center; max-inline-size: 34rem; }
+.join-end .part-head h2, .join-end .part-head p { text-wrap: balance; }
+.join-body { display: grid; justify-items: center; gap: var(--space-4); inline-size: 100%; max-inline-size: 30rem; }
+.join-body .join-form { inline-size: 100%; max-inline-size: none; text-align: start; }
 @media (max-width: 30rem) {
   .hero { padding-block: var(--space-6) var(--space-4); gap: var(--space-3); }
   .hero .headline { gap: var(--space-3); }

@@ -1,7 +1,7 @@
 /* The front door's moving parts (targum-internal#69, 2026-09-16).
 
-   The vowel switches, the reading modes, the box that says what a pasted link is
-   (targum-internal#399, 2026-10-01) and the video that plays itself. Nothing here is required to read the page: with JavaScript off the words, the
+   The vowel switches, the reading modes and the video that plays itself. The box that
+   says what a pasted link is (targum-internal#399) is a plain post and needs none. Nothing here is required to read the page: with JavaScript off the words, the
    verses and the waitlist's form all still work, and the demos sit still.
 
    The dish in the video frame is drawn here rather than in the stylesheet because it is
@@ -24,75 +24,6 @@
   var MARKS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---- the box: what a pasted link is (targum-internal#399) ----
-     `/waitlist/look` reads metadata and nothing else: no build, no spend, no model.
-     Its sentences are set as text, never as markup: the title came from somebody
-     else's page. Joining from here is the waitlist's own plain post, with the link. */
-  (function () {
-    var box = document.getElementById("try");
-    var form = document.getElementById("tryForm");
-    var input = document.getElementById("tryInput");
-    var out = document.getElementById("tryOut");
-    var keep = document.getElementById("keep");
-    var keepLink = document.getElementById("keepLink");
-    if (!box || !form || !window.fetch) return;
-    var asked = "";
-    function line(cls, text) {
-      var p = document.createElement("p");
-      p.className = cls;
-      p.textContent = text;
-      return p;
-    }
-    function answer(said) {
-      out.textContent = "";
-      if (!said || !said.ok) {
-        keep.hidden = true;
-        keepLink.value = "";
-        out.appendChild(line("said-err", (said && said.said) || t("landing.door.try.failed", "We couldn’t look at that just now. Try again in a moment.")));
-        return;
-      }
-      var found = document.createElement("div");
-      // Not "said": the conversation's own class sets Hebrew right to left, and an
-      // English answer under it ran from the wrong edge with its full stop first.
-      found.className = "look-said";
-      if (said.title) {
-        // A title is somebody else's, in whatever language: the browser decides.
-        var title = line("t", said.title);
-        title.dir = "auto";
-        found.appendChild(title);
-      }
-      found.appendChild(line("say", said.said));
-      if (said.wait) found.appendChild(line("wait", said.wait));
-      out.appendChild(found);
-      keepLink.value = said.link || asked;
-      keep.hidden = false;
-    }
-    function look() {
-      var link = input.value.trim();
-      if (!link || link === asked) return;
-      asked = link;
-      keep.hidden = true;
-      out.textContent = "";
-      out.appendChild(line("looking", t("landing.door.try.looking", "Looking at the link…")));
-      fetch(form.getAttribute("action"), {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "url=" + encodeURIComponent(link),
-      })
-        .then(function (response) { return response.json(); })
-        .then(function (said) { if (link === asked) answer(said); })
-        .catch(function () { if (link === asked) answer(null); });
-    }
-    box.hidden = false;
-    form.addEventListener("submit", function (event) {
-      event.preventDefault();
-      asked = "";
-      look();
-    });
-    // A paste is the press: the link is all there is to say.
-    input.addEventListener("paste", function () { setTimeout(look, 0); });
-  })();
 
   /* ---- the words ---- */
   var W = {

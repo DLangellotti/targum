@@ -110,11 +110,6 @@
   <p class="taken">Joined from
     {%- for page, n in survey.waiting_by_page.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
   {%- endif %}
-  {#- How many joined with a link pasted into the front door's box (targum-internal#399):
-      whether the promise on the page is what brings people in. Counted from the rows;
-      a link is cleared when somebody leaves, so this counts those still waiting. -#}
-  {%- set brought = survey.waiting_list|selectattr('link')|list|length %}
-  <p class="taken">Joined with a link from the box: {{ brought }} of {{ survey.waiting_list|length }}</p>
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
@@ -123,7 +118,7 @@
   <h2>The waitlist</h2>
   <table>
     <thead>
-      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th><th>Link</th></tr>
+      <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
     </thead>
     <tbody>
       {% for who in survey.waiting_list %}
@@ -146,10 +141,7 @@
           {%- else %}<span class="quiet">—</span>{% endif %}
         </td>
         <td class="quiet">{{ who.language or 'en' }}</td>
-        <td class="quiet">{{ who.page or '—' }}</td>
-        {#- What they pasted into the front door's box, handed back in the invitation
-            (targum-internal#399). Shown as text, never as a link to press here. -#}
-        <td class="quiet">{{ who.link|truncate(60, true, '…', 0) if who.link else '—' }}</td>
+        <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>

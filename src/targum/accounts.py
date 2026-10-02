@@ -229,10 +229,10 @@ REGISTRATIONS_PER_HOUR = 60
 #    cannot otherwise say whether it brings anybody. Empty means unknown, which every row
 #    before it is. On a table every box has, so it is in MIGRATIONS.
 #
-# 37→38: waiting.link — the link somebody pasted into the front door's box before they
-#    joined (targum-internal#399), handed back to them in the invitation so the first
-#    thing they open is the thing they came with. Empty for everybody who pasted nothing,
-#    which is every row before it. Cleared when they leave the list.
+# 37→38: waiting.link — the link somebody pasted into the front page's box before they
+#    joined (targum-internal#399), kept with their place so it is theirs when they are
+#    let in. Empty for everybody who joined without one. In MIGRATIONS for the same
+#    reason as `page`.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
@@ -530,8 +530,7 @@ MIGRATIONS: tuple[str, ...] = (
     # Which of targum's pages somebody joined the waitlist from (targum-internal#388).
     # Empty is unknown, and the truth about every row written before it.
     "ALTER TABLE waiting ADD COLUMN page TEXT NOT NULL DEFAULT ''",
-    # The link pasted into the front door's box, if any (targum-internal#399). Empty is
-    # nothing pasted, which every row written before it is.
+    # The link somebody tried on the front page and joined with (targum-internal#399).
     "ALTER TABLE waiting ADD COLUMN link TEXT NOT NULL DEFAULT ''",
 )
 
@@ -1054,8 +1053,8 @@ CREATE TABLE IF NOT EXISTS waiting (
   -- Which of targum's own pages they pressed Join on: '/', '/aliyah', '/weekly'.
   -- Empty means unknown. Never where they were before targum (targum-internal#388).
   page     TEXT    NOT NULL DEFAULT '',
-  -- The link they pasted into the front door's box before joining, handed back in the
-  -- invitation (targum-internal#399). Empty means none. Cleared when they leave.
+  -- The link they tried on the front page and joined with, never fetched again until
+  -- they are let in. Empty when they joined without one (targum-internal#399).
   link     TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
@@ -2084,19 +2083,14 @@ class Store:
         the caller recognises; empty is unknown. A second ask keeps the first answer,
         because the question it answers is which page brought them.
 
-        `link` is what they pasted into the front door's box, already checked by the
-        caller (targum-internal#399). A newer link replaces an older one and an empty one
-        keeps it, and somebody already on the list who pastes again has theirs replaced
-        without a second confirmation: it is their own row, and the link is only ever
-        sent back to the address that confirmed it.
+        `link` is what they tried in the front page's box before joining, already vetted
+        by the caller (targum-internal#399). A second ask with a link replaces it; one
+        without keeps what was there.
         """
         address = tidy(email)
         if not address:
             raise ValueError("No address given.")
         if self.waiting_state(address) == "on":
-            if link:
-                with self.write() as db:
-                    db.execute("UPDATE waiting SET link = ? WHERE email = ?", (link, address))
             return None
         token = secrets.token_urlsafe(TOKEN_BYTES)
         spoken = tidy(language)
@@ -2190,9 +2184,9 @@ class Store:
             row = db.execute("SELECT email FROM waiting WHERE stop = ?", (token,)).fetchone()
             if row is None:
                 return False
-            # The link goes with them: it was kept to hand back at the invitation, and
-            # there will not be one (targum-internal#399).
             db.execute(
+                # The link goes with them: it was kept only to hand back when they
+                # were let in (targum-internal#399).
                 "UPDATE waiting SET state = 'off', ended = ?, link = '' WHERE email = ?",
                 (now(), row["email"]),
             )
@@ -2208,10 +2202,9 @@ class Store:
         """Confirmed addresses not yet let in, oldest first, each with the language it
         joined in: the order they would be let in, and what to write to them in.
 
-        Oldest first, so the batch press takes whoever has waited longest. The front
-        door no longer promises an order (2026-10-01): the operator also lets people in
-        one at a time, by hand (`doorway.let_in`), so a sentence about order would be
-        untrue whichever way it was put.
+        Oldest first because the front door promises it — "The earlier you join, the
+        earlier that is" — and a waitlist that let people in in any other order would be
+        making that sentence untrue quietly.
         """
         sql = (
             "SELECT email, language FROM waiting WHERE state = 'on' AND invited = 0 ORDER BY asked"
@@ -2221,17 +2214,33 @@ class Store:
         ).fetchall()
         return [(str(row["email"]), str(row["language"] or "")) for row in rows]
 
-    def waiting_link(self, email: str) -> str:
-        """The link somebody pasted at the front door before joining, or empty."""
-        row = self.db.execute(
-            "SELECT link FROM waiting WHERE email = ? AND state = 'on'", (tidy(email),)
-        ).fetchone()
-        return "" if row is None else str(row["link"] or "")
-
     def waiting_invited(self, email: str) -> None:
         """Stamp an address as let in, so a second opening does not mail them twice."""
         with self.write() as db:
             db.execute("UPDATE waiting SET invited = ? WHERE email = ?", (now(), tidy(email)))
+
+    def waiting_link(self, email: str) -> str:
+        """The link somebody tried on the front page and joined with, or "" (#399)."""
+        row = self.db.execute("SELECT link FROM waiting WHERE email = ?", (tidy(email),)).fetchone()
+        return "" if row is None else str(row["link"] or "")
+
+    def account_for_invited(self, email: str) -> Person | None:
+        """The account an invited address will sign in to, made now if it is not there.
+
+        The same row `start_sign_in` makes on the first link, made a little earlier: when
+        somebody is let in with a saved link, the build of it has to belong to somebody
+        before they have signed in (targum-internal#399). Only for an address already on
+        the guest list, so this cannot open an account the door did not.
+        """
+        address = tidy(email)
+        with self.write() as db:
+            if db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone() is None:
+                return None
+            db.execute(
+                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return self.person_by_email(address)
 
     # -- series (2026-09-11) ---------------------------------------------------------
 

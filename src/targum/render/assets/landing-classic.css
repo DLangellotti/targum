@@ -1,4 +1,4 @@
-/* The front door's sheet as it stood on master before 2026-10-02, kept whole for the
+/* The front door's sheet as it stood on master on 2026-10-02, kept whole for the
    pages that drew themselves on it: /connect (with `connect.css`) and /aliyah
    (targum#543). The front door's own sheet has since been tidied (tokens, spacing,
    breakpoints, dead rules), and a change there must not move these. Redraw them on
@@ -266,6 +266,21 @@ h1, h2, h3 { text-wrap: balance; }
 .join-points li { display: grid; grid-template-columns: 1.1rem minmax(0, 1fr); gap: 0.5rem; }
 .join-points svg { inline-size: 1.05rem; block-size: 1.05rem; color: var(--teal); margin-block-start: 0.15rem; }
 .close .join-form { justify-self: start; }
+/* Try the door (targum-internal#399): a link in, one sentence about it out, under the
+   headline. The answer sits on a card with the waitlist inside it, because joining is
+   what keeps the link. */
+.try { display: grid; gap: 0.75rem; max-inline-size: 34rem; }
+.try-form .field { background: var(--card); box-shadow: var(--shadow-rest); }
+.try-form .field input::placeholder { color: var(--muted); }
+.tried { background: var(--card); border-radius: 16px; box-shadow: var(--shadow-raised); padding: 1.25rem; display: grid; gap: 0.75rem; }
+.tried-what { font-weight: 600; line-height: 1.45; }
+.tried-title { color: var(--muted); font-size: 0.9375rem; overflow-wrap: anywhere; }
+.tried-keep { font-size: 0.9375rem; }
+.tried .join-form { max-inline-size: none; }
+/* With an answer on the card the waitlist is in it, so the hero's own form steps back
+   rather than asking twice. */
+.hero.has-tried .side > .join-form { display: none; }
+
 /* The landing's waitlist is its ending (2026-10-02): centred on the ground under a
    hairline, not a raised card in the column the example sheets stand in. */
 .join-end { display: grid; justify-items: center; gap: 1.5rem; text-align: center; border-block-start: 1px solid var(--hairline); padding-block-start: 3.5rem; }

@@ -477,6 +477,21 @@
     return parts.join(" · ");
   }
 
+  //: What the box held when its card arrived. The line under the box ("We'll work out
+  //: how long it'll take") is a promise the card keeps, so it is put away while the
+  //: card is up and comes back the moment the box holds something else (2026-10-01).
+  var quoted = null;
+
+  function holding() {
+    return chosen
+      ? chosen
+          .map(function (file) {
+            return file.name;
+          })
+          .join("\n")
+      : readGiven().text;
+  }
+
   // Everything the box says, drawn again from what it holds.
   function settle() {
     drawFiles();
@@ -494,7 +509,10 @@
     var mine = document.querySelector('[data-how="mine"]');
     if (note && mine) note.textContent = lineUp(mine.getAttribute("aria-pressed") === "true");
     var read = readGiven();
-    if (understood) understood.textContent = understanding();
+    if (understood) {
+      understood.textContent = understanding();
+      understood.hidden = quoted !== null && quoted === holding();
+    }
     var something = !!chosen || read.kind === "link" || read.kind === "text" || read.kind === "few";
     if (askTargum) askTargum.hidden = chosen !== null || !talks() || (read.kind !== "description" && read.kind !== "few");
     if (summary) {
@@ -1289,6 +1307,9 @@
     var payload = options();
     var prepared;
     posted = "";
+    // What the last link was found to be is not what this press is pricing: a file
+    // dropped after a link was priced under the link's facts.
+    found = null;
 
     go.disabled = true;
     say(waiting());
@@ -1401,7 +1422,15 @@
         .then(function (said) {
           found = said && !said.error ? said : null;
           var block = foundBlock(found);
-          if (block) say(block);
+          // What was found goes above the waiting line, never in place of it:
+          // `/prepare` can take minutes on a video, and a card with no line saying
+          // more is coming read as finished with nothing to press.
+          if (block) {
+            var both = document.createDocumentFragment();
+            both.appendChild(block);
+            both.appendChild(waiting());
+            say(both);
+          }
         })
         .catch(function () {
           found = null;
@@ -1474,23 +1503,30 @@
   /* The card's line of facts. Each is said only where the quote carries it: a state that
      arrived without one leaves it out rather than printing "undefined sentences" or
      "NaN:NaN" (targum-internal#158, where a brought post's card was the first to try). */
-  function describe(job) {
+  //: `lengthSaid`: what was found already gave the length, so the card does not say it
+  //: a second time (2026-10-01).
+  function describe(job, lengthSaid) {
     var facts = [];
     if (job.language) facts.push(named(job.language));
     if (job.audio) {
       var box = document.createDocumentFragment();
-      box.appendChild(document.createTextNode(facts.join(" · ")));
+      var said = facts.map(function (fact) {
+        return document.createTextNode(fact);
+      });
       var seconds = Number(job.seconds);
-      if (isFinite(seconds) && seconds > 0) {
-        if (facts.length) box.appendChild(document.createTextNode(" · "));
+      if (!lengthSaid && isFinite(seconds) && seconds > 0) {
         var when = document.createElement("span");
         when.className = "clock";
         when.textContent = clock(seconds);
-        box.appendChild(when);
+        said.push(when);
       }
       if (job.parts > 1) {
-        box.appendChild(document.createTextNode(" · " + tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
+        said.push(document.createTextNode(tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
       }
+      said.forEach(function (one, n) {
+        if (n) box.appendChild(document.createTextNode(" · "));
+        box.appendChild(one);
+      });
       return box;
     }
     if (job.chapters > 1) {
@@ -1513,8 +1549,9 @@
      price and a title and nothing about what was being bought.
 
      Nothing here is a control: it is what the reader is about to pay for, said before
-     they press. The advice lines are the server's own sentences, which is why they are
-     set as text and never as markup. */
+     they press. Facts only (2026-10-01): the server's advice sentences are written for
+     the model — English whatever the page's language, "Hebrew" whatever is being added,
+     and the credits the card says again under it — so the page does not show them. */
   function foundBlock(said) {
     if (!said || said.error) return null;
     var body = [];
@@ -1548,15 +1585,8 @@
       body.push(mine);
     }
 
-    (said.advice || []).forEach(function (one) {
-      var note = document.createElement("p");
-      note.className = "found-note";
-      note.textContent = String(one);
-      body.push(note);
-    });
-
     // A heading over nothing says the page is broken. An answer that carried no facts,
-    // no share and no advice — a route that fell over, a medium nothing is known about
+    // and no share — a route that fell over, a medium nothing is known about
     // — is passed over in silence, and the price follows as it always did.
     if (!body.length) return null;
     var box = document.createElement("div");
@@ -1665,12 +1695,18 @@
 
   // The card's first line: the title in bold, then its facts, with nothing said for a
   // part the quote did not carry.
-  function titled(job) {
+  function titled(job, lengthSaid) {
     var head = document.createElement("p");
     head.style.margin = "0";
-    head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title || "";
-    var facts = describe(job);
+    // Isolated, so a Hebrew title in an English line keeps its own direction and the
+    // facts after it: unisolated, the clock joined the title's run and was drawn in
+    // front of it ("12:35 · זו מדינת אויב?").
+    var own = document.createElement("bdi");
+    var bold = document.createElement("b");
+    bold.textContent = job.title || "";
+    own.appendChild(bold);
+    head.appendChild(own);
+    var facts = describe(job, lengthSaid);
     if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
     head.appendChild(facts);
     return head;
@@ -1690,12 +1726,14 @@
 
   // The cost is shown before anything is spent, the same gate the command line uses.
   function offer(job) {
+    quoted = holding();
+    if (understood) understood.hidden = true;
     var box = document.createDocumentFragment();
     // What was found stays above what it costs: the reader read it while the price was
     // being worked out, and it should not vanish the moment the price lands.
     var was = foundBlock(found);
     if (was) box.appendChild(was);
-    var head = titled(job);
+    var head = titled(job, !!(was && found.seconds));
     box.appendChild(head);
 
     // A text that arrived as pages: its first lines as read, and how many it could
@@ -1739,10 +1777,24 @@
     confirm.className = "filled";
     confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
-      ask("/build", { id: job.id }).then(function (state) {
-        if (state.blocked) return refuse(state);
-        watch(job);
-      });
+      // Held down until the server answers: the press is what spends, and a second
+      // press while the first was in flight had nothing to tell it the first had landed.
+      confirm.disabled = true;
+      ask("/build", { id: job.id })
+        .then(function (state) {
+          if (state.error) return say(line(state.error), true);
+          if (state.blocked) return refuse(state);
+          watch(job);
+        })
+        .catch(function () {
+          // The card stays, so the press can be tried again where it was.
+          confirm.disabled = false;
+          if (!status.querySelector(".could-not-send")) {
+            var oops = line(t("add.could-not-send", "We couldn't send that. Try again."));
+            oops.className = "could-not-send";
+            status.appendChild(oops);
+          }
+        });
     };
     row.appendChild(confirm);
     if (job.pictures_offered > 0) {
@@ -1850,12 +1902,15 @@
           return say(line(state.error), true);
         }
         // The pipeline narrates itself in its own vocabulary. This is the reader's.
-        text.textContent = state.done
-          ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
-              share: Math.round((state.done / state.total) * 100),
-            })
-          : plain(state.message);
-        var share = state.total ? state.done / state.total : 0;
+        // A stage can count what it has done before it knows the total, and done over
+        // nothing read "Infinity%": no total, no percentage.
+        var share = state.total > 0 ? Math.min(1, (state.done || 0) / state.total) : 0;
+        text.textContent =
+          state.done && state.total > 0
+            ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
+                share: Math.round(share * 100),
+              })
+            : plain(state.message) || t("add.getting-ready", "We're getting it ready…");
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
         if (state.stage === "done") {
           clearInterval(timer);

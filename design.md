@@ -370,12 +370,9 @@ and is sharpened (targum-internal#399):
 
 - **The hero is today's, untouched.** The reader under it is the demonstration.
 - **"Your own Hebrew" is the first part after the reader**, where it was the eighth, and
-  its box is real. Paste a link and targum says what it is in one sentence, through
-  `/waitlist/look`: metadata only, no build, no spend, no model, a few an hour per
-  visitor, never a percentage (that needs a record, and is what joining gets them).
-  "Join to save it" keeps the link on the waiting row, and the invitation hands it back
-  as a way into Add with the link in the box. Being let in is not a press, so nothing is
-  built before theirs. Under the box, the places it reads are drawn on ink, as what each
+  it carries the box (targum-internal#399, the entry below): paste a link and targum
+  says what it is, and joining keeps it. The box moved here from under the headline, so
+  the hero stays today's. Under it, the places it reads are drawn on ink, as what each
   looks like.
 - **Seven stops, each answering one question**: what is it, show me, does it work on my
   Hebrew, how does it help me learn, can I practise, what is already here, how do I get
@@ -396,6 +393,25 @@ and is sharpened (targum-internal#399):
 - **No claim about the order people are let in** (the batch takes the oldest, but David
   also lets people in by hand, 2026-09-28), and no promise that the waitlist hears the
   price first, which is not decided.
+
+### A link tried on the front page is built when they are let in, on targum — 2026-10-01
+
+The front page's box (targum-internal#399) lets a stranger paste a link and see what it is.
+Joining keeps the link with their place. David chose on 2026-10-01 that **letting them in
+builds it, and targum pays**: "let-in builds the saved link". It is waiting for them the
+first time they sign in, and the box's copy says so ("When your turn comes, it'll be
+waiting for you, ready to learn from.").
+
+This is the one build nobody presses for, so what keeps it inside the rules is written
+down. The operator's press, Let in or Open the door, is the consent, and only for a link
+the person chose and joined with. The build still goes through `Library.press` and so
+`Library.claim`, is a `job` row like any other, and is owned by the new account. It is a
+`gift`: it passes the account's money and hours rails and records no hours against their
+eight, because targum is paying, and it is held to the box ceiling like everything else.
+`gift` is a field on the job, never read from a request. A describe or a build that
+fails leaves the link saved, and the invitation has already gone by then. `targum
+open-the-door` on the command line has no worker to build with, so it says which saved
+links it left unbuilt.
 
 ### /about says what was built, day by day — 2026-09-29
 
