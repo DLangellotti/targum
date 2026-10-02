@@ -132,7 +132,10 @@ def test_the_box_reads_russian_itself() -> None:
     bought per sentence, and never waits on a download at a reader's first build."""
     script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
     install = next(line for line in script.splitlines() if "uv tool install --force" in line)
-    assert "russian" in install.split("[", 1)[1].split("]", 1)[0].split(",")
+    # The extras are said once, for the lockfile's export and the install alike.
+    assert "[${REMOTE_EXTRAS}]" in install
+    extras = next(line for line in script.splitlines() if line.startswith("BOX_EXTRAS="))
+    assert "russian" in extras.split("=", 1)[1].strip('"').split()
     fetch = script.index("targum models fetch ru\n")
     assert (
         script.index("uv tool install --force") < fetch < script.index("targum rebuild --words")
