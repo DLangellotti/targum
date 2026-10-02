@@ -593,23 +593,23 @@ def test_facebook_videos_are_listed_with_the_doors_that_open() -> None:
     assert "Reels, Shorts, TikToks and Facebook videos</h3>" in page
 
 
-def test_the_connector_is_mentioned_twice_while_it_is_open(
+def test_the_connector_is_mentioned_in_talk_while_it_is_open(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lightly, twice (design.md §12, "The connector is met on the way in"): one point in
-    the list near the top, and a line in the part about talking to targum, with the way
-    to `/connect`. Dark, neither is said: a door to a 404 is worse than none."""
+    """Lightly, once (design.md §12, "The connector is met on the way in"): a line in the
+    part about talking to targum, with the way to `/connect`, and not in the list under
+    the headline, where it read as what targum is built on (David, 2026-10-02). Dark, it
+    is not said: a door to a 404 is worse than none."""
     monkeypatch.setenv("TARGUM_CONNECTOR", "1")
     page = front_page()
     facts = page[page.index('<ul class="facts">') :]
-    assert "Claude and ChatGPT that know your words" in facts[: facts.index("</ul>")]
+    assert "Claude" not in facts[: facts.index("</ul>")]
     talk = page[page.index('id="talk"') :]
     talk = talk[: talk.index("</section>")]
     assert "It works in Claude and ChatGPT too." in talk
     assert 'href="/connect"' in talk
     monkeypatch.delenv("TARGUM_CONNECTOR")
     quiet = front_page()
-    assert "Claude and ChatGPT that know your words" not in quiet
     assert "It works in Claude and ChatGPT too." not in quiet
 
 

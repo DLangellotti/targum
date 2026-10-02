@@ -368,8 +368,9 @@ tried on 2026-10-01 and set aside the same day: it lost what the page already di
 a hero that says what targum is, and the reader under it proving it. So the page stays,
 and is sharpened (targum-internal#399):
 
-- **The hero is today's headline and lede, with one call to action**: the box, three
-  linked reasons under it (your own Hebrew, the whole Tanakh, inside Claude and ChatGPT).
+- **The hero is today's headline and lede, with one call to action**: the box, and three
+  linked reasons under it, each a thing you get in plain words: learn from what you
+  already watch; graded to the words you know; practise talking, corrected.
   The whole word card stands beside the headline; the reader runs the full width under
   both and, leaving the top, makes room for the card in one 400ms move, keeping its
   height so nothing under it rises, and the card stays beside it while the lines are read.
@@ -612,13 +613,14 @@ and put the address, with Copy, where the first step of installing it is one pre
   shows the two steps — copy the address, add it in the app — with the address and Copy
   in a well, and links to every app's steps. Still above the row, still gone once
   connected, the cross still per-browser.
-- **Before sign-up, it is mentioned lightly, twice.** One point in the list under the front
-  door's headline, "Works in Claude and ChatGPT", and one line in the part about talking to
-  targum — "You can also talk to targum inside Claude or ChatGPT", and the way to
+- **Before sign-up, it is mentioned lightly, once on the front door**: one line in the
+  part about talking to targum, "It works in Claude and ChatGPT too.", and the way to
   `/connect`. A part of its own was drawn first and David took it out the same day
-  ("remove this, and simply make a mention in the AI assistant section"). The invitation
-  mail says it in a paragraph with the way to `/connect`. All of it only while the
-  connector is open.
+  ("remove this, and simply make a mention in the AI assistant section"). The point in
+  the list under the headline came out on 2026-10-02: first thing on the page, Claude and
+  ChatGPT read as what targum is built on ("oh so you're just another chatgpt wrapper"),
+  where further down they read as somewhere else it goes. The invitation mail says it in
+  a paragraph with the way to `/connect`. All of it only while the connector is open.
 
 
 ### The arrival is a page of its own, and a text they can follow — 2026-09-28

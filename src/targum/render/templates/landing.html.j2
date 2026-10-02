@@ -76,13 +76,11 @@
         {#- One call to action in the hero, the box (David, 2026-10-02): its answer carries
             the waitlist, and the bar keeps Join the waitlist. Under it, only the reasons. -#}
         <ul class="facts">
-          <li><a href="#own">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</a></li>
-          <li><a href="#library">{{ t("landing.page.a-free-library-at-your-level", "A free library at your level") }}</a></li>
-          {#- A light first mention of the connector, where the page lists what you get
-              (design.md §12, "The connector is met on the way in"). -#}
-          {%- if connector_is_open() %}
-          <li><a href="#talk">{{ t("landing.page.claude-and-chatgpt-that-know-your-words", "Claude and ChatGPT that know your words") }}</a></li>
-          {%- endif %}
+          {#- Three things you get, in plain words (David, 2026-10-02). Claude and ChatGPT
+              are met in "Talk to targum", not here (design.md §12). -#}
+          <li><a href="#own">{{ t("landing.page.learn-from-what-you-already-watch", "Learn from what you already watch") }}</a></li>
+          <li><a href="#how">{{ t("landing.page.graded-to-the-words-you-know", "Graded to the words you know") }}</a></li>
+          <li><a href="#talk">{{ t("landing.page.practise-talking-corrected", "Practise talking, corrected") }}</a></li>
         </ul>
       </div>
     </div>
