@@ -412,6 +412,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- A Russian daily or parasha page says the rest of itself in Russian
+  (targum-internal#188). A reading names its book the way the Russian shelf does —
+  «Числа 4:21-7:89», not "Numbers 4:21-7:89" — and a Hebrew date its month, «19 элуля
+  5786», through new `reference.*` and `hebrew-month.*` keys; a name with no key, a
+  Mishnah tractate or a special Shabbat, stays as Hebcal spells it. The daily page's
+  headline, the line under it, the other cycles, the picture's credit and the cycles the
+  shelf cannot carry are Russian too, and so are the parasha's haftarah line and its
+  translation credit. Today's page of each cycle and every portion's page now canonical
+  to their own `?lang=ru` address, declare their alternates, and are listed in both
+  languages in the sitemap. The weekly's description follows the issue's Hebrew
+  standfirst with what the series is, in the page's language. English pages read as
+  they did, apart from the weekly's description gaining that sentence and a one-verse
+  haftarah saying "1 verse".
 - Verbs whose conjugation table was a stub are filled in by rule from their root and
   binyan (targum-internal#307). `אָכַל` had ten forms and no `אוכל`; 34 such verbs now
   carry 523 more forms between them. The rule follows the patterns the complete tables

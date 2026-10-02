@@ -18,6 +18,7 @@ the page's own `targum:into`. This only answers what a key says in the one it is
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from functools import cache
 from pathlib import Path
@@ -183,6 +184,62 @@ def said_on(when: date, language: str = SOURCE) -> str:
         return said_date(when, language)
     months = _MONTHS[code]
     return f"{days[when.weekday()]}, {when.day} {months[when.month - 1]} {when.year}"
+
+
+# -- the names a calendar spells (targum-internal#188) -----------------------------------
+#
+# Hebcal writes a reading as "Numbers 4:21-7:89" and a Hebrew date as "19 Elul 5786", in
+# English whatever page they land on. The numbers are the same in every language and the
+# names are not: a Russian reader knows the book as «Числа» and the month as «элуля».
+# So the names are catalogue keys — `reference.*` for a book, `hebrew-month.*` for a
+# month — and these swap them in, leaving the numbers, and every name the catalogue has
+# no key for (a Mishnah tractate, a special Shabbat), exactly as the calendar wrote them.
+
+
+@cache
+def _names(prefix: str, language: str) -> tuple[re.Pattern[str] | None, dict[str, str]]:
+    """The English names under `prefix` as one pattern, and what each is in `language`."""
+    english = catalogue(SOURCE)
+    said = catalogue(language)
+    swap = {
+        english[key]: said[key]
+        for key in english
+        if key.startswith(prefix) and said.get(key) and said[key] != english[key]
+    }
+    if not swap:
+        return None, {}
+    # Longest first, so "Song of Songs" is one name rather than "Song" and a leftover,
+    # and "II Kings" is not read as "I" stuck to "I Kings". A name is whole words on both
+    # sides, which is also what keeps "Av" out of "Avot".
+    ordered = sorted(swap, key=len, reverse=True)
+    pattern = re.compile(r"(?<![\w'])(" + "|".join(map(re.escape, ordered)) + r")(?![\w'])")
+    return pattern, swap
+
+
+def _said_names(prefix: str, said: str, language: str) -> str:
+    code = (language or SOURCE).split("-")[0].lower()
+    if code == SOURCE or not said:
+        return said
+    pattern, swap = _names(prefix, code)
+    if pattern is None:
+        return said
+    return pattern.sub(lambda found: swap[found.group(1)], said)
+
+
+def said_reference(reference: str, language: str = SOURCE) -> str:
+    """A reading as `language` names its books: «Числа 4:21-7:89» for "Numbers 4:21-7:89".
+
+    English is returned untouched, so nothing already on an English page moves.
+    """
+    return _said_names("reference.", reference, language)
+
+
+def said_hebrew_date(hdate: str, language: str = SOURCE) -> str:
+    """A Hebrew date as `language` names its month: «19 элуля 5786» for "19 Elul 5786".
+
+    Russian puts the month in the genitive, as `said_date` does for the Gregorian one.
+    """
+    return _said_names("hebrew-month.", hdate, language)
 
 
 # -- which language a reader is read to in (targum-internal#286, item 1) -----------------

@@ -8,6 +8,7 @@ a stubbed corpus would not exercise the two gates that keep the reader folder sh
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import threading
 from collections.abc import Iterator
@@ -328,6 +329,20 @@ def test_the_sitemap_names_the_portions_by_their_own_addresses(
     assert "/parasha</loc>" in body
     assert "/parasha/nitzavim-vayeilech</loc>" in body
     assert "/library/parasha-" not in body, "the id that redirects is left out"
+
+
+def test_the_sitemap_names_a_portion_in_both_its_languages(
+    serving: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#188: a portion's page says its range, its date and its headings in
+    Russian at `?lang=ru`, and canonicals there, so the sitemap lists both addresses with
+    the alternate set beside each. `/parasha` is not one of them: it canonicals to the
+    portion it means this week."""
+    monkeypatch.setenv("TARGUM_INDEX_PARASHA", "1")
+    body = get(serving, "/sitemap.xml")[1]
+    assert "/parasha/nitzavim-vayeilech?lang=ru</loc>" in body
+    assert re.search(r'hreflang="ru" href="[^"]*/parasha/nitzavim-vayeilech\?lang=ru"', body)
+    assert "/parasha?lang=ru</loc>" not in body
 
 
 def test_the_sitemap_is_silent_about_the_parasha_until_it_is_invited(serving: int) -> None:

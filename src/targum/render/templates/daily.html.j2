@@ -29,10 +29,10 @@
       (2026-09-01): a page of the book is a picture of the book. -#}
   <section class="front-hero">
     <div class="headline">
-      <p class="eyebrow">{% if is_today %}{{ t("daily.page.today", "Today") }}{% else %}{{ day.hdate }}{% endif %}</p>
-      <h1>{{ t("daily.page.pitch", "{name}, every word explained.", name=cycle.name) }}</h1>
+      <p class="eyebrow">{% if is_today %}{{ t("daily.page.today", "Today") }}{% else %}{{ hdate(day.hdate) }}{% endif %}</p>
+      <h1>{{ t("daily.page.pitch", "{name}, every word explained.", name=series(cycle.slug, "name")) }}</h1>
       <span class="named" lang="he" dir="rtl">{{ cycle.hebrew }}</span>
-      <p class="lede">{{ cycle.blurb }}</p>
+      <p class="lede">{{ series(cycle.slug, "what") }}</p>
       {#- The waitlist is for a stranger. Somebody who has chosen targum is not sold
           to again (§6), so for them the Read button leads the hero (copy audit,
           2026-09-28). -#}
@@ -56,8 +56,8 @@
       and a page that only says "1 September" is a page about a Gregorian day. -#}
   <p class="dateline">
     <b {% if day.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}><bdi>{{ day.hebrew or day.title }}</bdi></b>
-    <span class="said-in-english">{{ day.title }}</span>
-    <span class="when">{{ day.hdate }}</span>
+    <span class="said-in-english">{{ ref(day.title) }}</span>
+    <span class="when">{{ hdate(day.hdate) }}</span>
   </p>
 
   <div class="embed" id="embed">
@@ -68,7 +68,7 @@
         no `sec-0001.html` to point at. -#}
     <iframe
       src="/{{ cycle.slug }}/read/{{ day.slug }}/reader/{{ opens }}"
-      title="{{ day.title }}"
+      title="{{ ref(day.title) }}"
       loading="lazy"></iframe>
   </div>
 
@@ -81,7 +81,7 @@
     <a class="day{% if other.day == day.day %} here{% endif %}"
        {% if other.day == day.day %}aria-current="page"{% endif %}
        href="/{{ cycle.slug }}/{{ other.slug }}">
-      <span class="date">{{ other.hdate }}</span>
+      <span class="date">{{ hdate(other.hdate) }}</span>
       <bdi {% if other.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ other.hebrew or other.title }}</bdi>
     </a>
     {%- endfor %}
@@ -96,8 +96,8 @@
     <ol class="cycles">
       {%- for one, said in others %}
       <li>
-        <b><a href="/{{ one.slug }}">{{ one.name }}</a></b>
-        <span>{{ t("daily.page.rhythm-today", "{rhythm} — today,", rhythm=one.rhythm) }} <bdi lang="he" dir="rtl">{{ said }}</bdi></span>
+        <b><a href="/{{ one.slug }}">{{ series(one.slug, "name") }}</a></b>
+        <span>{{ t("daily.page.rhythm-today", "{rhythm} — today,", rhythm=series(one.slug, "rhythm")) }} <bdi lang="he" dir="rtl">{{ said }}</bdi></span>
       </li>
       {%- endfor %}
     </ol>
@@ -112,7 +112,7 @@
     <p class="made">
       {{ t("daily.page.made-honestly-says",
             "The Hebrew is the published edition, cut to this day's reading and not edited. The English beside it is {translation}. The cycle and its calendar come from Hebcal. The picture is {picture}.",
-            translation=translation_said, picture=cycle.credit) }}
+            translation=translation_said, picture=series(cycle.slug, "credit")) }}
     </p>
     {#- What Hebcal publishes and this shelf cannot read. A list, because it was a
         sentence with semicolons in it and the full stops inside each reason ran into

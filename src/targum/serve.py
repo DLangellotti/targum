@@ -6015,9 +6015,12 @@ class Handler(BaseHTTPRequestHandler):
         # (targum-internal#188; `/connect` since #392). A sitemap that claims a Russian
         # version of `/about`, which serves one language at one address, teaches a
         # crawler to distrust the claims it makes about the pages that do have one.
+        # The portions and today's page of each cycle since their names and headings
+        # were said in Russian too (#188).
         bilingual = (
             {"/", "/library", "/connect"}
-            | {path for path in paths if path.startswith("/library/")}
+            | {path for path in paths if path.startswith(("/library/", "/parasha/"))}
+            | {f"/{cycle.slug}" for cycle in daily_cycles()}
             | set(weekly_paths)
         )
         urls = "".join(self._sitemap_url(where, path, path in bilingual) for path in paths)

@@ -493,3 +493,245 @@ def test_the_english_public_heads_say_what_they_said() -> None:
     described = _head(shelf_page(ADDRESS))[1]
     assert described.startswith("Hebrew — Tanakh, novels, essays and speeches")
     assert "— Library — targum</title>" in text_page(a_russian_row(), ADDRESS)
+
+
+# -- the names a calendar spells, and the daily and parasha pages in Russian (#188) ------
+
+
+def _nasso():  # type: ignore[no-untyped-def]
+    from targum.parasha.models import Portion
+
+    return Portion(
+        slug="nasso",
+        name="Nasso",
+        hebrew="נָשֹׂא",
+        numbers=[35],
+        summary="Numbers 4:21-7:89",
+        opening="וַיְדַבֵּר",
+        verses=176,
+        aliyot=7,
+    )
+
+
+def _a_day(title: str = "Kelim 28:2-3", hdate: str = "19 Elul 5786"):  # type: ignore[no-untyped-def]
+    from datetime import date
+
+    from targum.daily.calendar import Day
+    from targum.daily.cycles import CYCLES
+
+    return Day(
+        day=date(2026, 9, 1),
+        cycle=CYCLES[0].slug,
+        title=title,
+        hebrew="כלים כח:ב-ג",
+        hdate=hdate,
+        reference=title,
+        span=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("english", "russian"),
+    [
+        ("Numbers 4:21-7:89", "Числа 4:21-7:89"),
+        ("Genesis 1:1-6:8", "Бытие 1:1-6:8"),
+        ("Deuteronomy 33:1-34:12", "Второзаконие 33:1-34:12"),
+        ("I Kings 18:46-19:21", "I Царей 18:46-19:21"),
+        ("II Kings 4:1-37", "II Царей 4:1-37"),
+        ("II Samuel 22:1-51", "II Самуила 22:1-51"),
+        ("Isaiah 54:1-10", "Исаия 54:1-10"),
+        ("Hosea 14:2-10; Micah 7:18-20", "Осия 14:2-10; Михей 7:18-20"),
+        ("Song of Songs Seder 1.1", "Песнь песней седер 1.1"),
+        ("Ezra and Nehemiah Seder 10", "Ездра и Неемия седер 10"),
+        ("Nehemiah 12:27-13:31", "Неемия 12:27-13:31"),
+        ("Psalms 90-96", "Псалмы 90-96"),
+        # A tractate has no Russian name in the catalogue, and is left as Hebcal spells it.
+        ("Kelim 30:4-Oholot 1:1", "Kelim 30:4-Oholot 1:1"),
+    ],
+)
+def test_a_reading_names_its_book_in_russian(english: str, russian: str) -> None:
+    """targum-internal#188: "Numbers 4:21-7:89" on a Russian page is the one English
+    phrase the parasha's title kept. The numbers stay; the book is named the way the
+    Russian shelf already names it, «Числа»."""
+    from targum.strings import said_reference
+
+    assert said_reference(english, "ru") == russian
+    assert said_reference(english, "en") == english, "English is left as Hebcal wrote it"
+
+
+@pytest.mark.parametrize(
+    ("english", "russian"),
+    [
+        ("19 Elul 5786", "19 элуля 5786"),
+        ("1 Tishrei 5787", "1 тишрея 5787"),
+        ("15 Sh'vat 5787", "15 швата 5787"),
+        ("14 Adar II 5787", "14 адара II 5787"),
+        ("14 Adar I 5787", "14 адара I 5787"),
+        ("14 Adar 5786", "14 адара 5786"),
+        ("1 Av 5786", "1 ава 5786"),
+    ],
+)
+def test_a_hebrew_date_names_its_month_in_russian(english: str, russian: str) -> None:
+    from targum.strings import said_hebrew_date
+
+    assert said_hebrew_date(english, "ru") == russian
+    assert said_hebrew_date(english, "en") == english
+
+
+def test_a_month_is_only_ever_a_whole_word() -> None:
+    """ "Av" is a month and the first two letters of "Avot", which is a tractate."""
+    from targum.strings import said_hebrew_date, said_reference
+
+    assert said_reference("Avot 1:1", "ru") == "Avot 1:1"
+    assert said_hebrew_date("Avot 1:1", "ru") == "Avot 1:1"
+
+
+def test_the_cycles_say_in_english_what_the_catalogue_says() -> None:
+    """The daily page says a cycle's rhythm, credit and the cycles it cannot carry
+    through the catalogue now; `daily.cycles` still holds the English, and the two must
+    not drift apart."""
+    from targum.daily.cycles import ABSENT, CYCLES
+    from targum.strings import catalogue
+
+    english = catalogue("en")
+    for cycle in CYCLES:
+        assert english[f"series.{cycle.slug}.name"] == cycle.name
+        assert english[f"series.{cycle.slug}.what"] == cycle.blurb
+        assert english[f"series.{cycle.slug}.rhythm"] == cycle.rhythm
+        assert english[f"series.{cycle.slug}.credit"] == cycle.credit
+    for name, why in ABSENT.items():
+        key = "daily.absent." + "-".join(name.lower().split())
+        assert english[key] == name
+        assert english[f"{key}.why"] == why
+
+
+def _body(html: str) -> str:
+    """The words a reader sees: the body with its tags, scripts and styles taken out."""
+    body = html.split("<body", 1)[1]
+    body = re.sub(r"<(script|style)\b.*?</\1>", " ", body, flags=re.S)
+    body = re.sub(r"<[^>]+>", " ", body)
+    return unescape(" ".join(body.split()))
+
+
+def test_a_russian_daily_page_says_its_headings_in_russian() -> None:
+    """The head was Russian since #519 and the page under it was not: the headline, the
+    line under it, the day's reading and its date, the other cycles and the credits."""
+    from targum.daily.cycles import ABSENT, CYCLES
+    from targum.render.builder import daily_page
+
+    cycle = CYCLES[0]
+    others = [(one, "תהלים צ") for one in CYCLES[1:]]
+    html = daily_page(
+        cycle,
+        _a_day(),
+        others=others,
+        absent=list(ABSENT.items()),
+        address=ADDRESS,
+        language="ru",
+    )
+    seen = _body(html)
+    assert "<h1>Мишна йомит — каждое слово с разбором.</h1>" in html
+    assert "Две мишны в день, через все шестьдесят три трактата" in seen
+    assert "19 элуля 5786" in seen and "Elul" not in seen
+    for one in CYCLES[1:]:
+        assert one.name not in seen, f"{one.name} is said in English"
+        assert one.rhythm not in seen
+    assert "Нах йоми" in seen and "глава в день — сегодня," in seen
+    assert cycle.credit not in seen and "рукописи Кауфмана A50" in seen
+    for name, why in ABSENT.items():
+        assert why not in seen, f"why {name} is absent is said in English"
+    assert "Даф йоми" in seen
+
+    english = daily_page(cycle, _a_day(), others=others, absent=list(ABSENT.items()))
+    assert f"<h1>{cycle.name}, every word explained.</h1>" in english
+    assert cycle.blurb in _body(english) and cycle.credit in _body(english)
+    assert "19 Elul 5786" in _body(english)
+
+
+def test_today_s_daily_page_declares_its_languages_and_canonicals_to_its_own() -> None:
+    from targum.daily.cycles import CYCLES
+    from targum.render.builder import daily_page
+
+    cycle = CYCLES[0]
+    base = f"{ADDRESS}/{cycle.slug}"
+    english = daily_page(cycle, _a_day(), address=ADDRESS, language="en")
+    russian = daily_page(cycle, _a_day(), address=ADDRESS, language="ru")
+    assert f'rel="canonical" href="{base}"' in english, "English keeps the address it had"
+    assert f'rel="canonical" href="{base}?lang=ru"' in russian
+    for html in (english, russian):
+        assert f'<link rel="alternate" hreflang="en" href="{base}">' in html
+        assert f'<link rel="alternate" hreflang="ru" href="{base}?lang=ru">' in html
+        assert f'<link rel="alternate" hreflang="x-default" href="{base}">' in html
+
+    # A dated day falls out of the window in a fortnight: no canonical, no alternates.
+    dated = daily_page(cycle, _a_day(), address=ADDRESS, language="ru", is_today=False)
+    assert "hreflang" not in dated.split("</head>")[0] and 'rel="canonical"' not in dated
+
+
+def test_a_russian_parasha_page_names_its_books_and_its_month_in_russian() -> None:
+    from datetime import date
+
+    from targum.parasha import calendar as cal
+    from targum.parasha.models import Haftarah
+    from targum.render.builder import parasha_page
+
+    portion = _nasso()
+    haftarah = Haftarah(key="judges-13-2-25", summary="Judges 13:2-25", hebrew="שופטים", verses=24)
+    html = parasha_page(
+        portion,
+        schedule=cal.Schedule.diaspora,
+        shabbat=date(2026, 5, 30),
+        hdate="14 Sivan 5786",
+        haftarah=haftarah,
+        listed=[portion],
+        address=ADDRESS,
+        language="ru",
+    )
+    seen = _body(html)
+    assert "Числа 4:21-7:89" in seen and "Numbers" not in html
+    assert "14 сивана 5786" in seen and "Sivan" not in seen
+    assert 'Судьи 13:2-25 — из <bdi lang="he" dir="rtl">שופטים</bdi>, 24 стиха.' in html
+    assert "Metsudah linear" not in seen and "подстрочный перевод Мецуда" in seen
+
+    base = f"{ADDRESS}/parasha/{portion.slug}"
+    assert f'rel="canonical" href="{base}?lang=ru"' in html
+    assert f'<link rel="alternate" hreflang="ru" href="{base}?lang=ru">' in html
+    assert f'<link rel="alternate" hreflang="en" href="{base}">' in html
+
+    english = parasha_page(
+        portion,
+        schedule=cal.Schedule.diaspora,
+        shabbat=date(2026, 5, 30),
+        hdate="14 Sivan 5786",
+        haftarah=haftarah,
+        address=ADDRESS,
+    )
+    assert f'rel="canonical" href="{base}"' in english
+    assert "Numbers 4:21-7:89" in _body(english) and "14 Sivan 5786" in _body(english)
+    assert 'Judges 13:2-25 — from <bdi lang="he" dir="rtl">שופטים</bdi>, 24 verses.' in english
+    assert "the Metsudah linear translation" in _body(english)
+
+
+def test_a_russian_weekly_page_describes_itself_in_russian() -> None:
+    """The weekly's description was the issue's standfirst alone, which is one sentence
+    in Hebrew on every language's page. What the series is follows it, in the page's own
+    language."""
+    from targum.render.builder import weekly_page
+    from targum.weekly.models import Edition, Issue, Level, State, entry_id, folder
+
+    week = "2026-w36"
+    issue = Issue(
+        id=week,
+        dated="2026-08-31",
+        title="השבוע בעברית",
+        blurb="שבוע של חדשות.",
+        state=State.published,
+        editions=[
+            Edition(level=one, entry_id=entry_id(week, one), folder=folder(week, one), ok=True)
+            for one in Level
+        ],
+    )
+    russian = _head(weekly_page(issue, Level.bet, address=ADDRESS, language="ru"))[1]
+    assert russian == "שבוע של חדשות. Новости на иврите, написанные тремя способами, каждую неделю."
+    english = _head(weekly_page(issue, Level.bet, address=ADDRESS))[1]
+    assert english == "שבוע של חדשות. Hebrew news, written three ways, every week."
