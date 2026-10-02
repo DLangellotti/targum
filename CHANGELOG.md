@@ -36,6 +36,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   it was not written against. Pause barely moves the default (0.7630, 0.7649 without
   etnachta). The rule takes it to 0.9630 with OSHB's tagging and 0.9137 from the pointing
   alone. Nothing shipped reads the rule: `phonikud/2` and `SCHEMA_VERSION` are unchanged.
+- `/how`, how targum reads Hebrew (targum-internal#401): the hard parts of Hebrew for a
+  machine, each shown solved on a real text. Vowels put back on the weekly's news with the
+  reader's switch, one spelling read as two different words, prefixes taken off down to the
+  dictionary form, one root across three patterns from Genesis to the news, a recording's
+  sentences and word times, a reel and a chat in their own shapes, and Onkelos with its own
+  word list. Every example is copied out of a build by `scripts/how_examples.py` into
+  `src/targum/how.json`, which the page draws; the script refuses a pick that has moved.
+  Credits for DICTA, Open Scriptures, the Metsudah Chumash and the reel's author. Linked
+  from the foot on every page and from /about, open to strangers, in robots and the
+  sitemap, and in Russian.
 - A rail that can only say no now stands in front of `record_turn`'s claim, the one
   spend a model decides (targum-internal#324). `chat/rail.py` refuses, before anything is
   claimed or a model asked, a line carrying the contract's "> ", "= " or "~ " marks, an
