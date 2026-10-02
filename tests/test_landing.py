@@ -131,16 +131,17 @@ def test_the_page_says_what_it_is_to_a_crawler() -> None:
 
 
 def test_the_waitlist_form_needs_no_javascript() -> None:
-    """Two forms, the hero's and the ending's, and both a plain post. The box's own form
-    posts to `/try`, and draws a third carrying the link only once something was tried
-    (targum-internal#399, `test_try_the_door.py`). The closing form went on 2026-10-02:
-    it asked again straight under the list."""
+    """One waitlist form, the ending's, and a plain post. The hero has one call to action,
+    the box (2026-10-02): its form posts to `/try` and draws the waitlist, carrying the
+    link, only once something was tried (targum-internal#399, `test_try_the_door.py`)."""
     html = front_page("en", ADDRESS)
     forms = re.findall(r'<form[^>]*action="/waitlist"[^>]*>', html)
-    assert len(forms) == 2
+    assert len(forms) == 1
     for form in forms:
         assert 'method="post"' in form
-    assert html.count('name="email"') == 2
+    assert html.count('name="email"') == 1
+    hero = html[html.index('<div class="hero">') : html.index('class="showcase"')]
+    assert hero.count("<form") == 1 and 'class="try-form"' in hero, "one action in the hero"
     assert '<form class="try-form" method="post" action="/try#try">' in html
 
 

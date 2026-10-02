@@ -286,11 +286,6 @@
     document.getElementById("pinWord").textContent = on ? t("landing.demo.back", "Back") : t("landing.page.corner", "Corner");
   });
 
-  document.getElementById("watchIt").addEventListener("click", function () {
-    document.getElementById("reader").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-    seek(0);
-    if (!playing) toggle();
-  });
 
   drawLines(); drawCard(); paint();
 

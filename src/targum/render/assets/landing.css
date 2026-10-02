@@ -310,9 +310,6 @@ h1, h2, h3 { text-wrap: balance; }
 .tried-keep { font-size: 0.9375rem; }
 .tried .join-form { max-inline-size: none; }
 .tried .join-form .field { background: var(--field); box-shadow: none; }
-/* With an answer on the card the waitlist is in it, so the hero's own form steps back
-   rather than asking twice. */
-.hero.has-tried .side > .join-form { display: none; }
 
 /* The landing's waitlist is its ending (David, 2026-10-02): centred on the ground under a
    hairline, not a raised card in the column the example sheets stand in. */
@@ -695,3 +692,9 @@ html { overflow-x: clip; }
    label"); without it the reader's line read as part of targum's answer. */
 .ct-who { font: 600 0.6875rem/1.2 var(--chrome); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
 .ct-turn.me .ct-who { text-align: end; }
+
+/* The hero in one column since it has one action (2026-10-02): headline, lede, the
+   box, and the reasons under it, on a desk as on a phone. */
+.hero { grid-template-columns: minmax(0, 1fr); max-inline-size: 46rem; }
+.hero .facts { margin-block-start: var(--space-1); }
+
