@@ -52,8 +52,15 @@
         return;
       }
       var found = document.createElement("div");
-      found.className = "said";
-      if (said.title) found.appendChild(line("t", said.title));
+      // Not "said": the conversation's own class sets Hebrew right to left, and an
+      // English answer under it ran from the wrong edge with its full stop first.
+      found.className = "look-said";
+      if (said.title) {
+        // A title is somebody else's, in whatever language: the browser decides.
+        var title = line("t", said.title);
+        title.dir = "auto";
+        found.appendChild(title);
+      }
       found.appendChild(line("say", said.said));
       if (said.wait) found.appendChild(line("wait", said.wait));
       out.appendChild(found);
