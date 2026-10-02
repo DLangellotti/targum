@@ -2460,5 +2460,6 @@
   "landing.demo.pause": "Pause",
   "landing.demo.play": "Play",
   "landing.demo.back": "Back",
-  "landing.demo.next-reading": "Next reading"
+  "landing.demo.next-reading": "Next reading",
+  "landing.page.skip-to-the-page": "Skip to the page"
 }

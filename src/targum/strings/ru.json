@@ -2641,5 +2641,6 @@
   "landing.demo.pause": "Пауза",
   "landing.demo.play": "Пуск",
   "landing.demo.back": "Назад",
-  "landing.demo.next-reading": "Следующее чтение"
+  "landing.demo.next-reading": "Следующее чтение",
+  "landing.page.skip-to-the-page": "К содержанию"
 }

@@ -25,6 +25,7 @@
 {{ chrome_face() }}
 </head>
 <body class="landing">
+<a class="skip" href="#top">{{ t("landing.page.skip-to-the-page", "Skip to the page") }}</a>
 {% with bar_class = 'bar', home = '', here = '/' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main id="top">
@@ -97,7 +98,8 @@
         </div>
       </article>
 
-      <aside class="card" id="card" aria-live="polite" aria-label="{{ t("landing.page.word-card", "Word card") }}"></aside>
+      <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}"></aside>
+      <p class="sr-only" id="cardSaid" aria-live="polite"></p>
     </div>
   </div>
 

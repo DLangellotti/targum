@@ -646,3 +646,10 @@ html { overflow-x: clip; }
 .how-vis .stack.how-word { font-size: 1.75rem; line-height: 1.6; }
 .how-root { font-size: 0.8125rem; color: var(--muted); unicode-bidi: isolate; }
 .how-root .he { font-size: 0.9375rem; }
+
+/* Keyboard (2026-10-02): a way past the bar, and a sentence a screen reader hears
+   without seeing it. */
+.skip { position: absolute; inset-inline-start: var(--space-4); inset-block-start: -4rem; z-index: 30; background: var(--ink); color: var(--paper); padding: var(--space-2) var(--space-4); border-radius: 999px; font-weight: 600; }
+.skip:focus { inset-block-start: var(--space-2); text-decoration: none; }
+.sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+

@@ -141,7 +141,9 @@
   function hebrewOf(line) { return line.words.map(function (id, i) { return plain(W[id].he) + comma(line, i); }).join(" ") + "."; }
 
   var linesEl = document.getElementById("lines");
+  var roving = openId;
   function drawLines() {
+    var rovedOnce = false;
     var now = lineAt(at);
     linesEl.textContent = "";
     LINES.forEach(function (line, n) {
@@ -156,7 +158,11 @@
         var w = W[id], span = document.createElement("span");
         span.className = "w " + w.state + (id === openId ? " open" : "");
         span.textContent = plain(w.he);
-        span.tabIndex = 0; span.setAttribute("role", "button"); span.dataset.id = id;
+        // One stop in the tab order for the whole reader, not one per word
+        // (2026-10-02): the arrows move between words, Enter opens one.
+        span.tabIndex = id === roving && !rovedOnce ? 0 : -1;
+        if (id === roving) rovedOnce = true;
+        span.setAttribute("role", "button"); span.dataset.id = id;
         he.appendChild(span);
         he.appendChild(document.createTextNode(comma(line, i) + (i === line.words.length - 1 ? "." : " ")));
       });
@@ -177,6 +183,10 @@
       "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +
       "<button class=\"btn ghost small\" type=\"button\">" + t("landing.demo.ask", "Ask") + "</button></div>";
     document.getElementById("card").innerHTML = html;
+    // Said once, briefly: the card itself is not a live region, because it is rewritten
+    // whole and would be read out whole on every tap (2026-10-02).
+    var said = document.getElementById("cardSaid");
+    if (said) said.textContent = w.head.replace(/<[^>]+>/g, "") + ", " + w.sense;
   }
 
   linesEl.addEventListener("click", function (e) {
@@ -187,10 +197,19 @@
   });
   linesEl.addEventListener("keydown", function (e) {
     var w = e.target.closest(".w");
-    if (w && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault(); openId = w.dataset.id; drawLines(); drawCard();
+    if (!w) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault(); openId = roving = w.dataset.id; drawLines(); drawCard();
       var f = linesEl.querySelector('.w[data-id="' + openId + '"]'); if (f) f.focus();
+      return;
     }
+    // The lines read right to left, so left is the next word and right the one before.
+    var step = { ArrowLeft: 1, ArrowDown: 1, ArrowRight: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    var words = Array.prototype.slice.call(linesEl.querySelectorAll(".w"));
+    var next = words[Math.max(0, Math.min(words.length - 1, words.indexOf(w) + step))];
+    w.tabIndex = -1; next.tabIndex = 0; roving = next.dataset.id; next.focus();
   });
   document.getElementById("card").addEventListener("click", function (e) {
     var b = e.target.closest("[data-set]");
