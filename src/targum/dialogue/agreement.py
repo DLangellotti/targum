@@ -16,11 +16,14 @@ about the unpointed one, so it cannot tell שְׁמוֹנָה from שְׁמוֹ�
 article hidden in בַּ. Those come from the points, here; what comes from DICTA is only
 what the points cannot say — the counted noun's gender, and which word governs which.
 
-**The stored annotation cannot drive these on its own.** It keeps Gender and Number, and
-`kept_feats` would keep `Definite=Cons`, but DICTA's morphology never emits `Definite`:
-over the hundred scenes' annotations, not one token carries it. DICTA marks the construct
-state only in its syntax head, as `compound:smixut`, and the annotator discards the
-syntax. So a scene is read again with the local model (free, no network) to check it.
+**The stored annotation drives these where it carries the syntax.** DICTA's morphology
+never emits `Definite`: it marks the construct state only in its syntax head, as
+`compound:smixut`, and until targum-internal#134 the annotator threw that away, so no
+annotation written before it can say which word governs which. Since then every DICTA
+token keeps its link (`Token.syntax`), and `words_from_annotation` reads a scene's turns
+from what is stored. Where a token has no link — an annotation from before the rename —
+the turn is read again with the local model (`words_by_dicta`: free, no network, about a
+second a turn on a laptop's CPU). `turn_words` picks between the two.
 
 `scripts/score_scene_checks.py` scores each of these against the author's settled
 corrections. Only the ones in `GATED` passed that, and the module says why beside each.
@@ -28,11 +31,16 @@ corrections. Only the ones in `GATED` passed that, and the module says why besid
 
 from __future__ import annotations
 
+import dataclasses
+import unicodedata
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .checks import DAGESH, GUTTURALS, HATAFS, PATAH, QAMATS, SHVA, Finding, bare, units
+
+if TYPE_CHECKING:
+    from ..models import Annotation, Segment, Token
 
 SEGOL = "ֶ"
 TSERE = "ֵ"
@@ -88,6 +96,137 @@ def words_from_dicta(said: Mapping[str, Any], text: str) -> list[Word]:
             )
         )
     return out
+
+
+def _gender(feats: str | None) -> str:
+    for part in (feats or "").split("|"):
+        name, _, value = part.partition("=")
+        if name == "Gender":
+            return value
+    return ""
+
+
+def words_from_tokens(tokens: Sequence[Token], text: str) -> list[Word] | None:
+    """One segment's stored tokens as words, or None where any token lacks its syntax.
+
+    The tokens leave punctuation out and DICTA's own reply does not, and the checks look
+    at it — a construct numeral before a full stop counts nothing — so whatever stands
+    between two tokens that is not a space comes back as a PUNCT word, and each head is
+    renumbered to match. The surface is cut from `text`, which keeps its points.
+    """
+    if not tokens or any(token.syntax is None for token in tokens):
+        return None
+    words: list[Word] = []
+    place: dict[int, int] = {}
+    at = 0
+    for n, token in enumerate(tokens):
+        if gap := text[at : token.start].strip():
+            words.append(Word(surface=gap, pos="PUNCT"))
+        place[n] = len(words)
+        syntax = token.syntax
+        assert syntax is not None
+        words.append(
+            Word(
+                surface=unicodedata.normalize("NFC", text[token.start : token.end]),
+                pos=token.pos or "",
+                gender=_gender(token.feats),
+                prefixes=syntax.prefixes,
+                lead=syntax.lead,
+                head=syntax.head,
+                relation=syntax.relation,
+            )
+        )
+        at = token.end
+    if tail := text[at:].strip():
+        words.append(Word(surface=tail, pos="PUNCT"))
+    # A PUNCT word's head is -1, which no token has, so it stays -1.
+    return [dataclasses.replace(word, head=place.get(word.head, -1)) for word in words]
+
+
+def words_from_annotation(
+    segments: Sequence[Segment], annotation: Annotation
+) -> dict[int, list[Word]] | None:
+    """A scene's turns as words, from its stored annotation, by turn (`block_index`).
+
+    A turn of two sentences is two segments, read and stored apart; their words are
+    joined, each head moved past the words before it. None if any segment has no stored
+    syntax, so a caller reads the whole scene one way rather than half of it each way.
+    """
+    out: dict[int, list[Word]] = {}
+    for segment in segments:
+        words = words_from_tokens(annotation.tokens.get(segment.id) or [], segment.text)
+        if words is None:
+            if not segment.text.strip():
+                continue
+            return None
+        turn = out.setdefault(segment.block_index, [])
+        before = len(turn)
+        turn.extend(
+            dataclasses.replace(word, head=word.head + before) if word.head >= 0 else word
+            for word in words
+        )
+    return out
+
+
+def words_by_dicta(texts: Sequence[str], dicta: Any = None) -> list[list[Word]]:
+    """Each line read again with the local model: free, no network, slow on a CPU.
+
+    The fallback for an annotation written before the syntax was kept. `dicta` is a
+    `DictaLemmatizer` to reuse; one is made (and its weights loaded) if not given.
+    """
+    if not texts:
+        return []
+    import torch
+
+    from ..annotate.dicta import BATCH, DictaLemmatizer
+
+    model, tokenizer = (dicta or DictaLemmatizer(auto_download=False)).model()
+    lines = [unicodedata.normalize("NFC", text) for text in texts]
+    said: list[dict[str, Any]] = []
+    with torch.inference_mode():
+        for at in range(0, len(lines), BATCH):
+            said += model.predict(lines[at : at + BATCH], tokenizer, output_style="json")
+    return [words_from_dicta(one, line) for one, line in zip(said, lines, strict=True)]
+
+
+def turn_words(
+    texts: Sequence[str],
+    segments: Sequence[Segment] | None = None,
+    annotation: Annotation | None = None,
+    dicta: Any = None,
+) -> list[list[Word]]:
+    """Every turn of a scene as words: from the stored annotation where it carries the
+    syntax and was made from these very lines, else from the local model.
+
+    "These very lines" is checked, not assumed: a scene edited since it was annotated has
+    a stored reading of words it no longer says.
+    """
+    if segments is not None and annotation is not None:
+        stored = stored_turn_words(texts, segments, annotation)
+        if stored is not None:
+            return stored
+    return words_by_dicta(texts, dicta)
+
+
+def stored_turn_words(
+    texts: Sequence[str], segments: Sequence[Segment], annotation: Annotation
+) -> list[list[Word]] | None:
+    """Every turn as words from the stored annotation alone, or None where it cannot say:
+    a token without its syntax, or lines that are not these."""
+    stored = words_from_annotation(segments, annotation)
+    if stored is None or not _same_lines(texts, segments):
+        return None
+    return [stored.get(n, []) for n in range(len(texts))]
+
+
+def _same_lines(texts: Sequence[str], segments: Sequence[Segment]) -> bool:
+    joined: dict[int, list[str]] = {}
+    for segment in segments:
+        joined.setdefault(segment.block_index, []).append(segment.text)
+    for n, text in enumerate(texts):
+        if bare(" ".join(joined.get(n, []))).split() != bare(text).split():
+            return False
+    return len(joined) <= len(texts)
 
 
 # --------------------------------------------------------------------------- numerals

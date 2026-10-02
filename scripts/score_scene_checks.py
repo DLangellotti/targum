@@ -17,13 +17,14 @@ With `--dicta`, the checks in `dialogue/agreement.py` are scored too, one at a t
 because they are the ones on trial (targum-internal#134): each reports its recall on the
 corrections of its own kind (`KINDS`), what else in the gold it caught, and a sample of
 what it found that the gold does not have, with the line, for a person to read. They
-need DICTA's syntax, which the stored annotation does not keep, so the scenes are read
-with the local model — free, and slow on a laptop's CPU, so the reading is kept at the
-path given and read back from there next time.
+need DICTA's syntax. With `--annotations`, a scene is read from its stored annotation
+where that keeps the syntax (annotations since targum-internal#134) and was made from the
+same lines; every other scene is read with the local model — free, and slow on a
+laptop's CPU, so that reading is kept at the `--dicta` path and read back next time.
 
     python3 scripts/score_scene_checks.py --scenes ~/…/dialogues --gold …/decisions.json
     PYTHONPATH=src .venv/bin/python scripts/score_scene_checks.py --scenes … --gold … \
-        --dicta ~/…/scenes-dicta.json
+        --annotations targum-out/dialogue-readers --dicta ~/…/scenes-dicta.json
 """
 
 from __future__ import annotations
@@ -39,7 +40,13 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from targum.dialogue.agreement import CHECKS, GATED, words_from_dicta  # noqa: E402
+from targum.dialogue.agreement import (  # noqa: E402
+    CHECKS,
+    GATED,
+    Word,
+    stored_turn_words,
+    words_from_dicta,
+)
 from targum.dialogue.checks import (  # noqa: E402
     bare,
     check_turn,
@@ -112,16 +119,17 @@ def gold_from(path: Path) -> set[tuple[str, int, str]]:
     return out
 
 
-def dicta_reading(files: list[Path], path: Path) -> dict[str, list[dict[str, Any]]]:
+def dicta_reading(files: list[Path], path: Path | None) -> dict[str, list[dict[str, Any]]]:
     """DICTA's JSON for every turn, by scene id: read from `path`, or with the local
-    model and written there.
+    model and written there (or nowhere, without a `path`).
 
     Kept rather than recomputed because it is slow on a CPU — about a second a turn —
     and because it is a fact about the scenes as they were, which do not change.
     """
-    if path.exists():
+    if path is not None and path.exists():
         held: dict[str, list[dict[str, Any]]] = json.loads(path.read_text(encoding="utf-8"))
-        return held
+        if all(one.stem in held for one in files):
+            return held
     import torch
 
     from targum.annotate.dicta import BATCH, DictaLemmatizer
@@ -137,7 +145,29 @@ def dicta_reading(files: list[Path], path: Path) -> dict[str, list[dict[str, Any
                 said += model.predict(texts[at : at + BATCH], tokenizer, output_style="json")
         out[scene["id"]] = said
         print(f"  read {n + 1}/{len(files)} {scene['id']}", file=sys.stderr)
-    path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    if path is not None:
+        path.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def stored_annotations(root: Path) -> dict[str, tuple[Any, Any]]:
+    """Each scene's stored segments and annotation, by scene id, from a folder of built
+    texts (`targum-out/dialogue-readers`): the folder whose document names the scene."""
+    from targum.models import Annotation, SegmentedDocument
+
+    out: dict[str, tuple[Any, Any]] = {}
+    for document in sorted(root.glob("*/document.json")):
+        source = str(json.loads(document.read_text(encoding="utf-8")).get("source") or "")
+        segments, annotation = (
+            document.parent / "segments.json",
+            document.parent / "annotation.json",
+        )
+        if not source.startswith("dialogue:") or not segments.exists() or not annotation.exists():
+            continue
+        out[source.removeprefix("dialogue:")] = (
+            SegmentedDocument.model_validate_json(segments.read_text(encoding="utf-8")).segments,
+            Annotation.model_validate_json(annotation.read_text(encoding="utf-8")),
+        )
     return out
 
 
@@ -151,6 +181,13 @@ def main() -> None:
         type=Path,
         default=None,
         help="DICTA's reading of the scenes, kept here; also scores dialogue/agreement.py",
+    )
+    parser.add_argument(
+        "--annotations",
+        type=Path,
+        default=None,
+        help="the built scenes (targum-out/dialogue-readers): read from what they store "
+        "where it keeps DICTA's syntax; also scores dialogue/agreement.py",
     )
     parser.add_argument("--sample", type=int, default=20, help="findings not in the gold to show")
     args = parser.parse_args()
@@ -214,8 +251,15 @@ def main() -> None:
         if len(miss) > args.show:
             print(f"  … and {len(miss) - args.show} more")
 
-    if args.dicta is not None:
-        gated = score_agreement(files, args.dicta.expanduser(), gold, matches, args.sample)
+    if args.dicta is not None or args.annotations is not None:
+        gated = score_agreement(
+            files,
+            args.dicta.expanduser() if args.dicta else None,
+            args.annotations.expanduser() if args.annotations else None,
+            gold,
+            matches,
+            args.sample,
+        )
         both = caught | gated
         print(
             f"\n  the gate, free checks and gated agreement checks together: {len(both)}/"
@@ -231,9 +275,40 @@ def main() -> None:
         print(f"  … and {len(clashes) - args.show} more")
 
 
+def scene_words(
+    files: list[Path], dicta: Path | None, annotations: Path | None
+) -> dict[str, list[list[Word]]]:
+    """Every scene's turns as words: from the store where it keeps the syntax, the rest
+    from DICTA — the reading at `dicta` if there is one, else the local model."""
+    held = stored_annotations(annotations) if annotations else {}
+    out: dict[str, list[list[Word]]] = {}
+    rest: list[Path] = []
+    for one in files:
+        scene = json.loads(one.read_text(encoding="utf-8"))
+        texts = [t["text"] for t in scene["turns"]]
+        if scene["id"] in held:
+            segments, annotation = held[scene["id"]]
+            words = stored_turn_words(texts, segments, annotation)
+            if words is not None:
+                out[scene["id"]] = words
+                continue
+        rest.append(one)
+    print(f"\n{len(out)} scenes read from their stored annotation, {len(rest)} with DICTA")
+    if rest:
+        reading = dicta_reading(rest, dicta)
+        for one in rest:
+            scene = json.loads(one.read_text(encoding="utf-8"))
+            out[scene["id"]] = [
+                words_from_dicta(reading[scene["id"]][n], unicodedata.normalize("NFC", t["text"]))
+                for n, t in enumerate(scene["turns"])
+            ]
+    return out
+
+
 def score_agreement(
     files: list[Path],
-    path: Path,
+    dicta: Path | None,
+    annotations: Path | None,
     gold: set[tuple[str, int, str]],
     matches: Any,
     sample: int,
@@ -242,7 +317,7 @@ def score_agreement(
 
     Returns the gold the gated ones caught, so the gate can be counted whole.
     """
-    reading = dicta_reading(files, path)
+    reading = scene_words(files, dicta, annotations)
     lines: dict[tuple[str, int], str] = {}
     by_check: dict[str, list[tuple[str, int, str, str, str]]] = {name: [] for name in CHECKS}
     for one in files:
@@ -251,7 +326,7 @@ def score_agreement(
         for n, turn in enumerate(scene["turns"]):
             text = unicodedata.normalize("NFC", turn["text"])
             lines[(sid, n)] = text
-            words = words_from_dicta(reading[sid][n], text)
+            words = reading[sid][n]
             for name, check in CHECKS.items():
                 for f in check(words, n):
                     by_check[name].append((sid, n, bare(f.word), f.kind, f.what))

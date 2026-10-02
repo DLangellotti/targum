@@ -261,6 +261,29 @@ class SegmentedDocument(Artifact):
         return direction_for(self.language)
 
 
+class Syntax(BaseModel):
+    """Which word a word hangs off, and how, as DICTA's syntax head read it.
+
+    `head` is the index of the governing word in the same segment's token list, and -1
+    for the root or for a head that was not kept (punctuation is never a token).
+    `relation` is DICTA's label for the link: `compound:smixut` on the governed noun of a
+    construct chain, `nummod`, `det`, and the rest of Universal Dependencies.
+    `prefixes` are DICTA's tags for what is glued to the front (DET, ADP, CCONJ, SCONJ),
+    and `lead` is how many letters those take up.
+
+    Kept because DICTA marks the construct state nowhere else. Its morphology never
+    emits `Definite`, so until this was stored no annotation could say that a word heads
+    a chain, and the scene gate re-read every scene with the local model to find out
+    (targum-internal#134). Not on the page: the reader is sent `feats`, which now carries
+    `Definite=Cons` on the head of a chain.
+    """
+
+    head: int
+    relation: str
+    prefixes: tuple[str, ...] = ()
+    lead: int = 0
+
+
 class Token(Artifact):
     """One word of the source, with what makes it hard.
 
@@ -341,6 +364,10 @@ class Token(Artifact):
     # only the page knows which segment comes before; it places them (targum-internal#264).
     # Only the model's French reading says it, from prompt 3; absent everywhere else.
     stands_for: tuple[int, str] | None = None
+    # How this word is governed, as DICTA's syntax head said: see `Syntax`. Only DICTA
+    # reads syntax; absent everywhere else, and on annotations written before it was
+    # kept (targum-internal#134, annotator `…+smixut`).
+    syntax: Syntax | None = None
 
     @property
     def glossed_as(self) -> str:

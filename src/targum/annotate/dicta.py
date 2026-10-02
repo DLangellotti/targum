@@ -34,7 +34,7 @@ from collections.abc import Iterator
 from typing import Any
 
 from ..errors import TargumError
-from ..models import Segment, Token
+from ..models import Segment, Syntax, Token
 from ..paths import model_dir
 from ..segment.pieces import at_spaces
 from ..segment.stanza_segmenter import stanza_code
@@ -59,7 +59,12 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 # every call and this threw the answer away — so the change costs no download and no
 # extra pass. It does change what every Hebrew annotation says, and this string is in
 # the annotator's name, so changing it is what re-reads the library: once, on purpose.
-FEATURES = "roots+everyword+entities+grammar/2"
+#
+# "syntax" and "grammar/3" since targum-internal#134: DICTA's syntax head is kept on every
+# word (`Token.syntax`), and the head of a construct chain says `Definite=Cons` in its
+# grammar line. The same call has always returned the syntax and this threw it away, so
+# again no new weights and no extra pass; and again a rename, which re-reads the library.
+FEATURES = "roots+everyword+entities+syntax+grammar/3"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
 # longest, so asking for a whole book in one go builds a tensor the size of the longest
@@ -105,6 +110,15 @@ PIECE = "##"
 
 # Not a word at all, exactly as `lemma.py` draws the line.
 SKIP_POS = frozenset({"PUNCT", "SYM"})
+
+# The link DICTA puts on the governed noun of a construct chain: in בֵּית הַסֵּפֶר it is on
+# הַסֵּפֶר, pointing at בֵּית. DICTA's morphology never says `Definite=Cons`, so this is
+# the only place the construct state is said at all.
+SMIXUT = "compound:smixut"
+
+# What can stand at the head of a chain, as the card names it. A number after a noun is
+# filed as a chain too — בָּעַמּוּד מָאתַיִים, page two hundred — and is a label, not one.
+CONSTRUCT_POS = frozenset({"NOUN", "ADJ", "NUM"})
 
 # What the NER says about a word that belongs to no entity. Written only where it
 # overrules the tag — on a PROPN the NER left outside every entity — because that is
@@ -335,15 +349,23 @@ class DictaLemmatizer:
                     )
                 for at, said in zip(batch, read, strict=True):
                     segment_id, start, _ = pieces[at]
+                    # A later piece's heads count from its own first word; the segment's
+                    # list already holds the words before it.
+                    before = len(out[segment_id])
                     out[segment_id].extend(
-                        token.model_copy(
-                            update={"start": token.start + start, "end": token.end + start}
-                        )
-                        if start
-                        else token
+                        _moved(token, start, before) if start else token
                         for token in _tokens(said, self.tally)
                     )
         return out
+
+
+def _moved(token: Token, start: int, before: int) -> Token:
+    """A word of a later piece, placed in its segment: its offsets from the piece's start,
+    and its head from the words of the segment ahead of the piece."""
+    update: dict[str, Any] = {"start": token.start + start, "end": token.end + start}
+    if token.syntax is not None and token.syntax.head >= 0:
+        update["syntax"] = token.syntax.model_copy(update={"head": token.syntax.head + before})
+    return token.model_copy(update=update)
 
 
 def _tokens_in(text: str) -> int:
@@ -393,9 +415,58 @@ def _entities(said: dict[str, Any]) -> dict[int, str]:
     return out
 
 
+def _syntax(said: dict[str, Any]) -> tuple[dict[int, int], set[int]]:
+    """Where each kept word lands among the tokens, by the model's word index, and which
+    words head a construct chain.
+
+    The model counts punctuation and the tokens do not, so a head is renumbered rather
+    than copied. A word heads a chain when another hangs off it as `compound:smixut` —
+    unless that other is a number, which makes the first a label (page two hundred).
+    """
+    words = said.get("tokens") or []
+    kept: dict[int, int] = {}
+    for at, word in enumerate(words):
+        if ((word.get("morph") or {}).get("pos") or None) not in SKIP_POS:
+            kept[at] = len(kept)
+    heads: set[int] = set()
+    for word in words:
+        syntax = word.get("syntax") or {}
+        if syntax.get("dep_func") != SMIXUT:
+            continue
+        if ((word.get("morph") or {}).get("pos") or "") == "NUM":
+            continue
+        try:
+            head = int(syntax.get("dep_head_idx", -1))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= head < len(words):
+            if ((words[head].get("morph") or {}).get("pos") or "") in CONSTRUCT_POS:
+                heads.add(head)
+    return kept, heads
+
+
+def _governed(word: dict[str, Any], kept: dict[int, int]) -> Syntax | None:
+    """The word's link, by token index, with its prefixes; None where DICTA said none."""
+    syntax = word.get("syntax")
+    if not syntax:
+        return None
+    try:
+        head = int(syntax.get("dep_head_idx", -1))
+    except (TypeError, ValueError):
+        head = -1
+    seg = list(word.get("seg") or [])
+    return Syntax(
+        head=kept.get(head, -1),
+        relation=str(syntax.get("dep_func") or ""),
+        prefixes=tuple(str(tag) for tag in (word.get("morph") or {}).get("prefixes") or ()),
+        lead=len("".join(seg[:-1])) if len(seg) > 1 else 0,
+    )
+
+
 def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None) -> list[Token]:
     out: list[Token] = []
     entities = _entities(said)
+    kept, heads = _syntax(said)
     for at, word in enumerate(said.get("tokens", [])):
         morph = word.get("morph") or {}
         pos = morph.get("pos") or None
@@ -413,6 +484,9 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         if tally is not None and declined(lex):
             tally["declined"] += 1
         feats = _stanza_feats(morph.get("feats"))
+        if at in heads:
+            # The construct state, said where `kept_feats` and the card already look.
+            feats = "|".join(part for part in (feats, "Definite=Cons") if part)
         binyan = binyan_of(feats) or (_binyan_of(lemma) if pos == "VERB" else None)
         offsets = word.get("offsets") or {}
         out.append(
@@ -429,6 +503,7 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
                 built=_pieces_of(seg, lemma, morph.get("suffix")),
                 feats=kept_feats(feats, pos),
                 entity=entity,
+                syntax=_governed(word, kept),
             )
         )
     return out
