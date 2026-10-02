@@ -424,10 +424,9 @@ html { overflow-x: clip; }
 
 /* how you learn */
 .how { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); counter-reset: none; }
-.how-card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; grid-template-rows: auto auto 1fr auto; gap: var(--space-2); }
+.how-card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; grid-template-rows: auto 1fr auto; gap: var(--space-2); }
 /* A step's number is a label, not a control: §13 keeps teal for what a person presses
    (2026-10-02). */
-.how-n { font: 600 0.8125rem/1 var(--chrome); color: var(--ink-soft); letter-spacing: 0.06em; font-variant-numeric: lining-nums tabular-nums; }
 .how-card h3 { font: 600 1.0625rem/1.3 var(--chrome); }
 .how-card p { font-size: 0.9375rem; color: var(--muted); }
 .how-vis { background: var(--field); border-radius: 12px; padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-2); align-content: center; min-block-size: 7.5rem; }
@@ -448,7 +447,7 @@ html { overflow-x: clip; }
    given three full-width cards. */
 /* Side by side, the cards share their rows, so their pictures start on one line and
    stand the same height whatever the text above them runs to. */
-@media (min-width: 40.01rem) { .how-card { grid-row: span 4; grid-template-rows: subgrid; row-gap: var(--space-2); } }
+@media (min-width: 40.01rem) { .how-card { grid-row: span 3; grid-template-rows: subgrid; row-gap: var(--space-2); } }
 @media (max-width: 56rem) { .how { grid-template-columns: repeat(2, minmax(0, 1fr)); } .how > :last-child { grid-column: 1 / -1; } }
 @media (max-width: 40rem) { .how { grid-template-columns: minmax(0, 1fr); } }
 
@@ -666,7 +665,6 @@ html { overflow-x: clip; }
 #talk .split { align-items: center; }
 .talk-points { display: grid; margin-block-start: var(--space-5); border-block-start: 1px solid var(--hairline); }
 .talk-points li { padding-block: var(--space-4); border-block-end: 1px solid var(--hairline); font-size: 1.0625rem; line-height: 1.5; }
-.talk-points b { font-weight: 600; }
 
 /* §8 on a touch screen: everything a thumb presses answers over 44px. The rules above
    gave `.btn` its reach and `.btn.small` (more specific) took it back again, so every

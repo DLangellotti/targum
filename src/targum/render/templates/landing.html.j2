@@ -192,7 +192,7 @@
             </li>
             <li class="m-tile">
               <div class="m-vis page-vis"><span class="sheet-p"><i></i><i></i><i class="s"></i><i></i><i class="s"></i></span><span class="sheet-p back"><i></i><i class="s"></i><i></i></span></div>
-              <h3>{{ t("landing.page.a-photo-of-a-letter-a-form-a-sign", "A photo of a page: a letter, a form, a sign") }}</h3>
+              <h3>{{ t("landing.page.a-photo-of-a-letter-a-form-a-sign", "A photo of a letter, a form or a sign") }}</h3>
             </li>
           </ul>
         </div>
@@ -203,14 +203,13 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("landing.page.how-you-learn", "How you learn") }}</p>
-        <h2>{{ t("landing.page.learn-a-little-hebrew-every-day-from-things", "Learn Hebrew every day, from things you’d choose anyway.") }}</h2>
-        <p>{{ t("landing.page.no-drills-and-no-textbook-dialogues-pick-a", "Real Hebrew, chosen by you. Pick a video, a podcast or a chapter, and targum turns it into a lesson built on the words you already know.") }}</p>
+        <h2>{{ t("landing.page.learn-a-little-hebrew-every-day-from-things", "Learn a little Hebrew every day, from things you’d choose anyway.") }}</h2>
+        <p>{{ t("landing.page.no-drills-and-no-textbook-dialogues-pick-a", "Pick a video, a podcast or a chapter, and targum turns it into a lesson built on the words you already know.") }}</p>
       </div>
       <ol class="how">
         <li class="how-card">
-          <span class="how-n">1</span>
           <h3>{{ t("landing.page.pick-something-just-past-what-you-know", "Pick something just past what you know") }}</h3>
-          <p>{{ t("landing.page.the-library-is-sorted-by-the-words-you", "We compare every word in a text with the words you know, by dictionary form, so you see how much you’ll understand before you start.") }}</p>
+          <p>{{ t("landing.page.the-library-is-sorted-by-the-words-you", "We compare every word in a text with the words you know, so you see how much you’ll understand before you start.") }}</p>
           <div class="how-vis">
             <div class="how-row"><span>{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="meter"><i class="p80"></i></span></div>
             <div class="how-row"><span>{{ t("landing.page.this-week-s-news-easy", "This week’s news · easy") }}</span><span class="meter"><i class="p90"></i></span></div>
@@ -218,9 +217,8 @@
           </div>
         </li>
         <li class="how-card">
-          <span class="how-n">2</span>
           <h3>{{ t("landing.page.tap-any-word", "Tap any word") }}</h3>
-          <p>{{ t("landing.page.tap-any-word-said", "Each word is broken down to its dictionary form, root and binyan: from scholars’ own analysis for the Bible, and a Hebrew language model for everything else. We fill in any missing vowels and mark each one we added.") }}</p>
+          <p>{{ t("landing.page.tap-any-word-said", "Each word comes with its dictionary form, root and binyan. Missing vowels are filled in, and each one we add is marked.") }}</p>
           {#- "Every word" folded in here (2026-10-01): the reader at the top already shows
               a whole card, so this shows the one thing it cannot, the vowels going. -#}
           <div class="how-vis center">
@@ -231,9 +229,8 @@
           </div>
         </li>
         <li class="how-card">
-          <span class="how-n">3</span>
           <h3>{{ t("landing.page.watch-your-hebrew-grow", "Watch your Hebrew grow") }}</h3>
-          <p>{{ t("landing.page.every-word-you-learn-is-counted-and-moves", "One word list for 3,000 years of Hebrew. Learn a word in Genesis and it’s already yours in the news, and every word moves you up the ulpan ladder.") }}</p>
+          <p>{{ t("landing.page.every-word-you-learn-is-counted-and-moves", "Every word you learn is counted and moves you up the ulpan ladder, so you can see how far you’ve come.") }}</p>
           <div class="how-vis">
             <div class="how-count"><span class="v">2,140</span><span>{{ t("landing.page.words-known", "words known ·") }} <span class="he">ב</span> {{ t("landing.page.bet", "bet") }}</span></div>
             <div class="how-bars"><i class="h30 on"></i><i class="h42 on"></i><i class="h54 part"></i><i class="h66"></i><i class="h78"></i><i class="h90"></i></div>
@@ -252,10 +249,10 @@
             (2026-10-02): what you do, what comes back, and where else it works. The last
             is the connector, said lightly (design.md §12, 2026-09-28). -#}
         <ul class="talk-points">
-          <li><b>{{ t("landing.page.talk.write", "Write in Hebrew or English.") }}</b> {{ t("landing.page.talk.write.said", "targum answers in simple Hebrew, with the English underneath.") }}</li>
-          <li><b>{{ t("landing.page.talk.fix", "When you slip,") }}</b> {{ t("landing.page.talk.fix.said", "it shows you the right sentence and why.") }}</li>
+          <li>{{ t("landing.page.talk.write", "Write in Hebrew or English.") }} {{ t("landing.page.talk.write.said", "targum answers in simple Hebrew, with the English underneath.") }}</li>
+          <li>{{ t("landing.page.talk.fix", "When you slip,") }} {{ t("landing.page.talk.fix.said", "it shows you the right sentence and why.") }}</li>
           {%- if connector_is_open() %}
-          <li><b>{{ t("landing.page.talk.claude", "It works in Claude and ChatGPT too.") }}</b> {{ t("landing.page.talk.claude.said", "Ask what to read next, and it answers from the words you know.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></li>
+          <li>{{ t("landing.page.talk.claude", "It works in Claude and ChatGPT too.") }} {{ t("landing.page.talk.claude.said", "Ask what to read next, and it answers from the words you know.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></li>
           {%- endif %}
         </ul>
       </div>
@@ -316,7 +313,7 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("landing.page.the-library", "The library") }}</p>
-        <h2>{{ t("landing.page.nearly-500-texts-and-videos-to-learn-from", "More than 500 texts and videos, all free.") }}</h2>
+        <h2>{{ t("landing.page.nearly-500-texts-and-videos-to-learn-from", "Nearly 500 texts and videos to learn from, free.") }}</h2>
         <p>{{ t("landing.page.this-week-s-news-at-three-levels-videos", "This week’s news at three levels, graded stories, Bialik and the whole Tanakh, many with a published translation set beside the Hebrew sentence by sentence.") }}</p>
       </div>
       <div class="shelf">
@@ -372,7 +369,7 @@
         {%- if connector_is_open() %}
         <details><summary>{{ t("landing.page.can-i-use-it-in-claude-or-chatgpt", "Can I use it in Claude or ChatGPT?") }}</summary><p>{{ t("landing.page.yes-connect-targum-and-your-ai-talks", "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p></details>
         {%- endif %}
-        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring stays yours. It’s used only to make your reading, and no model is trained on it.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring is yours, and we never train a model on it.") }}</p></details>
       </div>
     </div>
   </section>
