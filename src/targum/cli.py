@@ -4217,6 +4217,159 @@ def export_pdf(
     console.print(f"[green]Wrote[/green] {written}")
 
 
+@export_app.command("mikra")
+def export_mikra(
+    on: Annotated[
+        str | None,
+        typer.Option(
+            "--on",
+            help="Any day of the week wanted, as 2026-10-03. Default: this week, "
+            "as the portion page counts it.",
+        ),
+    ] = None,
+    israel: Annotated[
+        bool, typer.Option("--israel", help="The Israel schedule, not the diaspora's.")
+    ] = False,
+    reader: Annotated[
+        str | None,
+        typer.Option(
+            "--for", help="An account's email: add the words it looked up (or kept) this week."
+        ),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where to write it. Default: <portion>-<date>.pdf here."),
+    ] = None,
+    library: Annotated[
+        Path | None,
+        typer.Option("--library", help="Where the built books are. Default: ./targum-out/library"),
+    ] = None,
+    into: Annotated[
+        str | None,
+        typer.Option(
+            "--into", help="What stands beside the portion, by language. Default: Onkelos."
+        ),
+    ] = None,
+    under: Annotated[
+        bool, typer.Option("--under", help="The rendering under each verse, not beside it.")
+    ] = False,
+    vowels: Annotated[
+        bool, typer.Option("--vowels/--no-vowels", help="Print the vowel points.")
+    ] = True,
+    accents: Annotated[
+        bool, typer.Option("--accents/--no-accents", help="Print the te'amim.")
+    ] = True,
+    size: Annotated[str, typer.Option("--size", help="a4 or letter.")] = "a4",
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """The week's shnayim mikra sheet as a PDF (targum-internal#105): the portion with
+    Onkelos beside each verse, the haftarah, and with --for the words looked up this week.
+
+    For the Shabbat that has no screen. The portion and the haftarah are cut again from
+    the books on the shelf, which costs nothing; the only thing that may go out to the
+    network is the reading calendar, once a year, as `targum parasha build` fetches it.
+    Needs the `print` extra and Pango on the machine.
+    """
+    from datetime import timedelta
+
+    from .parasha import calendar as reading_calendar
+    from .parasha import cut as cutting
+    from .render.printed import SIZES, Word, mikra_html, own_language, week_words, write_pdf
+
+    if size not in SIZES:
+        fail(TargumError(f"No paper called {size}.", f"Try one of: {', '.join(SIZES)}."))
+    if on:
+        try:
+            day = date.fromisoformat(on)
+        except ValueError:
+            fail(TargumError(f"{on} is not a date.", "Write it as 2026-10-03."))
+        shabbat = day + timedelta(days=(5 - day.weekday()) % 7)
+    else:
+        shabbat = reading_calendar.pointing_at()
+    schedule = reading_calendar.Schedule.israel if israel else reading_calendar.Schedule.diaspora
+    shelf = library or cutting.library_root()
+    try:
+        reading = reading_calendar.for_shabbat(shabbat, schedule)
+        if reading is None:
+            fail(TargumError(f"The calendar has no reading for {shabbat}."))
+        portion = cutting.cut(reading, cutting.books_for(reading, shelf))
+    except cutting.MissingBook as gone:
+        fail(TargumError(f"{gone.book} is not built in {shelf}.", "Build it, or pass --library."))
+    except TargumError as error:
+        fail(error)
+    haftarah = None
+    if reading.haftarah is not None:
+        try:
+            haftarah = cutting.cut_haftarah(
+                reading.haftarah, cutting.books_for(reading.haftarah, shelf)
+            )
+        except cutting.MissingBook as gone:
+            # The portion is the practice and the haftarah follows it: a sheet without the
+            # haftarah is still this week's sheet, and says so here rather than on paper.
+            console.print(
+                f"[yellow]No haftarah on the sheet: {gone.book} is not built in {shelf}.[/yellow]"
+            )
+    if into is None and not any(t.target_language == "arc" for t in portion.translations):
+        console.print(
+            "[yellow]No Onkelos on the shelf for this portion, so the reader's own "
+            "language stands beside it.[/yellow]"
+        )
+    week: list[Word] = []
+    looked = True
+    reads: tuple[str, ...] = ("en",)
+    if reader:
+        from .accounts import Store
+        from .serve import default_store
+
+        keeping = Store(store or default_store())
+        person = keeping.person_by_email(reader)
+        if person is None:
+            fail(TargumError(f"No account for {reader}."))
+        # English first where they read it, as the account's own default is English.
+        reads = tuple(sorted(keeping.reads(person.id), key=lambda code: code != "en"))
+        language = own_language(portion.translations, reads)
+        began = reading_calendar.week_began(shabbat)
+        window = (
+            person.id,
+            int(began.timestamp() * 1000),
+            int((began + timedelta(days=7)).timestamp() * 1000),
+        )
+        # The words looked up that week, where the record names them; where it names none
+        # — the record off or stopped, or a week before look-ups carried their word — the
+        # words kept that week, and the list's heading says which it is.
+        found = keeping.looked_up_between(*window, languages=("he", "arc"), target=language)
+        looked = bool(found)
+        if not looked:
+            found = keeping.kept_between(*window, languages=("he", "arc"), target=language)
+            console.print("[dim]No look-ups recorded that week: listing the words kept.[/dim]")
+        week = week_words(
+            found, [one for one in (portion, haftarah) if one is not None], target=language
+        )
+    try:
+        html = mikra_html(
+            portion,
+            haftarah,
+            name=reading.name,
+            hebrew=reading.hebrew,
+            when=reading.hdate,
+            haftarah_note=reading.haftarah.reason if reading.haftarah is not None else "",
+            week=week,
+            looked=looked,
+            into=into,
+            reads=reads,
+            vowels=vowels,
+            accents=accents,
+            under=under,
+            size=size,
+        )
+        written = write_pdf(html, out or Path.cwd() / f"{reading.slug}-{shabbat.isoformat()}.pdf")
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]Wrote[/green] {written}")
+    if reader and not week:
+        console.print("[dim]No words with a meaning that week, so the sheet has no list.[/dim]")
+
+
 def main() -> None:
     try:
         app()
