@@ -258,6 +258,9 @@ h1, h2, h3 { text-wrap: balance; }
 .join-note { font-size: 0.875rem; color: var(--muted); }
 
 .join-card { background: var(--card); border-radius: 16px; box-shadow: var(--shadow-raised); padding: 1.75rem; display: grid; gap: 1rem; align-content: start; }
+/* Inside the card the field is a well, as fields are on the desk (§13): a card-coloured
+   field on a card was white on white (2026-10-02). */
+.join-card .join-form .field { background: var(--field); box-shadow: none; }
 .join-card .join-form { max-inline-size: none; }
 
 .hero .facts li::before { content: ""; display: inline-block; inline-size: 0.4rem; block-size: 0.4rem; border-radius: 999px; background: var(--leaf); margin-inline-end: 0.45rem; vertical-align: 0.1em; }
