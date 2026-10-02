@@ -732,3 +732,27 @@ html { overflow-x: clip; }
   .top > #card { margin-block: 0 var(--space-7); }
 }
 
+/* The card's one moment (David, 2026-10-02). Beside the headline it is compact: the
+   word, what it means, and a hint. The moment the page leaves the top, the film makes
+   room and, a beat later, the card opens into the whole card beside it, and the word it
+   is about glows once in the film's lines. Back at the top it folds again. The fold is
+   a grid row going from 0fr to 1fr, so the height eases without being measured. */
+.card { row-gap: 0; }
+.card-hint { margin-block-start: var(--space-3); font-size: 0.8125rem; color: var(--muted); }
+.card-more { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 420ms var(--ease) 80ms, opacity 260ms var(--ease) 160ms; }
+.card-more-in { min-block-size: 0; overflow: hidden; display: grid; gap: var(--space-4); padding-block-start: var(--space-4); transition: padding 420ms var(--ease) 80ms; }
+.top:not(.live) .card-hint, .top.docked .card-hint { display: none; }
+@media (min-width: 56.01rem) {
+  .top.live:not(.docked) > #card .card-more { grid-template-rows: 0fr; opacity: 0; transition-delay: 0s, 0s; }
+  .top.live:not(.docked) > #card .card-more-in { padding-block-start: 0; }
+  .top.live > #card { transition: box-shadow var(--in) var(--ease), padding 420ms var(--ease); }
+  @media (prefers-reduced-motion: no-preference) {
+    .top.docked .w.open { animation: word-call 1200ms var(--ease) 300ms 1; }
+    @keyframes word-call {
+      0%, 100% { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+      35% { background: color-mix(in srgb, var(--teal) 28%, transparent); }
+    }
+  }
+}
+@media (max-width: 56rem) { .card-hint { display: none; } }
+

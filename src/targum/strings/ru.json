@@ -1428,7 +1428,7 @@
   "landing.page.sign-in": "Войти",
   "landing.page.join-the-waitlist": "Записаться",
   "landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts": "Учите современный и библейский иврит по видео, подкастам и книгам.",
-  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "Иврит учится через понимание. Поэтому здесь всё готово к чтению: огласовки (никуд) над каждым словом, русский рядом с каждой строкой и объяснение любого слова по касанию.",
+  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "Вставьте видео, пост или страницу. Каждая строка вернётся с огласовками и переводом, а каждое слово — с объяснением.",
   "landing.try.placeholder": "Вставьте ссылку на что угодно на иврите",
   "landing.try.label": "Ссылка для проверки",
   "landing.try.button": "Попробовать",
@@ -1458,10 +1458,6 @@
   "door.unreadable.language": "Похоже, это {language}, а этот язык мы пока не читаем.",
   "door.no-answer": "Мы не смогли открыть эту ссылку.",
   "landing.page.we-re-opening-in-small-groups-we-ll": "Мы открываемся небольшими группами. Напишем вам, когда придёт ваша очередь.",
-  "landing.page.start-at-any-level": "Начните с любого уровня",
-  "landing.page.upload-any-text-or-media": "Загрузите любой текст или видео",
-  "landing.page.hundreds-of-free-texts-and-videos": "Сотни бесплатных текстов и видео",
-  "landing.page.no-credit-card-required": "Бесплатно",
   "landing.page.shakshuka-in-ten-minutes": "Шакшука за десять минут",
   "landing.page.a-cooking-video-10-minutes-you-know-80": "Кулинарное видео · 10 минут · вы знаете 80% слов здесь",
   "landing.page.vowels": "Огласовки",
@@ -2347,7 +2343,6 @@
   "landing.page.can-i-use-it-in-claude-or-chatgpt": "Можно ли пользоваться им в Claude или ChatGPT?",
   "landing.page.yes-connect-targum-and-your-ai-talks": "Да. Подключите targum, и ваш ИИ заговорит с вами на иврите из слов, которые вы знаете, и покажет, как исправить каждую ошибку.",
   "landing.page.see-how-to-connect": "Как подключить",
-  "landing.page.works-in-claude-and-chatgpt": "Работает в Claude и ChatGPT",
   "you.connections.chatting": "чат на языке, который вы учите, — он входит в подписку",
   "you.connections.connected-on": "Подключено {made}",
   "you.connections.connected-and-used": "Подключено {made}, в последний раз использовалось {seen}",
@@ -2633,5 +2628,8 @@
   "landing.page.of-it-you-already-know": "слов вы уже знаете",
   "landing.page.ready-in-about-4-minutes": "Будет готово примерно через 4 минуты.",
   "landing.page.a-photo-of-a-letter-a-form-a-sign": "Фото страницы: письмо, бланк, вывеска",
-  "landing.page.news-and-articles-from-any-site": "Новости и статьи с любого сайта"
+  "landing.page.news-and-articles-from-any-site": "Новости и статьи с любого сайта",
+  "landing.page.the-whole-tanakh": "Весь Танах",
+  "landing.page.inside-claude-and-chatgpt": "В Claude и ChatGPT",
+  "landing.page.tap-any-word-to-see-it-here": "Нажмите на любое слово в видео, чтобы увидеть его здесь."
 }

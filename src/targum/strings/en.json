@@ -1358,7 +1358,7 @@
   "landing.page.sign-in": "Sign in",
   "landing.page.join-the-waitlist": "Join the waitlist",
   "landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts": "Learn modern and biblical Hebrew from videos, podcasts and books.",
-  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.",
+  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "Paste a video, a post or a page. Every line comes back with vowels and English, and every word explained.",
   "landing.try.placeholder": "Paste a link to anything in Hebrew",
   "landing.try.label": "A link to try",
   "landing.try.button": "Try it",
@@ -1384,10 +1384,6 @@
   "door.unreadable.language": "This looks like {language}, and we can't read that yet.",
   "door.no-answer": "We couldn't open that link.",
   "landing.page.we-re-opening-in-small-groups-we-ll": "We’re opening in small groups. We’ll email you when your turn comes.",
-  "landing.page.start-at-any-level": "Start at any level",
-  "landing.page.upload-any-text-or-media": "Upload any text or media",
-  "landing.page.hundreds-of-free-texts-and-videos": "Hundreds of free texts and videos",
-  "landing.page.no-credit-card-required": "Free to join",
   "landing.page.shakshuka-in-ten-minutes": "Shakshuka in ten minutes",
   "landing.page.a-cooking-video-10-minutes-you-know-80": "A cooking video · 10 minutes · you know 80% of the words here",
   "landing.page.vowels": "Vowels",
@@ -2208,7 +2204,6 @@
   "landing.page.can-i-use-it-in-claude-or-chatgpt": "Can I use it in Claude or ChatGPT?",
   "landing.page.yes-connect-targum-and-your-ai-talks": "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.",
   "landing.page.see-how-to-connect": "See how to connect",
-  "landing.page.works-in-claude-and-chatgpt": "Works in Claude and ChatGPT",
   "you.connections.chatting": "chatting in the language you're learning, which is included",
   "you.connections.connected-on": "Connected {made}",
   "you.connections.connected-and-used": "Connected {made}, last used {seen}",
@@ -2456,5 +2451,8 @@
   "landing.page.of-it-you-already-know": "of it you already know",
   "landing.page.ready-in-about-4-minutes": "Ready in about 4 minutes.",
   "landing.page.a-photo-of-a-letter-a-form-a-sign": "A photo of a page: a letter, a form, a sign",
-  "landing.page.news-and-articles-from-any-site": "News and articles, from any site"
+  "landing.page.news-and-articles-from-any-site": "News and articles, from any site",
+  "landing.page.the-whole-tanakh": "The whole Tanakh",
+  "landing.page.inside-claude-and-chatgpt": "Inside Claude and ChatGPT",
+  "landing.page.tap-any-word-to-see-it-here": "Tap any word in the film to see it here."
 }

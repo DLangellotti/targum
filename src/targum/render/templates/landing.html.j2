@@ -33,7 +33,7 @@
     <div class="hero">
       <div class="headline">
         <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
-          <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
+          <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "Paste a video, a post or a page. Every line comes back with vowels and English, and every word explained.") }}</p>
         {#- Try the door (targum-internal#399): paste a link and be told what it is, in
             the Add box's own sentence. A plain post, so it works with JavaScript off;
             the answer comes back on this page. Nothing is built and nothing is spent,
@@ -76,14 +76,12 @@
         {#- One call to action in the hero, the box (David, 2026-10-02): its answer carries
             the waitlist, and the bar keeps Join the waitlist. Under it, only the reasons. -#}
         <ul class="facts">
-          <li>{{ t("landing.page.start-at-any-level", "Start at any level") }}</li>
-          <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
-          <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
-          <li>{{ t("landing.page.no-credit-card-required", "Free to join") }}</li>
+          <li><a href="#own">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</a></li>
+          <li><a href="#torah">{{ t("landing.page.the-whole-tanakh", "The whole Tanakh") }}</a></li>
           {#- A light first mention of the connector, where the page lists what you get
               (design.md §12, "The connector is met on the way in"). -#}
           {%- if connector_is_open() %}
-          <li>{{ t("landing.page.works-in-claude-and-chatgpt", "Works in Claude and ChatGPT") }}</li>
+          <li><a href="#talk">{{ t("landing.page.inside-claude-and-chatgpt", "Inside Claude and ChatGPT") }}</a></li>
           {%- endif %}
         </ul>
       </div>
