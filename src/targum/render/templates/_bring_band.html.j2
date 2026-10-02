@@ -1,6 +1,8 @@
 {#- Where the Hebrew comes from, each drawn as what it looks like (2026-10-01): the
     page's one inverted block, eight tiles on ink. The front door and /aliyah both draw
-    it, so a tile changed is changed on both. -#}
+    it, so a tile changed is changed on both. The waveforms' bars are written here, each
+    height one of twenty steps (`.bh-5` to `.bh-100` in landing.css), so they draw with no
+    script: /aliyah carries none, and the policy allows no inline style. -#}
 <div class="media bring">
   <ul class="media-grid eight">
     <li class="m-tile">
@@ -12,11 +14,11 @@
       <h3>{{ t("landing.page.reels-shorts-tiktoks-and-facebook-videos", "Reels, Shorts, TikToks and Facebook videos") }}</h3>
     </li>
     <li class="m-tile">
-      <div class="m-vis"><div class="wave" id="bringWave"></div><span class="wave-clock tnum">18:40 / 31:06</span></div>
+      <div class="m-vis"><div class="wave"><i class="bh-20 on"></i><i class="bh-50 on"></i><i class="bh-70 on"></i><i class="bh-70 on"></i><i class="bh-50 on"></i><i class="bh-25 on"></i><i class="bh-30 on"></i><i class="bh-30 on"></i><i class="bh-20 on"></i><i class="bh-40 on"></i><i class="bh-65 on"></i><i class="bh-70 on"></i><i class="bh-60 on"></i><i class="bh-35 on"></i><i class="bh-35 on"></i><i class="bh-60 on"></i><i class="bh-70 on"></i><i class="bh-60 on"></i><i class="bh-40 on"></i><i class="bh-20 on"></i><i class="bh-35 on"></i><i class="bh-25 on"></i><i class="bh-30 on"></i><i class="bh-55 on"></i><i class="bh-70"></i><i class="bh-70"></i><i class="bh-50"></i><i class="bh-20"></i><i class="bh-50"></i><i class="bh-65"></i><i class="bh-65"></i><i class="bh-50"></i><i class="bh-25"></i><i class="bh-30"></i><i class="bh-30"></i><i class="bh-20"></i><i class="bh-45"></i><i class="bh-65"></i><i class="bh-75"></i><i class="bh-60"></i></div><span class="wave-clock tnum">18:40 / 31:06</span></div>
       <h3>{{ t("landing.page.a-podcast", "A podcast") }}</h3>
     </li>
     <li class="m-tile">
-      <div class="m-vis"><div class="note-bubble"><span class="dot"></span><span class="mini" id="bringMini"></span><span class="len tnum">0:47</span></div><p class="note-line">הֵי, רָאִיתָ אֶת הַהוֹדָעָה שֶׁשָּׁלַחְתִּי?</p></div>
+      <div class="m-vis"><div class="note-bubble"><span class="dot"></span><span class="mini"><i class="bh-25"></i><i class="bh-95"></i><i class="bh-65"></i><i class="bh-75"></i><i class="bh-90"></i><i class="bh-40"></i><i class="bh-100"></i><i class="bh-50"></i><i class="bh-85"></i><i class="bh-80"></i><i class="bh-55"></i><i class="bh-100"></i><i class="bh-35"></i><i class="bh-95"></i><i class="bh-70"></i><i class="bh-70"></i><i class="bh-95"></i><i class="bh-35"></i><i class="bh-100"></i><i class="bh-55"></i><i class="bh-80"></i><i class="bh-85"></i></span><span class="len tnum">0:47</span></div><p class="note-line">הֵי, רָאִיתָ אֶת הַהוֹדָעָה שֶׁשָּׁלַחְתִּי?</p></div>
       <h3>{{ t("landing.page.a-voice-note", "A voice note") }}</h3>
     </li>
     <li class="m-tile">
