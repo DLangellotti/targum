@@ -696,3 +696,10 @@ footer .mock { max-inline-size: 48rem; }
   .track { position: relative; }
   .track::after { content: ""; position: absolute; inset-inline: 0; inset-block: -20px; }
 }
+
+/* "Tap any word": the one word is the card's picture, at the size the other two cards'
+   pictures are drawn; the meaning, then the binyan and root, each line in its own
+   direction (2026-10-02). */
+.how-vis .stack.how-word { font-size: 1.75rem; line-height: 1.6; }
+.how-root { font-size: 0.8125rem; color: var(--muted); unicode-bidi: isolate; }
+.how-root .he { font-size: 0.9375rem; }
