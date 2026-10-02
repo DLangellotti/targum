@@ -2455,5 +2455,10 @@
   "said.credit": "How the French is said, from",
   "said.corrected": "one reading corrected by targum",
   "said.on": "As said.",
-  "said.off": "As written."
+  "said.off": "As written.",
+  "landing.demo.play-from": "Play from {at}",
+  "landing.demo.pause": "Pause",
+  "landing.demo.play": "Play",
+  "landing.demo.back": "Back",
+  "landing.demo.next-reading": "Next reading"
 }

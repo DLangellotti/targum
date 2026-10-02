@@ -149,7 +149,7 @@
       pair.className = "pair" + (n === now ? " now" : "");
       var at = document.createElement("button");
       at.type = "button"; at.className = "at tnum"; at.textContent = line.stamp; at.dataset.line = n;
-      at.setAttribute("aria-label", "Play from " + line.stamp);
+      at.setAttribute("aria-label", t("landing.demo.play-from", "Play from {at}", { at: line.stamp }));
       var he = document.createElement("p");
       he.className = "line-he";
       line.words.forEach(function (id, i) {
@@ -312,7 +312,7 @@
     playing = !playing;
     stage.classList.toggle("playing", playing);
     document.getElementById("playGlyph").innerHTML = playing ? PAUSE : PLAY;
-    document.getElementById("play").setAttribute("aria-label", playing ? "Pause" : "Play");
+    document.getElementById("play").setAttribute("aria-label", playing ? t("landing.demo.pause", "Pause") : t("landing.demo.play", "Play"));
     if (playing) { last = 0; raf = requestAnimationFrame(frame); } else cancelAnimationFrame(raf);
   }
   document.getElementById("play").addEventListener("click", toggle);
@@ -333,7 +333,7 @@
     var on = !stage.classList.contains("pinned");
     stage.classList.toggle("pinned", on);
     this.setAttribute("aria-pressed", String(on));
-    document.getElementById("pinWord").textContent = on ? "Back" : "Corner";
+    document.getElementById("pinWord").textContent = on ? t("landing.demo.back", "Back") : t("landing.page.corner", "Corner");
   });
 
   document.getElementById("watchIt").addEventListener("click", function () {
@@ -434,7 +434,7 @@
       meta.textContent = t("landing.demo.shnayim-mikra-the-aliyah", "Shnayim mikra · the aliyah");
       var done = reading === 3;
       foot.innerHTML = "<span class=\"say\">" + (done ? "That aliyah is on your progress." : READINGS[reading]) + "</span>" +
-        "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? t("landing.demo.start-again", "Start again") : reading === 2 ? t("landing.demo.done", "Done") : "Next reading") + "</button>";
+        "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? t("landing.demo.start-again", "Start again") : reading === 2 ? t("landing.demo.done", "Done") : t("landing.demo.next-reading", "Next reading")) + "</button>";
     }
   }
   document.querySelectorAll(".torah .seg button").forEach(function (b) {

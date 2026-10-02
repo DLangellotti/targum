@@ -2636,5 +2636,10 @@
   "said.credit": "Произношение французского из",
   "said.corrected": "одно чтение исправлено targum",
   "said.on": "Как звучит.",
-  "said.off": "Как написано."
+  "said.off": "Как написано.",
+  "landing.demo.play-from": "Воспроизвести с {at}",
+  "landing.demo.pause": "Пауза",
+  "landing.demo.play": "Пуск",
+  "landing.demo.back": "Назад",
+  "landing.demo.next-reading": "Следующее чтение"
 }
