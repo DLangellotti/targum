@@ -458,23 +458,13 @@ html { overflow-x: clip; }
 .stack > span { grid-area: 1 / 1; transition: opacity 240ms var(--ease); }
 .stack > span.off { opacity: 0; }
 
-/* the conversation */
-.thread { background: var(--card); border-radius: 16px; box-shadow: var(--shadow-raised); padding: 1.25rem; display: grid; gap: 1rem; }
-
 .who { font: 600 0.6875rem/1.2 var(--chrome); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-.said { font-family: var(--reading-hebrew); direction: rtl; text-align: start; font-size: 1.0625rem; line-height: 1.9; color: var(--muted); }
-.recast { border-inline-start: 2px solid var(--teal); padding-inline-start: 0.75rem; display: grid; gap: 0.1rem; }
-.recast .tag { font-size: 0.8125rem; color: var(--teal); font-weight: 600; }
-.t-he { font-family: var(--reading-hebrew); direction: rtl; text-align: start; font-size: 1.0625rem; line-height: 1.9; }
-.t-he mark { background: var(--teal-wash); color: inherit; border-radius: 4px; padding-inline: 0.1em; }
-.t-en { font: 400 0.9375rem/1.6 var(--reading); color: var(--muted); }
+
 .fold { justify-self: start; display: inline-flex; align-items: center; gap: 0.35rem; border: 0; background: none; padding: 0.15rem 0; color: var(--muted); font-size: 0.8125rem; }
 .fold svg { inline-size: 0.75rem; transition: transform 160ms var(--ease); }
 .fold[aria-expanded="true"] svg { transform: rotate(90deg); }
-.why { font-size: 0.875rem; color: var(--muted); background: var(--field); border-radius: 12px; padding: 0.5rem 0.75rem; }
-.why .he { font-size: 0.9375rem; }
+
 .door { justify-self: start; }
-.thread-foot { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.8125rem; color: var(--muted); border-block-start: 1px solid var(--hairline); padding-block-start: 0.75rem; }
 
 /* the box */
 
