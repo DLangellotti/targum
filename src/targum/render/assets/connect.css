@@ -348,3 +348,7 @@
   .caret::after { animation: none; }
   .demo-thread { transition: none; }
 }
+
+/* A public page on the desk's ground rings focus in teal: the gold is 2.31:1 there
+   (design.md §4, §12, 2026-10-02). */
+:focus-visible, .site-footer a:focus-visible { outline-color: var(--teal); }
