@@ -79,6 +79,16 @@ responses stream, so the reader's Range requests pass through. Hosted video tran
 on the box at roughly real-time ÷ 4 per part. The box never fetches from YouTube —
 that import is CLI-only, on purpose.
 
+## What the box installs
+
+`deploy.sh` installs the wheel with **uv.lock's versions as constraints**
+(`dist/box-constraints.txt`, exported on every deploy), so the box gets what CI tested
+rather than whatever PyPI has that day. Without them `uv tool install` resolved fresh:
+transformers 5.17.0 broke every Hebrew build on 2026-09-13 and stanza 1.15.0 stopped a
+rebuild on 2026-10-01, both with CI green. Torch, the CUDA packages and ru-core-news-lg are
+left out of the constraints: torch comes from PyTorch's CPU index as a +cpu build, and the
+model wheel is pinned by its URL. To move a library on the box, move it in uv.lock.
+
 ## A test account
 
 An account for trying targum as a new reader meets it, as often as you like: signing
