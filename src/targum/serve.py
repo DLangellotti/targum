@@ -2846,15 +2846,21 @@ class Library:
         if found is not None:
             job.options["door"] = "podcast"
             return self._prepare_episode(job, found)
-        builder = Build(
-            job.source,
-            target_language="en",
-            style=Style.natural,
-            model=HOSTED_MODEL,
-            out_root=self.out,
-            gloss=False,
-        )
-        document = builder.ingest()
+        # A throwaway folder, not the shelf: `ingest` and `segment` write what they read,
+        # and a stranger's try must leave nothing behind on the box (#399).
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="targum-try-") as scratch:
+            builder = Build(
+                job.source,
+                target_language="en",
+                style=Style.natural,
+                model=HOSTED_MODEL,
+                out_root=Path(scratch),
+                gloss=False,
+            )
+            document = builder.ingest()
+            segmented = builder.segment(document)
         job.title = document.title or ""
         job.language = document.language
         if not self._reads_language(job.language):
@@ -2868,7 +2874,6 @@ class Library:
             )
             job.stage = "failed"
             return
-        segmented = builder.segment(document)
         job.segments = len(segmented.segments)
         job.total = job.segments
         job.usually = self._how_long(job)

@@ -408,3 +408,29 @@ def test_a_request_cannot_make_its_own_build_a_gift(
     assert "gift" in {one.name for one in dataclasses.fields(Job)}
     source = (Path(__file__).parents[1] / "src" / "targum" / "serve.py").read_text("utf-8")
     assert 'options.get("gift")' not in source and "options['gift']" not in source
+
+
+def test_a_page_tried_leaves_nothing_on_the_shelf(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A web page is fetched and cut into sentences to say how long it is, and both
+    steps write what they read. Written beside the shelf, every stranger's try was a
+    folder on the box nobody built; now it is a scratch folder that goes with the answer."""
+    from targum.models import Block, Document
+
+    out = tmp_path / "targum-out"
+    out.mkdir()
+    page = Document(
+        source="https://news.example/item",
+        title="ידיעה",
+        language="he",
+        blocks=[Block(id="b0000", text="הממשלה התכנסה היום. השרים דנו בתקציב.")],
+        content_hash="",
+    )
+    monkeypatch.setattr("targum.audio.episode.sounds_like_audio", lambda url: False)
+    monkeypatch.setattr("targum.audio.episode.find", lambda url: None)
+    monkeypatch.setattr("targum.ingest.load", lambda source, language=None: page)
+    job = Library(out).describe("https://news.example/item")
+    assert job.stage == "ready", job.error
+    assert job.segments > 0
+    assert list(out.rglob("*")) == [], "a try wrote to the shelf"
