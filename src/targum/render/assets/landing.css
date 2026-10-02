@@ -673,3 +673,15 @@ footer .mock { max-inline-size: 48rem; }
 .talk-points { display: grid; margin-block-start: 1.25rem; border-block-start: 1px solid var(--hairline); }
 .talk-points li { padding-block: 0.9rem; border-block-end: 1px solid var(--hairline); font-size: 1.0625rem; line-height: 1.5; }
 .talk-points b { font-weight: 600; }
+
+/* §8 on a touch screen: everything a thumb presses answers over 44px. The rules above
+   gave `.btn` its reach and `.btn.small` (more specific) took it back again, so every
+   small pill on the page, the box's Go included, was 32px on a phone (2026-10-02). One
+   block, last, so nothing later can undo it. */
+@media (hover: none) and (pointer: coarse) {
+  .btn, .btn.small, .seg button, .switch, .fold, .rate, .strip .play, .pair .at,
+  .bar .signin, .tongue a, .field input { min-block-size: 44px; }
+  .tongue a, .rate, .strip .play { min-inline-size: 44px; display: inline-grid; place-items: center; }
+  .track { position: relative; }
+  .track::after { content: ""; position: absolute; inset-inline: 0; inset-block: -20px; }
+}
