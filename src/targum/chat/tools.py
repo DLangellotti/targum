@@ -60,6 +60,7 @@ from ..translate.prompts import INTO, language_name
 from ..usage import Usage
 from . import check as check_module
 from . import hebrew as hebrew_module
+from . import rail as rail_module
 from . import sources as sources_module
 
 if TYPE_CHECKING:
@@ -2021,6 +2022,11 @@ def record_turn(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "time — a paragraph recast as a sentence teaches nothing."
             )
         }
+    if rail_module.refuse(wrote, language):
+        # The rail can only say no (targum-internal#324): a correction, a page, another
+        # language or a line said many times is not the reader's own line, and nothing
+        # is claimed. None changes nothing, and the claim below is the same claim.
+        return rail_module.refusal(language_name(language))
     if ctx.ask is None:
         return {"error": "We can't check lines right now. Carry on without the check."}
     from ..serve import Job

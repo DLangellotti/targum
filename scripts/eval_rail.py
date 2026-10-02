@@ -17,9 +17,14 @@ written and labelled by hand, not a reader's traffic):
 - **the checks alone**: `tools.record_turn` itself, run against a stub library whose
   `claim_turn` notes that it was reached and refuses. Reaching it is "would spend". The
   real function rather than a copy of its conditions, so the number moves when they do.
-- **the checks with a Jev "no" in front**: TypeSafe's Jev (`targum.jev`) asked, per case,
-  whether this is a line the learner typed themselves. It can only block: a case is
-  stopped where either rail stops it, and Jev's "allow" means nothing.
+- **the checks with the deterministic rail** (`chat/rail.py`, since #324's go on
+  2026-10-02): `record_turn` as it stands, the rail in front of the claim. "Checks alone"
+  is the same call with the rail taken out, so the two rows are one function measured
+  twice.
+- **the checks with a Jev "no" in front**, on top of the rail: TypeSafe's Jev
+  (`targum.jev`) asked, per case, whether this is a line the learner typed themselves.
+  It can only block: a case is stopped where either rail stops it, and Jev's "allow"
+  means nothing.
 
 A block is the positive class. Precision is the share of blocks that were right; recall
 is the share of cases that should not spend that were stopped. The false blocks — a
@@ -51,6 +56,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import jev, level  # noqa: E402
+from targum.chat import rail as rail_module  # noqa: E402
 from targum.chat import tools  # noqa: E402
 from targum.translate.prompts import language_name  # noqa: E402
 
@@ -80,9 +86,18 @@ class _Library:
         return REACHED
 
 
-def checks(args: dict[str, Any], home: Path) -> str | None:
+def checks(args: dict[str, Any], home: Path, rail: bool = True) -> str | None:
     """Why `record_turn`'s own checks stop these arguments before anything is spent, or
-    None where they would reach `Library.claim_turn` and spend."""
+    None where they would reach `Library.claim_turn` and spend. `rail=False` takes the
+    deterministic rail (`chat/rail.py`) out for the call, so the table can say what the
+    checks did before it and what it adds."""
+    if not rail:
+        kept = rail_module.refuse
+        rail_module.refuse = lambda wrote, language: None  # type: ignore[assignment]
+        try:
+            return checks(args, home)
+        finally:
+            rail_module.refuse = kept
     library = _Library()
     ctx = tools.Ctx(
         person=_Person(),  # type: ignore[arg-type]
@@ -230,8 +245,16 @@ def report(
     by_checks: dict[str, bool],
     answers: dict[str, dict[str, Any]],
     thresholds: tuple[float, ...],
+    before: dict[str, bool] | None = None,
 ) -> str:
-    lines = [HEADER, row("checks alone", score(cases, by_checks))]
+    """The table. `before` is the checks without the deterministic rail; `by_checks` is
+    `record_turn` as it stands, rail and all, and Jev is scored on top of that."""
+    lines = [HEADER]
+    if before is not None:
+        lines.append(row("checks alone", score(cases, before)))
+        lines.append(row("checks + deterministic rail", score(cases, by_checks)))
+    else:
+        lines.append(row("checks alone", score(cases, by_checks)))
     for wording in WORDINGS:
         for threshold in thresholds:
             both = gated(cases, by_checks, answers, wording, threshold)
@@ -249,9 +272,15 @@ def report(
             lines.append(f"Jev `{wording}` ≥ {threshold:.2f}")
             lines.append(f"- catches the checks miss ({len(extra)}): {', '.join(extra) or '—'}")
             lines.append(f"- false blocks ({len(wrong)}): {', '.join(wrong) or '—'}")
+    if before is not None:
+        added = [c["id"] for c in cases if by_checks[c["id"]] and not before[c["id"]]]
+        wrong = [c["id"] for c in cases if by_checks[c["id"]] and c["spend"]]
+        lines.append("")
+        lines.append(f"The rail catches ({len(added)}): {', '.join(added) or '—'}")
+        lines.append(f"The rail's false blocks ({len(wrong)}): {', '.join(wrong) or '—'}")
     missed = [case["id"] for case in cases if not case["spend"] and not by_checks[case["id"]]]
     lines.append("")
-    lines.append(f"Checks alone let through ({len(missed)}): {', '.join(missed)}")
+    lines.append(f"Let through ({len(missed)}): {', '.join(missed)}")
     return "\n".join(lines)
 
 
@@ -283,6 +312,9 @@ def main() -> None:
     cases: list[dict[str, Any]] = json.loads(args.cases.read_text(encoding="utf-8"))["cases"]
     with tempfile.TemporaryDirectory() as home:
         by_checks = {case["id"]: checks(case["args"], Path(home)) is not None for case in cases}
+        before = {
+            case["id"]: checks(case["args"], Path(home), rail=False) is not None for case in cases
+        }
 
     answers: dict[str, dict[str, Any]] = {}
     tokens = 0
@@ -299,7 +331,7 @@ def main() -> None:
     )
     print(f"{len(todo)} to ask, about {estimate} tokens (${estimate * jev.PER_TOKEN:.6f})")
     if args.dry_run:
-        print(report(cases, by_checks, answers, thresholds))
+        print(report(cases, by_checks, answers, thresholds, before))
         return
     if estimate * jev.PER_TOKEN > args.cap:
         raise SystemExit(f"the estimate is over the ${args.cap} cap")
@@ -333,7 +365,7 @@ def main() -> None:
             print(f"a request took {statistics.median(took) * 1000:.0f} ms at the median")
         if failed:
             print(f"unanswered, left to the checks ({len(failed)}): {'; '.join(failed)}")
-    print(report(cases, by_checks, answers, thresholds))
+    print(report(cases, by_checks, answers, thresholds, before))
 
 
 if __name__ == "__main__":
