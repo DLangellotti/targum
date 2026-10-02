@@ -1511,7 +1511,6 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
     the one script are inlined, and nothing on the page fetches anything.
     """
     from ..ingest import x as x_door
-    from ..serve import shelves_are_public
 
     words = page_words(language)
     _front_at = _addressed_in(address.rstrip("/") + "/" if address else "", language)
@@ -1526,12 +1525,12 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
             asked=asked,
             # The tab and the search result speak the page's language too. They are the
             # two sentences a stranger reads before the page itself.
-            title=words("landing.head.title", "targum — learn Hebrew from anything"),
+            title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
             description=words(
                 "landing.head.description",
-                "Paste a link to a video, a post or an article in Hebrew and learn from it: "
-                "vowels on every word, English beside every line, and any word explained "
-                "the moment you tap it. Modern and biblical.",
+                "Learn modern and biblical Hebrew from videos, podcasts and books, or bring "
+                "your own. Vowels on every word, English beside every line, and any word "
+                "explained the moment you tap it.",
             ),
             joined_from="/",
             canonical=_front_at[0],
@@ -1540,9 +1539,6 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
             # X is a door the deployment arms (targum-internal#158), so the list says it
             # works only where it does: "soon" on a box with the switch off.
             x_open=x_door.is_open(),
-            # "Browse the library" only where a stranger can: while the shelves are
-            # private, `/library` is the holding page, and a button onto it is a wall.
-            library_open=shelves_are_public(),
         )
     )
 

@@ -1,19 +1,16 @@
-{#- The front door (targum-internal#69, 2026-09-16; rebuilt around one promise 2026-10-01).
+{#- The front door (targum-internal#69, 2026-09-16).
 
     The one page a stranger meets. It is not the desk and not a reader: it carries its
-    own bar and its own foot. One spine runs down it: the promise, a box that keeps it,
-    then what you can bring, the record of the words you know, the word card, targum in
-    Claude and ChatGPT, the library, the Tanakh, the list and the questions.
-
-    The box under the headline is real (targum-internal#399): a pasted link is described
-    by `/waitlist/look`, which reads metadata and nothing else — no build, no spend, no
-    model — and joining from there keeps the link to hand back in the invitation. It is
-    the one part that needs JavaScript, so it is drawn hidden and `landing.js` shows it;
-    with JavaScript off the page reads in full and the waitlist below still works.
+    own bar, its own foot, and the four things on it that move — the vowel switches, the
+    reading modes, the box's Start and the waitlist's form — are the product doing what
+    the page says it does rather than a picture of it.
 
     Everything it draws is baked in. No script, stylesheet, font or image comes off the
     network, which is the reader's rule (§11) and holds here for the same reason: the
-    first page anybody sees should not be a page that phones somebody else first. -#}
+    first page anybody sees should not be a page that phones somebody else first.
+
+    The waitlist's form is a plain post to `/waitlist`, and works with JavaScript off.
+    `landing.js` only makes the demos move. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
@@ -33,241 +30,309 @@
 <main id="top">
   <div class="col">
     <div class="hero">
-      <h1>{{ t("landing.door.headline", "Learn Hebrew from anything.") }}</h1>
-      <p class="lede">{{ t("landing.door.lede", "Paste a link to a video, a post, an article or a podcast. Or drop in a screenshot. We’ll add the vowels and the English, and explain any word you tap.") }}</p>
+      <div class="headline">
+        <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
+          <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
+      </div>
+      <div class="side">
+        {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
+        <div class="actions">
+          <button class="btn tonal" type="button" id="watchIt">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            {{ t("landing.page.watch-it-work", "Watch it work") }}
+          </button>
+        </div>
+        <ul class="facts">
+          <li>{{ t("landing.page.start-at-any-level", "Start at any level") }}</li>
+          <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
+          <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
+          <li>{{ t("landing.page.no-credit-card-required", "Free to join") }}</li>
+          {#- A light first mention of the connector, where the page lists what you get
+              (design.md §12, "The connector is met on the way in"). -#}
+          {%- if connector_is_open() %}
+          <li>{{ t("landing.page.works-in-claude-and-chatgpt", "Works in Claude and ChatGPT") }}</li>
+          {%- endif %}
+        </ul>
+      </div>
     </div>
 
-    {#- The box (targum-internal#399). Hidden until the script is there to run it. -#}
-    <section class="try" id="try" aria-labelledby="tryH" hidden>
-      <div class="try-head">
-        <h2 id="tryH">{{ t("landing.door.try.heading", "Try it.") }}</h2>
-        <p>{{ t("landing.door.try.lede", "Paste a link and we’ll tell you what we found.") }}</p>
+    <div class="showcase">
+      <article class="reader" id="reader" aria-label="{{ t("landing.page.example-a-cooking-video-in-the-reader", "Example: a cooking video in the reader") }}">
+        <div class="reader-head">
+          <div>
+            <p class="reader-title">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</p>
+            <p class="reader-meta">{{ t("landing.page.a-cooking-video-10-minutes-you-know-80", "A cooking video · 10 minutes · you know 80% of the words here") }}</p>
+          </div>
+          <div class="keys">
+            <button class="btn tonal small" id="vowels" type="button" aria-pressed="true">{{ t("landing.page.vowels", "Vowels") }}</button>
+            <button class="btn tonal small" id="pin" type="button" aria-pressed="false">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="4.5" width="4" height="3" rx="0.6" fill="currentColor"/></svg>
+              <span id="pinWord">{{ t("landing.page.corner", "Corner") }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="stage" id="stage">
+          <canvas id="film" width="960" height="432" aria-hidden="true"></canvas>
+          <div class="captions" id="captions" aria-hidden="true">
+            <p class="c-he" id="capHe"></p>
+            <p class="c-en" id="capEn"></p>
+          </div>
+          <button class="stage-tap" id="stageTap" type="button" aria-label="{{ t("landing.page.play-or-pause-the-video", "Play or pause the video") }}">
+            <span class="glyph"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10l8-5z" fill="currentColor"/></svg></span>
+          </button>
+        </div>
+        <div class="strip">
+          <button class="play" id="play" type="button" aria-label="{{ t("landing.page.play", "Play") }}">
+            <svg viewBox="0 0 16 16" aria-hidden="true" id="playGlyph"><path d="M5 3v10l8-5z" fill="currentColor"/></svg>
+          </button>
+          <span class="clock tnum" id="clock">2:20 / 10:12</span>
+          <span class="track" id="track" role="slider" tabindex="0" aria-label="{{ t("landing.page.position", "Position") }}" aria-valuemin="0" aria-valuemax="18" aria-valuenow="10"><i id="fill"></i></span>
+          <button class="rate" id="rate" type="button" aria-label="{{ t("landing.page.speed", "Speed") }}">1×</button>
+        </div>
+        <div class="lines" id="lines"></div>
+        <div class="reader-foot">
+          <span class="legend"><i class="l-learning"></i>{{ t("landing.page.working-on-it", "working on it") }}</span>
+          <span class="legend"><i class="l-new"></i>{{ t("landing.page.new-to-you", "new to you") }}</span>
+          <span>{{ t("landing.page.tap-any-word-or-a-time-to-hear", "Tap any word, or a time to hear the line again.") }}</span>
+        </div>
+      </article>
+
+      <aside class="card" id="card" aria-live="polite" aria-label="{{ t("landing.page.word-card", "Word card") }}"></aside>
+    </div>
+  </div>
+
+  <section class="part" id="own">
+    <div class="col split">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</p>
+        <h2>{{ t("landing.page.if-it-s-in-hebrew-you-can-learn", "If it’s in Hebrew, you can learn from it here.") }}</h2>
+        <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file. Recordings are written out word by word and timed to the voice, so each word lights up as it’s said.") }}</p>
       </div>
-      <div class="box">
+      {#- The box, for real (targum-internal#399): a pasted link is described by
+          `/waitlist/look` — metadata only, no build, no spend, no model — and joining from
+          here keeps the link to hand back in the invitation. It needs the script to say
+          anything, so it is drawn hidden and `landing.js` shows it. -#}
+      <div class="box-card" id="try" hidden>
         <form class="field" id="tryForm" action="/waitlist/look{% if asked|default('') %}?lang={{ asked }}{% endif %}" method="post" novalidate>
-          <input id="tryInput" name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.door.try.placeholder", "Paste a link") }}" aria-label="{{ t("landing.door.try.label", "A link to something in Hebrew") }}">
+          <input id="tryInput" name="url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.door.try.placeholder", "Paste a link to try it") }}" aria-label="{{ t("landing.door.try.label", "A link to something in Hebrew") }}">
           <button class="btn filled small" type="submit">{{ t("landing.door.try.go", "Go") }}</button>
         </form>
         <div id="tryOut" aria-live="polite"></div>
-        {#- Joining from the box: the waitlist's own plain post, carrying the link. Shown
-            only once a link has been described, so it is never a form about nothing. -#}
         <form class="keep" id="keep" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}" hidden>
           <input type="hidden" name="from" value="/">
           <input type="hidden" name="link" id="keepLink" value="">
-          <h3>{{ t("landing.door.keep.heading", "Join to save it") }}</h3>
+          <p class="keep-head">{{ t("landing.door.keep.heading", "Join to save it") }}</p>
           <label class="field">
             <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}">
             <button class="btn cta small" type="submit">{{ t("landing.door.keep.join", "Join") }}</button>
           </label>
-          <p class="note">{{ t("landing.door.keep.note", "We’ll keep the link and send it back with your invitation.") }}</p>
-          <p class="unlock">{{ t("landing.door.keep.unlock", "Then we’ll show you how much of it you already know.") }}</p>
+          <p class="keep-note">{{ t("landing.door.keep.note", "We’ll keep the link and send it back with your invitation.") }}</p>
+          <p class="keep-unlock">{{ t("landing.door.keep.unlock", "Then we’ll show you how much of it you already know.") }}</p>
         </form>
       </div>
-    </section>
-
-    <p class="lede after-try">{{ t("landing.door.after-try", "Don’t have anything yet?") }} <a href="#library">{{ t("landing.door.after-try.link", "Start with our free library.") }}</a> {{ t("landing.door.after-try.tanakh", "It includes the whole Tanakh.") }}</p>
-  </div>
-
-  <section class="part" id="bring">
-    <div class="col">
-      <div class="part-head">
-        <p class="label">{{ t("landing.door.bring.label", "What you can bring") }}</p>
-        <h2>{{ t("landing.door.bring.heading", "Copy the link, paste it here.") }}</h2>
-        <p>{{ t("landing.door.bring.lede", "It works with most places you’ll run into Hebrew. TikToks stay vertical, and articles get their vowels.") }}</p>
-      </div>
-      <ul class="doors">
-        <li class="door"><span class="mini wide" aria-hidden="true"><b class="pic"></b><i class="m"></i><i class="s"></i></span><span class="name">YouTube</span><span class="how">{{ t("landing.door.youtube.how", "Video on top, text underneath") }}</span></li>
-        <li class="door"><span class="mini side" aria-hidden="true"><b class="pic"></b><i class="m"></i><i class="s"></i><i class="m"></i><i class="s"></i></span><span class="name">TikTok</span><span class="how">{{ t("landing.door.tiktok.how", "Stays vertical") }}</span></li>
-        <li class="door"><span class="mini side" aria-hidden="true"><b class="pic"></b><i class="s"></i><i class="m"></i><i class="s"></i><i class="m"></i></span><span class="name">Instagram</span><span class="how">{{ t("landing.door.instagram.how", "Reels and posts") }}</span></li>
-        <li class="door"><span class="mini side" aria-hidden="true"><b class="pic"></b><i class="m"></i><i class="m"></i><i class="s"></i><i class="s"></i></span><span class="name">Facebook</span><span class="how">{{ t("landing.door.facebook.how", "Reels and videos") }}</span></li>
-        <li class="door"><span class="mini post" aria-hidden="true"><b class="dot"></b><i class="m"></i><i class="s"></i><i class="m"></i></span><span class="name">X{% if not x_open %}<span class="soon">{{ t("landing.page.soon", "soon") }}</span>{% endif %}</span><span class="how">{{ t("landing.door.x.how", "Posts") }}</span></li>
-        <li class="door"><span class="mini shot" aria-hidden="true"><b class="pic"></b><i class="m"></i><i class="s"></i><i class="m"></i></span><span class="name">{{ t("landing.door.screenshots", "Screenshots") }}</span><span class="how">{{ t("landing.door.screenshots.how", "A chat, a sign, a menu") }}</span></li>
-        <li class="door"><span class="mini wave" aria-hidden="true"><span class="bars"><b class="h40"></b><b class="h80"></b><b class="h55"></b><b class="h95"></b><b class="h35"></b><b class="h70"></b><b class="h50"></b><b class="h85"></b><b class="h30"></b><b class="h60"></b></span><i class="m"></i><i class="s"></i></span><span class="name">{{ t("landing.door.files", "Files") }}</span><span class="how">{{ t("landing.door.files.how", "Audio, video or a PDF") }}</span></li>
-        <li class="door"><span class="mini news" aria-hidden="true"><i class="h"></i><i class="m"></i><i class="m"></i><i class="s"></i></span><span class="name">{{ t("landing.door.news", "News pages") }}</span><span class="how">{{ t("landing.door.news.how", "Any article") }}</span></li>
-      </ul>
+        {#- Where the Hebrew comes from, each drawn as what it looks like (2026-10-01): the
+            page's one inverted block, beside the box that takes it. -#}
+        <div class="media bring">
+          <ul class="media-grid eight">
+            <li class="m-tile">
+              <div class="m-vis"><div class="v-frame"></div><div class="v-cap"><span class="he">עַכְשָׁיו שׁוֹבְרִים אֶת הַבֵּיצִים</span><span>{{ t("landing.page.now-crack-the-eggs", "Now crack the eggs") }}</span></div></div>
+              <h3>{{ t("landing.page.a-youtube-link-or-a-video-file", "A YouTube link or a video file") }}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis tall-row"><span class="tall"><span class="v-frame"></span><span class="t-cap he">יַאלְלָה, בּוֹאוּ</span></span><span class="tall"><span class="v-frame b"></span><span class="t-cap he">אֵיזֶה יוֹפִי</span></span><span class="tall"><span class="v-frame c"></span><span class="t-cap he">תִּרְאוּ אֶת זֶה</span></span></div>
+              <h3>{{ t("landing.page.reels-shorts-tiktoks-and-facebook-videos", "Reels, Shorts, TikToks and Facebook videos") }}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis"><div class="wave" id="bringWave"></div><span class="wave-clock tnum">18:40 / 31:06</span></div>
+              <h3>{{ t("landing.page.a-podcast", "A podcast") }}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis"><div class="note-bubble"><span class="dot"></span><span class="mini" id="bringMini"></span><span class="len tnum">0:47</span></div><p class="note-line">הֵי, רָאִיתָ אֶת הַהוֹדָעָה שֶׁשָּׁלַחְתִּי?</p></div>
+              <h3>{{ t("landing.page.a-voice-note", "A voice note") }}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis post-vis"><span class="who"><b class="dot"></b><b class="name">@kan_news</b></span><p class="he">הַיּוֹם בָּעֶרֶב: סִדְרָה חֲדָשָׁה לְכָל הַמִּשְׁפָּחָה</p></div>
+              <h3>{{ t("landing.page.posts-from-x", "Posts from X") }}{% if not x_open %}<span class="soon">{{ t("landing.page.soon", "soon") }}</span>{% endif %}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis chat-vis"><p class="he in">סַבְתָּא, אֵיךְ עוֹשִׂים שַׁקְשׁוּקָה?</p><p class="he out">רַק עַגְבָנִיּוֹת טוֹבוֹת, בָּצָל וְשׁוּם.</p></div>
+              <h3>{{ t("landing.page.a-whatsapp-or-telegram-chat", "A WhatsApp or Telegram chat") }}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis news-vis"><p class="he head">הַגֶּשֶׁם חוֹזֵר בְּסוֹף הַשָּׁבוּעַ</p><p class="he">הַתַּחֲזִית: גְּשָׁמִים בַּצָּפוֹן וּבַמֶּרְכָּז, וְקַר יוֹתֵר בַּלַּיְלָה.</p></div>
+              <h3>{{ t("landing.page.today-s-news-from-any-site", "Today’s news, from any site") }}</h3>
+            </li>
+            <li class="m-tile">
+              <div class="m-vis page-vis"><span class="sheet-p"><i></i><i></i><i class="s"></i><i></i><i class="s"></i></span><span class="sheet-p back"><i></i><i class="s"></i><i></i></span></div>
+              <h3>{{ t("landing.page.an-article-or-a-book", "An article or a book") }}</h3>
+            </li>
+          </ul>
+        </div>
     </div>
   </section>
 
-  <section class="part" id="record">
+  <section class="part" id="how">
     <div class="col">
       <div class="part-head">
-        <p class="label">{{ t("landing.door.record.label", "Your words") }}</p>
-        <h2>{{ t("landing.door.record.heading", "We keep track of the words you know.") }}</h2>
-        <p>{{ t("landing.door.record.lede", "Every word you learn counts, whatever you read it in. So before you start something new, you can see how much of it you’ll understand.") }}</p>
+        <p class="label">{{ t("landing.page.how-you-learn", "How you learn") }}</p>
+        <h2>{{ t("landing.page.learn-a-little-hebrew-every-day-from-things", "Learn Hebrew every day, from things you’d choose anyway.") }}</h2>
+        <p>{{ t("landing.page.no-drills-and-no-textbook-dialogues-pick-a", "Real Hebrew, chosen by you. Pick a video, a podcast or a chapter, and targum turns it into a lesson built on the words you already know.") }}</p>
       </div>
-      <div class="record">
-        <article class="reader" aria-label="{{ t("landing.door.record.example", "Example: a cooking video you brought") }}">
-          <div class="reader-head">
-            <span class="thumb" aria-hidden="true"><span class="len tnum">9:04</span></span>
-            <div>
-              <p class="reader-title">{{ t("landing.page.sabich-step-by-step", "Sabich, step by step") }}</p>
-              <p class="reader-meta">{{ t("landing.door.record.meta", "YouTube · 9 minutes · you brought this") }}</p>
-              <p class="known"><b class="tnum">80%</b><span>{{ t("landing.door.record.known", "You know 80% of this.") }}</span></p>
-              <span class="meter"><i class="p80"></i></span>
-            </div>
+      <ol class="how">
+        <li class="how-card">
+          <span class="how-n">1</span>
+          <h3>{{ t("landing.page.pick-something-just-past-what-you-know", "Pick something just past what you know") }}</h3>
+          <p>{{ t("landing.page.the-library-is-sorted-by-the-words-you", "We compare every word in a text with the words you know, by dictionary form, so you see how much you’ll understand before you start.") }}</p>
+          <div class="how-vis">
+            <div class="how-row"><span>{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="meter"><i class="p80"></i></span></div>
+            <div class="how-row"><span>{{ t("landing.page.this-week-s-news-easy", "This week’s news · easy") }}</span><span class="meter"><i class="p90"></i></span></div>
+            <div class="how-row"><span>{{ t("landing.page.homemade-hummus-step-by-step", "Homemade hummus, step by step") }}</span><span class="meter"><i class="p70"></i></span></div>
           </div>
-          <div class="lines">
-            <p class="line-he">קֹדֶם <span class="w new">מְטַגְּנִים</span> אֶת הַחֲצִילִים עַד שֶׁהֵם <span class="w learning">זְהֻבִּים</span>.</p>
-            <p class="line-en">{{ t("landing.door.record.line-1", "First, fry the eggplant until it’s golden.") }}</p>
-            <p class="line-he">חוֹתְכִים <a class="w learning" href="#word">עַגְבָנִיָּה</a> וּמְלָפְפוֹן לְסָלָט קָטָן.</p>
-            <p class="line-en">{{ t("landing.door.record.line-2", "Cut a tomato and a cucumber for a small salad.") }}</p>
-          </div>
-          <div class="reader-foot">
-            <span class="legend"><i class="l-learning"></i>{{ t("landing.page.working-on-it", "working on it") }}</span>
-            <span class="legend"><i class="l-new"></i>{{ t("landing.page.new-to-you", "new to you") }}</span>
-            <span>{{ t("landing.door.record.tap", "Tap a word to open its card.") }}</span>
-          </div>
-        </article>
-        {#- Words known over twelve weeks, drawn to one scale. A composed example, like the
-            reader beside it; the bars are SVG attributes, which the page's policy allows
-            where an inline style is refused. -#}
-        {%- set weeks = [620, 760, 880, 1010, 1150, 1260, 1390, 1520, 1660, 1790, 1960, 2140] %}
-        <figure class="growth" aria-label="{{ t("landing.door.record.growth", "Example: words known over twelve weeks") }}">
-          <div class="growth-top"><b class="tnum">2,140</b><span>{{ t("landing.page.words-known-2", "words known") }}</span></div>
-          <svg viewBox="0 0 300 120" role="img" aria-label="{{ t("landing.door.record.growth-said", "Words known rose from 620 to 2,140 over twelve weeks") }}">
-            <line x1="0" x2="300" y1="104" y2="104" class="axis"></line>
-            {%- for v in weeks %}
-            {%- set h = (v / 2400 * 88)|round(1) %}
-            <rect x="{{ loop.index0 * 25 + 3 }}" y="{{ (104 - h)|round(1) }}" width="19" height="{{ h }}" rx="2" class="{{ 'now' if loop.last else 'then' }}"></rect>
-            {%- endfor %}
-            <text x="0" y="118">{{ t("landing.door.record.weeks-ago", "12 weeks ago") }}</text>
-            <text x="300" y="118" text-anchor="end">{{ t("landing.door.record.this-week", "this week") }}</text>
-          </svg>
-          <div class="ledger">
-            <div><span class="v tnum">61</span><span class="k">{{ t("landing.page.days-reading", "days on targum") }}</span></div>
-            <div><span class="v tnum">48</span><span class="k">{{ t("landing.door.record.texts-finished", "texts finished") }}</span></div>
-            <div><span class="v tnum">+1,520</span><span class="k">{{ t("landing.door.record.in-twelve-weeks", "words in 12 weeks") }}</span></div>
-          </div>
-        </figure>
-      </div>
-    </div>
-  </section>
-
-  <section class="part" id="word">
-    <div class="col">
-      <div class="part-head">
-        <p class="label">{{ t("landing.door.word.label", "The word card") }}</p>
-        <h2>{{ t("landing.door.word.heading", "Tap any word.") }}</h2>
-      </div>
-      <div class="wordpart">
-        <aside class="wcard" id="wcard" aria-label="{{ t("landing.page.word-card", "Word card") }}">
-          <p class="label">{{ t("landing.page.word-card", "Word card") }}</p>
-          <div>
-            <p class="word he">עַגְבָנִיָּה</p>
-            <p class="sense">{{ t("landing.card.tomato", "tomato") }} <span>· {{ t("landing.card.noun-feminine", "noun, feminine") }}</span></p>
-          </div>
-          <dl class="facts-list">
-            <dt>{{ t("landing.card.from", "From") }}</dt><dd><span class="he">עָגַב</span>, {{ t("landing.door.word.from", "to desire. The tomato was once the love apple.") }}</dd>
-            <dt>{{ t("landing.card.plural", "Plural") }}</dt><dd><span class="he">עַגְבָנִיּוֹת</span></dd>
-          </dl>
-          <div class="story-line">
-            <p class="he" id="vowelLine">רַק עַגְבָנִיּוֹת טוֹבוֹת, בָּצָל וְשׁוּם.</p>
-            <p class="en">{{ t("landing.door.word.example", "Only good tomatoes, onion and garlic.") }}</p>
-          </div>
-          <div class="card-actions">
-            <button class="btn tonal small" type="button" aria-pressed="true" data-state>{{ t("landing.door.word.learning", "Learning") }}</button>
-            <button class="btn tonal small" type="button" aria-pressed="false" data-state>{{ t("landing.door.word.know-it", "Know it") }}</button>
-          </div>
-        </aside>
-        <ul class="alsos">
-          <li><h3>{{ t("landing.door.word.roots", "Roots") }}</h3><p>{{ t("landing.door.word.roots.said", "Each verb shows its root and the verbs built from it.") }} <span class="he">פָּגַשׁ · נִפְגַּשׁ</span></p></li>
-          <li><h3>{{ t("landing.door.word.conjugations", "Conjugations") }}</h3><p>{{ t("landing.door.word.conjugations.said", "The full table, with this form highlighted.") }}</p></li>
-          <li>
-            <h3>{{ t("landing.page.vowels", "Vowels") }}</h3>
-            <p>{{ t("landing.door.word.vowels.said", "Turn them off when you’re ready to read without them.") }}</p>
+        </li>
+        <li class="how-card">
+          <span class="how-n">2</span>
+          <h3>{{ t("landing.page.tap-any-word", "Tap any word") }}</h3>
+          <p>{{ t("landing.page.tap-any-word-said", "Each word is broken down to its dictionary form, root and binyan: from scholars’ own analysis for the Bible, and a Hebrew language model for everything else. We fill in any missing vowels and mark each one we added.") }}</p>
+          {#- "Every word" folded in here (2026-10-01): the reader at the top already shows
+              a whole card, so this shows the one thing it cannot, the vowels going. -#}
+          <div class="how-vis center">
+            <p class="stack he how-word" id="vsRecipe"></p>
+            <span class="how-gloss">{{ t("landing.page.for-it-to-heat-up", "for it to heat up") }} · hitpa’el · <span class="he">ח־מ־ם</span></span>
             <button class="switch" id="swVowels" type="button" role="switch" aria-checked="true"><span class="knob" aria-hidden="true"></span>{{ t("landing.page.vowels", "Vowels") }}</button>
-          </li>
-          <li><h3>{{ t("landing.door.word.both", "Biblical and modern") }}</h3><p>{{ t("landing.door.word.both.said", "It’s one word list. Learn a word in Genesis and it counts when you see it in the news.") }}</p></li>
+          </div>
+        </li>
+        <li class="how-card">
+          <span class="how-n">3</span>
+          <h3>{{ t("landing.page.watch-your-hebrew-grow", "Watch your Hebrew grow") }}</h3>
+          <p>{{ t("landing.page.every-word-you-learn-is-counted-and-moves", "One word list for 3,000 years of Hebrew. Learn a word in Genesis and it’s already yours in the news, and every word moves you up the ulpan ladder.") }}</p>
+          <div class="how-vis">
+            <div class="how-count"><span class="v">2,140</span><span>{{ t("landing.page.words-known", "words known ·") }} <span class="he">ב</span> {{ t("landing.page.bet", "bet") }}</span></div>
+            <div class="how-bars"><i class="h30 on"></i><i class="h42 on"></i><i class="h54 part"></i><i class="h66"></i><i class="h78"></i><i class="h90"></i></div>
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="part" id="talk">
+    <div class="col split">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.talk-to-targum", "Talk to targum") }}</p>
+        <h2>{{ t("landing.page.ask-anything-and-practise-talking-while-you-do", "Ask anything, and practise talking while you do.") }}</h2>
+        {#- Three plain sentences rather than two paragraphs or a row of icons
+            (2026-10-02): what you do, what comes back, and where else it works. The last
+            is the connector, said lightly (design.md §12, 2026-09-28). -#}
+        <ul class="talk-points">
+          <li><b>{{ t("landing.page.talk.write", "Write in Hebrew or English.") }}</b> {{ t("landing.page.talk.write.said", "targum answers in simple Hebrew, with the English underneath.") }}</li>
+          <li><b>{{ t("landing.page.talk.fix", "When you slip,") }}</b> {{ t("landing.page.talk.fix.said", "it shows you the right sentence and why.") }}</li>
+          {%- if connector_is_open() %}
+          <li><b>{{ t("landing.page.talk.claude", "It works in Claude and ChatGPT too.") }}</b> {{ t("landing.page.talk.claude.said", "Ask what to read next, and it answers from the words you know.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></li>
+          {%- endif %}
         </ul>
       </div>
-    </div>
-  </section>
-
-  {#- targum inside the AI a reader already uses: the cerebral learner's use case, "what
-      to read next", answered from their own word list (2026-10-01). The assistant is set
-      in type beside targum's own screen, never drawn as Claude's or ChatGPT's interface.
-      Only where the connector is open, as everywhere else it is mentioned. -#}
-  {%- if connector_is_open() %}
-  <section class="part" id="claude">
-    <div class="col ask">
-      <div class="part-head">
-        <p class="label">{{ t("landing.door.claude.label", "In Claude and ChatGPT") }}</p>
-        <h2>{{ t("landing.door.claude.heading", "Ask Claude or ChatGPT what to read next.") }}</h2>
-        <p>{{ t("landing.door.claude.lede", "Connect targum and it knows your word list. Ask for something to read, and it finds a text just past what you know.") }}</p>
-        <dl class="exchange">
-          <dt>{{ t("landing.page.you", "You") }}</dt>
-          <dd class="q">{{ t("landing.door.claude.question", "Something about cooking I can mostly follow?") }}</dd>
-          <dt>{{ t("landing.door.claude.answer-by", "The answer") }}</dt>
-          <dd class="a">{{ t("landing.door.claude.answer", "Shakshuka in ten minutes. You know 85% of the words in it.") }}</dd>
-        </dl>
-        <a class="btn tonal" href="/connect{% if asked|default('') %}?lang={{ asked }}{% endif %}">{{ t("landing.door.claude.connect", "Connect targum") }}</a>
-      </div>
-      <figure class="phone" aria-label="{{ t("landing.door.claude.screen", "Example: the text it found, on targum") }}">
-        <div class="screen">
-          <p class="label">{{ t("landing.page.video", "Video") }}</p>
-          <span class="thumb wide" aria-hidden="true"><span class="len tnum">10:12</span></span>
-          <p class="reader-title">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</p>
-          <p class="known"><b class="tnum">85%</b><span>{{ t("landing.door.claude.known", "You know 85% of this.") }}</span></p>
-          <span class="meter"><i class="p85"></i></span>
-          <p class="line-he">שָׂמִים שֶׁמֶן בַּמַּחֲבַת וּמְחַכִּים שֶׁיִּתְחַמֵּם.</p>
-          <p class="line-en">{{ t("landing.page.put-oil-in-the-pan-and-wait-for", "Put oil in the pan and wait for it to heat up.") }}</p>
+      {#- The conversation on a phone (2026-10-02), the way it is mostly had. A picture of
+          a device, so its corners are cut by `clip-path`: the radius scale is for the
+          interface, and a phone's corners are far rounder than any step on it. -#}
+      <figure class="talk-phone">
+        <div class="phone">
+          <div class="screen">
+            <span class="island" aria-hidden="true"></span>
+            <div class="app-bar" aria-hidden="true">
+              <svg viewBox="20 12 56 72"><rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect><rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect></svg>
+              targum
+            </div>
+            <div class="thread" aria-label="{{ t("landing.page.example-conversation", "Example conversation") }}">
+              <div class="msg mine" aria-label="{{ t("landing.page.you", "You") }}">
+                <p class="said">השקשוקה שלי היה טעים</p>
+              </div>
+              <div class="msg theirs" aria-label="targum">
+                <div class="recast">
+                  <span class="tag">{{ t("landing.page.corrected", "Corrected") }}</span>
+                  <p class="t-he">הַשַּׁקְשׁוּקָה שֶׁלִּי <mark>הָיְתָה</mark> <mark>טְעִימָה</mark>.</p>
+                  <p class="t-en">{{ t("landing.page.my-shakshuka-was-delicious", "My shakshuka was delicious.") }}</p>
+                </div>
+                <button class="fold" id="whyFold" type="button" aria-expanded="false" aria-controls="why">
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  {{ t("landing.page.why", "Why") }}
+                </button>
+                <p class="why" id="why" hidden><span class="he">שַׁקְשׁוּקָה</span> {{ t("landing.page.is-feminine-so-the-verb-and-the-adjective", "is feminine, so the verb and the adjective are too.") }}</p>
+              </div>
+              <div class="msg theirs" aria-label="targum">
+                <p class="t-he">נִשְׁמָע טָעִים. יֵשׁ לָנוּ סִרְטוֹן עַל חוּמוּס בֵּיתִי. רוֹצֶה לִרְאוֹת?</p>
+                <p class="t-en">{{ t("landing.page.sounds-delicious-we-have-a-video-on-homemade", "Sounds delicious. We have a video on homemade hummus. Want to watch it?") }}</p>
+                <a class="btn cta small door" href="#reader">{{ t("landing.page.open-homemade-hummus", "Open Homemade hummus") }}</a>
+              </div>
+              <div class="thread-foot tnum">
+                <span>{{ t("landing.page.2-new-words-on-your-list", "2 new words on your list") }}</span>
+                <a href="#reader">{{ t("landing.page.keep-as-a-text", "Keep as a text") }}</a>
+              </div>
+            </div>
+            <div class="composer" aria-hidden="true">
+              <span>{{ t("chat.page.write-in-hebrew-or-english", "Write in Hebrew or English") }}</span>
+              <span class="send"><svg viewBox="0 0 16 16"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </div>
+          </div>
         </div>
       </figure>
     </div>
   </section>
-  {%- endif %}
+
 
   <section class="part" id="library">
     <div class="col">
-      <div class="lib">
-        <div class="part-head">
-          <p class="label">{{ t("landing.page.the-library", "The library") }}</p>
-          <h2>{{ t("landing.door.library.heading", "Nearly 500 texts and videos, all free.") }}</h2>
-          <p>{{ t("landing.door.library.lede", "There’s the news every week at three levels, short stories and poetry. A lot of it is biblical: the whole Tanakh, with the weekly portion read aloud and Onkelos next to the Torah.") }}</p>
-        </div>
-        {%- if library_open %}
-        <a class="btn tonal" href="/library{% if asked|default('') %}?lang={{ asked }}{% endif %}">{{ t("landing.door.library.browse", "Browse the library") }}</a>
-        {%- endif %}
-      </div>
-      <ul class="shelf">
-        <li class="book"><span class="label">{{ t("landing.door.library.news", "News") }}</span><span class="t">{{ t("landing.door.library.news.t", "This week, in easy Hebrew") }}</span><span class="k">{{ t("landing.door.library.news.k", "Three levels, new every week") }}</span></li>
-        <li class="book"><span class="label">{{ t("landing.page.video", "Video") }}</span><span class="t">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="k">{{ t("landing.door.library.video.k", "Subtitled") }}</span></li>
-        <li class="book"><span class="label">{{ t("landing.door.library.poetry", "Poetry") }}</span><span class="t">{{ t("landing.page.bialik", "Bialik ·") }} <span class="he">הַכְנִיסִינִי</span></span><span class="k">{{ t("landing.door.library.poetry.k", "With a published translation") }}</span></li>
-        <li class="book"><span class="label">{{ t("landing.door.tanakh", "Tanakh") }}</span><span class="t">{{ t("landing.door.library.portion", "This week’s portion") }}</span><span class="k">{{ t("landing.door.library.portion.k", "Read aloud, every week") }}</span></li>
-      </ul>
-    </div>
-  </section>
-
-  <section class="part" id="torah">
-    <div class="col torah">
       <div class="part-head">
-        <p class="label">{{ t("landing.door.torah.label", "In the library") }}</p>
-        <h2>{{ t("landing.door.torah.heading", "The Tanakh, with cantillation marks and Onkelos.") }}</h2>
-        <p>{{ t("landing.door.torah.lede", "There’s an English translation under every verse, and Onkelos’s Aramaic when you want it. Tap any word for its root and binyan. Daniel and Ezra’s Aramaic chapters are here too.") }}</p>
+        <p class="label">{{ t("landing.page.the-library", "The library") }}</p>
+        <h2>{{ t("landing.page.nearly-500-texts-and-videos-to-learn-from", "More than 500 texts and videos, all free.") }}</h2>
+        <p>{{ t("landing.page.this-week-s-news-at-three-levels-videos", "This week’s news at three levels, graded stories, Bialik and the whole Tanakh, many with a published translation set beside the Hebrew sentence by sentence.") }}</p>
       </div>
-      <article class="sheet" aria-label="{{ t("landing.page.example-genesis-1-1-3", "Example: Genesis 1:1–3") }}">
+      <div class="shelf">
+        <div class="book"><span class="reg">{{ t("landing.page.video", "Video") }}</span><span class="t">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="k tnum">{{ t("landing.page.80-of-words-known", "80% of words known") }}</span><span class="meter"><i class="p80"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.modern", "Modern") }}</span><span class="t">{{ t("landing.page.this-week-s-news-easy", "This week’s news · easy") }}</span><span class="k tnum">{{ t("landing.page.90-of-words-known", "90% of words known") }}</span><span class="meter"><i class="p90"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.revival", "Revival") }}</span><span class="t">{{ t("landing.page.bialik", "Bialik ·") }} <span class="he">הַכְנִיסִינִי</span></span><span class="k tnum">{{ t("landing.page.60-of-words-known", "60% of words known") }}</span><span class="meter"><i class="p60"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.biblical", "Biblical") }}</span><span class="t">{{ t("landing.page.genesis-1-with-onkelos", "Genesis 1, with Onkelos") }}</span><span class="k tnum">{{ t("landing.page.70-of-words-known", "70% of words known") }}</span><span class="meter"><i class="p70"></i></span></div>
+      </div>
+    </div>
+    {#- The Torah is in the library, so it is drawn there (2026-10-01): the shelf, then
+        Genesis as its centrepiece, rather than a part of its own. -#}
+    <div class="col split torah-in" id="torah">
+      <div class="part-head">
+        <h3>{{ t("landing.page.genesis-with-its-chanting-marks-and-onkelos-beside", "Genesis with its chanting marks, and Onkelos beside it.") }}</h3>
+        <p>{{ t("landing.page.the-hebrew-with-its-chanting-marks-an-english", "The Hebrew with its chanting marks, an English translation under every verse, and Targum Onkelos whenever you want the Aramaic.") }}</p>
+        <ul class="points">
+          <li>{{ t("landing.page.chanting-marks-on-or-off", "Chanting marks on or off.") }}</li>
+          <li>{{ t("landing.page.the-weekly-portion-read-aloud", "The weekly portion chanted, each word lit as it’s sung.") }}</li>
+          <li>{{ t("landing.page.daniel-and-ezra-s-aramaic-chapters-on-a", "Daniel and Ezra’s Aramaic chapters, on a list of their own.") }}</li>
+        </ul>
+      </div>
+
+      <article class="sheet torah" aria-label="{{ t("landing.page.example-genesis-1-1-3", "Example: Genesis 1:1–3") }}">
         <div class="sheet-head">
-          <p class="sheet-title">{{ t("landing.page.genesis-1-bereshit", "Genesis 1 · Bereshit") }}</p>
-          <button class="switch" id="swChant" type="button" role="switch" aria-checked="true"><span class="knob" aria-hidden="true"></span>{{ t("landing.door.torah.cantillation", "Cantillation") }}</button>
-          <button class="switch" id="swOnk" type="button" role="switch" aria-checked="false"><span class="knob" aria-hidden="true"></span>Onkelos</button>
+          <div>
+            <p class="sheet-title">{{ t("landing.page.genesis-1-bereshit", "Genesis 1 · Bereshit") }}</p>
+            <p class="sheet-meta" id="torahMeta">{{ t("landing.page.hebrew-english", "Hebrew · English") }}</p>
+          </div>
+          <div class="seg switch" role="group" aria-label="{{ t("landing.page.how-to-read", "How to read") }}">
+            <button type="button" data-mode="read" aria-pressed="true">{{ t("landing.page.read", "Read") }}</button>
+            <button type="button" data-mode="verse" aria-pressed="false">{{ t("landing.page.by-verse", "By verse") }}</button>
+            <button type="button" data-mode="aliyah" aria-pressed="false">{{ t("landing.page.by-aliyah", "By aliyah") }}</button>
+          </div>
         </div>
-        <div class="verse"><span class="num tnum">1</span><p class="v-he" data-chant>בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃</p><p class="v-arc" hidden>בְּקַדְמִין בְּרָא יְיָ יָת שְׁמַיָּא וְיָת אַרְעָא</p><p class="v-en">{{ t("landing.demo.in-the-beginning-god-created-the-heaven-and", "In the beginning God created the heaven and the earth.") }}</p></div>
-        <div class="verse"><span class="num tnum">2</span><p class="v-he" data-chant>וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֙הוּ֙ וָבֹ֔הוּ וְחֹ֖שֶׁךְ עַל־פְּנֵ֣י תְה֑וֹם וְר֣וּחַ אֱלֹהִ֔ים מְרַחֶ֖פֶת עַל־פְּנֵ֥י הַמָּֽיִם׃</p><p class="v-arc" hidden>וְאַרְעָא הֲוַת צָדְיָא וְרֵיקַנְיָא וַחֲשׁוֹכָא פָּרַשׂ עַל אַפֵּי תְהוֹמָא וְרוּחָא מִן קֳדָם יְיָ מְנַשְּׁבָא עַל אַפֵּי מַיָּא</p><p class="v-en">{{ t("landing.demo.now-the-earth-was-unformed-and-void-and", "Now the earth was unformed and void, and darkness was upon the face of the deep; and the spirit of God hovered over the face of the waters.") }}</p></div>
-        <div class="verse"><span class="num tnum">3</span><p class="v-he" data-chant>וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃</p><p class="v-arc" hidden>וַאֲמַר יְיָ יְהֵי נְהוֹרָא וַהֲוָה נְהוֹרָא</p><p class="v-en">{{ t("landing.demo.and-god-said-let-there-be-light-and", "And God said: ‘Let there be light.’ And there was light.") }}</p></div>
+        <div id="verses"></div>
+        <div class="torah-foot" id="torahFoot" hidden></div>
       </article>
     </div>
   </section>
 
   <section class="part" id="join">
-    <div class="col join">
+    <div class="col split">
       <div class="part-head">
         <p class="label">{{ t("landing.page.the-waitlist", "The waitlist") }}</p>
-        <h2>{{ t("landing.door.join.heading", "Join the waitlist.") }}</h2>
-        <p>{{ t("landing.door.join.lede", "We’re letting people in a few at a time. We’ll email you when it’s your turn.") }}</p>
+        <h2>{{ t("landing.page.be-among-the-first-to-learn-hebrew-this", "Be among the first to learn Hebrew this way.") }}</h2>
+        <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
       </div>
       <div class="join-card">
         {% include '_join_form.html.j2' %}
-        <p class="join-note">{{ t("landing.door.join.note", "It’s free to start, and the whole library is open. We only need your email.") }}</p>
+        <p class="join-note">{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</p>
       </div>
     </div>
   </section>
@@ -276,20 +341,22 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
-        <h2>{{ t("landing.door.faq.heading", "Before you join.") }}</h2>
+        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
       </div>
       <div class="faq">
-        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.door.faq.open", "Soon. We’re letting people in a few at a time. Join and we’ll email you when it’s your turn.") }}</p></details>
-        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.door.faq.for-me", "If you’re learning Hebrew and can read the alphabet, yes. It doesn’t matter where you live or why you’re learning.") }}</p></details>
-        <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.door.faq.both", "Both. They share one word list, so a word you learn in Genesis counts when it shows up in the news.") }}</p></details>
-        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.door.faq.cost", "The library is free and will stay free. There’ll be a paid plan for reading your own links.") }}</p></details>
+        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.page.if-you-re-learning-hebrew-and-know-the", "If you’re learning Hebrew and know the alphabet, yes: whether you’re fresh out of an ulpan, a year into an app, studying for a degree or keeping up with the weekly portion. The library is sorted by the words you already know, so there’s always something you can learn from.") }}</p></details>
+        <details><summary>{{ t("landing.page.does-it-replace-a-course", "Does it replace a course?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
+        <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.page.both-on-one-list-a-word-you-learn", "Both, on one list. A word you learn in Genesis is already yours when it turns up in the news.") }}</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
         {%- if connector_is_open() %}
         <details><summary>{{ t("landing.page.can-i-use-it-in-claude-or-chatgpt", "Can I use it in Claude or ChatGPT?") }}</summary><p>{{ t("landing.page.yes-connect-targum-and-your-ai-talks", "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p></details>
         {%- endif %}
-        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring is yours, and we never train a model on it.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring stays yours, and is used to make your reading, for that alone.") }}</p></details>
       </div>
     </div>
   </section>
+
 </main>
 
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}

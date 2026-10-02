@@ -347,34 +347,39 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
-### The front door is one promise, and a box that keeps it — 2026-10-01
+### The front door keeps its look and moves its promise up — 2026-10-02
 
 A tester called the front page "kinda directionless … what are the killer features
-exactly? Found my answer near the bottom", and the answer he found was section 8 of 10.
-On 2026-09-30 David made that promise the spine of everything public, and on 2026-10-01
-the page was rebuilt around it (targum-internal#399):
+exactly? Found my answer near the bottom", and the answer he found was section 8 of 10:
+*If it's in Hebrew, you can learn from it here.* A rebuild around that one promise was
+tried on 2026-10-01 and set aside the same day: it lost what the page already did well —
+a hero that says what targum is, and the reader under it proving it. So the page stays,
+and is sharpened (targum-internal#399):
 
-- **The headline is "Learn Hebrew from anything."** The lede says how, and nothing stands
-  beside it: no form, no facts, no second button. The waitlist is in the bar and at the
-  foot of the page.
-- **Under it is a box a stranger can use.** Paste a link and targum says what it is, in
-  one sentence, through `/waitlist/look`: metadata only, no build, no spend, no model, a
-  few an hour per visitor. Never a percentage — that needs a record, and is what joining
-  gets them. "Join to save it" keeps the link on the waiting row, and the invitation
-  hands it back as a way into Add with the link in the box; being let in is not a press,
-  so nothing is built before theirs.
-- **Then, in order:** what you can bring, the record of the words you know, the word
-  card, targum in Claude and ChatGPT (while the connector is open), the library, the
-  Tanakh, the waitlist, the questions. The ulpan ladder, the synced subtitles and "start
-  at any level" are not on it, by decision.
-- **No claim about the order people are let in.** The batch press takes the oldest first,
-  but David also lets people in one at a time (2026-09-28), so "the earlier you join, the
-  earlier that is" was untrue whichever way it was put. Nor does the page promise the
-  waitlist hears the price first: the price is not decided.
-- **The hero film is not on the page until it exists.** A placeholder is not a picture of
-  the product.
-- `/connect` (and `/aliyah`, targum#543) drew on the old sheet, so it is kept whole as
-  `landing-classic.css`, and a change to the front door no longer moves them.
+- **The hero is today's, untouched.** The reader under it is the demonstration.
+- **"Your own Hebrew" is the first part after the reader**, where it was the eighth, and
+  its box is real. Paste a link and targum says what it is in one sentence, through
+  `/waitlist/look`: metadata only, no build, no spend, no model, a few an hour per
+  visitor, never a percentage (that needs a record, and is what joining gets them).
+  "Join to save it" keeps the link on the waiting row, and the invitation hands it back
+  as a way into Add with the link in the box. Being let in is not a press, so nothing is
+  built before theirs. Under the box, the places it reads are drawn on ink, as what each
+  looks like.
+- **Seven stops, each answering one question**: what is it, show me, does it work on my
+  Hebrew, how does it help me learn, can I practise, what is already here, how do I get
+  in. "Watch and listen", "Every word", the vowels, "Your progress" and the Torah's own
+  part were folded into those or cut, because each said again what another said, and
+  the closing form asked again straight under the waitlist. About a quarter shorter.
+- **What is underneath is said where it is used**, in plain words and without numbers,
+  model names or where texts come from: words reduced to dictionary form, root and
+  binyan from scholars' analysis for the Bible and a language model elsewhere; vowels
+  added and every guess marked; one word list for biblical and modern Hebrew; recordings
+  timed to the voice; the portion chanted, each word lit as it is sung.
+- **Claude and ChatGPT** close "Talk to targum": the use case's own exchange set in type
+  beside a real screen of the text it opens, never drawn as their interface.
+- **No claim about the order people are let in** (the batch takes the oldest, but David
+  also lets people in by hand, 2026-09-28), and no promise that the waitlist hears the
+  price first, which is not decided.
 
 ### /about says what was built, day by day — 2026-09-29
 

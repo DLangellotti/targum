@@ -81,6 +81,18 @@ def _minutes(seconds: float, language: str) -> str:
     ).format(n=whole)
 
 
+def _about(words: int) -> int:
+    """A word count as a person would say it: exact when small, then to the nearest
+    hundred. "About 1462 words" is a number pretending to a precision it has not got."""
+    return words if words < 200 else round(words, -2)
+
+
+def _number(n: int, language: str) -> str:
+    """Thousands set apart as the language does: 1,500 in English, 1 500 in Russian."""
+    said = f"{n:,}"
+    return said.replace(",", "\u00a0") if language.split("-")[0] == "ru" else said
+
+
 def _wait(minutes: int, language: str) -> str:
     """How long it would take to get ready, said the way Add says it."""
     if minutes <= 1:
@@ -136,11 +148,11 @@ def look(url: str, language: str = "en") -> dict[str, Any]:
                     "one": "That’s an Instagram post, with {n} word in its caption.",
                     "other": "That’s an Instagram post, with {n} words in its caption.",
                 },
-            ).format(n=words)
+            ).format(n=_number(words, language))
         )
         minutes = 1
     elif kind == "article":
-        words = int(found.get("words") or 0)
+        words = _about(int(found.get("words") or 0))
         if float(found.get("hebrew_share") or 0) < 0.5:
             return {"ok": False, "said": text("landing.look.not-hebrew", language)}
         key = "landing.look.x" if medium == "x" else "landing.look.article"
@@ -153,7 +165,7 @@ def look(url: str, language: str = "en") -> dict[str, Any]:
                     "one": "That’s a page with {n} word of Hebrew.",
                     "other": "That’s a page with about {n} words of Hebrew.",
                 },
-            ).format(n=words)
+            ).format(n=_number(words, language))
         )
         minutes = max(1, round(words / 300))
     else:

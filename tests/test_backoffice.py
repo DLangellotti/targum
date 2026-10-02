@@ -383,3 +383,12 @@ def test_a_store_from_before_the_page_reads_as_unknown(tmp_path: Path) -> None:
     )
     found = survey(db, today=date(2026, 10, 1))
     assert [who.page for who in found.waiting_list] == [""]
+
+
+def test_the_back_office_counts_who_joined_with_a_link(tmp_path: Path) -> None:
+    """targum-internal#399: whether the box on the front door brings anybody in."""
+    store = Store(tmp_path / "words.db")
+    store.join_waitlist("a@example.com", "", "/", "https://youtu.be/abc")
+    store.join_waitlist("b@example.com", "", "/")
+    found = survey(sqlite3.connect(tmp_path / "words.db"))
+    assert [who.link for who in found.waiting_list] == ["https://youtu.be/abc", ""]
