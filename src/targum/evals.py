@@ -77,6 +77,8 @@ SCRIPTS = {
     "vocalize": "measure_pointing.py",
     "stress/wiktionary-ru": "eval_stress.py",
     "stress/tanakh-taamim": "eval_hebrew_stress.py",
+    # The same gold, the stress rule fed by a local tagger instead of OSHB (#325).
+    "stress/tanakh-taamim-tagger": "eval_stress_tagger.py",
     "align": "eval_align.py",
     "grading": "eval_grading.py",
     "recast": "eval_recast.py",
