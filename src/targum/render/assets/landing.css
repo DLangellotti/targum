@@ -572,17 +572,25 @@ html { overflow-x: clip; }
 .talk-phone .phone { background: var(--bar); padding: 0.55rem; clip-path: inset(0 round 3rem); }
 .talk-phone .screen { position: relative; background: var(--paper); clip-path: inset(0 round 2.5rem); padding: 2.5rem 0.85rem 0.85rem; display: grid; gap: 0.75rem; }
 .talk-phone .island { position: absolute; inset-block-start: 0.7rem; inset-inline-start: 50%; translate: -50% 0; inline-size: 5.5rem; block-size: 1.4rem; border-radius: 999px; background: var(--bar); }
-.talk-phone .thread { background: none; box-shadow: none; padding: 0; border-radius: 0; gap: 0.6rem; }
-/* A chat, drawn as one: the app's bar, your message on one side, targum's on the other,
-   and the box you would write in. */
+/* The chat as /chat draws it (design.md §9, 2026-10-02): turns set in from opposite
+   edges in one ink, Hebrew in the reading face with its English muted under it, a
+   correction named in small capitals with the changed words double-underlined, and why
+   folded under a hairline. Prefixed: this page's `.said`, `.turn` and `.thread` are
+   other things. */
 .app-bar { display: flex; align-items: center; justify-content: center; gap: 0.4rem; font: 600 0.9375rem/1 var(--reading); color: var(--ink); padding-block-end: 0.6rem; border-block-end: 1px solid var(--hairline); }
 .app-bar svg { inline-size: 0.6875rem; block-size: auto; }
-.msg { display: grid; gap: 0.2rem; max-inline-size: 90%; padding: 0.55rem 0.75rem; }
-.msg.mine { justify-self: end; background: var(--teal); border-radius: 16px 16px 4px 16px; }
-.msg.mine .said { color: var(--teal-ink); }
-.msg.theirs { justify-self: start; background: var(--card); box-shadow: var(--shadow-rest); border-radius: 16px 16px 16px 4px; }
-.msg .door { margin-block-start: 0.35rem; }
-.talk-phone .thread-foot { border: 0; padding: 0 0.25rem; font-size: 0.6875rem; }
+.ct-turns { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.ct-turn { display: grid; gap: 0.2rem; }
+.ct-turn.me { margin-inline-start: 18%; }
+.ct-turn.them { margin-inline-end: 8%; }
+.ct-pair { display: grid; gap: 0.1rem; }
+.ct-he { font-family: var(--reading-hebrew); direction: rtl; text-align: start; font-size: 1.0625rem; line-height: 1.95; color: var(--ink); }
+.ct-en { font: 400 0.9375rem/1.55 var(--reading); color: var(--ink-soft); }
+.ct-tag { font: 600 0.6875rem/1.2 var(--chrome); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.ct-pair .fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
+.ct-why { font-size: 0.8125rem; line-height: 1.5; color: var(--ink-soft); padding-inline-start: 0.6rem; border-inline-start: 2px solid var(--rule); }
+.ct-turn .door { justify-self: start; margin-block-start: 0.35rem; }
+.ct-sum { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; font-size: 0.8125rem; color: var(--ink-soft); padding-block-start: 0.6rem; border-block-start: 1px solid var(--hairline); }
 .composer { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; background: var(--card); border-radius: 999px; padding: 0.4rem 0.4rem 0.4rem 0.9rem; box-shadow: inset 0 0 0 1px var(--hairline); font-size: 0.8125rem; color: var(--muted); }
 .composer .send { inline-size: 1.75rem; block-size: 1.75rem; border-radius: 999px; background: var(--teal); color: var(--teal-ink); display: grid; place-items: center; flex: none; }
 .composer .send svg { inline-size: 0.875rem; block-size: 0.875rem; }

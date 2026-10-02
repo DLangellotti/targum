@@ -242,31 +242,34 @@
               <svg viewBox="20 12 56 72"><rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect><rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect></svg>
               targum
             </div>
-            <div class="thread" aria-label="{{ t("landing.page.example-conversation", "Example conversation") }}">
-              <div class="msg mine" aria-label="{{ t("landing.page.you", "You") }}">
-                <p class="said">השקשוקה שלי היה טעים</p>
-              </div>
-              <div class="msg theirs" aria-label="targum">
-                <div class="recast">
-                  <span class="tag">{{ t("landing.page.corrected", "Corrected") }}</span>
-                  <p class="t-he">הַשַּׁקְשׁוּקָה שֶׁלִּי <mark>הָיְתָה</mark> <mark>טְעִימָה</mark>.</p>
-                  <p class="t-en">{{ t("landing.page.my-shakshuka-was-delicious", "My shakshuka was delicious.") }}</p>
+            {#- Drawn as /chat draws it (design.md §9; targum-internal#247): who said a line
+                is told by where it stands, the reader's set in from the start and targum's
+                from the end, the same ink on both, never two colours of bubble. -#}
+            <ol class="ct-turns" aria-label="{{ t("landing.page.example-conversation", "Example conversation") }}">
+              <li class="ct-turn me" aria-label="{{ t("landing.page.you", "You") }}">
+                <p class="ct-he">השקשוקה שלי היה טעים</p>
+              </li>
+              <li class="ct-turn them" aria-label="targum">
+                <div class="ct-pair ct-recast">
+                  <span class="ct-tag">{{ t("landing.page.corrected", "Corrected") }}</span>
+                  <p class="ct-he">הַשַּׁקְשׁוּקָה שֶׁלִּי <span class="fix">הָיְתָה</span> <span class="fix">טְעִימָה</span>.</p>
+                  <p class="ct-en">{{ t("landing.page.my-shakshuka-was-delicious", "My shakshuka was delicious.") }}</p>
+                  <button class="fold" id="whyFold" type="button" aria-expanded="false" aria-controls="why">
+                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    {{ t("landing.page.why", "Why") }}
+                  </button>
+                  <p class="ct-why" id="why" hidden><span class="he">שַׁקְשׁוּקָה</span> {{ t("landing.page.is-feminine-so-the-verb-and-the-adjective", "is feminine, so the verb and the adjective are too.") }}</p>
                 </div>
-                <button class="fold" id="whyFold" type="button" aria-expanded="false" aria-controls="why">
-                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  {{ t("landing.page.why", "Why") }}
-                </button>
-                <p class="why" id="why" hidden><span class="he">שַׁקְשׁוּקָה</span> {{ t("landing.page.is-feminine-so-the-verb-and-the-adjective", "is feminine, so the verb and the adjective are too.") }}</p>
-              </div>
-              <div class="msg theirs" aria-label="targum">
-                <p class="t-he">נִשְׁמָע טָעִים. יֵשׁ לָנוּ סִרְטוֹן עַל חוּמוּס בֵּיתִי. רוֹצֶה לִרְאוֹת?</p>
-                <p class="t-en">{{ t("landing.page.sounds-delicious-we-have-a-video-on-homemade", "Sounds delicious. We have a video on homemade hummus. Want to watch it?") }}</p>
+                <div class="ct-pair">
+                  <p class="ct-he">נִשְׁמָע טָעִים. יֵשׁ לָנוּ סִרְטוֹן עַל חוּמוּס בֵּיתִי. רוֹצֶה לִרְאוֹת?</p>
+                  <p class="ct-en">{{ t("landing.page.sounds-delicious-we-have-a-video-on-homemade", "Sounds delicious. We have a video on homemade hummus. Want to watch it?") }}</p>
+                </div>
                 <a class="btn cta small door" href="#reader">{{ t("landing.page.open-homemade-hummus", "Open Homemade hummus") }}</a>
-              </div>
-              <div class="thread-foot tnum">
-                <span>{{ t("landing.page.2-new-words-on-your-list", "2 new words on your list") }}</span>
-                <a href="#reader">{{ t("landing.page.keep-as-a-text", "Keep as a text") }}</a>
-              </div>
+              </li>
+            </ol>
+            <div class="ct-sum tnum">
+              <span>{{ t("landing.page.2-new-words-on-your-list", "2 new words on your list") }}</span>
+              <a href="#reader">{{ t("landing.page.keep-as-a-text", "Keep as a text") }}</a>
             </div>
             <div class="composer" aria-hidden="true">
               <span>{{ t("chat.page.write-in-hebrew-or-english", "Write in Hebrew or English") }}</span>
