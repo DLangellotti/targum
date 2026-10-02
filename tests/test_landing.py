@@ -602,14 +602,14 @@ def test_the_connector_is_mentioned_twice_while_it_is_open(
     monkeypatch.setenv("TARGUM_CONNECTOR", "1")
     page = front_page()
     facts = page[page.index('<ul class="facts">') :]
-    assert "Inside Claude and ChatGPT" in facts[: facts.index("</ul>")]
+    assert "Claude and ChatGPT that know your words" in facts[: facts.index("</ul>")]
     talk = page[page.index('id="talk"') :]
     talk = talk[: talk.index("</section>")]
     assert "It works in Claude and ChatGPT too." in talk
     assert 'href="/connect"' in talk
     monkeypatch.delenv("TARGUM_CONNECTOR")
     quiet = front_page()
-    assert "Inside Claude and ChatGPT" not in quiet
+    assert "Claude and ChatGPT that know your words" not in quiet
     assert "It works in Claude and ChatGPT too." not in quiet
 
 

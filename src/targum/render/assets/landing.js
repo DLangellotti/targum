@@ -119,7 +119,7 @@
   var drawnOnce = false;
   function drawCard(quiet) {
     var w = W[openId];
-    var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.page.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
+    var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.demo.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
       "<p class=\"card-sense\">" + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
     if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + b[0] + " <span class=\"he\">" + b[1] + "</span></span>"; }).join("") + "</div>";
     html += "<dl class=\"facts-list\">" + w.facts.map(function (f) { return "<dt>" + f[0] + "</dt><dd>" + f[1] + "</dd>"; }).join("") + "</dl>";
@@ -318,7 +318,7 @@
     var on = !stage.classList.contains("pinned");
     stage.classList.toggle("pinned", on);
     this.setAttribute("aria-pressed", String(on));
-    document.getElementById("pinWord").textContent = on ? t("landing.demo.back", "Back") : t("landing.page.corner", "Corner");
+    document.getElementById("pinWord").textContent = on ? t("landing.demo.back", "Back") : t("landing.demo.corner", "Corner");
   });
 
 
