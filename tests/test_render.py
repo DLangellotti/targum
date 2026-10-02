@@ -228,6 +228,14 @@ RUSSIAN_WORDS = (
     "https://stanfordnlp.github.io/stanza/",
     "https://opencorpora.org",
 )
+#: Morphalou, the lexicon a French page's readings come from, its LGPL-LR licence and the
+#: one reading targum corrects, named at the foot of a page that shows them, as David
+#: decided on 2026-09-14 (targum-internal#266). Only where `TARGUM_FRENCH_IPA` is on.
+MORPHALOU = (
+    "https://www.ortolang.fr/market/lexicons/morphalou",
+    "https://repository.ortolang.fr/api/content/morphalou/5/licenceLGPLLR.txt",
+    "https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/morphalou_corrections.tsv",
+)
 OUTBOUND = (
     PEALIM,
     LICENCE,
@@ -238,6 +246,7 @@ OUTBOUND = (
     SVG_NAMESPACE,
     OPENRUSSIAN,
     *RUSSIAN_WORDS,
+    *MORPHALOU,
 )
 
 
@@ -481,6 +490,42 @@ def test_a_tiktok_kept_as_a_post_says_on_tiktok(tmp_path: Path) -> None:
     assert f'class="post-home" href="{home}"' in html and ">On TikTok</a>" in html
     assert 'data-home="' not in html
     assert 'class="post-face letter"' in html
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_a_facebook_video_kept_as_a_post_says_on_facebook_with_no_handle(
+    tmp_path: Path,
+) -> None:
+    """Facebook gives no handle, only a number (2026-09-30): the head carries the page's
+    name and the day, never a bare "@", and goes home "On Facebook" to the one prefix."""
+    from targum.ingest import post as post_module
+
+    home = "https://www.facebook.com/watch/?v=28842223192082067"
+    document, segmented, translation = imported(tmp_path, home)
+    post_module.write(
+        tmp_path,
+        post_module.Manifest(
+            platform="facebook",
+            author=post_module.Author("", "כאן חדשות"),
+            items=[
+                post_module.Item(
+                    block_ids=["b0001"],
+                    media=[post_module.Media("video", "audio/parts/part-001.mp4", 270, 480)],
+                    kind="clip",
+                ),
+                post_module.Item(block_ids=["b0002"], kind="caption"),
+            ],
+            url=home,
+            posted_at="2026-09-30T09:00:38Z",
+        ),
+    )
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'class="post-home" href="{home}"' in html and ">On Facebook</a>" in html
+    assert 'class="post-handle' not in html and ">@<" not in html
+    assert '<bdi class="post-name" dir="auto">כאן חדשות</bdi>' in html
+    assert '<time datetime="2026-09-30"' in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
 
@@ -3301,7 +3346,7 @@ def test_a_phrase_asks_only_where_the_page_can() -> None:
     chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
     for caption in (
         "word by word — looking…",
-        "word by word — the sentence is in parallel",
+        "word by word — the line's translation has the whole sentence",
     ):
         assert caption in chip, caption
     for gone in ("in the parallel text", "as it is used here"):
@@ -4052,8 +4097,8 @@ def test_the_queue_keys_are_written_down() -> None:
     # The arrows are not each other's mirror and the card says so: forward walks the
     # words still owed, back walks the chapter as it is written. A back key built on the
     # queue skipped everything the reader had just marked.
-    assert "forward through the words you have not finished with" in template
-    assert "back through the words as they are written" in template
+    assert "on to the next word you haven't finished with" in template
+    assert "back through every word in order" in template
     # Nothing steps a sentence, so nothing says it does.
     for gone in ("<dt>&uarr; &darr;</dt>", "<dt>j</dt>", "next sentence", "previous sentence"):
         assert gone not in template, gone
@@ -4392,14 +4437,16 @@ def test_the_foot_names_what_each_link_does() -> None:
     assert 'href="/account/signin"' in public
 
 
-def test_the_about_page_says_targum_is_under_construction_and_little_else() -> None:
+def test_the_about_page_says_targum_is_built_in_public_and_little_else() -> None:
     """It described targum at length — what it does, what had shipped, what it could not
     do yet — and none of that is what somebody arriving early needs to be told. What is
-    left is the state of the thing, the evidence for it, and where the work is."""
+    left is the state of the thing, the evidence for it, what each day was, and where
+    the work is (2026-09-29)."""
     from targum.render.builder import about_page
 
     page = about_page()
-    assert "targum is under construction" in page
+    assert "targum is built in public" in page
+    assert "under construction" not in page
     assert 'href="https://github.com/DLangellotti/targum"' in page
     for gone in ("What it does", "Recently shipped", "What it cannot do yet", "reading app"):
         assert gone not in page, f"{gone!r} was cut from this page"
@@ -4427,21 +4474,32 @@ def test_the_about_page_keeps_its_numbers_where_there_is_no_repository(
 
     page = about_page()
     assert page.count('class="day level-') >= about.DAYS
-    assert f"<b>{live.commits}</b>" in page
+    assert f"<b>{live.commits:,}</b>" in page
 
 
 def test_the_about_page_names_the_day_its_count_ends_on() -> None:
     """ "In the last 30 days" is true of a wheel for about a day. The numbers are stamped
     when it is built and served until the next deploy, so the sentence has to name the
     day it counted to rather than implying today."""
+    from datetime import date
+
     from targum import about
     from targum.render.builder import about_page
 
     found = about.work()
     if not found.days:
         pytest.skip("no repository to read the numbers out of")
-    assert found.through in about_page()
-    assert "in the last" not in about_page()
+    page = about_page()
+    assert found.through in page
+    assert "in the last" not in page
+    # And in English a person would say (David, 2026-09-29): it read "changes in the 30
+    # days to 29 September".
+    first = date.fromisoformat(found.days[0][0]).strftime("%-d %B")
+    assert f"from {first} to {found.through}" in page
+    assert "days to" not in page
+    russian = about_page(language="ru")
+    assert " с " in russian.split('class="figures"')[1].split("</p>")[0]
+    assert found.through not in russian.split('class="figures"')[1].split("</p>")[0]
 
 
 def test_the_stamp_is_packed_into_the_wheel() -> None:
@@ -6060,3 +6118,78 @@ def test_pressing_the_commentary_separates_its_comments(tmp_path: Path) -> None:
         Path(__file__).parents[1] / "src" / "targum" / "render" / "assets" / "reader.js"
     ).read_text(encoding="utf-8")
     assert 'cell.classList.toggle("commented", !!entry.commented);' in js
+
+
+def _french_page(tmp_path: Path, annotator: str) -> dict[str, Any]:
+    """A two-sentence French page whose *le* stands for *le livre* in the sentence before."""
+    from targum.models import Annotation, Token
+
+    segments = [
+        paragraph(0).model_copy(update={"text": "Paul a le livre."}),
+        paragraph(1).model_copy(update={"text": "Il le lit."}),
+    ]
+    segmented = make_segmented(segments).model_copy(update={"language": "fr"})
+    document = Document(source="m", title="T", language="fr", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="fr",
+        target_language="en",
+        provider="null",
+        segments={s.id: "tr" for s in segments},
+    )
+    pronoun = Token(
+        start=3,
+        end=5,
+        surface="le",
+        lemma="le",
+        band=1,
+        pos="PRON",
+        feats="UPOS=PRON|Role=Obj",
+        stands_for=(1, "le livre"),
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="fr",
+        annotator=annotator,
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [Token(start=10, end=15, surface="livre", lemma="livre", band=1)],
+            segments[1].id: [pronoun],
+        },
+    )
+    html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
+        0
+    ].read_text(encoding="utf-8")
+    found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+    assert found is not None
+    data: dict[str, Any] = json.loads(found.group(1))
+    return data
+
+
+def test_a_french_page_says_whether_its_tenses_are_apart(tmp_path: Path) -> None:
+    """Only a text read wholly by prompt 3 can call a finite past the passé simple; one
+    still holding prompt 2's readings ships nothing, and its card says "past" as it did
+    (targum-internal#264)."""
+    now = _french_page(tmp_path / "a", "model-lemma/claude-haiku-4-5/3+wordfreq+register/2")
+    assert now["tensesApart"] is True
+    for annotator in (
+        "model-lemma/claude-haiku-4-5/2+wordfreq+register/2",
+        "model-lemma/claude-haiku-4-5/3/with-2+wordfreq+register/2",
+    ):
+        assert "tensesApart" not in _french_page(tmp_path / annotator[-12:], annotator)
+
+
+def test_what_a_pronoun_stands_for_ships_only_once_it_is_measured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The words are kept on the token whatever the measure; the page carries them only at
+    a precision of 0.9, placed in the segment before as [row, segment, start, end]."""
+    from targum.annotate import model_lemma
+
+    name = "model-lemma/claude-haiku-4-5/3+wordfreq"
+    assert "stands" not in _french_page(tmp_path / "a", name)
+    monkeypatch.setattr(model_lemma, "ANTECEDENT_PRECISION", 0.93)
+    data = _french_page(tmp_path / "b", name)
+    assert data["stands"] == {paragraph(1).id: [[0, paragraph(0).id, 7, 15]]}

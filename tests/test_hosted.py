@@ -316,6 +316,32 @@ def test_the_sitemap_gives_each_language_its_own_entry(
     assert "/about?lang=ru" not in found
 
 
+def test_every_page_that_declares_its_languages_is_listed_with_them(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#392. `/connect` answered in Russian and said so in its head, and
+    the sitemap listed it in English only. Asked of every page the sitemap names rather
+    than of a list kept by hand, so the next bilingual page cannot be left out the same
+    way. One text stands for the shelf: a thousand fetches would prove nothing more."""
+    from targum.catalogue import CATALOGUE
+
+    port, _ = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    xml = ask(port, "/sitemap.xml", "targum.page")[1].decode()
+    found = {
+        url.removeprefix("https://targum.page") for url in re.findall(r"<loc>(.*?)</loc>", xml)
+    }
+    assert "/connect" in found
+    pages = {path for path in found if "?" not in path and not path.startswith("/library/")}
+    pages.add(f"/library/{CATALOGUE[0].id}")
+    for path in sorted(pages):
+        status, body = ask(port, path, "targum.page")
+        if status != 200 or b'hreflang="ru"' not in body.split(b"</head>")[0]:
+            continue
+        assert f"{path}?lang=ru" in found, f"{path} declares Russian and the sitemap omits it"
+
+
 def test_a_public_page_answers_in_the_language_its_address_asks_for(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -488,6 +514,127 @@ def test_only_an_invited_address_gets_a_link(tmp_path: Path, free_port: Callable
     assert sent == ["wife@example.com"]
     assert post(port, "/account/sign-in", {"email": "stranger@example.com"})[0] == 403
     assert sent == ["wife@example.com"], "and still nobody else"
+
+
+def _hosted_box(
+    tmp_path: Path, free_port: Callable[[], int], sent: list[str], links: list[str] | None = None
+) -> tuple[int, Store]:
+    """A hosted server of its own, whose mailer writes down who it mailed, and what."""
+
+    class Mailer:
+        def send(self, to: str, link: str, language: str = "en") -> None:
+            sent.append(to)
+            if links is not None:
+                links.append(link)
+
+    store_path = tmp_path / "box.db"
+    store = Store(store_path)
+    port = free_port()
+    threading.Thread(
+        target=lambda: serve.start(
+            out=tmp_path / "out",
+            port=port,
+            open_browser=False,
+            store=store_path,
+            mailer=Mailer(),
+            require_account=True,
+            public_address=PUBLIC,
+        ),
+        daemon=True,
+    ).start()
+    for _ in range(60):
+        try:
+            probe = HTTPConnection("127.0.0.1", port, timeout=1)
+            probe.request("GET", "/health")
+            probe.getresponse().read()
+            probe.close()
+            break
+        except OSError:
+            time.sleep(0.1)
+    return port, store
+
+
+def test_an_uninvited_address_is_pointed_at_the_waitlist_while_there_is_one(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy audit, 2026-09-28 (Q20): "targum isn't open yet" and nothing else, though
+    the waitlist was one page away. Only while the front door is open, because while it
+    is shut `/waitlist` answers 404."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert status == 403
+    assert body["error"] == "Thanks for asking. targum isn't open yet."
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert body["error"] == (
+        "Thanks for asking. targum isn't open yet. Join the waitlist and we'll email you "
+        "when it's your turn."
+    )
+    assert sent == []
+
+
+def test_a_link_asked_for_mid_connect_is_marked_as_one(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """Copy audit, 2026-09-28 (Q9): so the page it opens can say a Connect was lost,
+    rather than drop it in silence when the link opens in another browser."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    store.invite("reader@example.com")
+
+    def ask_for_link(cookie: str = "") -> None:
+        body = json.dumps({"email": "reader@example.com"}).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.putrequest("POST", "/account/sign-in", skip_host=True)
+        conn.putheader("Host", "targum.page")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(body)))
+        if cookie:
+            conn.putheader("Cookie", cookie)
+        conn.endheaders()
+        conn.send(body)
+        assert conn.getresponse().status == 200
+        conn.close()
+
+    ask_for_link()
+    ask_for_link(f"{serve.CONNECT_COOKIE}=/oauth/authorize%3Fclient_id%3Dx")
+    assert not links[0].endswith("&c=1") and links[1].endswith("&c=1"), links
+
+
+def test_a_closing_account_is_told_so_at_every_door(
+    tmp_path: Path, free_port: Callable[[], int]
+) -> None:
+    """Copy audit, 2026-09-28 (Q7). An account inside its deletion grace period was told
+    "That link no longer works" by a mailed link and "targum isn't open yet" by Google —
+    neither true, and neither said how to keep the account."""
+    sent: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent)
+    closing = "This account is being closed. To keep it, email hello@targum.page."
+    store.invite("leaving@example.com")
+    got = store.finish_sign_in(store.start_sign_in("leaving@example.com"))
+    assert got is not None
+    store.forget(got[0])
+    # `forget` voids every link, and the door below no longer mails one; a link minted
+    # anyway — by a box running the code before this — lands on the same sentence.
+    link = store.start_sign_in("leaving@example.com")
+    assert store.is_leaving("Leaving@Example.com ")
+    assert store.leaving_link(link)
+
+    status, body = post(port, "/account/sign-in", {"email": "leaving@example.com"})
+    assert status == 403 and body["error"] == closing
+    assert sent == [], "a link that would only refuse them is not mailed"
+
+    status, page = ask(port, f"/account/enter?t={link}", "targum.page")
+    said = page.decode()
+    assert status == 200 and closing in said
+    assert "no longer works" not in said
+
+    # A link nobody is leaving through is still just a spent link.
+    assert not store.leaving_link("not-a-token")
+    assert not store.is_leaving("reader@example.com")
 
 
 def test_the_link_is_written_in_what_the_page_reads_into(

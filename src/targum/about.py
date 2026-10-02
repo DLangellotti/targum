@@ -18,6 +18,7 @@ about the product depends on any of it working.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections import Counter
 from dataclasses import dataclass, field
@@ -146,3 +147,222 @@ def stamp(today: date | None = None) -> Path | None:
         encoding="utf-8",
     )
     return STAMP
+
+
+# -- what was built, day by day --------------------------------------------------------
+#
+# The calendar says how much landed and nothing about what. `built.txt` says what, in a
+# line or three a day, and it is written for somebody deciding whether the people behind
+# targum know what they are doing — so it says what changed for a reader and stops.
+#
+# Nobody reads a day's lines before they go out (David, 2026-09-29), which is the
+# weekly's arrangement and has the weekly's answer: the writer is not trusted, the guard
+# is. `refused()` is asked twice, by a test over the file and by the page over every line
+# it is about to draw, so a line that got past the first is still not shown.
+
+#: Where the days are written down. Committed, unlike the stamp: these are written, not
+#: built, and hatchling packs a tracked file beside the code without being asked.
+BUILT = Path(__file__).with_name("built.txt")
+
+#: How many lines a day may have, and how long one may be. A day that needs a fourth
+#: line is a day nobody chose from, and a line that needs a second breath is explaining.
+MOST = 3
+LONGEST = 110
+
+#: How many days the page draws, newest first. The file keeps every day; the page is
+#: read by somebody with a minute, and a year of days is not a minute.
+SHOWN = 90
+
+#: What a line may not say, by the reason it may not. Each is a pattern read from the
+#: start of a word, in any case, so a stem catches its family: `licen` is licence,
+#: license and licensing. **To let a word through, take it out here and nowhere else.**
+UNSAID: dict[str, tuple[str, ...]] = {
+    # The log is what changed, not how the change was made.
+    "how it is made": (
+        r"commit",
+        r"merge",
+        r"refactor",
+        r"deploy",
+        r"pull request",
+        r"repo\b",
+        r"repositor",
+        r"worktree",
+        r"regex",
+        r"endpoint",
+        r"database",
+        r"cache",
+        r"payload",
+        r"schema",
+        r"token",
+        r"lemma",
+        r"eval\b",
+        r"evals\b",
+        r"benchmark",
+        r"pipeline",
+        r"feature flag",
+        r"unit test",
+    ),
+    # Servers, copies, who is let in and how they are counted (David, 2026-09-29).
+    "the back office": (
+        r"back ?office",
+        r"back ?up",
+        r"server",
+        r"firewall",
+        r"ssh\b",
+        r"password",
+        r"secret",
+        r"credential",
+        r"1password",
+        r"vault",
+        r"api key",
+        r"admin",
+        r"wait ?list",
+        r"waiting list",
+        r"visitor",
+        r"access log",
+        r"rate limit",
+        r"harden",
+        r"security",
+        r"vulnerab",
+        r"attack",
+        r"abuse",
+        r"spam",
+        r"operator",
+        r"invit",
+        r"invoice",
+        r"billing",
+        r"spend\b",
+        r"spending",
+        r"outage",
+        r"david",
+    ),
+    # What is in the library may be said. Where it came from, and under what terms, is
+    # not (David, 2026-09-29) — so the names of the places are here with the words.
+    "where a text comes from": (
+        r"licen[cs]",
+        r"copyright",
+        r"public domain",
+        r"creative commons",
+        r"cc[ -]by",
+        r"scrap(e|ing)",
+        r"crawl",
+        r"dataset",
+        r"corpus",
+        r"corpora",
+        r"treebank",
+        r"publisher",
+        r"permission",
+        r"rights\b",
+        r"sefaria",
+        r"wikisource",
+        r"wikidata",
+        r"wiktionary",
+        r"wikipedia",
+        r"storyweaver",
+        r"global voices",
+        r"global storybooks",
+        r"tatoeba",
+        r"flores",
+        r"ntrex",
+        r"heq\b",
+        r"dicta",
+        r"stanza",
+        r"morphalou",
+        r"iahlt",
+        r"knesset",
+        r"ben[- ]yehuda",
+        r"jps\b",
+        r"pealim",
+        r"nakdimon",
+        r"whisper",
+        r"labse",
+        r"universal dependencies",
+        r"youtube",
+        r"instagram",
+        r"tiktok",
+        r"facebook",
+        r"yt-dlp",
+    ),
+}
+
+_UNSAID = {
+    why: re.compile(r"(?<![A-Za-z])(?:" + "|".join(words) + r")", re.IGNORECASE)
+    for why, words in UNSAID.items()
+}
+
+#: The marks of something copied out of the work rather than written about it: code in
+#: backticks, an issue's number, a name with an underscore in it, a file, an address, a
+#: sum of money, and the abbreviations only the people building it say aloud.
+_WORKINGS = re.compile(
+    r"[`$_]|#\d|://|\.(?:py|js|json|css|sh|md|txt)\b|\b(?:PR|CI|API|JSON|SQL|CLI|URL|HTML|CSS|SDK)\b"
+)
+
+
+def refused(line: str) -> str:
+    """Why a line may not be shown, or nothing where it may.
+
+    Design.md §6 first — the name lowercase, no exclamation mark, no emoji, and short —
+    then the workings, then the three things the log keeps to itself. The reason is a
+    sentence for whoever wrote the line, and it names the word, because "refused" alone
+    sends them to read the whole list.
+    """
+    if not line.strip():
+        return "it is empty"
+    if len(line) > LONGEST:
+        return f"it is {len(line)} characters, and a line is {LONGEST} at most"
+    if not line.endswith("."):
+        return "it does not end in a full stop"
+    if "!" in line:
+        return "it has an exclamation mark (design.md §6)"
+    if "Targum" in line:
+        return "the name is lowercase, even at the start of a sentence (design.md §6)"
+    if any(ord(char) >= 0x1F000 or 0x2600 <= ord(char) <= 0x27BF for char in line):
+        return "it has an emoji (design.md §6)"
+    found = _WORKINGS.search(line)
+    if found:
+        return f"{found.group(0)!r} is the workings, not what changed"
+    for why, pattern in _UNSAID.items():
+        found = pattern.search(line)
+        if found:
+            return f"{found.group(0)!r} is {why}, which the log does not say"
+    return ""
+
+
+def written() -> list[tuple[str, list[str]]]:
+    """Every day in the file as it was written, newest first, nothing taken out.
+
+    What the test reads. A day is its date on a line of its own and its lines under it,
+    and a blank line ends it; a line starting `#` is a note to whoever edits the file.
+    A block that does not open on a date is left out rather than guessed at.
+    """
+    try:
+        text = BUILT.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    days: dict[str, list[str]] = {}
+    for block in re.split(r"\n\s*\n", text):
+        lines = [line.strip() for line in block.splitlines()]
+        lines = [line for line in lines if line and not line.startswith("#")]
+        if not lines:
+            continue
+        try:
+            day = date.fromisoformat(lines[0]).isoformat()
+        except ValueError:
+            continue
+        days.setdefault(day, []).extend(lines[1:])
+    return sorted(days.items(), reverse=True)
+
+
+def built() -> list[tuple[date, list[str]]]:
+    """What the page draws: the newest days, and only the lines that may be shown.
+
+    A refused line is dropped and the day keeps its others; a day left with nothing is
+    not drawn. The page never fails over this and never shows what it should not, which
+    are the two things it is for.
+    """
+    shown = []
+    for day, lines in written():
+        kept = [line for line in lines if not refused(line)][:MOST]
+        if kept:
+            shown.append((date.fromisoformat(day), kept))
+    return shown[:SHOWN]

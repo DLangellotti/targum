@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -564,13 +565,21 @@ def test_a_signed_in_header_fits_a_phone(browser, width: int) -> None:
     assert got["round"], f"the account is a circle: {got}"
 
 
-def _arrival_page(browser, width: int, height: int = 667, language: str | None = "English"):
+def _arrival_page(
+    browser,
+    width: int,
+    height: int = 667,
+    language: str | None = "English",
+    locale: str = "ru-RU",
+):
     """Learn for a brand-new account on a shelf of three, at a phone's size.
 
-    A brand-new account is asked which language it reads before anything else (design.md
-    §12, 2026-09-20), so the page handed back is the one after that answer — the subjects
-    — unless `language` is None, which leaves it on the first screen for the test that
-    is about it."""
+    A brand-new account whose browser gives a sign of Russian is asked which language it
+    reads before anything else (design.md §12, 2026-09-20 and 2026-09-28), so the page
+    handed back is the one after that answer — the subjects — unless `language` is None,
+    which leaves it on the first screen for the test that is about it. The browser says
+    Russian unless `locale` says otherwise; with no sign, nothing is asked and the page
+    starts on the subjects."""
     html = learn_page(TOKEN)
     shelf = [
         {
@@ -599,14 +608,30 @@ def _arrival_page(browser, width: int, height: int = 667, language: str | None =
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     context = browser.new_context(
-        viewport={"width": width, "height": height}, is_mobile=True, has_touch=True
+        viewport={"width": width, "height": height},
+        is_mobile=True,
+        has_touch=True,
+        locale=locale,
     )
     page = context.new_page()
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/?k={TOKEN}")
+
+    def past_welcome() -> None:
+        # The welcome (2026-09-28) asks nothing; these tests are about what comes after
+        # it, so they go on the way a reader does, with Continue.
+        page.wait_for_selector("#arrival-welcome:not([hidden])")
+        page.locator("#arrival-done").tap()
+
+    if not locale.startswith("ru"):
+        past_welcome()
+        page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
+        page.wait_for_timeout(150)
+        return context, page, went
     page.wait_for_selector("#arrival-language:not([hidden]) .arrival-rung")
     if language is not None:
         page.locator("#arrival-tongues .arrival-rung", has_text=language).tap()
+        past_welcome()
         page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
     page.wait_for_timeout(150)
     return context, page, went
@@ -897,7 +922,7 @@ def test_progress_says_what_would_draw_the_line_under_three_months(browser) -> N
     context.close()
     assert got["shown"] and got["points"] == 0, got
     assert got["said"] == [
-        "We'll draw this once you've finished sections in three different months. So far: 1."
+        "We'll draw this once you've finished sections in three different months. Months so far: 1."
     ]
 
 
@@ -1802,7 +1827,7 @@ def test_two_pictures_chosen_on_the_front_door_become_one_card(browser, tmp_path
         "and the text opened in the sheet"
     )
     assert "preview=1" in landed["frame"] and "preview" not in landed["open"]
-    assert landed["heading"] == "From the conversation"
+    assert landed["heading"] == "From the chat"
 
 
 @pytest.mark.parametrize("width", [390, 1280])
@@ -2197,13 +2222,171 @@ def test_a_pasted_link_says_what_was_found_before_it_says_the_price(
     context.close()
 
     assert order[:2] == ["describe", "prepare"], "what it is, before what it costs"
-    assert "What targum found" in found_text
+    assert "What we found" in found_text
     assert "12:34" in found_text, "the length, as a clock"
     assert "standard YouTube licence" in found_text
-    assert "No written Hebrew subtitles" in found_text
+    assert "No written Hebrew subtitles" not in found_text, (
+        "the advice is written for the model: English, Hebrew-only, and it says the cost "
+        "the card says again (2026-10-01)"
+    )
     assert "7 words in 10" in found_text, "how much of it the reader already has"
     assert still_there, "the price is drawn under what was found, not over it"
     assert let_price_through, "the price still follows"
+
+
+def test_what_was_found_still_says_the_price_is_coming(browser, tmp_path: Path) -> None:
+    """`/prepare` can take minutes on a video. What was found used to replace the
+    waiting line, so the reader saw a finished-looking card with nothing to press and
+    nothing saying more was on its way."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(FOUND))
+        elif "/prepare" in request.url:
+            return  # held open: the price has not arrived yet
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.wait_for_selector(".found", timeout=4000)
+    status = open_page.inner_text("#status")
+    context.close()
+
+    assert "What we found" in status
+    assert "We're reading it" in status, "the waiting line stays under what was found"
+    assert status.index("What we found") < status.index("We're reading it")
+
+
+def test_progress_without_a_total_says_no_percentage(browser, tmp_path: Path) -> None:
+    """A stage can count what it has done before it knows the total, and done over a
+    total of nothing was drawn as "Infinity%"."""
+    html = add_page(TOKEN)
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+        elif "/prepare" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(PRICED))
+        elif "/job/" in request.url:
+            body = {"stage": "transcribe", "done": 3, "total": 0, "message": ""}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.click("#status button.filled", timeout=4000)
+    open_page.wait_for_selector("#status .bar", timeout=4000)
+    open_page.wait_for_timeout(1200)  # past the first poll
+    status = open_page.inner_text("#status")
+    context.close()
+
+    assert "Infinity" not in status and "NaN" not in status, status
+    assert "We're getting it ready" in status
+
+
+def test_open_says_a_lost_build_and_is_pressed_once(browser, tmp_path: Path) -> None:
+    """The card's title is isolated, so a Hebrew title keeps its facts after it rather
+    than in front of it. And Open: one press while `/build` is answering, and the
+    server's own sentence when the build was lost to a restart — it used to poll a job
+    that no longer existed."""
+    html = add_page(TOKEN)
+    built: list[object] = []
+    priced = dict(PRICED, title="זו מדינת אויב?")
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=500, content_type="application/json", body="{}")
+        elif "/prepare" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(priced))
+        elif "/build" in request.url:
+            built.append(request.post_data_json)
+            lost = {"error": "We lost that build when we restarted."}
+            route.fulfill(status=404, content_type="application/json", body=json.dumps(lost))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    open_page.click("#go")
+    open_page.wait_for_selector("#status button.filled", timeout=4000)
+    isolated = open_page.evaluate("() => !!document.querySelector('#status bdi > b')")
+    open_page.evaluate(
+        "() => { const b = document.querySelector('#status button.filled'); b.click(); b.click(); }"
+    )
+    open_page.wait_for_function(
+        "() => document.getElementById('status').textContent.includes('lost that build')",
+        timeout=4000,
+    )
+    context.close()
+
+    assert isolated, "the title in a <bdi>"
+    assert len(built) == 1, "two presses, one build"
+
+
+def test_the_card_says_each_thing_once(browser, tmp_path: Path) -> None:
+    """2026-10-01. The length was said by what was found and again beside the title; the
+    line under the box promised the card while the card was up; and a text priced after
+    a link was shown under the link's facts."""
+    html = add_page(TOKEN)
+    heard = dict(PRICED, title="זו מדינת אויב?", audio=True, seconds=754, parts=1)
+
+    def answer(route, request):
+        if "/describe" in request.url:
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(FOUND))
+        elif "/prepare" in request.url:
+            body = heard if request.post_data_json.get("source") else PRICED
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        elif request.url.endswith(("/add", "/add.html")):
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    open_page = context.new_page()
+    open_page.route("http://add.test/**", answer)
+    open_page.goto("http://add.test/add")
+    open_page.fill("#given", "https://www.youtube.com/watch?v=abc")
+    assert open_page.is_visible("#understood"), "the box says what it was given"
+    open_page.click("#go")
+    open_page.wait_for_selector("#status button.filled", timeout=4000)
+    status = open_page.inner_text("#status")
+    note_while_card = open_page.is_visible("#understood")
+
+    open_page.fill("#given", "בארץ־ישראל קם העם היהודי, בה עוצבה דמותו הרוחנית.")
+    note_after_edit = open_page.is_visible("#understood")
+    open_page.click("#go")
+    open_page.wait_for_function(
+        "() => document.querySelector('#status button.filled') && "
+        "!document.getElementById('status').textContent.includes('זו מדינת')",
+        timeout=4000,
+    )
+    stale = open_page.is_visible("#status .found")
+    context.close()
+
+    assert status.count("12:34") == 1, status
+    assert not note_while_card, "the card is up, so its promise is put away"
+    assert note_after_edit, "and back when the box holds something else"
+    assert not stale, "a text is not priced under the last link's facts"
 
 
 def test_a_link_nothing_can_be_found_about_is_still_priced(browser, tmp_path: Path) -> None:
@@ -2390,3 +2573,23 @@ def test_a_browser_that_cannot_record_is_not_offered_the_button(browser, tmp_pat
     context.close()
 
     assert not drawn
+
+
+def test_an_english_phone_is_shown_no_russian(browser) -> None:
+    """ "I don't want a non russian to see any russian" (David, 2026-09-28). A browser with
+    no sign of Russian starts on the subjects; the one way into Russian is EN · RU, and
+    nothing on the screen is Cyrillic."""
+    context, page, _ = _arrival_page(browser, 375, locale="en-US")
+    try:
+        seen = page.evaluate(
+            """() => ({
+              language: !document.getElementById('arrival-language').hidden,
+              switch: document.getElementById('arrival-switch').innerText,
+              text: document.getElementById('arrival').innerText,
+            })"""
+        )
+        assert not seen["language"]
+        assert "EN" in seen["switch"] and "RU" in seen["switch"]
+        assert not re.search("[\u0400-\u04ff]", seen["text"]), seen["text"]
+    finally:
+        context.close()

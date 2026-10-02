@@ -47,11 +47,12 @@ from .accounts import (
     MOST_PROMPTS,
     Person,
     Store,
+    digest,
     now,
     plausible,
 )
 from .audio.manifest import POSTER
-from .errors import TargumError, UnsupportedSource
+from .errors import OffHere, TargumError, UnsupportedSource
 from .mail import Mailer
 from .models import Document, Segment, SegmentedDocument, Style, glossary_path, is_biblical
 from .pipeline import Build, Result
@@ -163,6 +164,76 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 NO_KEY = "We can't make anything new right now. Everything you have still opens."
 
 
+def tried_for(job: Any, ui: str) -> dict[str, Any]:
+    """What the front page's box says about a link it described (targum-internal#399),
+    as facts for the template to put in one sentence: which door, how long, whether a
+    person wrote the subtitles, and the wait in the Add box's own words.
+
+    The wait is `bring.js`'s `wait()` said again on the server, because the box works
+    with JavaScript off: the measured middle where the box has one, the guess where not.
+    """
+    import math
+
+    if job.stage == "failed":
+        refused = job.error or said_in(ui, "door.no-answer", "We couldn't open that link.")
+        return {"refused": refused}
+    door = str(job.options.get("door") or "page")
+    seen = max(1, round(job.usually / 60)) if job.usually else 0
+    minutes = math.ceil(job.seconds / 60) if job.audio and job.seconds else 0
+    if job.audio and job.parts > 0:
+        spoken = job.seconds / job.parts / 60
+        waiting = seen or max(1, round(spoken / 6)) + max(1, round((job.total or 25) / 25))
+        first = job.parts > 1
+        if waiting <= 1:
+            wait = (
+                said_in(
+                    ui, "bring.wait.part-minute", "Your first part will be ready in about a minute."
+                )
+                if first
+                else said_in(ui, "bring.wait.minute", "Ready in about a minute.")
+            )
+        elif waiting <= 4:
+            wait = (
+                said_in(
+                    ui, "bring.wait.part-few", "Your first part will be ready in a few minutes."
+                )
+                if first
+                else said_in(ui, "bring.wait.few", "Ready in a few minutes.")
+            )
+        else:
+            wait = (
+                said_in(
+                    ui,
+                    "bring.wait.part-minutes",
+                    "Your first part will be ready in about {n} minutes.",
+                    n=waiting,
+                )
+                if first
+                else said_in(ui, "bring.wait.minutes", "Ready in about {n} minutes.", n=waiting)
+            )
+    elif job.segments:
+        waiting = seen or max(1, round((job.total or job.segments) / 25))
+        if waiting <= 1:
+            wait = said_in(ui, "bring.wait.minute", "Ready in about a minute.")
+        elif waiting <= 4:
+            wait = said_in(ui, "bring.wait.couple", "Ready in a couple of minutes.")
+        else:
+            wait = said_in(ui, "bring.wait.minutes", "Ready in about {n} minutes.", n=waiting)
+    else:
+        wait = ""
+    return {
+        "door": door,
+        "title": job.title if job.title and job.title != job.source else "",
+        "minutes": minutes,
+        "subtitles": bool(job.options.get("subtitles")),
+        "sentences": 0 if job.audio else job.segments,
+        "wait": wait,
+        "link": job.source,
+        # "globes.co.il" for a link into Globes, as the Add box says it (`bring.js`).
+        "site": (urlparse(job.source).hostname or "").removeprefix("www."),
+    }
+
+
 def said_in(ui: str, key: str, english: str, **fill: object) -> str:
     """A sentence the server writes — into an answer, or onto a job a thread finishes
     later — in the language `ui` names, and `english` where its catalogue has not said it
@@ -210,6 +281,28 @@ def refused_in(ui: str, error: TargumError) -> str:
     said = say(error.key, error.message)
     hint = say(f"{error.key}.hint", error.hint) if error.hint else ""
     return f"{said} {hint}".strip()
+
+
+#: Refusals whose hint is the machine's own words and not a sentence: "HTTP 403", "a bot
+#: check, not a page", a curl exception, "More than 10 redirects", a resolver's error. On
+#: a machine somebody runs themselves that is the useful part; on a box it is not a thing
+#: to hand a reader (copy audit, 2026-09-28).
+RAW_HINTS = frozenset({"fetch.would-not-open", "fetch.no-such-site"})
+
+
+def told(ui: str, error: TargumError, *, hosted: bool) -> str:
+    """A refusal as whoever is reading should meet it.
+
+    `refused_in` everywhere but one case: on a hosted box, a refusal that carries the
+    machine's detail (`RAW_HINTS`) or an operator's instruction (`OffHere` — "install
+    yt-dlp", "set OPENAI_API_KEY") is said as the reader's sentence for what happened —
+    `job.unreadable.*`, chosen by the status where there was one — and the detail is
+    written to the log, where the person who can act on it reads.
+    """
+    if hosted and (error.key in RAW_HINTS or isinstance(error, OffHere)):
+        log.warning("refused: %s (%s)", error.message, error.hint or "no detail")
+        return unreadable(error, ui)
+    return refused_in(ui, error)
 
 
 # A full-length novel costs real money to translate, and a page anyone on this machine
@@ -426,6 +519,9 @@ OPEN_TO_STRANGERS = frozenset(
         "/waitlist",
         "/waitlist/confirm",
         "/waitlist/stop",
+        # The front page's box (targum-internal#399): a stranger pastes a link and is
+        # told what it is. Describes and builds nothing.
+        "/try",
         # The connector (targum-internal#80). A client registering itself, asking for
         # tokens or giving one back has no account and is not a person; the reader is,
         # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
@@ -561,6 +657,42 @@ def daily_is_indexed() -> bool:
     return os.environ.get("TARGUM_INDEX_DAILY", "").strip().lower() in {"1", "true", "yes"}
 
 
+def joined_from(said: str) -> str:
+    """Which of targum's own pages a waitlist form stood on, or "" for anything else.
+
+    The form says it (targum-internal#388), as a path or as the page's own canonical
+    address, and the answer is narrowed to the families worth counting: a weekly issue
+    is `/weekly`, a portion `/parasha`, a cycle's day its cycle. Anything not targum's
+    is kept as unknown rather than stored as typed, so the column cannot become a place
+    to write whatever a request says, and nothing about where somebody was before
+    targum is kept at all.
+    """
+    path = urlparse(said.strip()).path or ""
+    first = path.strip("/").split("/", 1)[0]
+    if path == "/":
+        return "/"
+    if first in {"aliyah", "connect", "weekly", "parasha"}:
+        return f"/{first}"
+    if first and first in {cycle.slug for cycle in daily_cycles()}:
+        return f"/{first}"
+    return ""
+
+
+def kept_link(said: str) -> str:
+    """A link worth keeping with somebody's place on the waitlist, or "".
+
+    It came back from the front page's box in a hidden field, so it is whatever the
+    request says: kept only if it is a web address of a sane length, and never fetched
+    here — the box described it already, and it is built only once they are let in
+    (targum-internal#399).
+    """
+    link = said.strip()
+    parsed = urlparse(link)
+    if len(link) > MAX_LINK or parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return ""
+    return link
+
+
 def daily_cycles() -> tuple[Any, ...]:
     """The learning cycles this shelf carries. A function rather than an import at the
     top, because `serve` is imported to answer one request and `daily` pulls the
@@ -586,6 +718,18 @@ DAILY_READER = re.compile(r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.
 #: reused exactly: a subscribe endpoint anybody can call is, like the sign-in one, a way
 #: to send mail from this domain into somebody else's inbox.
 SUBSCRIBE_ASKS_PER_HOUR = 3
+
+#: How often one visitor may try a link in the front page's box, and how often everybody
+#: together may (targum-internal#399). Nothing is built and nothing is spent, but each try
+#: is a yt-dlp call or a page fetch, often through the proxy, and the proxy bills by the
+#: gigabyte. Counted on the `asked` table under a digest of the address, never the
+#: address itself.
+TRIES_PER_HOUR = 5
+TRIES_PER_HOUR_FOR_EVERYBODY = 120
+
+#: The longest link the box will hold for somebody waiting. A real address is a few
+#: hundred characters; anything past this is not one.
+MAX_LINK = 2000
 
 #: A cap on how many unconfirmed rows may sit there at once, so the address rail cannot
 #: be walked around by using a different address every time.
@@ -635,6 +779,21 @@ def connector_is_open() -> bool:
     return os.environ.get("TARGUM_CONNECTOR", "").strip().lower() in {"1", "true", "yes"}
 
 
+def shows_occurrences() -> bool:
+    """Whether the word card says where a word comes round and where the reader met it
+    (targum-internal#95, #96).
+
+    Off unless the deployment says so. Both cards were gated on readers — Biblical
+    readers reaching the modern shelf, the card being where readers linger — and a gate
+    of that kind cannot be met while there are none, so on 2026-09-28 David had it built
+    behind this instead. Turning it on is the decision the gate was standing in for.
+
+    While it is off, `/word/met` answers 404, `/account/me` says so, and the card is
+    what it was: its root is a plain word and it has no line of counts.
+    """
+    return os.environ.get("TARGUM_OCCURRENCES", "").strip().lower() in {"1", "true", "yes"}
+
+
 def front_door_is_open() -> bool:
     """Whether a stranger at `/` gets the front door or the holding page.
 
@@ -679,10 +838,6 @@ def parasha_is_indexed() -> bool:
     """
     return os.environ.get("TARGUM_INDEX_PARASHA", "").strip().lower() in {"1", "true", "yes"}
 
-
-# What somebody who has not been invited is told. Honest about the state of things and
-# says nothing about who is on the list.
-NOT_OPEN = "Thanks for asking. targum isn't open yet."
 
 #: What a drawn cover may be saved as. No SVG: these arrive from an image model and an
 #: SVG is a script that runs, which is not a thing to serve from a directory anybody can
@@ -742,7 +897,7 @@ STALE = """<!doctype html>
 </head>
 <body>
 <main>
-  <h1>This tab has gone stale</h1>
+  <h1>This tab is out of date</h1>
   <p>Nothing is lost. Everything you were reading and every word you've kept is still
   here.</p>
   <p>Sign in and this won't happen again. A signed-in tab keeps working, and your words
@@ -853,6 +1008,12 @@ class Job:
     # at claim time and never written down: it is a fact about who they are now, not
     # about this job, and a job recovered after a restart has already been claimed.
     admin: bool = False
+    # targum's own gift (targum-internal#399, David 2026-10-01): the build of the link a
+    # stranger saved on the front page, started when they are let in. Paid from the box's
+    # budget, so it passes the account's money and hours rails and records no hours, and
+    # still claims against the box ceiling like everything else. Never set from a
+    # request: `options` is the request's, this field is not.
+    gift: bool = False
     # The language whoever asked for it reads the product in, so a refusal written later
     # by the thread that runs it is said in theirs (targum-internal#184). Never stored.
     ui: str = "en"
@@ -951,6 +1112,13 @@ class Job:
                 0
                 if self.options.get("pictures")
                 else int(self.options.get("post_pictures") or self.options.get("pdf_pages") or 0)
+            ),
+            # What those pictures are, so the button can say it: a scanned PDF's are its
+            # pages, "Read the 12 pages" (copy audit, 2026-09-28).
+            "pictures_are": (
+                "pages"
+                if self.options.get("pdf_pages") and not self.options.get("post_pictures")
+                else "pictures"
             ),
             # Whether this text could be given a voice once it is built
             # (targum-internal#246). A line on the card and never a button: the press is
@@ -1052,6 +1220,9 @@ def unreadable(error: Exception, ui: str = "en") -> str:
     In the reader's language: it reached a Russian bell in English (targum-internal#377)."""
     response = getattr(error, "response", None)
     status = getattr(response, "status_code", None)
+    if status is None:
+        # The fetch door's own refusal carries the status it met (`Unreachable.status`).
+        status = getattr(error, "status", None)
     if status in (401, 403, 451):
         return said_in(
             ui,
@@ -1165,9 +1336,16 @@ class Library:
         mailer: Mailer | None = None,
         address: str = "",
         chat_budget: float | None = CHAT_BUDGET,
+        hosted: bool = False,
     ) -> None:
         self.out = out
         self.chat_budget = chat_budget
+        #: Whether this is a box strangers read on, rather than a machine somebody runs
+        #: themselves. On a box a refusal whose detail is the machine's — a status code,
+        #: a curl exception, "install yt-dlp" — is said to the reader as the sentence for
+        #: it and the detail goes to the log; on a laptop the reader is the operator, and
+        #: the detail is the useful part (copy audit, 2026-09-28).
+        self.hosted = hosted
         #: Where an error is written down, other than the journal (targum-internal#24).
         self.incidents = out / "incidents.jsonl"
         # How to reach somebody whose build finished while they were away, and where
@@ -1616,7 +1794,7 @@ class Library:
                 "job.out-of.credits",
                 "You've used your {credits} credits for this month, and a credit is a "
                 "minute of audio. They come back on {date}. Text uploads still work, and "
-                "the library is always free.",
+                "the library still opens.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
@@ -1627,8 +1805,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.account",
-                "That's a lot to build at once. Try again in {hours} hours. The library is "
-                "always free.",
+                "That's a lot to get ready at once. Try again in {hours} hours. The library "
+                "still opens.",
                 hours=BUDGET_HOURS,
             )
         if whose == "talk-hours":
@@ -1638,9 +1816,9 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.talk-credits",
-                "You've used your {credits} credits of audio and conversation for this "
-                "month, and a credit is a minute. They come back on {date}. "
-                "Everything you have stays open, and the library is always free.",
+                "You've used your {credits} credits of audio and chat for this month, and "
+                "a credit is a minute. They come back on {date}. "
+                "Your texts and the library still open.",
                 credits=f"{allowed / SECONDS_A_CREDIT:g}",
                 date=self._month_ends(ui),
             )
@@ -1650,8 +1828,8 @@ class Library:
             return said_in(
                 ui,
                 "job.out-of.chat",
-                "That's a lot of conversation for one day. Try again in {hours} hours. The "
-                "library is always free.",
+                "That's a lot of chatting for one day. Try again in {hours} hours. The "
+                "library still opens.",
                 hours=BUDGET_HOURS,
             )
         return said_in(
@@ -2288,6 +2466,15 @@ class Library:
                     return folder, str(facts.get("language") or "")
         return None
 
+    def document_title(self, folder: Path) -> str:
+        """A built text's title, as the shelf has it — for naming a place a word was met
+        where the text has no verse to name it by (targum-internal#95)."""
+        document = folder / "document.json"
+        facts = self.remembered.get(
+            folder, "document", [document], partial(self._document_facts, document)
+        )
+        return str(facts.get("title") or "")
+
     @staticmethod
     def _recording_seconds(folder: Path) -> int:
         """How long a text's recording runs, in whole seconds, or 0 for a text with none."""
@@ -2434,10 +2621,12 @@ class Library:
                     return self._prepare_reel(job)
                 if host is hosts_module.TIKTOK:
                     return self._prepare_tiktok(job)
+                if host is hosts_module.FACEBOOK:
+                    return self._prepare_facebook(job)
                 if host is not None:
-                    # A service we can name and cannot fetch from: TikTok, Vimeo, Reddit,
-                    # Facebook. Said by name with the way that works, rather than read
-                    # as an article and answered with "save the page as .txt".
+                    # A service we can name and cannot fetch from: Vimeo, Reddit. Said
+                    # by name with the way that works, rather than read as an article
+                    # and answered with "save the page as .txt".
                     job.error = said_in(
                         job.ui,
                         "job.video-host-closed",
@@ -2458,7 +2647,7 @@ class Library:
                 except UnsupportedSource as refusal:
                     # This is Library.prepare, not the handler: a refusal travels on
                     # the job, the way every prepare failure does.
-                    job.error = refused_in(job.ui, refusal)
+                    job.error = told(job.ui, refusal, hosted=self.hosted)
                     job.stage = "failed"
                     return
                 if found is not None:
@@ -2531,7 +2720,7 @@ class Library:
                 job.blocked = self.why_blocked(job.estimate, job.ui)
             job.stage = "blocked" if job.blocked else "ready"
         except TargumError as error:
-            job.error = refused_in(job.ui, error)
+            job.error = told(job.ui, error, hosted=self.hosted)
             job.stage = "failed"
         except Exception as error:  # a bad file should not take the server down
             # Said plainly, with the library's own words kept for the back office: a
@@ -2541,6 +2730,154 @@ class Library:
             incidents_module.record(self.incidents, "prepare", error, job=job.id)
             job.error = unreadable(error, job.ui)
             job.stage = "failed"
+
+    def describe(self, link: str, ui: str = "en") -> Job:
+        """What a link is, for somebody who has no account (targum-internal#399).
+
+        `prepare`'s describing half and nothing after it: which door the link comes
+        through, how long it runs, whether a person wrote its subtitles, and how long a
+        build of that shape takes here. Never `claim`, never a job anybody can see, never
+        a model call — not even the free count of tokens the text path's estimate makes —
+        and no pictures read, because reading a picture is the one thing at quote time
+        that spends. A stranger never costs a model call.
+
+        The answer is a `Job` that is never registered: `stage` is "ready" with the facts
+        on it, or "failed" with the sentence the Add page would have said.
+        """
+        import secrets
+
+        from .ingest import x as x_module
+        from .video import hosts as hosts_module
+        from .video import instagram as instagram_module
+        from .video import youtube as youtube_module
+
+        job = Job(id=f"try-{secrets.token_hex(6)}", source=link.strip(), ui=ui)
+        parsed = urlparse(job.source)
+        job.options["door"] = "page"
+        try:
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                job.error = said_in(
+                    ui, "door.not-a-link", "That isn't a link. Paste one that starts with https."
+                )
+                job.stage = "failed"
+                return job
+            host = hosts_module.host_for(job.source)
+            if x_module.is_x(job.source):
+                job.options["door"] = "x"
+                return self._describe_x(job)
+            if (parsed.hostname or "").lower() in youtube_module.HOSTS:
+                job.options["door"] = "youtube"
+                self._prepare_youtube(job)
+            elif instagram_module.is_post(job.source):
+                # A `/p/` post may be pictures, and pictures are read by a model. Named,
+                # and nothing fetched.
+                job.options["door"] = "instagram-post"
+                job.stage = "ready"
+            elif host is hosts_module.INSTAGRAM:
+                job.options["door"] = "instagram"
+                self._prepare_reel(job)
+            elif host is hosts_module.TIKTOK:
+                job.options["door"] = "tiktok"
+                self._prepare_tiktok(job)
+            elif host is hosts_module.FACEBOOK:
+                job.options["door"] = "facebook"
+                self._prepare_facebook(job)
+            elif host is not None:
+                job.error = said_in(
+                    ui,
+                    "door.host-closed",
+                    "{service} doesn't let us fetch its videos.",
+                    service=host.name,
+                )
+                job.stage = "failed"
+            else:
+                self._describe_page(job)
+        except TargumError as error:
+            job.error = told(ui, error, hosted=self.hosted)
+            job.stage = "failed"
+        except Exception as error:  # a stranger's link should not take the server down
+            incidents_module.record(self.incidents, "describe", error, job=job.id)
+            job.error = unreadable(error, ui)
+            job.stage = "failed"
+        # Whether the box could build it today is not the stranger's question: nothing
+        # is built until they are let in, and a full box then is a full box then.
+        if job.stage == "blocked":
+            job.blocked = ""
+            job.stage = "ready"
+        return job
+
+    def _describe_x(self, job: Job) -> Job:
+        """A post on X, read off the syndication endpoint as `_prepare_x` reads it, and
+        nothing written to disk: a stranger's try leaves no file behind."""
+        from .ingest import x as x_module
+        from .ingest.post import lines_of
+
+        if not x_module.is_open():
+            job.error = said_in(job.ui, "door.x-closed", "We don't bring posts in from X yet.")
+            job.stage = "failed"
+            return job
+        found = x_module.thread(job.source)
+        lines = sum(len(lines_of(post.text)) for post in found.posts)
+        if not lines:
+            job.error = said_in(
+                job.ui,
+                "job.x-no-words",
+                "That post has no words to read. Its pictures are all it says.",
+            )
+            job.stage = "failed"
+            return job
+        first = found.posts[0]
+        job.title = first.name or first.handle
+        job.segments = lines
+        job.total = lines
+        job.stage = "ready"
+        return job
+
+    def _describe_page(self, job: Job) -> None:
+        """A web page or a podcast episode: fetched and cut into sentences, which costs
+        nothing, and never priced, because the text path's price asks the model to count
+        its tokens."""
+        from .audio import episode as episode_module
+
+        if episode_module.sounds_like_audio(job.source):
+            job.options["door"] = "podcast"
+            return self._prepare_episode(job, episode_module.Episode(audio_url=job.source))
+        found = episode_module.find(job.source)
+        if found is not None:
+            job.options["door"] = "podcast"
+            return self._prepare_episode(job, found)
+        # A throwaway folder, not the shelf: `ingest` and `segment` write what they read,
+        # and a stranger's try must leave nothing behind on the box (#399).
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="targum-try-") as scratch:
+            builder = Build(
+                job.source,
+                target_language="en",
+                style=Style.natural,
+                model=HOSTED_MODEL,
+                out_root=Path(scratch),
+                gloss=False,
+            )
+            document = builder.ingest()
+            segmented = builder.segment(document)
+        job.title = document.title or ""
+        job.language = document.language
+        if not self._reads_language(job.language):
+            from .translate.prompts import language_name
+
+            job.error = said_in(
+                job.ui,
+                "door.unreadable.language",
+                "This looks like {language}, and we can't read that yet.",
+                language=language_name(job.language),
+            )
+            job.stage = "failed"
+            return
+        job.segments = len(segmented.segments)
+        job.total = job.segments
+        job.usually = self._how_long(job)
+        job.stage = "ready"
 
     @staticmethod
     def _reads_language(language: str) -> bool:
@@ -2608,7 +2945,7 @@ class Library:
                     # `job.error` reaches `refusedWith()`, which is where the button is.
                     raise UnsupportedSource(
                         "This PDF is a scan, so its words are in pictures of its pages. "
-                        "Read the pages to bring it in.",
+                        "We can read those pictures for you.",
                         key="pdf.scan-read-the-pages",
                     )
                 folder = Path(job.home) / "pages" if job.home else source.parent / "pages"
@@ -2802,6 +3139,49 @@ class Library:
             caption=str(said.get("description") or ""),
         )
 
+    def _prepare_facebook(self, job: Job) -> None:
+        """A Facebook video, priced through `_prepare_video` (2026-09-30).
+
+        TikTok's shape: a shared link names no video until it is followed, so yt-dlp
+        follows it at the quote and the job then carries the one canonical address —
+        taken from the answer's id, because a shared link can land on a group's post
+        (`facebook.home_from`).
+        """
+        from .ingest.post import posted_from
+        from .video import facebook as facebook_module
+
+        said: dict[str, Any] = {}
+
+        def described(url: str) -> dict[str, Any]:
+            info = facebook_module.describe(url)
+            said.update(info)
+            found = facebook_module.home_from(info)
+            if found:
+                job.source = found
+            return info
+
+        self._prepare_video(
+            job,
+            vetted=facebook_module.is_facebook,
+            described=described,
+            unavailable=said_in(
+                job.ui, "job.facebook-unavailable", "We can't fetch from Facebook here."
+            ),
+        )
+        if job.stage == "failed":
+            return
+        # A Facebook video arrives as a post, as a TikTok does (targum-internal#158).
+        # yt-dlp gives the page's name as `uploader` and a number as its id, which is no
+        # handle anybody would know them by, so the head carries the name alone.
+        self._keep_film_post(
+            job,
+            platform="facebook",
+            handle="",
+            name=str(said.get("uploader") or ""),
+            posted_at=posted_from(said.get("timestamp")),
+            caption=str(said.get("description") or ""),
+        )
+
     def _prepare_post(self, job: Job) -> bool:
         """An Instagram post, read off its embed page (targum-internal#255).
 
@@ -2955,7 +3335,7 @@ class Library:
         try:
             found = x_module.thread(job.source)
         except TargumError as refusal:
-            job.error = refused_in(job.ui, refusal)
+            job.error = told(job.ui, refusal, hosted=self.hosted)
             job.stage = "failed"
             return True
         posts = found.posts
@@ -3030,7 +3410,7 @@ class Library:
         try:
             vetted(job.source)
         except TargumError as refusal:
-            job.error = refused_in(job.ui, refusal)
+            job.error = told(job.ui, refusal, hosted=self.hosted)
             job.stage = "failed"
             return
 
@@ -3038,7 +3418,7 @@ class Library:
         if not usable:
             # Said as a fact about this box rather than as the reader's mistake, and it
             # names the path that still works on their own machine.
-            job.error = f"{unavailable} {hint}"
+            job.error = unavailable if self.hosted else f"{unavailable} {hint}"
             job.stage = "failed"
             return
         try:
@@ -3047,7 +3427,7 @@ class Library:
             # An age gate, a private video, a region block — yt-dlp's own sentence is
             # better than anything written here, and a refusal travels on the job the
             # way every prepare failure does.
-            job.error = refused_in(job.ui, refusal)
+            job.error = told(job.ui, refusal, hosted=self.hosted)
             job.stage = "failed"
             return
         if not found.duration and unmeasured:
@@ -3069,7 +3449,7 @@ class Library:
             job.error = said_in(
                 job.ui,
                 "job.video-too-long",
-                "That video is longer than {hours} hours. That's more than we can take at once.",
+                "That video is over {hours} hours. Try a shorter one.",
                 hours=f"{hours:g}",
             )
             job.stage = "failed"
@@ -3191,7 +3571,7 @@ class Library:
             # running up somebody else's bill, and the person paying it is not that
             # reader. The box ceiling below is not waived: that one is the runaway guard,
             # and a loop at three in the morning does not care whose account it is on.
-            admin = bool(job.admin)
+            admin = bool(job.admin) or job.gift
             refused = self.store.claim(
                 job.id,
                 job.estimate,
@@ -3201,8 +3581,9 @@ class Library:
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
                 # Only a recording spends the hours. A text upload is any length and
-                # costs no clock time, so it is not charged against them.
-                length=job.seconds if job.audio else 0.0,
+                # costs no clock time, so it is not charged against them. Nor is a
+                # gift: targum pays for it, and their eight hours are theirs (#399).
+                length=job.seconds if job.audio and not job.gift else 0.0,
                 per_month_length=None if admin else self.upload_seconds,
             )
             if not refused:
@@ -3274,6 +3655,59 @@ class Library:
                 return blocked
             self.enqueue(job)
             return ""
+
+    def build_saved_link(self, email: str, language: str = "en") -> Job | None:
+        """Build the link somebody saved on the front page, now that they are let in
+        (targum-internal#399; David, 2026-10-01: "let-in builds the saved link").
+
+        targum's own budget pays: the job is a `gift`, claimed through `press` and so
+        through `claim` like any other build, against the box ceiling, recorded as a job
+        row and owned by the new account so it lands on their shelf. Nothing here is a
+        second path to the rails. Returns the job, or None where there is no link or no
+        account to give it to; a describe or a build that fails leaves the link saved and
+        never touches the invitation, which has already gone.
+        """
+        import secrets
+
+        from .translate.prompts import INTO
+
+        if self.store is None:
+            return None
+        link = self.store.waiting_link(email)
+        if not link:
+            return None
+        person = self.store.account_for_invited(email)
+        if person is None:
+            return None
+        into = language if language in {code for code, _ in INTO} else "en"
+        job = Job(
+            ui=language or "en",
+            id=secrets.token_hex(8),
+            source=link,
+            options={"to": into, "words": True, "gloss": False},
+            owner=person.id,
+            home=self.home(person),
+            gift=True,
+        )
+        self.jobs[job.id] = job
+        self.remember(job)
+        self.prepare(job)
+        self.remember(job)
+        if job.stage == "ready":
+            self.press(job)
+        return job
+
+    def build_saved_link_later(self, email: str, language: str = "en") -> None:
+        """`build_saved_link` on a thread of its own: preparing reads the link (a yt-dlp
+        call, a page fetch), and the operator's press should not wait on it."""
+
+        def run() -> None:
+            try:
+                self.build_saved_link(email, language)
+            except Exception as error:  # the invitation has gone; the link stays saved
+                incidents_module.record(self.incidents, "saved-link", error)
+
+        threading.Thread(target=run, name="saved-link", daemon=True).start()
 
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
@@ -3418,7 +3852,7 @@ class Library:
             self.remember(job)
             self.propose(job)
         except TargumError as error:
-            self._blame(job, error.message)
+            self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
             # Whatever a library chose to say about itself is not a sentence for someone
             # who wanted to read a poem. The detail belongs in the terminal, and on the
@@ -3427,7 +3861,7 @@ class Library:
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             self._blame(
                 job,
-                "Something went wrong on our side. The Terminal has the detail.",
+                "Something went wrong on our side, and we've noted it. Try again later.",
             )
 
     def keep_post(self, job: Job, folder: Path, document: Document) -> None:
@@ -3664,6 +4098,11 @@ class Library:
         illustrator = covers_module.build()
         usable, detail = illustrator.available()
         if not usable:
+            # The illustrator's reason is an operator's ("set OPENAI_API_KEY"), and on a
+            # box it goes to the log rather than to the page (copy audit, 2026-09-28).
+            if self.hosted:
+                log.warning("covers: %s", detail)
+                return self._blame(job, unreadable(TargumError(detail), job.ui))
             return self._blame(job, detail)
 
         where = self.out / "thumbs"
@@ -3719,7 +4158,7 @@ class Library:
         except TargumError as error:
             job.spent = owed()
             self.settle(job)
-            return self._blame(job, error.message)
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
 
         job.spent = owed()
         self.settle(job)
@@ -3787,12 +4226,12 @@ class Library:
                 reads=sorted(self._reads_of(job.owner) or ()) or None,
             )
         except TargumError as error:
-            return self._blame(job, error.message)
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             return self._blame(
-                job, "Something went wrong on our side. The Terminal has the detail."
+                job, "Something went wrong on our side, and we've noted it. Try again later."
             )
 
         job.spent = builder.spent.cost()
@@ -3847,14 +4286,14 @@ class Library:
             # Some of it was said, and Google charged for what was. `_blame` settles a
             # job with money on it rather than releasing the claim.
             self._charge_speech(job, error.seconds)
-            return self._blame(job, error.message)
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
         except TargumError as error:
-            return self._blame(job, error.message)
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice", error, job=job.id)
             return self._blame(
-                job, "Something went wrong on our side. The Terminal has the detail."
+                job, "Something went wrong on our side, and we've noted it. Try again later."
             )
         # Paid for from here on, whatever happens to the page below.
         self._charge_speech(job, clip.seconds)
@@ -3901,12 +4340,12 @@ class Library:
                 folder=folder,
             )
         except TargumError as error:
-            return self._blame(job, error.message)
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, "voice:render", error, job=job.id)
             return self._blame(
-                job, "Something went wrong on our side. The Terminal has the detail."
+                job, "Something went wrong on our side, and we've noted it. Try again later."
             )
         job.reader = f"{folder.name}/reader/{pages[0].name}"
         job.message = ""
@@ -3964,11 +4403,13 @@ class Library:
             self.settle(job)
             self.remember(job)
         except TargumError as error:
-            self._blame(job, error.message)
+            self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
-            self._blame(job, "Something went wrong on our side. The Terminal has the detail.")
+            self._blame(
+                job, "Something went wrong on our side, and we've noted it. Try again later."
+            )
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -4685,6 +5126,7 @@ class Handler(BaseHTTPRequestHandler):
             # `?lang=` first, then the browser: the bar's EN / RU is a link, as on
             # the front door and the weekly (design.md §12, 2026-09-27).
             language=self._public_language(),
+            asked=self._asked(),
             schedule=schedule,
             other=elsewhere,
             diaspora=here if schedule is Schedule.diaspora else elsewhere,
@@ -4835,12 +5277,14 @@ class Handler(BaseHTTPRequestHandler):
             # `?lang=` first, then the browser: the bar's EN / RU is a link, as on
             # the front door and the weekly (design.md §12, 2026-09-27).
             language=self._public_language(),
+            asked=self._asked(),
             nearby=nearby,
             others=others,
             absent=list(ABSENT.items()),
             opens=corpus.opens_at(slug, when),
             is_today=when == today(),
             address=self.address,
+            signed_in=self._person() is not None,
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -4998,9 +5442,11 @@ class Handler(BaseHTTPRequestHandler):
             address=self.address,
             archive=published,
             language=language,
+            asked=self._asked(),
             # The edition the frame opens: the page's language where every level was
             # built into it, and English otherwise (targum-internal#288).
             edition=weekly.reading_in(issue, language),
+            signed_in=self._person() is not None,
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -5026,7 +5472,14 @@ class Handler(BaseHTTPRequestHandler):
         page = self._weekly_page_note(message, said, done=done)
         return self._send(200 if done else 429, page.encode("utf-8"), HTML)
 
-    def _waitlist_note(self, message: str, done: bool = True, said: str = "", **rest: Any) -> None:
+    def _waitlist_note(
+        self,
+        message: str,
+        done: bool = True,
+        said: str = "",
+        heading: str = "waitlist.note.heading-joined",
+        **rest: Any,
+    ) -> None:
         """A sentence back from the front door, on the furniture the weekly's doors use.
 
         The same page, a different heading and a different way home: this is read in a
@@ -5038,6 +5491,11 @@ class Handler(BaseHTTPRequestHandler):
         language that door was in, and somebody arriving from a mail is answered in the
         language recorded on their row. It falls back to the request's own, which is
         right for the typed half and never wrong for the other (targum-internal#288).
+
+        `heading` is the key of the page's heading, one a step (2026-09-28): it was one
+        heading for every answer, "the waitlist", over "Thanks. Check your email…". Each
+        heading follows from the step alone and never from the address, so the answers
+        that must not say whether an address is waiting still cannot.
         """
         from .strings import text
 
@@ -5046,7 +5504,10 @@ class Handler(BaseHTTPRequestHandler):
             message,
             address=self.address,
             done=done,
-            heading=text("waitlist.note.heading", code),
+            # Its own tab, not the Weekly News Digest's (copy audit, 2026-09-28).
+            title=text("waitlist.note.title", code),
+            description=text("waitlist.note.description", code),
+            heading=text(heading, code),
             home="/",
             language=code,
             **rest,
@@ -5085,15 +5546,73 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/waitlist/confirm":
             waiting = store.peek_waiting(token)
             if waiting is None:
-                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
+                return self._waitlist_note(
+                    text("waitlist.note.link-spent", said),
+                    said=said,
+                    heading="waitlist.note.heading-spent",
+                )
             message = text("waitlist.note.keep-me", said, email=waiting)
             button = text("waitlist.note.keep-me.button", said)
+            heading = "waitlist.note.heading-confirm"
         else:
             message = text("waitlist.note.take-me-off", said)
             button = text("waitlist.note.take-me-off.button", said)
+            heading = "waitlist.note.heading-leave"
         return self._waitlist_note(
-            message, said=said, pending={"action": route, "token": token, "button": button}
+            message,
+            said=said,
+            heading=heading,
+            pending={"action": route, "token": token, "button": button},
         )
+
+    def _visitor(self) -> str:
+        """The address a request came from: Caddy's `X-Forwarded-For` where the
+        connection is Caddy's own, the socket's otherwise. Caddy sets the header itself
+        and trusts none that arrives, so the last entry is the visitor's."""
+        peer = str(self.client_address[0]) if self.client_address else ""
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        if forwarded and peer in ("127.0.0.1", "::1"):
+            return forwarded.split(",")[-1].strip()
+        return peer
+
+    def _try_post(self, form: dict[str, str]) -> None:
+        """The front page's box (targum-internal#399): a link in, one sentence about it
+        out, on the front page itself with the waitlist beside it.
+
+        Nothing is built and nothing is spent: `Library.describe` is `prepare`'s
+        describing half. Each try is a yt-dlp call or a page fetch, so it is counted —
+        per visitor, under a digest of their address, and for everybody together — on
+        the rail the sign-in links use.
+        """
+        store = self.library.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+        said = self._public_language()
+        link = (form.get("link") or "").strip()
+        tried: dict[str, Any]
+        if not link:
+            tried = {"refused": said_in(said, "door.empty", "Paste a link first.")}
+        elif len(link) > MAX_LINK:
+            tried = {
+                "refused": said_in(
+                    said, "door.not-a-link", "That isn't a link. Paste one that starts with https."
+                )
+            }
+        elif store.asking_too_often(
+            "try:" + digest(self._visitor()), limit=TRIES_PER_HOUR
+        ) or store.asking_too_often("try:everybody", limit=TRIES_PER_HOUR_FOR_EVERYBODY):
+            tried = {
+                "refused": said_in(
+                    said,
+                    "door.too-often",
+                    "That's a lot of links for one hour. Try again later, or join and bring "
+                    "them when you're in.",
+                )
+            }
+        else:
+            tried = tried_for(self.library.describe(link, said), said)
+        page = front_page(language=said, address=self.address, asked=self._asked(), tried=tried)
+        return self._send(200, page.encode("utf-8"), HTML)
 
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
         """Joining, confirming and leaving. Public by necessity, and public by design:
@@ -5111,13 +5630,23 @@ class Handler(BaseHTTPRequestHandler):
             said = self._public_language()
             if not plausible(address):
                 return self._waitlist_note(
-                    text("waitlist.note.not-an-address", said), done=False, said=said
+                    text("waitlist.note.not-an-address", said),
+                    done=False,
+                    said=said,
+                    heading="waitlist.note.heading-address",
                 )
             if store.asking_too_often(address, limit=SUBSCRIBE_ASKS_PER_HOUR):
-                return self._waitlist_note(text("waitlist.note.too-often", said), False, said=said)
+                return self._waitlist_note(
+                    text("waitlist.note.too-often", said),
+                    False,
+                    said=said,
+                    heading="waitlist.note.heading-later",
+                )
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, said)
+            token = store.join_waitlist(
+                address, said, joined_from(form.get("from", "")), kept_link(form.get("link", ""))
+            )
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)
@@ -5139,8 +5668,16 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/waitlist/confirm":
             said = store.waiting_language(form.get("t", ""))
             if store.confirm_waiting(form.get("t", "")) is None:
-                return self._waitlist_note(text("waitlist.note.link-spent", said), said=said)
-            return self._waitlist_note(text("waitlist.note.you-are-on", said), said=said)
+                return self._waitlist_note(
+                    text("waitlist.note.link-spent", said),
+                    said=said,
+                    heading="waitlist.note.heading-spent",
+                )
+            return self._waitlist_note(
+                text("waitlist.note.you-are-on", said),
+                said=said,
+                heading="waitlist.note.heading-on",
+            )
 
         # Nothing is said about whether the token was one, for the reason the weekly's
         # unsubscribe says nothing: an endpoint that reported back would answer whether
@@ -5150,7 +5687,9 @@ class Handler(BaseHTTPRequestHandler):
         # that was not.
         said = self._public_language()
         store.leave_waitlist(form.get("t", ""))
-        return self._waitlist_note(text("waitlist.note.taken-off", said), said=said)
+        return self._waitlist_note(
+            text("waitlist.note.taken-off", said), said=said, heading="waitlist.note.heading-off"
+        )
 
     def _weekly_post(self, route: str, form: dict[str, str]) -> None:
         """Subscribing, confirming and stopping, each answered in the reader's language
@@ -5257,8 +5796,11 @@ class Handler(BaseHTTPRequestHandler):
             # no session and no account, so the language it was followed in is read off
             # the row rather than off the request (targum-internal#289).
             said = store.following_language(token)
+            name = self._series_named(store.following_series(token), said)
             page = weekly_note(
-                text("series.stop.ask", said),
+                text("series.stop.ask-named", said, name=name)
+                if name
+                else text("series.stop.ask", said),
                 address=self.address,
                 done=False,
                 pending={
@@ -5269,21 +5811,41 @@ class Handler(BaseHTTPRequestHandler):
                 heading=text("series.stop.heading", said),
                 home="/library",
                 language=said,
+                title=f"{name} — targum" if name else "targum",
+                description=text("series.stop.description", said),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         token = form.get("t", "")
         # Read before it is spent. Stopping does not clear the language, but a token that
         # matches no row answers English, and this is the last moment one certainly does.
         said = store.following_language(token)
+        name = self._series_named(store.following_series(token), said)
         store.stop_following(token)
         page = weekly_note(
-            text("series.stop.done", said),
+            text("series.stop.done-named", said, name=name)
+            if name
+            else text("series.stop.done", said),
             address=self.address,
             heading=text("series.stop.heading", said),
             home="/library",
             language=said,
+            title=f"{name} — targum" if name else "targum",
+            description=text("series.stop.description", said),
         )
         return self._send(200, page.encode("utf-8"), HTML)
+
+    @staticmethod
+    def _series_named(series: str, language: str) -> str:
+        """A series' name in `language`, for the page that stops its emails — which
+        never said which series it was stopping (copy audit, 2026-09-28). "" for a series
+        the catalogue does not name: a portion or a day is followed by its series' id."""
+        from .strings import SOURCE, catalogue
+
+        key = f"series.{series}.name"
+        if not series or key not in catalogue(SOURCE):
+            return ""
+        code = language.split("-")[0].lower()
+        return catalogue(code).get(key) or catalogue(SOURCE)[key]
 
     def _weekly_follow(self, payload: dict[str, Any]) -> None:
         """The signed-in door. Reads the session's address and never the payload's."""
@@ -5444,11 +6006,11 @@ class Handler(BaseHTTPRequestHandler):
             for edition in issue.editions
         ]
         # The pages that really answer in both languages, and only those
-        # (targum-internal#188). A sitemap that claims a Russian version of `/about`,
-        # which serves one language at one address, teaches a crawler to distrust the
-        # claims it makes about the pages that do have one.
+        # (targum-internal#188; `/connect` since #392). A sitemap that claims a Russian
+        # version of `/about`, which serves one language at one address, teaches a
+        # crawler to distrust the claims it makes about the pages that do have one.
         bilingual = (
-            {"/", "/library"}
+            {"/", "/library", "/connect"}
             | {path for path in paths if path.startswith("/library/")}
             | set(weekly_paths)
         )
@@ -5651,7 +6213,13 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             count = 5
         try:
-            rows = open_the_door(self.store, self.mailer, self.address, count)
+            rows = open_the_door(
+                self.store,
+                self.mailer,
+                self.address,
+                count,
+                then=self.library.build_saved_link_later,
+            )
         except ValueError as error:
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         let_in = sum(1 for row in rows if row.ok)
@@ -5678,7 +6246,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         email = (form.get("email") or "").strip()
         try:
-            row = let_in(self.store, self.mailer, self.address, email)
+            row = let_in(
+                self.store,
+                self.mailer,
+                self.address,
+                email,
+                then=self.library.build_saved_link_later,
+            )
         except ValueError as error:
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         if row is None:
@@ -5797,7 +6371,10 @@ class Handler(BaseHTTPRequestHandler):
             if not connector_is_open():
                 return self._send(404, b"not found", "text/plain")
             page = connect_page(
-                self._public_language(), self.address, signed_in=self._person() is not None
+                self._public_language(),
+                self.address,
+                signed_in=self._person() is not None,
+                asked=self._asked(),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
@@ -5962,13 +6539,32 @@ class Handler(BaseHTTPRequestHandler):
             # spends nothing here; the button below posts, and that is what signs in.
             token = parse_qs(urlparse(self.path).query).get("t", [""])[0]
             person = self.store.peek_sign_in(token) if token else None
+            if person is None and token and self.store.leaving_link(token):
+                page = signin_page(language=self._page_language(), said=self._closing())
+                return self._send(200, page.encode("utf-8"), HTML)
             if person is None:
                 return self._send(
                     200,
                     signin_page(expired=True, language=self._page_language()).encode("utf-8"),
                     HTML,
                 )
-            page = signin_page(landing=person.email, token=token, language=self._page_language())
+            marked = parse_qs(urlparse(self.path).query).get("c", [""])[0] == "1"
+            waiting = self._connecting()
+            page = signin_page(
+                landing=person.email,
+                token=token,
+                language=self._page_language(),
+                connecting=self._finishing(self._connecting_client(waiting)) if waiting else "",
+                said=(
+                    self._say(
+                        "signin.page.connect-lost",
+                        "We couldn't finish connecting: you started in another browser, or "
+                        "too long ago. Sign in, then connect again from Claude or ChatGPT.",
+                    )
+                    if marked and not waiting
+                    else ""
+                ),
+            )
             return self._send(200, page.encode("utf-8"), HTML)
         if not self._authorised():
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
@@ -6083,6 +6679,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._totals()
         if route == "/account/reading":
             return self._reading()
+        if route == "/word/met":
+            if not shows_occurrences():
+                return self._send(404, b"not found", "text/plain")
+            return self._word_met(parse_qs(urlparse(self.path).query))
         if route == "/suggest":
             return self._suggest()
         if route == "/account/follows":
@@ -6184,6 +6784,8 @@ class Handler(BaseHTTPRequestHandler):
         # weekly's are: nobody here has an account, or could get one.
         if route in WAITLIST_POSTS and front_door_is_open():
             return self._waitlist_post(route, self._form())
+        if route == "/try" and front_door_is_open():
+            return self._try_post(self._form())
         if route == "/series/stop":
             return self._series_stop(self._form())
         # The connector's four (targum-internal#80). Before the account check and before
@@ -6638,8 +7240,15 @@ class Handler(BaseHTTPRequestHandler):
         if not usable:
             return self._json(
                 {
-                    "error": self._say(
-                        "serve.cannot-read-aloud", "We can't read aloud here: {why}.", why=why
+                    "error": (
+                        self._say(
+                            "serve.cannot-read-aloud-now",
+                            "We can't read aloud right now. Try again later.",
+                        )
+                        if self._keeps_why(why)
+                        else self._say(
+                            "serve.cannot-read-aloud", "We can't read aloud here: {why}.", why=why
+                        )
                     )
                 },
                 402,
@@ -6817,10 +7426,17 @@ class Handler(BaseHTTPRequestHandler):
             clip.unlink(missing_ok=True)
             return self._json(
                 {
-                    "error": self._say(
-                        "serve.cannot-transcribe",
-                        "We can't write speech down here: {why}.",
-                        why=why,
+                    "error": (
+                        self._say(
+                            "serve.cannot-transcribe-now",
+                            "We can't write speech down right now. Try again later.",
+                        )
+                        if self._keeps_why(why)
+                        else self._say(
+                            "serve.cannot-transcribe",
+                            "We can't write speech down here: {why}.",
+                            why=why,
+                        )
                     )
                 },
                 402,
@@ -6900,7 +7516,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.that-s-too-long-for-one-2",
-                        "That's too long for one turn. Try a shorter one.",
+                        "That's too long for one message. Try a shorter one.",
                     )
                 },
                 413,
@@ -6976,8 +7592,15 @@ class Handler(BaseHTTPRequestHandler):
         if not usable:
             return self._json(
                 {
-                    "error": self._say(
-                        "serve.cannot-read-aloud", "We can't read aloud here: {why}.", why=why
+                    "error": (
+                        self._say(
+                            "serve.cannot-read-aloud-now",
+                            "We can't read aloud right now. Try again later.",
+                        )
+                        if self._keeps_why(why)
+                        else self._say(
+                            "serve.cannot-read-aloud", "We can't read aloud here: {why}.", why=why
+                        )
                     )
                 },
                 402,
@@ -7249,6 +7872,9 @@ class Handler(BaseHTTPRequestHandler):
             # a record at all, and whether this reader has left it on (#127). A page sends
             # nothing unless both are true.
             "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+            # Whether the card may ask `/word/met` (targum-internal#95, #96). A page that
+            # has not heard yes asks nothing and draws the card as it always was.
+            "occurrences": shows_occurrences(),
             # Which connectors hold a token for this account, and what each may do
             # (targum-internal#80). A grant that lasts has to be visible somewhere the
             # reader can take it back, and this is that somewhere — see design.md §12,
@@ -7794,10 +8420,13 @@ class Handler(BaseHTTPRequestHandler):
                 400,
             )
         # A reader is a file, and a language taken away only leaves one when the file is
-        # written again. Adding one never needs this: a translation is only in a folder
-        # if it was bought, and buying writes the reader. Off this thread, because a
-        # home full of long books is seconds of work and the page is waiting.
-        if before - reads:
+        # written again. So does a language given back: unticking wrote every reader
+        # without it, and the translation stayed in the folder, so ticking it again has
+        # to write them with it — or /you's "You lose nothing when you untick one" is
+        # false until the next build of each text (copy audit, 2026-09-28). A rewrite
+        # fetches and spends nothing. Off this thread, because a home full of long books
+        # is seconds of work and the page is waiting.
+        if before != reads:
             from .cli import rebuild_home
 
             home = self.library.home(person)
@@ -7909,6 +8538,38 @@ class Handler(BaseHTTPRequestHandler):
 
         return reading_language(self._said_reads())
 
+    def _not_open(self) -> str:
+        """What somebody who has not been invited is told. Honest about the state of
+        things, says nothing about who is on the list, and — while there is a waitlist to
+        join — says what to do next (copy audit, 2026-09-28). In the catalogue, where it
+        was a constant said in English to every reader."""
+        if front_door_is_open():
+            return self._say(
+                "serve.not-open.waitlist",
+                "Thanks for asking. targum isn't open yet. Join the waitlist and we'll "
+                "email you when it's your turn.",
+            )
+        return self._say("serve.not-open", "Thanks for asking. targum isn't open yet.")
+
+    def _closing(self) -> str:
+        """What an account inside its deletion grace period is told at every door: why
+        it cannot sign in, and the one way to keep it."""
+        return self._say(
+            "serve.account-closing",
+            "This account is being closed. To keep it, email hello@targum.page.",
+        )
+
+    def _keeps_why(self, why: str) -> bool:
+        """Whether a missing service's reason stays in the log rather than on the page.
+
+        The reason is an operator's instruction — "set OPENAI_API_KEY in .env" — which on
+        a machine somebody runs themselves is the answer and on a hosted box is not a
+        thing to hand a reader (copy audit, 2026-09-28)."""
+        if not self.require_account:
+            return False
+        log.warning("unavailable here: %s", why)
+        return True
+
     def _say(self, key: str, english: str, **fill: object) -> str:
         """A sentence the server sends back, in the language of whoever asked
         (targum-internal#184): `english` where their catalogue has not said it."""
@@ -7981,8 +8642,12 @@ class Handler(BaseHTTPRequestHandler):
         # tell an asker whether an address is on the list, and for an alpha of a handful
         # of people the confusion of a link that never arrives costs more than the
         # enumeration is worth. Revisit when the list is long enough to be worth probing.
+        if self.store.is_leaving(email):
+            # Asked before the invitation: a closing account was invited once, and would
+            # be mailed a link that then refuses it (copy audit, 2026-09-28).
+            return self._json({"error": self._closing()}, 403)
         if self.require_account and not self.store.may_join(email):
-            return self._json({"error": NOT_OPEN}, 403)
+            return self._json({"error": self._not_open()}, 403)
         if self.store.asking_too_often(email):
             return self._json(
                 {
@@ -7996,6 +8661,11 @@ class Handler(BaseHTTPRequestHandler):
         language = self._mail_language(email, payload.get("into"))
         token = self.store.start_sign_in(email)
         link = f"{self.address}/account/enter?t={token}"
+        if self._connecting():
+            # Marked, so the page the link opens can tell a connect that is waiting from
+            # one that was lost on the way — the link opened in another browser, or after
+            # the errand's cookie ran out — and say so rather than drop it in silence.
+            link += "&c=1"
         try:
             self.mailer.send(email, link, language=language)
         except Exception:
@@ -8085,11 +8755,13 @@ class Handler(BaseHTTPRequestHandler):
 
         # The same gate the mailed link goes through. Without it, standing OAuth up on a
         # funded box lets anybody with a Google account open one and start spending.
+        if self.store.is_leaving(email):
+            return refuse(self._closing())
         if self.require_account and not self.store.may_join(email):
-            return refuse(NOT_OPEN)
+            return refuse(self._not_open())
         got = self.store.sign_in_verified(email)
         if got is None:
-            return refuse(NOT_OPEN)
+            return refuse(self._not_open())
         _, session = got
         from .accounts import SESSION_DAYS
 
@@ -8098,6 +8770,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _enter(self, token: str) -> None:
         got = self.store.finish_sign_in(token) if token else None
+        if got is None and token and self.store.leaving_link(token):
+            page = signin_page(language=self._page_language(), said=self._closing())
+            return self._send(200, page.encode("utf-8"), HTML)
         if got is None:
             # Not an error: a spent or stale link is what a second press looks like,
             # and the way out of it is to ask for another, which that page offers.
@@ -8132,6 +8807,25 @@ class Handler(BaseHTTPRequestHandler):
         """
         waiting = self._cookie(CONNECT_COOKIE)
         return waiting if waiting.startswith("/oauth/authorize?") else ""
+
+    def _connecting_client(self, waiting: str) -> str:
+        """The name the app waiting on this Connect registered under, or ""."""
+        asked = parse_qs(urlparse(waiting).query).get("client_id", [""])[0]
+        client = self.store.client(asked) if asked and self.store is not None else None
+        return str(client["name"] or "") if client else ""
+
+    def _finishing(self, app: str) -> str:
+        """The sign-in page's line while a Connect waits on it. The app by the name it
+        registered, which is its own claim — the approval page after this names where
+        the reader will be sent, which is the check — and both apps where it gave none."""
+        if app:
+            return self._say(
+                "signin.page.finish-connecting", "Sign in to finish connecting {app}.", app=app
+            )
+        return self._say(
+            "signin.page.finish-connecting-an-app",
+            "Sign in to finish connecting Claude or ChatGPT.",
+        )
 
     def _oauth_metadata(self, route: str) -> None:
         """The two documents a client reads before it knows how to ask for anything.
@@ -8207,7 +8901,10 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             here = f"/oauth/authorize?{urlparse(self.path).query}"
-            body = signin_page(language=self._page_language()).encode("utf-8")
+            body = signin_page(
+                language=self._page_language(),
+                connecting=self._finishing(str(client["name"] or "")),
+            ).encode("utf-8")
             return self._send(200, body, HTML, cookie=_short_cookie(CONNECT_COOKIE, here))
         page = approve_page(
             client=str(client["name"] or ""),
@@ -8463,8 +9160,8 @@ class Handler(BaseHTTPRequestHandler):
                 said = said_in(
                     self._page_language(),
                     "set.page.only-this-many-fit",
-                    "This playlist needs {total} credits and you have {n} left. "
-                    "Untick some texts and try again.",
+                    "These texts need {total} credits and you have {n} left. "
+                    "Untick some and try again.",
                     total=sum(credits_of(job.seconds) for job in chosen if job.audio),
                     n=fits,
                 )
@@ -8542,6 +9239,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json({})
 
     def _sign_out(self) -> None:
+        self._wipe_if_testing()
         self.store.sign_out(self._cookie(SESSION_COOKIE) or None)
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -8553,6 +9251,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _wipe_if_testing(self) -> None:
+        """Empty a test account as it signs out, so its next sign-in is a first visit
+        (accounts.py, `TEST_ACCOUNT`). Every other account is asked one question here —
+        is this a test account — and nothing else happens to it. A wipe that fails is
+        written down and the sign-out goes ahead: leaving somebody signed in because a
+        clean-up broke would be the worse failure.
+        """
+        person = self._person()
+        if person is None or not self.store.is_test_account(person):
+            return
+        try:
+            self.store.wipe(person)
+            shutil.rmtree(self.library.home(person), ignore_errors=True)
+        except Exception as error:  # noqa: BLE001 — the sign-out must still happen
+            incidents_module.record(self.library.incidents, "test-account-wipe", error)
 
     def _forget(self) -> None:
         person = self._person()
@@ -8669,6 +9383,12 @@ class Handler(BaseHTTPRequestHandler):
         just marked, which may not have reached the account yet. Only the words that are
         really on that page are taken from it, so the page cannot count anything else.
         `known` is None where the offer cannot be measured, and the page says nothing.
+
+        And `connect`: whether to offer the connector in the same row (design.md §12,
+        "The connector is met on the way in"). It rides this answer because this is the
+        one moment the page asks the server anything about the reader, and a page on the
+        shared shelf can carry nothing about them. True only while the connector is open
+        and the reader holds no connection — the rule the banner already keeps.
         """
         from . import catalogue as catalogue_module
         from . import coverage as coverage_module
@@ -8676,10 +9396,15 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        invite = connector_is_open() and not self.store.connections(person.id)
+
+        def answer(said: dict[str, Any]) -> None:
+            self._json({**said, "connect": invite})
+
         homes = [self.library.home(person), self.library.shared, self.library.weekly]
         found = self.library.document_folder(homes, str(payload.get("document") or ""))
         if found is None:
-            return self._json({"known": None})
+            return answer({"known": None})
         folder, language = found
         language = language.split("-")[0].lower()
         try:
@@ -8696,7 +9421,7 @@ class Handler(BaseHTTPRequestHandler):
         else:
             offered = set()
         if not offered or not language:
-            return self._json({"known": None})
+            return answer({"known": None})
         marked = self.store.marked(person, language)
         known = {lemma for lemma in offered if marked.get(lemma) == coverage_module.KNOWN}
         said = payload.get("known")
@@ -8704,7 +9429,82 @@ class Handler(BaseHTTPRequestHandler):
             on_page = set(coverage_module.section_lemmas(folder, here) or [])
             held = {str(lemma) for lemma in said[: self.KNOWN_AHEAD_CAP]}
             known |= offered & on_page & held
-        self._json({"known": len(known)})
+        answer({"known": len(known)})
+
+    #: The most words of one root the card lists. A root with more met than this still
+    #: counts them all; it names these.
+    FAMILY_NAMED = 12
+
+    def _word_met(self, query: dict[str, list[str]]) -> None:
+        """What the card says about where a word comes round (targum-internal#95, #96):
+        how often in this text and in the Tanakh, where this reader has met it, and the
+        words of its root they have met and how many of those they know.
+
+        Asked by the card when it opens, lazily and once a word, and only where
+        `shows_occurrences` is on. `document` and `section` name the page it is on — a
+        content hash, as `/known-ahead` takes it — so the server finds the text, and the
+        place the reader is on is not counted as a place they met the word. "Met" is
+        `occurrences.met`'s: a section they finished. Places are named by verse where the
+        text has verses and by title where it does not; a text not built on this box is
+        left out, never guessed at.
+        """
+        from . import coverage as coverage_module
+        from . import occurrences as occurrences_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+
+        def one(name: str) -> str:
+            return str((query.get(name) or [""])[0]).strip()
+
+        lemma, root, document = one("lemma"), one("root"), one("document")
+        if not lemma:
+            return self._json({"error": "no word"}, 400)
+        try:
+            section = int(one("section") or 0)
+        except ValueError:
+            return self._json({"error": "bad section"}, 400)
+
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        # One text's folder is looked for once a request, however many sections of it
+        # the reader finished.
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        def title_of(hash_: str) -> str:
+            found = folder_for(hash_)
+            return self.library.document_title(found[0]) if found else ""
+
+        here = folder_for(document)
+        language = (here[1] if here else one("language")).split("-")[0].lower()
+        counted = occurrences_module.text_occurrences(here[0]) if here else None
+        finished = self.store.finished(person.id)
+        places, more = occurrences_module.places_named(
+            occurrences_module.met(lemma, finished, folder_for, language),
+            title_of,
+            leave_out=(document, section) if section else None,
+        )
+        answer: dict[str, Any] = {
+            "here": counted.count(lemma) if counted else 0,
+            "tanakh": occurrences_module.in_tanakh(lemma, language) if language else 0,
+            "met": places,
+            "more": more,
+        }
+        if root:
+            kin = occurrences_module.family(root, finished, folder_for, language)
+            marked = self.store.marked(person, language) if kin else {}
+            known = [word for word in kin if marked.get(word) == coverage_module.KNOWN]
+            answer["family"] = {
+                "met": len(kin),
+                "known": len(known),
+                "words": kin[: self.FAMILY_NAMED],
+            }
+        self._json(answer)
 
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language
@@ -8795,7 +9595,7 @@ class Handler(BaseHTTPRequestHandler):
 
         url = str(payload.get("url") or payload.get("source") or "").strip()
         if not url:
-            return self._json({"error": self._say("serve.give-a-link", "Give a link.")}, 400)
+            return self._json({"error": self._say("serve.give-a-link", "Paste a link.")}, 400)
         person = self._person()
         found = tools_module.describe_source(
             tools_module.Ctx(
@@ -8849,7 +9649,8 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.not-in-profile",
-                        "{language} isn't in your profile yet. Add it there and try again.",
+                        "{language} isn't in Your languages yet. Add it in Your profile, then "
+                        "try again.",
                         language=self._named(wanted),
                     )
                 },
@@ -8882,7 +9683,8 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "error": self._say(
                         "serve.not-in-profile",
-                        "{language} isn't in your profile yet. Add it there and try again.",
+                        "{language} isn't in Your languages yet. Add it in Your profile, then "
+                        "try again.",
                         language=self._named(reading),
                     )
                 },
@@ -9450,8 +10252,7 @@ class Handler(BaseHTTPRequestHandler):
             )
         if suffix not in self.READABLE:
             raise TargumError(
-                f"We can't read '{suffix}' files. Save it as plain text or "
-                "markdown and drop that in instead."
+                f"We can't read {suffix} files. Save it as plain text and drop that in instead."
             )
         uploads = self._home() / "uploads" / secrets.token_hex(8)
         uploads.mkdir(parents=True, exist_ok=True)
@@ -9492,7 +10293,7 @@ class Handler(BaseHTTPRequestHandler):
         if not source or (
             not ingest_module.fetchable(source) and catalogue_module.matching(source) is None
         ):
-            raise TargumError("Paste a link, drop a file, or give a Gutenberg or Wikisource id.")
+            raise TargumError("Paste a link or drop a file.")
         return source
 
     def _brought(self, payload: dict[str, Any]) -> tuple[dict[str, Any], str]:
@@ -9550,7 +10351,7 @@ class Handler(BaseHTTPRequestHandler):
             raise TargumError(
                 self._say(
                     "serve.post-too-long",
-                    "That's longer than a post. Paste it into the box above instead.",
+                    "That's longer than a post. Press Back and paste it into the box instead.",
                 )
             )
         link = str(told.get("link") or "").strip()
@@ -9568,7 +10369,7 @@ class Handler(BaseHTTPRequestHandler):
             platform, url = found
         else:
             platform = str(told.get("platform") or "")
-            if platform not in post_module.PLATFORMS:
+            if platform not in post_module.BROUGHT_FROM:
                 raise TargumError(
                     self._say(
                         "serve.post-platform", "Choose where it was posted: Instagram, TikTok or X."
@@ -9582,7 +10383,7 @@ class Handler(BaseHTTPRequestHandler):
             folder = self._gathered([str(one) for one in many])
             if not folder.is_dir():
                 raise TargumError(
-                    self._say("serve.post-media", "A post's media is its pictures, or one video.")
+                    self._say("serve.post-media", "Add either its pictures or a single video.")
                 )
             kept = str(folder)
         elif upload:
@@ -9599,7 +10400,7 @@ class Handler(BaseHTTPRequestHandler):
                 film = str(target)
             else:
                 raise TargumError(
-                    self._say("serve.post-media", "A post's media is its pictures, or one video.")
+                    self._say("serve.post-media", "Add either its pictures or a single video.")
                 )
         if not words and not kept and not film:
             raise TargumError(
@@ -9831,7 +10632,13 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         if length <= 0 or length > CHUNK_BYTES:
             return self._json(
-                {"error": self._say("serve.that-chunk-is-too-big", "That chunk is too big.")}, 413
+                {
+                    "error": self._say(
+                        "serve.that-chunk-is-too-big",
+                        "Part of the upload was too big. Send it again.",
+                    )
+                },
+                413,
             )
         expected = int(meta.get("size") or 0)
         if number * CHUNK_BYTES >= expected + CHUNK_BYTES:
@@ -10294,6 +11101,7 @@ def start(
         # the prompt and is the ceiling. An evening of testing hit a dollar a day and
         # was told to come back tomorrow by their own laptop.
         chat_budget=CHAT_BUDGET if require_account else None,
+        hosted=require_account,
     )
     library.start_workers()
     # The conversation's own workers, beside the build queue and never in it.

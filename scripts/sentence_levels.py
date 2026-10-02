@@ -24,10 +24,14 @@ own import and never reaches a new vendor (targum-internal#309). Hebrew only. Ch
 marks are taken off before sending — they say how a verse is sung, not what it means —
 and the vowels stay.
 
-    set -a && . ./.env && set +a
-    .venv/bin/python scripts/sentence_levels.py --out targum-out --only רות --sentences 200
-    .venv/bin/python scripts/sentence_levels.py --out targum-out            # everything
+    op run --env-file op.env -- .venv/bin/python scripts/sentence_levels.py \
+        --out targum-out --only רות --sentences 200
+    op run --env-file op.env -- .venv/bin/python scripts/sentence_levels.py   # everything
     .venv/bin/python scripts/sentence_levels.py --compile-only              # no key, no spend
+
+`--prompt` names the wording asked (`sentence_level.PROMPTS`). Answers in one wording are
+not comparable with another's, so a home holds one: a rerun in another wording refuses a
+home whose ledger was asked in a different one, and wants a `--home` of its own.
 
 Nothing here writes into `--out`. The answers live in `~/.targum/sentence-difficulty/`,
 private like the catalogue; `deploy/deploy.sh` carries the compiled file to the box.
@@ -101,14 +105,16 @@ def texts(out: Path, only: list[str]) -> Iterator[Text]:
         yield Text(folder, entry.title, entry.id, entry.register.value, list(blocks.values()))
 
 
-def kept(answers: Path) -> tuple[dict[str, sl.Level], int, str]:
-    """Everything already bought: the answers by sentence, the tokens they cost, and the
-    model that gave them."""
+def kept(answers: Path) -> tuple[dict[str, sl.Level], int, str, set[str]]:
+    """Everything already bought: the answers by sentence, the tokens they cost, the
+    model that gave them, and the wordings they were asked in — a line from before
+    wordings had names was asked in the first."""
     levels: dict[str, sl.Level] = {}
     tokens = 0
     model = jev.MODEL
+    prompts: set[str] = set()
     if not answers.exists():
-        return levels, tokens, model
+        return levels, tokens, model, prompts
     for line in answers.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
@@ -119,11 +125,12 @@ def kept(answers: Path) -> tuple[dict[str, sl.Level], int, str]:
             continue
         tokens += int(got.get("tokens") or 0)
         model = str(got.get("model") or model)
+        prompts.add(str(got.get("prompt") or "situations"))
         for k, answer in (got.get("answers") or {}).items():
             level = sl.answered(answer)
             if level is not None:
                 levels[k] = level
-    return levels, tokens, model
+    return levels, tokens, model, prompts
 
 
 def main() -> None:
@@ -137,6 +144,7 @@ def main() -> None:
     parser.add_argument("--every", type=int, default=25)
     parser.add_argument("--home", type=Path, default=HOME)
     parser.add_argument("--model", default=jev.MODEL)
+    parser.add_argument("--prompt", default=sl.PROMPT, choices=sorted(sl.PROMPTS))
     parser.add_argument("--compile-only", action="store_true")
     args = parser.parse_args()
 
@@ -144,10 +152,15 @@ def main() -> None:
     answers_path = args.home / "answers.jsonl"
     compiled = args.home / "sentence-levels.json"
     review = args.home / "review.jsonl"
-    levels, tokens, model = kept(answers_path)
+    levels, tokens, model, prompts = kept(answers_path)
     print(f"{len(levels)} sentences already answered, ${tokens * jev.PER_TOKEN:.4f} spent")
+    if prompts - {args.prompt}:
+        sys.exit(
+            f"{answers_path} was asked in {', '.join(sorted(prompts))}, not {args.prompt}; "
+            "give this wording a --home of its own"
+        )
     if args.compile_only:
-        sl.write(levels, compiled, model)
+        sl.write(levels, compiled, model, args.prompt)
         print(f"wrote {compiled}")
         return
 
@@ -198,6 +211,7 @@ def main() -> None:
                 model = str(got.get("model") or model)
                 line = {
                     "model": model,
+                    "prompt": args.prompt,
                     "tokens": used,
                     "entry": text.entry,
                     "answers": {
@@ -237,7 +251,7 @@ def main() -> None:
                         )
                     notes.flush()
                 if requests % args.every == 0:
-                    sl.write(levels, compiled, model)
+                    sl.write(levels, compiled, model, args.prompt)
                     print(
                         f"{requests} requests, {len(levels)} kept, "
                         f"${tokens * jev.PER_TOKEN:.4f} spent",
@@ -259,7 +273,7 @@ def main() -> None:
                     if args.sentences and asked >= args.sentences:
                         stopped = f"--sentences {args.sentences} reached"
                         break
-                    state, questions = sl.request(chunk, asking)
+                    state, questions = sl.request(chunk, asking, args.prompt)
                     size = len(json.dumps({"state": state, "questions": questions}).encode())
                     estimate = size * ratio * 1.1
                     while len(running) >= args.workers:
@@ -277,7 +291,7 @@ def main() -> None:
                 done, _ = wait(running, return_when=FIRST_COMPLETED)
                 settle(done)
         finally:
-            sl.write(levels, compiled, model)
+            sl.write(levels, compiled, model, args.prompt)
 
     per = new_tokens * jev.PER_TOKEN / max(1, asked)
     print(f"stopped at {stopped}" if stopped else "done")

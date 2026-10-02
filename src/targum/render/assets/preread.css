@@ -1,0 +1,96 @@
+/* The words to know before a chapter (targum-internal#97; `render/preread.py`).
+
+   Carried only by a page written while `TARGUM_PREREAD` is on, so a page without it is
+   the page it was. Folded, above the text, the width of the text: a reader who wants it
+   opens it, and one who does not reads on under one quiet line. It is a list on the page
+   and not a card over it, so it is flat — the page's rule, no shadow (§8) — and the
+   words in it are text: the source at the reading size in its carried face, never scaled
+   down (§5), and the meaning muted beside it as a translation at rest is (§9). */
+
+.preread {
+  max-width: calc(var(--measure) * 2 + var(--gap));
+  margin: 0 auto 1.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.preread[hidden] { display: none; }
+
+/* The one line it shows folded: what it is, and how many. */
+.preread > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  font-family: system-ui, sans-serif;
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.preread > summary:hover { color: var(--ink); }
+.preread > summary::-webkit-details-marker { display: none; }
+/* The fold's chevron (§7), turned once it is open. Turned, not moved: nothing slides. */
+.preread-chev {
+  inline-size: 1rem;
+  block-size: 1rem;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.preread[open] .preread-chev { transform: rotate(180deg); }
+.preread > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.preread-total {
+  font-family: ui-monospace, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.preread-words {
+  margin: 0;
+  padding: 0 1rem 0.75rem;
+  list-style: none;
+  columns: 2 16rem;
+  column-gap: var(--gap);
+}
+.preread-words li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0 0.75rem;
+  align-items: baseline;
+  padding: 0.3rem 0;
+  border-block-end: 1px solid var(--rule);
+  break-inside: avoid;
+}
+.preread-words li[hidden] { display: none; }
+.preread-form {
+  color: var(--ink);
+  font-family: var(--reading-hebrew);
+  font-size: var(--size);
+  line-height: var(--leading-rtl);
+}
+.preread-form:not([dir="rtl"]) {
+  font-family: var(--reading);
+  line-height: var(--leading);
+}
+.preread-meaning {
+  color: var(--ink-soft);
+  font-family: var(--reading);
+  font-size: 0.9375rem;
+}
+/* How often it comes round here, typed as §7's multiplier. */
+.preread-times {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+/* Paged, the text above the first line stands on every page; the list is for before the
+   chapter, so it stands on the first. */
+body.paged:not(.first-page) .preread { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  .preread > summary { min-block-size: 44px; }
+}

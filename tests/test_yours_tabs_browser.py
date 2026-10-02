@@ -151,7 +151,7 @@ def test_a_chip_and_a_search_sift_the_shelf(browser, tmp_path: Path) -> None:
     # Two finished episodes of one series are still that series, folded.
     assert finished == ["עברית אנפלאגד"]
     assert found == ["כתבה שהבאתי"], "the English under a title is searched too"
-    assert nothing == "Nothing here matches that."
+    assert nothing == "Nothing here matches that. Try another search or filter."
     assert not thrown
 
 

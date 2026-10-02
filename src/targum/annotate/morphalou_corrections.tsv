@@ -1,0 +1,13 @@
+# Corrections to Morphalou 3.1 (ATILF CNRS), made by targum.
+#
+# This file is a work based on Morphalou 3.1 and is licensed under the Lesser General
+# Public License for Linguistic Resources (LGPL-LR); the licence text is at the end of
+# LICENSING.md, and ORTOLANG publishes it beside the lexicon. It is not under targum's
+# AGPL. It holds only the rows targum corrects, never a copy of the table.
+#
+# Changed by targum on 2026-09-28 (targum-internal#266): the elided pronoun c' is given
+# the reading s, where the table reads k.
+#
+# Columns: the written form, its lemma, its category as the table names it, the reading
+# in the table's own notation, and the reading the table gives, which this replaces.
+c'	ce	Pronom	s	k

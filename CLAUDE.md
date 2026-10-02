@@ -164,7 +164,12 @@ wrong. There is; it is just not in the environment of a fresh shell.
   the model is told, and still cannot open or spend. An Instagram post's pictures are
   the same spend on the same rails (2026-09-18): its caption is read for free, and its
   pictures only when the person presses "Also read the pictures" on the card
-  (`Library._prepare_post`).
+  (`Library._prepare_post`). And the link a stranger saved on the front page is built
+  when the operator lets them in, on targum's budget (David, 2026-10-01; design.md §12):
+  the press is the operator's, the link is the person's own choice, and the build is a
+  `gift` job through `Library.press` and `claim`, owned by the new account, held to the
+  box ceiling and recording no hours (`Library.build_saved_link`). A try on the front
+  page itself never spends (`Library.describe`).
 - **A scope is the one press that lasts** (2026-09-22, design.md §12). Over the remote
   connector there is no page of ours to press per turn, so `record_turn` — the only tool
   that spends without a card — is consented once, by the reader ticking the `check` scope

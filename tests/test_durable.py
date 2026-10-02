@@ -199,6 +199,109 @@ def test_a_refusing_site_is_said_plainly() -> None:
     assert unreadable(ValueError("x"), "ru").startswith("Не удалось")
 
 
+def test_a_hosted_box_says_the_readers_sentence_and_keeps_the_detail_for_the_log() -> None:
+    """Copy audit, 2026-09-28 (Q5). A link refusal reached readers as "We couldn't open
+    https://…. HTTP 403", a curl exception, or an operator's "install yt-dlp". On a box
+    the reader is told the sentence for the status; on a laptop the reader is the
+    operator, and the detail is the useful part, so it stays."""
+    from targum.errors import OffHere, TargumError, Unreachable
+    from targum.serve import told
+
+    shut = Unreachable(
+        "We couldn't open https://x.test/a.",
+        "HTTP 403",
+        status=403,
+        host="x.test",
+        key="fetch.would-not-open",
+        url="https://x.test/a",
+    )
+    hosted = told("en", shut, hosted=True)
+    assert "won't let us" in hosted and "HTTP" not in hosted, hosted
+    assert "HTTP 403" in told("en", shut, hosted=False), "the laptop keeps the detail"
+    gone = Unreachable(
+        "We couldn't open https://x.test/a.",
+        "404 Not Found",
+        status=404,
+        key="fetch.would-not-open",
+        url="https://x.test/a",
+    )
+    assert "isn't there" in told("en", gone, hosted=True)
+    curl = Unreachable(
+        "We couldn't open https://x.test/a.",
+        "curl: (28) Operation timed out after 20001 milliseconds",
+        key="fetch.would-not-open",
+        url="https://x.test/a",
+    )
+    assert "curl" not in told("en", curl, hosted=True)
+    assert "Не удалось" in told("ru", curl, hosted=True), "and in the reader's language"
+    nowhere = TargumError(
+        "We couldn't find x.test.",
+        "[Errno 8] nodename nor servname",
+        key="fetch.no-such-site",
+        host="x.test",
+    )
+    assert "Errno" not in told("en", nowhere, hosted=True)
+    tool = OffHere(
+        "yt-dlp is not installed.", "install yt-dlp. YouTube imports are off until it is."
+    )
+    assert "install" not in told("en", tool, hosted=True)
+    assert "install yt-dlp" in told("en", tool, hosted=False)
+    # A refusal written for a reader is said as it always was, box or laptop.
+    sign_in = Unreachable(
+        "x.test asks you to sign in, so we can't open it.",
+        "Open it yourself and paste the text into the box instead.",
+        status=401,
+        key="fetch.needs-a-sign-in",
+        site="x.test",
+    )
+    assert told("en", sign_in, hosted=True).startswith("x.test asks you to sign in")
+
+
+def test_a_hosted_box_without_ytdlp_does_not_tell_the_reader_to_install_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "targum.video.ytdlp_available",
+        lambda: (False, "install yt-dlp. YouTube imports are off until it is."),
+    )
+    for hosted, install in ((True, False), (False, True)):
+        box = Library(tmp_path / str(hosted), hosted=hosted)
+        failed = Job(id="a", source="https://www.youtube.com/watch?v=abc123")
+        box.prepare(failed)
+        assert failed.stage == "failed"
+        assert "can't fetch from YouTube" in failed.error
+        assert ("install yt-dlp" in failed.error) is install, failed.error
+
+
+def test_a_refusal_raised_mid_build_is_said_in_the_readers_language_with_its_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy audit, 2026-09-28 (Q6). `_blame` was handed `error.message`: English whatever
+    the reader reads, and the hint dropped on the floor."""
+    from targum.errors import TargumError
+
+    box, _ = library(tmp_path)
+
+    def refuse(_job: Job) -> None:
+        raise TargumError(
+            "https://x.test/a is too big for us to read.",
+            "Try a single article.",
+            key="fetch.too-big-to-read",
+            url="https://x.test/a",
+        )
+
+    monkeypatch.setattr(box, "_builder", refuse)
+    russian = Job(id="ru1", source="https://x.test/a", ui="ru")
+    box.run(russian)
+    assert russian.stage == "failed"
+    assert russian.error == (
+        "https://x.test/a слишком велик, чтобы мы его прочитали. Попробуйте отдельную статью."
+    )
+    english = Job(id="en1", source="https://x.test/a")
+    box.run(english)
+    assert english.error.endswith("Try a single article."), "the hint is no longer dropped"
+
+
 def test_jobs_come_back_with_what_the_page_needs(tmp_path: Path) -> None:
     lib, _ = library(tmp_path)
     done = job(lib, 1.0, owner=7, title="A Book", language="he", segments=41)

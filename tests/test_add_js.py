@@ -57,14 +57,13 @@ FOUND = {
 }
 
 
-def test_the_line_under_the_box_says_that_looking_spends_before_it_does() -> None:
-    """The card asks for it in as many words: the line says *before* sending that looking
-    is a turn of conversation. A page that only said so afterwards would be telling
-    somebody what they had already spent."""
+def test_the_line_under_the_box_says_what_continue_will_do() -> None:
+    """The line says *before* sending that Continue will look. It no longer prices the
+    look: a look is a chat turn, and chatting is included (design.md §12, 2026-09-24;
+    COPY_QUESTIONS 14, David 2026-09-28)."""
     said = run(typed="something funny about food", answers=FOUND)
-    assert "Press Continue and we'll look" in said["under"]
-    assert "one turn of conversation" in said["under"]
-    assert "off your credits" in said["under"]
+    assert "Press Continue and we'll look for it" in said["under"]
+    assert "credits" not in said["under"]
 
 
 def test_a_description_looks_in_place_and_never_prices_anything_itself() -> None:
@@ -98,15 +97,17 @@ def test_the_results_carry_more_than_one_medium() -> None:
     # And each says what it is worth knowing before choosing: how long, and how much of
     # it this reader already knows.
     assert "15:00" in drawn
-    assert "You know 7 words in ten" in drawn
+    assert "You know about 7 words in 10" in drawn
 
 
-def test_what_the_turn_cost_is_said_after_it_is_over() -> None:
-    """The other half of the card's sentence about cost. In the clock the rest of the
-    page uses and never in money — design.md takes that position and this keeps it."""
+def test_a_search_says_no_cost_because_chatting_is_included() -> None:
+    """It used to say what the turn took, as a clock: "Looking used 0:42 of your
+    credits". A search is a turn of chat, and chatting is included (design.md §12,
+    2026-09-24), so the line priced something that costs nothing (copy audit, Q14)."""
     said = run(typed="something funny about food", answers=FOUND)
-    assert "Looking used 0:42 of your credits." in said["status"]
+    assert not [line for line in said["status"] if "Looking used" in line]
     assert not [line for line in said["status"] if "$" in line]
+    assert "/job/chat-c1-1" not in [one["path"] for one in said["asked"]]
 
 
 def test_choose_is_the_pasted_link_path_rather_than_a_copy_of_it() -> None:
@@ -123,9 +124,8 @@ def test_choose_is_the_pasted_link_path_rather_than_a_copy_of_it() -> None:
     assert "/build" not in said["afterChoose"]["asked"]
 
 
-def test_a_search_that_found_nothing_says_so_and_still_says_what_it_cost() -> None:
-    """A turn that found nothing was still a turn, and the reader is told what it took.
-    Saying nothing would read as a page that had not noticed."""
+def test_a_search_that_found_nothing_says_so() -> None:
+    """Saying nothing would read as a page that had not noticed."""
     said = run(
         typed="something nobody has written",
         answers={
@@ -136,7 +136,7 @@ def test_a_search_that_found_nothing_says_so_and_still_says_what_it_cost() -> No
     )
     assert said["cards"] == []
     assert any("didn't find anything" in line for line in said["status"])
-    assert "Looking used 0:12 of your credits." in said["status"]
+    assert not [line for line in said["status"] if "Looking used" in line]
 
 
 def test_a_turn_that_fails_says_so_rather_than_drawing_an_empty_block() -> None:
@@ -170,3 +170,42 @@ def test_a_paste_is_titled_by_its_first_sentence_or_whole_words() -> None:
     assert first == "בבוקר הלכתי לשוק עם אמא שלי"
     assert len(words) <= 60 and lines[1].startswith(words) and lines[1][len(words)] == " "
     assert long == "x" * 60
+
+
+def test_a_press_that_spends_says_what_beside_it() -> None:
+    """Copy audit, 2026-09-28 (Q11). The Add page's card and the chat's card pressed with
+    no cost beside them, where the press page, the set page and Telegram said "Uses N
+    credits". A recording counts a credit a minute, any part of one a whole one, as
+    `builder.credits_of` does; a text uses none; an unknown length says nothing."""
+    bring = HARNESS.parents[2] / "src/targum/render/assets/bring.js"
+    source = bring.read_text(encoding="utf-8")
+    start = source.index("  function uses(job) {")
+    end = source.index("\n  }\n", start) + 4
+    stubs = (
+        "var t = function (k, e) { return e; };"
+        "var tn = function (k, n, one, other) {"
+        " return (n === 1 ? one : other).replace('{n}', n); };"
+    )
+    jobs = [
+        {"audio": True, "seconds": 62},
+        {"audio": True, "seconds": 60},
+        {"audio": True, "seconds": 20},
+        {"audio": True, "seconds": 0},
+        {"audio": False, "segments": 40},
+    ]
+    script = (
+        stubs + source[start:end] + f"console.log(JSON.stringify({json.dumps(jobs)}.map(uses)));"
+    )
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) == [
+        "Uses 2 credits",
+        "Uses 1 credit",
+        "Uses 1 credit",
+        "",
+        "Uses none of your credits",
+    ]
+    assert "var spends = uses(job);" in source, "on the chat's card"
+    add = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")
+    offered = add[add.index("  function offer(job) {") :][:2000]
+    assert "bringing.uses(job)" in offered, "and on Add's"

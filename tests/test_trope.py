@@ -237,3 +237,25 @@ def test_everything_else_is_prose() -> None:
     assert trope.system("Genesis 1:1") == "prose"
     assert trope.system("Gen.1.1") == "prose"
     assert trope.system("I Samuel 3:4") == "prose"
+
+
+def test_each_word_knows_where_it_is_written() -> None:
+    """For the card, which names the accent under the word tapped: a maqaf pair is two
+    words in one token, and the sof pasuq rides on the last."""
+    verse = trope.read(GEN_1_3)
+    written = [GEN_1_3[word.start : word.end] for word in verse.words]
+    assert written[:4] == GEN_1_3.split()[:4]
+    assert written[4:] == ["וַֽיְהִי", "אֽוֹר׃"]
+    assert [word.token for word in verse.words] == [0, 1, 2, 3, 4, 4]
+
+
+def test_a_page_is_given_accents_only_on_scripture_and_never_on_a_psalm() -> None:
+    from targum.render.builder import accent_rows
+    from targum.vocalize import strip_nikkud
+
+    bare, _ = strip_nikkud(GEN_1_1)
+    rows = accent_rows(GEN_1_1, "Genesis 1:1", bare)
+    assert [row[2:] for row in rows[:3]] == [["tipcha", 1], ["munach", 0], ["etnachta", 1]]
+    assert bare[rows[0][0] : rows[0][1]] == "בראשית"
+    assert accent_rows(PS_1_1_OPENING, "Psalms 1:1", strip_nikkud(PS_1_1_OPENING)[0]) == []
+    assert accent_rows(GEN_1_1, "Genesis 1:1", "something else") == [], "letters that differ"

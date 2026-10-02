@@ -133,7 +133,7 @@ def test_the_next_milestone_says_how_far_it_is() -> None:
     )
 
     assert drawn["reached"] == "500 words known"
-    assert drawn["next"] == "Another 38 to 1,000."
+    assert drawn["next"] == "Another 38 known words to reach 1,000."
 
 
 def test_the_page_says_its_words_in_the_readers_language() -> None:
@@ -170,7 +170,7 @@ def test_nothing_kept_yet_asks_rather_than_boasting() -> None:
 
     assert drawn["counts"]["words marked known"] == 0
     assert drawn["reached"] == "", "nothing has been reached, so no chip"
-    assert drawn["next"] == "Mark a word as known and this starts."
+    assert drawn["next"] == "Mark a word as known and your level starts here."
 
 
 def test_the_day_strip_is_twelve_weeks_ending_today() -> None:
@@ -194,7 +194,7 @@ def test_a_day_nobody_read_on_says_nothing_at_all() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)})
 
     assert drawn["days"]["read"] == 0
-    assert drawn["days"]["said"] == "Today is the first."
+    assert drawn["days"]["said"] == "Open something and today is your first."
 
 
 # --- how far into Hebrew ------------------------------------------------------
@@ -400,6 +400,22 @@ def test_a_word_with_no_difficulty_is_not_a_kind_of_word() -> None:
     drawn = page(words)
     assert "not rated" not in drawn["bands"]
     assert "easy" in drawn["bands"]
+
+
+def test_a_language_with_no_word_list_says_so_rather_than_nothing_marked() -> None:
+    """Copy audit, 2026-09-28 (Q4). Yiddish and Aramaic have no frequency bands, so none
+    of a reader's words falls in one, and the chart said "Nothing marked yet." to a
+    reader with hundreds marked."""
+    drawn = draw(
+        {
+            "targum:vocab:yi": banded(unrated=300),
+            "targum:docs": {"a": {"language": "yi", "title": "One"}},
+            "targum:opened": {"a": 1},
+            "targum:days": {"2026-08-25": 1},
+        }
+    )
+    assert "We have no word list for this language" in drawn["bands"]
+    assert "Nothing marked yet" not in drawn["bands"]
 
 
 # --- what targum taught, and what you already had -----------------------------
@@ -747,7 +763,7 @@ def test_two_months_draw_no_line_and_say_what_would() -> None:
     )["reading"]
     assert drawn["shown"] and not drawn["drawn"]
     assert drawn["said"] == [
-        "We'll draw this once you've finished sections in three different months. So far: 2."
+        "We'll draw this once you've finished sections in three different months. Months so far: 2."
     ]
 
     nothing = draw({"targum:vocab:he": vocab(known=3)}, reading={})["reading"]

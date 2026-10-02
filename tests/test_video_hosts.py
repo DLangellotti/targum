@@ -73,6 +73,27 @@ def test_facebook_reads_its_three_shapes() -> None:
     assert hosts.video_id("https://www.facebook.com/watch/?v=123456789") == "123456789"
     assert hosts.video_id("https://www.facebook.com/somepage/videos/123456789/") == "123456789"
     assert hosts.video_id("https://www.facebook.com/reel/123456789") == "123456789"
+    # A reel's id opens at the watch prefix, so every shape goes home to one address.
+    assert hosts.home_url("https://m.facebook.com/reel/123456789/") == (
+        "https://www.facebook.com/watch/?v=123456789"
+    )
+
+
+def test_a_facebook_short_link_is_not_an_id() -> None:
+    """`fb.watch/<code>` and the app's `/share/r/<code>/` name no video until followed:
+    taken as ids they made a home address that opened nothing (2026-09-30)."""
+    for short in (
+        "https://fb.watch/72TEK5emY-/",
+        "https://www.facebook.com/share/r/15tSkFTgxb/",
+        "https://www.facebook.com/share/v/17eDczhKhA/",
+    ):
+        assert hosts.video_id(short) == "", short
+        assert hosts.home_url(short) == "", short
+
+
+def test_facebook_is_open() -> None:
+    assert hosts.is_open("https://www.facebook.com/reel/1445068414180254/")
+    assert not hosts.is_open("https://www.reddit.com/r/aww/comments/1c1ux0h/a_slug_here/")
 
 
 def test_a_shelf_is_not_a_video_and_says_so() -> None:
@@ -84,6 +105,7 @@ def test_a_shelf_is_not_a_video_and_says_so() -> None:
         "https://www.tiktok.com/tag/hebrew",
         "https://www.instagram.com/explore/tags/tel-aviv/",
         "https://www.reddit.com/r/hebrew/",
+        "https://www.facebook.com/groups/hebrew",
     ):
         with pytest.raises(TargumError):
             hosts.video_id(shelf)

@@ -56,6 +56,9 @@ document.getElementById("targum-data").textContent = JSON.stringify({
   registers: payload.registers || [],
   // The annotator's pipe strings, which a token points into by its ninth field.
   grammar: payload.grammar || [],
+  // Whether a finite past is the passé simple, and what a pronoun stands for (#264).
+  ...(payload.tensesApart ? { tensesApart: true } : {}),
+  ...(payload.stands ? { stands: payload.stands } : {}),
   sourceRegister: payload.sourceRegister || "",
   document: "a-chapter",
   // Which part of the document this file is, and how many there are. A targum finishes
@@ -120,6 +123,8 @@ byId["next-up"].hidden = true;
 // hidden as the template ships it.
 byId["next-up-known"] = element("span");
 byId["next-up-known"].hidden = true;
+byId["next-up-connect"] = element("span");
+byId["next-up-connect"].hidden = true;
 
 // The first-time line as the template ships it: hidden, with its sentence in it. The
 // script decides whether to show it and what it says after the first word is marked.
@@ -302,6 +307,15 @@ process.stdout.write(
       // The line under the offer: how many of its words are known, said once.
       ahead: byId["next-up-known"].hidden ? "" : byId["next-up-known"].textContent,
       told: localStorage.getItem("targum:taught-the-share") || "",
+      // The way into Claude and ChatGPT, off the same answer: its words, and the link.
+      connect: byId["next-up-connect"].hidden
+        ? null
+        : {
+            said: byId["next-up-connect"]._text || "",
+            link: (byId["next-up-connect"].children[0] || {}).textContent || "",
+            href: (byId["next-up-connect"].children[0] || {}).href || "",
+          },
+      toldConnect: localStorage.getItem("targum:taught-the-connector") || "",
     },
     // The Anki file, written from cards the test hands over: what a deck is made of
     // is decided on the page, but what the file says is decided here.
@@ -318,6 +332,10 @@ process.stdout.write(
       Array.isArray(line) ? reader.useLine(line[0], line[1]) : reader.useLine(line),
     ),
     persons: (payload.personLines || []).map((line) => reader.personWord(line)),
+    // What a pronoun stands for: [segment id, row index], read from `texts`.
+    standing: (payload.standingAsks || []).map((ask) =>
+      reader.standingAt(ask[0], ask[1], payload.texts || {}),
+    ),
     // A French compound tense: [participle line, verb, auxiliary line, auxiliary, reflexive].
     compounds: (payload.compoundLines || []).map((ask) => reader.compoundLine(...ask)),
     // A French noun kept with its article: [dictionary form, grammar line].

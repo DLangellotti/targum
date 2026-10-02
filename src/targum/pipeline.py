@@ -17,7 +17,7 @@ from . import annotate as annotate_module
 from . import ingest, render
 from . import vocalize as vocalize_module
 from .cache import Cache
-from .errors import TargumError, UnsupportedSource
+from .errors import OffHere, TargumError, UnsupportedSource
 from .ids import slug
 from .models import (
     Alignment,
@@ -390,7 +390,10 @@ class Build:
                 return existing
         segmented = segment_document(document, self.segmenter)
         if not segmented.segments:
-            raise TargumError(f"We couldn't find any text in {self.source}.")
+            # The file's own name, never the path it was written to on this disk: an
+            # upload's path is the server's, and a reader was being shown it.
+            named = Path(self.source).name if Path(self.source).exists() else self.source
+            raise TargumError(f"We couldn't find any text to read in {named}.")
         segmented.write(path)
         return segmented
 
@@ -1192,6 +1195,7 @@ class Build:
         from urllib.parse import urlparse
 
         from .video import is_video
+        from .video.facebook import is_facebook
         from .video.instagram import is_reel
         from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
@@ -1203,7 +1207,11 @@ class Build:
             # to an mp3 sounds like audio — left out, it fell through to the article
             # path and read raw mp4 bytes as a page.
             return (
-                is_youtube(source) or is_reel(source) or is_tiktok(source) or is_video(parsed.path)
+                is_youtube(source)
+                or is_reel(source)
+                or is_tiktok(source)
+                or is_facebook(source)
+                or is_video(parsed.path)
             )
         return is_video(source)
 
@@ -1282,6 +1290,7 @@ class Build:
         from .audio import DEFAULT_LANGUAGE, ffmpeg_available
         from .audio import parts as parts_module
         from .audio import probe as probe_module
+        from .video.facebook import is_facebook
         from .video.instagram import is_reel
         from .video.tiktok import is_tiktok
         from .video.youtube import is_youtube
@@ -1300,7 +1309,14 @@ class Build:
             watching = is_youtube(address)
             reel = not watching and is_reel(address)
             tok = not watching and not reel and is_tiktok(address)
-            if tok:
+            book = not watching and not reel and not tok and is_facebook(address)
+            if book:
+                from .video.hosts import video_id as book_id
+
+                self.home = address
+                stem = book_id(address) or "facebook"
+                suffix = ".mp4"
+            elif tok:
                 from .video.hosts import video_id as tok_id
 
                 self.home = address
@@ -1345,7 +1361,7 @@ class Build:
             if not target.is_file() or probe_module.load(workspace) is None:
                 usable, hint = ffmpeg_available()
                 if not usable:
-                    raise TargumError("ffmpeg is not installed.", hint)
+                    raise OffHere("ffmpeg is not installed.", hint)
                 if watching:
                     # Through the YouTube door, not `download()` — see video/youtube.
                     # The door names the file; taking its answer keeps that knowledge
@@ -1364,6 +1380,11 @@ class Build:
 
                     self.notify("Fetching the video…")
                     target = tiktok_module.fetch(address, workspace)
+                elif book:
+                    from .video import facebook as facebook_module
+
+                    self.notify("Fetching the video…")
+                    target = facebook_module.fetch(address, workspace)
                 else:
                     self.notify("Fetching the recording…")
                     download(address, target)
@@ -1392,7 +1413,7 @@ class Build:
         if source.resolve() != target.resolve() or probe_module.load(workspace) is None:
             usable, hint = ffmpeg_available()
             if not usable:
-                raise TargumError("ffmpeg is not installed.", hint)
+                raise OffHere("ffmpeg is not installed.", hint)
             adopted = probe_module.adopt(source, workspace, allow_video=self.is_video_source)
             self.source = str(adopted)
         else:
@@ -1798,7 +1819,10 @@ class Build:
             # Every part heard so far came back empty. Music, or silence — either way
             # an honest sentence beats a reader with nothing on its pages.
             minutes = max(1, round(sum(by_number[n].end - by_number[n].start for n in owed) / 60))
-            raise TargumError(f"We didn't hear anyone speak in the first {minutes} minutes.")
+            raise TargumError(
+                f"We didn't hear anyone speak in the first {minutes} minutes. "
+                "Check that it's the recording you meant."
+            )
         return heard
 
     def _probe_language(self, recording: Path, found: Any, drafted: Any, workspace: Path) -> Any:
@@ -2073,7 +2097,7 @@ class Build:
             if fresh is None:
                 return existing
             existing.tokens.update(fresh.tokens)
-            existing.annotator = fresh.annotator
+            existing.annotator = model_lemma.merged(existing.annotator, fresh.annotator)
             existing.write(path)
             return existing
         fresh = self.annotate_segments(segmented, wanted)

@@ -12,10 +12,173 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `--for` the words that account looked up that week, with the meanings it kept beside
   them — or, where the record names no look-up, the words it kept, and the heading says
   which. A look-up in the record of use now names its word (a new `event.word`, schema
-  37), still behind `TARGUM_EVENTS` and the reader's switch; the privacy notice (clause
+  39), still behind `TARGUM_EVENTS` and the reader's switch; the privacy notice (clause
   3.6, amended 28 September 2026) and the account page say so. Cut from the books on the
   shelf as the portion page is, so it costs nothing; the same `print` extra. design.md §12
   (2026-09-28) says what the sheet adds.
+- `targum video discover`: finds Creative Commons videos to curate through YouTube's Data
+  API and prices building them, for approval before anything is bought
+  (targum-internal#382).
+  - It searches each of he, ru, it and fr by everyday topics in the language's own words,
+    short videos first.
+  - It asks `videos.list` for each hit's licence again and keeps only `creativeCommon`
+    that is public, embeddable, 30 seconds to 20 minutes long, credits a channel, and is
+    not labelled as another language.
+  - It skips what is already on the curated shelf.
+  - It prints the batch as a markdown table with a tick box per row and an estimated
+    cost, using the pipeline's own before-hearing arithmetic. It writes the candidates
+    to `targum-out/discover/`.
+  - Data API quota is budgeted per run (`--quota`, 2,000 units by default of the day's
+    10,000) and reported.
+  - Nothing is fetched, built or spent. The key is `TARGUM_YOUTUBE_API_KEY`.
+- `/about` says what was built, day by day. Under the calendar, every day since the
+  first has one to three plain lines, newest first, from `src/targum/built.txt`. The
+  heading is "targum is built in public". The lines are English on every page, and the
+  Russian page says its own heading and dates around them. Nobody reads a day's lines
+  before they are shown, so `about.refused()` does: it holds each line to design.md §6
+  and refuses the workings, the back office and where a text comes from. It is asked by
+  `tests/test_about.py` over the file and by the page over every line it draws.
+  `deploy/built.md` is the brief the lines are written to. The count's last day is said
+  in the page's language, where the Russian page said "по 29 September".
+- `targum levels`, the level map (targum-internal#382): every catalogue text placed on the
+  weekly's Easy, Simplified and Native by both halves the weekly checks its own editions
+  against — hard-word share and words per sentence — per language, split into text, audio
+  and video, with the texts meeting the Easy spec in full (both bands, three minutes or
+  less) counted against a target of 100 each in he, ru, it and fr. Reads the catalogue and
+  the disk; fetches nothing and spends nothing. Catalogue rows carry `sentence` beside
+  `difficulty`: `scripts/measure_difficulty.py` prints it, `promote.accept` writes it, and
+  until a sweep has, the map reads it off a build's `segments.json` or segments a curated
+  video's document on the spot. The weekly's gauge counts sentences by the same
+  `annotate.difficulty.sentence_length`.
+- Test accounts, wiped at every sign-out: `targum test-account EMAIL` marks and invites
+  an address, and signing out of it empties everything it holds while keeping the account,
+  so the next sign-in is a new reader's first visit. Refused for an address that already
+  has a real account; `--link` prints a one-time sign-in link for a test account only.
+  deploy/README.md, "A test account".
+- `targum eval <stage>`, one command for any stage's eval (targum-internal#351). A thin
+  dispatch over the harnesses in `scripts/`, which stay where they are; everything after
+  the stage goes to the script. `lemma` and `stress` are each measured two ways, so they
+  are named by corpus: `lemma/iahlt`, `lemma/ud`, `stress/tanakh-taamim`,
+  `stress/wiktionary-ru`.
+- The first Hebrew lemma rows in the ledger, from a human-tagged source: the shelf's
+  DICTA annotator against the IAHLT dev split, lemma 0.8244 on `iahltwiki` and 0.7836 on
+  `iahltknesset`, part of speech 0.9789 and 0.9745 (targum-internal#351). With floors
+  a little under each.
+- The shelf-search questions, asked of Jev (targum-internal#319). `shelf_screen.py` asks
+  what every research run asked of every candidate — in the language it claims, original
+  or translation, which subject, prose or not, would a learner get through it — over what
+  a candidate says before anybody takes it, and reads the licence line in code, never
+  through the model. `scripts/screen_shelf.py` sweeps the catalogue with it and scores
+  each answer against what the owner wrote on the rows they kept. Over all 967 rows, for
+  $0.044: language 0.996, prose 0.997, origin 0.932 (0.991 once fifteen rows whose notes
+  answer a different question are set aside), subject 0.708, recall on accept 0.996.
+  Precision cannot be measured: the rejected half of the research runs was deleted on
+  2026-09-27, so the set holds no reject.
+- `scripts/eval_rail.py` measures whether a rail that can only say no, in front of
+  `record_turn`, would stop anything the tool's own checks let through
+  (targum-internal#324). It scores 86 hand-labelled arguments. The checks alone stop 15 of
+  the 59 that should not spend, and wrongly stop none of the 27 that should. With a Jev
+  "no" in front, at a refusal weight of 0.7 or more, 48 are stopped, still with no false
+  blocks. Nothing is wired in; this is the measurement the card asked for first.
+- The scene gate checks numbers and construct chains (targum-internal#134):
+  `dialogue/agreement.py` reads DICTA's morphology and syntax for a numeral in the wrong
+  gender or state for what it counts (שְׁמוֹנָה יְחִידוֹת, בִּשְׁלוֹשָׁה הַחוֹדָשִׁים) and for a
+  construct chain the points break (לָרוֹב הַדִּירוֹת, a verb pointed as הַפְרָעַת).
+  `scripts/score_scene_checks.py --dicta` scores each against the 384 settled corrections:
+  7 of the 9 number errors and 11 of the 18 construct errors, in 25 findings of which 22
+  are settled corrections and the other 3 read as real errors the settled set lacks. The
+  free gate goes from 10 settled errors to 32.
+- A second wording for how hard a sentence is, `without-register`, which takes "literary",
+  "classical", "archaic", "poetic" and "rabbinic" off the top three rungs, and
+  `scripts/sentence_bias.py`, which asks it and the library's wording of 200 verses and
+  200 lines of modern prose matched on the share of their words a reader at gimel knows,
+  and on length (targum-internal#320). Switchable with `--prompt`; the library's wording
+  stays the default, and the compiled file now says which wording it holds.
+- Who says a line, measured before anything is voiced (targum-internal#77):
+  `scripts/measure_speakers.py` takes the catalogue's Hebrew plays as free gold, strips
+  the names, asks Sonnet who says each line and how sure it is, and prints accuracy and
+  a precision–coverage curve over the confidence (`targum/speakers.py`). A play's turns
+  are explicit and alternate, so the number is an upper bound for prose. Nothing is
+  voiced and the reader is untouched.
+- The words to know before a chapter, behind `TARGUM_PREREAD` and off
+  (targum-internal#97). A folded list above a chapter's first line: its hard words by the
+  printed edition's rule, the commonest first with how often each comes round, forty at
+  a time, each with its first sense. The page carries more than it shows, and a word the
+  reader has marked known or put aside comes off as the page opens, in the browser, with
+  nothing asked of the server. Decided when a reader is written: with the switch unset a
+  page is byte for byte what it was. design.md §12 (2026-09-28).
+- A French word read into English can name its false friend: *actuellement* adds "false
+  friend: not *actually* — currently" to the card (targum-internal#267), **behind
+  `TARGUM_FALSE_FRIENDS`, off until the list is reviewed**. Decided when a reader is
+  written; unset, a reader is byte for byte what it was. The 315 entries are targum's own
+  list, `annotate/false_friends.json`, drafted and checked by Claude Opus 5 with
+  `scripts/false_friends.py` and checked against Grammalecte's lexicon for the lemma. **No
+  person has reviewed it yet**, and the table says `"reviewed": false` until one has.
+  LICENSING.md says how it was made and why nothing was copied.
+- How a French word is said, behind `TARGUM_FRENCH_IPA` and off (targum-internal#266). The
+  word card gives the word's IPA as it is said in its sentence, from Morphalou alone, and
+  a French reader's `n` is the "as said" switch: a tie and its consonant over the
+  liaisons every speaker makes (a determiner before its noun, a clitic before its verb, a
+  verb before its inverted pronoun, with gruut's consonants), the elisions, and the final
+  consonants nobody says in muted ink. Drawn by a stylesheet over characters already in
+  the text, so no offset moves and a word saved with it on is the word saved with it off.
+  Optional liaisons are left unmarked. A word Morphalou has no reading for shows none; a
+  hyphenated compound is said by its parts. `un` never takes `une`'s reading, and `c'` is
+  /s/ by a one-row correction published under LGPL-LR
+  (`annotate/morphalou_corrections.tsv`). Against a model-drafted gold of 342 sentences
+  from four public-domain texts on the shelf, not yet read by a person
+  (`evals/french-said-gold.jsonl`, `scripts/eval_liaison.py`): liaison precision 1.0 (80 of
+  80, floor 0.98), recall 0.71, IPA word accuracy 0.9998, coverage 0.976, all with the
+  gold's own tags. Decided when a reader is written: with the switch unset a page is byte
+  for byte what it was. design.md §12 (2026-09-28).
+- Morphalou 3.1, the ATILF's open lexicon of French, as a fetchable lookup:
+  `targum models fetch morphalou` downloads it from ORTOLANG, checks a pinned sha256 and
+  keeps it in the model directory, never in the repository (targum-internal#266). LGPL-LR,
+  whose text is now at the end of `LICENSING.md`. Nothing reads it yet. The first step of
+  the French pronunciation card was to count how much of the shelf it reaches, and
+  `scripts/measure_pronunciation.py` does: 97.9% of the French shelf's word tokens and
+  96.1% of its types on 2026-09-28, every text above 95%, with the misses mostly names,
+  `M.` and hyphenated compounds.
+- The chanted Torah keeps a clock for every word (targum-internal#329). `parasha
+  leyning` used to collapse the aligner's word timings to one span per verse before it
+  stored them; the manifest now keeps them, as `clocks` on each part, verse ref to one
+  [start, end] per word, and still writes the verse spans, read off the words, so
+  nothing that asks for a verse changes. A reader built from a re-attached portion gets
+  the same word rows prose already has, so the card's ear and the player's word-by-word
+  step work on the Torah too. A trope phrase's span is read off the same clocks at build
+  time (`Part.phrase_spans`), for "hear the phrase" later; nothing draws it yet. A
+  manifest attached before today has no `clocks` and reads exactly as it did. Getting
+  them is `targum parasha leyning --again`, and costs no alignment where the old one is
+  still cached: Bereshit came back in about a second with the same verse spans. Where it
+  is not, about a minute an aliyah.
+- A word of scripture names its accent on its card (targum-internal#329): one muted line
+  under the reading, "tipcha · disjunctive", while the chanting marks are shown. The
+  accent is the one that rules the word, read by `vocalize/trope.py` at build time;
+  meteg is never named, and Psalms, Proverbs and Job get no line, their accents being
+  another system. In Russian the name is transliterated and the class translated
+  («типха · разделительный»). design.md §12, "A word in scripture names its accent".
+- A French object pronoun says what it is to its verb, and a French verb says the
+  imparfait and the passé simple (targum-internal#264, with #263's two deferred lines).
+  An object *le* read "he" and *en* and *y* read nothing; now *la* reads "direct object ·
+  f", *leur* "indirect object · pl.", *en* "of it / some", *y* "there / to it" and *se*
+  "reflexive". *Mangeait* reads "imperfect · he/she", *mangea* "simple past · literary",
+  and *eut mangé* the past anterior beside *avait mangé*'s pluperfect.
+
+  One grammar question for all of it, prompt 3 (`model_lemma.PROMPT_VERSION`): `Tense`
+  takes `Imp`, a French clitic takes a `Role`, and a sixth column copies the words it
+  stands for from its own segment or the one before. Scored on GSD dev: French tense
+  0.8933 → **0.9831**, Italian 0.7545 → **0.971**, French role 0.9286 over 28 clitics, with
+  floors. The words a pronoun stands for are read and kept but not shown: the card names
+  them only at a measured precision of 0.9 (`ANTECEDENT_PRECISION`), and the hand-written
+  set that measures it waits for a person. The page and its "stands for" button are built
+  behind that gate.
+
+  **Nothing on the shelf is read again by this.** A lemmatizer that is not buying a
+  segment takes its prompt-2 reading rather than dropping the words, and says so in its
+  name (`/with-2`), so a deploy's `rebuild --words` keeps every French, Italian and
+  Yiddish text as it reads now and the page keeps calling a finite past "past".
+  `targum rebuild --reread fr` is the paid re-read, and `--dry-run` says what it costs
+  first; it reads again only the segments a text already had words for.
 - A reader's edition as a PDF: `targum export pdf <folder>` (targum-internal#105). The
   text with its vowels, and its te'amim where it is scripture; the translation beside
   each line as the parallel mode sets it, or under it with `--under`; and after each
@@ -74,6 +237,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   will be waiting. And the text the arrival opens is one that can be heard, where the
   reader's subject has one. Nothing opens on its own, nothing moves the page, and nothing
   is counted (design.md §12, targum-internal#335).
+- Where a word comes round, on its card. Behind `TARGUM_OCCURRENCES`, off unless the
+  deployment sets it; off, the card is the card it was and asks nothing. On, the card
+  asks `GET /word/met` once when it opens and says how often the word comes round in
+  this text and in the Tanakh ("4× in this text · 241× in the Tanakh"), where the reader
+  met it ("met in Jonah 1:4, Ruth 2:1 and 6 more": a verse by its reference, any other
+  text by its title, latest first, three named), and for a verb how many words of its
+  root they have met and know ("6 words from כ־ת־ב met, 3 known"). The root becomes the
+  way in to those words. "Met" is the index's: inside a section the reader finished,
+  never the page they are on. The index now keeps each form's root, so its cache is
+  counted again on first ask, which reads the annotation and spends nothing
+  (design.md §12, targum-internal#95, #96).
 - A record of what happens in a text, and Time and words on Your Progress. Behind
   `TARGUM_EVENTS`, off unless the deployment sets it: a word looked up, a stretch of a
   recording played, a page turned, a section finished, where a sitting stopped and which
@@ -217,7 +391,89 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Aramaic's list rather than Hebrew's, while a word Hebrew's list already held stays put.
   The drawer in a reader opens the conversation of the line's own language.
 
+### Changed
+- `/about` says its count in English a person would say: "1,174 changes from 31 August
+  to 29 September", where it said "1174 changes in the 30 days to 29 September". The
+  Russian takes its three plural forms, «1 174 изменения с 31 августа по 29 сентября».
+- The English copy, audited end to end (`COPY_AUDIT.md`): 151 catalogue strings and some
+  thirty literals rewritten against design.md §6 — mostly claims the code did not keep
+  ("One press and you're on the list", "That link has been used", "we can't read scans
+  yet", "This is this week's"), refusals without a way forward, singular forms that said
+  "words", and team words reaching readers (build, quote, thread, shelf, conversation).
+  No behaviour changed. `COPY_VOICE_GUIDE.md` is the checklist for English written from
+  here; `COPY_QUESTIONS.md` holds what needs David.
+- The arrival opens with a welcome: where you are, what happens next, and an optional
+  "What should we call you?" that the greeting uses at once. The connector's card says
+  it is optional and has one press, Continue; the bars count only the questions.
+- The waitlist's pages say "Thanks for joining", "Confirm your place", "You're on the
+  list" and "You're off the list" over sentences a person would say, instead of "the
+  waitlist" over every answer — each true for every address it can be said to: a link
+  "no longer works" rather than "expired", since a waitlist link has no age limit, and
+  joining says an email went out only if the address was not already on the list.
+- The sign-in page's foot stands under the door across the page instead of in its
+  column, where its columns ran into each other; a long address wraps at its "@"; and
+  the line about words following you between browsers is gone.
+- targum in Claude and ChatGPT is met on the way in, in four places, each only while the
+  connector is open and, inside the product, only to a reader with no connection yet. The
+  arrival ends on a card with the address to copy and Open as its press, so the first text
+  is still one press away; the first finished section says, once, "Practise the words you
+  marked in Claude or ChatGPT"; the banner on Learn is a card with the two steps and the
+  address; the front door mentions it twice, lightly, in its list of what you get and in
+  the part about talking to targum; and the invitation mail gives it a paragraph with the
+  way to `/connect`. The reader's line is said at every finish while there is no
+  connection. `/known-ahead` says `connect` for the reader's
+  line. design.md §12 (2026-09-28).
+- The arrival asks which language a reader reads only where the browser gives a sign of
+  Russian (Russian, or a language of the Russian-reading world); nobody else is shown any
+  Cyrillic, and an EN · RU switch in the card's corner is the way in for the rest. The
+  level question reads "How much Hebrew do you know?". design.md §12 (2026-09-28).
+- The mail's English can be edited as notes in `~/Desktop/targum marketing/emails`:
+  `scripts/mail_notes.py push` writes one note per mail, `pull` takes the edits back into
+  `en.json` and refuses a note that drops a `{link}`.
+- The arrival is a page of its own at every width. While a new reader answers the three
+  questions, Learn draws nothing else: not the fold of words to work on, which somebody
+  who has read nothing has never marked, and not the rail or the sheet. The questions
+  stand in one card, the question at 1.5rem, where the reader is drawn as three bars in
+  leaf beside "2 of 3"; a picked subject takes the primary's tint and a ring of it, and
+  the kitah letter beside each rung sits on a disc in the Hebrew face. Each screen comes
+  in on the desk's curve, and nothing moves under reduced motion. design.md §12
+  (2026-09-28).
+
 ### Fixed
+- A deploy no longer stops at the install when somebody has run a targum command on the
+  box as root. Such a run, `--help` included, leaves root-owned `__pycache__` inside the
+  tool's environment, and the service account could not remove it: "failed to remove
+  directory .../tools/targum/lib: Permission denied", on 2026-09-29. `deploy.sh` hands
+  the environment back to the account before the install.
+- What the copy audit found the code saying wrongly (`COPY_QUESTIONS.md` 2–11, 14, 20–23,
+  28; design.md §12, 2026-09-28). The build page says "We're making it" to a queued build
+  and one still being costed, not "We can't make this one". Add shows the upload door's
+  own sentence for a refused file instead of blaming the connection. Your Progress says a
+  language has no word list rather than "Nothing marked yet", and its empty state sits
+  above the foot. On a hosted box a link refusal is the reader's sentence for its status,
+  never "HTTP 403", curl or an operator's hint; errors mid-build are said in the reader's
+  language with their hint. A closing account is told how to keep it at every sign-in
+  door, and an uninvited address is pointed at the waitlist. Ticking a translation
+  language again writes its translations back into the readers, as /you promised. The
+  sign-in page says which Connect it is finishing, and says so when one was lost. Learn's
+  Suggested door says the known share once. Every press that spends says its cost beside
+  it, and the description search no longer prices a chat turn. Signed-in readers are not
+  pitched the waitlist on the weekly, parasha and daily pages; an archived issue is not
+  "this week's"; the waitlist and series-stop pages have their own titles, and the stop
+  page names its series. The contents page and the ready email say Read, Listen or Watch,
+  and a scan offers "Read the 12 pages".
+- The arrival opens a text the reader can follow. The rung picked a row by its place in
+  the subject's list, so the one row filed under a subject was every rung's answer, and
+  "Just starting" opened a vav article. It reads the rung each text was written for now,
+  and takes the hardest at or under the rung said; a subject whose texts are all more
+  than a rung past it gives way to the next; and where no subject is left, the rung
+  chooses from the modern shelf, ahead of whether a text can be heard.
+- A Russian public page says its title and description in Russian (targum-internal#188).
+  The shelf, the text pages, the parasha and the daily cycles took both from English
+  whatever language the page spoke, so a search result for a Russian page read
+  "Library — targum" over a Russian body. They come from the catalogue now, and so do
+  the shelf's heading and the link back to it; the names a calendar spells (a portion, a
+  day's reading) stay as it spells them.
 - The reader's keys card lists two sets of keys it left out: with the recording's track in
   focus, the arrows go back and on five seconds and Home and End go to its ends; with the
   picture's Move or its size handle in focus, the arrows move or resize it, further with

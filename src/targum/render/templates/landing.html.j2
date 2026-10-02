@@ -29,10 +29,49 @@
 
 <main id="top">
   <div class="col">
-    <div class="hero">
+    <div class="hero{% if tried and not tried.refused %} has-tried{% endif %}">
       <div class="headline">
         <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
           <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
+        {#- Try the door (targum-internal#399): paste a link and be told what it is, in
+            the Add box's own sentence. A plain post, so it works with JavaScript off;
+            the answer comes back on this page. Nothing is built and nothing is spent,
+            and no percentage is shown: "you know X%" needs a record, and getting one
+            is the reason to join (2026-09-30). -#}
+        <div class="try" id="try">
+          <form class="try-form" method="post" action="/try{% if asked %}?lang={{ asked }}{% endif %}#try">
+            <label class="field">
+              <input type="url" name="link" required inputmode="url" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.try.placeholder", "Paste a link to anything in Hebrew") }}" aria-label="{{ t("landing.try.label", "A link to try") }}"{% if tried and tried.link %} value="{{ tried.link }}"{% endif %}>
+              <button class="btn tonal" type="submit">{{ t("landing.try.button", "Try it") }}</button>
+            </label>
+          </form>
+          {%- if tried %}
+          <div class="tried" role="status">
+            {%- if tried.refused %}
+            <p class="tried-what">{{ tried.refused }}</p>
+            {%- else %}
+            <p class="tried-what">
+              {%- if tried.door == 'youtube' %}{{ t("landing.try.youtube", "That’s a YouTube video") }}
+              {%- elif tried.door == 'instagram' %}{{ t("landing.try.instagram", "That’s an Instagram reel") }}
+              {%- elif tried.door == 'instagram-post' %}{{ t("landing.try.instagram-post", "That’s an Instagram post") }}
+              {%- elif tried.door == 'tiktok' %}{{ t("landing.try.tiktok", "That’s a TikTok video") }}
+              {%- elif tried.door == 'facebook' %}{{ t("landing.try.facebook", "That’s a Facebook video") }}
+              {%- elif tried.door == 'x' %}{{ t("landing.try.x", "That’s a post on X") }}
+              {%- elif tried.door == 'podcast' %}{{ t("landing.try.podcast", "That’s a podcast episode") }}
+              {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
+              {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
+              {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
+              {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.
+              {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
+            {%- if tried.title %}
+            <p class="tried-title" dir="auto">{{ tried.title }}</p>
+            {%- endif %}
+            <p class="tried-keep">{{ t("landing.try.keep", "Join to keep it. When your turn comes, it’ll be waiting for you, ready to learn from.") }}</p>
+            {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
+            {%- endif %}
+          </div>
+          {%- endif %}
+        </div>
       </div>
       <div class="side">
         {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
@@ -47,6 +86,11 @@
           <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
           <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
           <li>{{ t("landing.page.no-credit-card-required", "No credit card required") }}</li>
+          {#- A light first mention of the connector, where the page lists what you get
+              (design.md §12, "The connector is met on the way in"). -#}
+          {%- if connector_is_open() %}
+          <li>{{ t("landing.page.works-in-claude-and-chatgpt", "Works in Claude and ChatGPT") }}</li>
+          {%- endif %}
         </ul>
       </div>
     </div>
@@ -274,6 +318,11 @@
           <li>{{ t("landing.page.bring-a-link-or-a-file-straight-into", "Bring a link or a file straight into the conversation.") }}</li>
           <li>{{ t("landing.page.keep-a-conversation-as-a-text-to-read", "Keep a conversation as a text to read again.") }}</li>
         </ul>
+        {#- And the same targum inside the AI a reader already uses: said here, where the
+            page is about talking to it (design.md §12, 2026-09-28). -#}
+        {%- if connector_is_open() %}
+        <p class="talk-elsewhere">{{ t("landing.page.also-inside-claude-or-chatgpt", "You can also talk to targum inside Claude or ChatGPT.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p>
+        {%- endif %}
       </div>
       <div class="thread" aria-label="{{ t("landing.page.example-conversation", "Example conversation") }}">
         <div class="turn">
@@ -336,10 +385,9 @@
           <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3" width="12.4" height="10" rx="1.8"/><path d="M4.4 6h4M4.4 8.4h4M4.4 10.8h7.2M10.8 6h1.2v2.4h-1.2z"/></svg>{{ t("landing.page.today-s-news-from-any-site", "Today’s news, from any site") }}</li>
           <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.2C6.7 3.3 5.2 3 3 3v9c2.2 0 3.7.3 5 1.2 1.3-.9 2.8-1.2 5-1.2V3c-2.2 0-3.7.3-5 1.2zM8 4.2v9"/></svg>{{ t("landing.page.an-article-or-a-book", "An article or a book") }}</li>
           <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="3" width="12.4" height="10" rx="2"/><circle cx="5.6" cy="6.4" r="1"/><path d="M2.6 11.4l3.2-3 2.4 2.2 2-1.8 3.2 2.9"/></svg>{{ t("landing.page.a-photo-of-a-page", "A photo of a page") }}</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="1.8" width="8" height="12.4" rx="2"/><path d="M6.9 6.6l2.8 1.6-2.8 1.6z"/></svg>{{ t("landing.page.reels-shorts-and-tiktoks", "Reels, Shorts and TikToks") }}</li>
+          <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="1.8" width="8" height="12.4" rx="2"/><path d="M6.9 6.6l2.8 1.6-2.8 1.6z"/></svg>{{ t("landing.page.reels-shorts-tiktoks-and-facebook-videos", "Reels, Shorts, TikToks and Facebook videos") }}</li>
           <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="12" height="12" rx="3.2"/><circle cx="8" cy="8" r="2.8"/><path d="M11.4 4.6h0"/></svg>{{ t("landing.page.instagram-posts", "Instagram posts") }}</li>
-          {% if x_open %}<li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.2a1.7 1.7 0 011.7-1.7h7.6a1.7 1.7 0 011.7 1.7v5a1.7 1.7 0 01-1.7 1.7H6.8L3.4 13.5V10.9h-.9z"/></svg>{{ t("landing.page.posts-from-x", "Posts from X") }}</li>
-          <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.2a1.7 1.7 0 011.7-1.7h7.6a1.7 1.7 0 011.7 1.7v5a1.7 1.7 0 01-1.7 1.7H6.8L3.4 13.5V10.9h-.9z"/></svg>{{ t("landing.page.posts-from-facebook-and-reddit", "Posts from Facebook and Reddit") }}<span class="soon">{{ t("landing.page.soon", "soon") }}</span></li>{% else %}<li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.2a1.7 1.7 0 011.7-1.7h7.6a1.7 1.7 0 011.7 1.7v5a1.7 1.7 0 01-1.7 1.7H6.8L3.4 13.5V10.9h-.9z"/></svg>{{ t("landing.page.posts-from-x-facebook-and-reddit", "Posts from X, Facebook and Reddit") }}<span class="soon">{{ t("landing.page.soon", "soon") }}</span></li>{% endif %}
+          <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.2a1.7 1.7 0 011.7-1.7h7.6a1.7 1.7 0 011.7 1.7v5a1.7 1.7 0 01-1.7 1.7H6.8L3.4 13.5V10.9h-.9z"/></svg>{{ t("landing.page.posts-from-x", "Posts from X") }}{% if not x_open %}<span class="soon">{{ t("landing.page.soon", "soon") }}</span>{% endif %}</li>
           <li><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.4a1.6 1.6 0 011.6-1.6h5.8a1.6 1.6 0 011.6 1.6v3a1.6 1.6 0 01-1.6 1.6H5.4L3 11.3V9H3.4z"/><path d="M6.6 11.4h5.4l2.2 2v-2h.2V7.6"/></svg>{{ t("landing.page.a-whatsapp-or-telegram-chat", "A WhatsApp or Telegram chat") }}</li>
         </ul>
     </div>
@@ -393,14 +441,17 @@
     </div>
   </section>
 
+  {#- The page's ending, not a fourth example: centred on the page itself, with no paper
+      under it, so the only raised sheets on the landing are the product's (§8, one
+      raised layer per view; David, 2026-10-02). -#}
   <section class="part" id="join">
-    <div class="col split">
+    <div class="col join-end">
       <div class="part-head">
         <p class="label">{{ t("landing.page.the-waitlist", "The waitlist") }}</p>
         <h2>{{ t("landing.page.be-among-the-first-to-learn-hebrew-this", "Be among the first to learn Hebrew this way.") }}</h2>
         <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
       </div>
-      <div class="join-card">
+      <div class="join-body">
         {% include '_join_form.html.j2' %}
         <ul class="join-points">
           <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>{{ t("landing.page.free-to-start-with-the-whole-library-open", "Free to start, with the whole library open.") }}</li>
@@ -434,7 +485,8 @@
 
   <div class="col close">
     <h2>{{ t("landing.page.start-learning-hebrew-with-something-you-d-watch", "Start learning Hebrew with something you’d watch anyway.") }}</h2>
-    <form class="join-form" method="post" action="/waitlist">
+    <form class="join-form" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
+      <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
       <label class="field">
         <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}" required>
         <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>

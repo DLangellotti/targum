@@ -226,7 +226,7 @@ def test_a_suggestions_reason_is_said_in_the_readers_language(
     assert because_in(known, "ru") == "Вы знаете 70% его слов."
     assert because_in(known, "en") == "You know 70% of its words."
     looked = {"reason": {"key": "suggest.looked-up", "share": 12, "register": "modern"}}
-    assert because_in(looked, "en") == "A learner looks up 12% of its words. Modern Hebrew."
+    assert because_in(looked, "en") == "12% of its words are rare in everyday use. Modern Hebrew."
     assert because_in({"because": "old"}, "ru") == "old"
 
 

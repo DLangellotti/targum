@@ -195,3 +195,39 @@ def test_the_download_cache_is_not_inside_the_recordings_shelf(
     cache = downloads_root()
     assert shelf not in cache.parents, f"{cache} is inside the shelf at {shelf}"
     assert cache.name == "pockettorah"
+
+
+def test_the_aligner_s_words_are_kept_rather_than_collapsed(tmp_path, monkeypatch) -> None:
+    """targum-internal#329. Each verse keeps one clock per word, in order, and the verse
+    span is still there, read off them. The words handed to the aligner are exactly the
+    ones handed to it before the change, so an alignment already cached is found again
+    and re-attaching a portion costs no alignment at all."""
+    from targum.recording.models import verse_spans
+    from targum.vocalize import strip_taamim
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    heard: list[list[str]] = []
+
+    class Aligner:
+        def available(self) -> tuple[bool, str]:
+            return True, "fake"
+
+        def align(self, audio: Path, words: list[str], language: str) -> list[tuple]:
+            heard.append(list(words))
+            return [(n * 1.0, n + 0.8, -0.1) for n in range(len(words))]
+
+    monkeypatch.setattr(leyning, "CtcAligner", Aligner)
+    audio = tmp_path / "aliyah-01.mp3"
+    audio.write_bytes(b"ID3not-really-audio")
+    verses = [
+        ("Genesis 1:1", "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃"),
+        ("Genesis 1:3", "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃"),
+    ]
+    clocks = leyning.clocks_for(audio, verses, lambda _: None)
+    assert heard == [[word for _, text in verses for word in strip_taamim(text).split()]]
+    assert [len(rows) for rows in clocks.values()] == [7, 5]
+    assert clocks["Genesis 1:3"][0] == [7.0, 7.8]
+    assert verse_spans(clocks) == {"Genesis 1:1": [0.0, 6.8], "Genesis 1:3": [7.0, 11.8]}
+
+    again = leyning.clocks_for(audio, verses, lambda _: None)
+    assert again == clocks and len(heard) == 1, "the second attach reads the cache"

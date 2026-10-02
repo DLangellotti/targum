@@ -134,7 +134,7 @@ def test_the_last_language_cannot_be_unticked() -> None:
     page = run(do=[{"type": "tick", "list": "you-reads", "code": "en"}])
     assert [post["path"] for post in page["posted"]] == []
     assert page["reads"][0]["on"] is True
-    assert page["languagesSaid"] == {"text": "Keep at least one.", "hidden": False}
+    assert page["languagesSaid"] == {"text": "Keep at least one language ticked.", "hidden": False}
 
 
 def test_a_refused_profile_puts_its_boxes_back() -> None:

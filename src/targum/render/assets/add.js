@@ -404,7 +404,7 @@
           " " +
           (transcript
             ? t("add.spoken.theirs", "We'll use the transcript that came with it, so there's nothing to write down.")
-            : t("add.spoken.ours", "We'll write down what's said, and that uses some of your credits."));
+            : t("add.spoken.ours", "We'll write down what's said, part by part."));
       }
       if (theirs) said += " " + t("add.translation.theirs", "We'll line up your translation with it, sentence by sentence.");
       return unpaired ? said + " " + unpaired : said;
@@ -427,7 +427,7 @@
       // them to the drawer; Continue does it in place now.
       return t(
         "add.description.look",
-        "That sounds like what you want to read. Press Continue and we'll look — that's one turn of conversation, off your credits."
+        "That sounds like what you want to read. Press Continue and we'll look for it."
       );
     }
     if (read.kind === "foreign") {
@@ -477,6 +477,21 @@
     return parts.join(" · ");
   }
 
+  //: What the box held when its card arrived. The line under the box ("We'll work out
+  //: how long it'll take") is a promise the card keeps, so it is put away while the
+  //: card is up and comes back the moment the box holds something else (2026-10-01).
+  var quoted = null;
+
+  function holding() {
+    return chosen
+      ? chosen
+          .map(function (file) {
+            return file.name;
+          })
+          .join("\n")
+      : readGiven().text;
+  }
+
   // Everything the box says, drawn again from what it holds.
   function settle() {
     drawFiles();
@@ -494,7 +509,10 @@
     var mine = document.querySelector('[data-how="mine"]');
     if (note && mine) note.textContent = lineUp(mine.getAttribute("aria-pressed") === "true");
     var read = readGiven();
-    if (understood) understood.textContent = understanding();
+    if (understood) {
+      understood.textContent = understanding();
+      understood.hidden = quoted !== null && quoted === holding();
+    }
     var something = !!chosen || read.kind === "link" || read.kind === "text" || read.kind === "few";
     if (askTargum) askTargum.hidden = chosen !== null || !talks() || (read.kind !== "description" && read.kind !== "few");
     if (summary) {
@@ -765,7 +783,7 @@
     if (row.seconds) facts.push(clock(row.seconds));
     if (row.known_share !== null && row.known_share !== undefined) {
       facts.push(
-        tn("add.found.known", Math.round(row.known_share * 10), "You know {n} word in ten", "You know {n} words in ten", {
+        tn("add.found.known", Math.round(row.known_share * 10), "You know about {n} word in 10", "You know about {n} words in 10", {
           n: Math.round(row.known_share * 10),
         })
       );
@@ -846,20 +864,11 @@
         box.appendChild(foundCard(row));
       });
     }
-    // What the turn cost, after it is over and never before (targum-internal#253). In
-    // the clock the rest of the page uses, never in money: design.md §10 takes that
-    // position and this page keeps it.
-    ask("/job/chat-" + encodeURIComponent(state.chat) + "-" + state.n)
-      .then(function (job) {
-        if (!job || !job.seconds) return;
-        box.appendChild(
-          line(t("add.looking.cost", "Looking used {clock} of your credits.", { clock: clock(job.seconds) }))
-        );
-        say(box);
-      })
-      .catch(function () {
-        say(box);
-      });
+    // No cost line. It said what the turn took as a clock ("Looking used 0:07 of your
+    // credits"), and chatting is included (design.md §12, 2026-09-24): a search is a
+    // turn of it, so there is nothing to charge and nothing to say (copy audit,
+    // 2026-09-28).
+    say(box);
   }
 
   // Said in the conversation, by the reader's own press: a description is a turn of it.
@@ -1276,7 +1285,7 @@
   // unchanging line for all of that reads as a hang, so it keeps talking.
   function waiting() {
     var box = document.createDocumentFragment();
-    var text = line(t("add.fetching", "We're fetching it…"));
+    var text = line(t("add.fetching", "We're reading it…"));
     var note = document.createElement("p");
     note.className = "hint plain";
     note.textContent = "";
@@ -1289,7 +1298,7 @@
       note.textContent =
         seconds < 12
           ? ""
-          : t("add.still-working", "Still working. The first text in a language takes us longer.");
+          : t("add.still-working", "Still working. A long text, or the first in a new language, takes us longer.");
     }, 1000);
     return box;
   }
@@ -1298,6 +1307,9 @@
     var payload = options();
     var prepared;
     posted = "";
+    // What the last link was found to be is not what this press is pricing: a file
+    // dropped after a link was priced under the link's facts.
+    found = null;
 
     go.disabled = true;
     say(waiting());
@@ -1410,7 +1422,15 @@
         .then(function (said) {
           found = said && !said.error ? said : null;
           var block = foundBlock(found);
-          if (block) say(block);
+          // What was found goes above the waiting line, never in place of it:
+          // `/prepare` can take minutes on a video, and a card with no line saying
+          // more is coming read as finished with nothing to press.
+          if (block) {
+            var both = document.createDocumentFragment();
+            both.appendChild(block);
+            both.appendChild(waiting());
+            say(both);
+          }
         })
         .catch(function () {
           found = null;
@@ -1437,11 +1457,23 @@
         if (job.blocked) return refuse(job);
         offer(job);
       })
-      .catch(function () {
+      .catch(function (why) {
         go.disabled = false;
         // Never the exception itself: "TypeError: Failed to fetch" is not a sentence
-        // anybody should be handed (2026-09-14).
-        say(line(t("add.unreachable", "We couldn't reach targum. Check your connection and try again.")), true);
+        // anybody should be handed (2026-09-14). But a sentence the upload door said —
+        // a picture over its size, a protected file, a full recording allowance — is
+        // the answer, and blaming the connection for it sent the reader to check their
+        // wifi. `bringing.upload` rejects with the server's `error`, a string; a failed
+        // fetch or a file the browser could not read rejects with an object. The post
+        // form below already told the two apart (copy audit, 2026-09-28).
+        say(
+          line(
+            typeof why === "string"
+              ? why
+              : t("add.unreachable", "We couldn't reach targum. Check your connection and try again.")
+          ),
+          true
+        );
       });
   };
 
@@ -1471,23 +1503,30 @@
   /* The card's line of facts. Each is said only where the quote carries it: a state that
      arrived without one leaves it out rather than printing "undefined sentences" or
      "NaN:NaN" (targum-internal#158, where a brought post's card was the first to try). */
-  function describe(job) {
+  //: `lengthSaid`: what was found already gave the length, so the card does not say it
+  //: a second time (2026-10-01).
+  function describe(job, lengthSaid) {
     var facts = [];
     if (job.language) facts.push(named(job.language));
     if (job.audio) {
       var box = document.createDocumentFragment();
-      box.appendChild(document.createTextNode(facts.join(" · ")));
+      var said = facts.map(function (fact) {
+        return document.createTextNode(fact);
+      });
       var seconds = Number(job.seconds);
-      if (isFinite(seconds) && seconds > 0) {
-        if (facts.length) box.appendChild(document.createTextNode(" · "));
+      if (!lengthSaid && isFinite(seconds) && seconds > 0) {
         var when = document.createElement("span");
         when.className = "clock";
         when.textContent = clock(seconds);
-        box.appendChild(when);
+        said.push(when);
       }
       if (job.parts > 1) {
-        box.appendChild(document.createTextNode(" · " + tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
+        said.push(document.createTextNode(tn("add.job.parts", job.parts, "{n} part", "{n} parts")));
       }
+      said.forEach(function (one, n) {
+        if (n) box.appendChild(document.createTextNode(" · "));
+        box.appendChild(one);
+      });
       return box;
     }
     if (job.chapters > 1) {
@@ -1510,8 +1549,9 @@
      price and a title and nothing about what was being bought.
 
      Nothing here is a control: it is what the reader is about to pay for, said before
-     they press. The advice lines are the server's own sentences, which is why they are
-     set as text and never as markup. */
+     they press. Facts only (2026-10-01): the server's advice sentences are written for
+     the model — English whatever the page's language, "Hebrew" whatever is being added,
+     and the credits the card says again under it — so the page does not show them. */
   function foundBlock(said) {
     if (!said || said.error) return null;
     var body = [];
@@ -1545,22 +1585,15 @@
       body.push(mine);
     }
 
-    (said.advice || []).forEach(function (one) {
-      var note = document.createElement("p");
-      note.className = "found-note";
-      note.textContent = String(one);
-      body.push(note);
-    });
-
     // A heading over nothing says the page is broken. An answer that carried no facts,
-    // no share and no advice — a route that fell over, a medium nothing is known about
+    // and no share — a route that fell over, a medium nothing is known about
     // — is passed over in silence, and the price follows as it always did.
     if (!body.length) return null;
     var box = document.createElement("div");
     box.className = "found";
     var head = document.createElement("p");
     head.className = "found-head";
-    head.textContent = t("add.found", "What targum found");
+    head.textContent = t("add.found", "What we found");
     box.appendChild(head);
     body.forEach(function (one) {
       box.appendChild(one);
@@ -1662,12 +1695,18 @@
 
   // The card's first line: the title in bold, then its facts, with nothing said for a
   // part the quote did not carry.
-  function titled(job) {
+  function titled(job, lengthSaid) {
     var head = document.createElement("p");
     head.style.margin = "0";
-    head.innerHTML = "<b></b>";
-    head.querySelector("b").textContent = job.title || "";
-    var facts = describe(job);
+    // Isolated, so a Hebrew title in an English line keeps its own direction and the
+    // facts after it: unisolated, the clock joined the title's run and was drawn in
+    // front of it ("12:35 · זו מדינת אויב?").
+    var own = document.createElement("bdi");
+    var bold = document.createElement("b");
+    bold.textContent = job.title || "";
+    own.appendChild(bold);
+    head.appendChild(own);
+    var facts = describe(job, lengthSaid);
     if (job.title && facts.textContent) head.appendChild(document.createTextNode(" · "));
     head.appendChild(facts);
     return head;
@@ -1687,12 +1726,14 @@
 
   // The cost is shown before anything is spent, the same gate the command line uses.
   function offer(job) {
+    quoted = holding();
+    if (understood) understood.hidden = true;
     var box = document.createDocumentFragment();
     // What was found stays above what it costs: the reader read it while the price was
     // being worked out, and it should not vanish the moment the price lands.
     var was = foundBlock(found);
     if (was) box.appendChild(was);
-    var head = titled(job);
+    var head = titled(job, !!(was && found.seconds));
     box.appendChild(head);
 
     // A text that arrived as pages: its first lines as read, and how many it could
@@ -1720,6 +1761,14 @@
     cost.className = "cost";
     cost.textContent = price(job);
     box.appendChild(cost);
+    // And what the press spends, beside it (copy audit, 2026-09-28).
+    var spends = bringing.uses(job);
+    if (spends) {
+      var uses = document.createElement("span");
+      uses.className = "cost uses";
+      uses.textContent = spends;
+      box.appendChild(uses);
+    }
 
     var row = document.createElement("div");
     row.className = "row";
@@ -1728,13 +1777,29 @@
     confirm.className = "filled";
     confirm.textContent = t("add.start-reading", "Open");
     confirm.onclick = function () {
-      ask("/build", { id: job.id }).then(function (state) {
-        if (state.blocked) return refuse(state);
-        watch(job);
-      });
+      // Held down until the server answers: the press is what spends, and a second
+      // press while the first was in flight had nothing to tell it the first had landed.
+      confirm.disabled = true;
+      ask("/build", { id: job.id })
+        .then(function (state) {
+          if (state.error) return say(line(state.error), true);
+          if (state.blocked) return refuse(state);
+          watch(job);
+        })
+        .catch(function () {
+          // The card stays, so the press can be tried again where it was.
+          confirm.disabled = false;
+          if (!status.querySelector(".could-not-send")) {
+            var oops = line(t("add.could-not-send", "We couldn't send that. Try again."));
+            oops.className = "could-not-send";
+            status.appendChild(oops);
+          }
+        });
     };
     row.appendChild(confirm);
-    if (job.pictures_offered > 0) row.appendChild(readPictures(job.pictures_offered));
+    if (job.pictures_offered > 0) {
+      row.appendChild(readPictures(job.pictures_offered, true, job.pictures_are === "pages"));
+    }
     box.appendChild(row);
     say(box);
   }
@@ -1743,11 +1808,18 @@
      never run unasked: this press is the consent, and it sends the link again with the
      pictures asked for, to be read and quoted like pictures brought in by hand
      (targum-internal#255). */
-  function readPictures(count) {
+  /* `also` where something was read already — a post's caption — and the pictures
+     are more of it; not where the pictures are all there is. `pages` for a scanned PDF,
+     whose pictures are its pages and are called so (copy audit, 2026-09-28). */
+  function readPictures(count, also, pages) {
     var more = document.createElement("button");
     more.type = "button";
     more.className = "ghost";
-    more.textContent = tn("add.read-pictures", count, "Also read the picture", "Also read the {n} pictures");
+    more.textContent = pages
+      ? tn("add.read-pages", count, "Read the page", "Read the {n} pages")
+      : also
+        ? tn("add.read-pictures", count, "Also read the picture", "Also read the {n} pictures")
+        : tn("add.read-pictures-only", count, "Read the picture", "Read the {n} pictures");
     more.onclick = function () {
       more.disabled = true;
       var payload = options();
@@ -1804,7 +1876,7 @@
     box.appendChild(line(job.error));
     var row = document.createElement("div");
     row.className = "row";
-    row.appendChild(readPictures(job.pictures_offered));
+    row.appendChild(readPictures(job.pictures_offered, false, job.pictures_are === "pages"));
     box.appendChild(row);
     say(box, true);
   }
@@ -1830,12 +1902,15 @@
           return say(line(state.error), true);
         }
         // The pipeline narrates itself in its own vocabulary. This is the reader's.
-        text.textContent = state.done
-          ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
-              share: Math.round((state.done / state.total) * 100),
-            })
-          : plain(state.message);
-        var share = state.total ? state.done / state.total : 0;
+        // A stage can count what it has done before it knows the total, and done over
+        // nothing read "Infinity%": no total, no percentage.
+        var share = state.total > 0 ? Math.min(1, (state.done || 0) / state.total) : 0;
+        text.textContent =
+          state.done && state.total > 0
+            ? t("add.getting-ready.share", "We're getting it ready… {share}%", {
+                share: Math.round(share * 100),
+              })
+            : plain(state.message) || t("add.getting-ready", "We're getting it ready…");
         status.querySelector(".bar i").style.width = (share * 100).toFixed(1) + "%";
         if (state.stage === "done") {
           clearInterval(timer);
@@ -1993,7 +2068,7 @@
       }
       var films = files.filter(isFilm);
       if (films.length && (films.length > 1 || files.length > 1)) {
-        return stop(t("add.post.media", "A post's media is its pictures, or one video."));
+        return stop(t("add.post.media", "Add either its pictures or a single video."));
       }
       sending.disabled = true;
       posted = "";
@@ -2104,7 +2179,7 @@
               t("add.credits.rate", "That's about {clock} of audio, and the library costs none of it.", {
                 clock: clockOf(left),
               })
-            : t("add.credits.none", "You've used all your credits this month. They come back on {date}, and the library is always free.", {
+            : t("add.credits.none", "You've used all your credits this month. They come back on {date}, and the library still opens.", {
                 date: hours.ends || "",
               });
         hoursLine.hidden = false;

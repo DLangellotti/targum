@@ -9,8 +9,10 @@ things about it make this much less work than attaching a recording usually is:
 * It is chanted rather than read, which sounded like it would defeat a forced aligner
   trained on speech. Measured on Bereshit's first aliyah — 404 words against 449 seconds
   of leyning — it does not: every word came back, monotonic, spanning the whole file.
-  That is why this stores real per-verse spans rather than giving each aliyah one span
-  and letting the reader guess.
+  That is why this stores a clock for every word rather than giving each aliyah one span
+  and letting the reader guess. Until 2026-09-28 the clocks were collapsed to verses
+  before they were stored; they are kept now, because a trope phrase and a word on the
+  card both need what the verse span threw away (targum-internal#329).
 
 **Licence.** CC BY-SA, which the audio bar admits: ND is the line, because the pipeline
 makes derivatives, and SA is not ND. The credit and the licence ride in the manifest and
@@ -40,7 +42,7 @@ from ..cache import Cache
 from ..errors import TargumError
 from ..models import BlockKind
 from ..recording import index as recording_index
-from ..recording.models import Part, Recording
+from ..recording.models import Part, Recording, spoken_words, verse_spans
 from ..vocalize import strip_taamim
 from .calendar import Reading
 from .cut import Portion, parse_place, parse_ref
@@ -208,14 +210,15 @@ def _verses(portion: Portion, number: int, reading: Reading) -> list[tuple[str, 
     return out
 
 
-def spans_for(
+def clocks_for(
     audio: Path, verses: list[tuple[str, str]], notify: Callable[[str], None]
-) -> dict[str, list[float]]:
-    """Each verse's [start, end] inside this file, from a forced alignment.
+) -> dict[str, list[list[float]]]:
+    """Each verse's words as [start, end] inside this file, from a forced alignment.
 
     The accents come off before the text goes to the aligner: they are not pronounced,
     and a model trained on speech has never seen one. The vowels stay, because they are
-    what the letters are said as.
+    what the letters are said as. The words are the ones `spoken_words` counts, so row n
+    of a verse is the verse's nth word to the build that reads it back.
     """
     aligner = CtcAligner()
     usable, hint = aligner.available()
@@ -225,7 +228,7 @@ def spans_for(
     words: list[str] = []
     owners: list[str] = []
     for ref, text in verses:
-        pieces = strip_taamim(text).split()
+        pieces = [strip_taamim(text[start:end]) for start, end in spoken_words(text)]
         words.extend(pieces)
         owners.extend([ref] * len(pieces))
     if not words:
@@ -252,13 +255,10 @@ def spans_for(
             )
         cache.put("pockettorah-align", key, [list(row) for row in timed])
 
-    spans: dict[str, list[float]] = {}
+    clocks: dict[str, list[list[float]]] = {}
     for ref, (start, end, _score) in zip(owners, timed, strict=True):
-        if ref in spans:
-            spans[ref][1] = round(float(end), 3)
-        else:
-            spans[ref] = [round(float(start), 3), round(float(end), 3)]
-    return spans
+        clocks.setdefault(ref, []).append([round(float(start), 3), round(float(end), 3)])
+    return clocks
 
 
 def _one_file_per_aliyah(
@@ -284,11 +284,18 @@ def _one_file_per_aliyah(
         target = into / audio_name
         if not target.is_file() or target.stat().st_size != source_file.stat().st_size:
             target.write_bytes(source_file.read_bytes())
-        spans = spans_for(target, verses, notify)
-        if not spans:
+        clocks = clocks_for(target, verses, notify)
+        if not clocks:
             continue
-        parts.append(Part(ref=f"{reading.name} {number}", audio=audio_name, spans=spans))
-        notify(f"    aliyah {number}: {len(spans)} verses")
+        parts.append(
+            Part(
+                ref=f"{reading.name} {number}",
+                audio=audio_name,
+                spans=verse_spans(clocks),
+                clocks=clocks,
+            )
+        )
+        notify(f"    aliyah {number}: {len(clocks)} verses")
     return parts
 
 
@@ -339,24 +346,25 @@ def _cut_from_the_pair(
     if not master.is_file():
         notify(f"    joining {len(files)} files into one reading…")
         concatenated(files, master)
-    spans = spans_for(master, verses, notify)
+    clocks = clocks_for(master, verses, notify)
+    spans = verse_spans(clocks)
     if not spans:
         return []
 
     parts: list[Part] = []
     total = duration_of(master)
     # Where each aliyah's own verses begin and end on the joined clock.
-    bounds: list[tuple[int, float, float, dict[str, list[float]]]] = []
+    bounds: list[tuple[int, float, float, dict[str, list[list[float]]]]] = []
     for aliyah in reading.aliyot:
         mine = {
-            ref: span
+            ref: clocks[ref]
             for ref, _ in _verses(portion, aliyah.number, reading)
-            if (span := spans.get(ref))
+            if clocks.get(ref)
         }
         if not mine:
             continue
-        starts = [one[0] for one in mine.values()]
-        ends = [one[1] for one in mine.values()]
+        starts = [rows[0][0] for rows in mine.values()]
+        ends = [rows[-1][1] for rows in mine.values()]
         bounds.append((aliyah.number, min(starts), max(ends), mine))
     if not bounds:
         return []
@@ -375,12 +383,19 @@ def _cut_from_the_pair(
         cut(master, into / audio_name, start, end)
         rebased = {
             ref: [
-                round(max(0.0, span[0] - start), 3),
-                round(min(end - start, span[1] - start), 3),
+                [round(max(0.0, one[0] - start), 3), round(min(end - start, one[1] - start), 3)]
+                for one in rows
             ]
-            for ref, span in mine.items()
+            for ref, rows in mine.items()
         }
-        parts.append(Part(ref=f"{reading.name} {number}", audio=audio_name, spans=rebased))
+        parts.append(
+            Part(
+                ref=f"{reading.name} {number}",
+                audio=audio_name,
+                spans=verse_spans(rebased),
+                clocks=rebased,
+            )
+        )
         notify(f"    aliyah {number}: {len(rebased)} verses, {end - start:.0f}s")
     master.unlink(missing_ok=True)
     master.with_suffix(".txt").unlink(missing_ok=True)
@@ -452,7 +467,7 @@ __all__ = [
     "LICENCE_URL",
     "attach",
     "attached",
+    "clocks_for",
     "files_for",
     "listing",
-    "spans_for",
 ]

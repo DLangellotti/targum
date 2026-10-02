@@ -22,6 +22,13 @@ against modern frequency, and the register filter is what says which Hebrew it i
 Brenner read harder than his vocabulary suggests. The number is about words, and the
 library's column is labelled "Looked up" rather than "Difficulty" for exactly that
 reason.
+
+**Sentence length is measured beside it now, and separately** (`sentence_length`,
+targum-internal#382). Not folded into the share: the two answer different questions, and
+the weekly learned that only the second one separates its first two levels — the easy
+edition measured 15% and the simplified one 14%, the wrong way round, while their
+sentences came out at 6.7 and 11.4 words. It lived inside the weekly's gauge until the
+library needed the same number to say which of its texts a beginner could finish.
 """
 
 from __future__ import annotations
@@ -29,7 +36,7 @@ from __future__ import annotations
 from collections import Counter
 from functools import lru_cache
 
-from ..models import Annotation
+from ..models import Annotation, BlockKind, SegmentedDocument
 from .base import not_vocabulary
 from .frequency import FrequencyBands
 
@@ -37,6 +44,11 @@ from .frequency import FrequencyBands
 LOOKED_UP = 4
 
 _bands = FrequencyBands()
+
+#: Blocks that are nobody's sentence. A title and a byline are the same few words in
+#: every text, so counting them pulls every mean toward every other; the weekly drops its
+#: headlines for the same reason before it segments.
+NOT_SENTENCES = frozenset({BlockKind.heading, BlockKind.byline})
 
 
 @lru_cache(maxsize=200_000)
@@ -64,3 +76,22 @@ def hard_share(annotation: Annotation, language: str) -> int:
     if not total:
         return 0
     return round(sum(n for band, n in counts.items() if band >= LOOKED_UP) / total * 100)
+
+
+def sentence_length(segmented: SegmentedDocument) -> float:
+    """Mean words per sentence, to one place, or 0.0 where there is no sentence at all.
+
+    Words are split on whitespace, the way the weekly has always counted them, so a
+    Hebrew prefix stays part of its word and the number is comparable across languages
+    only roughly — which is enough for a band four words wide. Off the segmentation a
+    build already made, so it is free: nothing is fetched and no model is asked.
+    """
+    sentences = [
+        segment
+        for segment in segmented.segments
+        if segment.kind not in NOT_SENTENCES and segment.text.strip()
+    ]
+    if not sentences:
+        return 0.0
+    words = sum(len(segment.text.split()) for segment in sentences)
+    return round(words / len(sentences), 1)

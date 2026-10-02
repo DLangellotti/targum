@@ -709,6 +709,25 @@ def test_a_build_already_running_is_watched_and_offers_the_way_out() -> None:
     assert "/texts" in page, "no way off the page while it builds"
 
 
+def test_a_queued_or_costing_build_is_a_wait_and_not_a_refusal() -> None:
+    """Copy audit, 2026-09-28 (Q2): `queued` and `looking up words` fell to the
+    template's last branch, so a pressed build without script, and every reload while
+    it waited its turn, read "We can't make this one"."""
+    from targum.render import builder
+
+    queued = _prose(builder.press_page(_quoted(stage="queued", message="")))
+    assert "We're making it" in queued and "We can't make this one" not in queued
+    assert "We're getting it ready." in queued
+    costing = builder.press_page(_quoted(stage="looking up words"))
+    assert 'id="press-watch"' in costing
+    said = _prose(costing)
+    assert "We can't make this one" not in said
+    assert "We're working out how long it'll take." in said
+    # A real refusal still says so.
+    failed = _prose(builder.press_page(_quoted(stage="failed", error="That page isn't there.")))
+    assert "We can't make this one" in failed
+
+
 def test_a_second_visit_to_a_finished_build_opens_its_reader() -> None:
     """`Job.reader` already ends in `reader/index.html` (serve.py sets it so in every
     build path), and the ready state once added it again, so the link 404'd."""

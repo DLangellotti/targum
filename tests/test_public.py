@@ -397,3 +397,99 @@ def test_a_page_with_no_address_declares_no_alternates() -> None:
     set is worse than none."""
     html = text_page(a_russian_row(), "", language="ru")
     assert "hreflang" not in html
+
+
+def _head(html: str) -> list[str]:
+    """What a search result and a shared link show: the title, the description, and the
+    two social tags that repeat them."""
+    title = re.search(r"<title>(.*?)</title>", html, re.S)
+    assert title, "no title"
+    said = [title.group(1)]
+    for name in ('name="description"', 'property="og:title"', 'property="og:description"'):
+        found = re.search(rf'<meta {name} content="([^"]*)"', html)
+        assert found, f"no {name}"
+        said.append(found.group(1))
+    return [unescape(one) for one in said]
+
+
+def test_a_russian_public_page_has_no_english_in_its_title_or_description() -> None:
+    """targum-internal#188. The Russian pages and their hreflang were live, and the title
+    and description a search result shows were still English on the shelf, the text pages,
+    the parasha and the daily cycles — «מגילת העצמאות — Library — targum» on a page whose
+    body was Russian.
+
+    What may stay Latin is a name: targum's own, and the portion, its verses, the cycle's
+    day and the Hebrew date as the calendar spells them. Anything else in Latin letters is
+    English that leaked. A portion browsed to by name is titled with nothing but names, so
+    it is the one head with no Russian in it to find.
+    """
+    from datetime import date
+
+    from targum.daily.calendar import Day
+    from targum.daily.cycles import CYCLES
+    from targum.parasha import calendar as cal
+    from targum.parasha.models import Portion
+    from targum.render.builder import daily_page, parasha_page
+
+    portion = Portion(
+        slug="nasso",
+        name="Nasso",
+        hebrew="נָשֹׂא",
+        numbers=[35],
+        summary="Numbers 4:21-7:89",
+        opening="וַיְדַבֵּר",
+        verses=176,
+        aliyot=7,
+    )
+    day = Day(
+        day=date(2026, 9, 1),
+        cycle=CYCLES[0].slug,
+        title="Kelim 28:2-3",
+        hebrew="כלים כח:ב-ג",
+        hdate="19 Elul 5786",
+        reference="Kelim 28:2-3",
+        span=None,
+    )
+    pages = {
+        "shelf": (shelf_page(ADDRESS, language="ru"), ""),
+        "text": (text_page(a_russian_row(), ADDRESS, language="ru"), ""),
+        "this week": (
+            parasha_page(
+                portion, schedule=cal.Schedule.diaspora, shabbat=date(2026, 5, 30), language="ru"
+            ),
+            f"{portion.name} {portion.summary}",
+        ),
+        "a portion": (
+            parasha_page(portion, schedule=cal.Schedule.diaspora, language="ru"),
+            f"{portion.name} {portion.summary}",
+        ),
+        "a portion with no range": (
+            parasha_page(
+                portion.model_copy(update={"summary": ""}),
+                schedule=cal.Schedule.diaspora,
+                language="ru",
+            ),
+            f"{portion.name} {portion.summary}",
+        ),
+        "daily": (
+            daily_page(CYCLES[0], day, language="ru"),
+            f"{day.title} {day.hdate}",
+        ),
+    }
+    for page, (html, names) in pages.items():
+        for said in _head(html):
+            left = said.replace("targum", "")
+            for name in names.split():
+                left = left.replace(name, "")
+            assert not re.search(r"[A-Za-z]{2,}", left), f"{page}: English in {said!r}"
+            assert re.search(r"[А-Яа-яЁё]", said) or page == "a portion", (
+                f"{page}: nothing Russian in {said!r}"
+            )
+
+
+def test_the_english_public_heads_say_what_they_said() -> None:
+    """The move to the catalogue changed where the words live, not what English says."""
+    assert "<title>Library — targum</title>" in shelf_page(ADDRESS)
+    described = _head(shelf_page(ADDRESS))[1]
+    assert described.startswith("Hebrew — Tanakh, novels, essays and speeches")
+    assert "— Library — targum</title>" in text_page(a_russian_row(), ADDRESS)

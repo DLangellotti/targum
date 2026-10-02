@@ -687,7 +687,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             which = ""
             if language.split("-")[0] == "he" and entry.register.value in ("modern", "biblical"):
                 which = f" {entry.register.value.capitalize()} Hebrew."
-            row["because"] = f"A learner looks up {entry.difficulty}% of its words.{which}"
+            row["because"] = f"{entry.difficulty}% of its words are rare in everyday use.{which}"
             row["reason"] = {
                 "key": "suggest.looked-up",
                 "share": entry.difficulty,
@@ -751,7 +751,7 @@ def _passage(
         "readable": round(best.share, 2),
         "whole": round(whole, 2),
     }
-    row["because"] = f"{best.title} reads at your level, though the whole text is harder."
+    row["because"] = f"Try {best.title} first. It's easier than the text as a whole."
     row["reason"] = {"key": "suggest.passage", "title": best.title}
 
 
@@ -770,7 +770,7 @@ def because_in(row: dict[str, Any], language: str) -> str:
         said = said_in(
             language,
             "suggest.looked-up",
-            "A learner looks up {share}% of its words.",
+            "{share}% of its words are rare in everyday use.",
             share=reason["share"],
         )
         register = str(reason.get("register") or "")
@@ -783,7 +783,7 @@ def because_in(row: dict[str, Any], language: str) -> str:
         return said_in(
             language,
             "suggest.passage",
-            "{title} reads at your level, though the whole text is harder.",
+            "Try {title} first. It's easier than the text as a whole.",
             title=reason.get("title") or "",
         )
     if key == "suggest.unmeasured":
@@ -843,7 +843,10 @@ def quote_build(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         names = ", ".join(f"{language_name(code)} ({code})" for code in sorted(offered))
         return {"error": f"targum translates into {names}."}
     if wanted not in reads:
-        return {"error": f"{language_name(wanted)} is not in the reader's profile."}
+        return {
+            "error": f"{language_name(wanted)} isn't one of the reader's languages. They "
+            "can add it on targum, under Your languages."
+        }
 
     payload: dict[str, Any] = {**BUILD_OPTIONS, "to": wanted}
     catalogue_id = str(args.get("catalogue_id") or "").strip()
@@ -1465,16 +1468,16 @@ def refused(ctx: Ctx | None, host: str, error: Any) -> dict[str, Any] | None:
         # passes and this door did not. Said as what it is, because the reader's own
         # browser will open it and "does not answer" would be false.
         return {
-            "error": f"{host} runs a bot check that targum could not pass, so the page "
-            "cannot be read or built here. It opens in the reader's own browser.",
+            "error": f"{host} runs a bot check that targum could not pass, so targum can't "
+            "read the page or make a text from it. It opens in the reader's own browser.",
             "host_shut": True,
             "challenge": True,
             "advice": "Offer something else rather than this, and say plainly that the "
             "site checks for a browser and targum is not one.",
         }
     return {
-        "error": f"{host} does not answer targum. It may open in the reader's own browser; "
-        "it will not open here, so nothing can be built from it.",
+        "error": f"{host} does not answer targum. It may open in the reader's own browser, "
+        "but targum can't make a text from it.",
         "host_shut": True,
         "advice": "Offer something else rather than this, and say plainly that targum "
         "cannot reach it.",
@@ -1633,6 +1636,34 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 f"{credits_for(media.duration)} credits."
             ],
             "quote_with": tiktok_module.home_url(str(info.get("webpage_url") or url)) or url,
+            **_licence_row(media.licence),
+        }
+    from ..video import facebook as facebook_module
+
+    try:
+        book = facebook_module.is_facebook(url)
+    except TargumError as error:
+        return {"kind": "video", "error": error.message}
+    if book:
+        from .. import screen as screen_module
+
+        try:
+            info = facebook_module.describe(url)
+        except TargumError as error:
+            return {"kind": "video", "error": f"{error.message} {error.hint or ''}".strip()}
+        media = screen_module.from_ytdlp(info)
+        return {
+            "kind": "video",
+            "title": media.title.strip(),
+            "seconds": round(media.duration),
+            "credits": credits_for(media.duration),
+            "audio_language": "",
+            "hebrew_subtitles": False,
+            "advice": [
+                "A Facebook video: it has no subtitles, so the recording would be "
+                f"transcribed. It uses about {credits_for(media.duration)} credits."
+            ],
+            "quote_with": facebook_module.home_from(info) or url,
             **_licence_row(media.licence),
         }
     named = hosts_module.host_for(url)
@@ -2274,11 +2305,11 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "quote_build",
-        "For one text: a link (article, podcast episode, YouTube, Instagram or TikTok "
-        "video, Gutenberg or Wikisource id) or a library id. Free. Returns its length, how "
-        "much of it the reader knows, the credits it uses, and a link the reader opens to "
-        "confirm; you cannot confirm it. For two or more texts use quote_set. A playlist, "
-        "channel or profile address is refused; give single items.",
+        "For one text: a link (article, podcast episode, YouTube, Instagram, TikTok or "
+        "Facebook video, Gutenberg or Wikisource id) or a library id. Free. Returns its "
+        "length, how much of it the reader knows, the credits it uses, and a link the "
+        "reader opens to confirm; you cannot confirm it. For two or more texts use "
+        "quote_set. A playlist, channel or profile address is refused; give single items.",
         _schema(
             {
                 "source": {"type": "string", "description": "A link or fetcher id."},
@@ -2294,11 +2325,11 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "describe_source",
-        "What is at a link before you offer it: a YouTube, Instagram or TikTok video "
-        "(length, the credits it uses, whether it has Hebrew subtitles somebody wrote), a "
-        "podcast episode (length, credits, whether a transcript comes with it), or an "
-        "article (words, minutes, how much is Hebrew). Metadata only; nothing is fetched "
-        "whole and nothing is used.",
+        "What is at a link before you offer it: a YouTube, Instagram, TikTok or Facebook "
+        "video (length, the credits it uses, whether it has Hebrew subtitles somebody "
+        "wrote), a podcast episode (length, credits, whether a transcript comes with it), "
+        "or an article (words, minutes, how much is Hebrew). Metadata only; nothing is "
+        "fetched whole and nothing is used.",
         _schema({"url": {"type": "string"}}, ("url",)),
         describe_source,
         title="Look at a link",
@@ -2426,7 +2457,7 @@ REGISTRY: tuple[Tool, ...] = (
         "your own correction of it: targum checks it itself. Returns targum's recast, its "
         "meaning and one line of why — show them that. A line that was already right keeps "
         "nothing, and a line in another language is not checked. Chatting is included in "
-        "the reader's plan.",
+        "the reader's monthly credits.",
         _schema(
             {
                 "wrote": {

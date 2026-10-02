@@ -61,13 +61,15 @@ def test_the_next_section_is_counted_against_the_readers_own_marks(
 
     ask = {"document": "book", "section": 1, "next": 2, "entry": ""}
     status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", ask, cookie=cookie)
-    assert status == 200 and answer == {"known": 1}, "ספר; עץ is being learned; a name is no word"
+    assert status == 200 and answer == {"known": 1, "connect": False}, (
+        "ספר; עץ is being learned; a name is no word"
+    )
 
     # The press just marked ים on this page. עץ is not on this page, so the page cannot
     # say it for the next one, and a word on neither counts for nothing.
     pressed = {**ask, "known": ["ים", "עץ", "זר"]}
     status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", pressed, cookie=cookie)
-    assert status == 200 and answer == {"known": 2}
+    assert status == 200 and answer == {"known": 2, "connect": False}
 
 
 def test_one_readers_marks_are_never_another_readers_count(
@@ -86,7 +88,7 @@ def test_one_readers_marks_are_never_another_readers_count(
     second = sign_in(port, postbox, "someone.else@example.com")
     ask = {"document": "book", "section": 1, "next": 2}
     status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", ask, cookie=second)
-    assert status == 200 and answer == {"known": 0}
+    assert status == 200 and answer == {"known": 0, "connect": False}
 
 
 def test_signed_out_there_is_nobody_to_count_for(served: tuple[int, str, Path]) -> None:
@@ -118,8 +120,45 @@ def test_a_catalogue_text_is_counted_from_the_index(
     )
     ask = {"document": "book", "section": 2, "entry": "story", "known": ["ים"]}
     status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", ask, cookie=cookie)
-    assert status == 200 and answer == {"known": 2}
+    assert status == 200 and answer == {"known": 2, "connect": False}
 
     for unmeasured in ({**ask, "entry": "unknown"}, {**ask, "document": "elsewhere"}):
         status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", unmeasured, cookie=cookie)
-        assert status == 200 and answer == {"known": None}
+        assert status == 200 and answer == {"known": None, "connect": False}
+
+
+def test_the_finish_says_whether_to_offer_the_connector(
+    served: tuple[int, str, Path],
+    postbox: Postbox,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The one moment the page asks about the reader is where the reader's line about
+    Claude and ChatGPT is decided (design.md §12, "The connector is met on the way in").
+    Only while the connector is open, and only to a reader holding no connection — the
+    rule the banner keeps. A connection made anywhere puts it away."""
+    from targum.accounts import Store
+
+    port, token, out = served
+    book(out)
+    cookie = sign_in(port, postbox)
+    ask = {"document": "book", "section": 1, "next": 2, "entry": ""}
+
+    status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", ask, cookie=cookie)
+    assert status == 200 and answer["connect"] is False, "dark, it is never offered"
+
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", ask, cookie=cookie)
+    assert status == 200 and answer["connect"] is True
+    # Where the offer cannot be measured the count is not said, and the offer still is.
+    elsewhere = {**ask, "document": "elsewhere"}
+    status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", elsewhere, cookie=cookie)
+    assert answer == {"known": None, "connect": True}
+
+    store = Store(tmp_path / "words.db")
+    person = store.person_by_email("reader@example.com")
+    assert person is not None
+    client = store.register_client("Claude", ["https://claude.ai/api/mcp/auth_callback"])
+    store.mint_token(person.id, client, scopes="read")
+    status, answer, _ = call(port, "POST", f"/known-ahead?k={token}", ask, cookie=cookie)
+    assert status == 200 and answer["connect"] is False, "connected, never asked again"

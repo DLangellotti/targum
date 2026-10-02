@@ -267,6 +267,21 @@
       : t("bring.wait.minutes", "Ready in about {n} minutes.", { n: mins });
   }
 
+  /* What pressing spends, said beside the press (copy audit, 2026-09-28): a recording
+     or a film in credits — a credit is a minute and any part of one is a whole one, the
+     way the server counts it (`builder.credits_of`) — and a text none, as Telegram's
+     quote already said. "" for a recording whose length is not known: no guess. */
+  function uses(job) {
+    if (!job) return "";
+    if (job.audio) {
+      var seconds = Number(job.seconds) || 0;
+      if (seconds <= 0) return "";
+      var n = Math.ceil(seconds / 60 - 1e-9);
+      return tn("bring.uses-credits", n, "Uses {n} credit", "Uses {n} credits");
+    }
+    return t("bring.uses-no-credits", "Uses none of your credits");
+  }
+
   //: Past this share of the month's hours the box says so, above the field. Below it
   //: the count is on Your Progress and in the account panel, and nowhere else
   //: (2026-09-10, targum-internal#237).
@@ -289,7 +304,7 @@
       ) +
       " " +
       t("building.credits.rate", "That's about {clock} of audio.", { clock: said(spare) });
-    if (got.ends) line += " " + t("building.hours.reset", "They reset on {date}.", { date: got.ends });
+    if (got.ends) line += " " + t("building.hours.reset", "They come back on {date}.", { date: got.ends });
     return line;
   }
 
@@ -306,8 +321,8 @@
 
   function hours(seconds) {
     var h = seconds / 3600;
-    if (h < 1) return t("bring.audio.minutes", "{n} minutes of audio", { n: Math.max(1, Math.round(seconds / 60)) });
-    return t("bring.audio.hours", "{n} hours of audio", { n: Math.round(h * 10) / 10 });
+    if (h < 1) return t("bring.audio.minutes", "{n} min of audio", { n: Math.max(1, Math.round(seconds / 60)) });
+    return t("bring.audio.hours", "{n} h of audio", { n: Math.round(h * 10) / 10 });
   }
 
   // Keyed by the pipeline's English, which is what arrives; said in the reader's.
@@ -459,7 +474,7 @@
     if (job.voice_later) {
       var voice = document.createElement("p");
       voice.className = "quote-voice";
-      voice.textContent = t("add.job.voice-later", "Audio can be added in the reader.");
+      voice.textContent = t("add.job.voice-later", "You can add audio later, in the reader.");
       card.appendChild(voice);
     }
     // A text that arrived as pages shows its first lines as read: for a picture the
@@ -486,6 +501,13 @@
     var note = document.createElement("p");
     note.className = "quote-note";
     if (job.stage === "ready") {
+      var spends = uses(job);
+      if (spends) {
+        var cost = document.createElement("p");
+        cost.className = "quote-uses";
+        cost.textContent = spends;
+        card.appendChild(cost);
+      }
       var go = document.createElement("button");
       go.type = "button";
       go.className = "quote-go";
@@ -498,7 +520,7 @@
             card.classList.add("refused");
             return;
           }
-          note.textContent = t("bring.started", "We're getting it ready. It'll appear above when it's done.");
+          note.textContent = t("bring.started", "We're getting it ready. You'll find it in Your targums.");
           card.classList.add("started");
           if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
         });
@@ -512,7 +534,7 @@
     } else if (job.stage === "working" || job.stage === "reading") {
       // Sent from the box, so already pressed: the card is its progress. "Getting it
       // ready", never "building" (2026-09-11): a text is getting ready, then ready.
-      note.textContent = t("bring.started", "We're getting it ready. It'll appear above when it's done.");
+      note.textContent = t("bring.started", "We're getting it ready. You'll find it in Your targums.");
       card.classList.add("started");
       if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
     } else if (job.stage === "done" && job.reader) {
@@ -544,7 +566,7 @@
       var out = document.createElement("button");
       out.type = "button";
       out.className = "chat-drop";
-      out.setAttribute("aria-label", t("bring.do-not-bring", "Do not bring {file}", { file: file.name }));
+      out.setAttribute("aria-label", t("bring.do-not-bring", "Remove {file}", { file: file.name }));
       out.textContent = "×";
       out.onclick = function () {
         drop(index);
@@ -572,6 +594,7 @@
     options: options,
     bring: bring,
     wait: wait,
+    uses: uses,
     hours: hours,
     hoursWarning: hoursWarning,
     HOURS_WARN: HOURS_WARN,

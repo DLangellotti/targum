@@ -16,6 +16,7 @@ import pytest
 
 from targum.accounts import Store
 from targum.doorway import invitation, open_the_door
+from targum.letters import invitation as invitation_letter
 
 
 class Postbox:
@@ -142,3 +143,16 @@ def test_asking_for_nobody_lets_nobody_in(store: Store) -> None:
     assert open_the_door(store, post, "https://targum.page", 0) == []
     assert open_the_door(store, post, "https://targum.page", -1) == []
     assert post.sent == []
+
+
+def test_the_invitation_names_the_connector_while_it_is_open() -> None:
+    """The mail is the first thing a new reader holds, so it says targum works inside
+    Claude and ChatGPT and where to connect it — only while the connector is open, like
+    every other place it is met (design.md §12, "The connector is met on the way in")."""
+    for language in ("en", "ru"):
+        told = invitation_letter("https://targum.page/", language, connector=True)
+        for body in (told.text, told.html):
+            assert "https://targum.page/connect" in body
+            assert "Claude" in body and "ChatGPT" in body
+        quiet = invitation_letter("https://targum.page/", language, connector=False)
+        assert "/connect" not in quiet.text and "/connect" not in quiet.html

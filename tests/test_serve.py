@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import gc
 import gzip
+import html
 import io
 import json
 import os
@@ -399,7 +400,7 @@ def test_a_link_signs_you_in_and_only_once(served: tuple[int, str, Path], postbo
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"has been used" in body
+    assert b"no longer works" in body
 
 
 def test_an_address_is_never_confirmed_or_denied(served: tuple[int, str, Path]) -> None:
@@ -552,7 +553,7 @@ def test_a_language_nobody_said_they_read_is_not_sold_to_them(
         {"source": "sefaria:Genesis", "to": "ru", "from": "he"},
         cookie=cookie,
     )
-    assert status == 400 and answer["error"].startswith("Russian isn't in your profile")
+    assert status == 400 and answer["error"].startswith("Russian isn't in Your languages")
 
     _, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
     assert me["learning"] == ["he"] and me["reads"] == ["en"]
@@ -623,6 +624,51 @@ def test_the_switcher_s_language_is_kept_on_the_account(
     assert asked["language"] == "yi", "the switcher's, not the page's"
 
 
+def test_ticking_a_language_again_writes_its_translations_back_into_the_readers(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy audit, 2026-09-28 (Q8). /you says "You lose nothing when you untick one".
+    Unticking rewrote every reader without the language, and ticking it again rewrote
+    nothing — the translation was still in the folder, and no reader showed it until
+    that text was next built. Both directions rewrite now; a rewrite spends nothing."""
+    import threading
+
+    from targum import cli
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    written: list[list[str]] = []
+    done = threading.Event()
+
+    def rebuild_home(home: Path, *, reads: list[str] | None) -> int:
+        written.append(list(reads or []))
+        done.set()
+        return 0
+
+    monkeypatch.setattr(cli, "rebuild_home", rebuild_home)
+    for reads in (["en", "ru"], ["en"], ["en", "ru"]):
+        done.clear()
+        call(
+            port,
+            "POST",
+            f"/account/languages?k={token}",
+            {"learning": ["he"], "reads": reads},
+            cookie=cookie,
+        )
+        done.wait(5)
+    assert written[-2:] == [["en"], ["en", "ru"]], written
+    # Saying the same set again rewrites nothing.
+    before = len(written)
+    call(
+        port,
+        "POST",
+        f"/account/languages?k={token}",
+        {"learning": ["he"], "reads": ["en", "ru"]},
+        cookie=cookie,
+    )
+    assert len(written) == before
+
+
 def test_a_text_shows_under_every_language_it_is_written_in(tmp_path: Path) -> None:
     """Daniel is Hebrew with Aramaic chapters, and shows under both (2026-09-13)."""
     library = Library(tmp_path)
@@ -650,7 +696,7 @@ def test_a_text_shows_under_every_language_it_is_written_in(tmp_path: Path) -> N
 @pytest.mark.parametrize(
     ("asked", "said"),
     [
-        ({"learning": ["he"], "reads": []}, "Keep at least one."),
+        ({"learning": ["he"], "reads": []}, "Keep at least one language ticked."),
         ({"learning": ["yi"], "reads": ["en"]}, "Hebrew stays on."),
         ({"learning": ["he"], "reads": ["fr"]}, "We don't offer French."),
     ],
@@ -1329,7 +1375,8 @@ def test_a_mail_client_reading_the_link_does_not_spend_it(
     for _ in range(3):
         status, body, handed = call(port, "GET", where)
         assert status == 200
-        assert b"Sign in as reader@example.com" in body
+        # The heading allows a break before the "@" (2026-09-28); the address is the same.
+        assert b"Sign in as reader@example.com" in body.replace("\u200b".encode(), b"")
         assert "targum_session=" not in handed, "reading the page signed somebody in"
 
     # And it still works when a person actually presses the button.
@@ -1345,7 +1392,7 @@ def test_the_landing_page_names_the_account_without_spending_the_link(
     link = postbox.link
     status, body, _ = call(port, "GET", link[link.index("/account/enter") :])
     assert status == 200
-    assert b"someone@example.com" in body
+    assert b"someone@example.com" in body.replace("\u200b".encode(), b"")
 
 
 def test_asking_for_too_many_links_is_refused(served: tuple[int, str, Path]) -> None:
@@ -1738,7 +1785,7 @@ def test_the_about_page_is_open_to_strangers(tmp_path: Path) -> None:
     try:
         status, body, _ = call(port, "GET", "/about")
         assert status == 200
-        assert b"under construction" in body
+        assert b"built in public" in body
         assert b"Coming soon" not in body, "the holding page must not swallow it"
     finally:
         server.shutdown()
@@ -3267,8 +3314,15 @@ def test_a_follower_can_stop_from_the_email_with_one_press(
     status, body, _ = call(port, "GET", f"/series/stop?t={stop}")
     assert status == 200 and b"Yes, stop" in body, "a page with a button, not a bare GET"
     assert book.followers("parasha"), "fetching the link spent nothing"
+    # Named, and under its own title: the page never said which series it was stopping,
+    # and its tab said "Weekly News Digest" (copy audit, 2026-09-28, Q23).
+    asked = html.unescape(body.decode("utf-8"))
+    assert "Stop emails about The weekly portion?" in asked
+    assert "<title>The weekly portion — targum</title>" in asked
+    assert "Weekly News Digest" not in asked.split("</head>")[0]
     status, body, _ = form(port, "/series/stop", {"t": stop})
-    assert status == 200 and b"tell you about it again" in body
+    assert status == 200
+    assert "We won't email you about The weekly portion again." in html.unescape(body.decode())
     assert book.followers("parasha") == []
 
 
@@ -3310,13 +3364,13 @@ def test_the_way_out_is_in_the_language_the_reader_followed_in(
     page = body.decode("utf-8")
     assert status == 200
     assert "Да, перестать" in page and "Yes, stop" not in page
-    assert "ваши подписки" in page
+    assert "Ваши серии" in page
     assert 'lang="ru"' in page, "the page says which language it is in"
 
     status, body, _ = form(port, "/series/stop", {"t": stop})
     page = body.decode("utf-8")
-    assert status == 200 and "Больше не сообщим." in page
-    assert "tell you about it again" not in page
+    assert status == 200 and "Мы больше не будем присылать вам письма о серии" in page
+    assert "email you about" not in page
     assert book.followers("parasha") == [], "and it still stops them"
 
     # A token matching nothing is English rather than an error: it is a link out of a mail
@@ -3448,7 +3502,7 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         strings,
         "catalogue",
         lambda code: (
-            {"about.page.targum-is-under-construction": "targum строится"}
+            {"about.page.targum-is-built-in-public": "targum строится"}
             if code == "ru"
             else real(code)
         ),
@@ -3467,7 +3521,7 @@ def test_a_visitor_gets_a_public_page_in_their_browsers_language(
         connection = HTTPConnection("127.0.0.1", port, timeout=5)
         connection.request("GET", "/about", headers={"Accept-Language": "fr-FR"})
         page = connection.getresponse().read().decode("utf-8")
-        assert "targum is under construction" in page and '<html lang="en"' in page
+        assert "targum is built in public" in page and '<html lang="en"' in page
     finally:
         server.shutdown()
 

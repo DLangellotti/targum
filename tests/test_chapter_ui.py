@@ -524,3 +524,69 @@ def test_a_name_is_marked_as_one_in_the_page(tmp_path: Path) -> None:
     assert found is not None
     rows = json.loads(found.group(1).replace("<\\/", "</"))["words"]["s1-0"]
     assert [row[6] for row in rows] == [0, 2, 1]
+
+
+def _recording(tmp_path: Path, video: bool = False) -> tuple[str, dict[int, str]]:
+    """A two-part recording, part one heard and part two waiting, rendered: its contents
+    page and its two pages."""
+    from targum.audio.manifest import MANIFEST, AudioManifest, ManifestPart
+    from targum.models import Document
+    from targum.render import render
+
+    folder = tmp_path / "talk-he"
+    book(folder, chapters=2, translated=1)
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    assert segmented is not None
+    for segment in segmented.segments:
+        chapter = int(segment.block_id[1:])
+        segment.ref = "part 1" if chapter == 1 else "part 2:waiting"
+    segmented.write(folder / "segments.json")
+    (folder / MANIFEST).write_text(
+        AudioManifest(
+            source="talk.mp3",
+            sha256="x",
+            duration=430.0,
+            language="he",
+            parts=[
+                ManifestPart(number=1, start=0.0, end=300.0, video="v1.mp4" if video else ""),
+                ManifestPart(number=2, start=300.0, end=430.0),
+            ],
+        ).model_dump_json(),
+        encoding="utf-8",
+    )
+    document = Document(source="m", title="A Talk", language="he", blocks=[], content_hash="book")
+    translation = read_artifact(Translation, folder / "translations" / "null.natural.en.json")
+    assert translation is not None
+    render(document, segmented, [translation], folder / "reader", folder=folder)
+    pages = {
+        n: (folder / "reader" / f"sec-{n:04d}.html").read_text(encoding="utf-8") for n in (1, 2)
+    }
+    return (folder / "reader" / "index.html").read_text(encoding="utf-8"), pages
+
+
+def test_a_waiting_press_says_what_it_spends(tmp_path: Path) -> None:
+    """Copy audit, 2026-09-28 (Q11). Translate, Transcribe and Prepare all spent with no
+    cost beside them, where the voice offer beside them said its credits. A translation
+    uses none; a transcript its part's minutes, a credit a minute, rounded up."""
+    text = _render_book(tmp_path / "text", translated=1)
+    assert 'id="waiting-cost"' in text[2] and "Uses none of your credits" in text[2]
+
+    contents, pages = _recording(tmp_path / "talk")
+    assert 'id="waiting-cost"' in pages[2] and "Uses 3 credits" in pages[2], "130 seconds"
+    assert 'data-parts="2"' in contents and 'data-part-seconds="1:300.0 2:130.0"' in contents
+    source = (Path(__file__).parents[1] / "src/targum/render/assets/contents.js").read_text(
+        encoding="utf-8"
+    )
+    assert "spends(hearing, partsOf(row))" in source
+    assert 'getElementById("prepare-cost")' in source
+
+
+def test_the_contents_page_starts_a_recording_by_listening_and_a_film_by_watching(
+    tmp_path: Path,
+) -> None:
+    """Copy audit, 2026-09-28 (Q28), and §6: a control names what the person will do.
+    "Start reading" over a recording was talking to somebody else."""
+    contents, _ = _recording(tmp_path / "talk")
+    assert "Start listening" in contents and "Start reading" not in contents
+    film, _ = _recording(tmp_path / "film", video=True)
+    assert "Start watching" in film

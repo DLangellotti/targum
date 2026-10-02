@@ -180,7 +180,7 @@ def test_a_post_is_its_pictures_or_one_video(served, tmp_path: Path) -> None:
         writer.write(out)
     _, done = send(port, token, "handout.pdf", handout.read_bytes())
     status, refused = bring(port, token, upload=done["upload"])
-    assert status == 400 and "pictures, or one video" in refused["error"], refused
+    assert status == 400 and "pictures or a single video" in refused["error"], refused
 
 
 def test_a_post_card_in_a_request_is_never_taken(served, tmp_path: Path) -> None:

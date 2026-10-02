@@ -51,8 +51,8 @@ SCOPES: tuple[tuple[str, str], ...] = (
     ("record", "Read your words, your mistakes and your progress"),
     (
         "chat",
-        "Read what you write in the language you're learning, keep the lines we correct, "
-        "get texts and playlists ready for you to confirm, and add a language you practise",
+        "Send us what you write in a language you're learning, for us to correct. Add texts "
+        "to your playlists, and get new ones ready for you to confirm.",
     ),
 )
 

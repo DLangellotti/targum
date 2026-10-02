@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ t("about.page.under-construction-targum", "under construction — targum") }}</title>
+<title>{{ t("about.page.built-in-public-targum", "built in public — targum") }}</title>
 {%- if canonical %}
 <link rel="canonical" href="{{ canonical }}">
 {%- endif %}
@@ -19,7 +19,8 @@
 
 {#- This page described targum at length: what it does, what had shipped, what it could
     not do yet. None of it was what somebody arriving early needs to be told. The state
-    of the thing is the calendar, and the rest is on GitHub. -#}
+    of the thing is the calendar, what was built is a line or three a day under it, and
+    the rest is on GitHub. -#}
 <main class="sheet">
   <a class="brand" href="/" aria-label="targum">
     <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
@@ -30,14 +31,15 @@
   </a>
 
   <div class="card">
-  <h1>{{ t("about.page.targum-is-under-construction", "targum is under construction") }}</h1>
+  <h1>{{ t("about.page.targum-is-built-in-public", "targum is built in public") }}</h1>
 
   {% if work.commits %}
-  {#- The day the count ends on, not "the last 30 days": served from a wheel these
-      numbers are as old as the deploy, and the sentence has to stay true for as long
-      as the wheel does. -#}
+  {#- The two days the count runs between, not "the last 30 days": served from a wheel
+      these numbers are as old as the deploy, and the sentence has to stay true for as
+      long as the wheel does. It said "in the 30 days to 29 September", which was true
+      and was not English (David, 2026-09-29). -#}
   <p class="figures">
-    <b>{{ work.commits }}</b> {{ t("about.page.changes", "changes in the {days} days to {through}", days=days, through=work.through) if work.commits != 1 else t("about.page.change", "change in the {days} days to {through}", days=days, through=work.through) }}
+    <b>{{ commits }}</b> {{ tn("about.page.changes-between", work.commits, "change from {since} to {through}", "changes from {since} to {through}", since=since, through=through) }}
   </p>
   {#- One square a day. Colour says how much landed, and an empty day is left as the
       quiet grey it was rather than dressed up. -#}
@@ -50,6 +52,23 @@
   <p class="key"><span class="less">{{ t("about.page.less", "Less") }}</span>
     {% for n in [0, 1, 2, 3, 4] %}<i class="day level-{{ n }}"></i>{% endfor %}
     <span class="more">{{ t("about.page.more", "More") }}</span></p>
+  {% endif %}
+
+  {% if log %}
+  {#- What was built, newest first. The lines are English whatever the page is, so the
+      list says so and a screen reader changes voice for it. -#}
+  <div class="built" lang="en" dir="ltr">
+    {% for day in log %}
+    <section class="built-day">
+      <h2><time datetime="{{ day.iso }}">{{ day.said }}</time></h2>
+      <ul>
+        {% for line in day.lines %}
+        <li>{{ line }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  </div>
   {% endif %}
 
   <p class="log-more">{{ t("about.page.the-work-is-on", "The work is on") }}

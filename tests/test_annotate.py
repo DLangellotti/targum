@@ -1947,6 +1947,28 @@ def test_every_transformers_requirement_refuses_the_release_that_breaks_dicta() 
         assert requirement.specifier.contains("5.16.1"), str(requirement)
 
 
+def test_every_stanza_requirement_refuses_the_release_that_breaks_russian() -> None:
+    """1.15.0 refuses a lemmatizer saved in the older pickle format, as the box's Russian is.
+
+    The same shape as the transformers cap above: the lockfile's 1.14.0 kept CI green
+    while the box resolved fresh, took 1.15.0, and stopped the 2026-10-01 rebuild.
+    """
+    import tomllib
+
+    from packaging.requirements import Requirement
+
+    root = Path(__file__).resolve().parents[1]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    named = [*project["dependencies"]]
+    for extra in project.get("optional-dependencies", {}).values():
+        named += extra
+    wanted = [Requirement(line) for line in named if Requirement(line).name == "stanza"]
+    assert wanted, "stanza is no longer a requirement; drop this test with it"
+    for requirement in wanted:
+        assert not requirement.specifier.contains("1.15.0"), str(requirement)
+        assert requirement.specifier.contains("1.14.0"), str(requirement)
+
+
 def test_the_installed_transformers_still_has_what_dicta_calls() -> None:
     """The other half: a lockfile bump past the cap fails here rather than on the box."""
     modeling = pytest.importorskip("transformers.modeling_utils")

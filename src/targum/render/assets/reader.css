@@ -1133,6 +1133,16 @@ body.marking .w.here,
   font-size: 0.8125rem;
 }
 .gloss-card .guessed[hidden] { display: none; }
+/* A word of scripture's accent, named (design.md §12, "A word in scripture names its
+   accent"): its own line under the reading, muted, at the card's size, and wrapping to
+   the card for the reason the line above does. */
+.gloss-card .accent {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
 
 /* A Hebrew verb taken apart: its root and the binyan it is built in. Its own line
    rather than a tag beside the level, because it is the answer to a different
@@ -1164,6 +1174,32 @@ body.marking .w.here,
   cursor: pointer;
 }
 .gloss-card .verb .here:hover { border-block-end-color: var(--accent); }
+/* The root as a way in to the words of it the reader has met (targum-internal#96), on
+   a box that shows where words come round (`TARGUM_OCCURRENCES`). Drawn as the other
+   ways on this line are — accent, a hairline under it — and still set as a root. */
+.gloss-card .verb .root-open {
+  padding: 0;
+  background: none;
+  border: 0;
+  border-block-end: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  border-radius: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.gloss-card .verb .root-open:hover { border-block-end-color: var(--accent); }
+.gloss-card .verb .root-open bdi { color: inherit; }
+/* Where the word comes round, and where the reader met it (targum-internal#95, #96).
+   Metadata, set as the register line is: muted, a line each. */
+.gloss-card .card-round {
+  display: block;
+  margin-block-start: 0.3rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.gloss-card .card-round > span { display: block; }
+.gloss-card .card-round bdi { font-family: var(--reading); color: var(--ink); }
+.gloss-card .card-root-words { display: block; }
 /* The part of speech's own line — a verb's parsing, a noun's gender, a name saying it
    is one. Muted like the other metadata; the answer above it is the ink. The register
    line is the same kind of fact and is set the same way: which Hebrew the word belongs
@@ -1778,7 +1814,9 @@ body[data-case="Loc"] .w.case-Loc {
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
-    .gloss-card .inferred
+    .gloss-card .inferred,
+    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
+    .gloss-card .verb .root-open
   ) {
     position: relative;
   }
@@ -1798,7 +1836,9 @@ body[data-case="Loc"] .w.case-Loc {
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
        reach grows and whose look and line do not. */
-    .gloss-card .inferred
+    .gloss-card .inferred,
+    /* The root, where it opens the words of it the reader has met (targum-internal#96). */
+    .gloss-card .verb .root-open
   )::after {
     content: "";
     position: absolute;
@@ -2111,6 +2151,14 @@ body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
 }
 .toc .get:hover { color: var(--ink); border-color: var(--ink-soft); }
 .toc .get:disabled { opacity: 0.6; cursor: default; }
+/* What the press beside it spends (copy audit, 2026-09-28). */
+.toc .get-cost, .whole .get-cost {
+  margin-inline-start: 0.5rem;
+  color: var(--ink-soft);
+  font-family: system-ui, sans-serif;
+  font-size: 0.6875rem;
+}
+.whole .get-cost[hidden] { display: none; }
 
 /* A chapter page nobody has paid for yet: one line above the source, and the button
    that gets it. Not clay — nothing has gone wrong, it is a thing you can have. The
@@ -2302,6 +2350,12 @@ body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
    row's soft grey: it is the one thing on the row about the reader. Type, not motion. */
 .next-up-known { flex: 1 0 100%; color: var(--ink); }
 .next-up-known[hidden] { display: none; }
+/* The way into Claude and ChatGPT, under the count and in the same row, said once
+   (design.md §12, "The connector is met on the way in"). The line in ink like the
+   count; the link the reader's working accent, since it is a thing to press. */
+.next-up-connect { flex: 1 0 100%; color: var(--ink); }
+.next-up-connect[hidden] { display: none; }
+.next-up-connect a { color: var(--accent); font-weight: 600; }
 
 /* A way to disagree with the offer, and it is meant to be quieter than the offer: the
    reader who wants this one takes it, and the one who does not should find the door
@@ -3990,6 +4044,17 @@ html:fullscreen { background: var(--paper); }
   .bar-more.open .group select,
   .bar-more.open .group .home,
   .bar-more.open .group .level { border-color: var(--rule); }
+  /* The recording's row holds four things, and the open menu's one-line flex gave each a
+     quarter of a phone: "Close / the / player", a word to a line (targum-internal#397).
+     It wraps instead: the label, the credit under it, then the two controls together.
+     It has no `data-what`, so its `::before` would only be an empty item taking room. */
+  .bar-more.open .group.more-player { flex-wrap: wrap; column-gap: 1rem; row-gap: 0.1rem; }
+  .bar-more.open .group.more-player::before { content: none; }
+  .bar-more.open .more-player .label,
+  .bar-more.open .more-player .more-credit { flex: 1 0 100%; }
+  .bar-more.open .more-player .more-credit { margin-block-start: 0; }
+  .bar-more.open .more-player .more-get,
+  .bar-more.open .more-player .more-close { order: 1; white-space: nowrap; }
 
   /* --- the docked picture, which is a band occupant here and not in the margin ---
      On a wide window the picture stands in a corner and lifts itself over the strip by

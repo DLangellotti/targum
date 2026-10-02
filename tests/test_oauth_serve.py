@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import html
 import json
 import os
 import secrets
@@ -228,7 +229,7 @@ def test_the_page_says_what_is_being_asked_for(connected: tuple[int, str, Path])
     assert "Claude" in page, "the client's claim about itself, shown as one"
     assert "Search the library" in page
     assert "Read your words" in page
-    assert "add a language you practise" not in page, "not asked for, so not granted"
+    assert "Add texts to your playlists" not in page, "not asked for, so not granted"
 
 
 def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str, Path]) -> None:
@@ -243,7 +244,7 @@ def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str,
         session=session,
     )
     page = body.decode()
-    assert "add a language you practise" in page
+    assert "Add texts to your playlists" in page
     assert "Chatting is included." in page
     said = page.split("<main", 1)[1]  # the page inlines `reader.css`, which says plenty
     assert "credits" not in said and "hours" not in said, "no allowance on this page"
@@ -261,6 +262,53 @@ def test_a_signed_out_reader_signs_in_and_is_brought_back(
     assert status == 200
     assert b"Send a link" in body or b"Email" in body, "the sign-in door, not the holding page"
     assert serve.CONNECT_COOKIE in headers.get("set-cookie", ""), "so they come back here"
+
+
+def test_the_sign_in_door_says_which_connect_it_is_finishing(
+    connected: tuple[int, str, Path],
+) -> None:
+    """Copy audit, 2026-09-28 (Q9). The door Connect sends a signed-out reader to said
+    nothing about Connect, so it looked like another errand."""
+    port, _, _ = connected
+    _, challenge = pkce()
+    status, body, _ = get(port, f"/oauth/authorize?{an_authorize(a_client(port), challenge)}")
+    assert status == 200 and b"Sign in to finish connecting Claude." in body
+
+
+def _landing(port: int, path: str, cookie: str = "") -> str:
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("GET", path, skip_host=True)
+    conn.putheader("Host", HOST)
+    if cookie:
+        conn.putheader("Cookie", cookie)
+    conn.endheaders()
+    got = conn.getresponse().read().decode()
+    conn.close()
+    return html.unescape(got)
+
+
+def test_a_connect_lost_on_the_way_through_the_mail_is_said_not_dropped(
+    connected: tuple[int, str, Path],
+) -> None:
+    """Copy audit, 2026-09-28 (Q9). The link asked for mid-Connect is marked, so the page
+    it opens can tell a Connect still waiting in this browser from one that was started in
+    another, or whose cookie ran out — which used to be dropped in silence."""
+    port, _, store_path = connected
+    store = Store(store_path)
+    lost = "We couldn't finish connecting: you started in another browser, or too long ago."
+
+    elsewhere = _landing(port, f"/account/enter?t={store.start_sign_in('a@example.com')}&c=1")
+    assert lost in elsewhere and "Sign in as" in elsewhere
+
+    waiting = serve._short_cookie(
+        serve.CONNECT_COOKIE, f"/oauth/authorize?{an_authorize(a_client(port), pkce()[1])}"
+    ).split(";")[0]
+    here = _landing(port, f"/account/enter?t={store.start_sign_in('a@example.com')}&c=1", waiting)
+    assert lost not in here and "Sign in to finish connecting Claude." in here
+
+    # An ordinary link says neither.
+    plain = _landing(port, f"/account/enter?t={store.start_sign_in('a@example.com')}")
+    assert lost not in plain and "finish connecting" not in plain
 
 
 def test_a_request_we_cannot_read_is_a_page_and_never_a_redirect(

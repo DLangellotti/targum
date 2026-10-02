@@ -504,7 +504,7 @@
     var scopes = [
       t("connect.scope.library", "Search the library and look up what is at a link"),
       t("connect.scope.record", "Read your words, your mistakes and your progress"),
-      t("connect.scope.chat", "Read what you write in the language you're learning, keep the lines we correct, get texts and playlists ready for you to confirm, and add a language you practise")
+      t("connect.scope.chat", "Send us what you write in a language you're learning, for us to correct. Add texts to your playlists, and get new ones ready for you to confirm.")
     ];
     // No ticks: the page grants what the app asked for, in one press (design.md §12,
     // 2026-09-24), so the picture shows the list and the button and nothing to choose.

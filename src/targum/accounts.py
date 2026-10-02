@@ -224,7 +224,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    in it, and so a Russian reader is sent the Russian edition. On a table every box has,
 #    so it is in MIGRATIONS; empty means English, which every row before it was.
 #
-# 36→37: event.word — the dictionary form a `lookup` was for (targum-internal#105, David
+# 36→37: waiting.page — which of targum's own pages somebody pressed Join on
+#    (targum-internal#388), now that `/aliyah` stands beside the front door and the list
+#    cannot otherwise say whether it brings anybody. Empty means unknown, which every row
+#    before it is. On a table every box has, so it is in MIGRATIONS.
+#
+# 37→38: waiting.link — the link somebody pasted into the front page's box before they
+#    joined (targum-internal#399), kept with their place so it is theirs when they are
+#    let in. Empty for everybody who joined without one. In MIGRATIONS for the same
+#    reason as `page`.
+#
+# 38→39: event.word — the dictionary form a `lookup` was for (targum-internal#105, David
 #    2026-09-28), so the week's sheet can list the words a reader actually looked up and
 #    not only the ones they kept. On a table every box with the record has, so it is in
 #    MIGRATIONS; empty for every lookup before it, and for every other kind of event.
@@ -232,7 +242,7 @@ REGISTRATIONS_PER_HOUR = 60
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 37
+SCHEMA_VERSION = 39
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -268,6 +278,44 @@ CREATE TABLE IF NOT EXISTS invited (
   at    INTEGER NOT NULL
 );
 """
+
+# Accounts for testing the product as a new reader would meet it, again and again
+# (David, 2026-09-28: "a testing account that you and I can use, and whose memory is
+# wiped each time it logs out"). Signing out of one wipes everything it holds — see
+# `Store.wipe` — and keeps the account and its invitation, so the next sign-in is a first
+# visit. Written only from the command line on the box, and only for an address that has
+# no account yet or is already one of these: a real reader's account can never become
+# one by a typo, because the thing that happens to it next is that it is emptied.
+TEST_ACCOUNT = """
+CREATE TABLE IF NOT EXISTS test_account (
+  email TEXT PRIMARY KEY,
+  at    INTEGER NOT NULL
+);
+"""
+
+#: What a test account holds, emptied at its sign-out: every table keyed by `person`.
+#: `tests/test_test_account.py` holds this against the schema, so a table added tomorrow
+#: with a person column fails there until it is named here or in `WIPE_BY_HAND`.
+WIPED = (
+    "word",
+    "meaning",
+    "phrase",
+    "doc",
+    "day",
+    "section",
+    "reading",
+    "event",
+    "chosen",
+    "slip",
+    "telegram",
+    "oauth_token",
+    "oauth_grant",
+    "prompt",
+    "session",
+    "link",
+)
+#: Keyed by person and emptied by hand in `Store.wipe`, their children first.
+WIPE_BY_HAND = ("chat", "playlist")
 
 # Who is not a reader but the person running the box. An address here is exempt from the
 # per-account spend rails — see `serve.Library.claim` — because the limits exist to stop
@@ -489,6 +537,11 @@ MIGRATIONS: tuple[str, ...] = (
     # since 2026-09-27 there is a Russian edition every issue to send instead. Empty
     # means English, which is what every row written before this was sent.
     "ALTER TABLE subscriber ADD COLUMN language TEXT NOT NULL DEFAULT ''",
+    # Which of targum's pages somebody joined the waitlist from (targum-internal#388).
+    # Empty is unknown, and the truth about every row written before it.
+    "ALTER TABLE waiting ADD COLUMN page TEXT NOT NULL DEFAULT ''",
+    # The link somebody tried on the front page and joined with (targum-internal#399).
+    "ALTER TABLE waiting ADD COLUMN link TEXT NOT NULL DEFAULT ''",
     # The dictionary form a look-up was for (targum-internal#105, 2026-09-28): the lemma
     # the ledger keys a word on, so a week's look-ups meet the reader's own words and
     # meanings. Empty on every lookup recorded before it and on every other kind.
@@ -1010,7 +1063,13 @@ CREATE TABLE IF NOT EXISTS waiting (
   invited  INTEGER NOT NULL DEFAULT 0,
   -- The language the front door was in when they joined. Empty means English, which is
   -- what the door was before it had a second language to be in.
-  language TEXT    NOT NULL DEFAULT ''
+  language TEXT    NOT NULL DEFAULT '',
+  -- Which of targum's own pages they pressed Join on: '/', '/aliyah', '/weekly'.
+  -- Empty means unknown. Never where they were before targum (targum-internal#388).
+  page     TEXT    NOT NULL DEFAULT '',
+  -- The link they tried on the front page and joined with, never fetched again until
+  -- they are let in. Empty when they joined without one (targum-internal#399).
+  link     TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 
@@ -1376,6 +1435,7 @@ class Store:
         self.db.executescript(SCHEMA)
         self.db.executescript(INVITED)
         self.db.executescript(ADMIN)
+        self.db.executescript(TEST_ACCOUNT)
         self.db.executescript(CHOSEN)
         self.db.executescript(EVENTS)
         self._migrate()
@@ -2048,7 +2108,9 @@ class Store:
     # person decides to let them in, and letting them in is `allow` on `invited`, which
     # is a separate act with a separate record.
 
-    def join_waitlist(self, email: str, language: str = "") -> str | None:
+    def join_waitlist(
+        self, email: str, language: str = "", page: str = "", link: str = ""
+    ) -> str | None:
         """Take an address. Mint a token to confirm it, or None if it is already on.
 
         Idempotent for the same reason `subscribe` is: asking twice is what somebody
@@ -2058,6 +2120,14 @@ class Store:
         `language` is the language the front door was in when they pressed, and it is
         kept so the invitation can be written in it. A second ask overwrites it: the
         door they came through most recently is the better guess at what they read.
+
+        `page` is which of targum's pages they pressed Join on, already narrowed to one
+        the caller recognises; empty is unknown. A second ask keeps the first answer,
+        because the question it answers is which page brought them.
+
+        `link` is what they tried in the front page's box before joining, already vetted
+        by the caller (targum-internal#399). A second ask with a link replaces it; one
+        without keeps what was there.
         """
         address = tidy(email)
         if not address:
@@ -2069,10 +2139,12 @@ class Store:
         with self.write() as db:
             db.execute(
                 """
-                INSERT INTO waiting (email, state, confirm, stop, asked, language)
-                VALUES (?, 'pending', ?, ?, ?, ?)
+                INSERT INTO waiting (email, state, confirm, stop, asked, language, page, link)
+                VALUES (?, 'pending', ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(email) DO UPDATE SET
-                    state = 'pending', confirm = ?, asked = ?, language = ?
+                    state = 'pending', confirm = ?, asked = ?, language = ?,
+                    page = CASE WHEN page = '' THEN excluded.page ELSE page END,
+                    link = CASE WHEN excluded.link = '' THEN link ELSE excluded.link END
                 """,
                 (
                     address,
@@ -2080,6 +2152,8 @@ class Store:
                     secrets.token_urlsafe(TOKEN_BYTES),
                     now(),
                     spoken,
+                    page,
+                    link,
                     digest(token),
                     now(),
                     spoken,
@@ -2153,7 +2227,9 @@ class Store:
             if row is None:
                 return False
             db.execute(
-                "UPDATE waiting SET state = 'off', ended = ? WHERE email = ?",
+                # The link goes with them: it was kept only to hand back when they
+                # were let in (targum-internal#399).
+                "UPDATE waiting SET state = 'off', ended = ?, link = '' WHERE email = ?",
                 (now(), row["email"]),
             )
             return True
@@ -2184,6 +2260,29 @@ class Store:
         """Stamp an address as let in, so a second opening does not mail them twice."""
         with self.write() as db:
             db.execute("UPDATE waiting SET invited = ? WHERE email = ?", (now(), tidy(email)))
+
+    def waiting_link(self, email: str) -> str:
+        """The link somebody tried on the front page and joined with, or "" (#399)."""
+        row = self.db.execute("SELECT link FROM waiting WHERE email = ?", (tidy(email),)).fetchone()
+        return "" if row is None else str(row["link"] or "")
+
+    def account_for_invited(self, email: str) -> Person | None:
+        """The account an invited address will sign in to, made now if it is not there.
+
+        The same row `start_sign_in` makes on the first link, made a little earlier: when
+        somebody is let in with a saved link, the build of it has to belong to somebody
+        before they have signed in (targum-internal#399). Only for an address already on
+        the guest list, so this cannot open an account the door did not.
+        """
+        address = tidy(email)
+        with self.write() as db:
+            if db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone() is None:
+                return None
+            db.execute(
+                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return self.person_by_email(address)
 
     # -- series (2026-09-11) ---------------------------------------------------------
 
@@ -2257,6 +2356,13 @@ class Store:
             return "en"
         row = self.db.execute("SELECT language FROM follow WHERE stop = ?", (token,)).fetchone()
         return str(row["language"] or "en") if row is not None else "en"
+
+    def following_series(self, token: str) -> str:
+        """Which series a stop token is for, or "" — so the page it opens can name it."""
+        if not token:
+            return ""
+        row = self.db.execute("SELECT series FROM follow WHERE stop = ?", (token,)).fetchone()
+        return str(row["series"] or "") if row is not None else ""
 
     def mark_series_sent(self, email: str, series: str, instalment: str) -> None:
         with self.write() as db:
@@ -2364,6 +2470,98 @@ class Store:
         """
         with self.write() as db:
             return db.execute("DELETE FROM invited WHERE email = ?", (tidy(email),)).rowcount > 0
+
+    # -- test accounts (2026-09-28) ------------------------------------------------
+
+    def make_test_account(self, email: str) -> str:
+        """Mark an address as a test account, and invite it.
+
+        Refused for an address that already has an account and is not a test account:
+        the next thing that happens to a test account is that it is emptied, and a real
+        reader's words must never be one typo away from that. A test account that
+        already exists is marked again, harmlessly.
+        """
+        address = tidy(email)
+        if not address or "@" not in address:
+            raise ValueError("That doesn't look like an email address.")
+        row = self.db.execute("SELECT id FROM person WHERE email = ?", (address,)).fetchone()
+        if row is not None and not self.is_test_account_email(address):
+            raise ValueError(
+                f"{address} already has an account, so it can't become a test account: "
+                "signing out of a test account empties it. Use a new address."
+            )
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO test_account (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+            db.execute(
+                "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return address
+
+    def test_accounts(self) -> list[str]:
+        return [
+            row["email"] for row in self.db.execute("SELECT email FROM test_account ORDER BY at")
+        ]
+
+    def is_test_account_email(self, email: str) -> bool:
+        address = tidy(email)
+        found = self.db.execute("SELECT 1 FROM test_account WHERE email = ?", (address,))
+        return found.fetchone() is not None
+
+    def is_test_account(self, person: Person | None) -> bool:
+        return person is not None and self.is_test_account_email(person.email)
+
+    def test_sign_in(self, email: str) -> str:
+        """A sign-in token for a test account, for the operator to hand over by hand.
+
+        The mailed link proves an address by sending something to it; a test account is
+        shared by the people testing, and one of them cannot read the mail. So the box's
+        operator can mint the link — for a test account and for nothing else, which is
+        what keeps this from being a way into a real reader's account.
+        """
+        address = tidy(email)
+        if not self.is_test_account_email(address):
+            raise ValueError(f"{address} is not a test account.")
+        return self.start_sign_in(address)
+
+    def wipe(self, person: Person) -> None:
+        """Empty a test account, keeping the account and its invitation.
+
+        Everything a reader holds goes — their words, what they marked and finished, what
+        they said on arrival, conversations, lists, connections, their name and picture —
+        and every session and link with it, so a second browser still signed in is
+        signed out too rather than left holding a history that no longer exists. The
+        caller empties the account's folder of texts. Refuses anything but a test account.
+        """
+        if not self.is_test_account(person):
+            raise ValueError("Only a test account is wiped.")
+        with self.write() as db:
+            for table in WIPED:
+                db.execute(f"DELETE FROM {table} WHERE person = ?", (person.id,))
+            db.execute(
+                "DELETE FROM chat_turn WHERE chat IN (SELECT id FROM chat WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM chat WHERE person = ?", (person.id,))
+            db.execute(
+                "DELETE FROM playlist_item WHERE playlist IN"
+                " (SELECT id FROM playlist WHERE person = ?)",
+                (person.id,),
+            )
+            db.execute("DELETE FROM playlist WHERE person = ?", (person.id,))
+            # Kept by address rather than by person: the series it followed, and a
+            # language the operator marked it as reading.
+            db.execute("DELETE FROM follow WHERE email = ?", (person.email,))
+            db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
+            db.execute(
+                "UPDATE person SET name = '', picture = '', address = '', interest = '',"
+                " declared = '', events = '', granted = 0, revision = revision + 1"
+                " WHERE id = ?",
+                (person.id,),
+            )
 
     def invitations(self) -> list[str]:
         return [row["email"] for row in self.db.execute("SELECT email FROM invited ORDER BY at")]
@@ -2509,7 +2707,7 @@ class Store:
         if strange:
             raise ValueError(f"We don't offer {language_name(strange[0])}.")
         if not wanted:
-            raise ValueError("Keep at least one.")
+            raise ValueError("Keep at least one language ticked.")
         if kind == "learning" and not wanted >= set(REQUIRED_LEARNING):
             raise ValueError(f"{language_name(REQUIRED_LEARNING[0])} stays on.")
         with self.write() as db:
@@ -2588,6 +2786,29 @@ class Store:
             return False
         found = self.db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone()
         return found is not None
+
+    def is_leaving(self, email: str) -> bool:
+        """Whether this address's account is inside its deletion grace period.
+
+        Every door refuses such an account, and each used to say why wrongly — "That
+        link no longer works", "targum isn't open yet" — so a person who changed their
+        mind was never told how to keep it (copy audit, 2026-09-28)."""
+        address = tidy(email)
+        if not address:
+            return False
+        row = self.db.execute("SELECT leaving FROM person WHERE email = ?", (address,)).fetchone()
+        return row is not None and row["leaving"] is not None
+
+    def leaving_link(self, token: str) -> bool:
+        """Whether this sign-in link would have worked but for its account closing."""
+        cutoff = now() - LINK_MINUTES * 60 * 1000
+        row = self.db.execute(
+            "SELECT 1 FROM link JOIN person ON person.id = link.person "
+            "WHERE link.hash = ? AND link.used IS NULL AND link.made >= ? "
+            "AND link.purpose = ? AND person.leaving IS NOT NULL",
+            (digest(token), cutoff, SIGN_IN),
+        ).fetchone()
+        return row is not None
 
     def start_sign_in(self, email: str) -> str:
         """Mint a link for this address, making the account if there is not one.

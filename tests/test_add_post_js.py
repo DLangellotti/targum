@@ -85,6 +85,26 @@ def test_reading_the_pictures_is_the_cards_press_and_names_the_post_by_its_job()
     assert len(said["uploaded"]) == 1
 
 
+@pytest.mark.parametrize(
+    ("are", "button"),
+    [("pictures", "Read the 2 pictures"), ("pages", "Read the 2 pages")],
+)
+def test_pictures_that_are_all_there_is_are_not_also_read(are: str, button: str) -> None:
+    """Copy audit, 2026-09-28 (Q28). "Also read the 2 pictures" under a post whose
+    words are all in its pictures, and under a scanned PDF, whose pictures are its
+    pages: there was nothing for "also" to be in addition to. "Also" stays where a
+    caption was read."""
+    refused = dict(
+        QUOTE,
+        stage="failed",
+        error="That post's words are all in its pictures.",
+        pictures_are=are,
+    )
+    said = run(fields={"handle": "h"}, files=["one.jpg", "two.jpg"], answers={"/prepare": refused})
+    assert button in said["status"]
+    assert not [line for line in said["status"] if line.startswith("Also read")]
+
+
 def test_a_link_moves_the_switch_to_where_it_was_posted() -> None:
     said = run(
         fields={
@@ -104,8 +124,8 @@ def test_a_link_moves_the_switch_to_where_it_was_posted() -> None:
     [
         ({"words": "שורה"}, [], "Add the handle it was posted under."),
         ({"handle": "h"}, [], "Paste what the post says, or add its pictures or its video."),
-        ({"handle": "h"}, ["a.jpg", "b.mp4"], "A post's media is its pictures, or one video."),
-        ({"handle": "h"}, ["a.mp4", "b.mov"], "A post's media is its pictures, or one video."),
+        ({"handle": "h"}, ["a.jpg", "b.mp4"], "Add either its pictures or a single video."),
+        ({"handle": "h"}, ["a.mp4", "b.mov"], "Add either its pictures or a single video."),
     ],
 )
 def test_the_form_says_what_is_missing_before_anything_goes_up(

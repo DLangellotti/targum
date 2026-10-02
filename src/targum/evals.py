@@ -45,7 +45,8 @@ DEFAULT = Path("evals/ledger.jsonl")
 FLOORS = Path("evals/floors.json")
 
 #: The stages #163 names, the chat's (`grading`, #213; `recast`, #219; `chat`, #242;
-#: `ask`, #223), and `stress` (#260) and `suggest` (#244). `evals/README.md` says what
+#: `ask`, #223), `stress` (#260), `suggest` (#244), `rail` (#324, which writes no rows
+#: yet) and `said` (#266, how French is said on its card). `evals/README.md` says what
 #: writes each. Not an enum: a stage nobody has written yet should be recordable the day
 #: somebody does, without this file being the thing in the way.
 STAGES = (
@@ -61,7 +62,40 @@ STAGES = (
     "chat",
     "ask",
     "suggest",
+    "rail",
+    "said",
 )
+
+
+#: What `targum eval <name>` runs: the harness in `scripts/` for each stage. A stage two
+#: scripts measure is named `stage/<corpus>`, after the corpora in `evals/SOURCES.md`,
+#: and the bare stage lists both rather than picking one. `evals/README.md` says what
+#: each writes; the scripts stay where they are, and this is only the way in.
+SCRIPTS = {
+    "lemma/iahlt": "score_annotation.py",
+    "lemma/ud": "eval_lemma.py",
+    "vocalize": "measure_pointing.py",
+    "stress/wiktionary-ru": "eval_stress.py",
+    "stress/tanakh-taamim": "eval_hebrew_stress.py",
+    "align": "eval_align.py",
+    "grading": "eval_grading.py",
+    "recast": "eval_recast.py",
+    "chat": "eval_why.py",
+    "ask": "eval_ask.py",
+    "suggest": "eval_suggest.py",
+    "rail": "eval_rail.py",
+    "said": "eval_liaison.py",
+}
+
+
+def script_for(name: str) -> str:
+    """The script `targum eval <name>` runs, or a `ValueError` saying what would do."""
+    if name in SCRIPTS:
+        return SCRIPTS[name]
+    within = sorted(known for known in SCRIPTS if known.startswith(f"{name}/"))
+    if within:
+        raise ValueError(f"{name} is measured two ways; one of {', '.join(within)}")
+    raise ValueError(f"no eval called {name!r}; one of {', '.join(SCRIPTS)}")
 
 
 @dataclasses.dataclass(frozen=True)

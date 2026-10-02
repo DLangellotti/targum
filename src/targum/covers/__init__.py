@@ -20,7 +20,7 @@ import base64
 import os
 from typing import Any, Protocol
 
-from ..errors import TargumError
+from ..errors import OffHere, TargumError
 
 #: Portrait, because a cover is. The nearest size these models offer to the 2:3 the
 #: prompt asks for; the tile crops rather than stretches, so exactness is not the point.
@@ -179,7 +179,7 @@ class OpenAIImages:
 
         key = os.environ.get("OPENAI_API_KEY", "")
         if not key:
-            raise TargumError("No image key.", self.available()[1])
+            raise OffHere("No image key.", self.available()[1])
         headers = {"Authorization": f"Bearer {key}"}
         with httpx.Client(timeout=TIMEOUT) as client:
             if reference is None:

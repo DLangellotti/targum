@@ -1,0 +1,182 @@
+# What was built, day by day, as /about says it. Newest first.
+#
+# A day is its date, then one to three lines, then a blank line. A line says what changed
+# for somebody using targum, in plain words, and ends in a full stop. What a line may not
+# say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
+# deploy/built.md is the brief these are written to.
+
+2026-10-01
+On a phone, the recording controls in the menu no longer break one word to a line.
+A known word's card says known once, not twice.
+
+2026-09-29
+The about page shows what was built, day by day.
+A French word's card names a pronoun's role, and tells the imperfect from the simple past.
+A word of the Torah names its chanting accent on its card while the marks are shown.
+
+2026-09-28
+A first visit opens a text you can follow.
+The site's own words were checked against what the app does, and corrected.
+The privacy notice names who receives what.
+
+2026-09-27
+Every weekly issue has a Russian edition.
+A text can be printed as a reader's edition.
+Where targum worked out a reading the text left unmarked, the page says so.
+
+2026-09-26
+Your texts are sorted into tabs, and a series folds into one row.
+
+2026-09-25
+Your texts are yours, and the Library is everyone's.
+Finishing a text shows three figures.
+
+2026-09-24
+Playlists: gather texts, swipe to the next, take a whole set in one press.
+Ask to practise a language in conversation, and that is how you choose it.
+The Library says what each text is at a glance.
+
+2026-09-23
+targum works inside Claude and ChatGPT.
+What a text takes is counted in credits, never in money.
+
+2026-09-22
+A reader can say a meaning is wrong and propose a better one.
+Rashi reads beside the Torah, comment by comment.
+Every public page has an address in each language.
+
+2026-09-21
+When targum has to refuse something, it says why in your language.
+Corrections in conversation were measured for Russian readers, and match the English.
+
+2026-09-20
+Buttons say read, listen or watch, to match what they open.
+Record a voice note and read it back as a text.
+A verb's card lists the other verbs built on the same root.
+
+2026-09-19
+There is one look, and it is light.
+Arriving takes two questions.
+
+2026-09-18
+Paste a link to a short video and read along with it.
+What to work on: the words and phrases that are nearly yours.
+The weekly issue publishes itself.
+
+2026-09-17
+A verb's card shows its full conjugation.
+The Library is browsed by subject, level and kind.
+A new reader is asked what they like to read about.
+
+2026-09-16
+A front page for people who have never heard of targum.
+Sign in with Google.
+Every text in the Library says how much of it you already know.
+
+2026-09-15
+The whole interface speaks Russian.
+Hear a line first, and see its words when it ends.
+A French word's card names its tense, its mood and its gender.
+
+2026-09-14
+A Russian word's card names its case, and marks stress only where two sources agree.
+Each language keeps its own library, filters and word count.
+Every screen was checked with Hebrew on it, and what broke was fixed.
+
+2026-09-13
+French, Russian and Italian can be read and heard.
+Onkelos, the Aramaic translation of the Torah, reads beside the Hebrew.
+A video can be picked up, moved and resized.
+
+2026-09-11
+A new look for everything around the text, from a small phone to a television.
+Follow a series, and its newest instalment is waiting for you.
+Ask about the text you are reading, and be answered in Hebrew at your level.
+
+2026-09-10
+A reply in conversation is three Hebrew sentences at most.
+The questions most readers ask are buttons.
+Tick off the words you already know, so the count starts true.
+
+2026-09-09
+Disagree with a suggestion, and targum offers another.
+Prayer books have a place of their own in the Library.
+
+2026-09-08
+The text offered next says why it was chosen.
+Every measured score has a floor, and a change that falls below it is refused.
+
+2026-09-07
+A photo or a screenshot of a text becomes a text you can read.
+The weekly Torah portion comes with its reading from the Prophets.
+At the end of a section, see which words cost you the most.
+
+2026-09-06
+Talk to targum: a conversation in Hebrew, pitched at the words you know.
+Hold to talk, and hear the answer read aloud.
+A conversation can be saved and read back as a text.
+
+2026-09-05
+The Aramaic chapters of Daniel and Ezra can be read like the Hebrew.
+A word in scripture gets its meaning from a dictionary, not from a guess.
+
+2026-09-04
+Two ways to watch a video: beside the text, or over it.
+A text is finished at the end of a chapter, not only at the end of a book.
+
+2026-09-03
+Your word list exports as flashcards.
+A text with sound or film opens on the sound or the film.
+Verb roots are checked against Hebrew tagged by hand, not against another guess.
+
+2026-09-02
+Words in the Hebrew Bible are looked up, not predicted.
+The page remembers where you stopped.
+A verse has an address of its own.
+
+2026-09-01
+Bring your own audio or video and read along with it.
+The weekly Torah portion has a page of its own, with its chant.
+The Mishnah is in the Library, whole.
+
+2026-08-31
+On a phone, a swipe turns the page.
+The voice can be slowed down or sped up.
+Every title in the Library has its English.
+
+2026-08-30
+The Hebrew Bible can be heard, verse by verse, while you read.
+The first weekly issue: the week's news, written at three levels of Hebrew.
+A finished text offers the next one.
+
+2026-08-28
+A design review found twenty-seven faults, and all of them are fixed.
+The reader turns pages instead of scrolling.
+A first visit starts with a text ready to read.
+
+2026-08-27
+The page keeps your sentence in place when the layout changes.
+A word's card opens with its meaning already there.
+Say which languages you learn, and which you read in.
+
+2026-08-26
+The Library is fuller, and every text has a cover.
+targum's code is open for anyone to read.
+
+2026-08-25
+Mark the words you know, and see how much of any text you can already read.
+A word's card opens beside the word.
+Hebrew has a typeface of its own.
+
+2026-08-24
+Books open chapter by chapter.
+Sixteen classical books, paired verse by verse with their English.
+The design rules are tested, so the look cannot drift.
+
+2026-08-23
+Tap a Hebrew verb to see its root and its pattern.
+Texts can be read with their vowel points.
+Each reader has an account and a word list of their own.
+
+2026-08-21
+The first version of targum: a text in Hebrew with its English beside every line.

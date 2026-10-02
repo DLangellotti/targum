@@ -1,0 +1,1898 @@
+{
+ "made": "Drafted by the model (Claude Opus 5), a slice of the alphabet at a time, from its own knowledge of French and English; no published list was copied, and Wiktionary's appendix (CC BY-SA) is lookup only. Every entry was then judged by the model in a second, separate request, which kept 347 of 549; checked against Grammalecte's lexicon (MPL-2.0) that the French is a headword, which dropped 6 more; and read once more by the coding agent that built it (Claude Code), not a person, which dropped 26 whose lemma is shared by a common word of another meaning or whose English sense is ordinary French too. scripts/false_friends.py, 2026-09-28, targum-internal#267.",
+ "reviewed": false,
+ "review": "No person has read this list yet. A person reads every line before this says true.",
+ "licence": "AGPL-3.0-or-later, as targum's own work",
+ "entries": [
+  {
+   "french": "accolade",
+   "looks_like": "accolade",
+   "means": "hug; curly bracket",
+   "pos": "NOUN"
+  },
+  {
+   "french": "achever",
+   "looks_like": "to achieve",
+   "means": "to complete, to finish off",
+   "pos": "VERB"
+  },
+  {
+   "french": "achèvement",
+   "looks_like": "achievement",
+   "means": "completion",
+   "pos": "NOUN"
+  },
+  {
+   "french": "actualiser",
+   "looks_like": "to actualize",
+   "means": "to update",
+   "pos": "VERB"
+  },
+  {
+   "french": "actualité",
+   "looks_like": "actuality",
+   "means": "news, current events",
+   "pos": "NOUN"
+  },
+  {
+   "french": "actuel",
+   "looks_like": "actual",
+   "means": "current, present-day",
+   "pos": "ADJ"
+  },
+  {
+   "french": "actuellement",
+   "looks_like": "actually",
+   "means": "currently, at present",
+   "pos": "ADV"
+  },
+  {
+   "french": "adepte",
+   "looks_like": "adept",
+   "means": "follower, practitioner",
+   "pos": "NOUN"
+  },
+  {
+   "french": "affluence",
+   "looks_like": "affluence",
+   "means": "crowds, rush",
+   "pos": "NOUN"
+  },
+  {
+   "french": "affronter",
+   "looks_like": "to affront",
+   "means": "to face, to confront",
+   "pos": "VERB"
+  },
+  {
+   "french": "agenda",
+   "looks_like": "agenda",
+   "means": "diary, planner",
+   "pos": "NOUN"
+  },
+  {
+   "french": "agonie",
+   "looks_like": "agony",
+   "means": "death throes",
+   "pos": "NOUN"
+  },
+  {
+   "french": "agression",
+   "looks_like": "aggression",
+   "means": "assault, mugging",
+   "pos": "NOUN"
+  },
+  {
+   "french": "allocation",
+   "looks_like": "allocation",
+   "means": "benefit, allowance",
+   "pos": "NOUN"
+  },
+  {
+   "french": "allure",
+   "looks_like": "allure",
+   "means": "look, bearing; pace",
+   "pos": "NOUN"
+  },
+  {
+   "french": "allée",
+   "looks_like": "alley",
+   "means": "path, driveway, aisle",
+   "pos": "NOUN"
+  },
+  {
+   "french": "alléger",
+   "looks_like": "to allege",
+   "means": "to lighten",
+   "pos": "VERB"
+  },
+  {
+   "french": "amende",
+   "looks_like": "amend",
+   "means": "fine, penalty",
+   "pos": "NOUN"
+  },
+  {
+   "french": "angine",
+   "looks_like": "angina",
+   "means": "throat infection, tonsillitis",
+   "pos": "NOUN"
+  },
+  {
+   "french": "animateur",
+   "looks_like": "animator",
+   "means": "host, presenter, activity leader",
+   "pos": "NOUN"
+  },
+  {
+   "french": "antique",
+   "looks_like": "antique",
+   "means": "ancient, of antiquity",
+   "pos": "ADJ"
+  },
+  {
+   "french": "apologie",
+   "looks_like": "apology",
+   "means": "defence, justification",
+   "pos": "NOUN"
+  },
+  {
+   "french": "appareil",
+   "looks_like": "apparel",
+   "means": "device, machine",
+   "pos": "NOUN"
+  },
+  {
+   "french": "assumer",
+   "looks_like": "to assume",
+   "means": "to take on, to come to terms with",
+   "pos": "VERB"
+  },
+  {
+   "french": "attendre",
+   "looks_like": "to attend",
+   "means": "to wait for",
+   "pos": "VERB"
+  },
+  {
+   "french": "attentat",
+   "looks_like": "attempt",
+   "means": "terrorist attack",
+   "pos": "NOUN"
+  },
+  {
+   "french": "avertir",
+   "looks_like": "to advertise",
+   "means": "to warn",
+   "pos": "VERB"
+  },
+  {
+   "french": "avertissement",
+   "looks_like": "advertisement",
+   "means": "warning",
+   "pos": "NOUN"
+  },
+  {
+   "french": "avis",
+   "looks_like": "advice",
+   "means": "opinion, notice",
+   "pos": "NOUN"
+  },
+  {
+   "french": "avouer",
+   "looks_like": "to avow",
+   "means": "to confess, to admit",
+   "pos": "VERB"
+  },
+  {
+   "french": "axe",
+   "looks_like": "axe",
+   "means": "axis, main road",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bachelier",
+   "looks_like": "bachelor",
+   "means": "holder of the baccalauréat",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bail",
+   "looks_like": "bail",
+   "means": "lease",
+   "pos": "NOUN"
+  },
+  {
+   "french": "balade",
+   "looks_like": "ballad",
+   "means": "walk, stroll",
+   "pos": "NOUN"
+  },
+  {
+   "french": "balancer",
+   "looks_like": "to balance",
+   "means": "to swing, to toss",
+   "pos": "VERB"
+  },
+  {
+   "french": "banquette",
+   "looks_like": "banquet",
+   "means": "bench seat",
+   "pos": "NOUN"
+  },
+  {
+   "french": "baraque",
+   "looks_like": "barracks",
+   "means": "shack, hut",
+   "pos": "NOUN"
+  },
+  {
+   "french": "barrage",
+   "looks_like": "barrage",
+   "means": "dam, roadblock",
+   "pos": "NOUN"
+  },
+  {
+   "french": "basket",
+   "looks_like": "basket",
+   "means": "trainer, sneaker",
+   "pos": "NOUN"
+  },
+  {
+   "french": "batteur",
+   "looks_like": "batter",
+   "means": "drummer; whisk",
+   "pos": "NOUN"
+  },
+  {
+   "french": "billion",
+   "looks_like": "billion",
+   "means": "trillion (a million million)",
+   "pos": "NOUN"
+  },
+  {
+   "french": "blesser",
+   "looks_like": "to bless",
+   "means": "to injure, to hurt",
+   "pos": "VERB"
+  },
+  {
+   "french": "blessure",
+   "looks_like": "blessing",
+   "means": "wound, injury",
+   "pos": "NOUN"
+  },
+  {
+   "french": "blindé",
+   "looks_like": "blinded",
+   "means": "armoured",
+   "pos": "ADJ"
+  },
+  {
+   "french": "blouse",
+   "looks_like": "blouse",
+   "means": "overall, lab coat, smock",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bond",
+   "looks_like": "bond",
+   "means": "leap, bounce",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bonnet",
+   "looks_like": "bonnet",
+   "means": "woolly hat, beanie",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bosser",
+   "looks_like": "to boss",
+   "means": "to work, to slog (informal)",
+   "pos": "VERB"
+  },
+  {
+   "french": "bout",
+   "looks_like": "bout",
+   "means": "end, tip",
+   "pos": "NOUN"
+  },
+  {
+   "french": "brancher",
+   "looks_like": "to branch",
+   "means": "to plug in, to connect",
+   "pos": "VERB"
+  },
+  {
+   "french": "bras",
+   "looks_like": "bra",
+   "means": "arm",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bribe",
+   "looks_like": "bribe",
+   "means": "scrap, snippet",
+   "pos": "NOUN"
+  },
+  {
+   "french": "bronzer",
+   "looks_like": "to bronze",
+   "means": "to tan, to sunbathe",
+   "pos": "VERB"
+  },
+  {
+   "french": "brut",
+   "looks_like": "brute",
+   "means": "raw, crude; gross (before deductions)",
+   "pos": "ADJ"
+  },
+  {
+   "french": "but",
+   "looks_like": "but",
+   "means": "goal, aim",
+   "pos": "NOUN"
+  },
+  {
+   "french": "cabinet",
+   "looks_like": "cabinet",
+   "means": "office, (doctor's or lawyer's) practice",
+   "pos": "NOUN"
+  },
+  {
+   "french": "casserole",
+   "looks_like": "casserole",
+   "means": "saucepan",
+   "pos": "NOUN"
+  },
+  {
+   "french": "caution",
+   "looks_like": "caution",
+   "means": "deposit, guarantee",
+   "pos": "NOUN"
+  },
+  {
+   "french": "cave",
+   "looks_like": "cave",
+   "means": "cellar",
+   "pos": "NOUN"
+  },
+  {
+   "french": "chagrin",
+   "looks_like": "chagrin",
+   "means": "grief, sorrow",
+   "pos": "NOUN"
+  },
+  {
+   "french": "chair",
+   "looks_like": "chair",
+   "means": "flesh",
+   "pos": "NOUN"
+  },
+  {
+   "french": "coin",
+   "looks_like": "coin",
+   "means": "corner",
+   "pos": "NOUN"
+  },
+  {
+   "french": "collège",
+   "looks_like": "college",
+   "means": "middle school",
+   "pos": "NOUN"
+  },
+  {
+   "french": "comment",
+   "looks_like": "comment",
+   "means": "how",
+   "pos": "ADV"
+  },
+  {
+   "french": "compas",
+   "looks_like": "compass",
+   "means": "pair of compasses (for drawing)",
+   "pos": "NOUN"
+  },
+  {
+   "french": "compréhensif",
+   "looks_like": "comprehensive",
+   "means": "understanding, sympathetic",
+   "pos": "ADJ"
+  },
+  {
+   "french": "comédien",
+   "looks_like": "comedian",
+   "means": "actor",
+   "pos": "NOUN"
+  },
+  {
+   "french": "concours",
+   "looks_like": "concourse",
+   "means": "competitive exam, contest",
+   "pos": "NOUN"
+  },
+  {
+   "french": "concurrent",
+   "looks_like": "concurrent",
+   "means": "competitor, contestant",
+   "pos": "NOUN"
+  },
+  {
+   "french": "confidence",
+   "looks_like": "confidence",
+   "means": "a secret confided",
+   "pos": "NOUN"
+  },
+  {
+   "french": "consistant",
+   "looks_like": "consistent",
+   "means": "substantial, thick",
+   "pos": "ADJ"
+  },
+  {
+   "french": "contravention",
+   "looks_like": "contravention",
+   "means": "fine, parking/traffic ticket",
+   "pos": "NOUN"
+  },
+  {
+   "french": "convenable",
+   "looks_like": "convenient",
+   "means": "suitable, proper",
+   "pos": "ADJ"
+  },
+  {
+   "french": "courrier",
+   "looks_like": "courier",
+   "means": "mail, post",
+   "pos": "NOUN"
+  },
+  {
+   "french": "course",
+   "looks_like": "course",
+   "means": "race; errand (les courses = shopping)",
+   "pos": "NOUN"
+  },
+  {
+   "french": "crayon",
+   "looks_like": "crayon",
+   "means": "pencil",
+   "pos": "NOUN"
+  },
+  {
+   "french": "crier",
+   "looks_like": "to cry",
+   "means": "to shout, to scream",
+   "pos": "VERB"
+  },
+  {
+   "french": "célibataire",
+   "looks_like": "celibate",
+   "means": "unmarried, single",
+   "pos": "ADJ"
+  },
+  {
+   "french": "davantage",
+   "looks_like": "advantage",
+   "means": "more",
+   "pos": "ADV"
+  },
+  {
+   "french": "demande",
+   "looks_like": "demand",
+   "means": "request, application",
+   "pos": "NOUN"
+  },
+  {
+   "french": "demander",
+   "looks_like": "to demand",
+   "means": "to ask, to ask for",
+   "pos": "VERB"
+  },
+  {
+   "french": "dessin",
+   "looks_like": "design",
+   "means": "drawing",
+   "pos": "NOUN"
+  },
+  {
+   "french": "dessiner",
+   "looks_like": "to design",
+   "means": "to draw",
+   "pos": "VERB"
+  },
+  {
+   "french": "devise",
+   "looks_like": "device",
+   "means": "motto; currency",
+   "pos": "NOUN"
+  },
+  {
+   "french": "discours",
+   "looks_like": "discourse",
+   "means": "speech",
+   "pos": "NOUN"
+  },
+  {
+   "french": "disponible",
+   "looks_like": "disposable",
+   "means": "available",
+   "pos": "ADJ"
+  },
+  {
+   "french": "disposer",
+   "looks_like": "to dispose",
+   "means": "to arrange; (disposer de) to have available",
+   "pos": "VERB"
+  },
+  {
+   "french": "dissertation",
+   "looks_like": "dissertation",
+   "means": "school or university essay",
+   "pos": "NOUN"
+  },
+  {
+   "french": "divertir",
+   "looks_like": "to divert",
+   "means": "to entertain, to amuse",
+   "pos": "VERB"
+  },
+  {
+   "french": "donjon",
+   "looks_like": "dungeon",
+   "means": "castle keep",
+   "pos": "NOUN"
+  },
+  {
+   "french": "douche",
+   "looks_like": "douche",
+   "means": "shower",
+   "pos": "NOUN"
+  },
+  {
+   "french": "drap",
+   "looks_like": "drape",
+   "means": "bedsheet",
+   "pos": "NOUN"
+  },
+  {
+   "french": "dresser",
+   "looks_like": "to dress",
+   "means": "to set up, to train (an animal)",
+   "pos": "VERB"
+  },
+  {
+   "french": "droguerie",
+   "looks_like": "drugstore",
+   "means": "household goods shop",
+   "pos": "NOUN"
+  },
+  {
+   "french": "duvet",
+   "looks_like": "duvet",
+   "means": "down (feathers); sleeping bag",
+   "pos": "NOUN"
+  },
+  {
+   "french": "déception",
+   "looks_like": "deception",
+   "means": "disappointment",
+   "pos": "NOUN"
+  },
+  {
+   "french": "décevant",
+   "looks_like": "deceptive",
+   "means": "disappointing",
+   "pos": "ADJ"
+  },
+  {
+   "french": "décevoir",
+   "looks_like": "to deceive",
+   "means": "to disappoint",
+   "pos": "VERB"
+  },
+  {
+   "french": "défiler",
+   "looks_like": "to defile",
+   "means": "to march past, to parade",
+   "pos": "VERB"
+  },
+  {
+   "french": "délai",
+   "looks_like": "delay",
+   "means": "time allowed, deadline",
+   "pos": "NOUN"
+  },
+  {
+   "french": "délivrer",
+   "looks_like": "to deliver",
+   "means": "to set free; to issue (a document)",
+   "pos": "VERB"
+  },
+  {
+   "french": "dépenser",
+   "looks_like": "to dispense",
+   "means": "to spend (money)",
+   "pos": "VERB"
+  },
+  {
+   "french": "déposer",
+   "looks_like": "to depose",
+   "means": "to put down, to drop off",
+   "pos": "VERB"
+  },
+  {
+   "french": "député",
+   "looks_like": "deputy",
+   "means": "member of parliament",
+   "pos": "NOUN"
+  },
+  {
+   "french": "déranger",
+   "looks_like": "to derange",
+   "means": "to disturb, to bother",
+   "pos": "VERB"
+  },
+  {
+   "french": "effectivement",
+   "looks_like": "effectively",
+   "means": "indeed, that's right",
+   "pos": "ADV"
+  },
+  {
+   "french": "embrasser",
+   "looks_like": "to embrace",
+   "means": "to kiss",
+   "pos": "VERB"
+  },
+  {
+   "french": "emphase",
+   "looks_like": "emphasis",
+   "means": "pomposity, bombast",
+   "pos": "NOUN"
+  },
+  {
+   "french": "encore",
+   "looks_like": "encore",
+   "means": "still, yet, again",
+   "pos": "ADV"
+  },
+  {
+   "french": "engin",
+   "looks_like": "engine",
+   "means": "machine, device, vehicle",
+   "pos": "NOUN"
+  },
+  {
+   "french": "enquête",
+   "looks_like": "inquest",
+   "means": "investigation, survey",
+   "pos": "NOUN"
+  },
+  {
+   "french": "enseigne",
+   "looks_like": "ensign",
+   "means": "shop sign",
+   "pos": "NOUN"
+  },
+  {
+   "french": "entretenir",
+   "looks_like": "to entertain",
+   "means": "to maintain, keep up",
+   "pos": "VERB"
+  },
+  {
+   "french": "entretien",
+   "looks_like": "entertainment",
+   "means": "maintenance; (job) interview",
+   "pos": "NOUN"
+  },
+  {
+   "french": "errer",
+   "looks_like": "to err",
+   "means": "to wander, roam",
+   "pos": "VERB"
+  },
+  {
+   "french": "exhibition",
+   "looks_like": "exhibition",
+   "means": "showing off, (indecent) display",
+   "pos": "NOUN"
+  },
+  {
+   "french": "exposition",
+   "looks_like": "exposition",
+   "means": "exhibition",
+   "pos": "NOUN"
+  },
+  {
+   "french": "exprès",
+   "looks_like": "express",
+   "means": "on purpose, deliberately",
+   "pos": "ADV"
+  },
+  {
+   "french": "expédier",
+   "looks_like": "to expedite",
+   "means": "to send off, dispatch",
+   "pos": "VERB"
+  },
+  {
+   "french": "fabrique",
+   "looks_like": "fabric",
+   "means": "factory",
+   "pos": "NOUN"
+  },
+  {
+   "french": "facilité",
+   "looks_like": "facility",
+   "means": "ease",
+   "pos": "NOUN"
+  },
+  {
+   "french": "fade",
+   "looks_like": "fade",
+   "means": "bland, tasteless",
+   "pos": "ADJ"
+  },
+  {
+   "french": "faillir",
+   "looks_like": "to fail",
+   "means": "to nearly do something",
+   "pos": "VERB"
+  },
+  {
+   "french": "fantaisie",
+   "looks_like": "fantasy",
+   "means": "whim, fancy",
+   "pos": "NOUN"
+  },
+  {
+   "french": "fastidieux",
+   "looks_like": "fastidious",
+   "means": "tedious, boring",
+   "pos": "ADJ"
+  },
+  {
+   "french": "figure",
+   "looks_like": "figure",
+   "means": "face",
+   "pos": "NOUN"
+  },
+  {
+   "french": "fond",
+   "looks_like": "fond",
+   "means": "bottom, background",
+   "pos": "NOUN"
+  },
+  {
+   "french": "formation",
+   "looks_like": "formation",
+   "means": "training",
+   "pos": "NOUN"
+  },
+  {
+   "french": "formidable",
+   "looks_like": "formidable",
+   "means": "wonderful, great",
+   "pos": "ADJ"
+  },
+  {
+   "french": "fortuné",
+   "looks_like": "fortunate",
+   "means": "wealthy",
+   "pos": "ADJ"
+  },
+  {
+   "french": "four",
+   "looks_like": "four",
+   "means": "oven",
+   "pos": "NOUN"
+  },
+  {
+   "french": "fourniture",
+   "looks_like": "furniture",
+   "means": "supplies",
+   "pos": "NOUN"
+  },
+  {
+   "french": "foyer",
+   "looks_like": "foyer",
+   "means": "home, household",
+   "pos": "NOUN"
+  },
+  {
+   "french": "fumer",
+   "looks_like": "to fume",
+   "means": "to smoke",
+   "pos": "VERB"
+  },
+  {
+   "french": "garder",
+   "looks_like": "to guard",
+   "means": "to keep",
+   "pos": "VERB"
+  },
+  {
+   "french": "gentil",
+   "looks_like": "gentle",
+   "means": "kind, nice",
+   "pos": "ADJ"
+  },
+  {
+   "french": "golfe",
+   "looks_like": "golf",
+   "means": "gulf, bay",
+   "pos": "NOUN"
+  },
+  {
+   "french": "gracieux",
+   "looks_like": "gracious",
+   "means": "graceful",
+   "pos": "ADJ"
+  },
+  {
+   "french": "grappe",
+   "looks_like": "grape",
+   "means": "bunch, cluster",
+   "pos": "NOUN"
+  },
+  {
+   "french": "grippe",
+   "looks_like": "grip",
+   "means": "flu",
+   "pos": "NOUN"
+  },
+  {
+   "french": "gros",
+   "looks_like": "gross",
+   "means": "big, fat",
+   "pos": "ADJ"
+  },
+  {
+   "french": "génial",
+   "looks_like": "genial",
+   "means": "brilliant, great",
+   "pos": "ADJ"
+  },
+  {
+   "french": "habit",
+   "looks_like": "habit",
+   "means": "garment, outfit",
+   "pos": "NOUN"
+  },
+  {
+   "french": "hasard",
+   "looks_like": "hazard",
+   "means": "chance, randomness",
+   "pos": "NOUN"
+  },
+  {
+   "french": "humeur",
+   "looks_like": "humour",
+   "means": "mood",
+   "pos": "NOUN"
+  },
+  {
+   "french": "impair",
+   "looks_like": "impaired",
+   "means": "odd-numbered",
+   "pos": "ADJ"
+  },
+  {
+   "french": "imposition",
+   "looks_like": "imposition",
+   "means": "taxation",
+   "pos": "NOUN"
+  },
+  {
+   "french": "impotent",
+   "looks_like": "impotent",
+   "means": "infirm, unable to move about",
+   "pos": "ADJ"
+  },
+  {
+   "french": "incessamment",
+   "looks_like": "incessantly",
+   "means": "very soon, any moment now",
+   "pos": "ADV"
+  },
+  {
+   "french": "incidence",
+   "looks_like": "incidence",
+   "means": "effect, impact, consequence",
+   "pos": "NOUN"
+  },
+  {
+   "french": "inconsistant",
+   "looks_like": "inconsistent",
+   "means": "lacking substance, runny, flimsy",
+   "pos": "ADJ"
+  },
+  {
+   "french": "inconvénient",
+   "looks_like": "inconvenient",
+   "means": "drawback, disadvantage",
+   "pos": "NOUN"
+  },
+  {
+   "french": "infect",
+   "looks_like": "infected",
+   "means": "foul, revolting",
+   "pos": "ADJ"
+  },
+  {
+   "french": "inhabitable",
+   "looks_like": "inhabitable",
+   "means": "uninhabitable, unfit to live in",
+   "pos": "ADJ"
+  },
+  {
+   "french": "inhabité",
+   "looks_like": "inhabited",
+   "means": "uninhabited",
+   "pos": "ADJ"
+  },
+  {
+   "french": "injure",
+   "looks_like": "injury",
+   "means": "insult, abusive word",
+   "pos": "NOUN"
+  },
+  {
+   "french": "injurier",
+   "looks_like": "to injure",
+   "means": "to insult, to abuse",
+   "pos": "VERB"
+  },
+  {
+   "french": "intoxication",
+   "looks_like": "intoxication",
+   "means": "poisoning",
+   "pos": "NOUN"
+  },
+  {
+   "french": "intoxiquer",
+   "looks_like": "to intoxicate",
+   "means": "to poison",
+   "pos": "VERB"
+  },
+  {
+   "french": "intégral",
+   "looks_like": "integral",
+   "means": "complete, unabridged",
+   "pos": "ADJ"
+  },
+  {
+   "french": "isolation",
+   "looks_like": "isolation",
+   "means": "insulation",
+   "pos": "NOUN"
+  },
+  {
+   "french": "issue",
+   "looks_like": "issue",
+   "means": "exit, way out; outcome",
+   "pos": "NOUN"
+  },
+  {
+   "french": "joli",
+   "looks_like": "jolly",
+   "means": "pretty",
+   "pos": "ADJ"
+  },
+  {
+   "french": "journée",
+   "looks_like": "journey",
+   "means": "day",
+   "pos": "NOUN"
+  },
+  {
+   "french": "justement",
+   "looks_like": "justly",
+   "means": "precisely, as it happens",
+   "pos": "ADV"
+  },
+  {
+   "french": "labourer",
+   "looks_like": "to labour",
+   "means": "to plough",
+   "pos": "VERB"
+  },
+  {
+   "french": "lame",
+   "looks_like": "lame",
+   "means": "blade",
+   "pos": "NOUN"
+  },
+  {
+   "french": "lard",
+   "looks_like": "lard",
+   "means": "bacon, pork fat",
+   "pos": "NOUN"
+  },
+  {
+   "french": "large",
+   "looks_like": "large",
+   "means": "wide, broad",
+   "pos": "ADJ"
+  },
+  {
+   "french": "lecteur",
+   "looks_like": "lecturer",
+   "means": "reader",
+   "pos": "NOUN"
+  },
+  {
+   "french": "lecture",
+   "looks_like": "lecture",
+   "means": "reading",
+   "pos": "NOUN"
+  },
+  {
+   "french": "libraire",
+   "looks_like": "librarian",
+   "means": "bookseller",
+   "pos": "NOUN"
+  },
+  {
+   "french": "librairie",
+   "looks_like": "library",
+   "means": "bookshop",
+   "pos": "NOUN"
+  },
+  {
+   "french": "licencier",
+   "looks_like": "to license",
+   "means": "to lay off, dismiss",
+   "pos": "VERB"
+  },
+  {
+   "french": "linge",
+   "looks_like": "linen",
+   "means": "laundry, washing",
+   "pos": "NOUN"
+  },
+  {
+   "french": "livide",
+   "looks_like": "livid",
+   "means": "pale, ashen",
+   "pos": "ADJ"
+  },
+  {
+   "french": "location",
+   "looks_like": "location",
+   "means": "renting, rental",
+   "pos": "NOUN"
+  },
+  {
+   "french": "lunatique",
+   "looks_like": "lunatic",
+   "means": "moody, temperamental",
+   "pos": "ADJ"
+  },
+  {
+   "french": "lustre",
+   "looks_like": "lustre",
+   "means": "chandelier",
+   "pos": "NOUN"
+  },
+  {
+   "french": "luxure",
+   "looks_like": "luxury",
+   "means": "lust",
+   "pos": "NOUN"
+  },
+  {
+   "french": "magasin",
+   "looks_like": "magazine",
+   "means": "shop, store",
+   "pos": "NOUN"
+  },
+  {
+   "french": "main",
+   "looks_like": "main",
+   "means": "hand",
+   "pos": "NOUN"
+  },
+  {
+   "french": "malice",
+   "looks_like": "malice",
+   "means": "mischief, mischievousness",
+   "pos": "NOUN"
+  },
+  {
+   "french": "malicieux",
+   "looks_like": "malicious",
+   "means": "mischievous",
+   "pos": "ADJ"
+  },
+  {
+   "french": "malin",
+   "looks_like": "malign",
+   "means": "clever, shrewd",
+   "pos": "ADJ"
+  },
+  {
+   "french": "marron",
+   "looks_like": "maroon",
+   "means": "brown",
+   "pos": "ADJ"
+  },
+  {
+   "french": "matériel",
+   "looks_like": "material",
+   "means": "equipment, gear",
+   "pos": "NOUN"
+  },
+  {
+   "french": "merci",
+   "looks_like": "mercy",
+   "means": "thank you, thanks",
+   "pos": "NOUN"
+  },
+  {
+   "french": "messe",
+   "looks_like": "mess",
+   "means": "Mass (church service)",
+   "pos": "NOUN"
+  },
+  {
+   "french": "mince",
+   "looks_like": "mince",
+   "means": "slim, thin",
+   "pos": "ADJ"
+  },
+  {
+   "french": "misère",
+   "looks_like": "misery",
+   "means": "extreme poverty",
+   "pos": "NOUN"
+  },
+  {
+   "french": "misérable",
+   "looks_like": "miserable",
+   "means": "destitute, wretchedly poor",
+   "pos": "ADJ"
+  },
+  {
+   "french": "molester",
+   "looks_like": "to molest",
+   "means": "to manhandle, rough up",
+   "pos": "VERB"
+  },
+  {
+   "french": "mondain",
+   "looks_like": "mundane",
+   "means": "high-society, worldly",
+   "pos": "ADJ"
+  },
+  {
+   "french": "monnaie",
+   "looks_like": "money",
+   "means": "change, currency",
+   "pos": "NOUN"
+  },
+  {
+   "french": "médecin",
+   "looks_like": "medicine",
+   "means": "doctor",
+   "pos": "NOUN"
+  },
+  {
+   "french": "ménage",
+   "looks_like": "manage",
+   "means": "housework, household",
+   "pos": "NOUN"
+  },
+  {
+   "french": "nappe",
+   "looks_like": "napkin",
+   "means": "tablecloth",
+   "pos": "NOUN"
+  },
+  {
+   "french": "notice",
+   "looks_like": "notice",
+   "means": "instruction leaflet",
+   "pos": "NOUN"
+  },
+  {
+   "french": "notoire",
+   "looks_like": "notorious",
+   "means": "well-known, widely acknowledged",
+   "pos": "ADJ"
+  },
+  {
+   "french": "nul",
+   "looks_like": "null",
+   "means": "useless, hopeless",
+   "pos": "ADJ"
+  },
+  {
+   "french": "officieux",
+   "looks_like": "officious",
+   "means": "unofficial, off the record",
+   "pos": "ADJ"
+  },
+  {
+   "french": "pain",
+   "looks_like": "pain",
+   "means": "bread",
+   "pos": "NOUN"
+  },
+  {
+   "french": "parking",
+   "looks_like": "parking",
+   "means": "car park, parking lot",
+   "pos": "NOUN"
+  },
+  {
+   "french": "parole",
+   "looks_like": "parole",
+   "means": "spoken word, speech",
+   "pos": "NOUN"
+  },
+  {
+   "french": "partie",
+   "looks_like": "party",
+   "means": "part; game, match",
+   "pos": "NOUN"
+  },
+  {
+   "french": "patron",
+   "looks_like": "patron",
+   "means": "boss, employer",
+   "pos": "NOUN"
+  },
+  {
+   "french": "photographe",
+   "looks_like": "photograph",
+   "means": "photographer",
+   "pos": "NOUN"
+  },
+  {
+   "french": "phrase",
+   "looks_like": "phrase",
+   "means": "sentence",
+   "pos": "NOUN"
+  },
+  {
+   "french": "physicien",
+   "looks_like": "physician",
+   "means": "physicist",
+   "pos": "NOUN"
+  },
+  {
+   "french": "placard",
+   "looks_like": "placard",
+   "means": "cupboard, closet",
+   "pos": "NOUN"
+  },
+  {
+   "french": "pressing",
+   "looks_like": "pressing",
+   "means": "dry cleaner's",
+   "pos": "NOUN"
+  },
+  {
+   "french": "prime",
+   "looks_like": "prime",
+   "means": "bonus, allowance",
+   "pos": "NOUN"
+  },
+  {
+   "french": "procès",
+   "looks_like": "process",
+   "means": "trial, lawsuit",
+   "pos": "NOUN"
+  },
+  {
+   "french": "professeur",
+   "looks_like": "professor",
+   "means": "teacher",
+   "pos": "NOUN"
+  },
+  {
+   "french": "profiter",
+   "looks_like": "to profit",
+   "means": "to make the most of, benefit from",
+   "pos": "VERB"
+  },
+  {
+   "french": "propre",
+   "looks_like": "proper",
+   "means": "clean; (before the noun) own",
+   "pos": "ADJ"
+  },
+  {
+   "french": "prune",
+   "looks_like": "prune",
+   "means": "plum",
+   "pos": "NOUN"
+  },
+  {
+   "french": "préjudice",
+   "looks_like": "prejudice",
+   "means": "harm, damage",
+   "pos": "NOUN"
+  },
+  {
+   "french": "préservatif",
+   "looks_like": "preservative",
+   "means": "condom",
+   "pos": "NOUN"
+  },
+  {
+   "french": "prétendre",
+   "looks_like": "to pretend",
+   "means": "to claim, assert",
+   "pos": "VERB"
+  },
+  {
+   "french": "publicité",
+   "looks_like": "publicity",
+   "means": "advertising, an advert",
+   "pos": "NOUN"
+  },
+  {
+   "french": "pull",
+   "looks_like": "pull",
+   "means": "sweater, jumper",
+   "pos": "NOUN"
+  },
+  {
+   "french": "pétrole",
+   "looks_like": "petrol",
+   "means": "crude oil, petroleum",
+   "pos": "NOUN"
+  },
+  {
+   "french": "quart",
+   "looks_like": "quart",
+   "means": "quarter, one fourth",
+   "pos": "NOUN"
+  },
+  {
+   "french": "raisin",
+   "looks_like": "raisin",
+   "means": "grape",
+   "pos": "NOUN"
+  },
+  {
+   "french": "ranger",
+   "looks_like": "to ranger",
+   "means": "to tidy up, put away",
+   "pos": "VERB"
+  },
+  {
+   "french": "rayon",
+   "looks_like": "rayon",
+   "means": "ray; shelf; department (of a store)",
+   "pos": "NOUN"
+  },
+  {
+   "french": "recette",
+   "looks_like": "receipt",
+   "means": "recipe; takings",
+   "pos": "NOUN"
+  },
+  {
+   "french": "regarder",
+   "looks_like": "to regard",
+   "means": "to look at, watch",
+   "pos": "VERB"
+  },
+  {
+   "french": "rentable",
+   "looks_like": "rentable",
+   "means": "profitable",
+   "pos": "ADJ"
+  },
+  {
+   "french": "renverser",
+   "looks_like": "to reverse",
+   "means": "to knock over, spill, overturn",
+   "pos": "VERB"
+  },
+  {
+   "french": "ressentir",
+   "looks_like": "to resent",
+   "means": "to feel (an emotion)",
+   "pos": "VERB"
+  },
+  {
+   "french": "rester",
+   "looks_like": "to rest",
+   "means": "to stay, remain",
+   "pos": "VERB"
+  },
+  {
+   "french": "retard",
+   "looks_like": "retard",
+   "means": "delay, lateness",
+   "pos": "NOUN"
+  },
+  {
+   "french": "retirer",
+   "looks_like": "to retire",
+   "means": "to withdraw, take off, remove",
+   "pos": "VERB"
+  },
+  {
+   "french": "robe",
+   "looks_like": "robe",
+   "means": "dress",
+   "pos": "NOUN"
+  },
+  {
+   "french": "roman",
+   "looks_like": "Roman",
+   "means": "novel",
+   "pos": "NOUN"
+  },
+  {
+   "french": "rude",
+   "looks_like": "rude",
+   "means": "harsh, tough, rough",
+   "pos": "ADJ"
+  },
+  {
+   "french": "récipient",
+   "looks_like": "recipient",
+   "means": "container",
+   "pos": "NOUN"
+  },
+  {
+   "french": "réclamer",
+   "looks_like": "to reclaim",
+   "means": "to demand, call for",
+   "pos": "VERB"
+  },
+  {
+   "french": "rédaction",
+   "looks_like": "redaction",
+   "means": "writing, school essay; editorial team",
+   "pos": "NOUN"
+  },
+  {
+   "french": "résumer",
+   "looks_like": "to resume",
+   "means": "to summarize",
+   "pos": "VERB"
+  },
+  {
+   "french": "réunion",
+   "looks_like": "reunion",
+   "means": "meeting",
+   "pos": "NOUN"
+  },
+  {
+   "french": "sable",
+   "looks_like": "sable",
+   "means": "sand",
+   "pos": "NOUN"
+  },
+  {
+   "french": "sain",
+   "looks_like": "sane",
+   "means": "healthy, wholesome",
+   "pos": "ADJ"
+  },
+  {
+   "french": "sale",
+   "looks_like": "sale",
+   "means": "dirty",
+   "pos": "ADJ"
+  },
+  {
+   "french": "salon",
+   "looks_like": "salon",
+   "means": "living room",
+   "pos": "NOUN"
+  },
+  {
+   "french": "salut",
+   "looks_like": "salute",
+   "means": "hi, bye",
+   "pos": "INTJ"
+  },
+  {
+   "french": "scolaire",
+   "looks_like": "scholarly",
+   "means": "school, of school",
+   "pos": "ADJ"
+  },
+  {
+   "french": "sensible",
+   "looks_like": "sensible",
+   "means": "sensitive",
+   "pos": "ADJ"
+  },
+  {
+   "french": "sensiblement",
+   "looks_like": "sensibly",
+   "means": "noticeably, appreciably",
+   "pos": "ADV"
+  },
+  {
+   "french": "slip",
+   "looks_like": "slip",
+   "means": "underpants",
+   "pos": "NOUN"
+  },
+  {
+   "french": "smoking",
+   "looks_like": "smoking",
+   "means": "tuxedo, dinner jacket",
+   "pos": "NOUN"
+  },
+  {
+   "french": "sort",
+   "looks_like": "sort",
+   "means": "fate; magic spell",
+   "pos": "NOUN"
+  },
+  {
+   "french": "sortie",
+   "looks_like": "sortie",
+   "means": "exit, way out",
+   "pos": "NOUN"
+  },
+  {
+   "french": "spectacle",
+   "looks_like": "spectacle",
+   "means": "show, performance",
+   "pos": "NOUN"
+  },
+  {
+   "french": "square",
+   "looks_like": "square",
+   "means": "small public garden",
+   "pos": "NOUN"
+  },
+  {
+   "french": "stage",
+   "looks_like": "stage",
+   "means": "internship, training course",
+   "pos": "NOUN"
+  },
+  {
+   "french": "stationner",
+   "looks_like": "to station",
+   "means": "to park",
+   "pos": "VERB"
+  },
+  {
+   "french": "store",
+   "looks_like": "store",
+   "means": "window blind",
+   "pos": "NOUN"
+  },
+  {
+   "french": "supplier",
+   "looks_like": "to supplier",
+   "means": "to beg, implore",
+   "pos": "VERB"
+  },
+  {
+   "french": "supporter",
+   "looks_like": "to support",
+   "means": "to put up with, bear",
+   "pos": "VERB"
+  },
+  {
+   "french": "supprimer",
+   "looks_like": "to suppress",
+   "means": "to delete, remove",
+   "pos": "VERB"
+  },
+  {
+   "french": "surnom",
+   "looks_like": "surname",
+   "means": "nickname",
+   "pos": "NOUN"
+  },
+  {
+   "french": "surveiller",
+   "looks_like": "to survey",
+   "means": "to watch over, supervise",
+   "pos": "VERB"
+  },
+  {
+   "french": "susceptible",
+   "looks_like": "susceptible",
+   "means": "touchy, oversensitive",
+   "pos": "ADJ"
+  },
+  {
+   "french": "sympa",
+   "looks_like": "sympathetic",
+   "means": "nice, friendly",
+   "pos": "ADJ"
+  },
+  {
+   "french": "sympathique",
+   "looks_like": "sympathetic",
+   "means": "likeable, nice",
+   "pos": "ADJ"
+  },
+  {
+   "french": "syndicat",
+   "looks_like": "syndicate",
+   "means": "trade union",
+   "pos": "NOUN"
+  },
+  {
+   "french": "séance",
+   "looks_like": "seance",
+   "means": "session, sitting; film showing",
+   "pos": "NOUN"
+  },
+  {
+   "french": "séculaire",
+   "looks_like": "secular",
+   "means": "centuries-old",
+   "pos": "ADJ"
+  },
+  {
+   "french": "séquelle",
+   "looks_like": "sequel",
+   "means": "after-effect",
+   "pos": "NOUN"
+  },
+  {
+   "french": "tableau",
+   "looks_like": "tableau",
+   "means": "painting; blackboard",
+   "pos": "NOUN"
+  },
+  {
+   "french": "taille",
+   "looks_like": "tail",
+   "means": "size, waist",
+   "pos": "NOUN"
+  },
+  {
+   "french": "talon",
+   "looks_like": "talon",
+   "means": "heel",
+   "pos": "NOUN"
+  },
+  {
+   "french": "taper",
+   "looks_like": "to tape",
+   "means": "to type; to hit",
+   "pos": "VERB"
+  },
+  {
+   "french": "tarif",
+   "looks_like": "tariff",
+   "means": "price, rate",
+   "pos": "NOUN"
+  },
+  {
+   "french": "taupe",
+   "looks_like": "taupe",
+   "means": "mole (animal)",
+   "pos": "NOUN"
+  },
+  {
+   "french": "tentative",
+   "looks_like": "tentative",
+   "means": "attempt",
+   "pos": "NOUN"
+  },
+  {
+   "french": "tirade",
+   "looks_like": "tirade",
+   "means": "long speech",
+   "pos": "NOUN"
+  },
+  {
+   "french": "tirer",
+   "looks_like": "to tire",
+   "means": "to pull; to shoot",
+   "pos": "VERB"
+  },
+  {
+   "french": "tissu",
+   "looks_like": "tissue",
+   "means": "fabric, cloth",
+   "pos": "NOUN"
+  },
+  {
+   "french": "tourniquet",
+   "looks_like": "tourniquet",
+   "means": "turnstile",
+   "pos": "NOUN"
+  },
+  {
+   "french": "trac",
+   "looks_like": "track",
+   "means": "stage fright",
+   "pos": "NOUN"
+  },
+  {
+   "french": "transpirer",
+   "looks_like": "to transpire",
+   "means": "to sweat",
+   "pos": "VERB"
+  },
+  {
+   "french": "trappe",
+   "looks_like": "trap",
+   "means": "trapdoor, hatch",
+   "pos": "NOUN"
+  },
+  {
+   "french": "traîner",
+   "looks_like": "to train",
+   "means": "to drag; to dawdle",
+   "pos": "VERB"
+  },
+  {
+   "french": "tribune",
+   "looks_like": "tribune",
+   "means": "grandstand; rostrum",
+   "pos": "NOUN"
+  },
+  {
+   "french": "truc",
+   "looks_like": "truck",
+   "means": "thing; trick",
+   "pos": "NOUN"
+  },
+  {
+   "french": "truculent",
+   "looks_like": "truculent",
+   "means": "colorful, earthy",
+   "pos": "ADJ"
+  },
+  {
+   "french": "turbulent",
+   "looks_like": "turbulent",
+   "means": "unruly, boisterous",
+   "pos": "ADJ"
+  },
+  {
+   "french": "ultérieur",
+   "looks_like": "ulterior",
+   "means": "later, subsequent",
+   "pos": "ADJ"
+  },
+  {
+   "french": "user",
+   "looks_like": "to use",
+   "means": "to wear out",
+   "pos": "VERB"
+  },
+  {
+   "french": "usure",
+   "looks_like": "usury",
+   "means": "wear and tear",
+   "pos": "NOUN"
+  },
+  {
+   "french": "verbaliser",
+   "looks_like": "to verbalize",
+   "means": "to write up a fine, to ticket",
+   "pos": "VERB"
+  },
+  {
+   "french": "versatile",
+   "looks_like": "versatile",
+   "means": "fickle, changeable",
+   "pos": "ADJ"
+  },
+  {
+   "french": "veste",
+   "looks_like": "vest",
+   "means": "jacket",
+   "pos": "NOUN"
+  },
+  {
+   "french": "vexer",
+   "looks_like": "to vex",
+   "means": "to offend, to hurt someone's feelings",
+   "pos": "VERB"
+  },
+  {
+   "french": "vicieux",
+   "looks_like": "vicious",
+   "means": "depraved, perverted; lecherous",
+   "pos": "ADJ"
+  },
+  {
+   "french": "vigile",
+   "looks_like": "vigil",
+   "means": "security guard",
+   "pos": "NOUN"
+  },
+  {
+   "french": "vilain",
+   "looks_like": "villain",
+   "means": "naughty, nasty; ugly",
+   "pos": "ADJ"
+  },
+  {
+   "french": "wagon",
+   "looks_like": "wagon",
+   "means": "railway car, carriage",
+   "pos": "NOUN"
+  },
+  {
+   "french": "zapper",
+   "looks_like": "to zap",
+   "means": "to channel-hop; to skip, to leave out",
+   "pos": "VERB"
+  },
+  {
+   "french": "éditeur",
+   "looks_like": "editor",
+   "means": "publisher",
+   "pos": "NOUN"
+  },
+  {
+   "french": "élaborer",
+   "looks_like": "to elaborate",
+   "means": "to work out, draw up",
+   "pos": "VERB"
+  },
+  {
+   "french": "énerver",
+   "looks_like": "to enervate",
+   "means": "to irritate, annoy",
+   "pos": "VERB"
+  },
+  {
+   "french": "éprouver",
+   "looks_like": "to prove",
+   "means": "to feel, experience",
+   "pos": "VERB"
+  },
+  {
+   "french": "équipe",
+   "looks_like": "equipment",
+   "means": "team",
+   "pos": "NOUN"
+  },
+  {
+   "french": "étiquette",
+   "looks_like": "etiquette",
+   "means": "label, tag",
+   "pos": "NOUN"
+  },
+  {
+   "french": "évader",
+   "looks_like": "to evade",
+   "means": "to escape (from prison)",
+   "pos": "VERB"
+  },
+  {
+   "french": "évasion",
+   "looks_like": "evasion",
+   "means": "escape",
+   "pos": "NOUN"
+  },
+  {
+   "french": "éventuel",
+   "looks_like": "eventual",
+   "means": "possible, potential",
+   "pos": "ADJ"
+  },
+  {
+   "french": "éventuellement",
+   "looks_like": "eventually",
+   "means": "possibly, if need be",
+   "pos": "ADV"
+  },
+  {
+   "french": "évidence",
+   "looks_like": "evidence",
+   "means": "obviousness, something obvious",
+   "pos": "NOUN"
+  }
+ ]
+}

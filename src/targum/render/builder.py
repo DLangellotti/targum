@@ -41,6 +41,7 @@ from ..annotate.base import (
     kind_of,
     method_label,
 )
+from ..annotate.model_lemma import antecedents_shown, tenses_apart
 from ..annotate.pronounce import guessed
 from ..models import (
     Annotation,
@@ -49,6 +50,7 @@ from ..models import (
     Glossary,
     Segment,
     SegmentedDocument,
+    Token,
     Translation,
     Vocalization,
     direction_for,
@@ -213,6 +215,50 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
         if key.startswith(("reader.", "vocab.", "playlist-menu."))
     }
     return {"strings": said, "stringsLanguage": code} if said else {}
+
+
+def said_strings(translations: list[Translation]) -> dict[str, Any]:
+    """The "as said" switch's own words in the page's language, for `said.js` (targum-internal
+    #266). Kept out of `reader_strings`, whose `reader.` keys every reader carries: a page
+    written with the switch off must not carry a word more than it did."""
+    from ..strings import SOURCE, catalogue
+
+    if not translations:
+        return {}
+    code = translations[0].target_language.split("-")[0].lower()
+    if code == SOURCE:
+        return {}
+    said = {key: text for key, text in catalogue(code).items() if key.startswith("said.")}
+    return {"saidWords": said} if said else {}
+
+
+def accent_rows(text: str, ref: str | None, bare: str) -> list[list[Any]]:
+    """Each accented word of a verse as [bareStart, bareEnd, key, disjunctive].
+
+    Read by `vocalize.trope`, so the card says what the tikkun would: the accent that
+    rules the word, never meteg. Offsets are into the bare text, where the page's words
+    keep theirs. Empty for a verse in the poetic books, whose accents are another system
+    and would be named wrongly by the prose one, and for a pointed text whose letters are
+    not the bare text's — a gap rather than a name under the wrong word.
+    """
+    from ..vocalize.trope import PoeticAccents, read
+
+    here, to_bare = strip_nikkud(text)
+    if here != bare:
+        return []
+    try:
+        verse = read(text, ref or None)
+    except PoeticAccents:
+        return []
+    return [
+        [
+            *js_span(bare, to_bare[word.start], to_bare[word.end]),
+            word.accent.key,
+            int(word.accent.disjunctive),
+        ]
+        for word in verse.words
+        if word.accent is not None
+    ]
 
 
 def beside_words(
@@ -695,15 +741,16 @@ class Spoken(NamedTuple):
     #: the card's own ear. Everywhere else the card simply offers no sound, the way the
     #: phrase chip asks only where the page can.
     #:
-    #: Only `_imported` and `_read_along` fill this, and not because the other branches
-    #: forgot: a word clock exists only where something timed the audio word by word.
-    #: ASR returns word timings for an upload, and `recording.attach` runs the forced
-    #: aligner over a LibriVox reading. Scripture was attached verse by verse and no
-    #: word-level pass was ever run over it, a dialogue's turns come back from the voice
-    #: with turn boundaries and nothing finer, and the weekly is read straight through.
-    #: So `_read_aloud`, `_scene` and `_read_through` have nothing to put here, and
-    #: passing them an empty dict would be the same silence spelled longer. Giving the
-    #: library's readers a card that speaks is a data pass, not an argument.
+    #: Only `_imported`, `_read_along` and `_read_aloud` fill this, and not because the
+    #: other branches forgot: a word clock exists only where something timed the audio
+    #: word by word. ASR returns word timings for an upload, `recording.attach` runs the
+    #: forced aligner over a LibriVox reading, and `parasha.leyning` over the chanted
+    #: Torah, whose word clocks are kept since 2026-09-28 (targum-internal#329) — a
+    #: scripture recording attached before then was cut on verses and still has none. A
+    #: dialogue's turns come back from the voice with turn boundaries and nothing finer,
+    #: and the weekly is read straight through, so `_scene` and `_read_through` have
+    #: nothing to put here. Giving the library's readers a card that speaks is a data
+    #: pass, not an argument.
     words: dict[str, list[list[float]]] = {}
     #: The part's video cut on disk, or "". Never a data URI: the one file too heavy to
     #: inline rides beside the reader instead — `render()` copies it and writes the
@@ -794,6 +841,11 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
     audio = _inlined(recording_index.folder(document.source) / part.audio)
     if not audio:
         return SILENT
+    words = {
+        segment.id: rows
+        for segment in segments
+        if segment.id in spans and (rows := part.word_clocks(segment.ref, segment.text))
+    }
     return Spoken(
         {},
         spans,
@@ -802,6 +854,7 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
         recording.licence,
         recording.licence_url,
         "the reading",
+        words,
     )
 
 
@@ -1389,16 +1442,33 @@ def _staged(pairs: tuple[tuple[str, str], ...], language: str = "en") -> list[di
 
 
 def about_page(language: str = "en", address: str = "") -> str:
-    """That targum is under construction, and how much has landed lately.
+    """That targum is built in public: how much has landed lately, and what it was.
 
-    Nothing here is written by hand: the count and the calendar both come from `git
-    log`, and the rest of what this page used to say is on GitHub.
+    The count and the calendar come from `git log`. The days under them come from
+    `built.txt`, a line or three each, and every line is asked of `about.refused` before
+    it is drawn (2026-09-29). They are English on every page: the Russian page says its
+    own words around them and marks the list as English.
 
     Indexed, and in the sitemap, so it names its own address like every other page a
     crawler is sent to. One address for every language: this page reads the browser's
     language rather than `?lang=`, so there is no second address to name.
     """
-    from ..about import DAYS, work
+    from ..about import DAYS, built, work
+    from ..strings import said_day
+
+    # The year is said only on a day that is not in the newest day's year, which is the
+    # one place a column of days and months can be misread.
+    found = work()
+    days = built()
+    newest = days[0][0].year if days else 0
+    log = [
+        {
+            "iso": day.isoformat(),
+            "said": said_day(day, language, year=day.year != newest),
+            "lines": lines,
+        }
+        for day, lines in days
+    ]
 
     def level(count: int, busiest: int) -> int:
         """Which of five shades a day gets. Zero stays zero rather than rounding up."""
@@ -1412,15 +1482,30 @@ def about_page(language: str = "en", address: str = "") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            work=work(),
+            work=found,
+            tn=page_counts(language),
+            # The count as a person writes it: 1,174, and 1 174 in Russian.
+            commits=f"{found.commits:,}".replace(",", "\u00a0" if language == "ru" else ","),
+            # The days the count runs between, in the page's language: «с 31 августа по
+            # 29 сентября», where `Work.through` alone said "по 29 September".
+            since=said_day(date.fromisoformat(found.days[0][0]), language) if found.days else "",
+            through=(
+                said_day(date.fromisoformat(found.days[-1][0]), language) if found.days else ""
+            ),
             days=DAYS,
             level=level,
+            log=log,
             canonical=f"{address.rstrip('/')}/about" if address else "",
         )
     )
 
 
-def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
+def front_page(
+    language: str = "en",
+    address: str = "",
+    asked: str = "",
+    tried: dict[str, Any] | None = None,
+) -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
     The page `holding_page` stands in for. It is served at `/` only while
@@ -1429,6 +1514,10 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
 
     Everything it needs is baked in, as a reader's is: the two faces, the stylesheet and
     the one script are inlined, and nothing on the page fetches anything.
+
+    `tried` is what the box under the headline found in a link a visitor pasted
+    (`serve.tried_for`, targum-internal#399): the page comes back with the answer in
+    place of the box's empty state and the waitlist's form carrying the link.
     """
     from ..ingest import x as x_door
 
@@ -1452,6 +1541,9 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
                 "Vowels on every word, English beside every line, and any word explained "
                 "the moment you tap it.",
             ),
+            joined_from="/",
+            tried=tried,
+            tn=page_counts(language),
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),
@@ -1635,6 +1727,29 @@ def legal_page(which: str, address: str = "") -> str:
     )
 
 
+def _said_here(
+    text: str,
+    tokens: list[Any],
+    lexicon: Any,
+    said_marks: dict[str, list[list[object]]],
+    sid: str,
+    bare: str,
+    to_bare: Any,
+) -> dict[int, str]:
+    """A French row's words as said there (targum-internal#266): each word's reading for the
+    card, keyed by where it starts, and the row's marks for the "as said" switch, measured
+    as the word rows are."""
+    from ..annotate import french_said
+
+    said = french_said.sentence(text, list(tokens), lexicon)
+    drawn: list[list[object]] = []
+    for start, end, kind, consonant in french_said.marks(text, list(tokens), said):
+        first, last = js_span(bare, *map_span(start, end, to_bare))
+        drawn.append([first, last, kind, consonant] if consonant else [first, last, kind])
+    said_marks[sid] = drawn
+    return {token.start: one.as_said for token, one in zip(tokens, said, strict=True) if one.ipa}
+
+
 def _family_at(
     token: object,
     families: list[list[list[str]]],
@@ -1745,6 +1860,7 @@ def signin_page(
     language: str = "en",
     said: str = "",
     asked: str = "",
+    connecting: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -1752,6 +1868,10 @@ def signin_page(
     account it would sign in without having spent anything to find out. `expired` is
     what a link that has been used or has aged out arrives at, which is a normal thing
     to hit rather than an error.
+
+    `connecting` is the line that says why they are here when Claude or ChatGPT sent
+    them — "Sign in to finish connecting Claude" — said by the server, which is what
+    knows (copy audit, 2026-09-28).
     """
     from .. import google as google_module
 
@@ -1766,6 +1886,7 @@ def signin_page(
             token=token,
             expired=expired,
             said=said,
+            connecting=connecting,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).
             google=google_module.configured(),
@@ -1912,7 +2033,9 @@ def set_page(
     )
 
 
-def connect_page(language: str = "en", address: str = "", signed_in: bool = False) -> str:
+def connect_page(
+    language: str = "en", address: str = "", signed_in: bool = False, asked: str = ""
+) -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 
     A public page, so §6's selling register applies and the feature names we use inside
@@ -1944,6 +2067,8 @@ def connect_page(language: str = "en", address: str = "", signed_in: bool = Fals
                 "you at your level and shows you how to fix each mistake.",
             ),
             signed_in=signed_in,
+            joined_from="/connect",
+            asked=asked,
             canonical=here,
             alternates=alternates,
             address=address,
@@ -2004,25 +2129,18 @@ def progress_page(token: str, language: str = "en") -> str:
 #: level named after the person reading it grades them, which the voice rules refuse.
 WEEKLY_LEVELS: dict[str, str] = {
     "aleph": (
-        "Short sentences, one clause each, present and past. Every place and person "
-        "is said in a few words the first time it appears."
+        "Short sentences, one clause each, in the present and past. Every place and "
+        "person is explained in a few words the first time it appears."
     ),
     "bet": (
-        "Ordinary reporting: subordinate clauses, past and future, the register a "
-        "news site writes in when it is not trying to be difficult."
+        "Ordinary reporting, the way a news site writes when it isn't trying to be "
+        "difficult: longer sentences, past and future."
     ),
     "gimel": (
-        "Unsimplified. Officialese inside quotation marks, idiom, and the "
-        "constructions a paper actually uses. The week's biggest story runs at length."
+        "Not simplified: official statements quoted as they were said, idioms, and the "
+        "sentences a real paper uses. The week's biggest story runs at length."
     ),
 }
-
-
-SHELF = (
-    "Library",
-    "Hebrew — Tanakh, novels, essays and speeches — each with a translation beside it, "
-    "sentence by sentence.",
-)
 
 
 def shelf_page(address: str = "", language: str = "en") -> str:
@@ -2032,8 +2150,11 @@ def shelf_page(address: str = "", language: str = "en") -> str:
     search engine to find but a page saying "Coming soon".
     """
     from ..catalogue import everything
+    from ..strings import text
 
-    name, blurb = SHELF
+    # The name and the line under it in the page's language, since these are the title
+    # and the description a search result shows (targum-internal#188).
+    name, blurb = text("nav.library", language), text("library.head.description", language)
     _shelf_at = _addressed_in(f"{address}/library" if address else "", language)
     return (
         _environment()
@@ -2118,8 +2239,9 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     book, and the sample is the reason the page is worth indexing at all.
     """
     from ..models import direction_for
+    from ..strings import text
 
-    name = SHELF[0]
+    name = text("nav.library", language)
     here, alternates = _addressed_in(f"{address}/library/{entry.id}" if address else "", language)
     return (
         _environment()
@@ -2193,8 +2315,14 @@ def weekly_page(
     archive: list[WeeklyIssue] | None = None,
     language: str = "en",
     edition: str = "en",
+    signed_in: bool = False,
+    asked: str = "",
 ) -> str:
     """A landing page for the weekly, with the issue's own reader inside it.
+
+    `signed_in` takes the waitlist off the page — the bar's call, the hero's form and the
+    closing section — for a reader who already has an account (§6; copy audit,
+    2026-09-28).
 
     `edition` is which language's reader the frame opens — the page's own where the
     issue was built into it, English otherwise. The caller asks the index, because only
@@ -2207,7 +2335,9 @@ def weekly_page(
     the template had stopped using — and it meant a box serving the weekly needed the
     source files as well as the built readers. It needs the readers and the index.
     """
-    from ..strings import text
+    from datetime import date as _date
+
+    from ..strings import said_on, text
     from ..weekly.models import LEVELS, label_in
     from ..weekly.models import folder as weekly_folder
 
@@ -2215,6 +2345,15 @@ def weekly_page(
     said = page_words(language)
     blurb = issue.blurb
     press = _press(issue)
+    # An issue in the archive is not this week's, and its hero said so anyway (copy
+    # audit, 2026-09-28): the newest published issue is "this week's", every older one
+    # is worded around its own date.
+    published = [one for one in (archive or []) if one.id != issue.id]
+    is_newest = not any(one.dated > issue.dated for one in published)
+    try:
+        dated_on = said_on(_date.fromisoformat(issue.dated), language)
+    except ValueError:
+        dated_on, is_newest = "", True
     _weekly_at = f"{address}/weekly/{issue.id}/{level.value}" if address else ""
     return (
         _environment()
@@ -2243,9 +2382,14 @@ def weekly_page(
                 one: said(f"weekly.level.{one}.explained", text)
                 for one, text in WEEKLY_LEVELS.items()
             },
-            shelf_name=SHELF[0],
+            shelf_name=text("nav.library", language),
             press=press,
-            archive=[other for other in (archive or []) if other.id != issue.id],
+            archive=published,
+            is_newest=is_newest,
+            dated_on=dated_on,
+            signed_in=signed_in,
+            joined_from="/weekly",
+            asked=asked,
         )
     )
 
@@ -2261,13 +2405,21 @@ def daily_page(
     is_today: bool = True,
     address: str = "",
     language: str = "en",
+    signed_in: bool = False,
+    asked: str = "",
 ) -> str:
     """One day of a learning cycle, with its own reader inside it.
+
+    `signed_in`, as on the weekly: no waitlist for a reader with an account.
 
     Drawn as the front door is (design.md §12, 2026-09-27): the landing's bar and hero,
     the cycle's manuscript beside the headline, and the waitlist at the foot.
     Everything it needs was decided at build time; what is left at serve time is a lookup.
     """
+    from ..strings import text
+
+    # The cycle's name and sentence as the follow button already says them (#188).
+    named = text(f"series.{cycle.slug}.name", language)
     return (
         _environment()
         .get_template("daily.html.j2")
@@ -2276,14 +2428,17 @@ def daily_page(
             tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
-            title=f"{day.title} — {cycle.name} — targum",
+            title=f"{day.title} — {named} — targum",
             # The reference goes in the description because it is how somebody who keeps
             # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
             # sentence about it.
-            description=(
-                f"{cycle.name} for {day.hdate}: {day.title}. {cycle.blurb} "
-                "The Hebrew pointed, a translation beside every line, and every word "
-                "explained."
+            description=text(
+                "daily.head.description",
+                language,
+                name=named,
+                date=day.hdate,
+                title=day.title,
+                blurb=text(f"series.{cycle.slug}.what", language),
             ),
             canonical=f"{address}/{cycle.slug}" if address and is_today else "",
             og_type="article",
@@ -2294,6 +2449,9 @@ def daily_page(
             absent=absent or [],
             opens=opens,
             is_today=is_today,
+            signed_in=signed_in,
+            joined_from=f"/{cycle.slug}",
+            asked=asked,
             translation_said=_translation_said(day, language),
         )
     )
@@ -2343,6 +2501,7 @@ def parasha_page(
     signed_in: bool = False,
     week: dict[str, Any] | None = None,
     language: str = "en",
+    asked: str = "",
 ) -> str:
     """This week's portion, with its own reader inside it.
 
@@ -2361,7 +2520,7 @@ def parasha_page(
     """
     from ..parasha.build import COLLECTION_ID
     from ..parasha.models import neighbours
-    from ..strings import said_on
+    from ..strings import said_on, text
 
     said = said_on(shabbat, language) if shabbat is not None else "Shabbat"
     previous, following = neighbours(portion, listed or [])
@@ -2383,6 +2542,9 @@ def parasha_page(
         _environment()
         .get_template("parasha.html.j2")
         .render(
+            signed_in=signed_in,
+            joined_from="/parasha",
+            asked=asked,
             t=page_words(language),
             tn=page_counts(language),
             page_language=_page_language(language),
@@ -2395,19 +2557,18 @@ def parasha_page(
             # a query. The chapter range is what a reader searching the name wants to see
             # confirmed, and it is different for all fifty-four.
             title=(
-                f"{portion.name} — this week's parasha — targum"
+                text("parasha.head.this-week", language, name=portion.name)
                 if shabbat is not None
                 else f"{portion.name} — {portion.summary} — targum"
                 if portion.summary
-                else f"{portion.name} — the weekly Torah portion — targum"
+                else text("parasha.head.a-portion", language, name=portion.name)
             ),
             # The opening words go in the description because they are how somebody
             # who knows the portion recognises it — a search result that leads with
             # אתם נצבים says which reading this is faster than the chapter numbers do.
             description=(
-                f"{portion.name} — {portion.opening} — {portion.summary}. The Hebrew with "
-                "its chanting marks or without, a translation beside every verse, and "
-                "every word explained."
+                f"{portion.name} — {portion.opening} — {portion.summary}. "
+                + text("parasha.head.description", language)
             ).replace(" —  — ", " — "),
             canonical=f"{address}/parasha/{portion.slug}" if address else "",
             portion=portion,
@@ -2447,6 +2608,8 @@ def weekly_note(
     heading: str = "Weekly News Digest",
     home: str = "/weekly",
     language: str = "en",
+    title: str = "",
+    description: str = "",
 ) -> str:
     """A sentence back from the weekly's own door — or, since 2026-09-11, from a series'
     (`heading`, `home`): the same furniture, read out of a mail client.
@@ -2460,6 +2623,10 @@ def weekly_note(
     the page's `lang`, the foot, and the door at the bottom — which took `t` from the
     environment's English global and so was English on a page that was otherwise not.
     The page's own title and description are said in it too (targum-internal#288).
+
+    `title` and `description` are the caller's where the page is not the weekly's: the
+    waitlist's notes and a series' stop page carried the Weekly News Digest's tab title
+    and description (copy audit, 2026-09-28). Such a page is canonical to nothing.
     """
     from ..strings import text
 
@@ -2469,9 +2636,9 @@ def weekly_note(
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            title=text("weekly.note.title", language),
-            description=text("weekly.note.description", language),
-            canonical=f"{address}/weekly" if address else "",
+            title=title or text("weekly.note.title", language),
+            description=description or text("weekly.note.description", language),
+            canonical=f"{address}/weekly" if address and not title else "",
             message=message,
             done=done,
             pending=pending,
@@ -2559,6 +2726,31 @@ COVER_SUFFIXES = ((".webp", "image/webp"), (".png", "image/png"), (".jpg", "imag
 #: one — a hundred and fifty psalms would otherwise add three megabytes to a reader for
 #: an image the size of a thumbnail.
 PLATE_WIDTH = 128
+
+
+def _stands_at(
+    token: Token,
+    sid: str,
+    earlier: str | None,
+    bare: Mapping[str, str],
+    to_bare: Mapping[str, list[int]],
+) -> list[object] | None:
+    """Where the words a pronoun stands for are, as [segment, start, end] in the page's
+    coordinates: the last place they are written before the pronoun in its own segment,
+    or the last in the segment before. None where they are not there — the reading is
+    shared by every text with the sentence, and this one may not have them."""
+    if not token.stands_for:
+        return None
+    back, words = token.stands_for
+    target = sid if back == 0 else earlier
+    if target is None or target not in bare:
+        return None
+    text = bare[target]
+    limit = map_span(token.start, token.end, to_bare[sid])[0] if back == 0 else len(text)
+    at = text.rfind(words, 0, limit)
+    if at < 0:
+        return None
+    return [target, *js_span(text, at, at + len(words))]
 
 
 def cover_bytes(covers: Path | None, name: str) -> bytes | None:
@@ -2884,8 +3076,12 @@ def render(
     # learning. Both are the same page. See `/parasha` and §12 of design.md.
     bare: dict[str, str] = {}
     to_bare: dict[str, list[int]] = {}
+    # The segment before each, in the document's order: where a pronoun's words may be.
+    before_of: dict[str, str] = {}
     for segment in segmented.segments:
         bare[segment.id], to_bare[segment.id] = strip_nikkud(segment.text)
+    for earlier, later in zip(segmented.segments, segmented.segments[1:], strict=False):
+        before_of[later.id] = earlier.id
     pointed = dict(vocalization.segments) if vocalization is not None else {}
     machine = set(vocalization.machine) if vocalization is not None else set()
 
@@ -2917,6 +3113,20 @@ def render(
     mark_guessed = bool(machine) and len(machine) * 2 < len(pointed)
 
     biblical = is_biblical(document.source)
+    # The accent that rules each word, named on its card while the chanting marks are
+    # shown (design.md §12, "A word in scripture names its accent", 2026-09-28). Only
+    # scripture, only where the switch exists, and never the poetic books.
+    refs = {segment.id: segment.ref for segment in segmented.segments}
+    accents = {
+        segment_id: chant
+        for segment_id in unaccented
+        if biblical
+        and (
+            chant := accent_rows(
+                pointed[segment_id], refs.get(segment_id), bare.get(segment_id, "")
+            )
+        )
+    }
     # Which verse each row is, by the address a learner would write. The number stands in
     # the margin and the row answers to `#2:1`, so a link to Ruth 2:1 opens on Ruth 2:1
     # (targum-internal#28). Only a verse carries one: prose has no address, and a heading
@@ -2934,6 +3144,14 @@ def render(
         from ..annotate import openrussian
 
         lexicon = openrussian.lexicon()
+    # How a French word is said (targum-internal#266), where the switch is on and this
+    # machine fetched Morphalou. Off, or without the table, the page is the one it was.
+    pronouncing = None
+    if segmented.language.split("-")[0].lower() == "fr" and annotation is not None:
+        from ..annotate import french_said, morphalou
+
+        if french_said.is_on():
+            pronouncing = morphalou.lexicon()
     # Which rows are in a language other than the document's. Daniel and Ezra turn into
     # Aramaic mid-book and back, and a row of Aramaic drawn under `lang="he"` is a lie to
     # a screen reader and a spell-checker both. Those rows carry no tokens — the annotator
@@ -2961,6 +3179,13 @@ def render(
     # pictures and the link home, and the rows the head takes the place of.
     chrome_language = translations[0].target_language if translations else "en"
     post, post_covers = post_card(folder, segmented, chrome_language)
+    # Read once for the whole text, so a switch thrown mid-build cannot give one chapter
+    # the list and the next none.
+    from .preread import SHOWN as PREREAD_SHOWN
+    from .preread import chapter_words
+    from .preread import is_on as preread_is_on
+
+    preread_on = preread_is_on()
     # Its hashtags, mentions and addresses, which are names and not words: nothing in
     # them is tapped or counted on the page (David, 2026-09-27). At render, not in the
     # annotator, so no text is annotated again for it.
@@ -2981,12 +3206,43 @@ def render(
     from ..audio import manifest as manifest_module
 
     has_audio = folder is not None and (folder / manifest_module.MANIFEST).is_file()
+    # What the contents page's presses spend and what its first one says (copy audit,
+    # 2026-09-28): each part's length off the manifest, so a waiting row's Transcribe can
+    # say its credits and Prepare all theirs; and the verb, by medium, as Learn's rows
+    # choose it (§6) — a recording is listened to, a film watched.
+    part_seconds: dict[int, float] = {}
+    medium = "read"
+    if has_audio and folder is not None:
+        kept_manifest = manifest_module.load(folder)
+        if kept_manifest is not None:
+            part_seconds = {
+                part.number: part.end - part.start
+                for part in kept_manifest.parts
+                if part.end > part.start
+            }
+            medium = "watch" if any(part.video for part in kept_manifest.parts) else "listen"
+    by_id = {segment.id: segment for segment in segmented.segments}
+    section_parts = {
+        section.number: sorted(
+            {
+                int(head[5:])
+                for head in (
+                    by_id[sid].ref.split(":", 1)[0] for sid in section.segment_ids if sid in by_id
+                )
+                if head.startswith("part ") and head[5:].isdigit()
+            }
+        )
+        for section in sections
+    }
     # The language the page's own words are said in: its first rendering's
     # (targum-internal#184). The text keeps its own on `data-language`.
     chrome = translations[0].target_language if translations else "en"
     offers = offers_in(next_after(document), chrome)
     shared = {
         "has_audio": has_audio,
+        "medium": medium,
+        "section_parts": section_parts,
+        "part_seconds": part_seconds,
         # What to read next, worked out here because a reader cannot ask anybody. The
         # first is the offer; the rest are what "something else" draws, written into the
         # page because the page fetches nothing (targum-internal#233).
@@ -3165,6 +3421,13 @@ def render(
         grammar: list[str] = [""]
         grammar_at: dict[str, int] = {"": 0}
         words: dict[str, list[list[int]]] = {}
+        # The "as said" marks, per row, where the page says how its French is said.
+        said_marks: dict[str, list[list[object]]] = {}
+        # What a French pronoun stands for, placed on this page: per segment, rows of
+        # [the pronoun's row, the segment that names it, start, end]. Only once the words
+        # are measured to be right (`model_lemma.antecedents_shown`), and only where they
+        # are on this page to be gone to (targum-internal#264).
+        stands: dict[str, list[list[object]]] = {}
         # Every form each verb is written in on this page, so the conjugation table a
         # word gets is one all of them agree on and not the first one's (#307).
         verb_forms: dict[tuple[str, str], list[str]] = {}
@@ -3189,10 +3452,24 @@ def render(
                 if not tokens or sid in post_covers:
                     continue
                 rows: list[list[int]] = []
+                on_row = [
+                    token
+                    for token in chips(tokens)
+                    if not (sid in unwordly and inside(token.start, token.end, unwordly[sid]))
+                ]
+                heard: dict[int, str] = {}
+                if pronouncing is not None:
+                    heard = _said_here(
+                        as_written.get(sid, ""),
+                        on_row,
+                        pronouncing,
+                        said_marks,
+                        sid,
+                        bare[sid],
+                        to_bare[sid],
+                    )
                 # A name of several words is one chip (targum-internal#149).
-                for token in chips(tokens):
-                    if sid in unwordly and inside(token.start, token.end, unwordly[sid]):
-                        continue
+                for token in on_row:
                     word = (token.lemma, token.head)
                     if word not in lemma_at:
                         lemma_at[word] = len(lemmas)
@@ -3224,6 +3501,8 @@ def render(
                     if token.ipa:
                         said_as = as_written.get(sid, "")[token.start : token.end]
                         sound = (token.ipa, guessed(said_as, token.ipa))
+                    elif token.start in heard:
+                        sound = (heard[token.start], 0)
                     if sound not in sound_at:
                         sound_at[sound] = len(sounds)
                         sounds.append(sound[0])
@@ -3255,6 +3534,10 @@ def render(
                     if label:
                         row.append(label)
                     rows.append(row)
+                    if token.stands_for and antecedents_shown():
+                        placed = _stands_at(token, sid, before_of.get(sid), bare, to_bare)
+                        if placed and placed[0] in section.segment_ids:
+                            stands.setdefault(sid, []).append([len(rows) - 1, *placed])
                 words[sid] = rows
         # One table of meanings per target language, each parallel to `lemmas`. A reader
         # holding an English and a Russian translation carries both and shows whichever
@@ -3287,6 +3570,14 @@ def render(
             from ..annotate.endings import ending_of
 
             endings = [ending_of(lemma) for lemma in lemmas]
+        # And the English it looks like and does not mean, from targum's own list
+        # (targum-internal#267), behind its switch until a person has read the list. The
+        # card says it only while the text is read into English.
+        friends: list[list[str]] = []
+        from ..annotate.false_friends import friend_of, is_on
+
+        if is_on() and segmented.language.split("-")[0].lower() == "fr":
+            friends = [friend_of(lemma) for lemma in lemmas]
         partners: list[str] = []
         stresses: list[str] = []
         if lexicon is not None:
@@ -3315,6 +3606,7 @@ def render(
                 ),
                 ("partners", partners),
                 ("stress", stresses),
+                ("friends", friends),
             )
             if any(table)
         }
@@ -3374,6 +3666,22 @@ def render(
         # Whether this section is an imported recording's part still waiting for its
         # transcript. The page says which work is owed, and the button asks for it.
         audio_waiting = any(segment.ref.endswith(":waiting") for segment in segments)
+        # What transcribing it would use, beside the press (copy audit, 2026-09-28): the
+        # waiting parts' length off the manifest, a credit a minute. None where the
+        # manifest does not say — the page then says no figure rather than a guess.
+        waiting_credits: int | None = None
+        if audio_waiting and folder is not None:
+            from ..audio import manifest as manifest_module
+
+            kept = manifest_module.load(folder)
+            owed = {
+                int(head[5:])
+                for head in (segment.ref.split(":", 1)[0] for segment in segments)
+                if head.startswith("part ") and head[5:].isdigit()
+            }
+            lengths = [p.end - p.start for p in (kept.parts if kept else []) if p.number in owed]
+            if lengths and all(length > 0 for length in lengths):
+                waiting_credits = credits_of(sum(lengths))
         # A chapter's own cover where one was drawn for it, and the book's where it was
         # not — which is most of them, since a numbered chapter is not a subject anything
         # could draw.
@@ -3406,6 +3714,13 @@ def render(
         # runs right to left on both sides, and against English on one.
         drawn_at = covering[0] if covering else 0
         drawing = translations[drawn_at]
+        # The words to know before this chapter (targum-internal#97), behind its switch.
+        # Not on a post, which is not a chapter, and not where there is nothing to tap.
+        preread = (
+            chapter_words(section.segment_ids, annotation, glossaries, drawing, translations)
+            if preread_on and words and post is None
+            else []
+        )
         target_direction = direction_for(drawing.target_language)
         # Where the language turns, said once at the row where it does — "Aramaic" over
         # Daniel 2:4, "Hebrew" over 8:1 — rather than on every row of a chapter. Counted
@@ -3424,6 +3739,7 @@ def render(
                 standing = now
         # This page's share of the rows in another language, for the payload.
         tongues = {sid: languages[sid] for sid in section.segment_ids if sid in languages}
+        chanted = {sid: accents[sid] for sid in section.segment_ids if sid in accents}
         html = env.get_template("reader.html.j2").render(
             **shared,
             # The page's own words in the language it is read in (targum-internal#184).
@@ -3438,6 +3754,7 @@ def render(
             section=section,
             translated=translated,
             audio_waiting=audio_waiting,
+            waiting_credits=waiting_credits,
             # Words to tap: the Hebrew's, or Onkelos's beside it (targum-internal#202).
             words=bool(words)
             or any(
@@ -3465,12 +3782,19 @@ def render(
                 and vocalization.machine
                 and vocalization.vocalizer.startswith("dicta/")
             ),
+            # The false friends' script, only where the page carries the table.
+            false_friends="friends" in extensions,
             # CC BY-SA asks the same naming, on a page that quoted the tables — which the
             # stress marks do too, since every mark was confirmed against them.
             lexicon_credit="partners" in extensions
             or "stress" in extensions
             or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
+            # How the French is said (targum-internal#266): the switch, its script and its
+            # style, and Morphalou's notice. Nothing of it where the switch is off.
+            said=bool(said_marks),
             segments=[segment for segment in segments if segment.id not in post_covers],
+            preread=preread,
+            preread_shown=PREREAD_SHOWN,
             # The post's card, on the page that opens the text (a post is one page).
             post=post if section.number == 1 else None,
             # And where a film's caption starts, on whichever page it falls.
@@ -3554,6 +3878,9 @@ def render(
                     # Left out entirely where nothing was read, rather than shipping a
                     # table holding one empty string in every reader that has no Hebrew.
                     **({"sounds": sounds} if len(sounds) > 1 else {}),
+                    # The French "as said" switch's marks (targum-internal#266), left out
+                    # wherever the switch is off, so a page without them is the page it was.
+                    **({"said": said_marks, **said_strings(translations)} if said_marks else {}),
                     # Parallel to the sounds, and left out where nothing on the page was
                     # guessed — a pointed, accented Tanakh chapter says nothing more.
                     **({"guessed": guesses} if any(guesses) else {}),
@@ -3563,6 +3890,16 @@ def render(
                     # or a language they say nothing about — gave the tables nothing.
                     **({"built": builts} if len(builts) > 1 else {}),
                     **({"grammar": grammar} if len(grammar) > 1 else {}),
+                    # Whether a finite past is the passé simple, which only a text read
+                    # wholly by a question that tells it from the imparfait can say
+                    # (`model_lemma.tenses_apart`). Left out everywhere else, and the
+                    # card then says "past", as it always did.
+                    **(
+                        {"tensesApart": True}
+                        if annotation is not None and tenses_apart(annotation.annotator)
+                        else {}
+                    ),
+                    **({"stands": stands} if stands else {}),
                     # A verb's citation form and a noun's lying plural, parallel to the
                     # lemmas. Left out while nothing on the page has either — which is
                     # every text glossed before they existed.
@@ -3576,6 +3913,9 @@ def render(
                     # decide — but a row that says what it is beats one a script would
                     # have to infer from a missing table.
                     **({"languages": tongues} if tongues else {}),
+                    # Each word's ruling accent, [bareStart, bareEnd, key, disjunctive],
+                    # on scripture that carries them; left out everywhere else.
+                    **({"accents": chanted} if chanted else {}),
                     "levelNames": BAND_NAMES,
                     # The reader's own words in the language it is read in, where that
                     # is not English and has a catalogue (targum-internal#184). An

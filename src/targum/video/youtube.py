@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ..errors import TargumError
+from ..errors import OffHere, TargumError
 from . import MAX_VIDEO_BYTES, VIDEO_EDGE, ytdlp_available
 
 log = logging.getLogger(__name__)
@@ -426,7 +426,7 @@ def run_ytdlp(
     """
     usable, hint = ytdlp_available()
     if not usable:
-        raise TargumError("yt-dlp is not installed.", hint)
+        raise OffHere("yt-dlp is not installed.", hint)
     if routes is None:
         routes = [_extra_args(minter=minter)] * (2 if again else 1)
     tells = (*TRANSIENT, *again)
@@ -437,7 +437,7 @@ def run_ytdlp(
         try:
             return subprocess.run(asked, capture_output=True, check=True, timeout=timeout)
         except OSError as error:
-            raise TargumError("yt-dlp is not installed.", hint) from error
+            raise OffHere("yt-dlp is not installed.", hint) from error
         except subprocess.TimeoutExpired as error:
             raise TargumError(late) from error
         except subprocess.CalledProcessError as error:

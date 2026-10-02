@@ -1,0 +1,30 @@
+# /etc/systemd/system/targum-weekly-watch.service — installed by deploy.sh, started every
+# hour by targum-weekly-watch.timer (targum-internal#404).
+#
+# From Monday noon UTC, looks for this week's weekly in the box's own index and mails
+# TARGUM_ALERT_TO once if it is not published: the run on the laptop did not start, or
+# stopped without saying so. Every week it sees is a line in its state file, out or not.
+# The laptop's run mails on its own when it stops (`targum weekly stopped`), and this
+# then stays quiet about that week.
+#
+#   journalctl -u targum-weekly-watch -n 20
+#   cat /var/lib/targum/weekly-watch.json
+
+[Unit]
+Description=targum weekly watch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum watch-weekly --state /var/lib/targum/weekly-watch.json
+TimeoutStartSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum

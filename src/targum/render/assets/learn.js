@@ -168,7 +168,7 @@
     // "0% of its words" on the first card a new reader sees is true and unkind; the
     // line starts once there is something to say.
     if (!reader.known) return "";
-    return t("learn.known-share", "You know {share}%", { share: Math.round(reader.known * 100) });
+    return t("learn.known-share", "You know {share}% of its words", { share: Math.round(reader.known * 100) });
   }
 
   // The title in English under the Hebrew one, where the catalogue has one. An upload
@@ -280,7 +280,7 @@
             })
       );
     } else if (reader.sections > 1) {
-      out.push(tn("learn.parts", reader.sections, "{n} part", "{n} parts"));
+      out.push(tn("learn.parts", reader.sections, "{n} section", "{n} sections"));
     } else if (reader.minutes && door.state !== "carry") {
       out.push(t("learn.minutes", "{n} min", { n: reader.minutes }));
     }
@@ -426,7 +426,7 @@
     document.getElementById("carry-meta").textContent = door.meta !== undefined ? door.meta : facts(reader, door);
 
     var known = document.getElementById("carry-known");
-    var said = share(reader);
+    var said = door.shareSaid ? "" : share(reader);
     known.hidden = !said;
     known.textContent = said;
     // The line along the foot: how far through the text the reader is.
@@ -759,7 +759,7 @@
   var doors = [];
   var showing = null;
   var RECENTLY_READ = t("learn.recent", "Recently opened");
-  var SUBSCRIPTIONS = t("learn.subscriptions", "Subscriptions");
+  var SUBSCRIPTIONS = t("learn.subscriptions", "Following");
   function kind(one) {
     return one.id.indexOf("series:") === 0 ? "series" : one.id.indexOf("recent:") === 0 ? "recent" : "pill";
   }
@@ -907,7 +907,7 @@
     }
     var meta = door.meta !== undefined ? door.meta : facts(reader, door);
     if (meta) what.appendChild(el("span", "learn-card-meta", meta));
-    var said = share(reader);
+    var said = door.shareSaid ? "" : share(reader);
     if (said) what.appendChild(el("span", "learn-card-known", said));
     if (lead) {
       what.appendChild(
@@ -957,18 +957,60 @@
     }
   }
 
+  /* Whether to tell this reader about the connector at all: while it is open, to a
+     signed-in reader holding no connection (design.md §12, 2026-09-24 and 2026-09-28).
+     The banner and the arrival's last card ask the same question. */
+  function offersConnector() {
+    if (!window.TARGUM_CONNECTOR) return false;
+    // `who` is null until `/account/me` answers, and for a reader who is not signed in.
+    // Neither is somebody to invite.
+    if (!who || !who.signedIn) return false;
+    return !(who.connections || []).length;
+  }
+
+  /* The two steps, the first of them one press: the address in a well and Copy beside
+     it, then where it goes (design.md §12, "The connector is met on the way in"). The
+     address is this site's own `/mcp`, the one `/connect` shows. `where` names the
+     place for the count, and nothing else goes with it. */
+  function connectSteps(where) {
+    var origin = (window.location && window.location.origin) || "";
+    var address = origin + "/mcp";
+    var list = el("ol", "connect-steps");
+    var one = el("li", "connect-step");
+    one.appendChild(el("span", "connect-step-say", t("learn.connect.step-copy", "Copy this address")));
+    var well = el("span", "connect-address");
+    well.appendChild(el("code", "connect-url", address));
+    var copy = el("button", "connect-copy", t("learn.connect.copy", "Copy"));
+    copy.type = "button";
+    copy.addEventListener("click", function () {
+      counted(where + "-copy");
+      try {
+        window.navigator.clipboard.writeText(address).then(function () {
+          copy.textContent = t("learn.connect.copied", "Copied");
+        });
+      } catch (e) {}
+    });
+    well.appendChild(copy);
+    one.appendChild(well);
+    list.appendChild(one);
+    list.appendChild(
+      el("li", "connect-step", t("learn.connect.step-add", "Add it as a connector in Claude or ChatGPT."))
+    );
+    return list;
+  }
+
   function drawConnectBanner() {
     var host = document.getElementById("connect-banner");
-    if (!host || !window.TARGUM_CONNECTOR) return;
-    // `who` is null until `/account/me` answers, and for a reader who is not signed in.
-    // Neither is somebody to invite, so neither draws it.
-    if (!who || !who.signedIn) return;
-    if ((who.connections || []).length) return;
+    if (!host || !offersConnector()) return;
     if (shutBanner()) return;
 
+    /* A card, not a line (2026-09-28): what a reader gets, and the two steps with the
+       address to copy, so installing starts here rather than a page away. The first
+       three children keep their places — the line, the way to every app's steps, the
+       cross — and the stylesheet sets them out. */
     var says = el("p", "connect-says", t("learn.connect.practise-hebrew-in-claude",
-      "Practise Hebrew in Claude or ChatGPT, with the words you know."));
-    var way = el("a", "connect-go", t("learn.connect.connect", "Connect"));
+      "Practise Hebrew in Claude or ChatGPT"));
+    var way = el("a", "connect-go", t("learn.connect.every-app", "Learn more"));
     way.href = "/connect";
     way.addEventListener("click", function () {
       counted("banner-connect");
@@ -983,9 +1025,13 @@
       host.hidden = true;
       counted("banner-shut");
     });
+    var lead = el("p", "connect-lead", t("learn.connect.lead",
+      "Add targum to the AI you already use, and it practises Hebrew with you using the words you know."));
     host.appendChild(says);
     host.appendChild(way);
     host.appendChild(shut);
+    host.appendChild(lead);
+    host.appendChild(connectSteps("banner"));
     host.hidden = false;
   }
 
@@ -1182,6 +1228,9 @@
       register: row.register === "biblical" ? "biblical" : row.register === "modern" ? "modern" : "",
       primary: true,
       meta: row.minutes ? why + " · " + t("learn.minutes", "{n} min", { n: row.minutes }) : why,
+      /* The reason line already says the known share ("You know 80% of its words."),
+         and the chip under it said it again (copy audit, 2026-09-28). */
+      shareSaid: !!(row.reason && row.reason.key === "suggest.known"),
     };
     if (row.reader) {
       door.src = row.reader;
@@ -1256,7 +1305,7 @@
     drawCarry(reader, {
       id: "offered",
       state: "carry",
-      heading: t("learn.from-the-conversation", "From the conversation"),
+      heading: t("learn.from-the-conversation", "From the chat"),
       primary: true,
       path: path,
       meta: found ? undefined : "",
@@ -1321,7 +1370,7 @@
     var why = "";
     if (!level) {
       pick = open[0];
-      why = t("learn.why.start", "Where most people start");
+      why = t("learn.why.start", "An easy place to start");
     } else {
       open.forEach(function (entry) {
         if (!pick && entry.difficulty > level) pick = entry;
@@ -1425,7 +1474,7 @@
     return {
       aleph: t("learn.level.aleph", "Just starting"),
       "aleph-plus": t("learn.level.aleph-plus", "I know some words"),
-      bet: t("learn.level.bet", "Simple conversations"),
+      bet: t("learn.level.bet", "I can hold a simple conversation"),
       "bet-plus": t("learn.level.bet-plus", "I follow slow Hebrew with help"),
       gimel: t("learn.level.gimel", "I follow the news with a dictionary"),
       dalet: t("learn.level.dalet", "I follow most things comfortably"),
@@ -1438,10 +1487,40 @@
      difficulty each row already carries, and the rung says how far along to land: aleph
      takes the easiest of them, vav the hardest, the rest in between. It is a coarse rule
      on purpose — it decides one text, once, and the reader's own marked words decide
-     everything after it. No rung, and the order the shelf already has is the order. */
+     everything after it. No rung, and the order the shelf already has is the order.
+
+     Where the rows say what rung each was written for (`level.name`, the ladder
+     `level.py` climbs), that is read first, and the position rule is only for a shelf
+     that does not say (2026-09-28). By position alone one row is every rung's answer, so
+     a reader who said "Just starting" was opened on a vav article because it was the
+     only one filed under their subject. The pick is the hardest text at or under the
+     rung they named — one they can follow — and where nothing is that easy, the easiest
+     there is. */
+  function rungOf(reader) {
+    var name = reader && reader.level && reader.level.name;
+    return name ? charts.DECLARED_RUNGS.indexOf(String(name).replace(/ /g, "-")) : -1;
+  }
+
   function pickByRung(rows, rung) {
     if (!rows.length) return null;
     if (!rung) return rows[0];
+    var said = charts.DECLARED_RUNGS.indexOf(rung);
+    var leveled = rows.filter(function (reader) {
+      return rungOf(reader) >= 0;
+    });
+    if (said >= 0 && leveled.length) {
+      var under = leveled.filter(function (reader) {
+        return rungOf(reader) <= said;
+      });
+      var pool = under.length ? under : leveled;
+      var best = pool[0];
+      pool.forEach(function (reader) {
+        var here = rungOf(reader);
+        var there = rungOf(best);
+        if (under.length ? here > there : here < there) best = reader;
+      });
+      return best;
+    }
     var sorted = rows.slice().sort(function (a, b) {
       return (a.difficulty || 0) - (b.difficulty || 0);
     });
@@ -1607,13 +1686,69 @@
     return (lang && lang.into && lang.into()) || "";
   }
 
+  /* Whether this browser gives any sign its reader may read Russian (design.md §12,
+     "Russian is shown to somebody who may read it", 2026-09-28): one of its languages is
+     Russian, or a language of the countries where Russian is the language people share.
+     Nobody else is shown a word of Cyrillic by the arrival. It is a sign and not an
+     answer — the question is still asked — and a reader it misses has the EN · RU
+     switch, which is Latin letters. */
+  var RUSSIAN_WORLD = ["ru", "uk", "be", "kk", "ky", "uz", "tg"];
+
+  function mayReadRussian() {
+    var nav = window.navigator || (typeof navigator !== "undefined" ? navigator : null);
+    if (!nav) return false;
+    var said = nav.languages && nav.languages.length ? nav.languages : [nav.language || ""];
+    for (var i = 0; i < said.length; i++) {
+      var code = String(said[i] || "").split("-")[0].toLowerCase();
+      if (RUSSIAN_WORLD.indexOf(code) >= 0) return true;
+    }
+    return false;
+  }
+
+  //: Whether the reader has said, or the page knows, which language they read.
+  function tongueSaid() {
+    if (held(ASKED_READ) || readsInto()) return true;
+    if (pageTongue() !== "en") return true;
+    return !!(who && who.signedIn && who.readsSaid);
+  }
+
   function asksTongue() {
     if (offered().length < 2) return false;
     if (thisVisit()) return true;
-    if (held(ASKED_READ) || readsInto()) return false;
-    if (pageTongue() !== "en") return false;
-    if (who && who.signedIn && who.readsSaid) return false;
-    return true;
+    if (tongueSaid()) return false;
+    return mayReadRussian();
+  }
+
+  /* The way in for a Russian reader the browser did not give away — an olah whose phone
+     is set to Hebrew or English, the reader the question was first asked for (2026-09-20).
+     Two codes in the corner of the arrival, the front door's own EN · RU, so nothing in
+     it is Cyrillic. Drawn while the question is not asked and nothing has been said;
+     pressing RU is the answer the question would have taken. */
+  function drawTongueSwitch(host) {
+    if (!host) return;
+    host.textContent = "";
+    host.hidden = true;
+    if (offered().indexOf("ru") < 0 || tongueSaid()) return;
+    [
+      ["en", "EN", "English"],
+      ["ru", "RU", t("learn.arrival.switch-russian", "Russian")],
+    ].forEach(function (one, at) {
+      if (at) host.appendChild(el("span", "arrival-switch-dot", "\u00b7"));
+      var press = el("button", "arrival-switch-key", one[1]);
+      press.type = "button";
+      press.setAttribute("aria-label", one[2]);
+      press.setAttribute("aria-pressed", one[0] === "en" ? "true" : "false");
+      if (one[0] === "ru") {
+        press.addEventListener("click", function () {
+          counted("arrival-switch-ru");
+          sayTongue("ru", function () {
+            if (window.location.reload) window.location.reload();
+          });
+        });
+      }
+      host.appendChild(press);
+    });
+    host.hidden = false;
   }
 
   /* The account hears it the way the profile page's boxes say it: the whole set. Then
@@ -1691,6 +1826,18 @@
     });
   }
 
+  /* Whether a row is one this reader can follow, by the rung they named: written for
+     it, under it, or one above — a stretch, not a wall. A subject is what they will
+     enjoy only where they can read it; a vav article is not "Food and cooking" to
+     somebody just starting, so a subject whose rows are all past reach gives way to
+     the next, and the rung decides where none is left (2026-09-28). A row that does
+     not say its rung, and a reader who named none, are never ruled out by this. */
+  function inReach(reader, rung) {
+    var said = rung ? charts.DECLARED_RUNGS.indexOf(rung) : -1;
+    var at = rungOf(reader);
+    return said < 0 || at < 0 || at <= said + 1;
+  }
+
   function firstText(handed, code) {
     var store = charts.collect(charts.meaningLanguage(code))[code];
     var rung = charts.seed(store && store.words, code);
@@ -1699,7 +1846,7 @@
       if (!asked) continue;
       var theirs = inTheirs(
         handed.filter(function (reader) {
-          return wanted(reader, asked);
+          return wanted(reader, asked) && inReach(reader, rung);
         })
       );
       if (theirs.length) return pickByRung(voiced(theirs), rung);
@@ -1708,21 +1855,26 @@
       var came = interestOf(arrived[w]);
       if (!came) continue;
       var rows = handed.filter(function (reader) {
-        return wanted(reader, came);
+        return wanted(reader, came) && inReach(reader, rung);
       });
       if (rows.length) return pickByRung(voiced(rows), rung);
     }
     // And heard here too: a reader who named a rung and no subject is as new as one who
-    // named three, and the voice is as much the second thing they should find.
-    if (rung && !arrived.length) {
-      return pickByRung(
-        voiced(
-          handed.filter(function (reader) {
-            return reader.register === "modern";
-          })
-        ),
-        rung
-      );
+    // named three, and the voice is as much the second thing they should find. So is a
+    // reader whose subjects the shelf cannot answer yet (2026-09-28): the track's own
+    // start knows nothing of the rung, and "Just starting" was handed whatever stood
+    // first on it. The rung is the one answer left to go on, so it decides.
+    if (rung) {
+      // Reach before voice: a voice is the second thing to find, and it is found on a
+      // page the reader can follow — a heard vav article is not one, over a silent aleph
+      // text that is. Where nothing on the modern shelf is in reach, the easiest there is.
+      var modern = handed.filter(function (reader) {
+        return reader.register === "modern";
+      });
+      var near = modern.filter(function (reader) {
+        return inReach(reader, rung);
+      });
+      return pickByRung(voiced(near.length ? near : modern), rung);
     }
     return null;
   }
@@ -1752,6 +1904,8 @@
       tongue: document.getElementById("arrival-language"),
       subjects: document.getElementById("arrival-subjects"),
       level: document.getElementById("arrival-level"),
+      connect: document.getElementById("arrival-connect"),
+      welcome: document.getElementById("arrival-welcome"),
     };
     if (!host || !row || !rungs || !done || !skip || !screenOf.subjects || !screenOf.level) return;
     if (!asking) {
@@ -1767,27 +1921,81 @@
        in the language chosen — comes back on the second of three, not the first of two. */
     var withTongue = !!(screenOf.tongue && tongues && asksIn && asksTongue());
     var order = withTongue ? ["tongue", "subjects", "level"] : ["subjects", "level"];
+    /* The welcome, before the first question it can be written in (2026-09-28): after
+       the language, which decides what language it is in, and before the subjects. */
+    var nameRow = document.getElementById("arrival-name-row");
+    var nameField = document.getElementById("arrival-name");
+    if (screenOf.welcome) {
+      order.splice(withTongue ? 1 : 0, 0, "welcome");
+      if (nameRow) nameRow.hidden = !(who && who.signedIn);
+      if (nameField && who && who.name) nameField.value = who.name;
+    }
+    /* And last, where the reader can take it up, the way into Claude and ChatGPT
+       (design.md §12, "The connector is met on the way in"): a card that tells rather
+       than asks, with the address to copy, and Open as its filled press so the text the
+       answers chose is still one press away. Counted in the bars like the others. */
+    var connectHost = document.getElementById("arrival-connect-steps");
+    if (screenOf.connect && connectHost && offersConnector()) {
+      order.push("connect");
+      connectHost.textContent = "";
+      connectHost.appendChild(connectSteps("arrival"));
+    }
     var step = withTongue && thisVisit() ? 1 : 0;
+    // Only the questions are counted: the welcome says where they are and asks nothing,
+    // and the connector's card is optional — counted, it read as a step that had to be
+    // taken (2026-09-28: "this makes it seem like installing the MCP is mandatory").
+    function counted() {
+      return order.filter(function (name) {
+        return name !== "welcome" && name !== "connect";
+      });
+    }
     row.textContent = "";
     rungs.textContent = "";
     if (tongues) tongues.textContent = "";
     if (!withTongue) handOverTongue();
+    drawTongueSwitch(withTongue ? null : document.getElementById("arrival-switch"));
 
     /* One question a screen (David, 2026-09-19). The step is said in words, in the
        resting colour; Next belongs to the subjects alone, because on the second screen
        pressing a row *is* the answer and a second button would be a second question. */
     function settle() {
       var now = order[step];
-      ["tongue", "subjects", "level"].forEach(function (name) {
+      ["tongue", "welcome", "subjects", "level", "connect"].forEach(function (name) {
         if (screenOf[name]) screenOf[name].hidden = name !== now;
       });
-      if (where) {
-        where.textContent = t("learn.arrival.step", "{n} of {of}")
-          .replace("{n}", String(step + 1))
-          .replace("{of}", String(order.length));
+      var asking = now !== "welcome" && now !== "connect";
+      if (where) where.hidden = !asking;
+      if (where && asking) {
+        var questions = counted();
+        var at = questions.indexOf(now);
+        /* And drawn, as a bar a step in leaf (design.md §12, 2026-09-28). The bars carry
+           no text, so what is read aloud, and what `textContent` says, is the words. */
+        var bars = document.createElement("span");
+        bars.className = "arrival-bars";
+        bars.setAttribute("aria-hidden", "true");
+        for (var b = 0; b < questions.length; b++) {
+          var bar = document.createElement("span");
+          bar.className = b <= at ? "arrival-bar is-done" : "arrival-bar";
+          bars.appendChild(bar);
+        }
+        var words = document.createElement("span");
+        words.textContent = t("learn.arrival.step", "{n} of {of}")
+          .replace("{n}", String(at + 1))
+          .replace("{of}", String(questions.length));
+        where.textContent = "";
+        where.appendChild(bars);
+        where.appendChild(words);
       }
-      done.hidden = now !== "subjects";
-      done.disabled = picked.length < WANTED;
+      var passing = now === "welcome" || now === "connect";
+      done.hidden = now !== "subjects" && !passing;
+      done.disabled = now === "subjects" && picked.length < WANTED;
+      /* Continue on the two cards that ask nothing: the welcome, and the connector's,
+         which is optional and must read as optional (2026-09-28). A Skip beside it did
+         the same thing and made the card read as a step to get past. */
+      done.textContent = passing
+        ? t("learn.arrival.continue", "Continue")
+        : t("learn.arrival.next", "Next");
+      skip.hidden = passing;
       if (back) back.hidden = step === 0;
       if (!count) return;
       var short = WANTED - picked.length;
@@ -1818,6 +2026,8 @@
       var first =
         now === "level" ? rungs.children[0] : now === "tongue" ? tongues.children[0] : null;
       if (now === "subjects") first = done.disabled ? row.children[0] : done;
+      if (now === "connect") first = done;
+      if (now === "welcome") first = nameRow && !nameRow.hidden ? nameField : done;
       if (first && first.focus) first.focus({ preventScroll: true });
     }
 
@@ -1900,12 +2110,28 @@
       rung.appendChild(letter);
       rung.addEventListener("click", function () {
         rememberLevel(level.id);
-        finish();
+        onward();
       });
       rungs.appendChild(rung);
     });
 
     done.onclick = function () {
+      if (order[step] === "welcome") {
+        var name = nameField ? String(nameField.value || "").trim() : "";
+        if (name && who && who.signedIn) {
+          post("/account/name", { name: name });
+          who.name = name;
+          greetedName = name;
+          drawGreeting();
+        }
+        onward();
+        return;
+      }
+      if (order[step] === "connect") {
+        counted("arrival-open");
+        finish();
+        return;
+      }
       if (picked.length < WANTED) return;
       remember(picked);
       onward();
@@ -2160,7 +2386,7 @@
     // this line is an instruction, which wore it too (2026-09-27).
     line.className = known >= KNOWN_FLOOR ? "known-line is-count" : "known-line";
     line.textContent = known >= KNOWN_FLOOR
-      ? tn("learn.known-words", known, "You know {n} {language} words.", "You know {n} {language} words.", {
+      ? tn("learn.known-words", known, "You know {n} {language} word.", "You know {n} {language} words.", {
           language: named(code),
         })
       : t("learn.known-start", "Open something, tap the words you don't know and talk to targum about any line.");

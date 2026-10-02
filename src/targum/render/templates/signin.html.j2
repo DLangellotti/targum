@@ -31,10 +31,17 @@
       on the door itself rather than on a page of its own, because the way out of every
       one of them is the form underneath. -#}
   {%- if said %}<p class="said trouble" role="status">{{ said }}</p>{% endif %}
+  {#- Why they are here, when an app sent them: Connect in Claude or ChatGPT asks for an
+      account first, and a door that said nothing about it looked like a different
+      errand (copy audit, 2026-09-28). -#}
+  {%- if connecting %}<p class="said connecting" role="status">{{ connecting }}</p>{% endif %}
   {% if landing %}
   {#- The link arrived. Nothing has been spent yet: a mail client that fetches this page
       to preview it has only read it, and the account is opened by the button below. -#}
-  <h1>{{ t("signin.page.sign-in-as", "Sign in as {address}", address=landing) }}</h1>
+  {#- A break allowed before the "@", so a long address wraps at its seam rather than
+      mid-word ("…gmai / l.com", 2026-09-28). The zero-width space is only in the
+      heading; nothing is sent from it. -#}
+  <h1>{{ t("signin.page.sign-in-as", "Sign in as {address}", address=landing.replace("@", "\u200b@")) }}</h1>
   <p class="said">{{ t("signin.page.press-to-sign-in-on-this-browser", "Press to sign in on this browser.") }}</p>
   <form method="post" action="/account/enter">
     <input type="hidden" name="t" value="{{ token }}">
@@ -43,8 +50,8 @@
   <p class="aside">{{ t("signin.page.didn-t-ask-for-this-you-can", "Didn't ask for this? You can close the page.") }}</p>
 
   {% elif expired %}
-  <h1>{{ t("signin.page.that-link-has-been-used", "That link has been used") }}</h1>
-  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. We'll send you another.") }}</p>
+  <h1>{{ t("signin.page.that-link-has-been-used", "That link no longer works") }}</h1>
+  <p class="said">{{ t("signin.page.each-link-works-once-for-twenty-minutes", "Each link works once, for twenty minutes. Enter your email and we'll send a new one.") }}</p>
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
@@ -53,7 +60,7 @@
   </form>
 
   {% else %}
-  <h1>{{ t("signin.page.hebrew-with-the-translation-beside-it", "Hebrew, with the translation beside it") }}</h1>
+  <h1>{{ t("signin.page.sign-in-to-targum", "Sign in to targum") }}</h1>
   {#- One door was the rule here, and the reason was good: "Nobody has to work out which
       of two buttons they are." Google is a second door and not a second answer to that
       question — it proves the same address faster, and the account it reaches is the same
@@ -74,7 +81,6 @@
            autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
     <button class="go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
-  <p class="aside">{{ t("signin.page.once-you-re-signed-in-your-words", "Once you're signed in, your words follow you between browsers.") }}</p>
   {% endif %}
 
   <p class="said sent" id="sent" role="status" hidden></p>
@@ -84,8 +90,11 @@
       navigate to from out here — but somebody handing an address over deserves to read
       what happens to it before they do, which is what the privacy link is for once the
       documents are open. Until then this is the same three links as everywhere else. -#}
-  {% include '_public_foot.html.j2' %}
 </main>
+{#- Outside the door's column, as on every other page with it (2026-09-28). Inside, the
+    foot laid out its columns by the window's width in a 26rem column, and ran them into
+    one another. -#}
+{% include '_public_foot.html.j2' %}
 {% if strings %}<script>window.TARGUM_STRINGS = {{ strings|tojson }};</script>
 {% endif %}<script>{{ asset('strings.js') }}</script>
 <script>{{ asset('signin.js') }}</script>

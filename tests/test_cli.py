@@ -1553,3 +1553,114 @@ def test_catalogue_lemmas_indexes_a_home_s_catalogue_texts(
     index = coverage.read_index(written)
     assert set(index.texts) == {"il-declaration"}, "only catalogue texts, found by source"
     assert sorted(index.words) == ["עם", "קם"]
+
+
+def test_a_french_shelf_keeps_its_words_until_it_is_read_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#264. Prompt 3 moves the cache key of every French sentence, and a
+    deploy's `rebuild --words` buys nothing: without the earlier reading it would have
+    left a French text with no words. It keeps prompt 2's, and says so in the name. Then
+    `--reread fr` says what reading them again costs, and with no `--dry-run` buys it,
+    only for the segments the text already had words for."""
+    from targum.annotate import model_lemma
+    from targum.cache import Cache
+    from targum.models import (
+        Annotation,
+        BlockKind,
+        Document,
+        Segment,
+        SegmentedDocument,
+        Token,
+        Translation,
+        read_artifact,
+    )
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    out = tmp_path / "targum-out"
+    folder = out / "p1" / "conte-fr"
+    (folder / "translations").mkdir(parents=True)
+    document = Document(source="m.md", title="Un conte", language="fr", blocks=[], content_hash="h")
+    read, unbought = (
+        Segment(
+            id=f"000{n}.000-a",
+            block_id=f"b{n}",
+            block_index=n,
+            index=0,
+            text=text,
+            kind=BlockKind.paragraph,
+        )
+        for n, text in enumerate(["Il mangeait.", "Elle dort."])
+    )
+    SegmentedDocument(
+        document_hash="h", language="fr", segmenter="t/1", segments=[read, unbought]
+    ).write(folder / "segments.json")
+    document.write(folder / "document.json")
+    Translation(
+        name="English",
+        document_hash="h",
+        source_language="fr",
+        target_language="en",
+        provider="null",
+        segments={read.id: "He was eating.", unbought.id: "She sleeps."},
+    ).write(folder / "translations" / "null.natural.en.json")
+    old = model_lemma.provider_name(version=2)
+    Annotation(
+        document_hash="h",
+        language="fr",
+        annotator=f"{old}+wordfreq",
+        method="frequency",
+        method_note="",
+        tokens={read.id: [Token(start=3, end=11, surface="mangeait", lemma="manger", band=1)]},
+    ).write(folder / "annotation.json")
+    cache = Cache(tmp_path / "cache")
+    rows = [
+        [0, 2, "Il", "il", "PRON", "UPOS=PRON"],
+        [3, 11, "mangeait", "manger", "VERB", "UPOS=VERB|Tense=Past"],
+    ]
+    cache.put(
+        "lemma",
+        model_lemma.key(cache, read.text, "fr", old),
+        {"text": read.text, "provider": old, "tokens": rows},
+    )
+
+    result = runner.invoke(app, ["rebuild", "--words", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    kept = read_artifact(Annotation, folder / "annotation.json")
+    assert kept is not None and f"{model_lemma.provider_name()}/with-2" in kept.annotator
+    assert [t.surface for t in kept.tokens[read.id]] == ["Il", "mangeait"]
+    assert not model_lemma.tenses_apart(kept.annotator)
+
+    result = runner.invoke(app, ["rebuild", "--reread", "fr", "--dry-run", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "1 text" in result.output and "2 words" in result.output
+    assert "Rewrote" not in result.output, "a dry run rewrites nothing"
+
+    asked: list[str] = []
+
+    class Model:
+        def client(self):  # type: ignore[no-untyped-def]
+            return self
+
+        @property
+        def messages(self):  # type: ignore[no-untyped-def]
+            return self
+
+        def available(self) -> tuple[bool, str]:
+            return True, "fake"
+
+        def create(self, **kwargs):  # type: ignore[no-untyped-def]
+            asked.append(kwargs["messages"][0]["content"])
+            answer = "1\tIl\til\tPRON\tPerson=3\n1\tmangeait\tmanger\tVERB\tTense=Imp|Person=3"
+            usage = type("U", (), {"input_tokens": 10, "output_tokens": 10})()
+            block = type("B", (), {"text": answer})()
+            return type("A", (), {"content": [block], "usage": usage, "stop_reason": "end_turn"})()
+
+    monkeypatch.setattr(model_lemma.ModelLemmatizer, "provider", lambda self: Model())
+    result = runner.invoke(app, ["rebuild", "--reread", "fr", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert len(asked) == 1 and "Elle" not in asked[0], "only what the text had words for"
+    fresh = read_artifact(Annotation, folder / "annotation.json")
+    assert fresh is not None and model_lemma.tenses_apart(fresh.annotator)
+    assert fresh.tokens[read.id][1].feats == "UPOS=VERB|Tense=Imp|Person=3"
+    assert "Read the words again for $" in result.output

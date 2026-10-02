@@ -186,7 +186,7 @@
      never justified. At most two clauses; the first is the one that changes what the
      list is. "—" is explained only while one is on screen. */
   var NOTES = {
-    base: t("library.note.base", "Tap one to open it."),
+    base: t("library.note.base", "Tap a text to open it."),
     kind: {
       dialogue: t("library.note.dialogue", "Scenes — numbered conversations with audio. Start at 1."),
       prose: t("library.note.prose", "Bible narrative — the Bible's story books."),
@@ -2332,7 +2332,7 @@
         var rowsHead = document.getElementById("rows-head");
         if (rowsHead) rowsHead.hidden = true;
         doors(cards, surviving, redraw);
-        placeNote(t("library.note.doors", "Pick a shelf. Every text here is also under All texts."));
+        placeNote(t("library.note.doors", "Pick a section. Every text here is also under All texts."));
         empty.hidden = true;
         tally.textContent = tn("library.tally.all", surviving.length, "{n} text", "{n} texts");
         return;
@@ -2394,7 +2394,7 @@
           return inLanguage(reader, chosen);
         }).length;
         empty.textContent = here.length
-          ? t("library.empty.no-match", "Nothing here matches that.")
+          ? t("library.empty.no-match", "Nothing here matches that. Try another search or fewer filters.")
           : uploaded
             ? tn(
                 "library.empty.language-yours",
@@ -2653,8 +2653,8 @@
       // The search names the language the shelf is in.
       var box = document.getElementById("find");
       if (box) {
-        box.placeholder = t("library.search", "Search a title, {language} or English", {
-          language: names[code] || t("library.search-the-text", "the text"),
+        box.placeholder = t("library.search", "Search titles in {language} or English", {
+          language: names[code] || t("library.search-the-text", "the original"),
         });
       }
       redraw();

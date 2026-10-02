@@ -156,7 +156,8 @@ scp -q deploy/targum.service "$HOST:/tmp/targum.service"
 ssh "${SSH_OPTS[@]}" "$HOST" "rm -rf /tmp/targum-units && mkdir -p /tmp/targum-units"
 scp -q deploy/targum-backup.service deploy/targum-backup.timer \
   deploy/targum-health.service deploy/targum-health.timer \
-  deploy/targum-visits.service deploy/targum-visits.timer "$HOST:/tmp/targum-units/"
+  deploy/targum-visits.service deploy/targum-visits.timer \
+  deploy/targum-weekly-watch.service deploy/targum-weekly-watch.timer "$HOST:/tmp/targum-units/"
 
 # The keys, over the connection's own stdin rather than scp: nothing holding them is
 # written anywhere on either machine but the file itself. No single quotes inside MERGE:
@@ -193,6 +194,15 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # exactly where PyPI put it and changes torch alone, from 2.14.0 to 2.14.0+cpu,
   # with the nvidia-*, cuda-* and triton packages gone: checked by resolving the same
   # extras for x86_64 Linux both ways and diffing (targum-internal#93).
+  # The tool is the service account's, all of it, before the account is asked to replace
+  # it. Any targum command run as root on the box, a --help included, imports the
+  # package and leaves root-owned __pycache__ directories inside the environment, which
+  # the account then cannot remove: the install stops at "failed to remove directory
+  # .../tools/targum/lib: Permission denied", after it has begun taking the old
+  # environment apart (2026-09-29). Nothing on a fresh box, where there is no tool yet.
+  if [ -d /srv/targum/.local/share/uv/tools/targum ]; then
+    chown -R targum:targum /srv/targum/.local/share/uv/tools/targum
+  fi
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring,stress,russian]" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
@@ -238,19 +248,36 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # line goes only after the timer that replaces it is enabled, so there is no night
   # with neither and no night with both. The .bak copy beside it is ignored by cron,
   # which skips any name with a dot in it.
-  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer; do
+  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer; do
     install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
   done
   rm -rf /tmp/targum-units
   systemctl daemon-reload
-  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer
+  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer targum-weekly-watch.timer
   rm -f /etc/cron.d/targum-backup
-  # The two tools the off-box copy needs, from Ubuntu's own archive: age seals a copy to
-  # a public key, rclone carries it. Installed when missing and never fatal here, because
-  # the backup names whichever is absent the first night it is switched on.
-  if ! command -v age >/dev/null || ! command -v rclone >/dev/null; then
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends age rclone \
-      >/dev/null 2>&1 || echo "   could not install age and rclone; the backup will say so" >&2
+  # The two tools the off-box copy needs: age seals a copy to a public key, rclone carries
+  # it. Installed when missing and never fatal here, because the backup names whichever is
+  # absent the first night it is switched on.
+  if ! command -v age >/dev/null; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends age \
+      >/dev/null 2>&1 || echo "   could not install age; the backup will say so" >&2
+  fi
+  # rclone comes from rclone.org, pinned and checked, not from Ubuntu's archive: 26.04 ships
+  # 1.60, which speaks B2's API version 1, and Backblaze refuses that on a new account ("not
+  # currently supported on API version number 1") — the first off-box copy never left
+  # (2026-09-28, targum-internal#16). Replaced whenever the installed one is not this one.
+  RCLONE_VERSION=1.75.1
+  RCLONE_SHA256=09c9f7606ed9e31eecc1eec26a89992cf2931a8d2d1a5f0ae2bb1c11630ffb15
+  if ! rclone version 2>/dev/null | head -1 | grep -qx "rclone v\$RCLONE_VERSION"; then
+    deb="\$(mktemp --suffix=.deb)"
+    if curl -fsSL -o "\$deb" "https://downloads.rclone.org/v\$RCLONE_VERSION/rclone-v\$RCLONE_VERSION-linux-amd64.deb" \
+      && echo "\$RCLONE_SHA256  \$deb" | sha256sum -c --quiet - \
+      && DEBIAN_FRONTEND=noninteractive apt-get install -y -q "\$deb" >/dev/null 2>&1; then
+      echo "   rclone \$RCLONE_VERSION"
+    else
+      echo "   could not install rclone \$RCLONE_VERSION; the backup will say so" >&2
+    fi
+    rm -f "\$deb"
   fi
 
   # Every reader carries the stylesheet and the script it was written with, baked in, so

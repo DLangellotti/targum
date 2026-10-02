@@ -585,6 +585,107 @@ licence are named in the table itself anyway. The card said to count from Dicoll
 than from Lexique, which is CC BY-SA, and this does. Lefff (LGPL-LR) was kept in reserve
 as a lookup for nouns this lexicon lacks, and was not needed.
 
+### The false friends — targum's own list, drafted by a model and not yet read by a person (2026-09-28)
+
+A French word's card, read into English, says what it looks like and does not mean:
+*actuellement* reads "false friend: not *actually* — currently" (targum-internal#267). No
+permissively licensed English–French list exists. Wiktionary's appendix is CC BY-SA, and
+it is used to look a word up and never copied from.
+
+`annotate/false_friends.json` is targum's own work, under the same licence as the code.
+`scripts/false_friends.py` asked Claude Opus 5 to write it from its own knowledge of
+French, a slice of the alphabet at a time, told not to reproduce or follow any published
+list. A second request judged every entry and kept 347 of 549. Every lemma that survived
+was then looked up in Grammalecte's lexicon above, only to ask whether it is a headword,
+which dropped 6. The coding agent that built it read the rest and dropped 26 more,
+leaving 315. Nothing from the lexicon ships.
+
+**No person has reviewed it.** The card said "reviewed by hand", and until somebody has,
+the table says `"reviewed": false`, and nothing claims otherwise. The card's line stays
+behind `TARGUM_FALSE_FRIENDS`, off, until David has read it (2026-09-28).
+
+### Morphalou 3.1 — LGPL-LR, looked up and never committed (2026-09-14)
+
+How a French word is said is to come from **[Morphalou 3.1](https://www.ortolang.fr/market/lexicons/morphalou)**,
+the ATILF's (CNRS) open lexicon of French: 976,570 inflected forms, about half with a
+phonetic transcription (targum-internal#266). ORTOLANG distributes it under the **Lesser
+General Public License for Linguistic Resources (LGPL-LR)**, whose text is at the end of
+this file. `targum models fetch morphalou` downloads the CSV from ORTOLANG
+(`morphalou/5/Morphalou3.1_formatCSV_toutEnUn.zip`), checks it against the sha256 pinned
+in `annotate/morphalou.py`, and puts the table and a copy of the licence in the model
+directory. No row of it is in this repository or the wheel, and a test fails if one is.
+
+David decided on 2026-09-14 how it may be used: **as a lookup, never trained on.** What
+reaches a reader is how one word is said, the same reading this document gives
+OpenRussian's facts above. Pages that show a transcription from it name Morphalou and the
+licence. Any correction targum makes to its data is published under LGPL-LR, which is
+what the licence's section 2 asks of a modified copy. LGPL-LR is not the GPL: it is a
+licence for data, and it reaches a work only where that work contains the resource. No
+GPL code is used for pronunciation (espeak-ng is GPL-3.0, and is not on the box).
+
+The first step was to measure how much of the French shelf it covers
+(`scripts/measure_pronunciation.py`): 97.9% of tokens, and on 2026-09-28 David decided on
+**Morphalou alone**. A word it has no reading for shows none, a hyphenated compound is said
+by its parts, and nothing supplements it under LGPL-LR or any other licence.
+
+**Where it is read, and the one correction** (2026-09-28, targum-internal#266). A French
+word's card and the "as said" switch read it through `annotate/french_said.py`, behind
+`TARGUM_FRENCH_IPA`, which is off. A page that shows its readings names Morphalou and the
+licence at its foot and links the correction. Two things in the table are not taken as
+they stand:
+
+- **`un`**: its numeral row reads `y n @`, *une*'s reading. That reading is dropped for the
+  spelling `un`, and the table's own masculine determiner row (`9~`) is used. This is a
+  choice between two of the table's readings of one form, and asserts nothing the table
+  does not say, so it is not counted as a correction to its data.
+- **`c'`**: the table reads `k`; the elided *ce* is /s/. That asserts a reading the table
+  does not give the form, so it **is** a correction to its data, and David's rule of
+  2026-09-14 above applies. It is published as the smallest thing it can be:
+  `src/targum/annotate/morphalou_corrections.tsv`, one row, under LGPL-LR rather than the
+  AGPL, with a notice in its header that targum changed it and when (section 2b). The
+  table itself is never altered and never shipped; the row is applied in code, at lookup.
+
+Whether a page of readings is itself "a work based on the Linguistic Resource" is the
+question LGPL-LR's section 0 leaves to what the program does. A page carries one reading per
+word it shows, never the table, so this document reads it the way it reads OpenRussian's
+facts, and names Morphalou on the page anyway, as the decision asks.
+
+### gruut's French liaison rule — MIT, ported (2026-09-28)
+
+Which liaisons the "as said" switch marks, and the consonant each carries, is ported from
+`fr_post_process_sentence` in **[gruut](https://github.com/rhasspy/gruut)**
+(`gruut/lang.py`, archived), with its `fr_has_silent_consonant` and `fr_is_vowel`
+(targum-internal#266). It is a few lines of logic, rewritten rather than copied, and
+narrowed to the liaisons every speaker makes; no gruut code, lexicon or model is a
+dependency. The notice travels with the port anyway, as MIT asks of a substantial portion:
+
+```
+MIT License
+
+Copyright (c) 2020 Michael Hansen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+gruut credits `fr_has_silent_consonant` to PoemesProfonds
+(`Remiphilius/PoemesProfonds`, `lecture.py`); the credit is kept.
+
 ## Content is not code
 
 Nothing above covers what targum *reads*. A text, a translation and a recording each
@@ -881,3 +982,98 @@ targum licences
 
 It lists every source by standing, says how many may leave, and names the ones with
 nothing recorded so they can be checked.
+
+## The Lesser General Public License for Linguistic Resources
+
+The licence Morphalou is distributed under (see "Morphalou 3.1" above), as ORTOLANG
+publishes it beside the lexicon (`morphalou/5/licenceLGPLLR.txt`, sha256 `301c33ad…`).
+Reproduced here because the decision of 2026-09-14 asks for it; the only change is to
+indentation and blank lines.
+
+Preamble
+
+The licenses for most data are designed to take away your freedom to share and change it. By contrast, this License is intended to guarantee your freedom to share and change free data--to make sure the data are free for all their users.
+
+This license, the Lesser General Public License for Linguistic Resources, applies to some specially designated linguistic resources -- typically lexicons, grammars, thesauri and textual corpora.
+
+TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
+
+0. This License Agreement applies to any Linguistic Resource which contains a notice placed by the copyright holder or other authorized party saying it may be distributed under the terms of this Lesser General Public License for Linguistic Resources (also called "this License"). Each licensee is addressed as "you".
+
+A "linguistic resource" means a collection of data about language prepared so as to be used with application programs.
+
+The "Linguistic Resource", below, refers to any such work which has been distributed under these terms. A "work based on the Linguistic Resource" means either the Linguistic Resource or any derivative work under copyright law: that is to say, a work containing the Linguistic Resource or a portion of it, either verbatim or with modifications and/or translated straightforwardly into another language. (Hereinafter, translation is included without limitation in the term "modification".)
+
+"Legible form" for a linguistic resource means the preferred form of the resource for making modifications to it.
+
+Activities other than copying, distribution and modification are not covered by this License; they are outside its scope. The act of running a program using the Linguistic Resource is not restricted, and output from such a program is covered only if its contents constitute a work based on the Linguistic Resource (independent of the use of the Linguistic Resource in a tool for writing it). Whether that is true depends on what the program that uses the Linguistic Resource does.
+
+1. You may copy and distribute verbatim copies of the Linguistic Resource as you receive it, in any medium, provided that you conspicuously and appropriately publish on each copy an appropriate copyright notice and disclaimer of warranty; keep intact all the notices that refer to this License and to the absence of any warranty; and distribute a copy of this License along with the Linguistic Resource.
+
+You may charge a fee for the physical act of transferring a copy, and you may at your option offer warranty protection in exchange for a fee.
+
+2. You may modify your copy or copies of the Linguistic Resource or any portion of it, thus forming a work based on the Linguistic Resource, and copy and distribute such modifications or work under the terms of Section 1 above, provided that you also meet all of these conditions:
+
+a) The modified work must itself be a linguistic resource.
+
+b) You must cause the files modified to carry prominent notices stating that you changed the files and the date of any change.
+
+c) You must cause the whole of the work to be licensed at no charge to all third parties under the terms of this License.
+
+These requirements apply to the modified work as a whole. If identifiable sections of that work are not derived from the Linguistic Resource, and can be reasonably considered independent and separate works in themselves, then this License, and its terms, do not apply to those sections when you distribute them as separate works. But when you distribute the same sections as part of a whole which is a work based on the Linguistic Resource, the distribution of the whole must be on the terms of this License, whose permissions for other licensees extend to the entire whole, and thus to each and every part regardless of who wrote it.
+
+Thus, it is not the intent of this section to claim rights or contest your rights to work written entirely by you; rather, the intent is to exercise the right to control the distribution of derivative or collective works based on the Linguistic Resource.
+
+In addition, mere aggregation of another work not based on the Linguistic Resource with the Linguistic Resource (or with a work based on the Linguistic Resource) on a volume of a storage or distribution medium does not bring the other work under the scope of this License.
+
+3. A program that contains no derivative of any portion of the Linguistic Resource, but is designed to work with the Linguistic Resource (or an encrypted form of the Linguistic Resource) by reading it or being compiled or linked with it, is called a "work that uses the Linguistic Resource". Such a work, in isolation, is not a derivative work of the Linguistic Resource, and therefore falls outside the scope of this License.
+
+However, combining a "work that uses the Linguistic Resource" with the Linguistic Resource (or an encrypted form of the Linguistic Resource) creates a package that is a derivative of the Linguistic Resource (because it contains portions of the Linguistic Resource), rather than a "work that uses the Linguistic Resource". If the package is a derivative of the Linguistic Resource, you may distribute the package under the terms of Section 4. Any works containing that package also fall under Section 4.
+
+4. As an exception to the Sections above, you may also combine a "work that uses the Linguistic Resource" with the Linguistic Resource (or an encrypted form of the Linguistic Resource) to produce a package containing portions of the Linguistic Resource, and distribute that package under terms of your choice, provided that the terms permit modification of the package for the customer's own use and reverse engineering for debugging such modifications.
+
+You must give prominent notice with each copy of the package that the Linguistic Resource is used in it and that the Linguistic Resource and its use are covered by this License. You must supply a copy of this License. If the package during execution displays copyright notices, you must include the copyright notice for the Linguistic Resource among them, as well as a reference directing the user to the copy of this License. Also, you must do one of these things:
+
+a) Accompany the package with the complete corresponding machine-readable legible form of the Linguistic Resource including whatever changes were used in the package (which must be distributed under Sections 1 and 2 above); and, if the package contains an encrypted form of the Linguistic Resource, with the complete machine-readable "work that uses the Linguistic Resource", as object code and/or source code, so that the user can modify the Linguistic Resource and then encrypt it to produce a modified package containing the modified Linguistic Resource.
+
+b) Use a suitable mechanism for combining with the Linguistic Resource. A suitable mechanism is one that will operate properly with a modified version of the Linguistic Resource, if the user installs one, as long as the modified version is interface-compatible with the version that the package was made with.
+
+c) Accompany the package with a written offer, valid for at least three years, to give the same user the materials specified in Subsection 4a, above, for a charge no more than the cost of performing this distribution.
+
+d) If distribution of the package is made by offering access to copy from a designated place, offer equivalent access to copy the above specified materials from the same place.
+
+e) Verify that the user has already received a copy of these materials or that you have already sent this user a copy.
+
+If the package includes an encrypted form of the Linguistic Resource, the required form of the "work that uses the Linguistic Resource" must include any data and utility programs needed for reproducing the package from it. However, as a special exception, the materials to be distributed need not include anything that is normally distributed (in either source or binary form) with the major components (compiler, kernel, and so on) of the operating system on which the executable runs, unless that component itself accompanies the executable.
+
+It may happen that this requirement contradicts the license restrictions of proprietary libraries that do not normally accompany the operating system. Such a contradiction means you cannot use both them and the Linguistic Resource together in a package that you distribute.
+
+5. You may not copy, modify, sublicense, link with, or distribute the Linguistic Resource except as expressly provided under this License. Any attempt otherwise to copy, modify, sublicense, link with, or distribute the Linguistic Resource is void, and will automatically terminate your rights under this License. However, parties who have received copies, or rights, from you under this License will not have their licenses terminated so long as such parties remain in full compliance.
+
+6. You are not required to accept this License, since you have not signed it. However, nothing else grants you permission to modify or distribute the Linguistic Resource or its derivative works. These actions are prohibited by law if you do not accept this License. Therefore, by modifying or distributing the Linguistic Resource (or any work based on the Linguistic Resource), you indicate your acceptance of this License to do so, and all its terms and conditions for copying, distributing or modifying the Linguistic Resource or works based on it.
+
+7. Each time you redistribute the Linguistic Resource (or any work based on the Linguistic Resource), the recipient automatically receives a license from the original licensor to copy, distribute, link with or modify the Linguistic Resource subject to these terms and conditions. You may not impose any further restrictions on the recipients' exercise of the rights granted herein. You are not responsible for enforcing compliance by third parties with this License.
+
+8. If, as a consequence of a court judgment or allegation of patent infringement or for any other reason (not limited to patent issues), conditions are imposed on you (whether by court order, agreement or otherwise) that contradict the conditions of this License, they do not excuse you from the conditions of this License. If you cannot distribute so as to satisfy simultaneously your obligations under this License and any other pertinent obligations, then as a consequence you may not distribute the Linguistic Resource at all. For example, if a patent license would not permit royalty-free redistribution of the Linguistic Resource by all those who receive copies directly or indirectly through you, then the only way you could satisfy both it and this License would be to refrain entirely from distribution of the Linguistic Resource.
+
+If any portion of this section is held invalid or unenforceable under any particular circumstance, the balance of the section is intended to apply, and the section as a whole is intended to apply in other circumstances.
+
+It is not the purpose of this section to induce you to infringe any patents or other property right claims or to contest validity of any such claims; this section has the sole purpose of protecting the integrity of the free resource distribution system which is implemented by public license practices. Many people have made generous contributions to the wide range of data distributed through that system in reliance on consistent application of that system; it is up to the author/donor to decide if he or she is willing to distribute resources through any other system and a licensee cannot impose that choice.
+
+This section is intended to make thoroughly clear what is believed to be a consequence of the rest of this License.
+
+9. If the distribution and/or use of the Linguistic Resource is restricted in certain countries either by patents or by copyrighted interfaces, the original copyright holder who places the Linguistic Resource under this License may add an explicit geographical distribution limitation excluding those countries, so that distribution is permitted only in or among countries not thus excluded. In such case, this License incorporates the limitation as if written in the body of this License.
+
+10. The Free Software Foundation may publish revised and/or new versions of the Lesser General Public License for Linguistic Resources from time to time. Such new versions will be similar in spirit to the present version, but may differ in detail to address new problems or concerns.
+
+Each version is given a distinguishing version number. If the Linguistic Resource specifies a version number of this License which applies to it and "any later version", you have the option of following the terms and conditions either of that version or of any later version published by the Free Software Foundation. If the Linguistic Resource does not specify a license version number, you may choose any version ever published by the Free Software Foundation.
+
+11. If you wish to incorporate parts of the Linguistic Resource into other free programs whose distribution conditions are incompatible with these, write to the author to ask for permission.
+
+NO WARRANTY
+
+12. BECAUSE THE LINGUISTIC RESOURCE IS LICENSED FREE OF CHARGE, THERE IS NO WARRANTY FOR THE LINGUISTIC RESOURCE, TO THE EXTENT PERMITTED BY APPLICABLE LAW. EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR OTHER PARTIES PROVIDE THE LINGUISTIC RESOURCE "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE. THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE LINGUISTIC RESOURCE IS WITH YOU. SHOULD THE LINGUISTIC RESOURCE PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
+
+13. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN WRITING WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY AND/OR REDISTRIBUTE THE LINGUISTIC RESOURCE AS PERMITTED ABOVE, BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE LINGUISTIC RESOURCE (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A FAILURE OF THE LINGUISTIC RESOURCE TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+END OF TERMS AND CONDITIONS

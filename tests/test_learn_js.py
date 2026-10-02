@@ -132,9 +132,7 @@ def test_a_text_offered_in_the_conversation_opens_in_the_sheet() -> None:
         reader("genesis-he", "בראשית", entry="genesis", opened=1),
     ]
     drawn = draw(shelf, do=[{"offer": "genesis-he/reader/sec-0003.html"}])
-    assert (
-        drawn["carry"]["title"] == "בראשית" and drawn["carry"]["heading"] == "From the conversation"
-    )
+    assert drawn["carry"]["title"] == "בראשית" and drawn["carry"]["heading"] == "From the chat"
     assert drawn["carry"]["frame"].endswith("genesis-he/reader/sec-0003.html?k=k&preview=1")
     assert drawn["carry"]["href"].endswith("genesis-he/reader/sec-0003.html?k=k")
     unknown = draw(shelf, do=[{"offer": "negev-he/reader/index.html"}])
@@ -343,7 +341,7 @@ def test_a_reader_with_no_texts_is_pointed_at_the_easiest_thing() -> None:
     # as a link to its library row, where building is pressed for.
     assert drawn["carry"]["heading"] == "Start here"
     assert drawn["carry"]["title"] == "קל"
-    assert drawn["carry"]["meta"] == "Where most people start · 10 min"
+    assert drawn["carry"]["meta"] == "An easy place to start · 10 min"
     assert drawn["carry"]["entry"] == "easy"
     # `/open/<id>` since targum-internal#313: the door, which sends them to their copy
     # where they have one and to its row with the offer up where they have not.
@@ -405,7 +403,7 @@ def test_nothing_known_is_not_said_on_the_first_card() -> None:
     drawn = draw([], shared=[reader("ruth", "רות", "ruth", known=0.0)])
     assert drawn["carry"]["known"] == ""
     later = draw([reader("a", "א", known=0.4)])
-    assert later["carry"]["known"] == "You know 40%"
+    assert later["carry"]["known"] == "You know 40% of its words"
 
 
 def test_the_sheet_takes_the_hebrew_opened_most_recently() -> None:
@@ -797,7 +795,7 @@ def test_the_row_is_your_subscriptions_and_continue_reading() -> None:
     assert [(d["label"], d["on"]) for d in drawn["doors"]] == [
         ("Continue reading", True),
         ("Recently opened", False),
-        ("Subscriptions", False),
+        ("Following", False),
     ]
     assert not drawn["menu"]["open"] and drawn["menu"]["link"] is None
     assert [(i["id"], i["label"], i["fresh"]) for i in drawn["menu"]["items"]] == [
@@ -921,7 +919,27 @@ def test_suggested_is_a_text_that_fits_with_no_conversation() -> None:
     # copy where they have one and to its row with the offer up where they have not —
     # which is what this text is, and which the library row still handles.
     assert pressed["carry"]["href"] == "/open/esther?k=k", "Open goes to the text"
-    assert pressed["carry"]["known"] == "You know 50%"
+    # Said once. Where the reason line is the known share the chip under it is not
+    # drawn (copy audit, 2026-09-28, Q10); `reason` is what says which reason it is.
+    assert pressed["carry"]["known"] == "You know 50% of its words"
+    said = draw(
+        [mine],
+        stored,
+        suggest=dict(pick, reason={"key": "suggest.known", "share": 50}),
+        do=[{"door": "suggested"}],
+    )
+    assert said["carry"]["known"] == "", "the reason already says it"
+    other = draw(
+        [mine],
+        stored,
+        suggest=dict(
+            pick,
+            because="30% of its words are rare in everyday use.",
+            reason={"key": "suggest.looked-up", "share": 30},
+        ),
+        do=[{"door": "suggested"}],
+    )
+    assert other["carry"]["known"] == "You know 50% of its words"
     built_ = draw(
         [mine],
         stored,
@@ -1056,7 +1074,7 @@ def test_the_page_says_its_words_in_the_readers_language() -> None:
     )
     assert drawn["known"] == "Вы знаете 12 слов: Hebrew."
     assert drawn["carry"]["heading"] == "Start here"
-    assert drawn["carry"]["meta"] == "Where most people start · 10 мин"
+    assert drawn["carry"]["meta"] == "An easy place to start · 10 мин"
 
 
 # --- the arrival (targum-internal#294, subjects since 2026-09-17) -------------------
@@ -1171,7 +1189,7 @@ def test_the_last_answer_opens_the_text_it_chose() -> None:
             {"subject": "History"},
             {"subject": "Archaeology"},
             {"press": "arrival-done"},
-            {"rung": "Simple conversations"},
+            {"rung": "I can hold a simple conversation"},
         ],
     )
     assert not after["broke"]
@@ -1216,6 +1234,73 @@ def test_the_rung_picks_how_hard_the_first_text_is() -> None:
     assert high["carry"]["title"] == "קשה"
     unsaid = draw([], stamps, shared=hard_and_easy())
     assert unsaid["carry"]["title"] == "קל", "no rung, and the shelf's own order is the order"
+
+
+def leveled(name: str, title: str, rung: str, **extra: Any) -> dict[str, Any]:
+    """A modern row that says which rung of `level.py`'s ladder it was written for."""
+    return reader(
+        name,
+        title,
+        name,
+        kind="article",
+        register="modern",
+        level={"rung": "", "name": rung, "cefr": ""},
+        **extra,
+    )
+
+
+def test_the_rung_reads_the_level_a_text_was_written_for() -> None:
+    """Where the shelf says what rung a row was written for, that is what is matched,
+    not its place in a sort. By place alone the one row under a subject was every
+    rung's answer (David, 2026-09-28: finished the arrival at "Just starting" and was
+    not handed a text he could read). The pick is the hardest at or under the rung
+    said, and "aleph plus" on a row is "aleph-plus" in the arrival."""
+    shelf = [
+        leveled("easy", "קל", "aleph", tags=["sport"]),
+        leveled("some", "קצת", "aleph plus", tags=["sport"]),
+        leveled("hard", "קשה", "vav", tags=["sport"]),
+    ]
+    stamps = {"targum:arrived": "sport,history,art"}
+    assert draw([], {**stamps, "targum:declared": "aleph"}, shared=shelf)["carry"]["title"] == "קל"
+    assert (
+        draw([], {**stamps, "targum:declared": "gimel"}, shared=shelf)["carry"]["title"] == "קצת"
+    ), "gimel is past aleph plus and short of vav: the hardest it can follow"
+    assert draw([], {**stamps, "targum:declared": "vav"}, shared=shelf)["carry"]["title"] == "קשה"
+    # Where place and level part: two rows, and gimel sits past the middle of the
+    # ladder, so by place it took the vav one. By level it is the one it can follow.
+    pair = [shelf[0], shelf[2]]
+    assert draw([], {**stamps, "targum:declared": "gimel"}, shared=pair)["carry"]["title"] == "קל"
+
+
+def test_a_subject_past_reach_gives_way_to_the_rung() -> None:
+    """A vav article is not "Sport" to somebody just starting. A subject whose rows are
+    all more than a rung past what the reader said gives way to the next subject, and
+    where none is left the rung picks from the modern shelf — a text they can follow
+    over a subject they cannot read."""
+    shelf = [
+        leveled("hard", "קשה", "vav", tags=["sport"]),
+        leveled("food", "אוכל", "bet", tags=["food"]),
+        leveled("easy", "קל", "aleph"),
+    ]
+    stamps = {"targum:arrived": "sport,food,art", "targum:declared": "aleph"}
+    assert draw([], stamps, shared=shelf)["carry"]["title"] == "קל", "sport and food are past aleph"
+    stretch = {**stamps, "targum:declared": "aleph-plus"}
+    assert draw([], stretch, shared=shelf)["carry"]["title"] == "אוכל", "one rung up is a stretch"
+    fluent = {**stamps, "targum:declared": "vav"}
+    assert draw([], fluent, shared=shelf)["carry"]["title"] == "קשה", "and sport, at vav"
+
+
+def test_where_the_rung_decides_reach_comes_before_a_voice() -> None:
+    """The second moment is the voice, and it is found on a page the reader can follow:
+    with no subject to go on, a silent text at their rung beats a heard one far past it."""
+    shelf = [
+        leveled("loud", "קול", "vav", spoken=True),
+        leveled("quiet", "שקט", "aleph"),
+    ]
+    came = draw(
+        [], {"targum:arrived": "archaeology,art,music", "targum:declared": "aleph"}, shared=shelf
+    )
+    assert came["carry"]["title"] == "שקט"
 
 
 def test_a_measured_rung_outvotes_the_one_they_said() -> None:
@@ -1537,3 +1622,101 @@ def test_a_box_with_no_connector_offers_none() -> None:
 def test_nobody_signed_out_is_asked() -> None:
     """There is no account to connect, so there is nothing to offer."""
     assert draw(a_shelf(), {}, me={"signedIn": False})["banner"] is None
+
+
+# --- the connector, met on the way in (design.md §12, 2026-09-28) ------------------------
+
+UNCONNECTED = {"signedIn": True, "connections": []}
+ANSWERED = [
+    {"subject": "Sport"},
+    {"subject": "History"},
+    {"subject": "Art"},
+    {"press": "arrival-done"},
+    {"rung": "Just starting"},
+]
+
+
+def test_the_arrival_ends_on_the_connector_and_continue_is_still_one_press() -> None:
+    """After the rung, a last card for a signed-in reader with no connection, said to be
+    optional (2026-09-28: "this makes it seem like installing the MCP is mandatory"):
+    the address to copy, and Continue as its only press, so the text the answers chose is
+    one press away. No Skip beside it: it did the same thing, and read like a step to get
+    past."""
+    shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
+    up = draw([], shared=shelf, me=UNCONNECTED, do=ANSWERED)
+    assert up["connectUp"], "the rung leads to the card, not straight into the text"
+    assert up["step"] == "", "optional, so not counted as a step to get through"
+    assert up["connectAddress"].endswith("/mcp"), "this site's own address, as /connect shows"
+    assert up["doneSays"] == "Continue" and up["nextShown"] and up["done"]
+    assert not up["skipShown"], "one way on, not two that do the same"
+    assert not up["went"], "nothing is opened until the press"
+
+    opened = draw([], shared=shelf, me=UNCONNECTED, do=[*ANSWERED, {"press": "arrival-done"}])
+    assert "/reader/holon/" in opened["went"], opened["went"]
+
+
+@pytest.mark.parametrize(
+    ("me", "connector"),
+    [
+        ({"signedIn": True, "connections": [{"client": "c"}]}, True),
+        (UNCONNECTED, False),
+        (None, True),
+    ],
+    ids=["connected", "dark", "signed-out"],
+)
+def test_the_connector_card_is_only_for_somebody_who_can_take_it_up(
+    me: dict[str, Any] | None, connector: bool
+) -> None:
+    """The banner's rule: open, signed in, and no connection yet. Anybody else goes from
+    the rung straight into the text, as before."""
+    shelf = [reader("holon", "הפועל", "holon", kind="article", register="modern", tags=["sport"])]
+    done = draw([], shared=shelf, me=me, connector=connector, do=ANSWERED)
+    assert not done["connectUp"]
+    assert "/reader/holon/" in done["went"], done["went"]
+
+
+def test_the_banner_shows_the_steps_with_the_address() -> None:
+    """A card now, not a line: what a reader gets, and the two steps with the address in
+    a well beside Copy — installing starts on Learn, not a page away."""
+    drawn = draw(a_shelf(), {}, me=UNCONNECTED)
+    assert drawn["banner"] and drawn["banner"]["goes"] == "/connect"
+    first, second = drawn["banner"]["steps"]
+    assert first.startswith("Copy this address") and "/mcp" in first and first.endswith("Copy")
+    assert second == "Add it as a connector in Claude or ChatGPT."
+
+
+# --- the welcome (2026-09-28) -------------------------------------------------------------
+
+
+def test_a_new_reader_is_welcomed_before_anything_is_asked() -> None:
+    """ "Very weird to come and see this as first screen. No welcome, no telling you where
+    you are, no asking your name, just a question" (David, 2026-09-28). The welcome says
+    where they are and asks what to call them; it is not a question, so the bars do not
+    count it and there is nothing to skip."""
+    page = draw([], shared=seeded(), me=UNCONNECTED, welcome=True)
+    assert page["welcomeUp"] and not page["subjectsUp"]
+    assert page["nameAsked"], "an account can keep a name"
+    assert page["doneSays"] == "Continue" and page["done"] and not page["skipShown"]
+    on = draw([], shared=seeded(), me=UNCONNECTED, welcome=True, do=[{"press": "arrival-done"}])
+    assert on["subjectsUp"] and on["step"] == "1 of 2", "the questions, and only they, counted"
+
+
+def test_a_name_given_is_kept_and_greeted() -> None:
+    page = draw(
+        [],
+        shared=seeded(),
+        me=UNCONNECTED,
+        welcome=True,
+        do=[{"name": "  David "}, {"press": "arrival-done"}],
+    )
+    named = [c["body"] for c in page["sent"] if c["path"].split("?")[0] == "/account/name"]
+    assert named == [{"name": "David"}]
+    assert page["greeting"].endswith(", David.")
+    quiet = draw([], shared=seeded(), me=UNCONNECTED, welcome=True, do=[{"press": "arrival-done"}])
+    assert not [c for c in quiet["sent"] if c["path"].split("?")[0] == "/account/name"]
+
+
+def test_somebody_signed_out_is_welcomed_and_not_asked_a_name() -> None:
+    """Nothing could keep it, so nothing is asked."""
+    page = draw([], shared=seeded(), welcome=True)
+    assert page["welcomeUp"] and not page["nameAsked"]

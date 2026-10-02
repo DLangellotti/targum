@@ -230,7 +230,8 @@ def test_a_scan_is_refused_at_the_quote_and_nothing_is_spent(served, reading) ->
     assert job["stage"] == "failed" and "scan" in job["error"], job
     assert not job.get("blocked"), "a blocked job would be shown without its way forward"
     assert job["pictures_offered"] > 0, "the refusal carries its way forward"
-    assert "Read the pages" in job["error"]
+    assert job["pictures_are"] == "pages", "so the button says Read the pages (Q28)"
+    assert "read those pictures" in job["error"]
     assert reading == [] and library.jobs[job["id"]].reading == 0.0
 
 

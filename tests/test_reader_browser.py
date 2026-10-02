@@ -3290,6 +3290,48 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     assert "Rabbi Somebody" in menu, "beside the control that carries the recording off"
 
 
+def test_the_recording_row_wraps_rather_than_splitting_into_columns(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """targum-internal#397. The open menu lays each group out as one flex line, and the
+    recording's row has four things in it since the credit joined: at 390px each got a
+    quarter of the width and broke a word to a line — "Close / the / player". It wraps
+    now: the label, the credit under it, and the two controls together, each on one line."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
+    page = context.new_page()
+    page.goto(address(built))
+    page.wait_for_selector("#player")
+    page.click(".bar .more")
+    page.wait_for_selector(".bar-more.open")
+    laid = page.evaluate(
+        """() => {
+          const row = document.querySelector('.more-player');
+          const box = (sel) => {
+            const el = row.querySelector(sel);
+            const r = el.getBoundingClientRect();
+            const line = parseFloat(getComputedStyle(el).lineHeight) || 20;
+            return { top: r.top, height: r.height, line };
+          };
+          return {
+            label: box('.label'),
+            credit: box('.more-credit'),
+            get: box('.more-get'),
+            close: box('.more-close'),
+          };
+        }"""
+    )
+    context.close()
+
+    for name in ("label", "get", "close"):
+        part = laid[name]
+        assert part["height"] < part["line"] * 1.6 + 16, (name, part)
+    assert laid["credit"]["top"] > laid["label"]["top"], "the credit stands under the label"
+    assert laid["get"]["top"] > laid["credit"]["top"], "the controls come after the credit"
+    assert abs(laid["get"]["top"] - laid["close"]["top"]) < 2, "the two controls share a line"
+
+
 def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
     laid = read_aloud.evaluate(LAID_OUT)
     assert laid["seat"] and laid["shown"]
@@ -3551,7 +3593,8 @@ def test_a_phrase_off_the_disk_stays_word_by_word(page) -> None:
     drag_across_words(page)
     chip = page.evaluate(CHIP)
     assert chip is not None, "the chip did not open"
-    assert chip["note"] in ("word by word — the sentence is in parallel", ""), chip
+    whole = "word by word — the line's translation has the whole sentence"
+    assert chip["note"] in (whole, ""), chip
     assert "looking" not in chip["note"], "a page that cannot ask said it was asking"
 
 
@@ -7163,7 +7206,7 @@ def test_a_reader_with_the_grant_can_say_a_meaning_is_wrong(browser, tmp_path: P
     assert said["stood"] == MEANING, "what it said before travels with what it should say"
     assert said["sentence"], "the line it was read in travels with it"
     assert said["document"], "and which text, so the licence can be applied later"
-    assert "Thank you" in page.locator("#gloss-card .fix-said").inner_text()
+    assert "Thanks" in page.locator("#gloss-card .fix-said").inner_text()
     context.close()
 
 
@@ -7422,4 +7465,144 @@ def test_inferred_answers_a_thumb_over_44px(browser, guessed_reader: Path) -> No
     assert reach["reach"] >= 44, reach
     assert reach["above"] and reach["below"], reach
     assert reach["drawn"] < 30, "the word itself is drawn at its own size"
+    context.close()
+
+
+# -- the accent on the card -------------------------------------------------------------
+#
+# design.md §12, "A word in scripture names its accent" (2026-09-28): one muted line under
+# the reading, while the chanting marks are shown, and never on the poetic books.
+
+GEN_1_1 = "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃"
+PS_1_1 = "אַ֥שְֽׁרֵי הָאִ֗ישׁ אֲשֶׁ֤ר לֹ֥א הָלַךְ֮ בַּעֲצַ֪ת רְשָׁ֫עִ֥ים"
+
+
+def verse_reader(out: Path, source: str, ref: str, pointed: str) -> Path:
+    """One verse of scripture, pointed and accented as its edition writes it."""
+    from targum.vocalize import strip_nikkud
+
+    text, _ = strip_nikkud(pointed)
+    segment = Segment(
+        id="0000.000-aaaaaa",
+        block_id="b0000",
+        block_index=0,
+        index=0,
+        kind=BlockKind.verse,
+        text=text,
+        ref=ref,
+    )
+    tokens = [
+        Token(
+            start=found.start(),
+            end=found.end(),
+            surface=found.group(),
+            lemma=found.group(),
+            band=2,
+        )
+        for found in re.finditer(r"[^\s׃]+", text)
+    ]
+    pages = render(
+        Document(
+            source=source,
+            title=ref,
+            language="he",
+            blocks=[Block(id="b0000", kind=BlockKind.verse, text=text)],
+            content_hash="h",
+        ),
+        SegmentedDocument(document_hash="h", language="he", segmenter="test/1", segments=[segment]),
+        [
+            Translation(
+                name="English",
+                document_hash="h",
+                source_language="he",
+                target_language="en",
+                provider="null",
+                segments={segment.id: "A verse."},
+            )
+        ],
+        out,
+        annotation=Annotation(
+            document_hash="h",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens={segment.id: tokens},
+        ),
+        vocalization=Vocalization(
+            document_hash="h",
+            language="he",
+            vocalizer="test/1",
+            segments={segment.id: pointed},
+            machine=[],
+        ),
+    )
+    return pages[0]
+
+
+ACCENT_LINE = """
+() => {
+  const card = document.getElementById('gloss-card');
+  if (!card || card.hidden) return null;
+  const line = card.querySelector('.accent');
+  if (!line) return { line: null };
+  const reading = card.querySelector('.copy-line');
+  const style = getComputedStyle(line);
+  return {
+    line: line.textContent,
+    below:
+      !reading ||
+      line.getBoundingClientRect().top >= reading.getBoundingClientRect().bottom - 1,
+    color: style.color,
+    size: style.fontSize,
+  };
+}
+"""
+
+
+def test_a_word_of_scripture_names_its_accent_while_the_marks_are_on(
+    browser, tmp_path: Path
+) -> None:
+    page_path = verse_reader(tmp_path / "genesis", "sefaria:Genesis 1", "Genesis 1:1", GEN_1_1)
+    context, page = open_reader(browser, page_path)
+
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    card = page.evaluate(ACCENT_LINE)
+    assert card is not None and card["line"] == "tipcha · disjunctive", card
+    assert card["below"], "under the reading"
+    assert card["color"] == "rgb(107, 100, 92)", "muted ink, and no hue for the class"
+    assert card["size"] == "13px", "at the card's own size"
+
+    page.evaluate(TAP_NTH, 1)
+    page.wait_for_timeout(150)
+    assert page.evaluate(ACCENT_LINE)["line"] == "munach · conjunctive"
+
+    page.evaluate(TAP_NTH, 6)
+    page.wait_for_timeout(150)
+    assert page.evaluate(ACCENT_LINE)["line"] == "silluk · disjunctive", "not meteg"
+
+    page.evaluate("() => window.targumReader.setTaamim(false)")
+    page.wait_for_timeout(150)
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    card = page.evaluate(ACCENT_LINE)
+    assert card == {"line": None}, "the marks are off, so the line is too"
+
+    page.evaluate("() => window.targumReader.setTaamim(true)")
+    page.wait_for_timeout(150)
+    page.evaluate(TAP_NTH, 0)
+    page.wait_for_timeout(150)
+    assert page.evaluate(ACCENT_LINE)["line"] == "tipcha · disjunctive"
+    context.close()
+
+
+def test_a_psalm_names_no_accent(browser, tmp_path: Path) -> None:
+    """The poetic books are accented in another system; a prose name would be wrong."""
+    page_path = verse_reader(tmp_path / "psalms", "sefaria:Psalms 1", "Psalms 1:1", PS_1_1)
+    context, page = open_reader(browser, page_path)
+    page.evaluate(TAP_NTH, 1)
+    page.wait_for_timeout(150)
+    card = page.evaluate(ACCENT_LINE)
+    assert card == {"line": None}, card
     context.close()

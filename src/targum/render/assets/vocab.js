@@ -309,8 +309,13 @@
       STEPS.forEach(function (step) {
         if (step.value === options.status) pressed = step;
       });
+      // A step whose name is its own label says it once: "known" and "Known" are one
+      // word, and the card printed it twice (targum-internal#398).
+      var named = pressed ? pressed.title.toLowerCase() : "";
       legend.textContent = pressed
-        ? pressed.label + " · " + pressed.title.toLowerCase()
+        ? named === String(pressed.label).toLowerCase()
+          ? pressed.label
+          : pressed.label + " · " + named
         : t("vocab.legend", "1 just met · 2 getting there · 3 nearly there");
       box.appendChild(legend);
     }
@@ -321,7 +326,7 @@
       note.className = "note-field";
       note.dir = "auto";
       note.value = options.note || "";
-      note.placeholder = options.placeholder || t("vocab.enter-text", "Enter text");
+      note.placeholder = options.placeholder || t("vocab.enter-text", "Your own meaning");
       note.setAttribute("aria-label", t("vocab.own-meaning", "Your own meaning"));
       note.addEventListener("click", function (event) {
         event.stopPropagation();

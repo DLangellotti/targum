@@ -354,3 +354,162 @@ def test_a_folder_reached_by_the_wrong_slug_stays_silent(tmp_path, monkeypatch) 
         json.dumps(made(source="sefaria:Job").model_dump()), encoding="utf-8"
     )
     assert recording_index.load("sefaria:Ruth") is None
+
+
+# Scripture's word clocks (targum-internal#329). Gen 1:1 and 1:5 as the Leningrad Codex
+# writes them, the second with a paseq standing alone and a section mark after the stop:
+# two tokens a trope reading skips and the aligner was still handed.
+GEN_1_1 = "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃"
+GEN_1_5 = "וַיִּקְרָ֨א אֱלֹהִ֤ים ׀ לָאוֹר֙ י֔וֹם וְלַחֹ֖שֶׁךְ קָ֣רָא לָ֑יְלָה וַֽיְהִי־עֶ֥רֶב וַֽיְהִי־בֹ֖קֶר י֥וֹם אֶחָֽד׃ פ"
+
+
+def ticking(text: str) -> list[list[float]]:
+    """A clock per spoken word: word n from n to n + 0.5 seconds."""
+    from targum.recording.models import spoken_words
+
+    return [[float(n), n + 0.5] for n in range(len(spoken_words(text)))]
+
+
+def chanted(**clocks: str) -> Part:
+    timed = {ref: ticking(text) for ref, text in clocks.items()}
+    from targum.recording.models import verse_spans
+
+    return Part(ref="Bereshit 1", audio="aliyah-01.mp3", spans=verse_spans(timed), clocks=timed)
+
+
+def test_a_leyning_manifest_from_before_word_clocks_still_reads() -> None:
+    """Every manifest attached before 2026-09-28 has verse spans and no `clocks` key.
+    It loads, finds its part by ref as it always did, and simply offers no word."""
+    old = {
+        "source": "sefaria:Genesis 1:1-6:8",
+        "credit": "PocketTorah, Avery-Binder trope",
+        "licence": "CC BY-SA 3.0",
+        "parts": [
+            {"ref": "Bereshit 1", "audio": "aliyah-01.mp3", "spans": {"Genesis 1:1": [0.4, 6.1]}}
+        ],
+    }
+    recording = Recording.model_validate(old)
+    part = recording.part_for(["Genesis 1:1"])
+    assert part is not None and part.clocks == {}
+    assert part.word_clocks("Genesis 1:1", GEN_1_1) == []
+    assert part.phrase_spans("Genesis 1:1", GEN_1_1) == []
+
+
+def test_a_verse_span_is_its_first_word_and_its_last() -> None:
+    from targum.recording.models import verse_spans
+
+    assert verse_spans({"Genesis 1:1": [[0.4, 0.9], [1.0, 1.3], [5.5, 6.1]]}) == {
+        "Genesis 1:1": [0.4, 6.1]
+    }
+    assert verse_spans({"Genesis 1:2": []}) == {}, "a verse with no words has no span"
+
+
+def test_the_words_are_counted_the_way_the_aligner_heard_them() -> None:
+    """A token that is all accent was never said; the paseq and the section mark were
+    handed to the aligner, so they keep their places in the count."""
+    from targum.recording.models import spoken_words
+    from targum.vocalize import strip_taamim
+
+    for text in (GEN_1_1, GEN_1_5, "בָּרָ֣א ֑ אֱלֹהִ֑ים"):
+        heard = [strip_taamim(text[a:b]) for a, b in spoken_words(text)]
+        assert heard == strip_taamim(text).split()
+    assert len(spoken_words(GEN_1_5)) == 13
+
+
+def test_a_word_on_the_page_finds_its_clock() -> None:
+    """Offsets into the bare text, which is what the page's words carry in `data-bare`."""
+    from targum.vocalize import strip_nikkud
+
+    part = chanted(**{"Genesis 1:5": GEN_1_5})
+    rows = part.word_clocks("Genesis 1:5", GEN_1_5)
+    bare, _ = strip_nikkud(GEN_1_5)
+    assert len(rows) == 13
+    assert bare[int(rows[0][0]) : int(rows[0][1])] == "ויקרא"
+    assert rows[0][2:] == [0.0, 0.5]
+    assert bare[int(rows[8][0]) : int(rows[8][1])] == "ויהי־ערב", "maqaf holds one token"
+    assert rows[8][2:] == [8.0, 8.5]
+
+
+def test_a_verse_whose_words_moved_under_the_recording_offers_none() -> None:
+    part = chanted(**{"Genesis 1:1": GEN_1_1})
+    assert part.word_clocks("Genesis 1:1", GEN_1_1 + " עוד") == []
+    assert part.phrase_spans("Genesis 1:1", GEN_1_1 + " עוד") == []
+    assert part.word_clocks("Genesis 1:2", GEN_1_1) == [], "a verse never timed"
+
+
+def test_a_trope_phrase_is_heard_from_its_first_word_to_its_last() -> None:
+    """Gen 1:1 is tipcha | munach etnachta | mercha tipcha | mercha silluq."""
+    part = chanted(**{"Genesis 1:1": GEN_1_1})
+    assert part.phrase_spans("Genesis 1:1", GEN_1_1) == [
+        [0.0, 0.5],
+        [1.0, 2.5],
+        [3.0, 4.5],
+        [5.0, 6.5],
+    ]
+
+
+def test_a_phrase_skips_what_was_timed_but_never_chanted() -> None:
+    """Gen 1:5's paseq and closing פ each hold a clock, and belong to no phrase: the
+    phrases land on the words either side, by token, not by the trope reading's count."""
+    part = chanted(**{"Genesis 1:5": GEN_1_5})
+    phrases = part.phrase_spans("Genesis 1:5", GEN_1_5)
+    # Kadma, mahpach, the paseq, and pashta on לָאוֹר֙ closing it: tokens 0 to 3.
+    assert phrases[0] == [0.0, 3.5]
+    # The verse ends on אֶחָֽד׃, token 11, and the פ after it is heard by nobody.
+    assert phrases[-1][1] == 11.5
+
+
+def test_a_psalm_has_no_prose_phrases() -> None:
+    psalm = "אַ֥שְֽׁרֵי הָאִ֗ישׁ אֲשֶׁ֤ר לֹ֥א הָלַךְ֮ בַּעֲצַ֪ת רְשָׁ֫עִ֥ים"
+    part = chanted(**{"Psalms 1:1": psalm})
+    assert part.phrase_spans("Psalms 1:1", psalm) == []
+    assert part.word_clocks("Psalms 1:1", psalm), "its words are still its words"
+
+
+def test_a_chanted_reading_gives_the_card_its_ear(tmp_path, monkeypatch) -> None:
+    """The whole path: a leyning manifest with word clocks reaches the page as the same
+    rows prose has, keyed by segment id; one without them reaches it with verses only."""
+    from targum.models import BlockKind, Document, Segment
+    from targum.render.builder import speech
+
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path))
+    document = Document(
+        source="sefaria:Genesis 1:1-6:8",
+        title="Bereshit",
+        language="he",
+        blocks=[],
+        content_hash="x",
+    )
+    segments = [
+        Segment(
+            id="v1",
+            block_id="b0000",
+            block_index=0,
+            index=0,
+            kind=BlockKind.verse,
+            text=GEN_1_1,
+            ref="Genesis 1:1",
+        )
+    ]
+    folder = tmp_path / recording_index.slug(document.source)
+    folder.mkdir()
+    (folder / "aliyah-01.mp3").write_bytes(b"ID3not-really-audio")
+
+    def attach(part: Part) -> None:
+        recording = Recording(
+            source=document.source, credit="PocketTorah", licence="CC BY-SA 3.0", parts=[part]
+        )
+        (folder / recording_index.MANIFEST).write_text(
+            recording.model_dump_json(), encoding="utf-8"
+        )
+
+    attach(chanted(**{"Genesis 1:1": GEN_1_1}))
+    spoken = speech(document, segments)
+    assert spoken.spans == {"v1": [0.0, 6.5]}
+    assert len(spoken.words["v1"]) == 7
+    assert spoken.words["v1"][0][2:] == [0.0, 0.5]
+
+    attach(Part(ref="Bereshit 1", audio="aliyah-01.mp3", spans={"Genesis 1:1": [0.0, 6.5]}))
+    spoken = speech(document, segments)
+    assert spoken.spans == {"v1": [0.0, 6.5]}
+    assert spoken.words == {}

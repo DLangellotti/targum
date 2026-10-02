@@ -44,19 +44,23 @@
       <button class="go" type="submit"><span class="go-says">{{ t("press.page.open-it", "Open it") }}</span><svg class="go-arrow" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button>
     </form>
 
-  {% elif job.stage in ('working', 'reading') %}
+  {% elif job.stage in ('working', 'reading', 'queued', 'looking up words') %}
     {#- Pressed, and being made. Reached two ways: without script, where the press
         redirects back here and the way on is the button; and **with** script, where the
         reader simply reloaded or came back to the link while it built. That second way
         used to dead-end — the watcher looked for the press form, which this state has
         not got, so the page never polled and never opened the reader (2026-09-23). The
         watch hangs off its own element, present in both states, so coming back to the
-        tab is the same as never having left it. -#}
+        tab is the same as never having left it.
+
+        `queued` and `looking up words` are waits too, and fell to the refusal below:
+        every press without script landed on "We can't make this one" while the build
+        was on its way (copy audit, 2026-09-28). A quote still being costed says so. -#}
     <h1>{{ t("press.page.we-re-making-it", "We're making it") }}</h1>
     <p class="said">{{ job.title }}</p>
     <div id="press-watch" data-job="{{ job.id }}" data-made="{{ job.made|int }}"
          data-usually="{{ job.usually|round|int }}"></div>
-    <p class="said" id="press-doing" role="status">{{ job.message or t("press.page.getting-started", "Getting started.") }}</p>
+    <p class="said" id="press-doing" role="status">{%- if job.stage == 'looking up words' %}{{ t("press.page.working-out-how-long", "We're working out how long it'll take.") }}{% else %}{{ job.message or t("press.page.getting-started", "We're getting it ready.") }}{% endif %}</p>
     <p class="said" id="press-left" role="status"></p>
     <form method="get" action="/build/{{ job.id }}">
       <button class="go" type="submit">{{ t("press.page.see-how-it-s-going", "See how it's going") }}</button>
@@ -108,7 +112,7 @@
 
   {% else %}
     <h1>{{ t("press.page.we-can-t-make-this-one", "We can't make this one") }}</h1>
-    <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "That quote has gone stale. Ask again where you asked before.") }}</p>
+    <p class="said">{{ job.error or job.blocked or t("press.page.that-quote-has-gone-stale", "We couldn't get this one ready. Ask for it again where you asked before.") }}</p>
     <p class="aside"><a href="/texts">{{ t("press.page.go-to-your-targums", "Go to Your targums") }}</a></p>
   {% endif %}
   </div>

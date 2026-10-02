@@ -276,11 +276,22 @@ var targumReader = function () {
   // Beside each sound, what of it we guessed: 1 the stress, 2 the vowels, 3 both
   // (design.md §12, "What we inferred says so"). Absent where nothing was.
   var guesses = data.guessed || [];
+  // Scripture's accents, one row per accented word: [bareStart, bareEnd, key,
+  // disjunctive], read by `vocalize/trope.py` at build time (design.md §12, "A word in
+  // scripture names its accent"). Absent on every page without the chanting marks, and
+  // on the poetic books, which the build refuses to name.
+  var accentRows = data.accents || {};
   // How split words are put together and how each occurrence is conjugated or declined
   // — tables of distinct strings, like the sounds, with an index on each token. Absent
   // on annotations written before they existed, and the card then simply says less.
   var builts = data.built || [];
   var grammarTable = data.grammar || [];
+  // Whether a finite past is the passé simple: only on a text read wholly by the question
+  // that tells it from the imparfait (targum-internal#264). Absent, a past is "past".
+  var tensesApart = !!data.tensesApart;
+  // What a French pronoun stands for, per segment: [row, segment, start, end]. Absent
+  // until the words are measured right nine times in ten; the card then gives the role.
+  var stands = data.stands || {};
   // A verb's citation form and a noun's lying plural, parallel to the lemmas. Facts
   // about the source word, so one table serves every target language — and grown at
   // runtime as words are looked up, since most texts were glossed before they existed.
@@ -1170,7 +1181,7 @@ var targumReader = function () {
     renderFinished();
     say(
       on
-        ? t("reader.finish.said", "Finished. You'll see it on your progress page.")
+        ? t("reader.finish.said", "Finished. You'll see it on Your Progress.")
         : t("reader.finish.undone", "Not finished.")
     );
   }
@@ -1916,7 +1927,7 @@ var targumReader = function () {
       tn(
         "reader.rest.marked",
         batch.length,
-        "You marked {n} words as known. Nothing left to mark here.",
+        "You marked {n} word as known. Nothing left to mark here.",
         "You marked {n} words as known. Nothing left to mark here."
       )
     );
@@ -1998,6 +2009,26 @@ var targumReader = function () {
     }
   }
 
+  /* And the way into Claude and ChatGPT, in the same row and off the same answer
+     (design.md §12, "The connector is met on the way in"): the moment a reader has words
+     to practise is the moment practising them elsewhere means something. Said at every
+     finish, not once (David, 2026-09-28: "why can't we have it always?") — it goes when
+     it has been taken up, which only the server knows, so the server decides each time:
+     open, and a reader with no connection. The count beside it is still said once. */
+  function sayConnect() {
+    var line = document.getElementById("next-up-connect");
+    if (!line) return;
+    line.textContent = t(
+      "reader.next.connect",
+      "Practise the words you marked, in Claude or ChatGPT."
+    ) + " ";
+    var way = document.createElement("a");
+    way.href = "/connect#install";
+    way.textContent = t("reader.next.connect-go", "Connect");
+    line.appendChild(way);
+    line.hidden = false;
+  }
+
   // What the foot is offering, as the server names it: the next section of this text,
   // or a catalogue text by its id off the `/open/<id>` link. Null for anything else.
   function offerNamed(offer) {
@@ -2012,7 +2043,9 @@ var targumReader = function () {
     var offer = document.getElementById("next-up");
     var line = document.getElementById("next-up-known");
     if (!offer || !line || PREVIEW || !canAsk() || typeof fetch !== "function") return;
-    if (askedShare || toldShare()) return;
+    // Asked at each page's finish, even where the count has been said: the answer also
+    // says whether to offer the connector, and that is said every time it is true.
+    if (askedShare) return;
     var named = offerNamed(offer);
     if (!named) return;
     askedShare = true;
@@ -2035,8 +2068,10 @@ var targumReader = function () {
       })
       .then(function (answer) {
         var known = answer && typeof answer.known === "number" ? answer.known : 0;
+        if (!finishedAt()) return;
+        if (answer && answer.connect) sayConnect();
         // Taken back while the question was out, or said by an earlier answer.
-        if (!known || !finishedAt() || toldShare()) return;
+        if (!known || toldShare()) return;
         line.textContent = tn(
           "reader.next.known-ahead",
           known,
@@ -2058,6 +2093,8 @@ var targumReader = function () {
   function unsayKnownAhead() {
     var line = document.getElementById("next-up-known");
     if (line) line.hidden = true;
+    var connect = document.getElementById("next-up-connect");
+    if (connect) connect.hidden = true;
   }
 
   /* The Undo on the ink block: the finish, and the words this visit's press marked. A
@@ -2294,7 +2331,7 @@ var targumReader = function () {
       });
       remember();
       redraw();
-      say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} words.", "Took back {n} words."));
+      say(tn("reader.rest.took-back", last.bulk.length, "Took back {n} word.", "Took back {n} words."));
       return true;
     }
     if (last.before) {
@@ -3717,6 +3754,18 @@ var targumReader = function () {
     if (code === "Past") return gt("reader.grammar.past", "past");
     if (code === "Pres") return gt("reader.grammar.present", "present");
     if (code === "Fut") return gt("reader.grammar.future", "future");
+    // The imparfait and the imperfetto, from prompt 3 (targum-internal#264).
+    if (code === "Imp") return gt("reader.grammar.imperfect", "imperfect");
+    return "";
+  }
+  // What a French object pronoun is to its verb (targum-internal#264). An object *le*
+  // read "he" before this, and *en* and *y* read nothing.
+  function roleWord(code) {
+    if (code === "Obj") return gt("reader.grammar.direct-object", "direct object");
+    if (code === "Iobj") return gt("reader.grammar.indirect-object", "indirect object");
+    if (code === "En") return gt("reader.grammar.of-it", "of it / some");
+    if (code === "Y") return gt("reader.grammar.there", "there / to it");
+    if (code === "Refl") return gt("reader.grammar.reflexive", "reflexive");
     return "";
   }
   // The moods a French or Italian verb is met in besides the indicative. Said in place
@@ -3740,9 +3789,10 @@ var targumReader = function () {
    * the card says which: *a mangé* is the passé composé, *avait mangé* the pluperfect.
    * The tense is the auxiliary's. *Être* makes a compound tense only for the verbs that
    * take it and for a reflexive verb; with any other participle it is the passive, which
-   * is the one reading "passé composé" would get wrong. The imparfait is still tagged
-   * as the past (it waits for the prompt change #264 shares), so an auxiliary in the past
-   * is read as the pluperfect, which is what it nearly always is.
+   * is the one reading "passé composé" would get wrong. An auxiliary in the imparfait
+   * makes the pluperfect, and one in the passé simple the past anterior — told apart only
+   * on a text whose tenses are (`tensesApart`); elsewhere a past auxiliary is read as the
+   * pluperfect, which is what it nearly always is.
    */
   var AUXILIARIES = { avoir: true, "être": true };
   var ETRE_VERBS = {};
@@ -3765,7 +3815,12 @@ var targumReader = function () {
     if (mood === "Sub") return gt("reader.grammar.past-subjunctive", "past subjunctive");
     var tense = feat(auxLine, "Tense");
     if (tense === "Pres") return gt("reader.grammar.passe-compose", "passé composé");
-    if (tense === "Past") return gt("reader.grammar.pluperfect", "pluperfect");
+    if (tense === "Imp") return gt("reader.grammar.pluperfect", "pluperfect");
+    if (tense === "Past") {
+      return tensesApart
+        ? gt("reader.grammar.past-anterior", "past anterior")
+        : gt("reader.grammar.pluperfect", "pluperfect");
+    }
     if (tense === "Fut") return gt("reader.grammar.future-perfect", "future perfect");
     return "";
   }
@@ -3892,6 +3947,11 @@ var targumReader = function () {
       var form = feat(line, "VerbForm");
       var tense = tenseWord(feat(line, "Tense"));
       var past = feat(line, "Tense") === "Past";
+      // A French finite past is the passé simple, where the imparfait was read apart from
+      // it: the tense of books, which a learner meets in print and never hears.
+      if (past && form !== "Part" && language === "fr" && tensesApart) {
+        tense = gt("reader.grammar.simple-past", "simple past · literary");
+      }
       // A Russian participle declines, so it is the only verb form with a case, and the
       // case is what tells it from the beinoni, which is tagged the same and has none.
       if (form === "Part" && inCase) {
@@ -3959,6 +4019,14 @@ var targumReader = function () {
       return agree.join(" · ");
     }
     if (pos === "PRON") {
+      var role = roleWord(feat(line, "Role"));
+      if (role) {
+        // *la* is her or it and *les* them: the agreement is what the pronoun keeps of
+        // what it stands for. Only the third person's; *me* is not "I".
+        var person3 = !feat(line, "Person") || feat(line, "Person") === "3";
+        var kept = person3 && role !== roleWord("Refl") ? agreement(line) : "";
+        return kept ? role + " · " + kept : role;
+      }
       var person = personWord(line);
       if (!inCase) return person;
       return (person || gt("reader.grammar.pronoun", "pronoun")) + " · " + inCase;
@@ -3980,6 +4048,21 @@ var targumReader = function () {
       return kind + " · " + inCase;
     }
     return posWord(pos);
+  }
+
+  // What the pronoun on a row stands for, where the page carries it: the segment that names
+  // it and the words as written. Null wherever the page carries nothing, which is every
+  // page until the words are measured to be right (`model_lemma.antecedents_shown`).
+  function standingAt(segmentId, row, textOf) {
+    var read = textOf || segmentText;
+    var at = (wordData[segmentId] || []).indexOf(row);
+    var said = stands[segmentId] || [];
+    for (var i = 0; i < said.length; i++) {
+      if (said[i][0] !== at) continue;
+      var words = read(said[i][1]).slice(said[i][2], said[i][3]);
+      return words ? { segment: said[i][1], words: words } : null;
+    }
+    return null;
   }
 
   // Gender and number as one mark, the way a Russian table heads its columns: the plural
@@ -4303,6 +4386,60 @@ var targumReader = function () {
     return t("reader.card.inferred-stress", "The text doesn't mark the stress, so we inferred it.");
   }
 
+  // The accent under a tapped word, named: "tipcha · disjunctive". Only while the
+  // chanting marks are on the page — the line describes what the reader can see — and
+  // for a word of the pointed text, never Onkelos beside it. A maqaf pair is one unit
+  // and takes the accent of its last word, which is the one that rules it.
+  var accentNames = null;
+  function accentOf(word) {
+    if (!prefs.nikkud || !prefs.taamim || besideCell(word)) return "";
+    var pair = word.closest ? word.closest(".pair") : null;
+    var span = (word.getAttribute("data-bare") || "").split(",");
+    if (!pair || span.length !== 2) return "";
+    var id = pair.getAttribute("data-id");
+    var rows = cells.unaccented[id] ? accentRows[id] || [] : [];
+    var start = parseInt(span[0], 10);
+    var end = parseInt(span[1], 10);
+    var found = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i][0] < end && rows[i][1] > start) found = rows[i];
+    }
+    if (!found) return "";
+    accentNames = accentNames || {
+      "silluq": t("reader.card.accent.silluq", "silluk"),
+      "etnachta": t("reader.card.accent.etnachta", "etnachta"),
+      "segol": t("reader.card.accent.segol", "segol"),
+      "shalshelet": t("reader.card.accent.shalshelet", "shalshelet"),
+      "zakef-katan": t("reader.card.accent.zakef-katan", "zakef katan"),
+      "zakef-gadol": t("reader.card.accent.zakef-gadol", "zakef gadol"),
+      "tipcha": t("reader.card.accent.tipcha", "tipcha"),
+      "revia": t("reader.card.accent.revia", "revia"),
+      "zarka": t("reader.card.accent.zarka", "zarka"),
+      "pashta": t("reader.card.accent.pashta", "pashta"),
+      "yetiv": t("reader.card.accent.yetiv", "yetiv"),
+      "tevir": t("reader.card.accent.tevir", "tevir"),
+      "geresh": t("reader.card.accent.geresh", "geresh"),
+      "gershayim": t("reader.card.accent.gershayim", "gershayim"),
+      "pazer": t("reader.card.accent.pazer", "pazer"),
+      "karnei-farah": t("reader.card.accent.karnei-farah", "karnei farah"),
+      "telisha-gedolah": t("reader.card.accent.telisha-gedolah", "telisha gedolah"),
+      "munach-legarmeh": t("reader.card.accent.munach-legarmeh", "munach legarmeh"),
+      "munach": t("reader.card.accent.munach", "munach"),
+      "mahpach": t("reader.card.accent.mahpach", "mahpach"),
+      "mercha": t("reader.card.accent.mercha", "mercha"),
+      "mercha-kefulah": t("reader.card.accent.mercha-kefulah", "mercha kefulah"),
+      "darga": t("reader.card.accent.darga", "darga"),
+      "kadma": t("reader.card.accent.kadma", "kadma"),
+      "telisha-ketanah": t("reader.card.accent.telisha-ketanah", "telisha ketanah"),
+      "yerach-ben-yomo": t("reader.card.accent.yerach-ben-yomo", "yerach ben yomo"),
+    };
+    var name = accentNames[found[2]] || String(found[2]).replace(/-/g, " ");
+    var kind = found[3]
+      ? t("reader.card.accent-disjunctive", "disjunctive")
+      : t("reader.card.accent-conjunctive", "conjunctive");
+    return name + " · " + kind;
+  }
+
   function readingOf(word) {
     if (!sounds.length) return "";
     var row = rowOf(word);
@@ -4521,7 +4658,7 @@ var targumReader = function () {
     var box = document.createElement("details");
     box.className = "card-conj";
     var head = document.createElement("summary");
-    head.textContent = t("reader.card.the-table", "The table");
+    head.textContent = t("reader.card.the-table", "All its forms");
     box.appendChild(head);
 
     // Grouped by tense, in the order a table is laid out, with anything the source did
@@ -4729,9 +4866,9 @@ var targumReader = function () {
               answer && answer.proposed
                 ? t(
                     "reader.card.correction-taken",
-                    "Thank you. We will look at it before it changes for anybody."
+                    "Thanks. We'll check it before it changes for anyone."
                   )
-                : t("reader.card.correction-lost", "We could not send that. Try again later.");
+                : t("reader.card.correction-lost", "We couldn't send that. Try again later.");
             row.appendChild(thanks);
           })
           .catch(function () {
@@ -4744,11 +4881,135 @@ var targumReader = function () {
     return row;
   }
 
+  /* Where a word comes round, and where this reader has met it (targum-internal#95, #96):
+     "met in Jonah 1:4, Ruth 2:1 and 6 more", "4× in this text · 12× in the Tanakh", and
+     the words of its root they have met, with the root the way in to them.
+
+     Behind `TARGUM_OCCURRENCES` (serve.shows_occurrences), off unless the box says so.
+     Until `/account/me` has said yes the card asks nothing and draws nothing new, so
+     with it off the card is the card it always was. Asked of `/word/met` once a word,
+     when its card opens and never with the page: a reader fetches nothing up front.
+     "Met" is the server's to say — inside a section the reader finished — and a word
+     with nothing to say about it gets no line, never a zero. */
+  var comesRound = {};
+  var rootOpen = {};
+
+  function showsOccurrences() {
+    var who = served && window.TargumSync && window.TargumSync.who;
+    return !!(who && who.occurrences && typeof fetch === "function");
+  }
+
+  // What the server said about a word, or null while it has not answered, or never will.
+  function roundOf(index, root, redraw) {
+    var lemma = lemmas[index];
+    if (!showsOccurrences()) return null;
+    if (Object.prototype.hasOwnProperty.call(comesRound, lemma)) return comesRound[lemma];
+    comesRound[lemma] = null;
+    var query =
+      "?lemma=" + encodeURIComponent(lemma) +
+      "&root=" + encodeURIComponent(root || "") +
+      "&document=" + encodeURIComponent(documentId) +
+      "&section=" + encodeURIComponent(sectionId) +
+      "&language=" + encodeURIComponent(language);
+    fetch(keyed("/word/met" + query), { headers: keyHeaders({}) })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (said) {
+        if (!said) return;
+        comesRound[lemma] = said;
+        redraw();
+      })
+      .catch(function () {
+        // Nothing said is the answer: this line is never worth an error on a card.
+      });
+    return null;
+  }
+
+  // The root, as a way in to the words of it the reader has met. Only where there are
+  // any: a root with no family met is the plain word the card always drew.
+  function rootLink(shoresh, index, root, redraw) {
+    var said = roundOf(index, root, redraw);
+    if (!said || !said.family || !said.family.met) return shoresh;
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "root-open";
+    open.setAttribute("aria-expanded", rootOpen[root] ? "true" : "false");
+    open.appendChild(shoresh);
+    open.onclick = function (event) {
+      event.stopPropagation();
+      rootOpen[root] = !rootOpen[root];
+      redraw();
+    };
+    return open;
+  }
+
+  // "6 words from כ־ת־ב met, 3 known", and, with the root pressed, the words themselves.
+  function rootFamilyLine(index, root, redraw) {
+    var said = roundOf(index, root, redraw);
+    var kin = said && said.family;
+    if (!kin || !kin.met) return null;
+    var box = document.createElement("span");
+    box.className = "card-round card-root-met";
+    // The root is Hebrew in a line that is not, so it is drawn in a `bdi` of its own.
+    mixedLine(box, tn(
+      "reader.card.root-met",
+      kin.met,
+      "{n} word from {root} met, {known} known",
+      "{n} words from {root} met, {known} known",
+      { root: root.split("").join("\u05be"), known: kin.known }
+    ));
+    if (rootOpen[root] && kin.words && kin.words.length) {
+      var words = document.createElement("bdi");
+      words.className = "card-root-words";
+      words.setAttribute("lang", language);
+      words.textContent = kin.words.join(" · ");
+      box.appendChild(words);
+    }
+    return box;
+  }
+
+  // How often here and in the Tanakh, and where the reader met it. Null for nothing.
+  function roundLines(index, root, redraw) {
+    var said = roundOf(index, root, redraw);
+    if (!said) return null;
+    var box = document.createElement("span");
+    box.className = "card-round";
+    var counts = [];
+    if (said.here) counts.push(t("reader.card.times-here", "{n}× in this text", { n: said.here }));
+    if (said.tanakh) {
+      counts.push(t("reader.card.times-tanakh", "{n}× in the Tanakh", { n: said.tanakh }));
+    }
+    if (counts.length) {
+      var often = document.createElement("span");
+      often.className = "card-often";
+      often.textContent = counts.join(" · ");
+      box.appendChild(often);
+    }
+    if (said.met && said.met.length) {
+      var places = said.met.join(", ");
+      var where = document.createElement("span");
+      where.className = "card-met";
+      // A title may be Hebrew in an English line; each run gets its own `bdi`.
+      mixedLine(
+        where,
+        said.more
+          ? t("reader.card.met-in-more", "met in {places} and {n} more", { places: places, n: said.more })
+          : t("reader.card.met-in", "met in {places}", { places: places })
+      );
+      box.appendChild(where);
+    }
+    return box.firstChild ? box : null;
+  }
+
   function showCard(word) {
     if (!card) return;
     var index = parseInt(word.getAttribute("data-lemma"), 10);
     var lemma = lemmas[index];
     if (!lemma) return;
+    function redrawCard() {
+      if (lookedUp === word) showCard(word);
+    }
     // A card opened is a look-up, whether a tap or Enter asked for it: the reader wanted
     // to know what the word was, and that is the whole of the signal the foot reports.
     //
@@ -4911,6 +5172,17 @@ var targumReader = function () {
       if (guessedLine) card.appendChild(guessedLine);
     }
 
+    // Its accent, under how it is said, in the card's quiet style (design.md §12,
+    // "A word in scripture names its accent"). Text, not a control, until the phrase
+    // can be heard.
+    var accent = accentOf(word);
+    if (accent) {
+      var accentLine = document.createElement("span");
+      accentLine.className = "accent";
+      accentLine.textContent = accent;
+      card.appendChild(accentLine);
+    }
+
     // How the string is put together. A split token names its pieces — that is the
     // line that lets a learner find ולביתו in a dictionary at all — and a plain
     // inflected one names its dictionary form; a surface that is its own lemma says
@@ -4970,7 +5242,7 @@ var targumReader = function () {
         // Spaced out the way a root is written, so it reads as three letters rather
         // than as a word: כ־ת־ב, not כתב.
         shoresh.textContent = root.split("").join("\u05be");
-        verb.appendChild(shoresh);
+        verb.appendChild(rootLink(shoresh, index, root, redrawCard));
       }
       if (binyan) {
         if (root) verb.appendChild(document.createTextNode(" · "));
@@ -4994,7 +5266,7 @@ var targumReader = function () {
         encodeURIComponent(lemma);
       pealim.target = "_blank";
       pealim.rel = "noopener noreferrer";
-      pealim.textContent = t("reader.card.conjugations", "conjugations");
+      pealim.textContent = t("reader.card.conjugations", "conjugations on Pealim");
       verb.appendChild(pealim);
       card.appendChild(verb);
       // The table itself, where this page carries one (targum-internal#300). About six
@@ -5004,6 +5276,8 @@ var targumReader = function () {
       if (drawn) card.appendChild(drawn);
       var kin = siblingLine(index);
       if (kin) card.appendChild(kin);
+      var rootMet = root ? rootFamilyLine(index, root, redrawCard) : null;
+      if (rootMet) card.appendChild(rootMet);
     }
 
     // The part of speech's own line. A name and a number say which they are — that is
@@ -5049,6 +5323,27 @@ var targumReader = function () {
       use.className = "use";
       mixedLine(use, usage);
       card.appendChild(use);
+    }
+
+    // What a pronoun stands for, and a way to go to it (targum-internal#264).
+    var standsIn = word.closest ? word.closest(".pair") : null;
+    var standsHere = standsIn && row ? standingAt(standsIn.getAttribute("data-id"), row) : null;
+    if (standsHere) {
+      var stand = document.createElement("span");
+      stand.className = "verb stands-for";
+      stand.appendChild(document.createTextNode(t("reader.card.stands-for", "stands for ")));
+      var standsWords = document.createElement("button");
+      standsWords.type = "button";
+      standsWords.className = "here";
+      standsWords.setAttribute("lang", language);
+      standsWords.textContent = standsHere.words;
+      standsWords.addEventListener("click", function (event) {
+        event.stopPropagation();
+        hideCard();
+        jumpTo(standsHere.segment);
+      });
+      stand.appendChild(standsWords);
+      card.appendChild(stand);
     }
 
     // The verb's other aspect. Aspect is decided by the sentence far more often than by a
@@ -5102,6 +5397,11 @@ var targumReader = function () {
       belongs.textContent = where;
       card.appendChild(belongs);
     }
+
+    // Where it comes round and where the reader met it (targum-internal#95, #96); nothing
+    // at all unless the box shows it.
+    var round = roundLines(index, root, redrawCard);
+    if (round) card.appendChild(round);
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
     // for either is `i`. Everything else keeps the editor exactly as it was.
@@ -5188,7 +5488,7 @@ var targumReader = function () {
       field.dir = "auto";
       field.setAttribute("aria-label", t("reader.ask.label", "Ask about this word"));
       field.placeholder = state.turns.length
-        ? t("reader.ask.one-more", "One more")
+        ? t("reader.ask.one-more", "One more question")
         : t("reader.ask.label", "Ask about this word");
       field.autocomplete = "off";
       var go = document.createElement("button");
@@ -5340,7 +5640,7 @@ var targumReader = function () {
             why = {};
           }
           settle(
-            why.message || t("reader.error.conversation", "We couldn't continue the conversation. Try again."),
+            why.message || t("reader.error.conversation", "We couldn't continue the chat. Try again."),
             true
           );
         } else if (source.readyState === 2) {
@@ -5915,7 +6215,7 @@ var targumReader = function () {
               ? t("reader.pick.looking-word-by-word", "word by word — looking…")
               : t("reader.card.looking", "looking…")
             : reading
-              ? t("reader.pick.in-parallel", "word by word — the sentence is in parallel")
+              ? t("reader.pick.in-parallel", "word by word — the line's translation has the whole sentence")
               : "",
       hear: hearButton(picked.segmentId, picked.start, picked.end, t("reader.pick.hear-phrase", "Hear this phrase")),
       kind: held ? held.kind : "",
@@ -8217,8 +8517,8 @@ var targumReader = function () {
         // a mode that alters what reading does deserves more than that.
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you go.")
-            : t("reader.mode.not-marking", "Not marking.")
+            ? t("reader.mode.marking", "Highlighting the words you haven't learned.")
+            : t("reader.mode.not-marking", "Not highlighting.")
         );
         return;
       }
@@ -8832,8 +9132,8 @@ var targumReader = function () {
         save();
         say(
           prefs.marking
-            ? t("reader.mode.marking", "Marking words as you go.")
-            : t("reader.mode.not-marking", "Not marking.")
+            ? t("reader.mode.marking", "Highlighting the words you haven't learned.")
+            : t("reader.mode.not-marking", "Not highlighting.")
         );
         return;
       case "b":
@@ -9281,6 +9581,13 @@ var targumReader = function () {
     // grammar string comes out as, and who a form is about.
     useLine: useLine,
     personWord: personWord,
+    // What a pronoun stands for, by segment and row index into that segment's words, with
+    // the segments' text handed in: a stub document has no cells to read it from.
+    standingAt: function (segmentId, index, texts) {
+      return standingAt(segmentId, (wordData[segmentId] || [])[index], function (id) {
+        return texts[id] || "";
+      });
+    },
     // And the register line: which Hebrew a word belongs to, from where the reader is.
     registerLine: registerLine,
     // Which rendering the translation column draws from, and switching it: settled in
@@ -9549,6 +9856,9 @@ var targumReader = function () {
   var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that. Try again.");
 
   press.hidden = false;
+  // Its cost beside it, where the page knows one; shown with the press it prices.
+  var costs = document.getElementById("waiting-cost");
+  if (costs) costs.hidden = false;
   press.onclick = function () {
     press.disabled = true;
     // The page says which work is owed — a translation, or for an imported recording a
@@ -9836,7 +10146,7 @@ var targumReader = function () {
     try {
       audio.currentTime = from;
     } catch (why) {
-      return refused("We can't play this recording in this browser.", why);
+      return refused("We can't play this recording in this browser. Try another browser.", why);
     }
     /* Drawn before the first `timeupdate` rather than by it. The clock is empty until
        that tick, and the strip is anchored to the foot of the window — so when its text
@@ -9854,7 +10164,7 @@ var targumReader = function () {
         // file: the control flipped back and the page had nothing to say for itself.
         refused(
           why && why.name === "NotAllowedError"
-            ? "This tab isn't allowed to play sound. Check the address bar."
+            ? "This tab isn't allowed to play sound. Allow sound for this site in the address bar, then try again."
             : "We couldn't play this recording. Try again.",
           why
         );
@@ -11190,7 +11500,7 @@ else targumReader();
   go.onclick = function () {
     go.disabled = true;
     var minutes = Math.max(1, Math.round(Number(offer.getAttribute("data-seconds") || 0) / 60));
-    tell("Thanks. We're reading this section aloud. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
+    tell("Thanks. We're recording this section now. It runs about " + minutes + (minutes === 1 ? " minute" : " minutes") + ".");
     fetch(keyed("/voice"), {
       method: "POST",
       headers: keyHeaders({ "Content-Type": "application/json" }),

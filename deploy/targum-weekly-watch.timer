@@ -1,0 +1,11 @@
+# /etc/systemd/system/targum-weekly-watch.timer — installed and enabled by deploy.sh.
+
+[Unit]
+Description=targum weekly watch, every hour
+
+[Timer]
+OnCalendar=*-*-* *:20:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

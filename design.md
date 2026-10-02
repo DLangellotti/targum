@@ -376,6 +376,358 @@ be printed" below holds; this says only what the sheet adds.
   language of the row it was met in, so an Onkelos word is Aramaic. The privacy notice
   (clause 3.6) and the account page's plain account both say so, and the record is still
   behind `TARGUM_EVENTS` and the reader's own switch.
+### A link tried on the front page is built when they are let in, on targum — 2026-10-01
+
+The front page's box (targum-internal#399) lets a stranger paste a link and see what it is.
+Joining keeps the link with their place. David chose on 2026-10-01 that **letting them in
+builds it, and targum pays**: "let-in builds the saved link". It is waiting for them the
+first time they sign in, and the box's copy says so ("When your turn comes, it'll be
+waiting for you, ready to learn from.").
+
+This is the one build nobody presses for, so what keeps it inside the rules is written
+down. The operator's press, Let in or Open the door, is the consent, and only for a link
+the person chose and joined with. The build still goes through `Library.press` and so
+`Library.claim`, is a `job` row like any other, and is owned by the new account. It is a
+`gift`: it passes the account's money and hours rails and records no hours against their
+eight, because targum is paying, and it is held to the box ceiling like everything else.
+`gift` is a field on the job, never read from a request. A describe or a build that
+fails leaves the link saved, and the invitation has already gone by then. `targum
+open-the-door` on the command line has no worker to build with, so it says which saved
+links it left unbuilt.
+
+### /about says what was built, day by day — 2026-09-29
+
+"I want /about to show that we're building in public, and display day by day what's been
+built or improved, without getting too technical, without saying what doesn't need to be
+said out loud," David wrote, and chose the rest. The heading is **targum is built in
+public**. The calendar stays, and under it each day has one to three lines, newest first,
+from the first day. The page draws the newest ninety.
+
+- **It is written for peers and partners**, and it is plain outcomes: what changed for
+  somebody using targum, and nothing about how. This is §6's "the specific line", without
+  the selling; the page asks for nothing.
+- **Two subjects are not said: the back office, and where a text comes from.** Work that
+  is built and not switched on is said like anything else.
+- **Nobody reads a day's lines before they are shown**, as nobody reads the weekly. The
+  guard is `about.refused()`, asked by a test and again by the page, so a refused line
+  that reached the file is still not drawn. A word comes off its list when David takes
+  it off.
+- **The lines are English on every page.** The Russian page says its own heading and
+  dates, and marks the list `lang="en"`.
+- The list is ink and ink-soft on the card, with a rule between days. Leaf stays the
+  calendar's (§4), and the date stands over its lines on a phone.
+
+`deploy/built.md` is the brief.
+
+### The copy audit's answers — 2026-09-28
+
+The English copy was audited end to end (`COPY_AUDIT.md`). Its open questions went to
+David, and he answered them (`COPY_QUESTIONS.md`). Five of the answers undo names or
+silences recorded in earlier entries below. They are listed here so nobody restores the
+old wording.
+
+- **"Save as a text", not "Save as targum"** (2026-09-06). A newcomer doesn't know that
+  "a targum" is our word for a bilingual text, and without the article the label read
+  like a file-dialog item.
+- **The sign-in page is headed "Sign in to targum"** (2026-08-24 cut its copy). The
+  tagline headed a page people reach by pressing Sign in, and the only "Sign in" on it
+  was a link back to itself. The sign-in email already used this heading.
+- **The ladders say what they are** (2026-08-24: "the limit is all that is said"). A
+  newcomer meets "ב+" or "A2" with nothing to say which end is the start. Hebrew: "Ulpan
+  classes in Israel run from aleph, for beginners, to vav." Other languages: "The
+  European scale runs from A1, for beginners, to C2." The limit, "A guide, not a
+  placement", still follows each.
+- **No "free" inside the product.** This applies §6 ("inside the product there is no
+  price") to two places that had drifted: the refusals that ended "The library is always
+  free" now say "The library still opens", and the From targum playlists (#415) now say
+  "Opening them uses no credits".
+- **Followed series are "Following", not "Your subscriptions"**, so the word stays free
+  for a paid plan. /you is "Your profile" everywhere.
+
+What does **not** change: the approval page still says "Chatting is included" and names
+no allowance (2026-09-24). Only the public /connect FAQ says what chatting is included
+in: "your monthly credits". That is true, since a turn is metered into the monthly pool
+(2026-09-23), which is also why "Chatting uses no credits" was rejected.
+
+
+### The copy audit's answers, where they were behaviour — 2026-09-28
+
+The entry above is the wording. These are the answers that needed code (`COPY_QUESTIONS.md`
+§B, §C and §E), each because a page said something the code did not do.
+
+- **A signed-in reader is not asked to join.** This amends "The weekly, the parasha and
+  the dailies are drawn as the front door is" (2026-09-27, below), which ends each page on
+  the waitlist. §6 says somebody who has chosen targum is not sold to again, so for a
+  reader with a session the bar's Join the waitlist, the hero's form and the closing
+  section are not drawn, and the Read button leads the hero, ink-filled. A stranger sees
+  the page as it was.
+- **A spending press has its cost beside it.** The press page, the set page and Telegram
+  already said "Uses N credits"; now the Add page's card, the chat's card, a waiting
+  chapter's Translate or Transcribe, the contents page's per-chapter press and Prepare
+  all say it too. A recording or a film in credits — a minute each, any part of one a
+  whole one, as `credits_of` counts — and a text "Uses none of your credits". Only where
+  the figure is known where it is drawn: a recording whose length the page does not
+  carry says nothing rather than a guess. And the description search on Add says no cost
+  at all: it is a turn of chat, and chatting is included (2026-09-24).
+- **The verbs follow the medium in two more places** (§6). The contents page's first
+  press is Start listening or Start watching for a recording or a film, and the ready
+  email's button is Read, Listen or Watch, chosen as its subject is. A scanned PDF offers
+  "Read the 12 pages" and a post whose words are all in its pictures "Read the 3
+  pictures"; "Also read" stays for a post whose caption was read.
+- **An archived issue of the weekly is worded around its date.** "This week's" is said
+  of the newest published issue only; an older one's hero reads "as it was on {date}".
+- **On a hosted box a refusal never hands a reader the machine's words.** A status code,
+  a curl exception, "install yt-dlp", "set OPENAI_API_KEY": the reader is told the
+  `job.unreadable.*` sentence for what happened, and the detail goes to the log. On a
+  machine somebody runs themselves the reader is the operator, and keeps the detail.
+- **Every door says what is true of a closing account**: "This account is being closed.
+  To keep it, email hello@targum.page." And an uninvited address is pointed at the
+  waitlist while the front door is open.
+
+
+### The arrival opens with a welcome, and says what is optional — 2026-09-28
+
+David, trying the arrival as a new reader on the live site: "very weird to come and see
+this as first screen. No welcome, no telling you where you are, no asking your name, just
+a question!" And of the connector's card: "this makes it seem like installing the MCP is
+mandatory. Make it very clear that it's optional", and "the skip and open buttons do the
+same thing there, don't they?" They did.
+
+- **A welcome comes first** — after the language, where that is asked, since it decides
+  what language the welcome is in. "Welcome to targum", a line on what targum is, a line
+  on what happens next, and **What should we call you?**, optional, asked only where an
+  account can keep it; the greeting uses it at once. It asks nothing that has to be
+  answered, so its press is **Continue** and there is no Skip.
+- **The bars count questions and nothing else.** The welcome is not one, and nor is the
+  connector's card: counted, "3 of 3" made it a step to get through.
+- **The connector's card says it is optional**, three ways: "Optional" over it, a first
+  line that says targum does not need it and that it can be done later from Learn, and a
+  single press, **Continue**. The Skip beside it did what Continue did, and two ways past
+  a card read as a card to get past.
+
+The waitlist's pages had one heading for every answer, "the waitlist", over "Thanks.
+Check your email and press the button in it." Each answer has its own heading now —
+"Thanks for joining", "Confirm your place", "You're on the list", "You're off the list" —
+and sentences a person would say. Each heading follows from the step alone, so the
+answers that must not say whether an address is waiting still cannot.
+
+
+### Russian is shown to somebody who may read it — 2026-09-28
+
+"I don't want a non russian to see any russian. Figure out how to design this as such,"
+David wrote of the arrival's first screen, which asked every new reader "What is your
+native language?" and "Какой у вас родной язык?", and offered "Other · Другой".
+
+**This amends "The arrival asks which language first" (2026-09-20, below) in one rule:**
+it said the question is asked "of everybody who has never said … not only of a browser
+that says Russian", because an olah's phone is as often set to Hebrew or English. The
+question is now asked only where the browser gives a sign: one of its languages is
+Russian, or a language of the countries where Russian is the language people share
+(Ukrainian, Belarusian, Kazakh, Kyrgyz, Uzbek, Tajik). Everybody else starts on the
+subjects and sees no Cyrillic anywhere in the arrival.
+
+The reader that entry was written for still has a way in, and it is the front door's own:
+**EN · RU**, in the card's corner, beside the step. Two Latin codes, so it shows no Russian
+to anybody, and a Russian reader knows it on sight. It is drawn only where the question is
+not asked and nothing has been said; pressing RU is the answer the question would have
+taken — kept in the browser, told to the account, the page loaded again in Russian. The
+signals that were already answers stay answers: a press on the front door's switcher,
+the operator's mark on an invited address, the account's own rows.
+
+What is not touched: a language menu a reader opens lists each language in its own name
+(§12, 2026-09-14), because opening it is asking; the conversation's own question was
+already asked only of a browser that says Russian.
+
+And the level question reads **"How much Hebrew do you know?"**, with "You'll start there,
+and we'll adjust as you mark words." under it; the third rung is "I can hold a simple
+conversation", in the first person like the rest.
+
+
+### The connector is met on the way in, and in four places — 2026-09-28
+
+"We need to make sure the user understands the existence of the MCP and how to install it
+earlier," David wrote, and chose all four places offered: the arrival's last step, a line
+in the reader, a fuller banner on Learn, and before sign-up. What stood was "The connector
+is a banner and a line in the foot" (2026-09-24, below): a banner above Learn's row and a
+line in the foot. Since the arrival became a page of its own and opens a text directly
+(the entry after this), a new reader could go days without standing on Learn, and the
+banner was hidden while they answered — so the one announcement came late or never.
+
+The rule that entry kept — **it goes when it has been taken up**, which the account
+already knows — holds in all four. Each is drawn only while the connector is open
+(`TARGUM_CONNECTOR`) and, inside the product, only to a signed-in reader with no
+connection. And the thing each one does is the same: say in a line what a reader gets,
+and put the address, with Copy, where the first step of installing it is one press.
+
+- **The arrival's last card.** After the rung, one more screen, counted in the bars: what
+  the connector is, the address and Copy, and "Learn more" to `/connect` in a
+  new tab. The filled press is **Open** — the text the answers chose, as before, and §6's
+  neutral verb, since the card cannot know yet whether it is read, heard or watched — so
+  installing is offered and never stands between a reader and their first page. Skip
+  does the same. It is not a question and asks for no answer; it is the one card in the
+  arrival that tells rather than asks, and it is last so that nothing about it holds up
+  the three that are asked.
+- **A line in the reader, at every finish.** Under the count the offer already carries
+  ("You already know 14 words in this one"), and in the same row: "Practise the words you
+  marked in Claude or ChatGPT", and Connect. In answer to a press and never on load, and
+  nothing above it moves — the third moment's manners (the entry "Three moments in ten
+  minutes", below) — but not once: at every finish while the reader has no connection
+  (David, the same day: "why can't we have it always?"). It goes when it has been taken
+  up, which only the server knows, so the server says whether, in the answer the finish
+  already asks for, and a page on the shared shelf carries nothing about the reader. The
+  count beside it is still said once. A finish is the moment a reader has words to
+  practise, which is what the connector is for.
+- **The banner is a card.** It said one line and Connect. It says what a reader gets,
+  shows the two steps — copy the address, add it in the app — with the address and Copy
+  in a well, and links to every app's steps. Still above the row, still gone once
+  connected, the cross still per-browser.
+- **Before sign-up, it is mentioned lightly, twice.** One point in the list under the front
+  door's headline, "Works in Claude and ChatGPT", and one line in the part about talking to
+  targum — "You can also talk to targum inside Claude or ChatGPT", and the way to
+  `/connect`. A part of its own was drawn first and David took it out the same day
+  ("remove this, and simply make a mention in the AI assistant section"). The invitation
+  mail says it in a paragraph with the way to `/connect`. All of it only while the
+  connector is open.
+
+
+### The arrival is a page of its own, and a text they can follow — 2026-09-28
+
+"This needs to be much prettier, delightful, and more inviting," David wrote of the
+arrival, and then: "the what to work on is really weird to have on the page right away. I
+think the onboarding step by step should be on another initial page." And having
+finished it: "it didn't bring me to a reader — it should bring me to a reader at my level
+that I'll enjoy."
+
+**It is the screen at every width.** "The arrival is two questions" (2026-09-19, below)
+kept it on the desk ground above the sheet at a desk, so that "somebody who ignores it
+still has a text open", and made it the screen only under 40rem. At a desk that put the
+fold, the rail and a framed reader under three questions a new reader had not answered,
+and the first thing they met was a list of words they had never marked. Now nothing else
+is drawn while it is up — the greeting, and the questions — at every width, and the last
+answer (or the last Skip) opens the text as it already did.
+The pill that opens the conversation keeps its corner (§13).
+
+**It is one card, and it is the brightest thing on the page.** There is no sheet under
+it to compete with any more, so the argument for leaving it on the ground is gone: the
+question stands in a card at the sheet's corner (24) and the raised tier, a column
+narrower than the page, with the question at 1.5rem. Where they are is said in words and
+drawn as three short bars in leaf, since how far along is progress (§4); the words stay
+for anybody not looking. A screen arrives with the desk's curve (§13) and nothing moves
+under `prefers-reduced-motion`.
+
+**A picked subject is on, and on is the primary.** The chips were quiet ink when picked,
+after §4's "selection is quiet ink, never accent". The accent is the reader's brown and
+§13 says the desk does not use it; what §13 gives the "on" state is the primary. A picked
+subject takes the primary's tint, its text and a ring of it; an unpicked one sits on the
+ground's tone inside the card. It is not filled: Next is the one filled press (§13), and
+the chips are answers, not actions — a first cut that filled them put four primaries on
+the page, and `test_pages_browser` refused it.
+
+**The first text is at their rung, read off the text.** The rung picked a row by its
+place in the subject's list — aleph the first, vav the last — so the one row filed under
+a subject was every rung's answer, and "Just starting" opened a vav article. Now the rung
+is matched against the rung a row was written for (`level.name`), the hardest at or
+under it; a subject whose rows are all more than a rung past it gives way to the next
+subject, because a text they cannot read is not one they will enjoy; and where no subject
+is left the rung chooses from the modern shelf, as it already did for a reader who named
+no subject — reach first and the voice after it, since the second moment (below) is found
+on a page the reader can follow. A shelf that does not say its rung keeps the old rule.
+
+### The words to know before a chapter — 2026-09-28
+
+A reader may carry, above a chapter's first line, the words worth learning before reading
+it (targum-internal#97): the Learning Biblical Hebrew Workbook's list at the head of a
+passage. **Behind `TARGUM_PREREAD`, off**, because the card's gate — readers seen building
+it by hand from the export — cannot be met while there are no readers, and David chose to
+build it to be looked at rather than wait (2026-09-28).
+
+- **The printed page's words, before the text rather than after it.** The rule is the
+  printed edition's (2026-09-27, below): no names or numbers, the looked-up bands, a word
+  only where there is a meaning to set beside it, the first sense. Ordered by how often a
+  word comes round in the chapter, with the count typed as §7's multiplier; forty shown.
+- **The reader's own words come off it, in the browser.** A page on the shared shelf is
+  built once for everybody, so the page carries more than it shows and the script takes
+  off what this reader has marked known or put aside. Nothing is asked of the server and
+  nothing is fetched. Nothing left, nothing drawn.
+- **Folded, flat and above the text.** One quiet line in the UI face with a count
+  in the detail face; opened, the source at the reading size in its carried face and the
+  meaning muted beside it as a translation at rest is (§9). A list on the page, not a
+  card over it: the page's hairline, no shadow (§8). On pages, the first page only.
+- **A `<details>`, not the fold's button** (`_fold.html.j2`), because it has no controls
+  in its heading to protect and it opens with no script. Its summary is in the thumb
+  registry.
+
+### How French is said is drawn over the text, never into it — 2026-09-28
+
+A French reader gets a switch of its own, **As said**, on `n` as the vowels are on a Hebrew
+page (targum-internal#266). **Behind `TARGUM_FRENCH_IPA`, off**, until a person has read the
+gold set its liaisons are scored against: the set was drafted by a model, and the card's
+floor, a precision of 0.98, is only as good as the gold under it.
+
+- **What it marks.** The liaisons every speaker makes — a determiner before its noun or
+  adjective, a clitic pronoun before its verb, a verb before its inverted pronoun — with
+  the consonant heard; every elision; and the final consonants nobody says. **An optional
+  liaison is left unmarked**: natives make about one in five of them in speech, and a
+  switch that marked them would teach a rule that is not one.
+- **Drawn, not written.** Every mark sits on characters the text already has: a tie
+  under the space a liaison crosses, with its consonant small above it in the UI face at
+  the label size; the same tie under an elision's apostrophe; the silent letters in muted
+  ink. The tie and the consonant are out of the flow, so switching moves no line, and
+  since nothing is inserted every offset, every kept phrase and every saved word is the
+  same with the switch on or off. A page's mute e is not greyed: the switch is about
+  consonants.
+- **Muted ink, not the accent** (§4). The accent is for what the reader has kept; a
+  liaison is a note on the text, as a translation at rest is (§9). No hue, no underline.
+- **The card says the word as it is said here**, in IPA, with its liaison consonant and a
+  tie where it has one (*les* before *enfants* is /lez‿/), in the card's reading line.
+  A word the lexicon has no reading for shows none, as `pronounce.sayable` would have it.
+- **The switch icon** is a line diagram of what it does (§7): two letters and the tie
+  between them.
+- **The source is named at the foot** of any page that shows a reading: Morphalou, its
+  licence and the one reading targum corrects, which the licence decision asks.
+
+### A word in scripture names its accent — 2026-09-28
+
+David approved it on 2026-09-28, with the technical terms (targum-internal#329). The
+engine underneath was already built: `vocalize/trope.py` names every accent of the prose
+system and divides a verse into its phrases, and since the same day the chanted Torah
+keeps a clock for every word rather than one per verse.
+
+The page already shows every mark the Masorah wrote. What a learner cannot do is read
+them: a tipcha looks like a mercha turned round, and nothing on the page says which one
+ends a phrase. The card is where a word is asked about, so the card is where the mark
+gets its name. The page stays as it is.
+
+- **One line: the name of the accent that rules the word, and its class.** "tipcha ·
+  disjunctive", "munach · conjunctive" — the grammar's words, not a learner's gloss on
+  them. Under the pronunciation line, in the card's own quiet style: muted ink (§4) at
+  the card's own size. No icon, no glyph of the mark (the word above already shows it),
+  no colour for the class, and no rank: "king" and "count" are the reference page's
+  words, not the card's. A class drawn in two hues would put a second colour system on a
+  page that has one.
+- **Russian transliterates the name and translates the class.** The catalogue had no
+  Russian names for the accents to reuse, only "знаки кантилляции" for the marks as a
+  whole, and the names themselves are the tradition's Hebrew and Aramaic. So a name is
+  transliterated from the English line's spelling ("типха", "закеф катан", "мунах
+  легармей"), and the class is said in plain Russian, «разделительный» or
+  «соединительный». Each name is its own key in the catalogue, so a better-established
+  Russian set, if one is settled on later, replaces them without touching the code.
+- **Only while the marks are shown.** With the chanting marks taken off (the ⋯ control,
+  "Scripture has a third form of its text", 2026-09-01), or the vowels off with them, the
+  line goes too: it would describe something the page is not showing. A text without
+  cantillation never has it, and nor does a text that is not scripture.
+- **The ruling accent, and nothing that is not one.** A word carrying two names the one
+  that governs it, its strongest disjunctive. Meteg shares silluq's codepoint and is not
+  an accent, so it is never named. A maqaf pair is one unit and names the accent of its
+  last word, which is the one it is chanted to.
+- **The poetic books get no line.** Psalms, Proverbs and Job outside its prose frame are
+  accented in another system, and a prose name on a psalm is wrong with a straight face.
+  No line, rather than an approximation, until that system has a table of its own.
+- **The line is where "hear the phrase" will go, and is not a control yet.** The phrase is
+  the run of words one disjunctive closes, the conjunctives leading up to it included,
+  and its sound is their clocks, first to last (`Part.phrase_spans`). Playing it on a tap,
+  and lighting the phrase while it plays, is its own entry when it is built; until then
+  the line is text.
 
 ### The back office is four tabs — 2026-09-28
 
@@ -427,6 +779,33 @@ to be designed once for everything, with X added, and chose each part:
 One file draws it (`_site_foot.html.j2`), and it carries its own stylesheet
 (`foot.css`), with every token's value written beside it, so it looks the same under
 the landing's sheets, the reader's and the desk's.
+
+### "Met" means a section you finished — 2026-09-28
+
+The word card can say where a reader has met a word ("met in Jonah 1:4, Ruth 2:1 and 6
+more"), how often it comes round ("4× in this text · 241× in the Tanakh") and how many
+words of a verb's root they have met ("6 words from כ־ת־ב met, 3 known"), with the root
+the way in to those words (targum-internal#95, #96). It is a line that tells somebody
+what they have done, so what it claims is set down here.
+
+- **Met is inside a section the reader finished.** Not a text opened — Genesis is one
+  document, and opening it is not meeting fifty chapters of words — and not a word
+  marked, which has no place. A chapter read and never finished is not claimed: the
+  line undercounts rather than tells a reader they did something they did not.
+- **The page the reader is on is not a place they met the word.** They are meeting it now.
+- **A verse is named by its reference; anything else by its title, once.** A recording's
+  "part 1:2" and a page's "p1" name nothing a reader would know. Three places are named,
+  latest first, and the rest are a number.
+- **Nothing with nothing to say.** A count of zero, a root with no word met, a text not
+  built on this box: no line, never a zero and never a guess. The root is a plain word,
+  as it always was, until there is a word of it to open.
+- **It is metadata, drawn as the register line is**: muted, a line each, Hebrew in its
+  own `bdi`. The root, where it opens something, is drawn as the other ways on its line
+  are — accent with a hairline — and is in §8's thumb registry.
+- **Behind `TARGUM_OCCURRENCES`, off unless the box says so.** Both cards were gated on
+  readers — Biblical readers reaching the modern shelf, the card being where readers
+  linger — and that gate cannot be met with none; David had it built behind a switch
+  instead (2026-09-28). Off, the card is byte for byte what it was and asks nothing.
 
 ### The weekly, the parasha and the dailies are drawn as the front door is — 2026-09-27
 
@@ -712,6 +1091,12 @@ Amended again the same day, for a TikTok: **a TikTok is a reel's shape**, 9:16 i
 film panel, the transcript its text and the caption after it, and its head says "On
 TikTok". TikTok gives no author's picture without a fetch of its own, so the disc wears
 the first letter of their name.
+
+Amended 2026-09-30, for a Facebook video: **a Facebook video is a reel's shape too**, "On
+Facebook" in the head. Facebook gives a page's name and a number, and no handle anybody
+knows a page by, so its head carries the name and the day and no "@" line; the disc wears
+the name's first letter. A post brought by hand is not yet taken from Facebook: most of
+what is posted there is words, at addresses the video door does not read.
 
 And for X, the same day: **a post on X is a post's shape, and a thread is one post an
 item**, each with its own photos under its own lines, in the order written, "On X" in the

@@ -21,11 +21,17 @@ is the first part's, which is what the prompt asks for.
 annotation carries the feature, the share the model gave the same value: `case_accuracy`,
 `aspect_accuracy`, `gender_accuracy`, `number_accuracy`, and since targum-internal#263
 `tense_accuracy`, `mood_accuracy`, `person_accuracy` and `verbform_accuracy`, which the
-French card's verb line is read from. A treebank's `Tense=Imp` (the imparfait) counts
-against a model the prompt does not yet let say it. A word the model left without the
+French card's verb line is read from. A treebank's `Tense=Imp` (the imparfait) counted
+against prompt 2, which could not say it; prompt 3 can. A word the model left without the
 feature counts as wrong. A language whose treebank never marks a feature, or whose card
 does not keep it (`model_lemma.KEPT`), gets no row for it. The run also prints output
 tokens per word, which is the figure the quote uses (`model_lemma.TOKENS_PER_WORD_OUT`).
+
+**And a French clitic's role** (prompt 3, targum-internal#264): `role_accuracy`, over the
+treebank's object pronouns, read off its relations — `obj` a direct object, `iobj` an
+indirect one, *en* and *y* by their lemma, *se* always and an `expl` *me* or *te* reflexive. A
+stand-in until the hand-written set the card waits on exists: the treebank marks no
+antecedents, so what a pronoun stands for is not scored here.
 
 **Written the way texts arrive** (`--curly`, targum-internal#262). The dev sets write the
 straight apostrophe; a French or Italian text usually writes ’. The same sentences with
@@ -92,6 +98,7 @@ class Word:
     lemma: str
     upos: str
     feats: str = ""
+    deprel: str = ""
 
 
 #: The features scored, by the metric each is written under.
@@ -105,6 +112,30 @@ SCORED = {
     "Person": "person_accuracy",
     "VerbForm": "verbform_accuracy",
 }
+
+
+#: The French pronouns a role is asked of, as the treebank writes their dictionary forms.
+CLITICS = frozenset("le la les lui leur en y se me te nous vous soi".split())
+
+
+def role(word: Word) -> str:
+    """What a French clitic is to its verb, by the treebank's relation; "" where it is
+    none of the five, which is a subject or a pronoun standing on its own."""
+    lemma = word.lemma.casefold()
+    if word.upos != "PRON" or lemma not in CLITICS:
+        return ""
+    if lemma == "en":
+        return "En"
+    if lemma == "y":
+        return "Y"
+    # The treebank calls *se blesse* an object; the card calls it what a learner needs,
+    # which is that it is the subject again.
+    if lemma in {"se", "soi"}:
+        return "Refl"
+    relation = word.deprel.split(":")[0]
+    if relation == "expl" and lemma in {"me", "te", "nous", "vous"}:
+        return "Refl"
+    return {"obj": "Obj", "iobj": "Iobj"}.get(relation, "")
 
 
 def feature(feats: str, name: str) -> str:
@@ -146,6 +177,7 @@ def sentences(path: Path) -> list[tuple[str, list[Word]]]:
                 continue
             ident, form, lemma, upos = cells[0], cells[1], cells[2], cells[3]
             feats = cells[5] if len(cells) > 5 and cells[5] != "_" else ""
+            deprel = cells[7] if len(cells) > 7 else ""
             if "." in ident:
                 continue
             if "-" in ident:
@@ -156,9 +188,9 @@ def sentences(path: Path) -> list[tuple[str, list[Word]]]:
             number = int(ident)
             if number in covered:
                 if words and not words[-1].lemma:
-                    words[-1] = Word(words[-1].form, lemma, upos, feats)
+                    words[-1] = Word(words[-1].form, lemma, upos, feats, deprel)
                 continue
-            words.append(Word(form, lemma, upos, feats))
+            words.append(Word(form, lemma, upos, feats, deprel))
     return out
 
 
@@ -221,6 +253,7 @@ def score(
     gold_words = found = lemma_right = upos_right = 0
     marked = dict.fromkeys(SCORED, 0)
     agreed = dict.fromkeys(SCORED, 0)
+    roles = roles_right = 0
     for segment, (text, words) in zip(segments, picked, strict=True):
         gold = {
             span: word
@@ -241,6 +274,9 @@ def score(
                 if gold_value:
                     marked[name] += 1
                     agreed[name] += feature(token.feats or "", name) == gold_value
+            if language == "fr" and (said := role(word)):
+                roles += 1
+                roles_right += feature(token.feats or "", "Role") == said
     today = date.today().isoformat()
     words_in = sum(len(text.split()) for text, _ in picked)
     cost = spent.cost() if spent is not None else 0.0
@@ -298,6 +334,20 @@ def score(
         for name, metric in SCORED.items()
         if marked[name] and name in model_lemma.KEPT.get(language, frozenset(model_lemma.FEATURES))
     )
+    if roles and system == "model-lemma":
+        rows.append(
+            evals.Row(
+                today,
+                "lemma",
+                system,
+                version,
+                "role_accuracy",
+                round(roles_right / roles, 4),
+                roles,
+                corpus,
+                note,
+            )
+        )
     return rows
 
 

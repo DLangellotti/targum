@@ -33,9 +33,14 @@
       <h1>{{ t("daily.page.pitch", "{name}, every word explained.", name=cycle.name) }}</h1>
       <span class="named" lang="he" dir="rtl">{{ cycle.hebrew }}</span>
       <p class="lede">{{ cycle.blurb }}</p>
+      {#- The waitlist is for a stranger. Somebody who has chosen targum is not sold
+          to again (§6), so for them the Read button leads the hero (copy audit,
+          2026-09-28). -#}
+      {%- if not signed_in %}
       {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
+      {%- endif %}
       <p class="actions">
-        <a class="btn tonal" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if day.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ day.hebrew or day.title }}</bdi></a>
+        <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if day.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ day.hebrew or day.title }}</bdi></a>
       </p>
     </div>
     {#- Decoration: it says nothing the words have not said, so it is hidden from a
@@ -106,7 +111,7 @@
         and everything around them is a sentence that a language puts in its own order. -#}
     <p class="made">
       {{ t("daily.page.made-honestly-says",
-            "The Hebrew is the published edition, cut to today's reading and not edited. The English beside it is {translation}. The cycle and its calendar come from Hebcal. The picture is {picture}.",
+            "The Hebrew is the published edition, cut to this day's reading and not edited. The English beside it is {translation}. The cycle and its calendar come from Hebcal. The picture is {picture}.",
             translation=translation_said, picture=cycle.credit) }}
     </p>
     {#- What Hebcal publishes and this shelf cannot read. A list, because it was a
@@ -124,7 +129,9 @@
 
   {#- The door is the waitlist (2026-09-27): a stranger who has read this far has no
       account to sign in to. The landing's own section, from the same file. -#}
+  {%- if not signed_in %}
   {% include '_front_join.html.j2' %}
+  {%- endif %}
 
 </main>
 

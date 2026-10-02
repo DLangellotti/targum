@@ -119,7 +119,7 @@ def parse(text: str) -> list[Cue]:
 def load_cues(path: Path) -> list[Cue]:
     cues = parse(normalize(path.read_text(encoding="utf-8", errors="replace")))
     if not cues:
-        raise TargumError(f"No subtitles found in {path.name}.")
+        raise TargumError(f"We couldn't find any subtitles in {path.name}.")
     return cues
 
 

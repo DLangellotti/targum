@@ -391,7 +391,7 @@ class Door:
         ui = self._language(person)
         self._reply(
             chat_id,
-            said_in(ui, "telegram.linked", "Thanks, this chat is linked to your targum.")
+            said_in(ui, "telegram.linked", "This chat is now linked to your targum account.")
             + " "
             + self._what_to_send(ui),
         )
@@ -574,9 +574,9 @@ class Door:
                         )
             except TargumError as error:
                 shutil.rmtree(folder, ignore_errors=True)
-                from .serve import refused_in
+                from .serve import told
 
-                return self._reply(chat_id, refused_in(ui, error))
+                return self._reply(chat_id, told(ui, error, hosted=self.library.hosted))
             # Numbered as `Handler._gathered` numbers a set of pages, and the folder is the
             # source for a picture as it is there.
             numbered = folder / f"01-{target.name}"
@@ -696,7 +696,7 @@ class Door:
             lambda: self.client.offer(
                 chat_id,
                 self._quote(ui, job),
-                said_in(ui, "telegram.build", "Build"),
+                said_in(ui, "telegram.build", "Open this"),
                 PRESS + self._token(chat_id, person.id, job.id),
             )
         )
@@ -729,7 +729,7 @@ class Door:
         return said_in(
             ui,
             "telegram.started",
-            "Thanks. We're getting it ready, and it'll be on your shelf: {link}",
+            "Thanks. We're getting it ready, and it'll be in Your targums. Follow it here: {link}",
             link=f"{self.address}/build/{job.id}",
         )
 
@@ -798,13 +798,14 @@ class Door:
                     said_in(
                         ui,
                         "telegram.press-stale",
-                        "That button doesn't work any more. Send the link again.",
+                        "That button doesn't work any more. Send it to us again.",
                     ),
                 )
             if job.stage in self.library.PRESSED:
                 return self._quietly(
                     lambda: self.client.answer(
-                        query_id, said_in(ui, "telegram.pressed-already", "It's on its way.")
+                        query_id,
+                        said_in(ui, "telegram.pressed-already", "We're already getting it ready."),
                     )
                 )
             blocked = self.library.press(job)
@@ -850,7 +851,7 @@ class Door:
         return said_in(
             ui,
             "telegram.link-first",
-            "Link your targum account first, from {link}.",
+            "Link this chat to your targum account first: {link}",
             link=f"{self.address}/you",
         )
 
@@ -858,8 +859,8 @@ class Door:
         return said_in(
             ui,
             "telegram.what-to-send",
-            "Send us a voice note, a video, a picture, a PDF or some text, and we'll put it "
-            "on your shelf.",
+            "Send us a link, a voice note, a video, a picture, a PDF or some text, and we'll "
+            "add it to Your targums.",
         )
 
     def _too_big(self, ui: str, name: str) -> str:

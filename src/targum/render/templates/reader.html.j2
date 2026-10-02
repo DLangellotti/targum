@@ -9,7 +9,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
-<style>{{ asset('reader.css') }}</style>
+<style>{{ asset('reader.css') }}</style>{% if said %}<style>{{ asset('said.css') }}</style>{% endif %}
+{%- if preread %}
+<style>{{ asset('preread.css') }}</style>
+{% endif %}
 {#- The Hebrew face is a hundred kilobytes in the page, and a text in a Latin or Cyrillic
     script has no Hebrew to draw with it (2026-09-13). Every Hebrew-script text carries
     it, Yiddish and Aramaic included. -#}
@@ -101,6 +104,22 @@
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M4 3.5h8M8 3.5v6"/>
           <path d="M5 12.5h0M8 12.5h0M11 12.5h0" class="dots"/>
+        </svg>
+      </button>
+    </div>
+    {% endif %}
+    {% if said %}
+    {#- How the French is said (targum-internal#266): the liaisons every speaker makes, the
+        elisions and the letters nobody says, drawn between and over the words by the
+        stylesheet and never written into the text, so no word moves. Beside the modes for
+        the reason the vowels are. -#}
+    <div class="group" data-what="As said">
+      <button type="button" data-said-toggle aria-pressed="false"
+              title="{{ t("said.switch-title", "As said (n). The liaisons every speaker makes, the elisions, and the final letters nobody says.") }}"
+              aria-label="{{ t("said.switch", "As said") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M3.5 3.5v6M12.5 3.5v6"/>
+          <path d="M4.5 12q3.5 2.5 7 0"/>
         </svg>
       </button>
     </div>
@@ -227,7 +246,7 @@
     {#- Only YouTube's address takes a time; any other home opens at the video's start, so
         its control does not promise the line. -#}
     {% set home_says = t("reader.page.open-on-youtube-at-this-line", "Open on YouTube at this line") if spoken_home_timed else t("reader.page.open-on-service", "Open on {service}", service=spoken_home_named) %}
-    <div class="group" data-what="Where it lives">
+    <div class="group" data-what="The original">
       <a class="home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener"
          title="{{ home_says }}" aria-label="{{ home_says }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -400,7 +419,9 @@
       {% if post.name %}<bdi class="post-name" dir="auto">{{ post.name }}</bdi>{% endif %}
       {#- Each piece its own isolate, so a Latin handle and an English date on a Hebrew
           page keep their own order, and a narrow window wraps between them, not inside. -#}
-      <span class="post-meta"><bdi class="post-handle{% if not post.name %} alone{% endif %}" dir="ltr">@{{ post.handle }}</bdi>{% if post.day %}<span aria-hidden="true">·</span><time datetime="{{ post.stamp }}" dir="auto">{{ post.day }}</time>{% endif %}</span>
+      {#- Facebook gives no handle a reader would know its pages by, only a number, so a
+          Facebook video's head carries the name and the day alone. -#}
+      {% if post.handle or post.day %}<span class="post-meta">{% if post.handle %}<bdi class="post-handle{% if not post.name %} alone{% endif %}" dir="ltr">@{{ post.handle }}</bdi>{% endif %}{% if post.day %}{% if post.handle %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ post.stamp }}" dir="auto">{{ post.day }}</time>{% endif %}</span>{% endif %}
     </span>
     {#- The one way home. A film's stands here too, and the bar's gives way to it. -#}
     {% if post.home %}
@@ -430,6 +451,13 @@
       click will not keep. -#}
   <p>{% if audio_waiting %}We haven't transcribed this part yet.{% else %}We haven't translated this chapter yet.{% endif %}</p>
   <button type="button" id="translate-chapter" data-owed="{% if audio_waiting %}transcript{% else %}translation{% endif %}" hidden>{% if audio_waiting %}Transcribe{% else %}Translate{% endif %}</button>
+  {#- What the press spends, beside it and shown with it (copy audit, 2026-09-28): a
+      transcript by its part's minutes, a translation none. -#}
+  {%- if not audio_waiting %}
+  <span class="waiting-cost" id="waiting-cost" hidden>{{ t("reader.chapter.uses-no-credits", "Uses none of your credits") }}</span>
+  {%- elif waiting_credits %}
+  <span class="waiting-cost" id="waiting-cost" hidden>{{ tn("reader.chapter.uses-credits", waiting_credits, "Uses {n} credit", "Uses {n} credits") }}</span>
+  {%- endif %}
 </div>
 {% endif %}
 {#- The player. Shown on a dialogue the moment it opens, because a reader who does not
@@ -613,6 +641,9 @@
   </button>
 </div>
 {% endif %}
+{% if preread %}
+{% include '_preread.html.j2' %}
+{% endif %}
 {#- A way to hear one line. Drawn once and called twice: a dialogue's turn and a verse of
     a recorded book are the same control over the same audio, and two copies of an inline
     SVG is how the two quietly stop matching. -#}
@@ -762,6 +793,10 @@
       ten minutes"). Written by the script after the press, never on load, with a count
       targum's own server works out: the page carries no list of anybody's words. -#}
   <span class="next-up-known" id="next-up-known" hidden></span>
+  {#- And, in the same answer, the way into Claude and ChatGPT: said once, at the moment
+      the reader has words to practise, to a reader the server says has no connection
+      (design.md §12, "The connector is met on the way in"). -#}
+  <span class="next-up-connect" id="next-up-connect" hidden></span>
 </aside>
 {% elif suggested %}
 <aside class="next-up" id="next-up" dir="ltr" hidden>
@@ -783,6 +818,7 @@
   {% if suggested.because %}<span class="next-up-why">{{ suggested.because }}{% if suggested.minutes %} · {{ t("reader.next.minutes", "{n} min", n=suggested.minutes) }}{% endif %}</span>{% endif %}
   {#- The same line, for a text from the library (targum-internal#335). -#}
   <span class="next-up-known" id="next-up-known" hidden></span>
+  <span class="next-up-connect" id="next-up-connect" hidden></span>
   {#- A way to disagree, and nothing more (targum-internal#233). It draws again from a
       list written into the page — the page fetches nothing — and remembers nothing: a
       refusal the server kept would turn a door into a profile nobody asked to build.
@@ -805,7 +841,7 @@
     them in a file nobody opens is not naming them"; nor is naming them in a card nobody
     can open. They belong to the text, so they travel with it, at every width, on the
     last page where the pager is. -#}
-{% if speech_credit or words_credit or russian_words_credit or pointing_credit or lexicon_credit or biblical %}
+{% if speech_credit or words_credit or russian_words_credit or pointing_credit or lexicon_credit or said or biblical %}
 <aside class="credits" id="credits" aria-label="{{ t("reader.page.credits", "Credits") }}">
   {#- Who read it. A recording the library serves is somebody else's work under a licence
       that asks for them to be named, and naming them in a file nobody opens is not
@@ -841,6 +877,11 @@
       partner or a word whose stress moves (targum-internal#259). -#}
   {% if lexicon_credit %}
   <p class="credit">{{ t("reader.page.aspect-partners-and-stress-from", "Aspect partners and stress from") }} <a href="https://en.openrussian.org" rel="noopener">OpenRussian.org</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/" rel="noopener">CC BY-SA 4.0</a></p>
+  {% endif %}
+  {% if said %}
+  {#- LGPL-LR, as David decided on 2026-09-14: a page that shows Morphalou's readings names
+      it and its licence, and says that targum corrects one of them. -#}
+  <p class="credit">{{ t("said.credit", "How the French is said, from") }} <a href="https://www.ortolang.fr/market/lexicons/morphalou" rel="noopener">Morphalou 3.1</a>, ATILF CNRS · <a href="https://repository.ortolang.fr/api/content/morphalou/5/licenceLGPLLR.txt" rel="noopener">LGPL-LR</a> · <a href="https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/morphalou_corrections.tsv" rel="noopener">{{ t("said.corrected", "one reading corrected by targum") }}</a></p>
   {% endif %}
   {% if biblical %}
   <p class="credit">{{ t("reader.page.our-dictionary-forms-are-less-reliable-on", "Our dictionary forms are less reliable on biblical Hebrew than
@@ -896,17 +937,17 @@
       long the page took to draw, which is for whoever is building targum rather than for
       whoever is reading. -#}
   <dl>
-    {% if words %}<dt>&larr; &rarr;</dt><dd>{{ t("reader.page.forward-through-the-words-you-have-not", "forward through the words you have not finished with, then the foot of the page, then the next page — and, off the last, the next chapter; back through the words as they are written") }}</dd>
+    {% if words %}<dt>&larr; &rarr;</dt><dd>{{ t("reader.page.forward-through-the-words-you-have-not", "on to the next word you haven't finished with, then the foot of the page, the next page and, after the last, the next chapter; back through every word in order") }}</dd>
     <dt>k 4</dt><dd>{{ t("reader.page.known", "known") }}</dd>
     <dt>1 2 3</dt><dd>{{ t("reader.page.just-met-getting-there-nearly-there", "just met, getting there, nearly there") }}</dd>
     <dt>i</dt><dd>{{ t("reader.page.ignore-it-a-name-a-numeral-a", "ignore it — a name, a numeral, a word from another language") }}</dd>
     <dt>Enter</dt><dd>{{ t("reader.page.what-the-word-you-are-on-means", "what the word you are on means; again to look it up") }}</dd>
-    <dt>u</dt><dd>{{ t("reader.page.take-back-the-last-level-and-stand", "take back the last level, and stand on that word again") }}</dd>
-    <dt>Esc</dt><dd>{{ t("reader.page.close-this-then-a-word-then-your", "close this, then a word, then your saved words, then the queue") }}</dd>
+    <dt>u</dt><dd>{{ t("reader.page.take-back-the-last-level-and-stand", "take back the last level and return to that word") }}</dd>
+    <dt>Esc</dt><dd>{{ t("reader.page.close-this-then-a-word-then-your", "close this, then a word's card, then your saved words, then stop stepping through words") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>
     <dt>{{ t("reader.page.hard", "hard") }}</dt><dd>{{ t("reader.page.the-level-on-a-word-s-card", "the level on a word's card says how common it is across the language; the number in the library says how much of a text will be new to you") }}</dd>
     <dt>s</dt><dd>{{ t("reader.page.your-saved-words", "your saved words") }}</dd>
-    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "mark words as you go") }}</dd>
+    <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "highlight the words you haven't learned") }}</dd>
     <dt>b</dt><dd>{{ t("reader.page.pages-or-one-long-scroll", "pages, or one long scroll") }}</dd>
     <dt>f</dt><dd>{{ t("reader.page.full-screen-and-out-of-it", "full screen, and out of it") }}</dd>
     {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
@@ -914,13 +955,14 @@
     {#- Real keys the card never listed (targum-internal#341, 2026-09-20): the recording's
         track is a slider and answers like one, and the picture's grip and its size handle
         move by the arrows. They work only with the thing itself in focus, and say so. -#}
-    {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back and on five seconds; Home and End for its two ends") }}</dd>{% endif %}
+    {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back or forward five seconds; Home and End jump to its start and end") }}</dd>{% endif %}
     {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>
     <dt>Tab ↑ ↓ ← →</dt><dd>{{ t("reader.page.keys-on-the-picture", "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps") }}</dd>{% endif %}
     <dt>PageDown</dt><dd>{{ t("reader.page.next-page-pageup-back-on-the-last", "next page; PageUp back. On the last page, the next chapter") }}</dd>
     {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
     {% if cases %}<dt>c</dt><dd>{{ t("reader.page.one-case-at-a-time", "one case at a time") }}</dd>{% endif %}
+    {% if said %}<dt>n</dt><dd>{{ t("said.key", "the French as said") }}</dd>{% endif %}
     {% if has_nikkud %}<dt>n</dt><dd>{{ "stress marks" if stress_marks else "vowel points" }}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>{{ t("reader.page.the-chanting-marks-with-the-vowels-on", "the chanting marks, with the vowels on") }}</dd>{% endif %}
     <dt>p</dt><dd>{{ t("reader.page.parallel-2", "parallel") }}</dd>
@@ -951,10 +993,18 @@
 <script>{{ asset('sync.js') }}</script>
 <script>{{ asset('events.js') }}</script>
 <script>{{ asset('playlist-menu.js') }}</script>
-<script>{{ asset('reader.js') }}</script>
+<script>{{ asset('reader.js') }}</script>{% if said %}<script>{{ asset('said.js') }}</script>{% endif %}
+{%- if preread %}
+<script>{{ asset('preread.js') }}</script>
+{% endif %}
 {#- A reader opened from a playlist: Next, Back and the swipe (targum-internal#366). Does
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
 <script>{{ asset('list.js') }}</script>
 <script>{{ asset('talk.js') }}</script>
+{% if false_friends %}
+{#- A French word's false friend on its card (targum-internal#267), only on a page written
+    with `TARGUM_FALSE_FRIENDS` on; without it the page ends as it did. #}
+<script>{{ asset('false-friends.js') }}</script>
+{% endif %}
 </body>
 </html>

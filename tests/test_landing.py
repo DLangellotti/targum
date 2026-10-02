@@ -210,11 +210,25 @@ def test_joining_takes_the_address_and_mails_a_link(
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
     assert status == 200
-    assert "Check your email" in body
+    assert "Confirm it there to keep your place" in body
     assert store.waiting_state("dina@example.com") == "pending"
     sent = posted.getvalue()
     assert "dina@example.com" in sent
     assert "/waitlist/confirm?t=" in sent
+
+
+def test_the_waitlist_s_answer_has_a_tab_of_its_own(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Copy audit, 2026-09-28 (Q23): it borrowed the weekly's furniture and its title
+    with it, so the tab said "Weekly News Digest" over an answer about the waitlist."""
+    port, _, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    _, body = post(port, "/waitlist", {"email": "tab@example.com"})
+    head = body.split("</head>")[0]
+    assert "<title>The waitlist — targum</title>" in head
+    assert "Weekly News Digest" not in head
+    assert 'rel="canonical"' not in head or "/weekly" not in head
 
 
 def test_a_typo_is_refused_before_anything_is_stored(
@@ -365,8 +379,8 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, body = post(port, "/waitlist?lang=ru", {"email": "dina@example.com"})
     assert status == 200
-    assert "Спасибо. Проверьте почту" in body
-    assert "Check your email" not in body
+    assert "мы отправили на него письмо" in body
+    assert "Confirm it there to keep your place" not in body
     assert 'lang="ru"' in body, "the page says which language it is in"
 
     # The mail too, which is the first thing targum ever sends anybody.
@@ -382,12 +396,122 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, page = get(port, f"/waitlist/confirm?t={token}")
     assert status == 200
-    assert "Оставить dina@example.com в списке ожидания?" in page
+    assert "Подтвердите dina@example.com, чтобы сохранить место" in page
     assert "Подтвердить" in page and ">Confirm<" not in page
 
     status, page = post(port, "/waitlist/confirm", {"t": token})
-    assert status == 200 and "Вы в списке." in page
+    assert status == 200 and "Вы в списке" in page and "Спасибо за подтверждение" in page
     assert store.waiting_state("dina@example.com") == "on"
+
+
+def test_the_form_posts_in_the_language_that_was_pressed(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#391. The test above posts to `/waitlist?lang=ru` by hand, and the
+    page itself never did: its form posted to `/waitlist`, so a visitor on an English
+    browser who pressed RU was answered, mailed and invited in English. Read the action
+    off the page and post to it, with the browser asking for the other language."""
+    port, store, posted = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+
+    def actions(path: str, browser: str) -> set[str]:
+        connection = HTTPConnection("127.0.0.1", port, timeout=5)
+        try:
+            connection.request("GET", path, headers={"Accept-Language": browser})
+            page = connection.getresponse().read().decode("utf-8")
+        finally:
+            connection.close()
+        return set(re.findall(r'<form class="join-form" method="post" action="([^"]+)"', page))
+
+    pressed = actions("/?lang=ru", "en-US,en;q=0.9")
+    assert pressed == {"/waitlist?lang=ru"}, pressed
+    # Where nothing was pressed the browser decides, at the post as on the page.
+    assert actions("/", "ru-RU,ru;q=0.9") == {"/waitlist"}
+
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        connection.request(
+            "POST",
+            pressed.pop(),
+            urlencode({"email": "lev@example.com"}),
+            {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept-Language": "en-US,en;q=0.9",
+            },
+        )
+        body = connection.getresponse().read().decode("utf-8")
+    finally:
+        connection.close()
+    assert "мы отправили на него письмо" in body
+    assert "Подтвердите место в списке ожидания targum" in posted.getvalue()
+    token = re.search(r"/waitlist/confirm\?t=(\S+)", posted.getvalue()).group(1)
+    assert store.waiting_language(token) == "ru", "so the invitation is Russian too"
+
+
+def test_no_join_form_drops_the_language_that_was_pressed() -> None:
+    """#391 was two forms written out by hand beside the shared one, on the landing's
+    close and on `/connect`. Every form that posts to the waitlist carries `asked`."""
+    templates = Path(__file__).parent.parent / "src" / "targum" / "render" / "templates"
+    for template in sorted(templates.glob("*.j2")):
+        for action in re.findall(r'action="(/waitlist[^"]*)"', template.read_text("utf-8")):
+            assert "?lang={{ asked }}" in action, f"{template.name}: {action}"
+
+
+@pytest.mark.parametrize(
+    ("said", "kept"),
+    [
+        ("/", "/"),
+        ("https://targum.page/", "/"),
+        ("/aliyah", "/aliyah"),
+        ("https://targum.page/aliyah?lang=ru", "/aliyah"),
+        ("/connect", "/connect"),
+        ("/weekly/2026-w39/simplified", "/weekly"),
+        ("https://targum.page/parasha/bereshit", "/parasha"),
+        ("/mishna-yomi", "/mishna-yomi"),
+        ("/tehillim/day-3", "/tehillim"),
+        ("", ""),
+        ("/library/ruth", ""),
+        ("/anything-at-all", ""),
+        ("javascript:alert(1)", ""),
+    ],
+)
+def test_the_waitlist_keeps_only_a_page_of_targum_s_own(said: str, kept: str) -> None:
+    """targum-internal#388. One word on a row somebody made by pressing Join, narrowed
+    to the pages worth counting; anything else is unknown rather than stored as sent."""
+    from targum.serve import joined_from
+
+    assert joined_from(said) == kept
+
+
+def test_the_front_door_says_which_page_its_form_is_on(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every form on the front door says `/`, and the row keeps it."""
+    port, store, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, page = get(port, "/")
+    assert status == 200
+    said = re.findall(r'<input type="hidden" name="from" value="([^"]*)">', page)
+    assert said and set(said) == {"/"}, said
+
+    post(port, "/waitlist", {"email": "noa@example.com", "from": said[0]})
+    row = store.db.execute(
+        "SELECT page FROM waiting WHERE email = ?", ("noa@example.com",)
+    ).fetchone()
+    assert row["page"] == "/"
+
+
+def test_a_page_with_no_name_of_its_own_is_known_by_its_address() -> None:
+    """`/aliyah` (targum#543) renders the shared form without naming itself; the form
+    falls back to the page's canonical address, which the server narrows."""
+    from targum.render.builder import _environment
+
+    form = (
+        _environment()
+        .get_template("_join_form.html.j2")
+        .render(t=lambda _key, default, **_: default, canonical="https://targum.page/aliyah")
+    )
+    assert '<input type="hidden" name="from" value="https://targum.page/aliyah">' in form
 
 
 def test_an_english_visitor_is_answered_as_they_always_were(
@@ -397,7 +521,7 @@ def test_an_english_visitor_is_answered_as_they_always_were(
     port, _store, posted = served
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
-    assert status == 200 and "Check your email" in body
+    assert status == 200 and "Confirm it there to keep your place" in body
     assert "Confirm your place on the targum waitlist" in posted.getvalue()
 
 
@@ -427,21 +551,50 @@ def test_the_way_out_cannot_be_used_to_ask_who_is_waiting(
     # And the page really is Russian when asked in Russian, so the sameness above is not
     # the sameness of two English pages.
     _, said = post(port, "/waitlist/stop?lang=ru", {"t": "not-a-token"})
-    assert "Мы убрали вас из списка ожидания." in said
+    assert "Мы больше не будем писать вам о списке ожидания." in said
 
 
 def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None:
     """targum-internal#158: X is a door the deployment arms. The list says so only where
-    it is: 'Posts from X' on its own line when the switch is on, and inside the 'soon'
-    line when it is off. Facebook and Reddit stay 'soon' either way."""
+    it is: 'Posts from X' on its own when the switch is on, and 'soon' when it is off.
+    Reddit is not promised at all: it refused every route on 2026-09-30."""
     from targum.ingest import x as x_door
     from targum.render.builder import front_page
 
     monkeypatch.delenv(x_door.ENV, raising=False)
     shut = front_page()
-    assert "Posts from X, Facebook and Reddit" in shut and ">Posts from X<" not in shut
+    assert re.search(r"Posts from X<span class=\"soon\">", shut)
     monkeypatch.setenv(x_door.ENV, "1")
     armed = front_page()
     assert "Posts from X</li>" in armed
-    assert "Posts from Facebook and Reddit" in armed
-    assert "Posts from X, Facebook and Reddit" not in armed
+    for page in (shut, armed):
+        assert "Reddit" not in page
+
+
+def test_facebook_videos_are_listed_with_the_doors_that_open() -> None:
+    """Facebook's videos are fetched since 2026-09-30, so they are named with the reels,
+    Shorts and TikToks, and never as 'soon'."""
+    from targum.render.builder import front_page
+
+    page = front_page()
+    assert "Reels, Shorts, TikToks and Facebook videos</li>" in page
+
+
+def test_the_connector_is_mentioned_twice_while_it_is_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lightly, twice (design.md §12, "The connector is met on the way in"): one point in
+    the list near the top, and a line in the part about talking to targum, with the way
+    to `/connect`. Dark, neither is said: a door to a 404 is worse than none."""
+    monkeypatch.setenv("TARGUM_CONNECTOR", "1")
+    page = front_page()
+    facts = page[page.index('<ul class="facts">') :]
+    assert "Works in Claude and ChatGPT" in facts[: facts.index("</ul>")]
+    talk = page[page.index('id="talk"') :]
+    talk = talk[: talk.index("</section>")]
+    assert "You can also talk to targum inside Claude or ChatGPT." in talk
+    assert 'href="/connect"' in talk
+    monkeypatch.delenv("TARGUM_CONNECTOR")
+    quiet = front_page()
+    assert "Works in Claude and ChatGPT" not in quiet
+    assert "You can also talk to targum inside" not in quiet
