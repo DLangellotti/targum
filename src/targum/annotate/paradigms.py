@@ -26,6 +26,12 @@ The table is built by `scripts/hebrew_paradigms.py` out of the lexeme dump and s
 gzipped beside this file: 145,000 forms over 4,700 verbs, 0.9 MB in the wheel. Nothing
 here reaches the network, and a build with no table draws no conjugations rather than
 failing.
+
+**A stub is filled by rule.** A few dozen lexemes came through with a handful of forms —
+`אָכַל` with ten and no `אוכל`. `conjugate` fills what they lack from their root and
+binyan, by the patterns the complete tables follow, and refuses wherever the forms the
+source has could be some other pattern's. What it adds ships under `filled`, apart from
+the source's forms, and every such `Form` says `ruled` (targum-internal#307).
 """
 
 from __future__ import annotations
@@ -37,6 +43,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .conjugate import Filled
 
 #: Beside this module, so the wheel carries it and a reader never fetches it.
 TABLE = Path(__file__).parent / "paradigms.json.gz"
@@ -312,6 +322,9 @@ class Form:
 
     written: str
     features: tuple[str, ...]
+    #: Spelled by rule from the verb's root and binyan rather than taken from the source,
+    #: where the source's table was a stub (`conjugate`, targum-internal#307). Unpointed.
+    ruled: bool = False
 
     def matches(self, surface: str) -> bool:
         """Whether this is the form in front of the reader, compared on letters."""
@@ -791,24 +804,85 @@ def table(path: Path | None = None) -> Table:
         return EMPTY
     if not isinstance(loaded, dict):
         return EMPTY
+    return from_shipped(loaded, readings())
+
+
+def from_shipped(
+    loaded: dict[str, Any], read: dict[str, tuple[str, str]] | None = None, ruled: bool = True
+) -> Table:
+    """A table out of the shipped file's shape. `ruled=False` leaves out what `conjugate`
+    filled in, which is the table that filling is worked out from."""
     names = [str(name) for name in loaded.get("features") or ()]
+
+    def forms_of(rows: list[Any], by_rule: bool = False) -> list[Form]:
+        return [
+            Form(
+                written=str(written),
+                features=tuple(names[at] for at in codes if 0 <= at < len(names)),
+                ruled=by_rule,
+            )
+            for written, codes in rows
+        ]
+
+    filled = loaded.get("filled") if ruled else None
+    filled = filled if isinstance(filled, dict) else {}
     verbs: dict[str, Paradigm] = {}
-    for lid, row in (loaded.get("verbs") or {}).items():
-        if not isinstance(row, list) or len(row) != 2:
-            continue
-        lemma, forms = row
-        verbs[str(lid)] = Paradigm(
-            lemma=str(lemma),
-            forms=tuple(
-                Form(
-                    written=str(written),
-                    features=tuple(names[at] for at in codes if 0 <= at < len(names)),
-                )
-                for written, codes in forms[:MOST]
-            ),
-        )
     by_form = {
         str(form): tuple(str(lid) for lid in ids)
         for form, ids in (loaded.get("by_form") or {}).items()
     }
-    return Table(verbs=verbs, by_form=by_form, readings=readings())
+    for lid, row in (loaded.get("verbs") or {}).items():
+        if not isinstance(row, list) or len(row) != 2:
+            continue
+        lemma, rows = row
+        forms = forms_of(rows[:MOST])
+        added = filled.get(lid)
+        if isinstance(added, list) and added:
+            more = forms_of(added, by_rule=True)
+            forms = _in_order(forms + more)
+            for form in more:
+                spelled = bare(form.written)
+                if str(lid) not in by_form.get(spelled, ()):
+                    by_form[spelled] = (*by_form.get(spelled, ()), str(lid))
+        verbs[str(lid)] = Paradigm(lemma=str(lemma), forms=tuple(forms))
+    return Table(verbs=verbs, by_form=by_form, readings=read or {})
+
+
+def _in_order(forms: list[Form]) -> list[Form]:
+    """A filled table in the order a grammar lays one out, so a cell the rule added sits
+    where the reader looks for it rather than at the end. Anything in no standard cell
+    keeps its place after them."""
+    from .conjugate import CELLS
+
+    at = {cell: index for index, cell in enumerate(CELLS)}
+    return sorted(forms, key=lambda form: at.get(tuple(sorted(form.features)), len(CELLS)))
+
+
+def fill(attested: Table) -> dict[str, Filled]:
+    """What `conjugate` adds to each verb of a table that is the source's alone.
+
+    The patterns are learned from the same table — every complete, unpointed verb whose
+    lemma says its binyan and whose root comes out at three letters — and every verb is
+    then asked for what it lacks. Most lack nothing.
+    """
+    from .conjugate import fill as fill_one
+    from .conjugate import learn
+    from .hebrew import root_of
+
+    def taught() -> Iterable[tuple[str, str, str, list[tuple[str, tuple[str, ...]]]]]:
+        for verb in attested.verbs.values():
+            binyan = binyan_of(verb.lemma)
+            root = root_of(verb.lemma, binyan) if binyan else None
+            if binyan and root:
+                yield verb.lemma, binyan, root, [(f.written, f.features) for f in verb.forms]
+
+    patterns = learn(taught())
+    return {
+        lid: fill_one(
+            verb.lemma,
+            [(form.written, form.features) for form in verb.forms],
+            patterns,
+            binyan_of(verb.lemma),
+        )
+        for lid, verb in attested.verbs.items()
+    }

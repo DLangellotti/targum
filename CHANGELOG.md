@@ -392,6 +392,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- Verbs whose conjugation table was a stub are filled in by rule from their root and
+  binyan (targum-internal#307). `אָכַל` had ten forms and no `אוכל`; 34 such verbs now
+  carry 523 more forms between them. The rule follows the patterns the complete tables
+  follow, never changes a form the source has, and leaves a cell empty where it cannot
+  tell (the future of `אָכַל`, which could be `יאכל` or `יאכול`). 82 stubs are refused
+  because their forms fit no pattern, or because there was too little to go on. In a
+  leave-one-out check over 2,382 complete tables, it fills 99.8% of cells correctly from
+  three forms and 99.98% from ten. Conjugation coverage on current builds goes from 77.0%
+  to 77.1%. `scripts/fill_paradigms.py` writes the shipped table, and the filled forms are
+  kept under `filled`, apart from the source's.
 - `/about` says its count in English a person would say: "1,174 changes from 31 August
   to 29 September", where it said "1174 changes in the 30 days to 29 September". The
   Russian takes its three plural forms, «1 174 изменения с 31 августа по 29 сентября».
