@@ -275,6 +275,15 @@ h1, h2, h3 { text-wrap: balance; }
    rather than asking twice. */
 .hero.has-tried .side > .join-form { display: none; }
 
+/* The landing's waitlist is its ending (2026-10-02): centred on the ground under a
+   hairline, not a raised card in the column the example sheets stand in. */
+.join-end { display: grid; justify-items: center; gap: 1.5rem; text-align: center; border-block-start: 1px solid var(--hairline); padding-block-start: 3.5rem; }
+.join-end .part-head { margin: 0; justify-items: center; max-inline-size: 34rem; }
+.join-end .part-head h2, .join-end .part-head p { text-wrap: balance; }
+.join-body { display: grid; justify-items: center; gap: 1rem; inline-size: 100%; max-inline-size: 30rem; }
+.join-body .join-form { inline-size: 100%; max-inline-size: none; text-align: start; }
+/* One block, centred as a block, its lines flush with each other so the ticks align. */
+.join-body .join-points { text-align: start; }
 .hero .facts li::before { content: ""; display: inline-block; inline-size: 0.4rem; block-size: 0.4rem; border-radius: 999px; background: var(--leaf); margin-inline-end: 0.45rem; vertical-align: 0.1em; }
 @media (max-width: 52rem) { .hero { grid-template-columns: minmax(0, 1fr); padding-block-start: 2.25rem; } .hero h1 { font-size: 2.25rem; } }
 @media (max-width: 30rem) {

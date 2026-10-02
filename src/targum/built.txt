@@ -5,6 +5,10 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-01
+On a phone, the recording controls in the menu no longer break one word to a line.
+A known word's card says known once, not twice.
+
 2026-09-29
 The about page shows what was built, day by day.
 A French word's card names a pronoun's role, and tells the imperfect from the simple past.
