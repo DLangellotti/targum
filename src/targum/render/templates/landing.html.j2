@@ -87,26 +87,9 @@
       </div>
     </div>
 
-    {#- Beside the headline, what the box under it gives back once you're in
-        (2026-10-02): the sentence about the link, how much of it you already know,
-        and when it's ready. Drawn, because a stranger has no record to measure
-        against; the box is the live one. -#}
-    <figure class="example" aria-label="{{ t("landing.page.example-what-you-d-see", "Example: what you’d see once you’re in") }}">
-      <p class="label">{{ t("landing.page.what-you-d-see", "What you’d see") }}</p>
-      <div class="example-card">
-        <span class="thumb" aria-hidden="true"><span class="len tnum">9:04</span></span>
-        <div class="example-body">
-          <p class="example-what">{{ t("landing.page.that-s-a-youtube-video-9-minutes", "That’s a YouTube video, 9 minutes, Hebrew subtitles written by a person.") }}</p>
-          <p class="example-title">{{ t("landing.page.sabich-step-by-step", "Sabich, step by step") }}</p>
-          <p class="example-known"><b class="tnum">80%</b> {{ t("landing.page.of-it-you-already-know", "of it you already know") }}</p>
-          <span class="meter"><i class="p80"></i></span>
-          <p class="example-wait">{{ t("landing.page.ready-in-about-4-minutes", "Ready in about 4 minutes.") }}</p>
-        </div>
-      </div>
-    </figure>
-    {#- The word card comes in beside the film as the page scrolls (David, 2026-10-02):
-        at the top the film runs the full width; leaving it, the film makes room and the
-        card slides in beside it. On a phone it follows the reader. -#}
+    {#- The word card stands beside the headline (David, 2026-10-02), so the hero and the
+        reader under it read as one composition; the reader runs the full width below.
+        On a phone it follows the reader instead. -#}
     <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}"></aside>
     <p class="sr-only" id="cardSaid" aria-live="polite"></p>
     <div class="showcase">
@@ -154,12 +137,28 @@
   </div>
 
   <section class="part" id="own">
-    <div class="col">
+    <div class="col split">
       <div class="part-head">
         <p class="label">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</p>
         <h2>{{ t("landing.page.if-it-s-in-hebrew-you-can-learn", "If it’s in Hebrew, you can learn from it here.") }}</h2>
         <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file. Recordings are written out word by word and timed to the voice, so each word lights up as it’s said.") }}</p>
       </div>
+      {#- What the box gives back once you're in (2026-10-02): the one sentence about the
+          link, how much of it you already know, and when it's ready. Drawn, because a
+          stranger has no record to measure against; the box in the hero is the live one. -#}
+      <figure class="example" aria-label="{{ t("landing.page.example-what-you-d-see", "Example: what you’d see once you’re in") }}">
+        <p class="label">{{ t("landing.page.what-you-d-see", "What you’d see") }}</p>
+        <div class="example-card">
+          <span class="thumb" aria-hidden="true"><span class="len tnum">9:04</span></span>
+          <div class="example-body">
+            <p class="example-what">{{ t("landing.page.that-s-a-youtube-video-9-minutes", "That’s a YouTube video, 9 minutes, Hebrew subtitles written by a person.") }}</p>
+            <p class="example-title">{{ t("landing.page.sabich-step-by-step", "Sabich, step by step") }}</p>
+            <p class="example-known"><b class="tnum">80%</b> {{ t("landing.page.of-it-you-already-know", "of it you already know") }}</p>
+            <span class="meter"><i class="p80"></i></span>
+            <p class="example-wait">{{ t("landing.page.ready-in-about-4-minutes", "Ready in about 4 minutes.") }}</p>
+          </div>
+        </div>
+      </figure>
         {#- Where the Hebrew comes from, each drawn as what it looks like (2026-10-01): the
             page's one inverted block, beside the box that takes it. -#}
         <div class="media bring">

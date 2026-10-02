@@ -299,13 +299,16 @@
 
   drawLines(); drawCard(); paint();
 
-  /* ---- the word card comes in beside the film (landing.css, .top) ----
-     At the top the film runs the full width. The moment the page leaves it, one class
-     flips: the film makes room and the card slides in beside it. A transition, not a
-     width recomputed on every scroll frame. */
+  /* ---- the hero and the reader as one (landing.css, .top) ----
+     The card's height is kept on the grid so the film starts below it, and the film
+     makes room for the card the moment the page leaves its top. One class flips, so the
+     move is a transition, not a width recomputed on every scroll frame. */
   (function () {
-    var top = document.querySelector(".top");
-    if (!top) return;
+    var top = document.querySelector(".top"), card = document.getElementById("card");
+    if (!top || !card) return;
+    function measure() { top.style.setProperty("--card-h", card.offsetHeight + "px"); }
+    measure();
+    if (window.ResizeObserver) new ResizeObserver(measure).observe(card);
     top.classList.add("live");
     var ticking = false;
     function dock() {
