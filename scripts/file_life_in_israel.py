@@ -2,7 +2,8 @@
 
 Two things on the shelf were made for olim and are filed under nothing that says so:
 
-- **Scenes 101–200**, the Easy dialogues on everyday life in Israel (#386). They are on
+- **Scenes 101–240**: the Easy dialogues on everyday life in Israel (101–200, #386) and
+  the Simplified ones on the same four subjects (201–240, levels 3–4). They are on
   the dialogue shelf and have **no catalogue row at all**, and a scene with no row is
   not in the Library: scenes 01–100 are rows `scene-NN-slug` with source
   `dialogue:<id>`, written by hand once and never by code. This writes the missing rows
@@ -37,7 +38,7 @@ from targum.dialogue.models import Dialogue  # noqa: E402
 TAG = Tag.israel.value
 
 #: The olim scenes, by the number their id starts with.
-SCENES = range(101, 201)
+SCENES = range(101, 241)
 
 #: The clips curated for olim in #382's batches 1–3 (2026-09-30), by catalogue id.
 CLIPS = (
