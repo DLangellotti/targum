@@ -51,23 +51,37 @@
             {%- if tried.refused %}
             <p class="tried-what">{{ tried.refused }}</p>
             {%- else %}
-            <p class="tried-what">
-              {%- if tried.door == 'youtube' %}{{ t("landing.try.youtube", "That’s a YouTube video") }}
-              {%- elif tried.door == 'instagram' %}{{ t("landing.try.instagram", "That’s an Instagram reel") }}
-              {%- elif tried.door == 'instagram-post' %}{{ t("landing.try.instagram-post", "That’s an Instagram post") }}
-              {%- elif tried.door == 'tiktok' %}{{ t("landing.try.tiktok", "That’s a TikTok video") }}
-              {%- elif tried.door == 'facebook' %}{{ t("landing.try.facebook", "That’s a Facebook video") }}
-              {%- elif tried.door == 'x' %}{{ t("landing.try.x", "That’s a post on X") }}
-              {%- elif tried.door == 'podcast' %}{{ t("landing.try.podcast", "That’s a podcast episode") }}
-              {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
-              {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
-              {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
-              {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.
-              {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
-            {%- if tried.title %}
-            <p class="tried-title" dir="auto">{{ tried.title }}</p>
-            {%- endif %}
-            <p class="tried-keep">{{ t("landing.try.keep", "Join to keep it. When your turn comes, it’ll be waiting for you, ready to learn from.") }}</p>
+            {#- The thing they pasted leads (David, 2026-10-02: the answer read as a form
+                letter): a mark for its kind, drawn like the tiles in "Your own Hebrew", its
+                title in the reading face, then the one sentence the Add box would say. -#}
+            {%- set kind = 'video' if tried.door in ('youtube', 'instagram', 'tiktok', 'facebook') else ('post' if tried.door in ('x', 'instagram-post') else ('podcast' if tried.door == 'podcast' else 'page')) %}
+            <div class="tried-card">
+              <span class="tried-mark" aria-hidden="true">
+                {%- if kind == 'video' %}<svg viewBox="0 0 24 24"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>
+                {%- elif kind == 'post' %}<svg viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.2" fill="currentColor"/><rect x="11" y="6.8" width="7.5" height="2.2" rx="1.1" fill="currentColor"/><rect x="5" y="12.6" width="13.5" height="2.2" rx="1.1" fill="currentColor"/><rect x="5" y="16.6" width="9" height="2.2" rx="1.1" fill="currentColor"/></svg>
+                {%- elif kind == 'podcast' %}<svg viewBox="0 0 24 24"><g fill="currentColor"><rect x="4" y="10" width="2" height="4" rx="1"/><rect x="8" y="7" width="2" height="10" rx="1"/><rect x="12" y="4.5" width="2" height="15" rx="1"/><rect x="16" y="8" width="2" height="8" rx="1"/><rect x="20" y="10.5" width="2" height="3" rx="1"/></g></svg>
+                {%- else %}<svg viewBox="0 0 24 24"><rect x="5.5" y="3.5" width="13" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><g fill="currentColor"><rect x="8.5" y="7.5" width="7" height="1.6" rx="0.8"/><rect x="8.5" y="11" width="7" height="1.6" rx="0.8"/><rect x="8.5" y="14.5" width="4.5" height="1.6" rx="0.8"/></g></svg>{% endif -%}
+              </span>
+              <div class="tried-body">
+                {%- if tried.title %}
+                <p class="tried-title" dir="auto">{{ tried.title }}</p>
+                {%- endif %}
+                <p class="tried-what">
+                  {%- if tried.door == 'youtube' %}{{ t("landing.try.youtube", "That’s a YouTube video") }}
+                  {%- elif tried.door == 'instagram' %}{{ t("landing.try.instagram", "That’s an Instagram reel") }}
+                  {%- elif tried.door == 'instagram-post' %}{{ t("landing.try.instagram-post", "That’s an Instagram post") }}
+                  {%- elif tried.door == 'tiktok' %}{{ t("landing.try.tiktok", "That’s a TikTok video") }}
+                  {%- elif tried.door == 'facebook' %}{{ t("landing.try.facebook", "That’s a Facebook video") }}
+                  {%- elif tried.door == 'x' %}{{ t("landing.try.x", "That’s a post on X") }}
+                  {%- elif tried.door == 'podcast' %}{{ t("landing.try.podcast", "That’s a podcast episode") }}
+                  {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
+                  {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
+                  {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
+                  {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.
+                  {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
+              </div>
+            </div>
+            <p class="tried-keep">{{ t("landing.try.ready-on-your-first-day", "Join, and it’s ready for you on your first day.") }}</p>
             {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
             {%- endif %}
           </div>

@@ -25,7 +25,7 @@ import pytest
 from targum.accounts import Store
 from targum.mail import ConsoleMailer
 from targum.render.builder import front_page
-from targum.serve import Handler, Library, kept_link
+from targum.serve import Handler, Job, Library, kept_link, tried_for
 
 VIDEO = "https://www.youtube.com/watch?v=abcdefghijk"
 
@@ -434,3 +434,16 @@ def test_a_page_tried_leaves_nothing_on_the_shelf(
     assert job.stage == "ready", job.error
     assert job.segments > 0
     assert list(out.rglob("*")) == [], "a try wrote to the shelf"
+
+
+def test_a_refusal_never_shows_a_stranger_how_the_inside_works() -> None:
+    """A fetcher's own words name the address it asked and the status it got; the box
+    says the plain sentence instead, and keeps the ones written for a person (2026-10-02)."""
+    inside = Job(id="try-1", source="https://x.com/a/status/1")
+    inside.stage = "failed"
+    inside.error = "We couldn't open https://cdn.syndication.twimg.com/tweet-result. HTTP 404"
+    assert tried_for(inside, "en") == {"refused": "We couldn't open that link."}
+    person = Job(id="try-2", source="hello")
+    person.stage = "failed"
+    person.error = "That isn't a link. Paste one that starts with https."
+    assert tried_for(person, "en") == {"refused": person.error}

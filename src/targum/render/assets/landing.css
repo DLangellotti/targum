@@ -304,10 +304,23 @@ h1, h2, h3 { text-wrap: balance; }
 .try { display: grid; gap: var(--space-3); max-inline-size: 34rem; }
 .try-form .field { background: var(--card); box-shadow: var(--shadow-rest); }
 .try-form .field input::placeholder { color: var(--muted); }
-.tried { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; gap: var(--space-3); }
-.tried-what { font-weight: 600; line-height: 1.45; }
-.tried-title { color: var(--muted); font-size: 0.9375rem; overflow-wrap: anywhere; }
-.tried-keep { font-size: 0.9375rem; }
+/* The answer leads with the thing pasted (2026-10-02): a mark for its kind, its title in
+   the reading face, the one sentence under it; then a line and the waitlist. It settles
+   in as a word does on the card. */
+.tried { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; gap: var(--space-4); }
+.tried-card { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: var(--space-4); align-items: center; }
+.tried-mark { inline-size: 3.5rem; aspect-ratio: 1; border-radius: 12px; background: var(--teal-wash); color: var(--teal); display: grid; place-items: center; }
+.tried-mark svg { inline-size: 1.75rem; }
+.tried-body { display: grid; gap: var(--space-1); min-inline-size: 0; }
+.tried-title { font: 400 1.0625rem/1.4 var(--reading); color: var(--ink); overflow-wrap: anywhere; }
+.tried-what { font-size: 0.875rem; line-height: 1.45; color: var(--muted); }
+.tried > .tried-what { font-size: 0.9375rem; color: var(--ink); }
+.tried-keep { font-size: 0.9375rem; padding-block-start: var(--space-4); border-block-start: 1px solid var(--hairline); }
+@media (prefers-reduced-motion: no-preference) {
+  .tried { animation: tried-in var(--in) var(--ease) both; }
+  .tried-card { animation: tried-in var(--in) var(--ease) 80ms both; }
+  @keyframes tried-in { from { opacity: 0; translate: 0 0.5rem; } to { opacity: 1; translate: 0 0; } }
+}
 .tried .join-form { max-inline-size: none; }
 .tried .join-form .field { background: var(--field); box-shadow: none; }
 
