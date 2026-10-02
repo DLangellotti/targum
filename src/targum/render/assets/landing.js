@@ -109,16 +109,11 @@
     var w = W[openId];
     var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.page.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
       "<p class=\"card-sense\">" + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
-    // Compact beside the headline, the card shows its head and this hint; the rest folds
-    // open when the film makes room for it (landing.css, .card-more).
-    html += "<p class=\"card-hint\">" + t("landing.page.tap-any-word-to-see-it-here", "Tap any word in the film to see it here.") + "</p>";
-    html += "<div class=\"card-more\"><div class=\"card-more-in\">";
     if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + b[0] + " <span class=\"he\">" + b[1] + "</span></span>"; }).join("") + "</div>";
     html += "<dl class=\"facts-list\">" + w.facts.map(function (f) { return "<dt>" + f[0] + "</dt><dd>" + f[1] + "</dd>"; }).join("") + "</dl>";
     html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.getting-there", "Getting there") + "</button>" +
       "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +
       "<button class=\"btn ghost small\" type=\"button\">" + t("landing.demo.ask", "Ask") + "</button></div>";
-    html += "</div></div>";
     var cardEl = document.getElementById("card");
     cardEl.innerHTML = html;
     // The new word settles in (landing.css, .turned): taken off and put back on, with a
@@ -304,26 +299,18 @@
 
   drawLines(); drawCard(); paint();
 
-  /* ---- the hero and the reader as one (landing.css, .top) ----
-     The card's height is kept on the grid so the film starts below it, and the film
-     makes room for the card the moment the page leaves its top. One class flips, so the
-     move is a transition, not a width recomputed on every scroll frame. */
+  /* ---- the word card comes in beside the film (landing.css, .top) ----
+     At the top the film runs the full width. The moment the page leaves it, one class
+     flips: the film makes room and the card slides in beside it. A transition, not a
+     width recomputed on every scroll frame. */
   (function () {
-    var top = document.querySelector(".top"), card = document.getElementById("card");
-    if (!top || !card) return;
-    // The resting (compact) height only: the card opens over the film's narrowed side,
-    // and a row that grew with it would push the film down mid-scroll.
-    function measure() { if (!top.classList.contains("docked")) top.style.setProperty("--card-h", card.offsetHeight + "px"); }
-    measure();
-    if (window.ResizeObserver) new ResizeObserver(measure).observe(card);
+    var top = document.querySelector(".top");
+    if (!top) return;
     top.classList.add("live");
     var ticking = false;
     function dock() {
       ticking = false;
-      var was = top.classList.contains("docked"), now = window.scrollY > 24;
-      if (was === now) return;
-      top.classList.toggle("docked", now);
-      if (!now) requestAnimationFrame(measure);
+      top.classList.toggle("docked", window.scrollY > 24);
     }
     window.addEventListener("scroll", function () {
       if (!ticking) { ticking = true; requestAnimationFrame(dock); }

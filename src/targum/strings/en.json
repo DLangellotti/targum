@@ -1358,7 +1358,7 @@
   "landing.page.sign-in": "Sign in",
   "landing.page.join-the-waitlist": "Join the waitlist",
   "landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts": "Learn modern and biblical Hebrew from videos, podcasts and books.",
-  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "Paste a video, a post or a page. Every line comes back with vowels and English, and every word explained.",
+  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.",
   "landing.try.placeholder": "Paste a link to anything in Hebrew",
   "landing.try.label": "A link to try",
   "landing.try.button": "Try it",
@@ -2453,6 +2453,5 @@
   "landing.page.a-photo-of-a-letter-a-form-a-sign": "A photo of a page: a letter, a form, a sign",
   "landing.page.news-and-articles-from-any-site": "News and articles, from any site",
   "landing.page.the-whole-tanakh": "The whole Tanakh",
-  "landing.page.inside-claude-and-chatgpt": "Inside Claude and ChatGPT",
-  "landing.page.tap-any-word-to-see-it-here": "Tap any word in the film to see it here."
+  "landing.page.inside-claude-and-chatgpt": "Inside Claude and ChatGPT"
 }

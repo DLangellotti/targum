@@ -698,24 +698,24 @@ html { overflow-x: clip; }
 .hero { grid-template-columns: minmax(0, 1fr); max-inline-size: 46rem; }
 .hero .facts { margin-block-start: var(--space-1); }
 
-/* The hero and the reader as one composition (David, 2026-10-02): the word card beside
-   the headline, the film the full width under both. Static, it is just that, and
-   nothing can overlap. With the script (`.live`), the card gets a column of its own the
-   height of both and stays as the page scrolls; the first row keeps the card's measured
-   height (`--card-h`), so the film always starts below it. The moment the page moves
-   (`.docked`), the film makes room in one 400ms transition and the card settles beside
-   it; back at the top, the film opens again. A transition, not a width tied to every
-   scroll frame: that re-laid the reader on each frame and the scroll stuttered. */
-.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show show"; column-gap: var(--space-7); row-gap: var(--space-5); }
+/* The hero and the reader as one composition (David, 2026-10-02). Beside the headline,
+   what the box gives back; under both, the film the full width. Static (no script), the
+   word card simply stands beside the film. With the script (`.live`), the card waits
+   out of sight beside the film's top, and the moment the page leaves the top
+   (`.docked`) the film makes room and the card slides in, a beat later, and stays
+   beside it while the lines are read. Back at the top the film opens again. */
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero example" "show card"; column-gap: var(--space-7); row-gap: var(--space-5); }
 .top > .hero { grid-area: hero; max-inline-size: none; }
-.top > #card { grid-area: card; align-self: start; margin-block-start: var(--space-8); position: static; }
+.top > .example { grid-area: example; align-self: center; }
+.top > .example .example-card { grid-template-columns: minmax(0, 1fr); }
+.top > .example .thumb { max-inline-size: none; }
 .top > .showcase { grid-area: show; grid-template-columns: minmax(0, 1fr); }
+.top > #card { grid-area: card; align-self: start; position: sticky; inset-block-start: calc(3.5rem + var(--space-5)); }
 @media (min-width: 56.01rem) {
-  .top.live { grid-template-rows: minmax(calc(var(--card-h, 0px) + var(--space-8)), auto) auto; }
-  .top.live > #card { grid-area: auto; grid-column: 2; grid-row: 1 / span 2; position: sticky; inset-block-start: calc(3.5rem + var(--space-5)); z-index: 2; transition: box-shadow var(--in) var(--ease); }
-  .top.live > .showcase { justify-self: start; inline-size: 100%; transition: inline-size 400ms var(--ease); }
+  .top.live > .showcase { grid-column: 1 / -1; justify-self: start; inline-size: 100%; transition: inline-size 400ms var(--ease); }
   .top.live.docked > .showcase { inline-size: calc(100% - 19rem - var(--space-7)); }
-  .top.live.docked > #card { box-shadow: var(--shadow-floating); }
+  .top.live > #card { grid-row: 2; grid-column: 2; z-index: 2; opacity: 0; visibility: hidden; translate: var(--space-6) 0; transition: opacity 320ms var(--ease) 0s, translate 420ms var(--ease) 0s, visibility 0s linear 420ms; }
+  .top.live.docked > #card { opacity: 1; visibility: visible; translate: 0 0; transition: opacity 320ms var(--ease) 220ms, translate 420ms var(--ease) 200ms, visibility 0s linear 0s; }
 }
 
 /* A new word settles into the card rather than snapping in: the head eases up from a
@@ -728,31 +728,9 @@ html { overflow-x: clip; }
 }
 
 @media (max-width: 56rem) {
-  .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "show" "card"; }
-  .top > #card { margin-block: 0 var(--space-7); }
+  .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "show" "card" "example"; }
+  .top > #card { position: static; margin-block: 0 var(--space-5); }
+  .top > .example { margin-block-end: var(--space-7); }
 }
 
-/* The card's one moment (David, 2026-10-02). Beside the headline it is compact: the
-   word, what it means, and a hint. The moment the page leaves the top, the film makes
-   room and, a beat later, the card opens into the whole card beside it, and the word it
-   is about glows once in the film's lines. Back at the top it folds again. The fold is
-   a grid row going from 0fr to 1fr, so the height eases without being measured. */
-.card { row-gap: 0; }
-.card-hint { margin-block-start: var(--space-3); font-size: 0.8125rem; color: var(--muted); }
-.card-more { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 420ms var(--ease) 80ms, opacity 260ms var(--ease) 160ms; }
-.card-more-in { min-block-size: 0; overflow: hidden; display: grid; gap: var(--space-4); padding-block-start: var(--space-4); transition: padding 420ms var(--ease) 80ms; }
-.top:not(.live) .card-hint, .top.docked .card-hint { display: none; }
-@media (min-width: 56.01rem) {
-  .top.live:not(.docked) > #card .card-more { grid-template-rows: 0fr; opacity: 0; transition-delay: 0s, 0s; }
-  .top.live:not(.docked) > #card .card-more-in { padding-block-start: 0; }
-  .top.live > #card { transition: box-shadow var(--in) var(--ease), padding 420ms var(--ease); }
-  @media (prefers-reduced-motion: no-preference) {
-    .top.docked .w.open { animation: word-call 1200ms var(--ease) 300ms 1; }
-    @keyframes word-call {
-      0%, 100% { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-      35% { background: color-mix(in srgb, var(--teal) 28%, transparent); }
-    }
-  }
-}
-@media (max-width: 56rem) { .card-hint { display: none; } }
 

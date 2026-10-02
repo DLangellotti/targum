@@ -1428,7 +1428,7 @@
   "landing.page.sign-in": "Войти",
   "landing.page.join-the-waitlist": "Записаться",
   "landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts": "Учите современный и библейский иврит по видео, подкастам и книгам.",
-  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "Вставьте видео, пост или страницу. Каждая строка вернётся с огласовками и переводом, а каждое слово — с объяснением.",
+  "landing.page.you-learn-hebrew-by-understanding-it-so-everything": "Иврит учится через понимание. Поэтому здесь всё готово к чтению: огласовки (никуд) над каждым словом, русский рядом с каждой строкой и объяснение любого слова по касанию.",
   "landing.try.placeholder": "Вставьте ссылку на что угодно на иврите",
   "landing.try.label": "Ссылка для проверки",
   "landing.try.button": "Попробовать",
@@ -2630,6 +2630,5 @@
   "landing.page.a-photo-of-a-letter-a-form-a-sign": "Фото страницы: письмо, бланк, вывеска",
   "landing.page.news-and-articles-from-any-site": "Новости и статьи с любого сайта",
   "landing.page.the-whole-tanakh": "Весь Танах",
-  "landing.page.inside-claude-and-chatgpt": "В Claude и ChatGPT",
-  "landing.page.tap-any-word-to-see-it-here": "Нажмите на любое слово в видео, чтобы увидеть его здесь."
+  "landing.page.inside-claude-and-chatgpt": "В Claude и ChatGPT"
 }
