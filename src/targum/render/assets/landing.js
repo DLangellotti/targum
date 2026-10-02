@@ -104,6 +104,7 @@
     });
   }
 
+  var drawnOnce = false;
   function drawCard() {
     var w = W[openId];
     var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.page.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
@@ -113,7 +114,16 @@
     html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.getting-there", "Getting there") + "</button>" +
       "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +
       "<button class=\"btn ghost small\" type=\"button\">" + t("landing.demo.ask", "Ask") + "</button></div>";
-    document.getElementById("card").innerHTML = html;
+    var cardEl = document.getElementById("card");
+    cardEl.innerHTML = html;
+    // The new word settles in (landing.css, .turned): taken off and put back on, with a
+    // reflow between, so a second tap plays it again. Not on the first draw.
+    if (drawnOnce) {
+      cardEl.classList.remove("turned");
+      void cardEl.offsetWidth;
+      cardEl.classList.add("turned");
+    }
+    drawnOnce = true;
     // Said once, briefly: the card itself is not a live region, because it is rewritten
     // whole and would be read out whole on every tap (2026-10-02).
     var said = document.getElementById("cardSaid");

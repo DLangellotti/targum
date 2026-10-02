@@ -698,15 +698,40 @@ html { overflow-x: clip; }
 .hero { grid-template-columns: minmax(0, 1fr); max-inline-size: 46rem; }
 .hero .facts { margin-block-start: var(--space-1); }
 
-/* The hero and the reader as one composition (David, 2026-10-02): the word card beside
-   the headline, the reader the full width under both. On a phone the card follows the
-   reader, next to the words that drive it. */
-.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show show"; column-gap: var(--space-7); row-gap: var(--space-5); align-items: center; }
+/* The hero and the reader as one composition (David, 2026-10-02). The word card has a
+   column of its own that runs the height of both: it starts beside the headline, and
+   as the hero scrolls away it stays, so the reader comes up beside it, the card always
+   next to the words that change it. Sticky does the travelling; nothing is measured. */
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show card"; column-gap: var(--space-7); row-gap: var(--space-5); }
 .top > .hero { grid-area: hero; max-inline-size: none; }
-.top > #card { grid-area: card; position: static; align-self: start; margin-block-start: var(--space-8); }
 .top > .showcase { grid-area: show; grid-template-columns: minmax(0, 1fr); }
+.top > #card { grid-area: card; align-self: start; margin-block-start: var(--space-8); position: sticky; inset-block-start: calc(3.5rem + var(--space-5)); }
+
+/* The arrival, where the browser can tie motion to the scroll and the reader has not
+   asked for less: as the headline leaves, the card lifts a little and settles beside
+   the film, from resting to floating. It follows the scroll exactly, so it can never
+   lag or overshoot; without support it simply stays as it is. */
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .top > #card { animation: card-arrive linear both; animation-timeline: scroll(root); animation-range: 0 22rem; }
+    @keyframes card-arrive {
+      from { box-shadow: var(--shadow-raised); translate: 0 0; }
+      to { box-shadow: var(--shadow-floating); translate: 0 -0.25rem; }
+    }
+  }
+}
+
+/* A new word settles into the card rather than snapping in: the head eases up from a
+   few pixels and fades, 240ms, the one curve (§8). The script restarts it on a tap. */
+@media (prefers-reduced-motion: no-preference) {
+  .card.turned .card-head, .card.turned .binyanim, .card.turned .facts-list { animation: card-turn var(--in) var(--ease) both; }
+  .card.turned .binyanim { animation-delay: 40ms; }
+  .card.turned .facts-list { animation-delay: 80ms; }
+  @keyframes card-turn { from { opacity: 0; translate: 0 0.35rem; } to { opacity: 1; translate: 0 0; } }
+}
+
 @media (max-width: 56rem) {
   .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "show" "card"; }
-  .top > #card { margin-block: 0 var(--space-7); }
+  .top > #card { position: static; margin-block: 0 var(--space-7); animation: none; }
 }
 
