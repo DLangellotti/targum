@@ -705,7 +705,11 @@ html { overflow-x: clip; }
    height (`--card-h`), so the film always starts below it. The moment the page moves
    (`.docked`), the film makes room in one 400ms transition and the card settles beside
    it; back at the top, the film opens again. A transition, not a width tied to every
-   scroll frame: that re-laid the reader on each frame and the scroll stuttered. */
+   scroll frame: that re-laid the reader on each frame and the scroll stuttered.
+   The picture keeps its height through the move (sized from the whole row, `cqi`,
+   and cropped rather than squeezed), so only its side edge travels and nothing under
+   it rises mid-scroll. The film ends the row (its padding moves to the row), so the
+   card leaves with the film's bottom edge rather than after it. */
 .top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show show"; column-gap: var(--space-7); row-gap: var(--space-5); }
 .top > .hero { grid-area: hero; max-inline-size: none; }
 .top > #card { grid-area: card; align-self: start; margin-block-start: var(--space-8); position: static; }
@@ -716,6 +720,10 @@ html { overflow-x: clip; }
   .top.live > .showcase { justify-self: start; inline-size: 100%; transition: inline-size 400ms var(--ease); }
   .top.live.docked > .showcase { inline-size: calc(100% - 19rem - var(--space-7)); }
   .top.live.docked > #card { box-shadow: var(--shadow-floating); }
+  .top.live { container-type: inline-size; margin-block-end: var(--space-8); }
+  .top.live > .showcase { padding-block-end: 0; }
+  .top.live .stage:not(.pinned) { aspect-ratio: auto; block-size: calc(100cqi * 7.2 / 16); }
+  .top.live .stage:not(.pinned) canvas { object-fit: cover; }
 }
 
 /* A new word settles into the card rather than snapping in: the head eases up from a
