@@ -124,7 +124,10 @@ two are **ink-panel only**.
 
 ### Supporting
 
-Focus ring `#b8935e`. The mark's translation column on paper is its own value, `#a5824f` —
+Focus ring `#b8935e`, inside the product. On the public pages (the front door, /connect, the
+weekly, the parasha and the dailies), which stand on the desk's ground, the ring is teal
+`#1f6f6b`: the gold measures 2.31:1 on `#ece7de`, under WCAG 1.4.11's 3:1, and teal is
+4.8:1 there and is already a focused field's ring (§13). See §12, 2026-10-02. The mark's translation column on paper is its own value, `#a5824f` —
 the working accent goes muddy at 22 px wide. Deep paper is structural: desk `#ece7de`, rail
 `#e7e1d6`, divider `#e6e1d8` — never a text background.
 
@@ -346,6 +349,15 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+
+### The focus ring on the public pages is teal — 2026-10-02
+
+A design review measured the gold ring at 2.31:1 on the desk's ground and 2.80:1 on its
+cards; WCAG 1.4.11 asks 3:1 of a focus indicator. The public pages stand on that ground
+everywhere. There the ring draws in teal, 4.8:1, the colour a focused field already
+rings in (§13), so those pages now have one focus colour rather than two. `--focus`
+itself is unchanged: the reader stands on paper, where the gold is the product's own,
+and `test_brand.py` still holds the token to it.
 
 ### The front door keeps its look and moves its promise up — 2026-10-02
 

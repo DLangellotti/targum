@@ -162,6 +162,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 a { color: var(--teal); text-decoration: none; }
 a:hover { text-decoration: underline; text-underline-offset: 0.15em; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* On the ground the gold ring is 2.31:1; public pages ring in teal, 4.8:1, the colour a
+   focused field already uses (design.md §4, §12, 2026-10-02). */
+:focus-visible, .site-footer a:focus-visible { outline-color: var(--teal); }
 h1, h2, h3 { text-wrap: balance; }
 .he { font-family: var(--reading-hebrew); direction: rtl; unicode-bidi: isolate; }
 .tnum { font-variant-numeric: lining-nums tabular-nums; }
