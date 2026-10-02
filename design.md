@@ -387,8 +387,12 @@ and is sharpened (targum-internal#399):
   binyan from scholars' analysis for the Bible and a language model elsewhere; vowels
   added and every guess marked; one word list for biblical and modern Hebrew; recordings
   timed to the voice; the portion chanted, each word lit as it is sung.
-- **Claude and ChatGPT** close "Talk to targum": the use case's own exchange set in type
-  beside a real screen of the text it opens, never drawn as their interface.
+- **"Talk to targum" shows its chat on a phone, drawn as /chat draws it** (§9): turns at
+  opposite edges in one ink, the correction in small capitals, why folded under a
+  hairline, no bubbles. Claude and ChatGPT are one line beside it.
+- **Every colour the page draws is a named token** in its `:root`, and `test_landing.py`
+  keeps literals out of the rules; spacing takes eight steps (`--space-1` to `--space-8`);
+  the page breaks at 30, 40 and 56rem only.
 - **No claim about the order people are let in** (the batch takes the oldest, but David
   also lets people in by hand, 2026-09-28), and no promise that the waitlist hears the
   price first, which is not decided.
