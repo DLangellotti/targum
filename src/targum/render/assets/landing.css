@@ -375,6 +375,8 @@ h1, h2, h3 { text-wrap: balance; }
 .w.learning { text-decoration: underline dotted var(--muted); text-decoration-thickness: 1.5px; text-underline-offset: 0.3em; }
 .w.new { text-decoration: underline dotted var(--iris); text-decoration-thickness: 2px; text-underline-offset: 0.3em; }
 .w.open { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+/* The word being said, while the film plays: it lights as the voice reaches it. */
+.w.saying { color: var(--teal); transition: background-color 160ms var(--ease), color 160ms var(--ease); }
 .reader-foot { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); padding: var(--space-3) var(--space-5); border-block-start: 1px solid var(--hairline); font-size: 0.8125rem; color: var(--muted); }
 .legend { display: inline-flex; align-items: center; gap: var(--space-1); }
 .legend i { display: inline-block; inline-size: 1.1rem; block-size: 0.6rem; }
@@ -509,9 +511,6 @@ html { overflow-x: clip; }
 .switch[aria-checked="true"] .knob::after { transform: translateX(1.2rem); }
 .switch:disabled { opacity: 0.45; cursor: default; }
 
-.stack { display: grid; text-align: start; }
-.stack > span { grid-area: 1 / 1; transition: opacity 240ms var(--ease); }
-.stack > span.off { opacity: 0; }
 
 .who { font: 600 0.6875rem/1.2 var(--chrome); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 
@@ -605,9 +604,17 @@ html { overflow-x: clip; }
 .page-vis .sheet-p i.s { inline-size: 65%; justify-self: end; }
 
 /* "How you learn", card 2: one word, and the vowels going (2026-10-01). */
-.how-vis .stack { display: grid; }
-.how-vis .stack > span { grid-area: 1 / 1; transition: opacity 240ms var(--ease); }
-.how-vis .stack > span.off { opacity: 0; }
+/* The points settle onto the letters, one letter after the next in reading order, and
+   lift off the same way (2026-10-02). Each letter holds its bare self and its pointed
+   self in one cell; the dotted line belongs to the bare letter, which only goes clear,
+   so the line never moves. */
+.vs-word { text-decoration: none; }
+.vs-l { display: inline-grid; }
+.vs-l > span { grid-area: 1 / 1; }
+.vs-l > .bare { color: transparent; text-decoration: underline dotted var(--iris); text-decoration-thickness: 2px; text-underline-offset: 0.3em; transition: color 0s linear calc(var(--i) * 45ms + 200ms); }
+.vs-l > .pointed { transition: opacity 240ms var(--ease) calc(var(--i) * 45ms), translate 240ms var(--ease) calc(var(--i) * 45ms); }
+.bare-only .vs-l > .bare { color: inherit; transition-delay: 0s; }
+.bare-only .vs-l > .pointed { opacity: 0; translate: 0 -0.3em; }
 .how-vis .switch { margin-block-start: var(--space-1); font-size: 0.875rem; }
 
 /* The Torah inside the library (2026-10-01): a sub-head, then the sheet. */
@@ -638,6 +645,17 @@ html { overflow-x: clip; }
 .ct-pair .fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
 .ct-why { font-size: 0.8125rem; line-height: 1.5; color: var(--ink-soft); padding-inline-start: var(--space-2); border-inline-start: 2px solid var(--rule); }
 .ct-turn .door { justify-self: start; margin-block-start: var(--space-1); }
+/* The conversation arrives once, as the phone comes into view (landing.js): yours, then
+   targum's correction, its double line drawn a beat later, then the reply and what it
+   kept. */
+.talk-phone.waiting .ct-turn.me, .talk-phone.waiting .ct-turn.them > *, .talk-phone.waiting .ct-sum { opacity: 0; translate: 0 0.5rem; }
+.talk-phone.waiting .fix { text-decoration-color: transparent; }
+.talk-phone.arrived .ct-turn.me, .talk-phone.arrived .ct-turn.them > *, .talk-phone.arrived .ct-sum { opacity: 1; translate: 0 0; transition: opacity 240ms var(--ease) var(--at, 0ms), translate 240ms var(--ease) var(--at, 0ms); }
+.talk-phone.arrived .ct-turn.me { --at: 150ms; }
+.talk-phone.arrived .ct-turn.them > :nth-child(1), .talk-phone.arrived .ct-turn.them > :nth-child(2) { --at: 900ms; }
+.talk-phone.arrived .fix { text-decoration-color: currentColor; transition: text-decoration-color 240ms var(--ease) 1500ms; }
+.talk-phone.arrived .ct-turn.them > :nth-child(n+3) { --at: 2100ms; }
+.talk-phone.arrived .ct-sum { --at: 2600ms; }
 .ct-sum { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); font-size: 0.8125rem; color: var(--ink-soft); padding-block-start: var(--space-2); border-block-start: 1px solid var(--hairline); }
 .composer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); background: var(--card); border-radius: 999px; padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4); box-shadow: inset 0 0 0 1px var(--hairline); font-size: 0.8125rem; color: var(--muted); }
 .composer .send { inline-size: 1.75rem; block-size: 1.75rem; border-radius: 999px; background: var(--teal); color: var(--teal-ink); display: grid; place-items: center; flex: none; }
@@ -663,7 +681,6 @@ html { overflow-x: clip; }
 /* "Tap any word": the one word is the card's picture, at the size the other two cards'
    pictures are drawn; the meaning, then the binyan and root, each line in its own
    direction (2026-10-02). */
-.how-vis .stack.how-word { font-size: 1.75rem; line-height: 1.6; }
 .how-root { font-size: 0.8125rem; color: var(--muted); unicode-bidi: isolate; }
 .how-root .he { font-size: 0.9375rem; }
 

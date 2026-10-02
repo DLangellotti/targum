@@ -368,7 +368,19 @@ tried on 2026-10-01 and set aside the same day: it lost what the page already di
 a hero that says what targum is, and the reader under it proving it. So the page stays,
 and is sharpened (targum-internal#399):
 
-- **The hero is today's, untouched.** The reader under it is the demonstration.
+- **The hero is today's headline and lede, with one call to action**: the box, three
+  linked reasons under it (your own Hebrew, the whole Tanakh, inside Claude and ChatGPT).
+  The whole word card stands beside the headline; the reader runs the full width under
+  both and, leaving the top, makes room for the card in one 400ms move, keeping its
+  height so nothing under it rises, and the card stays beside it while the lines are read.
+- **The demos move once you reach them, and only then** (§8's "rare and purposeful" is
+  kept by being the demonstration rather than decoration): the film plays itself when it
+  is mostly in view below the top, each word lit as it is said and the card turning to
+  one word a line; the chat's turns arrive one after another the first time the phone is
+  seen, the correction's double line drawn a beat later; the vowels settle onto the
+  letters one by one in reading order. The first press or key inside the reader hands the
+  film to the reader for good. With reduced motion none of it moves, and without the
+  script it is all simply there.
 - **"Your own Hebrew" is the first part after the reader**, where it was the eighth. The
   live box stays under the headline (targum-internal#399, the entry below); this part
   shows what it gives back once you're in, drawn (the sentence about the link, how much

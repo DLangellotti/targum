@@ -65,13 +65,25 @@
   // `at` is where in the video we are. It was `t`, which is the catalogue's own
   // name for a sentence, and the clock quietly overwrote it (2026-09-16).
   var vowels = true, openId = "shovrim", at = 10.4, playing = false, rateIx = 2;
+  // While the film plays, the card turns to one word in each line as it is said, the
+  // one a learner would stop on (David, 2026-10-02: the page shows what's underneath
+  // without saying more).
+  var FOLLOW = ["sheyitchamem", "agvaniyot", "shovrim", "mechasim"];
 
   function plain(s) { return vowels ? s : s.replace(MARKS, ""); }
   function lineAt(time) { for (var i = 0; i < LINES.length; i++) if (time >= LINES[i].start && time < LINES[i].end) return i; return -1; }
   function comma(line, i) { return line.comma && line.comma.indexOf(i) >= 0 ? "," : ""; }
+  // The word being said: the line's time shared evenly between its words.
+  function wordAt(time) {
+    var n = lineAt(time);
+    if (n < 0) return null;
+    var line = LINES[n], k = Math.floor((time - line.start) / ((line.end - line.start) / line.words.length));
+    return { line: n, word: Math.min(k, line.words.length - 1) };
+  }
   function hebrewOf(line) { return line.words.map(function (id, i) { return plain(W[id].he) + comma(line, i); }).join(" ") + "."; }
 
   var linesEl = document.getElementById("lines");
+  var saying = null;
   var roving = openId;
   function drawLines() {
     var rovedOnce = false;
@@ -87,7 +99,7 @@
       he.className = "line-he";
       line.words.forEach(function (id, i) {
         var w = W[id], span = document.createElement("span");
-        span.className = "w " + w.state + (id === openId ? " open" : "");
+        span.className = "w " + w.state + (id === openId ? " open" : "") + (saying && saying.line === n && saying.word === i ? " saying" : "");
         span.textContent = plain(w.he);
         // One stop in the tab order for the whole reader, not one per word
         // (2026-10-02): the arrows move between words, Enter opens one.
@@ -105,7 +117,7 @@
   }
 
   var drawnOnce = false;
-  function drawCard() {
+  function drawCard(quiet) {
     var w = W[openId];
     var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.page.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
       "<p class=\"card-sense\">" + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
@@ -127,7 +139,7 @@
     // Said once, briefly: the card itself is not a live region, because it is rewritten
     // whole and would be read out whole on every tap (2026-10-02).
     var said = document.getElementById("cardSaid");
-    if (said) said.textContent = w.head.replace(/<[^>]+>/g, "") + ", " + w.sense;
+    if (said && !quiet) said.textContent = w.head.replace(/<[^>]+>/g, "") + ", " + w.sense;
   }
 
   linesEl.addEventListener("click", function (e) {
@@ -250,8 +262,21 @@
     }
   }
 
+  function speak() {
+    var now = playing ? wordAt(at) : null;
+    if ((now && saying && now.line === saying.line && now.word === saying.word) || (!now && !saying)) return;
+    saying = now;
+    var lit = linesEl.querySelector(".w.saying");
+    if (lit) lit.classList.remove("saying");
+    if (!now) return;
+    var id = LINES[now.line].words[now.word];
+    if (id === FOLLOW[now.line] && openId !== id) { openId = id; drawLines(); drawCard(true); return; }
+    var pair = linesEl.children[now.line], w = pair && pair.querySelectorAll(".w")[now.word];
+    if (w) w.classList.add("saying");
+  }
   function paint() {
     film(at);
+    speak();
     clock.textContent = mmss(BASE + at) + " / 10:12";
     fill.style.inlineSize = (at / DURATION) * 100 + "%";
     track.setAttribute("aria-valuenow", String(Math.floor(at)));
@@ -264,7 +289,7 @@
     if (!playing) return;
     var dt = last ? Math.min(0.1, (now - last) / 1000) : 0; last = now;
     at += dt * RATES[rateIx];
-    if (at >= DURATION) { at = 0; paint(); toggle(); return; }
+    if (at >= DURATION) { at = 0; paint(); if (!auto) { toggle(); return; } }
     paint();
     raf = requestAnimationFrame(frame);
   }
@@ -273,7 +298,7 @@
     stage.classList.toggle("playing", playing);
     document.getElementById("playGlyph").innerHTML = playing ? PAUSE : PLAY;
     document.getElementById("play").setAttribute("aria-label", playing ? t("landing.demo.pause", "Pause") : t("landing.demo.play", "Play"));
-    if (playing) { last = 0; raf = requestAnimationFrame(frame); } else cancelAnimationFrame(raf);
+    if (playing) { last = 0; raf = requestAnimationFrame(frame); } else { cancelAnimationFrame(raf); speak(); }
   }
   document.getElementById("play").addEventListener("click", toggle);
   document.getElementById("stageTap").addEventListener("click", toggle);
@@ -298,6 +323,33 @@
 
 
   drawLines(); drawCard(); paint();
+
+  /* ---- the film plays itself once you're reading (David, 2026-10-02) ----
+     Once the page has left its top and most of the picture is in view, the film plays,
+     quietly: the captions run, each word lights as it is said, and the card turns with
+     the voice. Out of view it waits. The first press, tap or key inside the reader is the
+     reader's own, and from then on it plays only when they say. Never with reduced
+     motion. */
+  var auto = false, handsOn = false;
+  var showcase = document.querySelector(".showcase");
+  ["pointerdown", "keydown"].forEach(function (kind) {
+    showcase.addEventListener(kind, function () { handsOn = true; auto = false; }, true);
+  });
+  (function () {
+    if (reduced) return;
+    var ticking = false;
+    function look() {
+      ticking = false;
+      if (handsOn) return;
+      var r = stage.getBoundingClientRect(), h = window.innerHeight;
+      var seen = Math.max(0, Math.min(r.bottom, h) - Math.max(r.top, 0)) / Math.max(1, r.height);
+      var wanted = window.scrollY > 24 && seen > 0.6 && !stage.classList.contains("pinned");
+      if (wanted && !playing) { auto = true; toggle(); }
+      else if (!wanted && playing && auto) toggle();
+    }
+    window.addEventListener("scroll", function () { if (!ticking) { ticking = true; requestAnimationFrame(look); } }, { passive: true });
+    look();
+  })();
 
   /* ---- the hero and the reader as one (landing.css, .top) ----
      The card's height is kept on the grid so the film starts below it, and the film
@@ -357,18 +409,36 @@
   var RECIPE = "שֶׁיִּתְחַמֵּם";
   var vsRecipe = document.getElementById("vsRecipe"), swV = document.getElementById("swVowels");
   if (vsRecipe && swV) {
-    vsRecipe.innerHTML = "<span>" + RECIPE + "</span><span>" + RECIPE.replace(POINTS, "").replace(CANT, "") + "</span>";
-    var rec = vsRecipe.children;
+    // Letter by letter, each with its points over the bare letter, so the points can
+    // settle onto the letters one after another, in reading order (2026-10-02). Hebrew
+    // letters do not join, so a letter on its own is shaped as it is in the word.
+    vsRecipe.innerHTML = RECIPE.match(/[\u05D0-\u05EA][\u0591-\u05C7]*/g).map(function (c) {
+      return "<span class=\"vs-l\"><span class=\"bare\">" + c.replace(POINTS, "").replace(CANT, "") + "</span><span class=\"pointed\">" + c + "</span></span>";
+    }).join("");
+    vsRecipe.querySelectorAll(".vs-l").forEach(function (l, i) { l.style.setProperty("--i", String(i)); });
     var showVowels = function () {
-      var v = swV.getAttribute("aria-checked") === "true";
-      rec[0].classList.toggle("off", !v);
-      rec[1].classList.toggle("off", v);
+      vsRecipe.classList.toggle("bare-only", swV.getAttribute("aria-checked") !== "true");
     };
     swV.addEventListener("click", function () {
       swV.setAttribute("aria-checked", String(swV.getAttribute("aria-checked") !== "true"));
       showVowels();
     });
     showVowels();
+  }
+
+  /* ---- the conversation arrives (David, 2026-10-02) ----
+     When the phone comes into view the turns arrive one after another, as they would:
+     yours, then targum's correction, its double underline drawn a beat later, then the
+     reply. Once. Without the script, or with reduced motion, it is simply there. */
+  var phone = document.querySelector(".talk-phone");
+  if (phone && !reduced && "IntersectionObserver" in window) {
+    phone.classList.add("waiting");
+    var arrive = new IntersectionObserver(function (seen) {
+      if (!seen.some(function (e) { return e.isIntersecting; })) return;
+      phone.classList.add("arrived");
+      arrive.disconnect();
+    }, { threshold: 0.35 });
+    arrive.observe(phone);
   }
 
   /* ---- the Torah ---- */
@@ -378,7 +448,7 @@
     { he: "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃", en: t("landing.demo.and-god-said-let-there-be-light-and", "And God said: ‘Let there be light.’ And there was light."), arc: "וַאֲמַר יְיָ יְהֵי נְהוֹרָא וַהֲוָה נְהוֹרָא" }
   ];
   var READINGS = [t("landing.demo.first-reading-in-hebrew", "First reading, in Hebrew"), t("landing.demo.second-reading-in-hebrew", "Second reading, in Hebrew"), t("landing.demo.once-in-onkelos", "Once in Onkelos")];
-  var mode = "read", at = 0, step = 0, reading = 0;
+  var mode = "read", verseAt = 0, step = 0, reading = 0;
   var versesEl = document.getElementById("verses"), foot = document.getElementById("torahFoot"), meta = document.getElementById("torahMeta");
 
   function drawTorah() {
@@ -389,9 +459,9 @@
       var html = "<span class=\"num\">" + (n + 1) + "</span><p class=\"v-he\">" + v.he + "</p>";
       if (mode === "read") html += "<p class=\"v-en\">" + v.en + "</p>";
       if (mode === "verse") {
-        if (n === at) row.className += " current";
-        if (n < at) row.className += " done";
-        if (n === at && step >= 2) html += "<p class=\"v-arc\">" + v.arc + "</p>";
+        if (n === verseAt) row.className += " current";
+        if (n < verseAt) row.className += " done";
+        if (n === verseAt && step >= 2) html += "<p class=\"v-arc\">" + v.arc + "</p>";
       }
       if (mode === "aliyah" && reading === 2) html += "<p class=\"v-arc\">" + v.arc + "</p>";
       row.innerHTML = html;
@@ -400,8 +470,8 @@
     foot.hidden = mode === "read";
     if (mode === "read") meta.textContent = t("landing.demo.hebrew-english", "Hebrew · English");
     if (mode === "verse") {
-      meta.textContent = t("landing.demo.shnayim-mikra-verse", "Shnayim mikra · verse ") + Math.min(at + 1, 3) + t("landing.demo.of-3", " of 3");
-      var lastVerse = at === VERSES.length - 1;
+      meta.textContent = t("landing.demo.shnayim-mikra-verse", "Shnayim mikra · verse ") + Math.min(verseAt + 1, 3) + t("landing.demo.of-3", " of 3");
+      var lastVerse = verseAt === VERSES.length - 1;
       var next = step === 0 ? [t("landing.demo.again", "Again"), "again"] : step === 1 ? [t("landing.demo.onkelos", "Onkelos"), "onkelos"] : lastVerse ? [t("landing.demo.finish", "Finish"), "finish"] : [t("landing.demo.next-verse", "Next verse"), "next"];
       var said = step === 0 ? t("landing.demo.read-the-verse-in-hebrew", "Read the verse in Hebrew.") : step === 1 ? t("landing.demo.once-more-in-hebrew", "Once more, in Hebrew.") : t("landing.demo.and-once-in-onkelos", "And once in Onkelos.");
       if (step === 3) { said = t("landing.demo.all-three-verses-twice-in-hebrew-and-once", "All three verses, twice in Hebrew and once in Onkelos."); next = [t("landing.demo.start-again", "Start again"), "restart"]; }
@@ -417,7 +487,7 @@
   document.querySelectorAll(".torah .seg button").forEach(function (b) {
     b.addEventListener("click", function () {
       document.querySelectorAll(".torah .seg button").forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
-      mode = b.dataset.mode; at = 0; step = 0; reading = 0;
+      mode = b.dataset.mode; verseAt = 0; step = 0; reading = 0;
       drawTorah();
     });
   });
@@ -427,10 +497,10 @@
     var go = b.dataset.go;
     if (go === "again") step = 1;
     else if (go === "onkelos") step = 2;
-    else if (go === "next") { at += 1; step = 0; }
-    else if (go === "finish") { at = VERSES.length; step = 3; }
+    else if (go === "next") { verseAt += 1; step = 0; }
+    else if (go === "finish") { verseAt = VERSES.length; step = 3; }
     else if (go === "reading") reading += 1;
-    else if (go === "restart") { at = 0; step = 0; reading = 0; }
+    else if (go === "restart") { verseAt = 0; step = 0; reading = 0; }
     drawTorah();
     var nb = foot.querySelector("button"); if (nb) nb.focus();
   });
