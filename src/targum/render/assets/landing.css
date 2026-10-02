@@ -446,7 +446,7 @@ html { overflow-x: clip; }
 .sheet-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; padding-block-end: 0.9rem; margin-block-end: 0.75rem; border-block-end: 1px solid var(--hairline); }
 .sheet-title { font: 600 1.0625rem/1.3 var(--reading); }
 .sheet-meta { color: var(--muted); font-size: 0.8125rem; }
-.sheet-head .switch { margin-inline-start: auto; }
+.sheet-head .seg { margin-inline-start: auto; }
 .seg { display: inline-flex; background: var(--field); border-radius: 999px; padding: 0.2rem; gap: 0.1rem; }
 .seg button { border: 0; background: none; border-radius: 999px; padding: 0.3rem 0.8rem; font-size: 0.8125rem; color: var(--muted); min-block-size: 2rem; transition: background-color 160ms var(--ease), color 160ms var(--ease); }
 .seg button[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); font-weight: 600; }
