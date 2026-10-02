@@ -153,6 +153,8 @@
 
 
 html { background: var(--ground); scroll-behavior: smooth; }
+/* A section reached from the bar starts below the bar, not under it (2026-10-02). */
+html { scroll-padding-block-start: 4.5rem; }
 body { margin: 0; background: var(--ground); color: var(--ink); font: 400 0.9375rem/1.55 var(--chrome); -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
