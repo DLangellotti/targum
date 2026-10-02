@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The week's shnayim mikra sheet as a PDF: `targum export mikra` (targum-internal#105).
+  This Shabbat's portion — or the week of `--on` — with Onkelos beside each verse, the
+  haftarah the calendar names for it with the reader's language beside it, and with
+  `--for` the words that account looked up that week, with the meanings it kept beside
+  them — or, where the record names no look-up, the words it kept, and the heading says
+  which. A look-up in the record of use now names its word (a new `event.word`, schema
+  39), still behind `TARGUM_EVENTS` and the reader's switch; the privacy notice (clause
+  3.6, amended 28 September 2026) and the account page say so. Cut from the books on the
+  shelf as the portion page is, so it costs nothing; the same `print` extra. design.md §12
+  (2026-09-28) says what the sheet adds.
 - `targum video discover`: finds Creative Commons videos to curate through YouTube's Data
   API and prices building them, for approval before anything is bought
   (targum-internal#382).

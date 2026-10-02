@@ -79,6 +79,14 @@ body {
   color: var(--ink-soft);
 }
 
+/* The week's sheet has a second reading, the haftarah, under a title of its own. It runs
+   on after the portion rather than taking a fresh sheet, for the reason chapters do, and
+   its title is kept with the lines under it. */
+.title.part {
+  margin-block: 3rem 1.5rem;
+  break-after: avoid;
+}
+
 /* Chapters run on rather than each taking a fresh sheet: a book's front matter is a
    section of its own, and a sheet with a title and a byline on it is paper spent on
    nothing. The heading is kept with the lines under it. */
@@ -178,3 +186,7 @@ body {
   font-size: 0.9375rem;
   line-height: 1.4;
 }
+
+/* The reader's own words of the week, after both readings: the same list, set once for
+   the whole sheet rather than after a chapter. */
+.words.week { margin-block-start: 3rem; }

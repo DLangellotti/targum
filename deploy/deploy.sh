@@ -109,10 +109,28 @@ fi
 uv build --wheel >/dev/null
 WHEEL="$(ls -t dist/*.whl | head -1)"
 echo "   $(basename "$WHEEL")"
+# The extras the box installs, said once for the export below and the install on the box.
+BOX_EXTRAS="difficulty covers bring stress russian"
+# The lockfile's versions, as constraints for the box's install. uv tool install resolves
+# the wheel's requirements fresh and ignores uv.lock, so a requirement with only a floor
+# took whatever PyPI had that day: transformers 5.17.0 broke every Hebrew build on
+# 2026-09-13 and stanza 1.15.0 stopped the rebuild at the first Russian text on
+# 2026-10-01, both with CI green on the lockfile. With these the box gets the versions CI
+# tested. Left out on purpose: torch, which the box takes from PyTorch's CPU index as a
+# +cpu build CI never sees, and the CUDA packages (nvidia-*, triton) only the GPU build
+# wants; and ru-core-news-lg, a URL pyproject already pins exactly.
+CONSTRAINTS="dist/box-constraints.txt"
+# shellcheck disable=SC2046 # one --extra per word
+uv export --frozen --no-hashes --no-emit-project --no-header --no-annotate \
+  $(printf -- '--extra %s ' $BOX_EXTRAS) \
+  | grep -vE '^((torch|triton|ru-core-news-lg)([=; @]|$)|nvidia-)' > "$CONSTRAINTS"
+echo "   $(wc -l < "$CONSTRAINTS" | tr -d ' ') versions pinned from uv.lock"
 
 echo "== ship =="
-scp -q "$WHEEL" "$HOST:/tmp/"
+scp -q "$WHEEL" "$CONSTRAINTS" "$HOST:/tmp/"
 REMOTE_WHEEL="/tmp/$(basename "$WHEEL")"
+REMOTE_CONSTRAINTS="/tmp/$(basename "$CONSTRAINTS")"
+REMOTE_EXTRAS="$(printf '%s' "$BOX_EXTRAS" | tr ' ' ',')"
 # The catalogue is private data, not code: it is not in the repository and not in the
 # wheel. It travels from this machine's copy to the box, beside the secrets, where the
 # service reads it by default.
@@ -204,11 +222,12 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     chown -R targum:targum /srv/targum/.local/share/uv/tools/targum
   fi
   sudo -u targum env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
-    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[difficulty,covers,bring,stress,russian]" \
+    /usr/local/bin/uv tool install --force "${REMOTE_WHEEL}[${REMOTE_EXTRAS}]" \
+      --constraints "${REMOTE_CONSTRAINTS}" \
       --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match \
       >/dev/null
   ln -sfn /srv/targum/.local/bin/targum /usr/local/bin/targum
-  rm -f "${REMOTE_WHEEL}"
+  rm -f "${REMOTE_WHEEL}" "${REMOTE_CONSTRAINTS}"
   # The directory too: it was root-only, which systemd never minded — it reads the
   # secrets as root — and the service, which reads the catalogue as targum, could not
   # reach into it. The library was empty for the length of one deploy.

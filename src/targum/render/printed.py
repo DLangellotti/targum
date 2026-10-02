@@ -28,13 +28,15 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..annotate.base import NOT_A_WORD, not_vocabulary
 from ..errors import TargumError
 from ..models import (
+    Annotation,
     BlockKind,
     Document,
     Glossary,
@@ -60,6 +62,10 @@ from .builder import (
     verse_address,
 )
 
+if TYPE_CHECKING:
+    from ..accounts import Kept
+    from ..parasha.cut import Portion as Cut
+
 #: Where a word stops being one a reader knows and starts being one they look up: bands 4
 #: to 6 of six. `annotate.difficulty.LOOKED_UP`, said again rather than imported because
 #: that module builds its frequency tables on import and this one needs none of them.
@@ -75,6 +81,13 @@ class Word:
 
     form: str
     meaning: str
+    #: The word's own language where it is not the page's source — an Onkelos word kept
+    #: from the Aramaic column, on a list of the week's words.
+    language: str = ""
+
+    @property
+    def direction(self) -> str:
+        return direction_for(self.language) if self.language else ""
 
 
 @dataclass(slots=True)
@@ -155,47 +168,41 @@ def _glossary(
     return None
 
 
-def print_html(
-    folder: Path,
+@dataclass(slots=True)
+class Part:
+    """One text on the page, under its own title: the whole of an edition, or one of the
+    sheet's two readings. Each keeps its own languages, because the portion is set beside
+    Onkelos and the haftarah beside the reader's own language."""
+
+    title: str
+    english: str
+    chapters: list[Chapter]
+    source_language: str
+    target_language: str
+
+    @property
+    def source_direction(self) -> str:
+        return direction_for(self.source_language)
+
+    @property
+    def target_direction(self) -> str:
+        return direction_for(self.target_language)
+
+
+def _chapters(
+    segmented: SegmentedDocument,
+    translation: Translation,
+    vocalization: Vocalization | None,
+    annotation: Annotation | None,
+    glossary: Glossary | None,
     *,
-    into: str | None = None,
-    known: Collection[str] | None = None,
-    vowels: bool = True,
-    accents: bool = True,
-    under: bool = False,
-    size: str = "a4",
-) -> str:
-    """The page WeasyPrint sets, as HTML. Separate from `write_pdf` so everything that
-    decides what is on the page is testable on a machine without Pango.
-
-    `known` is the forms the reader has marked known, bare of points — the dictionary
-    form and the surface, as `Store.known_forms` gives them. Given, a chapter lists every
-    word in it that is not among them; not given — a static export, nobody signed in — it
-    lists the words in the looked-up bands. Either way a word is listed once, where it
-    first appears, and only where there is a meaning to print beside it: a word with no
-    meaning is one the reader's card would offer to look up, and paper has no button.
-    """
-    document = read_artifact(Document, folder / "document.json")
-    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
-    if document is None or segmented is None:
-        raise TargumError(f"{folder} holds no text.", "Point this at a built targum's folder.")
-    translations = [
-        translation
-        for path in sorted((folder / "translations").glob("*.json"))
-        if (translation := read_artifact(Translation, path)) is not None
-    ]
-    if not translations:
-        raise TargumError(f"{folder} has no translation yet.", "Build it first.")
-    translation = _translation(translations, into)
-    vocalization = read_artifact(Vocalization, folder / "vocalization.json")
-    from ..models import Annotation
-
-    annotation = read_artifact(Annotation, folder / "annotation.json")
-    glossary = _glossary(glossaries_in(folder), translation, translations)
-
+    known: Collection[str] | None,
+    vowels: bool,
+    accents: bool,
+) -> list[Chapter]:
+    """A text's sections as the page sets them, each with the words worth listing after
+    it — none where `annotation` or `glossary` is None."""
     pointed = dict(vocalization.segments) if vocalization is not None else {}
-    source_direction = direction_for(segmented.language)
-    target_direction = direction_for(translation.target_language)
 
     def form_of(segment_id: str, text: str) -> str:
         # The reader's cells, chosen once: the bare text, or the pointed one, or the
@@ -233,24 +240,35 @@ def print_html(
                 listed.add(token.glossed_as)
                 chapter.words.append(word)
         chapters.append(chapter)
+    return chapters
 
-    # The reader's rule, not the shelf's, and not the switches': the face follows what the
-    # text holds. Scripture printed without its te'amim is still set in the face cut for
-    # it, as the reader keeps it when its accents are off.
-    accented = any(has_taamim(text) for text in pointed.values())
-    chrome = translation.target_language
+
+def _page(
+    parts: list[Part],
+    *,
+    title: str,
+    english: str,
+    chrome: str,
+    accented: bool,
+    under: bool,
+    size: str,
+    week: list[Word] | None = None,
+    looked: bool = True,
+) -> str:
+    """The parts, and the week's words after them where there are any, as one page."""
     env = _environment()
     template = env.get_template("print.html.j2")
     return template.render(
         t=page_words(chrome),
         page_language=chrome.split("-")[0],
-        title=document.title or folder.name,
-        english=english_title(document),
-        chapters=chapters,
-        source_language=segmented.language,
-        source_direction=source_direction,
-        target_language=translation.target_language,
-        target_direction=target_direction,
+        page_direction=parts[0].source_direction,
+        title=title,
+        english=english,
+        parts=parts,
+        week=week or [],
+        week_looked=looked,
+        chrome=chrome,
+        chrome_direction=direction_for(chrome),
         hebrew_face=_hebrew_face(biblical=accented),
         hebrew_family=(BIBLICAL_FACE if accented else MODERN_FACE)[0],
         chrome_face=_chrome_face(),
@@ -258,7 +276,217 @@ def print_html(
         under=under,
         # Tanakh is continuous text that happens to be numbered, and the reader sets it
         # close; the page does the same.
-        verses=any(line.verse for chapter in chapters for line in chapter.lines),
+        verses=any(
+            line.verse for part in parts for chapter in part.chapters for line in chapter.lines
+        ),
+    )
+
+
+def print_html(
+    folder: Path,
+    *,
+    into: str | None = None,
+    known: Collection[str] | None = None,
+    vowels: bool = True,
+    accents: bool = True,
+    under: bool = False,
+    size: str = "a4",
+) -> str:
+    """The page WeasyPrint sets, as HTML. Separate from `write_pdf` so everything that
+    decides what is on the page is testable on a machine without Pango.
+
+    `known` is the forms the reader has marked known, bare of points — the dictionary
+    form and the surface, as `Store.known_forms` gives them. Given, a chapter lists every
+    word in it that is not among them; not given — a static export, nobody signed in — it
+    lists the words in the looked-up bands. Either way a word is listed once, where it
+    first appears, and only where there is a meaning to print beside it: a word with no
+    meaning is one the reader's card would offer to look up, and paper has no button.
+    """
+    document = read_artifact(Document, folder / "document.json")
+    segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+    if document is None or segmented is None:
+        raise TargumError(f"{folder} holds no text.", "Point this at a built targum's folder.")
+    translations = [
+        translation
+        for path in sorted((folder / "translations").glob("*.json"))
+        if (translation := read_artifact(Translation, path)) is not None
+    ]
+    if not translations:
+        raise TargumError(f"{folder} has no translation yet.", "Build it first.")
+    translation = _translation(translations, into)
+    vocalization = read_artifact(Vocalization, folder / "vocalization.json")
+    annotation = read_artifact(Annotation, folder / "annotation.json")
+    glossary = _glossary(glossaries_in(folder), translation, translations)
+    chapters = _chapters(
+        segmented,
+        translation,
+        vocalization,
+        annotation,
+        glossary,
+        known=known,
+        vowels=vowels,
+        accents=accents,
+    )
+    title = document.title or folder.name
+    part = Part(
+        title=title,
+        english=english_title(document),
+        chapters=chapters,
+        source_language=segmented.language,
+        target_language=translation.target_language,
+    )
+    return _page(
+        [part],
+        title=title,
+        english=part.english,
+        chrome=translation.target_language,
+        accented=_accented(vocalization),
+        under=under,
+        size=size,
+    )
+
+
+def _accented(*vocalizations: Vocalization | None) -> bool:
+    """The reader's rule, not the shelf's, and not the switches': the face follows what
+    the text holds. Scripture printed without its te'amim is still set in the face cut
+    for it, as the reader keeps it when its accents are off."""
+    return any(
+        has_taamim(text)
+        for vocalization in vocalizations
+        if vocalization is not None
+        for text in vocalization.segments.values()
+    )
+
+
+def own_language(translations: list[Translation], reads: Collection[str] = ("en",)) -> str:
+    """The reader's own language among a text's renderings: the first of `reads` the text
+    is rendered into, else the first rendering into a language rather than beside it —
+    decided by what the reader reads, not by which file sorts first — or English."""
+    into = [t.target_language for t in translations if t.target_language not in BESIDE]
+    return next((code for code in reads if code in into), into[0] if into else "en")
+
+
+def week_words(kept: Iterable[Kept], texts: Iterable[Cut], target: str = "en") -> list[Word]:
+    """The words of a reader's week — looked up, or kept — as the sheet lists them.
+
+    Each with the meaning the reader kept beside it — their own note first, then what the
+    page said when they kept it — and failing both, the first sense the week's texts give
+    it, where it is in them. In the form the week's texts cite it, pointed, where it is in
+    them, and as kept where it is not. A word with no meaning anywhere is left off, as the
+    edition leaves one off: paper cannot offer to look one up. `target` is the language
+    the meanings are read in.
+    """
+    cited: dict[str, tuple[str, str]] = {}
+    for text in texts:
+        if text.annotation is None:
+            continue
+        glossary = _glossary(
+            text.glossaries,
+            _translation(text.translations, own_language(text.translations, (target,))),
+            text.translations,
+        )
+        if glossary is None:
+            continue
+        for tokens in text.annotation.tokens.values():
+            for token in tokens:
+                bare = strip_nikkud(token.lemma)[0]
+                if bare in cited:
+                    continue
+                key = token.glossed_as
+                meaning = first_sense(glossary.entries.get(key, ""))
+                form = glossary.citations.get(key) or token.headword or token.lemma
+                cited[bare] = (form, meaning)
+    out: list[Word] = []
+    seen: set[str] = set()
+    for one in kept:
+        bare = strip_nikkud(one.lemma)[0]
+        if bare in seen:
+            continue
+        form, found = cited.get(bare, (one.lemma, ""))
+        meaning = first_sense(one.meaning) or found
+        if not meaning:
+            continue
+        seen.add(bare)
+        out.append(Word(form=form, meaning=meaning, language=one.language))
+    return out
+
+
+def mikra_html(
+    portion: Cut,
+    haftarah: Cut | None,
+    *,
+    name: str,
+    hebrew: str,
+    when: str = "",
+    haftarah_note: str = "",
+    week: list[Word] | None = None,
+    looked: bool = True,
+    into: str | None = None,
+    reads: Collection[str] = ("en",),
+    vowels: bool = True,
+    accents: bool = True,
+    under: bool = False,
+    size: str = "a4",
+) -> str:
+    """The week's shnayim mikra sheet (targum-internal#105): the portion with Onkelos
+    beside each verse, the haftarah with the reader's own language beside it, and the
+    reader's words of the week — one page, set once, for a Shabbat without a screen.
+    `looked` says which words they are: looked up, or where no look-up names its word,
+    kept; the list's heading says which.
+
+    Built from the cut rather than from a folder, because the corpus keeps no artifact
+    beside its readers (`parasha.build`): the portion is cut again from the books on the
+    shelf, which is free, the way `targum parasha leyning` cuts it. The portion carries
+    no per-aliyah word lists — a portion's hard words would be pages of them — and the
+    haftarah none either; the one list is the reader's own week.
+    """
+    arc = next(
+        (t.target_language for t in portion.translations if t.target_language in BESIDE), None
+    )
+    chrome = own_language(portion.translations, reads)
+    beside = _translation(portion.translations, into or arc or chrome)
+
+    def part(text: Cut, translation: Translation, english: str) -> Part:
+        return Part(
+            title=text.document.title or "",
+            english=english,
+            chapters=_chapters(
+                text.segmented,
+                translation,
+                text.vocalization,
+                None,
+                None,
+                known=None,
+                vowels=vowels,
+                accents=accents,
+            ),
+            source_language=text.segmented.language,
+            target_language=translation.target_language,
+        )
+
+    parts = [part(portion, beside, name)]
+    if haftarah is not None and haftarah.translations:
+        # Read once, and never beside a targum (targum-internal#203): the reader's own
+        # language, as the portion page sets it.
+        rendering = _translation(haftarah.translations, own_language(haftarah.translations, reads))
+        # Its range as a chumash prints it, and why it is this week's where a special
+        # Shabbat has displaced the portion's own.
+        summary = haftarah.document.source.removeprefix("sefaria:")
+        parts.append(
+            part(haftarah, rendering, " · ".join(one for one in (summary, haftarah_note) if one))
+        )
+    return _page(
+        parts,
+        title=hebrew or name,
+        english=" · ".join(one for one in (name, when) if one),
+        chrome=chrome,
+        accented=_accented(
+            portion.vocalization, haftarah.vocalization if haftarah is not None else None
+        ),
+        under=under,
+        size=size,
+        week=week,
+        looked=looked,
     )
 
 

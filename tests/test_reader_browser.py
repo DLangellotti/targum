@@ -2287,6 +2287,8 @@ def test_a_sitting_reaches_the_account_and_says_nothing_it_should_not(
 
     looked = next(event for event in sent if event["kind"] == "lookup")
     assert looked["segment"] and looked["document"] and looked["language"] == "he"
+    # And which word, as the ledger files it (targum-internal#105): a dictionary form.
+    assert looked.get("word"), looked
     played = next(event for event in sent if event["kind"] == "play")
     assert played["medium"] == "listen" and 1 <= played["amount"] <= 5, played
 
