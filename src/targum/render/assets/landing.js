@@ -1,7 +1,7 @@
-/* The front door's four moving parts (targum-internal#69, 2026-09-16).
+/* The front door's moving parts (targum-internal#69, 2026-09-16).
 
-   The vowel switches, the reading modes, the box's Start and the video that plays
-   itself. Nothing here is required to read the page: with JavaScript off the words, the
+   The vowel switches, the reading modes and the video that plays itself. The box that
+   says what a pasted link is (targum-internal#399) is a plain post and needs none. Nothing here is required to read the page: with JavaScript off the words, the
    verses and the waitlist's form all still work, and the demos sit still.
 
    The dish in the video frame is drawn here rather than in the stylesheet because it is
@@ -24,36 +24,33 @@
   var MARKS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  /* ---- the box: nothing happens until the person presses Start ---- */
-  var boxStart = document.getElementById("boxStart");
-  boxStart.addEventListener("click", function () {
-    document.getElementById("boxFoot").innerHTML =
-      "<span class=\"when tnum\">Working on it\u2026 ready in about 4 minutes</span>";
-  });
 
-  /* ---- the words ---- */
+  /* ---- the words ----
+     A verb's head is its dictionary form, the past "he" form (כִּסָּה, he covered), and
+     beside its meaning the card says the infinitive the meaning is in (לְכַסּוֹת, to
+     cover), as the reader's own card does with the citation form it keeps (2026-10-02). */
   var W = {
-    samim: { he: "שָׂמִים", state: "known", head: "שָׂם", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-put-to-place", "to put, to place"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שָׂמִים</span> · " + t("landing.card.pa-al-present", "pa’al, present") + " · " + t("landing.card.put", "put")], [t("landing.card.root", "Root"), "<span class=\"he\">שׂ־י־ם</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-2-8", "Genesis 2:8") + " · <span class=\"scripture\">וַיָּ֣שֶׂם</span> · " + t("landing.card.and-there-he-put", "“and there He put”")]] },
+    samim: { he: "שָׂמִים", state: "known", inf: "לָשִׂים", head: "שָׂם", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-put-to-place", "to put, to place"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שָׂמִים</span> · " + t("landing.card.pa-al-present", "pa’al, present") + " · " + t("landing.card.put", "put")], [t("landing.card.root", "Root"), "<span class=\"he\">שׂ־י־ם</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-2-8", "Genesis 2:8") + " · <span class=\"scripture\">וַיָּ֣שֶׂם</span> · " + t("landing.card.and-there-he-put", "“and there He put”")]] },
     shemen: { he: "שֶׁמֶן", state: "known", head: "שֶׁמֶן", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.oil", "oil"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">שְׁמָנִים</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-28-18", "Genesis 28:18") + " · <span class=\"scripture\">שֶׁ֖מֶן</span> · " + t("landing.card.and-poured-oil", "“and poured oil”")]] },
     bamachvat: { he: "בַּמַּחֲבַת", state: "learning", head: "מַחֲבַת", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.frying-pan", "frying pan"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">בַּ</span> + <span class=\"he\">מַּחֲבַת</span> · " + t("landing.card.in-the-pan", "in the pan")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.leviticus-2-5", "Leviticus 2:5") + " · <span class=\"scripture\">הַֽמַּחֲבַ֖ת</span> · " + t("landing.card.baked-on-a-griddle", "“baked on a griddle”")]] },
-    umechakim: { he: "וּמְחַכִּים", state: "known", head: "חִכָּה", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-wait", "to wait"), binyan: [["pi’el", "חִכָּה", true]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וּ</span> + <span class=\"he\">מְחַכִּים</span> · " + t("landing.card.and-wait", "and wait")], [t("landing.card.root", "Root"), "<span class=\"he\">ח־כ־ה</span>"]] },
-    sheyitchamem: { he: "שֶׁיִּתְחַמֵּם", state: "new", head: "הִתְחַמֵּם", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-heat-up-to-warm-up", "to heat up, to warm up"), binyan: [["pi’el", "חִמֵּם"], ["hitpa’el", "הִתְחַמֵּם", true]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שֶׁ</span> + <span class=\"he\">יִּתְחַמֵּם</span> · " + t("landing.card.hitpa-el-future-it", "hitpa’el, future, it") + " · " + t("landing.card.for-it-to-heat-up", "for it to heat up")], [t("landing.card.root", "Root"), "<span class=\"he\">ח־מ־ם</span>"]] },
-    mosifim: { he: "מוֹסִיפִים", state: "learning", head: "הוֹסִיף", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-add", "to add"), binyan: [["hif’il", "הוֹסִיף", true], ["nif’al", "נוֹסַף"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">מוֹסִיפִים</span> · " + t("landing.card.hif-il-present", "hif’il, present") + " · " + t("landing.card.add", "add")], [t("landing.card.root", "Root"), "<span class=\"he\">י־ס־ף</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    umechakim: { he: "וּמְחַכִּים", state: "known", inf: "לְחַכּוֹת", head: "חִכָּה", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-wait", "to wait"), binyan: [["pi’el", "חִכָּה", true]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וּ</span> + <span class=\"he\">מְחַכִּים</span> · " + t("landing.card.and-wait", "and wait")], [t("landing.card.root", "Root"), "<span class=\"he\">ח־כ־ה</span>"]] },
+    sheyitchamem: { he: "שֶׁיִּתְחַמֵּם", state: "new", inf: "לְהִתְחַמֵּם", head: "הִתְחַמֵּם", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-heat-up-to-warm-up", "to heat up, to warm up"), binyan: [["pi’el", "חִמֵּם"], ["hitpa’el", "הִתְחַמֵּם", true]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שֶׁ</span> + <span class=\"he\">יִּתְחַמֵּם</span> · " + t("landing.card.hitpa-el-future-it", "hitpa’el, future, it") + " · " + t("landing.card.for-it-to-heat-up", "for it to heat up")], [t("landing.card.root", "Root"), "<span class=\"he\">ח־מ־ם</span>"]] },
+    mosifim: { he: "מוֹסִיפִים", state: "learning", inf: "לְהוֹסִיף", head: "הוֹסִיף", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-add", "to add"), binyan: [["hif’il", "הוֹסִיף", true], ["nif’al", "נוֹסַף"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">מוֹסִיפִים</span> · " + t("landing.card.hif-il-present", "hif’il, present") + " · " + t("landing.card.add", "add")], [t("landing.card.root", "Root"), "<span class=\"he\">י־ס־ף</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
     batzal: { he: "בָּצָל", state: "known", head: "בָּצָל", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.onion", "onion"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">בְּצָלִים</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.numbers-11-5", "Numbers 11:5") + " · <span class=\"scripture\">הַבְּצָלִ֖ים</span> · " + t("landing.card.and-the-onions", "“and the onions”")]] },
     pilpel: { he: "פִּלְפֵּל", state: "known", head: "פִּלְפֵּל", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.pepper", "pepper"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">פִּלְפְּלִים</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.rabbinic-and-modern", "Rabbinic and modern")]] },
     agvaniyot: { he: "וְעַגְבָנִיּוֹת", state: "learning", head: "עַגְבָנִיָּה", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.tomato", "tomato"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וְ</span> + <span class=\"he\">עַגְבָנִיּוֹת</span> · " + t("landing.card.and-tomatoes", "and tomatoes")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.modern", "Modern")], [t("landing.card.from", "From"), "<span class=\"he\">עָגַב</span>" + t("landing.card.to-desire-the-tomato-was-once-the-love", ", to desire. The tomato was once the love apple.")]] },
-    umevashlim: { he: "וּמְבַשְּׁלִים", state: "known", head: "בִּשֵּׁל", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-cook", "to cook"), binyan: [["pi’el", "בִּשֵּׁל", true], ["pu’al", "בֻּשַּׁל"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וּ</span> + <span class=\"he\">מְבַשְּׁלִים</span> · " + t("landing.card.and-cook", "and cook")], [t("landing.card.root", "Root"), "<span class=\"he\">ב־שׁ־ל</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    umevashlim: { he: "וּמְבַשְּׁלִים", state: "known", inf: "לְבַשֵּׁל", head: "בִּשֵּׁל", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-cook", "to cook"), binyan: [["pi’el", "בִּשֵּׁל", true], ["pu’al", "בֻּשַּׁל"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וּ</span> + <span class=\"he\">מְבַשְּׁלִים</span> · " + t("landing.card.and-cook", "and cook")], [t("landing.card.root", "Root"), "<span class=\"he\">ב־שׁ־ל</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
     al: { he: "עַל", state: "known", head: "עַל", pos: t("landing.card.preposition", "preposition"), sense: t("landing.card.on-over", "on, over"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">עַל אֵשׁ</span> · " + t("landing.card.over-a-heat-on-the-stove", "over a heat, on the stove")]] },
     esh: { he: "אֵשׁ", state: "known", head: "אֵשׁ", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.fire", "fire"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">אֵשׁ קְטַנָּה</span> · " + t("landing.card.a-low-heat", "a low heat")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
     ktana: { he: "קְטַנָּה", state: "known", head: "קָטָן", pos: t("landing.card.adjective", "adjective"), sense: t("landing.card.small", "small"), facts: [[t("landing.card.here", "Here"), t("landing.card.feminine-to-match", "feminine, to match") + " <span class=\"he\">אֵשׁ</span>"]] },
     achshav: { he: "עַכְשָׁיו", state: "known", head: "עַכְשָׁיו", pos: t("landing.card.adverb", "adverb"), sense: t("landing.card.now", "now"), facts: [[t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.rabbinic-and-modern", "Rabbinic and modern")]] },
-    shovrim: { he: "שׁוֹבְרִים", state: "learning", head: "שָׁבַר", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-break", "to break"), binyan: [["pa’al", "שָׁבַר", true], ["nif’al", "נִשְׁבַּר"], ["pi’el", "שִׁבֵּר"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שׁוֹבְרִים</span> · " + t("landing.card.pa-al-present", "pa’al, present") + " · " + t("landing.card.crack", "crack")], [t("landing.card.root", "Root"), "<span class=\"he\">שׁ־ב־ר</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.exodus-34-1", "Exodus 34:1") + " · <span class=\"scripture\">שִׁבַּֽרְתָּ</span> · " + t("landing.card.which-thou-didst-break", "“which thou didst break”")]] },
+    shovrim: { he: "שׁוֹבְרִים", state: "learning", inf: "לִשְׁבֹּר", head: "שָׁבַר", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-break", "to break"), binyan: [["pa’al", "שָׁבַר", true], ["nif’al", "נִשְׁבַּר"], ["pi’el", "שִׁבֵּר"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">שׁוֹבְרִים</span> · " + t("landing.card.pa-al-present", "pa’al, present") + " · " + t("landing.card.crack", "crack")], [t("landing.card.root", "Root"), "<span class=\"he\">שׁ־ב־ר</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.exodus-34-1", "Exodus 34:1") + " · <span class=\"scripture\">שִׁבַּֽרְתָּ</span> · " + t("landing.card.which-thou-didst-break", "“which thou didst break”")]] },
     et: { he: "אֶת", state: "known", head: "אֶת", pos: t("landing.card.particle", "particle"), sense: t("landing.card.marks-a-definite-object", "marks a definite object"), facts: [[t("landing.card.here", "Here"), t("landing.card.before", "before") + " <span class=\"he\">הַבֵּיצִים</span>" + t("landing.card.which-is-definite", ", which is definite")]] },
     habeitzim: { he: "הַבֵּיצִים", state: "known", head: "בֵּיצָה", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.egg", "egg"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">הַ</span> + <span class=\"he\">בֵּיצִים</span> · " + t("landing.card.the-eggs", "the eggs")], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")], [t("landing.card.met-before", "Met before"), t("landing.card.deuteronomy-22-6", "Deuteronomy 22:6") + " · <span class=\"scripture\">בֵיצִ֔ים</span> · " + t("landing.card.or-eggs", "“or eggs”")]] },
     yeshirot: { he: "יְשִׁירוֹת", state: "new", head: "יְשִׁירוֹת", pos: t("landing.card.adverb", "adverb"), sense: t("landing.card.directly-straight", "directly, straight"), facts: [[t("landing.card.root", "Root"), "<span class=\"he\">י־שׁ־ר</span>"], [t("landing.card.from", "From"), "<span class=\"he\">יָשָׁר</span>" + t("landing.card.straight", ", straight")]] },
     letoch: { he: "לְתוֹךְ", state: "known", head: "תּוֹךְ", pos: t("landing.card.preposition", "preposition"), sense: t("landing.card.into", "into"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">לְ</span> + <span class=\"he\">תוֹךְ</span> · " + t("landing.card.into", "into")]] },
     harotev: { he: "הָרֹטֶב", state: "learning", head: "רֹטֶב", pos: t("landing.card.noun-masculine", "noun, masculine"), sense: t("landing.card.sauce", "sauce"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">הָ</span> + <span class=\"he\">רֹטֶב</span> · " + t("landing.card.the-sauce", "the sauce")], [t("landing.card.plural", "Plural"), "<span class=\"he\">רְטָבִים</span>"], [t("landing.card.from", "From"), "<span class=\"he\">ר־ט־ב</span>" + t("landing.card.moist", ", moist")]] },
-    mechasim: { he: "מְכַסִּים", state: "learning", head: "כִּסָּה", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-cover", "to cover"), binyan: [["pi’el", "כִּסָּה", true], ["hitpa’el", "הִתְכַּסָּה"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">מְכַסִּים</span> · " + t("landing.card.pi-el-present", "pi’el, present") + " · " + t("landing.card.cover", "cover")], [t("landing.card.root", "Root"), "<span class=\"he\">כ־ס־ה</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
+    mechasim: { he: "מְכַסִּים", state: "learning", inf: "לְכַסּוֹת", head: "כִּסָּה", pos: t("landing.card.verb", "verb"), sense: t("landing.card.to-cover", "to cover"), binyan: [["pi’el", "כִּסָּה", true], ["hitpa’el", "הִתְכַּסָּה"]], facts: [[t("landing.card.here", "Here"), "<span class=\"he\">מְכַסִּים</span> · " + t("landing.card.pi-el-present", "pi’el, present") + " · " + t("landing.card.cover", "cover")], [t("landing.card.root", "Root"), "<span class=\"he\">כ־ס־ה</span>"], [t("landing.card.which-hebrew", "Which Hebrew"), t("landing.card.biblical-and-modern", "Biblical and modern")]] },
     veacharei: { he: "וְאַחֲרֵי", state: "known", head: "אַחֲרֵי", pos: t("landing.card.preposition", "preposition"), sense: t("landing.card.after", "after"), facts: [[t("landing.card.here", "Here"), "<span class=\"he\">וְ</span> + <span class=\"he\">אַחֲרֵי</span> · " + t("landing.card.and-after", "and after")]] },
     chamesh: { he: "חָמֵשׁ", state: "known", head: "חָמֵשׁ", pos: t("landing.card.number", "number"), sense: t("landing.card.five", "five"), facts: [[t("landing.card.here", "Here"), t("landing.card.feminine-to-match", "feminine, to match") + " <span class=\"he\">דַּקּוֹת</span>"]] },
     dakot: { he: "דַּקּוֹת", state: "known", head: "דַּקָּה", pos: t("landing.card.noun-feminine", "noun, feminine"), sense: t("landing.card.minute", "minute"), facts: [[t("landing.card.plural", "Plural"), "<span class=\"he\">דַּקּוֹת</span>"], [t("landing.card.from", "From"), "<span class=\"he\">דַּק</span>" + t("landing.card.thin", ", thin")], [t("landing.card.met-before", "Met before"), t("landing.card.genesis-41-3", "Genesis 41:3") + " · <span class=\"scripture\">וְדַקּ֣וֹת</span> · " + t("landing.card.lean-fleshed", "“lean-fleshed”")]] },
@@ -71,14 +68,28 @@
   // `at` is where in the video we are. It was `t`, which is the catalogue's own
   // name for a sentence, and the clock quietly overwrote it (2026-09-16).
   var vowels = true, openId = "shovrim", at = 10.4, playing = false, rateIx = 2;
+  // While the film plays, the card turns to one word in each line as it is said, the
+  // one a learner would stop on (David, 2026-10-02: the page shows what's underneath
+  // without saying more).
+  var FOLLOW = ["sheyitchamem", "agvaniyot", "shovrim", "mechasim"];
 
   function plain(s) { return vowels ? s : s.replace(MARKS, ""); }
   function lineAt(time) { for (var i = 0; i < LINES.length; i++) if (time >= LINES[i].start && time < LINES[i].end) return i; return -1; }
   function comma(line, i) { return line.comma && line.comma.indexOf(i) >= 0 ? "," : ""; }
+  // The word being said: the line's time shared evenly between its words.
+  function wordAt(time) {
+    var n = lineAt(time);
+    if (n < 0) return null;
+    var line = LINES[n], k = Math.floor((time - line.start) / ((line.end - line.start) / line.words.length));
+    return { line: n, word: Math.min(k, line.words.length - 1) };
+  }
   function hebrewOf(line) { return line.words.map(function (id, i) { return plain(W[id].he) + comma(line, i); }).join(" ") + "."; }
 
   var linesEl = document.getElementById("lines");
+  var saying = null;
+  var roving = openId;
   function drawLines() {
+    var rovedOnce = false;
     var now = lineAt(at);
     linesEl.textContent = "";
     LINES.forEach(function (line, n) {
@@ -86,14 +97,18 @@
       pair.className = "pair" + (n === now ? " now" : "");
       var at = document.createElement("button");
       at.type = "button"; at.className = "at tnum"; at.textContent = line.stamp; at.dataset.line = n;
-      at.setAttribute("aria-label", "Play from " + line.stamp);
+      at.setAttribute("aria-label", t("landing.demo.play-from", "Play from {at}", { at: line.stamp }));
       var he = document.createElement("p");
       he.className = "line-he";
       line.words.forEach(function (id, i) {
         var w = W[id], span = document.createElement("span");
-        span.className = "w " + w.state + (id === openId ? " open" : "");
+        span.className = "w " + w.state + (id === openId ? " open" : "") + (saying && saying.line === n && saying.word === i ? " saying" : "");
         span.textContent = plain(w.he);
-        span.tabIndex = 0; span.setAttribute("role", "button"); span.dataset.id = id;
+        // One stop in the tab order for the whole reader, not one per word
+        // (2026-10-02): the arrows move between words, Enter opens one.
+        span.tabIndex = id === roving && !rovedOnce ? 0 : -1;
+        if (id === roving) rovedOnce = true;
+        span.setAttribute("role", "button"); span.dataset.id = id;
         he.appendChild(span);
         he.appendChild(document.createTextNode(comma(line, i) + (i === line.words.length - 1 ? "." : " ")));
       });
@@ -104,16 +119,30 @@
     });
   }
 
-  function drawCard() {
+  var drawnOnce = false;
+  function drawCard(quiet) {
     var w = W[openId];
-    var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.page.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
-      "<p class=\"card-sense\">" + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
+    var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.demo.word-card", "Word card") + "</span><p class=\"card-word\">" + w.head + "</p>" +
+      "<p class=\"card-sense\">" + (w.inf ? "<span class=\"he inf\">" + w.inf + "</span> " : "") + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
     if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + b[0] + " <span class=\"he\">" + b[1] + "</span></span>"; }).join("") + "</div>";
     html += "<dl class=\"facts-list\">" + w.facts.map(function (f) { return "<dt>" + f[0] + "</dt><dd>" + f[1] + "</dd>"; }).join("") + "</dl>";
     html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.getting-there", "Getting there") + "</button>" +
       "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +
       "<button class=\"btn ghost small\" type=\"button\">" + t("landing.demo.ask", "Ask") + "</button></div>";
-    document.getElementById("card").innerHTML = html;
+    var cardEl = document.getElementById("card");
+    cardEl.innerHTML = html;
+    // The new word settles in (landing.css, .turned): taken off and put back on, with a
+    // reflow between, so a second tap plays it again. Not on the first draw.
+    if (drawnOnce) {
+      cardEl.classList.remove("turned");
+      void cardEl.offsetWidth;
+      cardEl.classList.add("turned");
+    }
+    drawnOnce = true;
+    // Said once, briefly: the card itself is not a live region, because it is rewritten
+    // whole and would be read out whole on every tap (2026-10-02).
+    var said = document.getElementById("cardSaid");
+    if (said && !quiet) said.textContent = w.head.replace(/<[^>]+>/g, "") + ", " + w.sense;
   }
 
   linesEl.addEventListener("click", function (e) {
@@ -124,10 +153,19 @@
   });
   linesEl.addEventListener("keydown", function (e) {
     var w = e.target.closest(".w");
-    if (w && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault(); openId = w.dataset.id; drawLines(); drawCard();
+    if (!w) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault(); openId = roving = w.dataset.id; drawLines(); drawCard();
       var f = linesEl.querySelector('.w[data-id="' + openId + '"]'); if (f) f.focus();
+      return;
     }
+    // The lines read right to left, so left is the next word and right the one before.
+    var step = { ArrowLeft: 1, ArrowDown: 1, ArrowRight: -1, ArrowUp: -1 }[e.key];
+    if (!step) return;
+    e.preventDefault();
+    var words = Array.prototype.slice.call(linesEl.querySelectorAll(".w"));
+    var next = words[Math.max(0, Math.min(words.length - 1, words.indexOf(w) + step))];
+    w.tabIndex = -1; next.tabIndex = 0; roving = next.dataset.id; next.focus();
   });
   document.getElementById("card").addEventListener("click", function (e) {
     var b = e.target.closest("[data-set]");
@@ -227,8 +265,21 @@
     }
   }
 
+  function speak() {
+    var now = playing ? wordAt(at) : null;
+    if ((now && saying && now.line === saying.line && now.word === saying.word) || (!now && !saying)) return;
+    saying = now;
+    var lit = linesEl.querySelector(".w.saying");
+    if (lit) lit.classList.remove("saying");
+    if (!now) return;
+    var id = LINES[now.line].words[now.word];
+    if (id === FOLLOW[now.line] && openId !== id) { openId = id; drawLines(); drawCard(true); return; }
+    var pair = linesEl.children[now.line], w = pair && pair.querySelectorAll(".w")[now.word];
+    if (w) w.classList.add("saying");
+  }
   function paint() {
     film(at);
+    speak();
     clock.textContent = mmss(BASE + at) + " / 10:12";
     fill.style.inlineSize = (at / DURATION) * 100 + "%";
     track.setAttribute("aria-valuenow", String(Math.floor(at)));
@@ -241,7 +292,7 @@
     if (!playing) return;
     var dt = last ? Math.min(0.1, (now - last) / 1000) : 0; last = now;
     at += dt * RATES[rateIx];
-    if (at >= DURATION) { at = 0; paint(); toggle(); return; }
+    if (at >= DURATION) { at = 0; paint(); if (!auto) { toggle(); return; } }
     paint();
     raf = requestAnimationFrame(frame);
   }
@@ -249,8 +300,8 @@
     playing = !playing;
     stage.classList.toggle("playing", playing);
     document.getElementById("playGlyph").innerHTML = playing ? PAUSE : PLAY;
-    document.getElementById("play").setAttribute("aria-label", playing ? "Pause" : "Play");
-    if (playing) { last = 0; raf = requestAnimationFrame(frame); } else cancelAnimationFrame(raf);
+    document.getElementById("play").setAttribute("aria-label", playing ? t("landing.demo.pause", "Pause") : t("landing.demo.play", "Play"));
+    if (playing) { last = 0; raf = requestAnimationFrame(frame); } else { cancelAnimationFrame(raf); speak(); }
   }
   document.getElementById("play").addEventListener("click", toggle);
   document.getElementById("stageTap").addEventListener("click", toggle);
@@ -270,73 +321,176 @@
     var on = !stage.classList.contains("pinned");
     stage.classList.toggle("pinned", on);
     this.setAttribute("aria-pressed", String(on));
-    document.getElementById("pinWord").textContent = on ? "Back" : "Corner";
+    document.getElementById("pinWord").textContent = on ? t("landing.demo.back", "Back") : t("landing.demo.corner", "Corner");
   });
-  document.getElementById("watchIt").addEventListener("click", function () {
-    document.getElementById("reader").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-    seek(0);
-    if (!playing) toggle();
-  });
+
 
   drawLines(); drawCard(); paint();
 
-  /* ---- the media tiles ---- */
-  // A bar's height is set on the element, not written into the markup: the server's own
-  // policy allows no inline `style` attribute, and every chart on this page drew flat
-  // until they were set this way (2026-09-16).
-  function bars(into, n, height, marked) {
-    var host = document.getElementById(into);
-    if (!host) return;
-    host.replaceChildren();
-    for (var i = 0; i < n; i++) {
-      var bar = document.createElement("i");
-      bar.style.blockSize = height(i) + "%";
-      if (marked && marked(i)) bar.className = "on";
-      host.appendChild(bar);
-    }
-  }
-  bars(
-    "wave",
-    48,
-    function (i) {
-      return Math.min(92, 18 + Math.abs(Math.sin(i * 0.7) * 40 + Math.sin(i * 0.23) * 25));
-    },
-    function (i) {
-      return i < 29;
-    }
-  );
-  bars("mini", 22, function (j) {
-    return 25 + Math.abs(Math.sin(j * 1.3)) * 75;
+  /* ---- the film plays itself once you're reading (David, 2026-10-02) ----
+     Once the page has left its top and most of the picture is in view, the film plays,
+     quietly: the captions run, each word lights as it is said, and the card turns with
+     the voice. Out of view it waits. The first press, tap or key inside the reader is the
+     reader's own, and from then on it plays only when they say. Never with reduced
+     motion. */
+  var auto = false, handsOn = false;
+  var showcase = document.querySelector(".showcase");
+  ["pointerdown", "keydown"].forEach(function (kind) {
+    showcase.addEventListener(kind, function () { handsOn = true; auto = false; }, true);
   });
+  (function () {
+    if (reduced) return;
+    var ticking = false;
+    function look() {
+      ticking = false;
+      if (handsOn) return;
+      var r = stage.getBoundingClientRect(), h = window.innerHeight;
+      var seen = Math.max(0, Math.min(r.bottom, h) - Math.max(r.top, 0)) / Math.max(1, r.height);
+      var wanted = window.scrollY > 24 && seen > 0.6 && !stage.classList.contains("pinned");
+      if (wanted && !playing) { auto = true; toggle(); }
+      else if (!wanted && playing && auto) toggle();
+    }
+    window.addEventListener("scroll", function () { if (!ticking) { ticking = true; requestAnimationFrame(look); } }, { passive: true });
+    look();
+  })();
 
+  /* ---- the hero and the reader as one (landing.css, .top) ----
+     The card's height is kept on the grid so the film starts below it, and the film
+     makes room for the card the moment the page leaves its top. One class flips, so the
+     move is a transition, not a width recomputed on every scroll frame. */
+  (function () {
+    var top = document.querySelector(".top"), card = document.getElementById("card");
+    if (!top || !card) return;
+    function measure() { top.style.setProperty("--card-h", card.offsetHeight + "px"); }
+    measure();
+    if (window.ResizeObserver) new ResizeObserver(measure).observe(card);
+    top.classList.add("live");
+    var ticking = false;
+    function dock() {
+      ticking = false;
+      top.classList.toggle("docked", window.scrollY > 24);
+    }
+    window.addEventListener("scroll", function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(dock); }
+    }, { passive: true });
+    dock();
+  })();
 
-  /* ---- the vowel switches ---- */
+  /* ---- the vowel switch, on one word in "How you learn" ---- */
   var POINTS = /[\u05B0-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g, CANT = /[\u0591-\u05AF]/g;
-  var RECIPE = "שָׂמִים שֶׁמֶן בַּמַּחֲבַת וּמְחַכִּים שֶׁיִּתְחַמֵּם.";
-  var GEN = "בְּרֵאשִׁ֖ית בָּרָ֣א אֱלֹהִ֑ים אֵ֥ת הַשָּׁמַ֖יִם וְאֵ֥ת הָאָֽרֶץ׃";
-  function layers(el, forms) {
-    el.innerHTML = forms.map(function (f) { return "<span>" + f + "</span>"; }).join("");
-    return el.children;
+  var RECIPE = "שֶׁיִּתְחַמֵּם";
+  var vsRecipe = document.getElementById("vsRecipe"), swV = document.getElementById("swVowels");
+  if (vsRecipe && swV) {
+    // Letter by letter, each with its points over the bare letter, so the points can
+    // settle onto the letters one after another, in reading order (2026-10-02). Hebrew
+    // letters do not join, so a letter on its own is shaped as it is in the word.
+    vsRecipe.innerHTML = RECIPE.match(/[\u05D0-\u05EA][\u0591-\u05C7]*/g).map(function (c) {
+      return "<span class=\"vs-l\"><span class=\"bare\">" + c.replace(POINTS, "").replace(CANT, "") + "</span><span class=\"pointed\">" + c + "</span></span>";
+    }).join("");
+    vsRecipe.querySelectorAll(".vs-l").forEach(function (l, i) { l.style.setProperty("--i", String(i)); });
+    var showVowels = function () {
+      vsRecipe.classList.toggle("bare-only", swV.getAttribute("aria-checked") !== "true");
+    };
+    swV.addEventListener("click", function () {
+      swV.setAttribute("aria-checked", String(swV.getAttribute("aria-checked") !== "true"));
+      showVowels();
+    });
+    showVowels();
   }
-  var rec = layers(document.getElementById("vsRecipe"), [RECIPE, RECIPE.replace(POINTS, "").replace(CANT, "")]);
-  var tor = layers(document.getElementById("vsTorah"), [GEN, GEN.replace(CANT, ""), GEN.replace(CANT, "").replace(POINTS, "")]);
-  var swV = document.getElementById("swVowels"), swC = document.getElementById("swChant");
-  function showVowels() {
-    var v = swV.getAttribute("aria-checked") === "true", c = swC.getAttribute("aria-checked") === "true";
-    swC.disabled = !v;
-    // `plain` is the line with its points stripped off, and is the one shown when
-    // the vowel switch is off. Named rather than inlined because the two toggles
-    // on one line read as a pair of opposites, and one of them was the wrong way.
-    var plain = v === false;
-    rec[0].classList.toggle("off", plain);
-    rec[1].classList.toggle("off", v);
-    var torah = !v ? 2 : c ? 0 : 1;
-    for (var n = 0; n < tor.length; n++) tor[n].classList.toggle("off", n !== torah);
+
+  /* ---- the conversation arrives (David, 2026-10-02) ----
+     When the phone comes into view the turns arrive one after another, as they would:
+     yours, then targum's correction, its double underline drawn a beat later, then the
+     reply. Once. Without the script, or with reduced motion, it is simply there. */
+  var phone = document.querySelector(".talk-phone");
+  if (phone && !reduced && "IntersectionObserver" in window) {
+    phone.classList.add("waiting");
+    var arrive = new IntersectionObserver(function (seen) {
+      if (!seen.some(function (e) { return e.isIntersecting; })) return;
+      phone.classList.add("arrived");
+      arrive.disconnect();
+    }, { threshold: 0.35 });
+    arrive.observe(phone);
   }
-  [swV, swC].forEach(function (b) {
-    b.addEventListener("click", function () { b.setAttribute("aria-checked", String(b.getAttribute("aria-checked") !== "true")); showVowels(); });
-  });
-  showVowels();
+
+  /* ---- the box and the waitlist, in one popup (David, 2026-10-02) ----
+     Try it opens the popup at once, "Looking at the link…", and fills it with the answer
+     the plain post would have put under the box: what the link is, and the waitlist
+     form. Joining, from there or from the end of the page, turns the popup into the
+     server's own answer. Each is the same page the post returns, read for its words, so
+     nothing is said twice in two places. Any failure falls back to the plain post. */
+  var pop = document.getElementById("pop"), popBody = document.getElementById("popBody");
+  if (pop && pop.showModal && window.fetch) {
+    var popOpen = function (node, label) {
+      popBody.replaceChildren(node);
+      pop.setAttribute("aria-label", label || "");
+      if (!pop.open) pop.showModal();
+      var field = popBody.querySelector("input[type=email]");
+      if (field) field.focus();
+    };
+    var post = function (form) {
+      return fetch(form.action, { method: "POST", body: new URLSearchParams(new FormData(form)), credentials: "same-origin" })
+        .then(function (r) { return r.text().then(function (html) {
+          // Read in an inert template: nothing in it is applied or run, so the answer's
+          // own page brings no styles of its own along.
+          var held = document.createElement("template");
+          held.innerHTML = html;
+          return { ok: r.ok, doc: held.content };
+        }); });
+    };
+    var said = function (doc) {
+      var head = doc.querySelector("main h1"), lede = doc.querySelector("main .lede");
+      return { head: head ? head.textContent.trim() : "", lede: lede ? lede.textContent.trim() : "" };
+    };
+    var envelope = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 7.5 12 13l7.5-5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+    var done = function (words, mark) {
+      var box = document.createElement("div");
+      box.className = "pop-done";
+      box.innerHTML = (mark ? '<span class="tried-mark">' + envelope + "</span>" : "") + '<h2 class="pop-head"></h2><p class="pop-said"></p>';
+      box.querySelector(".pop-head").textContent = words.head;
+      box.querySelector(".pop-said").textContent = words.lede;
+      return box;
+    };
+    var join = function (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var button = form.querySelector("button[type=submit]");
+        if (button) button.disabled = true;
+        post(form).then(function (answer) {
+          var words = said(answer.doc);
+          if (!words.head) throw new Error("no answer");
+          if (answer.ok) { popOpen(done(words, true), words.head); form.reset(); return; }
+          // Not an address, or asked too often: said where they typed, so they can mend it.
+          var wrong = form.parentNode.querySelector(".pop-wrong") || document.createElement("p");
+          wrong.className = "pop-wrong"; wrong.setAttribute("role", "alert"); wrong.textContent = words.lede;
+          if (pop.open && popBody.contains(form)) form.parentNode.insertBefore(wrong, form);
+          else popOpen(done(words, false), words.head);
+        }).catch(function () { form.submit(); })
+          .then(function () { if (button) button.disabled = false; });
+      });
+    };
+    document.querySelectorAll(".join-form").forEach(join);
+    var tryForm = document.querySelector(".try-form");
+    if (tryForm) tryForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var reading = document.createElement("div");
+      reading.className = "pop-reading";
+      reading.innerHTML = '<span class="tried-mark"></span><p></p>';
+      reading.querySelector("p").textContent = pop.dataset.reading;
+      popOpen(reading, pop.dataset.reading);
+      post(tryForm).then(function (answer) {
+        var tried = answer.doc.querySelector(".tried");
+        if (!tried) throw new Error("no answer");
+        tried = document.importNode(tried, true);
+        tried.querySelectorAll(".join-form").forEach(join);
+        var title = tried.querySelector(".tried-title, .tried-what");
+        popOpen(tried, title ? title.textContent.trim() : "");
+      }).catch(function () { pop.close(); tryForm.submit(); });
+    });
+    pop.querySelector(".pop-x").addEventListener("click", function () { pop.close(); });
+    // A press on the dim around the popup closes it, as Escape does.
+    pop.addEventListener("click", function (e) { if (e.target === pop) pop.close(); });
+  }
 
   /* ---- the Torah ---- */
   var VERSES = [
@@ -345,7 +499,7 @@
     { he: "וַיֹּ֥אמֶר אֱלֹהִ֖ים יְהִ֣י א֑וֹר וַֽיְהִי־אֽוֹר׃", en: t("landing.demo.and-god-said-let-there-be-light-and", "And God said: ‘Let there be light.’ And there was light."), arc: "וַאֲמַר יְיָ יְהֵי נְהוֹרָא וַהֲוָה נְהוֹרָא" }
   ];
   var READINGS = [t("landing.demo.first-reading-in-hebrew", "First reading, in Hebrew"), t("landing.demo.second-reading-in-hebrew", "Second reading, in Hebrew"), t("landing.demo.once-in-onkelos", "Once in Onkelos")];
-  var mode = "read", at = 0, step = 0, reading = 0;
+  var mode = "read", verseAt = 0, step = 0, reading = 0;
   var versesEl = document.getElementById("verses"), foot = document.getElementById("torahFoot"), meta = document.getElementById("torahMeta");
 
   function drawTorah() {
@@ -356,9 +510,9 @@
       var html = "<span class=\"num\">" + (n + 1) + "</span><p class=\"v-he\">" + v.he + "</p>";
       if (mode === "read") html += "<p class=\"v-en\">" + v.en + "</p>";
       if (mode === "verse") {
-        if (n === at) row.className += " current";
-        if (n < at) row.className += " done";
-        if (n === at && step >= 2) html += "<p class=\"v-arc\">" + v.arc + "</p>";
+        if (n === verseAt) row.className += " current";
+        if (n < verseAt) row.className += " done";
+        if (n === verseAt && step >= 2) html += "<p class=\"v-arc\">" + v.arc + "</p>";
       }
       if (mode === "aliyah" && reading === 2) html += "<p class=\"v-arc\">" + v.arc + "</p>";
       row.innerHTML = html;
@@ -367,8 +521,8 @@
     foot.hidden = mode === "read";
     if (mode === "read") meta.textContent = t("landing.demo.hebrew-english", "Hebrew · English");
     if (mode === "verse") {
-      meta.textContent = t("landing.demo.shnayim-mikra-verse", "Shnayim mikra · verse ") + Math.min(at + 1, 3) + t("landing.demo.of-3", " of 3");
-      var lastVerse = at === VERSES.length - 1;
+      meta.textContent = t("landing.demo.shnayim-mikra-verse", "Shnayim mikra · verse ") + Math.min(verseAt + 1, 3) + t("landing.demo.of-3", " of 3");
+      var lastVerse = verseAt === VERSES.length - 1;
       var next = step === 0 ? [t("landing.demo.again", "Again"), "again"] : step === 1 ? [t("landing.demo.onkelos", "Onkelos"), "onkelos"] : lastVerse ? [t("landing.demo.finish", "Finish"), "finish"] : [t("landing.demo.next-verse", "Next verse"), "next"];
       var said = step === 0 ? t("landing.demo.read-the-verse-in-hebrew", "Read the verse in Hebrew.") : step === 1 ? t("landing.demo.once-more-in-hebrew", "Once more, in Hebrew.") : t("landing.demo.and-once-in-onkelos", "And once in Onkelos.");
       if (step === 3) { said = t("landing.demo.all-three-verses-twice-in-hebrew-and-once", "All three verses, twice in Hebrew and once in Onkelos."); next = [t("landing.demo.start-again", "Start again"), "restart"]; }
@@ -378,13 +532,13 @@
       meta.textContent = t("landing.demo.shnayim-mikra-the-aliyah", "Shnayim mikra · the aliyah");
       var done = reading === 3;
       foot.innerHTML = "<span class=\"say\">" + (done ? "That aliyah is on your progress." : READINGS[reading]) + "</span>" +
-        "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? t("landing.demo.start-again", "Start again") : reading === 2 ? t("landing.demo.done", "Done") : "Next reading") + "</button>";
+        "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? t("landing.demo.start-again", "Start again") : reading === 2 ? t("landing.demo.done", "Done") : t("landing.demo.next-reading", "Next reading")) + "</button>";
     }
   }
   document.querySelectorAll(".torah .seg button").forEach(function (b) {
     b.addEventListener("click", function () {
       document.querySelectorAll(".torah .seg button").forEach(function (o) { o.setAttribute("aria-pressed", String(o === b)); });
-      mode = b.dataset.mode; at = 0; step = 0; reading = 0;
+      mode = b.dataset.mode; verseAt = 0; step = 0; reading = 0;
       drawTorah();
     });
   });
@@ -394,47 +548,14 @@
     var go = b.dataset.go;
     if (go === "again") step = 1;
     else if (go === "onkelos") step = 2;
-    else if (go === "next") { at += 1; step = 0; }
-    else if (go === "finish") { at = VERSES.length; step = 3; }
+    else if (go === "next") { verseAt += 1; step = 0; }
+    else if (go === "finish") { verseAt = VERSES.length; step = 3; }
     else if (go === "reading") reading += 1;
-    else if (go === "restart") { at = 0; step = 0; reading = 0; }
+    else if (go === "restart") { verseAt = 0; step = 0; reading = 0; }
     drawTorah();
     var nb = foot.querySelector("button"); if (nb) nb.focus();
   });
   drawTorah();
-
-  /* ---- the ladder ---- */
-  // [words, the letter, ] — the rung's own name and its CEFR step went with the
-  // tooltip that said them in English on a Russian page (2026-09-16).
-  var RUNGS = [[250, "א"], [900, "א+"], [1800, "ב"], [3000, "ב+"], [4500, "ג"], [6500, "ד"], [9000, "ה"], [12000, "ו"]];
-  var known = 2140;
-  // Built as elements for the reason the waveforms are: the two heights on every rung
-  // are an inline `style` the server's policy refuses, and the whole chart drew flat.
-  var ladder = document.getElementById("ladder");
-  ladder.replaceChildren();
-  RUNGS.forEach(function (r, n) {
-    var lo = n ? RUNGS[n - 1][0] : 0;
-    var share = Math.max(0, Math.min(1, (known - lo) / (r[0] - lo)));
-    var step = document.createElement("div");
-    step.className = "step";
-    var bar = document.createElement("span");
-    bar.className = "bar-s";
-    bar.style.blockSize = 18 + n * 11.5 + "%";
-    var filled = document.createElement("i");
-    filled.style.blockSize = share * 100 + "%";
-    bar.appendChild(filled);
-    var cap = document.createElement("span");
-    cap.className = "cap";
-    var letter = document.createElement("span");
-    letter.className = "he";
-    letter.textContent = r[1];
-    var count = document.createElement("span");
-    count.className = "n";
-    count.textContent = r[0].toLocaleString("en");
-    cap.append(letter, count);
-    step.append(bar, cap);
-    ladder.appendChild(step);
-  });
 
   /* ---- conversation fold ---- */
   var whyFold = document.getElementById("whyFold"), why = document.getElementById("why");

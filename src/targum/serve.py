@@ -175,7 +175,13 @@ def tried_for(job: Any, ui: str) -> dict[str, Any]:
     import math
 
     if job.stage == "failed":
-        refused = job.error or said_in(ui, "door.no-answer", "We couldn't open that link.")
+        # A fetcher's own words name the address it asked and the status it got ("We
+        # couldn't open https://cdn.syndication.twimg.com/…. HTTP 404"), which tells a
+        # stranger only how the inside works (2026-10-02). The sentences written for a
+        # person, "That isn't a link." and the like, carry neither and still stand.
+        refused = job.error
+        if not refused or "://" in refused or re.search(r"\bHTTP \d{3}\b", refused):
+            refused = said_in(ui, "door.no-answer", "We couldn't open that link.")
         return {"refused": refused}
     door = str(job.options.get("door") or "page")
     seen = max(1, round(job.usually / 60)) if job.usually else 0

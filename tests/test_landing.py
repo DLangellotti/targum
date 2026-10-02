@@ -131,13 +131,26 @@ def test_the_page_says_what_it_is_to_a_crawler() -> None:
 
 
 def test_the_waitlist_form_needs_no_javascript() -> None:
-    """Three forms, one on each ask, and every one of them a plain post."""
+    """One waitlist form, the ending's, and a plain post. The hero has one call to action,
+    the box (2026-10-02): its form posts to `/try` and draws the waitlist, carrying the
+    link, only once something was tried (targum-internal#399, `test_try_the_door.py`)."""
     html = front_page("en", ADDRESS)
     forms = re.findall(r'<form[^>]*action="/waitlist"[^>]*>', html)
-    assert len(forms) == 3
+    assert len(forms) == 1
     for form in forms:
         assert 'method="post"' in form
-    assert html.count('name="email"') == 3
+    assert html.count('name="email"') == 1
+    hero = html[html.index('<div class="hero">') : html.index('class="showcase"')]
+    assert hero.count("<form") == 1 and 'class="try-form"' in hero, "one action in the hero"
+    assert '<form class="try-form" method="post" action="/try#try">' in html
+
+
+def test_the_page_promises_no_order_and_no_price() -> None:
+    """Nothing about the order people are let in, which the operator also does by hand,
+    and nothing about who hears the price first, which is not decided."""
+    html = front_page("en", ADDRESS)
+    assert "The earlier you join" not in html
+    assert "hears what it costs" not in html
 
 
 def test_the_page_speaks_through_the_catalogue() -> None:
@@ -210,7 +223,7 @@ def test_joining_takes_the_address_and_mails_a_link(
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
     assert status == 200
-    assert "Confirm it there to keep your place" in body
+    assert "We’ve sent you an email to confirm" in body
     assert store.waiting_state("dina@example.com") == "pending"
     sent = posted.getvalue()
     assert "dina@example.com" in sent
@@ -379,8 +392,8 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, body = post(port, "/waitlist?lang=ru", {"email": "dina@example.com"})
     assert status == 200
-    assert "мы отправили на него письмо" in body
-    assert "Confirm it there to keep your place" not in body
+    assert "Мы отправили вам письмо для подтверждения" in body
+    assert "We’ve sent you an email to confirm" not in body
     assert 'lang="ru"' in body, "the page says which language it is in"
 
     # The mail too, which is the first thing targum ever sends anybody.
@@ -442,7 +455,7 @@ def test_the_form_posts_in_the_language_that_was_pressed(
         body = connection.getresponse().read().decode("utf-8")
     finally:
         connection.close()
-    assert "мы отправили на него письмо" in body
+    assert "Мы отправили вам письмо для подтверждения" in body
     assert "Подтвердите место в списке ожидания targum" in posted.getvalue()
     token = re.search(r"/waitlist/confirm\?t=(\S+)", posted.getvalue()).group(1)
     assert store.waiting_language(token) == "ru", "so the invitation is Russian too"
@@ -521,7 +534,7 @@ def test_an_english_visitor_is_answered_as_they_always_were(
     port, _store, posted = served
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
-    assert status == 200 and "Confirm it there to keep your place" in body
+    assert status == 200 and "We’ve sent you an email to confirm" in body
     assert "Confirm your place on the targum waitlist" in posted.getvalue()
 
 
@@ -566,7 +579,7 @@ def test_x_is_listed_as_working_only_where_its_door_is_open(monkeypatch) -> None
     assert re.search(r"Posts from X<span class=\"soon\">", shut)
     monkeypatch.setenv(x_door.ENV, "1")
     armed = front_page()
-    assert "Posts from X</li>" in armed
+    assert "Posts from X</h3>" in armed
     for page in (shut, armed):
         assert "Reddit" not in page
 
@@ -577,24 +590,45 @@ def test_facebook_videos_are_listed_with_the_doors_that_open() -> None:
     from targum.render.builder import front_page
 
     page = front_page()
-    assert "Reels, Shorts, TikToks and Facebook videos</li>" in page
+    assert "Reels, Shorts, TikToks and Facebook videos</h3>" in page
 
 
-def test_the_connector_is_mentioned_twice_while_it_is_open(
+def test_the_connector_is_mentioned_in_talk_while_it_is_open(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Lightly, twice (design.md §12, "The connector is met on the way in"): one point in
-    the list near the top, and a line in the part about talking to targum, with the way
-    to `/connect`. Dark, neither is said: a door to a 404 is worse than none."""
+    """Lightly, once (design.md §12, "The connector is met on the way in"): a line in the
+    part about talking to targum, with the way to `/connect`, and not in the list under
+    the headline, where it read as what targum is built on (David, 2026-10-02). Dark, it
+    is not said: a door to a 404 is worse than none."""
     monkeypatch.setenv("TARGUM_CONNECTOR", "1")
     page = front_page()
     facts = page[page.index('<ul class="facts">') :]
-    assert "Works in Claude and ChatGPT" in facts[: facts.index("</ul>")]
+    assert "Claude" not in facts[: facts.index("</ul>")]
     talk = page[page.index('id="talk"') :]
     talk = talk[: talk.index("</section>")]
-    assert "You can also talk to targum inside Claude or ChatGPT." in talk
+    assert "It works in Claude and ChatGPT too." in talk
     assert 'href="/connect"' in talk
     monkeypatch.delenv("TARGUM_CONNECTOR")
     quiet = front_page()
-    assert "Works in Claude and ChatGPT" not in quiet
-    assert "You can also talk to targum inside" not in quiet
+    assert "It works in Claude and ChatGPT too." not in quiet
+
+
+def test_every_colour_the_front_door_draws_is_a_token() -> None:
+    """A design review on 2026-10-02 found 26 colours written straight into rules, three
+    of them passing `test_brand.py` only by sharing a hex with something else. Each is
+    named once in a `:root` block now, and a rule says a token or says nothing."""
+    sheet = Path(__file__).resolve().parents[1] / "src/targum/render/assets/landing.css"
+    literals: list[tuple[int, str]] = []
+    in_root = False
+    for number, line in enumerate(sheet.read_text(encoding="utf-8").splitlines(), 1):
+        if line.startswith(":root"):
+            in_root = True
+        if in_root:
+            in_root = not line.startswith("}")
+            continue
+        if line.strip().startswith(("/*", "*")):
+            continue
+        literals += [
+            (number, found) for found in re.findall(r"#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)", line)
+        ]
+    assert not literals, f"colours outside a token: {literals}"

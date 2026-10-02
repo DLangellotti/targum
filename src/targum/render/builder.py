@@ -1537,9 +1537,9 @@ def front_page(
             title=words("landing.head.title", "targum — learn modern and biblical Hebrew"),
             description=words(
                 "landing.head.description",
-                "Learn modern and biblical Hebrew from videos, podcasts and books. "
-                "Vowels on every word, English beside every line, and any word explained "
-                "the moment you tap it.",
+                "Learn modern and biblical Hebrew from videos, podcasts and books, or bring "
+                "your own. Vowels on every word, English beside every line, and any word "
+                "explained the moment you tap it.",
             ),
             joined_from="/",
             tried=tried,

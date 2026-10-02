@@ -13,7 +13,7 @@
 {{ hebrew_face() }}
 <script>{{ asset('keep.js') }}</script>
 </head>
-<body class="public">
+<body class="public note">
 <main class="sheet">
   {#- One row on the sheet's own grid: the name at one corner, the door and the light
       switch at the other. The corner used to be pinned to the window's edge, which on a
@@ -28,6 +28,10 @@
     </a>
   </div>
 
+  {#- The note stands in the middle of the window, and the foot at its bottom: on a
+      short note the foot had followed the sentence up into the middle of the screen
+      (David, 2026-10-02). -#}
+  <div class="note-body">
   <h1>{{ heading }}</h1>
   <p class="lede">{{ message }}</p>
 
@@ -39,6 +43,7 @@
   {%- else %}
   <p class="door"><a class="go" href="{{ home }}">{% if home == '/weekly' %}{{ t("note.read-this-week", "Read this week") }}{% else %}{{ t("note.back-to-targum", "Back to targum") }}{% endif %}</a></p>
   {%- endif %}
+  </div>
 </main>
 
 {% include '_public_foot.html.j2' %}
