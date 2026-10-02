@@ -194,6 +194,10 @@ h1, h2, h3 { text-wrap: balance; }
 .btn.filled { background: var(--teal); color: var(--paper); }
 .btn.tonal { background: var(--teal-wash); color: var(--teal); }
 .btn.tonal:hover, .btn.tonal[aria-pressed="true"] { background: var(--teal-strong); }
+/* On the bare ground the tint is too faint to carry teal text: 4.28:1, under AA for this
+   size. There it stands on the card instead, 5.8:1, and lifts on hover (2026-10-02). */
+.hero .btn.tonal { background: var(--card); box-shadow: var(--shadow-rest); }
+.hero .btn.tonal:hover { background: var(--card); box-shadow: var(--shadow-raised); }
 .btn.ghost { background: transparent; color: var(--muted); }
 .btn.ghost:hover { background: var(--hairline); }
 .btn.small { min-block-size: 2rem; padding: 0.35rem 0.8rem; font-size: 0.875rem; }
