@@ -114,6 +114,9 @@ class Item:
     #: binyan and mishkal rule reads; never sent either.
     code: str = ""
     suffix: str = ""
+    #: Where the word sits in its verse, counted over OSHB's words: what lets a tagger
+    #: run over the verse hand its answer for this word back (`eval_stress_tagger.py`).
+    at: int = 0
 
     @property
     def id(self) -> str:
@@ -219,6 +222,7 @@ def collect(books: tuple[str, ...]) -> list[Item]:
                         ruling.key if ruling else "",
                         word.code,
                         "/".join(after),
+                        number,
                     )
                 )
     return out

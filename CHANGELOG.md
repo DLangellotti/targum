@@ -17,6 +17,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the ledger yet: the cache is still the read path. `ledger.rebuild` writes the cache
   back from rows and `ledger.backfill` reads today's cache in; against this laptop's
   cache that recorded 936 pointings and refused none.
+- The Hebrew stress rule fed by a local tagger instead of OSHB (targum-internal#325).
+  `scripts/eval_stress_tagger.py` scores `stress-rule/1` on the same 3,000 held-out words
+  of `tanakh-taamim-v2` with two $0 taggers. DICTA's own morphology (`dictabert-joint`,
+  the Hebrew annotator, run over each verse unpointed) gives 0.9377, or 0.9393 with a
+  perfect behind a vav read as vav-consecutive; it misses the possessive suffixes the
+  Bible writes on the noun and the directional he, which it does not tag. A logistic
+  tagger over the pointed word's letters and vowels, trained on words 3,001 to 23,000,
+  gives 0.9510, and 0.9520 reading DICTA's tags as well. Against 0.9137 from the pointing
+  alone and 0.9630 with OSHB. There is no modern Hebrew stress gold to score either on.
+  Nothing shipped reads any of it: `phonikud/2` and `SCHEMA_VERSION` are unchanged.
 - The Hebrew stress eval measures the pause and a grammar rule, both free
   (targum-internal#325). `scripts/eval_hebrew_stress.py --baseline-only` now also writes
   the share of the gold under a pausal accent, read by `vocalize/trope.py` (10.4% under
