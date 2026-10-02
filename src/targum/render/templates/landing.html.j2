@@ -30,10 +30,49 @@
 
 <main id="top">
   <div class="col">
-    <div class="hero">
+    <div class="hero{% if tried and not tried.refused %} has-tried{% endif %}">
       <div class="headline">
         <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
           <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "You learn Hebrew by understanding it. So everything here arrives ready to read: vowels (nikkud) on every word, English beside every line, and an explanation for any word you tap.") }}</p>
+        {#- Try the door (targum-internal#399): paste a link and be told what it is, in
+            the Add box's own sentence. A plain post, so it works with JavaScript off;
+            the answer comes back on this page. Nothing is built and nothing is spent,
+            and no percentage is shown: "you know X%" needs a record, and getting one
+            is the reason to join (2026-09-30). -#}
+        <div class="try" id="try">
+          <form class="try-form" method="post" action="/try{% if asked %}?lang={{ asked }}{% endif %}#try">
+            <label class="field">
+              <input type="url" name="link" required inputmode="url" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.try.placeholder", "Paste a link to anything in Hebrew") }}" aria-label="{{ t("landing.try.label", "A link to try") }}"{% if tried and tried.link %} value="{{ tried.link }}"{% endif %}>
+              <button class="btn tonal" type="submit">{{ t("landing.try.button", "Try it") }}</button>
+            </label>
+          </form>
+          {%- if tried %}
+          <div class="tried" role="status">
+            {%- if tried.refused %}
+            <p class="tried-what">{{ tried.refused }}</p>
+            {%- else %}
+            <p class="tried-what">
+              {%- if tried.door == 'youtube' %}{{ t("landing.try.youtube", "That’s a YouTube video") }}
+              {%- elif tried.door == 'instagram' %}{{ t("landing.try.instagram", "That’s an Instagram reel") }}
+              {%- elif tried.door == 'instagram-post' %}{{ t("landing.try.instagram-post", "That’s an Instagram post") }}
+              {%- elif tried.door == 'tiktok' %}{{ t("landing.try.tiktok", "That’s a TikTok video") }}
+              {%- elif tried.door == 'facebook' %}{{ t("landing.try.facebook", "That’s a Facebook video") }}
+              {%- elif tried.door == 'x' %}{{ t("landing.try.x", "That’s a post on X") }}
+              {%- elif tried.door == 'podcast' %}{{ t("landing.try.podcast", "That’s a podcast episode") }}
+              {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
+              {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
+              {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
+              {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.
+              {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
+            {%- if tried.title %}
+            <p class="tried-title" dir="auto">{{ tried.title }}</p>
+            {%- endif %}
+            <p class="tried-keep">{{ t("landing.try.keep", "Join to keep it. When your turn comes, it’ll be waiting for you, ready to learn from.") }}</p>
+            {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
+            {%- endif %}
+          </div>
+          {%- endif %}
+        </div>
       </div>
       <div class="side">
         {% with note = true %}{% include '_join_form.html.j2' %}{% endwith %}
@@ -110,45 +149,22 @@
         <h2>{{ t("landing.page.if-it-s-in-hebrew-you-can-learn", "If it’s in Hebrew, you can learn from it here.") }}</h2>
         <p>{{ t("landing.page.paste-a-link-or-drop-a-file-whatever", "Paste a link or drop a file. Recordings are written out word by word and timed to the voice, so each word lights up as it’s said.") }}</p>
       </div>
-      {#- Try the door (targum-internal#399): paste a link and be told what it is, in
-          the Add box's own sentence. A plain post, so it works with JavaScript off;
-          the answer comes back on this page. Nothing is built and nothing is spent,
-          and no percentage is shown: "you know X%" needs a record, and getting one
-          is the reason to join (2026-09-30). -#}
-      <div class="try" id="try">
-        <form class="try-form" method="post" action="/try{% if asked %}?lang={{ asked }}{% endif %}#try">
-          <label class="field">
-            <input type="url" name="link" required inputmode="url" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.try.placeholder", "Paste a link to anything in Hebrew") }}" aria-label="{{ t("landing.try.label", "A link to try") }}"{% if tried and tried.link %} value="{{ tried.link }}"{% endif %}>
-            <button class="btn tonal" type="submit">{{ t("landing.try.button", "Try it") }}</button>
-          </label>
-        </form>
-        {%- if tried %}
-        <div class="tried" role="status">
-          {%- if tried.refused %}
-          <p class="tried-what">{{ tried.refused }}</p>
-          {%- else %}
-          <p class="tried-what">
-            {%- if tried.door == 'youtube' %}{{ t("landing.try.youtube", "That’s a YouTube video") }}
-            {%- elif tried.door == 'instagram' %}{{ t("landing.try.instagram", "That’s an Instagram reel") }}
-            {%- elif tried.door == 'instagram-post' %}{{ t("landing.try.instagram-post", "That’s an Instagram post") }}
-            {%- elif tried.door == 'tiktok' %}{{ t("landing.try.tiktok", "That’s a TikTok video") }}
-            {%- elif tried.door == 'facebook' %}{{ t("landing.try.facebook", "That’s a Facebook video") }}
-            {%- elif tried.door == 'x' %}{{ t("landing.try.x", "That’s a post on X") }}
-            {%- elif tried.door == 'podcast' %}{{ t("landing.try.podcast", "That’s a podcast episode") }}
-            {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
-            {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
-            {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
-            {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.
-            {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
-          {%- if tried.title %}
-          <p class="tried-title" dir="auto">{{ tried.title }}</p>
-          {%- endif %}
-          <p class="tried-keep">{{ t("landing.try.keep", "Join to keep it. When your turn comes, it’ll be waiting for you, ready to learn from.") }}</p>
-          {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
-          {%- endif %}
+      {#- What the box gives back once you're in (2026-10-02): the one sentence about the
+          link, how much of it you already know, and when it's ready. Drawn, because a
+          stranger has no record to measure against; the box in the hero is the live one. -#}
+      <figure class="example" aria-label="{{ t("landing.page.example-what-you-d-see", "Example: what you’d see once you’re in") }}">
+        <p class="label">{{ t("landing.page.what-you-d-see", "What you’d see") }}</p>
+        <div class="example-card">
+          <span class="thumb" aria-hidden="true"><span class="len tnum">9:04</span></span>
+          <div class="example-body">
+            <p class="example-what">{{ t("landing.page.that-s-a-youtube-video-9-minutes", "That’s a YouTube video, 9 minutes, Hebrew subtitles written by a person.") }}</p>
+            <p class="example-title">{{ t("landing.page.sabich-step-by-step", "Sabich, step by step") }}</p>
+            <p class="example-known"><b class="tnum">80%</b> {{ t("landing.page.of-it-you-already-know", "of it you already know") }}</p>
+            <span class="meter"><i class="p80"></i></span>
+            <p class="example-wait">{{ t("landing.page.ready-in-about-4-minutes", "Ready in about 4 minutes.") }}</p>
+          </div>
         </div>
-        {%- endif %}
-      </div>
+      </figure>
         {#- Where the Hebrew comes from, each drawn as what it looks like (2026-10-01): the
             page's one inverted block, beside the box that takes it. -#}
         <div class="media bring">
@@ -179,11 +195,11 @@
             </li>
             <li class="m-tile">
               <div class="m-vis news-vis"><p class="he head">הַגֶּשֶׁם חוֹזֵר בְּסוֹף הַשָּׁבוּעַ</p><p class="he">הַתַּחֲזִית: גְּשָׁמִים בַּצָּפוֹן וּבַמֶּרְכָּז, וְקַר יוֹתֵר בַּלַּיְלָה.</p></div>
-              <h3>{{ t("landing.page.today-s-news-from-any-site", "Today’s news, from any site") }}</h3>
+              <h3>{{ t("landing.page.news-and-articles-from-any-site", "News and articles, from any site") }}</h3>
             </li>
             <li class="m-tile">
               <div class="m-vis page-vis"><span class="sheet-p"><i></i><i></i><i class="s"></i><i></i><i class="s"></i></span><span class="sheet-p back"><i></i><i class="s"></i><i></i></span></div>
-              <h3>{{ t("landing.page.an-article-or-a-book", "An article or a book") }}</h3>
+              <h3>{{ t("landing.page.a-photo-of-a-letter-a-form-a-sign", "A photo of a page: a letter, a form, a sign") }}</h3>
             </li>
           </ul>
         </div>
@@ -265,10 +281,12 @@
                 is told by where it stands, the reader's set in from the start and targum's
                 from the end, the same ink on both, never two colours of bubble. -#}
             <ol class="ct-turns" aria-label="{{ t("landing.page.example-conversation", "Example conversation") }}">
-              <li class="ct-turn me" aria-label="{{ t("landing.page.you", "You") }}">
+              <li class="ct-turn me">
+                <span class="ct-who">{{ t("landing.page.you", "You") }}</span>
                 <p class="ct-he">השקשוקה שלי היה טעים</p>
               </li>
-              <li class="ct-turn them" aria-label="targum">
+              <li class="ct-turn them">
+                <span class="ct-who">targum</span>
                 <div class="ct-pair ct-recast">
                   <span class="ct-tag">{{ t("landing.page.corrected", "Corrected") }}</span>
                   <p class="ct-he">הַשַּׁקְשׁוּקָה שֶׁלִּי <span class="fix">הָיְתָה</span> <span class="fix">טְעִימָה</span>.</p>
@@ -346,6 +364,26 @@
     </div>
   </section>
 
+  <section class="part" id="questions">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
+        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
+      </div>
+      <div class="faq">
+        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.page.if-you-re-learning-hebrew-and-know-the", "If you’re learning Hebrew and know the alphabet, yes: whether you’re fresh out of an ulpan, a year into an app, studying for a degree or keeping up with the weekly portion. The library is sorted by the words you already know, so there’s always something you can learn from.") }}</p></details>
+        <details><summary>{{ t("landing.page.does-it-replace-a-course", "Does it replace a course?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
+        <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.page.both-on-one-list-a-word-you-learn", "Both, on one list. A word you learn in Genesis is already yours when it turns up in the news.") }}</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
+        {%- if connector_is_open() %}
+        <details><summary>{{ t("landing.page.can-i-use-it-in-claude-or-chatgpt", "Can I use it in Claude or ChatGPT?") }}</summary><p>{{ t("landing.page.yes-connect-targum-and-your-ai-talks", "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p></details>
+        {%- endif %}
+        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring stays yours. It’s used only to make your reading, and no model is trained on it.") }}</p></details>
+      </div>
+    </div>
+  </section>
+
   {#- The page's ending, not a fourth example: centred on the page itself, with no paper
       under it, so the only raised sheets on the landing are the product's (§8, one
       raised layer per view; David, 2026-10-02). -#}
@@ -363,25 +401,6 @@
     </div>
   </section>
 
-  <section class="part" id="questions">
-    <div class="col">
-      <div class="part-head">
-        <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
-        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
-      </div>
-      <div class="faq">
-        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
-        <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.page.if-you-re-learning-hebrew-and-know-the", "If you’re learning Hebrew and know the alphabet, yes: whether you’re fresh out of an ulpan, a year into an app, studying for a degree or keeping up with the weekly portion. The library is sorted by the words you already know, so there’s always something you can learn from.") }}</p></details>
-        <details><summary>{{ t("landing.page.does-it-replace-a-course", "Does it replace a course?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
-        <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.page.both-on-one-list-a-word-you-learn", "Both, on one list. A word you learn in Genesis is already yours when it turns up in the news.") }}</p></details>
-        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
-        {%- if connector_is_open() %}
-        <details><summary>{{ t("landing.page.can-i-use-it-in-claude-or-chatgpt", "Can I use it in Claude or ChatGPT?") }}</summary><p>{{ t("landing.page.yes-connect-targum-and-your-ai-talks", "Yes. Connect targum and your AI talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }} <a href="/connect">{{ t("landing.page.see-how-to-connect", "See how to connect") }}</a></p></details>
-        {%- endif %}
-        <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring stays yours, and is used to make your reading, for that alone.") }}</p></details>
-      </div>
-    </div>
-  </section>
 
 </main>
 

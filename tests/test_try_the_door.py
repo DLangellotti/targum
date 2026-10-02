@@ -111,16 +111,13 @@ def said(page: str) -> str:
     return html.unescape(" ".join(found.group(1).split()))
 
 
-def test_the_box_is_a_plain_form_under_the_reader() -> None:
+def test_the_box_is_a_plain_form_under_the_headline() -> None:
     """It works with JavaScript off, and it shows no percentage: "you know X%" needs a
-    record, and getting one is the reason to join (2026-09-30). Since 2026-10-02 it
-    stands in "Your own Hebrew", right under the reader, and the hero is unchanged."""
+    record, and getting one is the reason to join (2026-09-30)."""
     page = front_page(address="https://targum.page")
     form = re.search(r'<form class="try-form" method="post" action="([^"]+)">', page)
     assert form and form.group(1) == "/try#try"
-    assert page.index('class="showcase"') < page.index('class="try-form"')
-    own = page[page.index('id="own"') :]
-    assert 'class="try-form"' in own[: own.index("</section>")]
+    assert page.index('class="try-form"') < page.index('class="showcase"')
     assert '<div class="tried"' not in page, "nothing is said before anything is tried"
     russian = front_page(language="ru", address="https://targum.page", asked="ru")
     assert 'action="/try?lang=ru#try"' in russian

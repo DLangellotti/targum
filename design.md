@@ -369,14 +369,14 @@ a hero that says what targum is, and the reader under it proving it. So the page
 and is sharpened (targum-internal#399):
 
 - **The hero is today's, untouched.** The reader under it is the demonstration.
-- **"Your own Hebrew" is the first part after the reader**, where it was the eighth, and
-  it carries the box (targum-internal#399, the entry below): paste a link and targum
-  says what it is, and joining keeps it. The box moved here from under the headline, so
-  the hero stays today's. Under it, the places it reads are drawn on ink, as what each
-  looks like.
+- **"Your own Hebrew" is the first part after the reader**, where it was the eighth. The
+  live box stays under the headline (targum-internal#399, the entry below); this part
+  shows what it gives back once you're in, drawn (the sentence about the link, how much
+  you already know, when it's ready), and under it the places it reads, on ink: a photo
+  of a page (a letter, a form, a sign) among them.
 - **Seven stops, each answering one question**: what is it, show me, does it work on my
   Hebrew, how does it help me learn, can I practise, what is already here, how do I get
-  in. "Watch and listen", "Every word", the vowels, "Your progress" and the Torah's own
+  in; the questions come before the waitlist, so the page ends on it. "Watch and listen", "Every word", the vowels, "Your progress" and the Torah's own
   part were folded into those or cut, because each said again what another said, and
   the closing form asked again straight under the waitlist. About a quarter shorter.
 - **What is underneath is said where it is used**, in plain words and without numbers,

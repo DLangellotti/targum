@@ -1433,8 +1433,6 @@
   "landing.page.a-youtube-link-or-a-video-file": "A YouTube link or a video file",
   "landing.page.a-podcast": "A podcast",
   "landing.page.a-voice-note": "A voice note",
-  "landing.page.today-s-news-from-any-site": "Today’s news, from any site",
-  "landing.page.an-article-or-a-book": "An article or a book",
   "landing.page.reels-shorts-tiktoks-and-facebook-videos": "Reels, Shorts, TikToks and Facebook videos",
   "landing.page.posts-from-x": "Posts from X",
   "landing.page.a-whatsapp-or-telegram-chat": "A WhatsApp or Telegram chat",
@@ -1478,7 +1476,7 @@
   "landing.page.what-will-it-cost": "What will it cost?",
   "landing.page.the-library-is-free-to-read-and-stays": "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.",
   "landing.page.is-what-i-bring-private": "Is what I bring private?",
-  "landing.page.yes-what-you-bring-is-yours-and-we": "Yes. What you bring stays yours, and is used to make your reading, for that alone.",
+  "landing.page.yes-what-you-bring-is-yours-and-we": "Yes. What you bring stays yours. It’s used only to make your reading, and no model is trained on it.",
   "landing.page.on-this-page": "On this page",
   "landing.page.you-example-com": "you@example.com",
   "landing.page.your-email": "Your email",
@@ -2451,5 +2449,13 @@
   "landing.demo.play": "Play",
   "landing.demo.back": "Back",
   "landing.demo.next-reading": "Next reading",
-  "landing.page.skip-to-the-page": "Skip to the page"
+  "landing.page.skip-to-the-page": "Skip to the page",
+  "landing.page.example-what-you-d-see": "Example: what you’d see once you’re in",
+  "landing.page.what-you-d-see": "What you’d see",
+  "landing.page.that-s-a-youtube-video-9-minutes": "That’s a YouTube video, 9 minutes, Hebrew subtitles written by a person.",
+  "landing.page.sabich-step-by-step": "Sabich, step by step",
+  "landing.page.of-it-you-already-know": "of it you already know",
+  "landing.page.ready-in-about-4-minutes": "Ready in about 4 minutes.",
+  "landing.page.a-photo-of-a-letter-a-form-a-sign": "A photo of a page: a letter, a form, a sign",
+  "landing.page.news-and-articles-from-any-site": "News and articles, from any site"
 }

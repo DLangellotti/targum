@@ -299,10 +299,9 @@ h1, h2, h3 { text-wrap: balance; }
 /* §5: the display step drops on a phone, under 40rem. */
 @media (max-width: 40rem) { .hero h1 { font-size: 2.25rem; } }
 
-/* The box (targum-internal#399): a link in, one sentence about it out, and the waitlist
-   on the same card, because joining is what keeps the link. Under the reader in "Your
-   own Hebrew" since 2026-10-02, not under the headline. */
-.try { display: grid; gap: var(--space-3); }
+/* The box (targum-internal#399): a link in, one sentence about it out, under the
+   headline, and the waitlist on the same card, because joining is what keeps the link. */
+.try { display: grid; gap: var(--space-3); max-inline-size: 34rem; }
 .try-form .field { background: var(--card); box-shadow: var(--shadow-rest); }
 .try-form .field input::placeholder { color: var(--muted); }
 .tried { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; gap: var(--space-3); }
@@ -311,6 +310,9 @@ h1, h2, h3 { text-wrap: balance; }
 .tried-keep { font-size: 0.9375rem; }
 .tried .join-form { max-inline-size: none; }
 .tried .join-form .field { background: var(--field); box-shadow: none; }
+/* With an answer on the card the waitlist is in it, so the hero's own form steps back
+   rather than asking twice. */
+.hero.has-tried .side > .join-form { display: none; }
 
 /* The landing's waitlist is its ending (David, 2026-10-02): centred on the ground under a
    hairline, not a raised card in the column the example sheets stand in. */
@@ -458,7 +460,7 @@ html { overflow-x: clip; }
 .m-tile p { font-size: 0.9375rem; color: var(--bar-muted); }
 .m-vis { border-radius: 12px; background: var(--ink-well); block-size: 6.5rem; position: relative; overflow: hidden; }
 .v-frame { position: absolute; inset: 0; }
-.v-frame { background:
+.v-frame, .example-card .thumb { background:
     radial-gradient(circle closest-side at 44% 42%, var(--dish-white) 0 13%, transparent 14%),
     radial-gradient(circle closest-side at 44% 42%, var(--dish-yolk) 0 34%, transparent 35%),
     radial-gradient(circle closest-side at 58% 58%, var(--dish-yolk) 0 34%, transparent 35%),
@@ -674,3 +676,22 @@ html { overflow-x: clip; }
 .skip:focus { inset-block-start: var(--space-2); text-decoration: none; }
 .sr-only { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
+/* "Your own Hebrew": what the box gives back once you're in, drawn (2026-10-02). */
+.example { margin: 0; display: grid; gap: var(--space-2); align-content: start; }
+.example-card { background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-raised); padding: var(--space-5); display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.example-card .thumb { display: block; aspect-ratio: 16 / 10; border-radius: var(--radius-control); position: relative; overflow: hidden; }
+.example-card .thumb .len { position: absolute; inset-block-end: 0.2rem; inset-inline-end: var(--space-1); font: 500 0.6875rem/1 var(--chrome); color: var(--on-scrim); background: var(--scrim); border-radius: 4px; padding: 0.1rem 0.2rem; }
+.example-body { display: grid; gap: var(--space-1); min-inline-size: 0; }
+.example-what { font-weight: 600; line-height: 1.45; }
+.example-title { font: 400 0.9375rem/1.4 var(--reading); color: var(--muted); }
+.example-known { margin-block-start: var(--space-2); font-size: 0.9375rem; }
+.example-known b { font: 700 1.25rem/1 var(--chrome); color: var(--leaf); }
+.example-card .meter { display: block; block-size: 0.3rem; border-radius: 999px; background: var(--field); overflow: hidden; }
+.example-card .meter i { display: block; block-size: 100%; background: var(--leaf); }
+.example-wait { font-size: 0.875rem; color: var(--muted); }
+@media (max-width: 30rem) { .example-card { grid-template-columns: minmax(0, 1fr); } .example-card .thumb { max-inline-size: 10rem; } }
+
+/* The chat's quiet label over each turn (design.md §9: "the same ink under a quiet
+   label"); without it the reader's line read as part of targum's answer. */
+.ct-who { font: 600 0.6875rem/1.2 var(--chrome); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-soft); }
+.ct-turn.me .ct-who { text-align: end; }
