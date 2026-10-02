@@ -376,9 +376,10 @@ and is sharpened (targum-internal#399):
   of a page (a letter, a form, a sign) among them.
 - **Seven stops, each answering one question**: what is it, show me, does it work on my
   Hebrew, how does it help me learn, can I practise, what is already here, how do I get
-  in; the questions come before the waitlist, so the page ends on it. "Watch and listen", "Every word", the vowels, "Your progress" and the Torah's own
-  part were folded into those or cut, because each said again what another said, and
-  the closing form asked again straight under the waitlist. About a quarter shorter.
+  in; the questions come before the waitlist, so the page ends on it. "Watch and listen",
+  "Every word", the vowels, "Your progress" and the Torah's own part were folded into
+  those or cut, because each said again what another said, and the closing form asked
+  again straight under the waitlist. About a quarter shorter.
 - **What is underneath is said where it is used**, in plain words and without numbers,
   model names or where texts come from: words reduced to dictionary form, root and
   binyan from scholars' analysis for the Bible and a language model elsewhere; vowels
