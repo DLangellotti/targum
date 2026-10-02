@@ -299,6 +299,28 @@
 
   drawLines(); drawCard(); paint();
 
+  /* ---- the hero and the reader as one (landing.css, .top) ----
+     The card's height is kept on the grid so the film starts below it, and the film
+     makes room for the card the moment the page leaves its top. One class flips, so the
+     move is a transition, not a width recomputed on every scroll frame. */
+  (function () {
+    var top = document.querySelector(".top"), card = document.getElementById("card");
+    if (!top || !card) return;
+    function measure() { top.style.setProperty("--card-h", card.offsetHeight + "px"); }
+    measure();
+    if (window.ResizeObserver) new ResizeObserver(measure).observe(card);
+    top.classList.add("live");
+    var ticking = false;
+    function dock() {
+      ticking = false;
+      top.classList.toggle("docked", window.scrollY > 24);
+    }
+    window.addEventListener("scroll", function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(dock); }
+    }, { passive: true });
+    dock();
+  })();
+
   /* ---- the media tiles ---- */
   // A bar's height is set on the element, not written into the markup: the server's own
   // policy allows no inline `style` attribute, and every chart on this page drew flat

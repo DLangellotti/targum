@@ -698,42 +698,24 @@ html { overflow-x: clip; }
 .hero { grid-template-columns: minmax(0, 1fr); max-inline-size: 46rem; }
 .hero .facts { margin-block-start: var(--space-1); }
 
-/* The hero and the reader as one composition (David, 2026-10-02). The word card has a
-   column of its own that runs the height of both: it starts beside the headline, and
-   as the hero scrolls away it stays, so the reader comes up beside it, the card always
-   next to the words that change it. Sticky does the travelling; nothing is measured. */
-.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show card"; column-gap: var(--space-7); row-gap: var(--space-5); }
+/* The hero and the reader as one composition (David, 2026-10-02): the word card beside
+   the headline, the film the full width under both. Static, it is just that, and
+   nothing can overlap. With the script (`.live`), the card gets a column of its own the
+   height of both and stays as the page scrolls; the first row keeps the card's measured
+   height (`--card-h`), so the film always starts below it. The moment the page moves
+   (`.docked`), the film makes room in one 400ms transition and the card settles beside
+   it; back at the top, the film opens again. A transition, not a width tied to every
+   scroll frame: that re-laid the reader on each frame and the scroll stuttered. */
+.top { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; grid-template-areas: "hero card" "show show"; column-gap: var(--space-7); row-gap: var(--space-5); }
 .top > .hero { grid-area: hero; max-inline-size: none; }
+.top > #card { grid-area: card; align-self: start; margin-block-start: var(--space-8); position: static; }
 .top > .showcase { grid-area: show; grid-template-columns: minmax(0, 1fr); }
-.top > #card { grid-area: card; align-self: start; margin-block-start: var(--space-8); position: sticky; inset-block-start: calc(3.5rem + var(--space-5)); }
-
-/* The arrival, where the browser can tie motion to the scroll and the reader has not
-   asked for less: as the headline leaves, the card lifts a little and settles beside
-   the film, from resting to floating. It follows the scroll exactly, so it can never
-   lag or overshoot; without support it simply stays as it is. */
-@supports (animation-timeline: scroll()) {
-  @media (prefers-reduced-motion: no-preference) and (min-width: 56.01rem) {
-    /* The film opens the full width, under the headline and the card both, and the card
-       comes down to it (David, 2026-10-02), in three moves tied to the scroll:
-       - to 12.5rem: the card goes up with the headline, as part of it (its sticky
-         stop is undone by a translate of the same distance, so it is not held);
-       - 2.5 to 12.5rem: while the card is still above it, the film narrows to make room;
-       - 12.5 to 25rem: the card glides down and docks beside the film, lifting from
-         resting to floating.
-       It follows the scroll exactly, so nothing lags, overshoots or overlaps. Without
-       the support, or with less motion asked for, the reader simply stands beside the
-       card from the start. The card sticks after 1.75rem of scroll (its margin above
-       the bar's line), which is where the first move starts. */
-    .top { grid-template-areas: "hero card" "show show"; }
-    .top > #card { grid-area: auto; grid-column: 2; grid-row: 1 / span 2; z-index: 2; animation: card-arrive linear both; animation-timeline: scroll(root); animation-range: 1.75rem 25rem; }
-    .top > .showcase { justify-self: start; inline-size: 100%; animation: reader-make-room linear both; animation-timeline: scroll(root); animation-range: 2.5rem 12.5rem; }
-    @keyframes reader-make-room { to { inline-size: calc(100% - 19rem - var(--space-7)); } }
-    @keyframes card-arrive {
-      0% { translate: 0 0; box-shadow: var(--shadow-raised); }
-      46.24% { translate: 0 -10.75rem; box-shadow: var(--shadow-raised); animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1); }
-      100% { translate: 0 -0.25rem; box-shadow: var(--shadow-floating); }
-    }
-  }
+@media (min-width: 56.01rem) {
+  .top.live { grid-template-rows: minmax(calc(var(--card-h, 0px) + var(--space-8)), auto) auto; }
+  .top.live > #card { grid-area: auto; grid-column: 2; grid-row: 1 / span 2; position: sticky; inset-block-start: calc(3.5rem + var(--space-5)); z-index: 2; transition: box-shadow var(--in) var(--ease); }
+  .top.live > .showcase { justify-self: start; inline-size: 100%; transition: inline-size 400ms var(--ease); }
+  .top.live.docked > .showcase { inline-size: calc(100% - 19rem - var(--space-7)); }
+  .top.live.docked > #card { box-shadow: var(--shadow-floating); }
 }
 
 /* A new word settles into the card rather than snapping in: the head eases up from a
@@ -747,6 +729,6 @@ html { overflow-x: clip; }
 
 @media (max-width: 56rem) {
   .top { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "show" "card"; }
-  .top > #card { position: static; margin-block: 0 var(--space-7); animation: none; }
+  .top > #card { margin-block: 0 var(--space-7); }
 }
 
