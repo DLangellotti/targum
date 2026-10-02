@@ -762,3 +762,24 @@ def test_the_box_says_a_long_page_s_length_as_a_person_would(monkeypatch) -> Non
     )
     assert "about 1,500 words" in look_module.look("https://kan.example/a")["said"]
     assert "около 1 500 слов" in look_module.look("https://kan.example/a", "ru")["said"]
+
+
+def test_every_colour_the_front_door_draws_is_a_token() -> None:
+    """A design review on 2026-10-02 found 26 colours written straight into rules, three
+    of them passing `test_brand.py` only by sharing a hex with something else. Each is
+    named once in a `:root` block now, and a rule says a token or says nothing."""
+    sheet = Path(__file__).resolve().parents[1] / "src/targum/render/assets/landing.css"
+    literals: list[tuple[int, str]] = []
+    in_root = False
+    for number, line in enumerate(sheet.read_text(encoding="utf-8").splitlines(), 1):
+        if line.startswith(":root"):
+            in_root = True
+        if in_root:
+            in_root = not line.startswith("}")
+            continue
+        if line.strip().startswith(("/*", "*")):
+            continue
+        literals += [
+            (number, found) for found in re.findall(r"#[0-9a-fA-F]{3,8}\b|rgba?\([^)]*\)", line)
+        ]
+    assert not literals, f"colours outside a token: {literals}"

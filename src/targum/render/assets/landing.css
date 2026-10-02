@@ -136,6 +136,24 @@
 :root {
   /* The ordinary press, held: the tint at 16% rather than 9%. */
   --teal-strong: rgb(31 111 107 / 0.16);
+  /* Every colour the page draws, named here and nowhere else (2026-10-02). The rules
+     below use these; `test_landing.py` holds the sheet to it. */
+  --cta-hover: #322e29;
+  --scrim: rgb(10 10 10 / 0.62);         /* captions over a picture */
+  --on-scrim: #f3efe7;
+  --on-scrim-muted: #cfc7ba;
+  --glyph-glass: rgb(255 253 249 / 0.9); /* the play glyph over the film */
+  --ink-well: #0c0b0a;                   /* a picture's well on the ink band */
+  --bar-teal-deep: #0f1a19;              /* a voice note's bubble on ink */
+  --knob-shadow: rgb(28 26 23 / 0.25);
+  --phone-shadow: rgb(28 26 23 / 0.2);
+  /* The dish in the pictures: a picture, not an interface (§4 is for what a person
+     operates), so its colours are an egg and a tomato. */
+  --dish-white: #fbf9f5;
+  --dish-yolk: #c8a778;
+  --dish-sauce: #b4553f;
+  --dish-pan: #201e1b;
+  --dish-board: #7a5c38;
   /* The ink panel the media band is drawn on: the page's one inverted block. */
   --bar-raised: #201e1b;
   --bar-rule: #322e29;
@@ -193,7 +211,7 @@ h1, h2, h3 { text-wrap: balance; }
 .btn:hover { text-decoration: none; }
 .btn svg { inline-size: 1rem; block-size: 1rem; }
 .btn.cta { background: var(--ink); color: var(--paper); }
-.btn.cta:hover { background: #322e29; }
+.btn.cta:hover { background: var(--cta-hover); }
 .btn.filled { background: var(--teal); color: var(--paper); }
 .btn.tonal { background: var(--teal-wash); color: var(--teal); }
 .btn.tonal:hover, .btn.tonal[aria-pressed="true"] { background: var(--teal-strong); }
@@ -292,12 +310,12 @@ h1, h2, h3 { text-wrap: balance; }
 .stage { position: relative; background: var(--bar); aspect-ratio: 16 / 7.2; max-inline-size: 100%; }
 .stage canvas { display: block; inline-size: 100%; block-size: 100%; }
 .captions { position: absolute; inset-inline: 0; inset-block-end: 0.9rem; display: grid; justify-items: center; gap: 0.1rem; padding-inline: 1rem; text-align: center; pointer-events: none; transition: opacity 160ms var(--ease); }
-.captions p { background: rgba(10, 10, 10, 0.62); color: #f3efe7; border-radius: 6px; padding: 0.05rem 0.55rem; }
+.captions p { background: var(--scrim); color: var(--on-scrim); border-radius: 6px; padding: 0.05rem 0.55rem; }
 .captions .c-he { font-family: var(--reading-hebrew); direction: rtl; font-size: 1.25rem; line-height: 1.7; }
-.captions .c-en { font: 400 0.9375rem/1.5 var(--reading); color: #cfc7ba; }
+.captions .c-en { font: 400 0.9375rem/1.5 var(--reading); color: var(--on-scrim-muted); }
 .captions.quiet { opacity: 0; }
 .stage-tap { position: absolute; inset: 0; border: 0; background: transparent; }
-.stage-tap .glyph { position: absolute; inset-block-start: 50%; inset-inline-start: 50%; translate: -50% -50%; inline-size: 3.5rem; block-size: 3.5rem; border-radius: 999px; background: rgba(255, 253, 249, 0.9); color: var(--ink); display: grid; place-items: center; box-shadow: var(--shadow-floating); transition: opacity 160ms var(--ease), scale 160ms var(--ease); }
+.stage-tap .glyph { position: absolute; inset-block-start: 50%; inset-inline-start: 50%; translate: -50% -50%; inline-size: 3.5rem; block-size: 3.5rem; border-radius: 999px; background: var(--glyph-glass); color: var(--ink); display: grid; place-items: center; box-shadow: var(--shadow-floating); transition: opacity 160ms var(--ease), scale 160ms var(--ease); }
 .stage-tap .glyph svg { inline-size: 1.25rem; }
 .stage.playing .stage-tap .glyph { opacity: 0; scale: 0.9; }
 .stage.pinned { position: absolute; z-index: 4; inset-block-start: 4rem; inset-inline-end: 1rem; inline-size: min(42%, 20rem); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-floating); }
@@ -400,27 +418,27 @@ html { overflow-x: clip; }
 .m-tile { background: var(--bar-raised); border-radius: 16px; padding: 1rem; display: grid; gap: 0.6rem; align-content: start; }
 .m-tile h3 { font: 600 1.0625rem/1.3 var(--chrome); color: var(--bar-ink); margin-block-start: 0.25rem; }
 .m-tile p { font-size: 0.9375rem; color: var(--bar-muted); }
-.m-vis { border-radius: 12px; background: #0c0b0a; block-size: 6.5rem; position: relative; overflow: hidden; }
+.m-vis { border-radius: 12px; background: var(--ink-well); block-size: 6.5rem; position: relative; overflow: hidden; }
 .v-frame { position: absolute; inset: 0; }
 .v-frame { background:
-    radial-gradient(circle closest-side at 44% 42%, #fbf9f5 0 13%, transparent 14%),
-    radial-gradient(circle closest-side at 44% 42%, #c8a778 0 34%, transparent 35%),
-    radial-gradient(circle closest-side at 58% 58%, #c8a778 0 34%, transparent 35%),
-    radial-gradient(circle closest-side at 50% 50%, #b4553f 0 62%, #201e1b 63% 74%, transparent 75%),
-    radial-gradient(#7a5c38, #7a5c38); }
+    radial-gradient(circle closest-side at 44% 42%, var(--dish-white) 0 13%, transparent 14%),
+    radial-gradient(circle closest-side at 44% 42%, var(--dish-yolk) 0 34%, transparent 35%),
+    radial-gradient(circle closest-side at 58% 58%, var(--dish-yolk) 0 34%, transparent 35%),
+    radial-gradient(circle closest-side at 50% 50%, var(--dish-sauce) 0 62%, var(--dish-pan) 63% 74%, transparent 75%),
+    radial-gradient(var(--dish-board), var(--dish-board)); }
 
 .v-cap { position: absolute; inset-inline: 0; inset-block-end: 0.4rem; display: grid; justify-items: center; gap: 0.15rem; }
-.v-cap span { background: rgba(10, 10, 10, 0.62); border-radius: 4px; padding: 0 0.4rem; font-size: 0.8125rem; color: #f3efe7; }
+.v-cap span { background: var(--scrim); border-radius: 4px; padding: 0 0.4rem; font-size: 0.8125rem; color: var(--on-scrim); }
 .v-cap .he { font-size: 0.9375rem; line-height: 1.5; }
 .wave { position: absolute; inset: 1.4rem 0.9rem 0.6rem; display: flex; align-items: center; gap: 3px; }
 .wave i { flex: 1; border-radius: 999px; background: var(--bar-rule); }
 .wave i.on { background: var(--bar-teal); }
 .wave-clock { position: absolute; inset-block-start: 0.45rem; inset-inline-end: 0.6rem; font: 500 0.6875rem/1 var(--chrome); color: var(--bar-muted); }
-.note-bubble { position: absolute; inset-block-start: 0.9rem; inset-inline-start: 0.9rem; inset-inline-end: 3rem; background: #0f1a19; border-radius: 12px 12px 12px 4px; padding: 0.45rem 0.65rem; display: flex; align-items: center; gap: 0.5rem; }
+.note-bubble { position: absolute; inset-block-start: 0.9rem; inset-inline-start: 0.9rem; inset-inline-end: 3rem; background: var(--bar-teal-deep); border-radius: 12px 12px 12px 4px; padding: 0.45rem 0.65rem; display: flex; align-items: center; gap: 0.5rem; }
 .note-bubble .dot { inline-size: 1.4rem; block-size: 1.4rem; border-radius: 999px; background: var(--bar-teal); flex: none; }
 .note-bubble .mini { flex: 1; display: flex; align-items: center; gap: 2px; block-size: 1.2rem; }
-.note-bubble .mini i { flex: 1; border-radius: 999px; background: #6fb8b3; }
-.note-bubble .len { font: 500 0.6875rem/1 var(--chrome); color: #e7e1d6; }
+.note-bubble .mini i { flex: 1; border-radius: 999px; background: var(--bar-teal); }
+.note-bubble .len { font: 500 0.6875rem/1 var(--chrome); color: var(--rail); }
 .note-line { position: absolute; inset-block-end: 0.5rem; inset-inline: 0.9rem; font-family: var(--reading-hebrew); direction: rtl; font-size: 0.9375rem; color: var(--bar-ink); text-align: start; }
 
 @media (max-width: 60rem) { .media-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -449,7 +467,7 @@ html { overflow-x: clip; }
 /* the switch, on the Torah sheet and the vowel line */
 .switch { display: inline-flex; align-items: center; gap: 0.6rem; border: 0; background: none; padding: 0.25rem 0; font: 600 0.9375rem/1 var(--chrome); color: var(--ink); min-block-size: 2.5rem; }
 .switch .knob { position: relative; inline-size: 2.75rem; block-size: 1.55rem; border-radius: 999px; background: var(--field); box-shadow: inset 0 0 0 1px var(--hairline); transition: background-color 240ms var(--ease); flex: none; }
-.switch .knob::after { content: ""; position: absolute; inset-block-start: 0.2rem; inset-inline-start: 0.2rem; inline-size: 1.15rem; block-size: 1.15rem; border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px rgba(28, 26, 23, 0.25); transition: transform 240ms var(--ease); }
+.switch .knob::after { content: ""; position: absolute; inset-block-start: 0.2rem; inset-inline-start: 0.2rem; inline-size: 1.15rem; block-size: 1.15rem; border-radius: 999px; background: var(--card); box-shadow: 0 1px 3px var(--knob-shadow); transition: transform 240ms var(--ease); }
 .switch[aria-checked="true"] .knob { background: var(--teal); box-shadow: none; }
 .switch[aria-checked="true"] .knob::after { transform: translateX(1.2rem); }
 .switch:disabled { opacity: 0.45; cursor: default; }
@@ -532,7 +550,7 @@ html { overflow-x: clip; }
 .tall-row .v-frame { position: absolute; inset: 0; }
 .tall-row .v-frame.b { filter: hue-rotate(160deg) saturate(0.6); }
 .tall-row .v-frame.c { filter: hue-rotate(60deg) saturate(0.7); }
-.tall-row .t-cap { position: absolute; inset-inline: 0.15rem; inset-block-end: 0.3rem; font-size: 0.8125rem; line-height: 1.3; text-align: center; color: #f3efe7; background: rgb(10 10 10 / 0.62); border-radius: 4px; }
+.tall-row .t-cap { position: absolute; inset-inline: 0.15rem; inset-block-end: 0.3rem; font-size: 0.8125rem; line-height: 1.3; text-align: center; color: var(--on-scrim); background: var(--scrim); border-radius: 4px; }
 .post-vis, .chat-vis, .news-vis { padding: 0.7rem 0.8rem; display: grid; gap: 0.4rem; align-content: center; }
 .post-vis .who { text-transform: none; letter-spacing: 0; display: flex; align-items: center; gap: 0.4rem; font-size: 0.6875rem; color: var(--bar-muted); }
 .post-vis .who .dot { display: block; inline-size: 1.1rem; block-size: 1.1rem; border-radius: 999px; background: var(--bar-teal); }
@@ -544,7 +562,7 @@ html { overflow-x: clip; }
 .news-vis .head { font-weight: 600; font-size: 1.0625rem; }
 .news-vis .he:not(.head) { color: var(--bar-muted); font-size: 0.875rem; }
 .page-vis { display: grid; place-items: center; }
-.page-vis .sheet-p { grid-area: 1 / 1; display: grid; gap: 0.3rem; align-content: start; inline-size: 4.2rem; block-size: 5.2rem; background: #f3efe7; border-radius: 4px; padding: 0.55rem 0.5rem; box-shadow: var(--lift); }
+.page-vis .sheet-p { grid-area: 1 / 1; display: grid; gap: 0.3rem; align-content: start; inline-size: 4.2rem; block-size: 5.2rem; background: var(--on-scrim); border-radius: 4px; padding: 0.55rem 0.5rem; box-shadow: var(--lift); }
 .page-vis .sheet-p.back { translate: 0.9rem -0.5rem; rotate: 6deg; opacity: 0.5; z-index: -1; }
 .page-vis .sheet-p i { display: block; block-size: 0.22rem; border-radius: 999px; background: var(--ink-soft); }
 .page-vis .sheet-p i.s { inline-size: 65%; justify-self: end; }
@@ -561,7 +579,7 @@ html { overflow-x: clip; }
 
 /* "Talk to targum": the conversation on a phone (2026-10-02). The shadow sits on the
    figure, because a clipped element's own shadow is clipped with it. */
-.talk-phone { margin: 0; justify-self: center; inline-size: min(100%, 19rem); filter: drop-shadow(0 18px 30px rgb(28 26 23 / 0.2)); }
+.talk-phone { margin: 0; justify-self: center; inline-size: min(100%, 19rem); filter: drop-shadow(0 18px 30px var(--phone-shadow)); }
 .talk-phone .phone { background: var(--bar); padding: 0.55rem; clip-path: inset(0 round 3rem); }
 .talk-phone .screen { position: relative; background: var(--paper); clip-path: inset(0 round 2.5rem); padding: 2.5rem 0.85rem 0.85rem; display: grid; gap: 0.75rem; }
 .talk-phone .island { position: absolute; inset-block-start: 0.7rem; inset-inline-start: 50%; translate: -50% 0; inline-size: 5.5rem; block-size: 1.4rem; border-radius: 999px; background: var(--bar); }
