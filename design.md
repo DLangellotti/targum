@@ -368,9 +368,10 @@ tried on 2026-10-01 and set aside the same day: it lost what the page already di
 a hero that says what targum is, and the reader under it proving it. So the page stays,
 and is sharpened (targum-internal#399):
 
-- **The hero is today's headline and lede, with one call to action**: the box, and three
-  linked reasons under it, each a thing you get in plain words: learn from what you
-  already watch; graded to the words you know; practise talking, corrected.
+- **The hero is today's headline and lede, with one call to action**: the box, and under
+  it the live page's own four points (start at any level, upload any text or media,
+  hundreds of free texts and videos, no credit card required); written anew they read
+  as generated (David, 2026-10-02).
   The whole word card stands beside the headline; the reader runs the full width under
   both and, leaving the top, makes room for the card in one 400ms move, keeping its
   height so nothing under it rises, and the card stays beside it while the lines are read.
