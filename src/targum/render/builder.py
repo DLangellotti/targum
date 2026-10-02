@@ -1500,7 +1500,12 @@ def about_page(language: str = "en", address: str = "") -> str:
     )
 
 
-def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
+def front_page(
+    language: str = "en",
+    address: str = "",
+    asked: str = "",
+    tried: dict[str, Any] | None = None,
+) -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
     The page `holding_page` stands in for. It is served at `/` only while
@@ -1509,6 +1514,10 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
 
     Everything it needs is baked in, as a reader's is: the two faces, the stylesheet and
     the one script are inlined, and nothing on the page fetches anything.
+
+    `tried` is what the box under the headline found in a link a visitor pasted
+    (`serve.tried_for`, targum-internal#399): the page comes back with the answer in
+    place of the box's empty state and the waitlist's form carrying the link.
     """
     from ..ingest import x as x_door
 
@@ -1533,6 +1542,8 @@ def front_page(language: str = "en", address: str = "", asked: str = "") -> str:
                 "the moment you tap it.",
             ),
             joined_from="/",
+            tried=tried,
+            tn=page_counts(language),
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),

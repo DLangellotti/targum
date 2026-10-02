@@ -229,10 +229,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    cannot otherwise say whether it brings anybody. Empty means unknown, which every row
 #    before it is. On a table every box has, so it is in MIGRATIONS.
 #
+# 37→38: waiting.link — the link somebody pasted into the front page's box before they
+#    joined (targum-internal#399), kept with their place so it is theirs when they are
+#    let in. Empty for everybody who joined without one. In MIGRATIONS for the same
+#    reason as `page`.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 37
+SCHEMA_VERSION = 38
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -525,6 +530,8 @@ MIGRATIONS: tuple[str, ...] = (
     # Which of targum's pages somebody joined the waitlist from (targum-internal#388).
     # Empty is unknown, and the truth about every row written before it.
     "ALTER TABLE waiting ADD COLUMN page TEXT NOT NULL DEFAULT ''",
+    # The link somebody tried on the front page and joined with (targum-internal#399).
+    "ALTER TABLE waiting ADD COLUMN link TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -1045,7 +1052,10 @@ CREATE TABLE IF NOT EXISTS waiting (
   language TEXT    NOT NULL DEFAULT '',
   -- Which of targum's own pages they pressed Join on: '/', '/aliyah', '/weekly'.
   -- Empty means unknown. Never where they were before targum (targum-internal#388).
-  page     TEXT    NOT NULL DEFAULT ''
+  page     TEXT    NOT NULL DEFAULT '',
+  -- The link they tried on the front page and joined with, never fetched again until
+  -- they are let in. Empty when they joined without one (targum-internal#399).
+  link     TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 
@@ -2056,7 +2066,9 @@ class Store:
     # person decides to let them in, and letting them in is `allow` on `invited`, which
     # is a separate act with a separate record.
 
-    def join_waitlist(self, email: str, language: str = "", page: str = "") -> str | None:
+    def join_waitlist(
+        self, email: str, language: str = "", page: str = "", link: str = ""
+    ) -> str | None:
         """Take an address. Mint a token to confirm it, or None if it is already on.
 
         Idempotent for the same reason `subscribe` is: asking twice is what somebody
@@ -2070,6 +2082,10 @@ class Store:
         `page` is which of targum's pages they pressed Join on, already narrowed to one
         the caller recognises; empty is unknown. A second ask keeps the first answer,
         because the question it answers is which page brought them.
+
+        `link` is what they tried in the front page's box before joining, already vetted
+        by the caller (targum-internal#399). A second ask with a link replaces it; one
+        without keeps what was there.
         """
         address = tidy(email)
         if not address:
@@ -2081,11 +2097,12 @@ class Store:
         with self.write() as db:
             db.execute(
                 """
-                INSERT INTO waiting (email, state, confirm, stop, asked, language, page)
-                VALUES (?, 'pending', ?, ?, ?, ?, ?)
+                INSERT INTO waiting (email, state, confirm, stop, asked, language, page, link)
+                VALUES (?, 'pending', ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(email) DO UPDATE SET
                     state = 'pending', confirm = ?, asked = ?, language = ?,
-                    page = CASE WHEN page = '' THEN excluded.page ELSE page END
+                    page = CASE WHEN page = '' THEN excluded.page ELSE page END,
+                    link = CASE WHEN excluded.link = '' THEN link ELSE excluded.link END
                 """,
                 (
                     address,
@@ -2094,6 +2111,7 @@ class Store:
                     now(),
                     spoken,
                     page,
+                    link,
                     digest(token),
                     now(),
                     spoken,
@@ -2167,7 +2185,9 @@ class Store:
             if row is None:
                 return False
             db.execute(
-                "UPDATE waiting SET state = 'off', ended = ? WHERE email = ?",
+                # The link goes with them: it was kept only to hand back when they
+                # were let in (targum-internal#399).
+                "UPDATE waiting SET state = 'off', ended = ?, link = '' WHERE email = ?",
                 (now(), row["email"]),
             )
             return True
@@ -2198,6 +2218,29 @@ class Store:
         """Stamp an address as let in, so a second opening does not mail them twice."""
         with self.write() as db:
             db.execute("UPDATE waiting SET invited = ? WHERE email = ?", (now(), tidy(email)))
+
+    def waiting_link(self, email: str) -> str:
+        """The link somebody tried on the front page and joined with, or "" (#399)."""
+        row = self.db.execute("SELECT link FROM waiting WHERE email = ?", (tidy(email),)).fetchone()
+        return "" if row is None else str(row["link"] or "")
+
+    def account_for_invited(self, email: str) -> Person | None:
+        """The account an invited address will sign in to, made now if it is not there.
+
+        The same row `start_sign_in` makes on the first link, made a little earlier: when
+        somebody is let in with a saved link, the build of it has to belong to somebody
+        before they have signed in (targum-internal#399). Only for an address already on
+        the guest list, so this cannot open an account the door did not.
+        """
+        address = tidy(email)
+        with self.write() as db:
+            if db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone() is None:
+                return None
+            db.execute(
+                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (address, now()),
+            )
+        return self.person_by_email(address)
 
     # -- series (2026-09-11) ---------------------------------------------------------
 

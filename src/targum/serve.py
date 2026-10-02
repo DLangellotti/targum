@@ -47,6 +47,7 @@ from .accounts import (
     MOST_PROMPTS,
     Person,
     Store,
+    digest,
     now,
     plausible,
 )
@@ -161,6 +162,76 @@ MAX_FILE_MB = int(MAX_UPLOAD / 1.37 / (1024 * 1024))
 # builder can still open everything already built, so this blocks a text rather than
 # stopping the server.
 NO_KEY = "We can't make anything new right now. Everything you have still opens."
+
+
+def tried_for(job: Any, ui: str) -> dict[str, Any]:
+    """What the front page's box says about a link it described (targum-internal#399),
+    as facts for the template to put in one sentence: which door, how long, whether a
+    person wrote the subtitles, and the wait in the Add box's own words.
+
+    The wait is `bring.js`'s `wait()` said again on the server, because the box works
+    with JavaScript off: the measured middle where the box has one, the guess where not.
+    """
+    import math
+
+    if job.stage == "failed":
+        refused = job.error or said_in(ui, "door.no-answer", "We couldn't open that link.")
+        return {"refused": refused}
+    door = str(job.options.get("door") or "page")
+    seen = max(1, round(job.usually / 60)) if job.usually else 0
+    minutes = math.ceil(job.seconds / 60) if job.audio and job.seconds else 0
+    if job.audio and job.parts > 0:
+        spoken = job.seconds / job.parts / 60
+        waiting = seen or max(1, round(spoken / 6)) + max(1, round((job.total or 25) / 25))
+        first = job.parts > 1
+        if waiting <= 1:
+            wait = (
+                said_in(
+                    ui, "bring.wait.part-minute", "Your first part will be ready in about a minute."
+                )
+                if first
+                else said_in(ui, "bring.wait.minute", "Ready in about a minute.")
+            )
+        elif waiting <= 4:
+            wait = (
+                said_in(
+                    ui, "bring.wait.part-few", "Your first part will be ready in a few minutes."
+                )
+                if first
+                else said_in(ui, "bring.wait.few", "Ready in a few minutes.")
+            )
+        else:
+            wait = (
+                said_in(
+                    ui,
+                    "bring.wait.part-minutes",
+                    "Your first part will be ready in about {n} minutes.",
+                    n=waiting,
+                )
+                if first
+                else said_in(ui, "bring.wait.minutes", "Ready in about {n} minutes.", n=waiting)
+            )
+    elif job.segments:
+        waiting = seen or max(1, round((job.total or job.segments) / 25))
+        if waiting <= 1:
+            wait = said_in(ui, "bring.wait.minute", "Ready in about a minute.")
+        elif waiting <= 4:
+            wait = said_in(ui, "bring.wait.couple", "Ready in a couple of minutes.")
+        else:
+            wait = said_in(ui, "bring.wait.minutes", "Ready in about {n} minutes.", n=waiting)
+    else:
+        wait = ""
+    return {
+        "door": door,
+        "title": job.title if job.title and job.title != job.source else "",
+        "minutes": minutes,
+        "subtitles": bool(job.options.get("subtitles")),
+        "sentences": 0 if job.audio else job.segments,
+        "wait": wait,
+        "link": job.source,
+        # "globes.co.il" for a link into Globes, as the Add box says it (`bring.js`).
+        "site": (urlparse(job.source).hostname or "").removeprefix("www."),
+    }
 
 
 def said_in(ui: str, key: str, english: str, **fill: object) -> str:
@@ -448,6 +519,9 @@ OPEN_TO_STRANGERS = frozenset(
         "/waitlist",
         "/waitlist/confirm",
         "/waitlist/stop",
+        # The front page's box (targum-internal#399): a stranger pastes a link and is
+        # told what it is. Describes and builds nothing.
+        "/try",
         # The connector (targum-internal#80). A client registering itself, asking for
         # tokens or giving one back has no account and is not a person; the reader is,
         # and `/oauth/authorize` finds them by cookie or signs them in on the spot.
@@ -604,6 +678,21 @@ def joined_from(said: str) -> str:
     return ""
 
 
+def kept_link(said: str) -> str:
+    """A link worth keeping with somebody's place on the waitlist, or "".
+
+    It came back from the front page's box in a hidden field, so it is whatever the
+    request says: kept only if it is a web address of a sane length, and never fetched
+    here — the box described it already, and it is built only once they are let in
+    (targum-internal#399).
+    """
+    link = said.strip()
+    parsed = urlparse(link)
+    if len(link) > MAX_LINK or parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return ""
+    return link
+
+
 def daily_cycles() -> tuple[Any, ...]:
     """The learning cycles this shelf carries. A function rather than an import at the
     top, because `serve` is imported to answer one request and `daily` pulls the
@@ -629,6 +718,18 @@ DAILY_READER = re.compile(r"^/read/(\d{4}-\d{2}-\d{2})/reader/([a-z0-9-]{0,40}\.
 #: reused exactly: a subscribe endpoint anybody can call is, like the sign-in one, a way
 #: to send mail from this domain into somebody else's inbox.
 SUBSCRIBE_ASKS_PER_HOUR = 3
+
+#: How often one visitor may try a link in the front page's box, and how often everybody
+#: together may (targum-internal#399). Nothing is built and nothing is spent, but each try
+#: is a yt-dlp call or a page fetch, often through the proxy, and the proxy bills by the
+#: gigabyte. Counted on the `asked` table under a digest of the address, never the
+#: address itself.
+TRIES_PER_HOUR = 5
+TRIES_PER_HOUR_FOR_EVERYBODY = 120
+
+#: The longest link the box will hold for somebody waiting. A real address is a few
+#: hundred characters; anything past this is not one.
+MAX_LINK = 2000
 
 #: A cap on how many unconfirmed rows may sit there at once, so the address rail cannot
 #: be walked around by using a different address every time.
@@ -907,6 +1008,12 @@ class Job:
     # at claim time and never written down: it is a fact about who they are now, not
     # about this job, and a job recovered after a restart has already been claimed.
     admin: bool = False
+    # targum's own gift (targum-internal#399, David 2026-10-01): the build of the link a
+    # stranger saved on the front page, started when they are let in. Paid from the box's
+    # budget, so it passes the account's money and hours rails and records no hours, and
+    # still claims against the box ceiling like everything else. Never set from a
+    # request: `options` is the request's, this field is not.
+    gift: bool = False
     # The language whoever asked for it reads the product in, so a refusal written later
     # by the thread that runs it is said in theirs (targum-internal#184). Never stored.
     ui: str = "en"
@@ -2624,6 +2731,154 @@ class Library:
             job.error = unreadable(error, job.ui)
             job.stage = "failed"
 
+    def describe(self, link: str, ui: str = "en") -> Job:
+        """What a link is, for somebody who has no account (targum-internal#399).
+
+        `prepare`'s describing half and nothing after it: which door the link comes
+        through, how long it runs, whether a person wrote its subtitles, and how long a
+        build of that shape takes here. Never `claim`, never a job anybody can see, never
+        a model call — not even the free count of tokens the text path's estimate makes —
+        and no pictures read, because reading a picture is the one thing at quote time
+        that spends. A stranger never costs a model call.
+
+        The answer is a `Job` that is never registered: `stage` is "ready" with the facts
+        on it, or "failed" with the sentence the Add page would have said.
+        """
+        import secrets
+
+        from .ingest import x as x_module
+        from .video import hosts as hosts_module
+        from .video import instagram as instagram_module
+        from .video import youtube as youtube_module
+
+        job = Job(id=f"try-{secrets.token_hex(6)}", source=link.strip(), ui=ui)
+        parsed = urlparse(job.source)
+        job.options["door"] = "page"
+        try:
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                job.error = said_in(
+                    ui, "door.not-a-link", "That isn't a link. Paste one that starts with https."
+                )
+                job.stage = "failed"
+                return job
+            host = hosts_module.host_for(job.source)
+            if x_module.is_x(job.source):
+                job.options["door"] = "x"
+                return self._describe_x(job)
+            if (parsed.hostname or "").lower() in youtube_module.HOSTS:
+                job.options["door"] = "youtube"
+                self._prepare_youtube(job)
+            elif instagram_module.is_post(job.source):
+                # A `/p/` post may be pictures, and pictures are read by a model. Named,
+                # and nothing fetched.
+                job.options["door"] = "instagram-post"
+                job.stage = "ready"
+            elif host is hosts_module.INSTAGRAM:
+                job.options["door"] = "instagram"
+                self._prepare_reel(job)
+            elif host is hosts_module.TIKTOK:
+                job.options["door"] = "tiktok"
+                self._prepare_tiktok(job)
+            elif host is hosts_module.FACEBOOK:
+                job.options["door"] = "facebook"
+                self._prepare_facebook(job)
+            elif host is not None:
+                job.error = said_in(
+                    ui,
+                    "door.host-closed",
+                    "{service} doesn't let us fetch its videos.",
+                    service=host.name,
+                )
+                job.stage = "failed"
+            else:
+                self._describe_page(job)
+        except TargumError as error:
+            job.error = told(ui, error, hosted=self.hosted)
+            job.stage = "failed"
+        except Exception as error:  # a stranger's link should not take the server down
+            incidents_module.record(self.incidents, "describe", error, job=job.id)
+            job.error = unreadable(error, ui)
+            job.stage = "failed"
+        # Whether the box could build it today is not the stranger's question: nothing
+        # is built until they are let in, and a full box then is a full box then.
+        if job.stage == "blocked":
+            job.blocked = ""
+            job.stage = "ready"
+        return job
+
+    def _describe_x(self, job: Job) -> Job:
+        """A post on X, read off the syndication endpoint as `_prepare_x` reads it, and
+        nothing written to disk: a stranger's try leaves no file behind."""
+        from .ingest import x as x_module
+        from .ingest.post import lines_of
+
+        if not x_module.is_open():
+            job.error = said_in(job.ui, "door.x-closed", "We don't bring posts in from X yet.")
+            job.stage = "failed"
+            return job
+        found = x_module.thread(job.source)
+        lines = sum(len(lines_of(post.text)) for post in found.posts)
+        if not lines:
+            job.error = said_in(
+                job.ui,
+                "job.x-no-words",
+                "That post has no words to read. Its pictures are all it says.",
+            )
+            job.stage = "failed"
+            return job
+        first = found.posts[0]
+        job.title = first.name or first.handle
+        job.segments = lines
+        job.total = lines
+        job.stage = "ready"
+        return job
+
+    def _describe_page(self, job: Job) -> None:
+        """A web page or a podcast episode: fetched and cut into sentences, which costs
+        nothing, and never priced, because the text path's price asks the model to count
+        its tokens."""
+        from .audio import episode as episode_module
+
+        if episode_module.sounds_like_audio(job.source):
+            job.options["door"] = "podcast"
+            return self._prepare_episode(job, episode_module.Episode(audio_url=job.source))
+        found = episode_module.find(job.source)
+        if found is not None:
+            job.options["door"] = "podcast"
+            return self._prepare_episode(job, found)
+        # A throwaway folder, not the shelf: `ingest` and `segment` write what they read,
+        # and a stranger's try must leave nothing behind on the box (#399).
+        import tempfile
+
+        with tempfile.TemporaryDirectory(prefix="targum-try-") as scratch:
+            builder = Build(
+                job.source,
+                target_language="en",
+                style=Style.natural,
+                model=HOSTED_MODEL,
+                out_root=Path(scratch),
+                gloss=False,
+            )
+            document = builder.ingest()
+            segmented = builder.segment(document)
+        job.title = document.title or ""
+        job.language = document.language
+        if not self._reads_language(job.language):
+            from .translate.prompts import language_name
+
+            job.error = said_in(
+                job.ui,
+                "door.unreadable.language",
+                "This looks like {language}, and we can't read that yet.",
+                language=language_name(job.language),
+            )
+            job.stage = "failed"
+            return
+        job.segments = len(segmented.segments)
+        job.total = job.segments
+        job.usually = self._how_long(job)
+        job.stage = "ready"
+
     @staticmethod
     def _reads_language(language: str) -> bool:
         """Whether a language, however it is tagged, is one targum reads."""
@@ -3316,7 +3571,7 @@ class Library:
             # running up somebody else's bill, and the person paying it is not that
             # reader. The box ceiling below is not waived: that one is the runaway guard,
             # and a loop at three in the morning does not care whose account it is on.
-            admin = bool(job.admin)
+            admin = bool(job.admin) or job.gift
             refused = self.store.claim(
                 job.id,
                 job.estimate,
@@ -3326,8 +3581,9 @@ class Library:
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
                 # Only a recording spends the hours. A text upload is any length and
-                # costs no clock time, so it is not charged against them.
-                length=job.seconds if job.audio else 0.0,
+                # costs no clock time, so it is not charged against them. Nor is a
+                # gift: targum pays for it, and their eight hours are theirs (#399).
+                length=job.seconds if job.audio and not job.gift else 0.0,
                 per_month_length=None if admin else self.upload_seconds,
             )
             if not refused:
@@ -3399,6 +3655,59 @@ class Library:
                 return blocked
             self.enqueue(job)
             return ""
+
+    def build_saved_link(self, email: str, language: str = "en") -> Job | None:
+        """Build the link somebody saved on the front page, now that they are let in
+        (targum-internal#399; David, 2026-10-01: "let-in builds the saved link").
+
+        targum's own budget pays: the job is a `gift`, claimed through `press` and so
+        through `claim` like any other build, against the box ceiling, recorded as a job
+        row and owned by the new account so it lands on their shelf. Nothing here is a
+        second path to the rails. Returns the job, or None where there is no link or no
+        account to give it to; a describe or a build that fails leaves the link saved and
+        never touches the invitation, which has already gone.
+        """
+        import secrets
+
+        from .translate.prompts import INTO
+
+        if self.store is None:
+            return None
+        link = self.store.waiting_link(email)
+        if not link:
+            return None
+        person = self.store.account_for_invited(email)
+        if person is None:
+            return None
+        into = language if language in {code for code, _ in INTO} else "en"
+        job = Job(
+            ui=language or "en",
+            id=secrets.token_hex(8),
+            source=link,
+            options={"to": into, "words": True, "gloss": False},
+            owner=person.id,
+            home=self.home(person),
+            gift=True,
+        )
+        self.jobs[job.id] = job
+        self.remember(job)
+        self.prepare(job)
+        self.remember(job)
+        if job.stage == "ready":
+            self.press(job)
+        return job
+
+    def build_saved_link_later(self, email: str, language: str = "en") -> None:
+        """`build_saved_link` on a thread of its own: preparing reads the link (a yt-dlp
+        call, a page fetch), and the operator's press should not wait on it."""
+
+        def run() -> None:
+            try:
+                self.build_saved_link(email, language)
+            except Exception as error:  # the invitation has gone; the link stays saved
+                incidents_module.record(self.incidents, "saved-link", error)
+
+        threading.Thread(target=run, name="saved-link", daemon=True).start()
 
     def claim_turn(self, job: Job, kind: str = "chat") -> str:
         """Reserve one turn of conversation against the rails, or say which refused.
@@ -5256,6 +5565,55 @@ class Handler(BaseHTTPRequestHandler):
             pending={"action": route, "token": token, "button": button},
         )
 
+    def _visitor(self) -> str:
+        """The address a request came from: Caddy's `X-Forwarded-For` where the
+        connection is Caddy's own, the socket's otherwise. Caddy sets the header itself
+        and trusts none that arrives, so the last entry is the visitor's."""
+        peer = str(self.client_address[0]) if self.client_address else ""
+        forwarded = self.headers.get("X-Forwarded-For", "")
+        if forwarded and peer in ("127.0.0.1", "::1"):
+            return forwarded.split(",")[-1].strip()
+        return peer
+
+    def _try_post(self, form: dict[str, str]) -> None:
+        """The front page's box (targum-internal#399): a link in, one sentence about it
+        out, on the front page itself with the waitlist beside it.
+
+        Nothing is built and nothing is spent: `Library.describe` is `prepare`'s
+        describing half. Each try is a yt-dlp call or a page fetch, so it is counted —
+        per visitor, under a digest of their address, and for everybody together — on
+        the rail the sign-in links use.
+        """
+        store = self.library.store
+        if store is None:
+            return self._send(404, b"not found", "text/plain")
+        said = self._public_language()
+        link = (form.get("link") or "").strip()
+        tried: dict[str, Any]
+        if not link:
+            tried = {"refused": said_in(said, "door.empty", "Paste a link first.")}
+        elif len(link) > MAX_LINK:
+            tried = {
+                "refused": said_in(
+                    said, "door.not-a-link", "That isn't a link. Paste one that starts with https."
+                )
+            }
+        elif store.asking_too_often(
+            "try:" + digest(self._visitor()), limit=TRIES_PER_HOUR
+        ) or store.asking_too_often("try:everybody", limit=TRIES_PER_HOUR_FOR_EVERYBODY):
+            tried = {
+                "refused": said_in(
+                    said,
+                    "door.too-often",
+                    "That's a lot of links for one hour. Try again later, or join and bring "
+                    "them when you're in.",
+                )
+            }
+        else:
+            tried = tried_for(self.library.describe(link, said), said)
+        page = front_page(language=said, address=self.address, asked=self._asked(), tried=tried)
+        return self._send(200, page.encode("utf-8"), HTML)
+
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
         """Joining, confirming and leaving. Public by necessity, and public by design:
         nobody joining a waitlist has an account, and the whole point is that they
@@ -5286,7 +5644,9 @@ class Handler(BaseHTTPRequestHandler):
                 )
             # The language the door was in when they pressed, kept so the invitation is
             # written in it rather than in English by default (targum-internal#292).
-            token = store.join_waitlist(address, said, joined_from(form.get("from", "")))
+            token = store.join_waitlist(
+                address, said, joined_from(form.get("from", "")), kept_link(form.get("link", ""))
+            )
             # `can_mail` asks about a build's owner, and somebody waiting has none; the
             # two halves it actually needs are checked here, as the weekly's door does.
             postable = self.library.mailer is not None and bool(self.address)
@@ -5853,7 +6213,13 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             count = 5
         try:
-            rows = open_the_door(self.store, self.mailer, self.address, count)
+            rows = open_the_door(
+                self.store,
+                self.mailer,
+                self.address,
+                count,
+                then=self.library.build_saved_link_later,
+            )
         except ValueError as error:
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         let_in = sum(1 for row in rows if row.ok)
@@ -5880,7 +6246,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         email = (form.get("email") or "").strip()
         try:
-            row = let_in(self.store, self.mailer, self.address, email)
+            row = let_in(
+                self.store,
+                self.mailer,
+                self.address,
+                email,
+                then=self.library.build_saved_link_later,
+            )
         except ValueError as error:
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(str(error))}#people")
         if row is None:
@@ -6412,6 +6784,8 @@ class Handler(BaseHTTPRequestHandler):
         # weekly's are: nobody here has an account, or could get one.
         if route in WAITLIST_POSTS and front_door_is_open():
             return self._waitlist_post(route, self._form())
+        if route == "/try" and front_door_is_open():
+            return self._try_post(self._form())
         if route == "/series/stop":
             return self._series_stop(self._form())
         # The connector's four (targum-internal#80). Before the account check and before

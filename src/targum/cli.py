@@ -351,6 +351,14 @@ def open_the_door(
             console.print(f"[red]Could not write to[/red] {row.email} [dim]{row.failed}[/dim]")
     let_in = sum(1 for row in rows if row.ok)
     console.print(f"[dim]{let_in} of {len(rows)} let in[/dim]")
+    # A saved link is built by the server that lets somebody in (targum-internal#399), and
+    # this command has no worker to build with. Said, so nobody is promised it silently.
+    unbuilt = [row.email for row in rows if row.ok and keeping.waiting_link(row.email)]
+    if unbuilt:
+        console.print(
+            f"[yellow]{len(unbuilt)} saved link(s) not built here[/yellow] "
+            "[dim]— the back office's Let in builds them; from here they wait.[/dim]"
+        )
 
 
 @app.command(name="catalogue-lemmas")

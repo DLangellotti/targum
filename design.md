@@ -347,6 +347,25 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A link tried on the front page is built when they are let in, on targum — 2026-10-01
+
+The front page's box (targum-internal#399) lets a stranger paste a link and see what it is.
+Joining keeps the link with their place. David chose on 2026-10-01 that **letting them in
+builds it, and targum pays**: "let-in builds the saved link". It is waiting for them the
+first time they sign in, and the box's copy says so ("When your turn comes, it'll be
+waiting for you, ready to learn from.").
+
+This is the one build nobody presses for, so what keeps it inside the rules is written
+down. The operator's press, Let in or Open the door, is the consent, and only for a link
+the person chose and joined with. The build still goes through `Library.press` and so
+`Library.claim`, is a `job` row like any other, and is owned by the new account. It is a
+`gift`: it passes the account's money and hours rails and records no hours against their
+eight, because targum is paying, and it is held to the box ceiling like everything else.
+`gift` is a field on the job, never read from a request. A describe or a build that
+fails leaves the link saved, and the invitation has already gone by then. `targum
+open-the-door` on the command line has no worker to build with, so it says which saved
+links it left unbuilt.
+
 ### /about says what was built, day by day — 2026-09-29
 
 "I want /about to show that we're building in public, and display day by day what's been
