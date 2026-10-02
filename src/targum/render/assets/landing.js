@@ -376,37 +376,6 @@
     dock();
   })();
 
-  /* ---- the media tiles ---- */
-  // A bar's height is set on the element, not written into the markup: the server's own
-  // policy allows no inline `style` attribute, and every chart on this page drew flat
-  // until they were set this way (2026-09-16).
-  function bars(into, n, height, marked) {
-    var host = document.getElementById(into);
-    if (!host) return;
-    host.replaceChildren();
-    for (var i = 0; i < n; i++) {
-      var bar = document.createElement("i");
-      bar.style.blockSize = height(i) + "%";
-      if (marked && marked(i)) bar.className = "on";
-      host.appendChild(bar);
-    }
-  }
-  // The waveform and the voice note in the band of places under the box.
-  bars(
-    "bringWave",
-    40,
-    function (i) {
-      return Math.min(92, 18 + Math.abs(Math.sin(i * 0.7) * 40 + Math.sin(i * 0.23) * 25));
-    },
-    function (i) {
-      return i < 24;
-    }
-  );
-  bars("bringMini", 22, function (j) {
-    return 25 + Math.abs(Math.sin(j * 1.3)) * 75;
-  });
-
-
   /* ---- the vowel switch, on one word in "How you learn" ---- */
   var POINTS = /[\u05B0-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g, CANT = /[\u0591-\u05AF]/g;
   var RECIPE = "שֶׁיִּתְחַמֵּם";

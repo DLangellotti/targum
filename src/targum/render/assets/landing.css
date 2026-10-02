@@ -513,6 +513,8 @@ html { overflow-x: clip; }
 .wave { position: absolute; inset: 1.4rem 0.9rem 0.6rem; display: flex; align-items: center; gap: 3px; }
 .wave i { flex: 1; border-radius: 999px; background: var(--bar-rule); }
 .wave i.on { background: var(--bar-teal); }
+/* A bar's height, in twenty steps (_bring_band.html.j2). */
+.bh-5 { block-size: 5%; } .bh-10 { block-size: 10%; } .bh-15 { block-size: 15%; } .bh-20 { block-size: 20%; } .bh-25 { block-size: 25%; } .bh-30 { block-size: 30%; } .bh-35 { block-size: 35%; } .bh-40 { block-size: 40%; } .bh-45 { block-size: 45%; } .bh-50 { block-size: 50%; } .bh-55 { block-size: 55%; } .bh-60 { block-size: 60%; } .bh-65 { block-size: 65%; } .bh-70 { block-size: 70%; } .bh-75 { block-size: 75%; } .bh-80 { block-size: 80%; } .bh-85 { block-size: 85%; } .bh-90 { block-size: 90%; } .bh-95 { block-size: 95%; } .bh-100 { block-size: 100%; }
 .wave-clock { position: absolute; inset-block-start: 0.45rem; inset-inline-end: 0.6rem; font: 500 0.6875rem/1 var(--chrome); color: var(--bar-muted); }
 .note-bubble { position: absolute; inset-block-start: 0.9rem; inset-inline-start: 0.9rem; inset-inline-end: 3rem; background: var(--bar-teal-deep); border-radius: 12px 12px 12px 4px; padding: var(--space-2) var(--space-3); display: flex; align-items: center; gap: var(--space-2); }
 .note-bubble .dot { inline-size: 1.4rem; block-size: 1.4rem; border-radius: 999px; background: var(--bar-teal); flex: none; }
