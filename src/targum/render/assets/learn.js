@@ -1418,6 +1418,7 @@
     // for the subjects the catalogue files by form rather than by topic. A subject
     // matches a row if any of either does.
     { id: "everyday", kinds: ["dialogue"] },
+    { id: "israel", tags: ["israel"] },
     { id: "judaism", tags: ["tanakh", "judaica"] },
     { id: "news", tags: ["journalism"] },
     { id: "sport", tags: ["sport"] },
@@ -1530,7 +1531,8 @@
 
   function interestLabels() {
     return {
-      everyday: t("learn.arrival.everyday", "Everyday life in Israel"),
+      everyday: t("learn.arrival.everyday", "Everyday conversation"),
+      israel: t("learn.arrival.israel", "Life in Israel: money, health, school, home"),
       judaism: t("learn.arrival.judaism", "Torah and Judaism"),
       news: t("learn.arrival.news", "News"),
       sport: t("learn.arrival.sport", "Sport"),

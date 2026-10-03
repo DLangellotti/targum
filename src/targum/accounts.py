@@ -1619,6 +1619,7 @@ class Store:
     #: subject the other has never heard of.
     INTERESTS: tuple[str, ...] = (
         "everyday",
+        "israel",
         "judaism",
         "news",
         "sport",

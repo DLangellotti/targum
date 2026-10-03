@@ -104,6 +104,11 @@ class Tag(StrEnum):
     #: Hebrew itself — its words, where they came from, how it is said. The Ben-Yehuda
     #: articles about pronunciation are exactly this and nothing else.
     language = "language"
+    #: Living in Israel day to day: money and paperwork, health, children and school, home
+    #: and work — the four things an oleh meets in the first months (targum-internal#386).
+    #: One subject rather than four, by decision (David, 2026-10-02, #393): simple to
+    #: choose on the way in, at the price of a shelf that cannot be browsed by the four.
+    israel = "israel"
 
 
 #: The tags a Beit Midrash mode would keep. Named explicitly because `Tag` stopped being a

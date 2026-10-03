@@ -1107,7 +1107,12 @@ def test_a_new_reader_is_asked_what_they_are_interested_in() -> None:
     collection and file format the library happens to be built from."""
     drawn = draw([], shared=seeded())
     assert not drawn["broke"]
-    assert drawn["arrival"][:4] == ["Everyday life in Israel", "Torah and Judaism", "News", "Sport"]
+    assert drawn["arrival"][:4] == [
+        "Everyday conversation",
+        "Life in Israel: money, health, school, home",
+        "Torah and Judaism",
+        "News",
+    ]
     assert "Archaeology" in drawn["arrival"]
     # And the sheet is open under it: ignoring the question costs nothing.
     assert not drawn["carry"]["hidden"]
@@ -1123,7 +1128,7 @@ def test_every_subject_is_offered_including_the_ones_with_nothing_behind_them() 
     )
     assert "Archaeology" in thin["arrival"], "asked for whether or not it can be answered"
     assert "Poetry" in thin["arrival"]
-    assert len(thin["arrival"]) == 19
+    assert len(thin["arrival"]) == 20  # "Life in Israel" made it twenty (#393)
 
 
 THREE = [{"subject": "Sport"}, {"subject": "History"}, {"subject": "Archaeology"}]

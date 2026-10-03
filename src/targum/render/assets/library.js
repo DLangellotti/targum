@@ -102,6 +102,7 @@
     ["travel", t("library.subject.travel", "Travel")],
     ["music", t("library.subject.music", "Music")],
     ["politics", t("library.subject.politics", "Politics")],
+    ["israel", t("library.subject.israel", "Life in Israel")],
   ];
 
   /* How much of a text this reader already knows, in three bands. The measure is the
