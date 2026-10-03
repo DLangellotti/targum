@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-02
+Paste a link on the front page and targum says what it would make of it.
+A Hebrew verb's card fills forms missing from its table, worked out from its root and pattern.
+The week's Torah portion prints as a sheet, with the Aramaic beside each verse and the haftarah after it.
+
 2026-10-01
 On a phone, the recording controls in the menu no longer break one word to a line.
 A known word's card says known once, not twice.
