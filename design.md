@@ -1782,6 +1782,10 @@ a rate limit per token. Build them with the tool, not after it.
 - **Only a line in a language the reader is learning is recast**, so a question asked in
   English spends nothing. The turn is a `job` row of kind `chat` through
   `Library.claim_turn`, on the same rails and the same `SUM(length)`. No second counter.
+  In front of the claim sits a rail that can only say no (`chat/rail.py`, 2026-10-02,
+  targum-internal#324): a line carrying the contract's marks, a link, code or a menu,
+  mostly another script or another language, or one word said over and over is not the
+  reader's own, and nothing is claimed. A fault in it is a no.
 - **The host's correction is never the record.** It writes what the reader wrote; targum
   judges it. One table, one judge, one standard — which is the whole reason the re-check is
   worth paying for rather than trusting what comes back.

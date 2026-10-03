@@ -36,6 +36,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   it was not written against. Pause barely moves the default (0.7630, 0.7649 without
   etnachta). The rule takes it to 0.9630 with OSHB's tagging and 0.9137 from the pointing
   alone. Nothing shipped reads the rule: `phonikud/2` and `SCHEMA_VERSION` are unchanged.
+- A rail that can only say no now stands in front of `record_turn`'s claim, the one
+  spend a model decides (targum-internal#324). `chat/rail.py` refuses, before anything is
+  claimed or a model asked, a line carrying the contract's "> ", "= " or "~ " marks, an
+  arrow or a "Corrected:" label; a link, a code fence, HTML, JSON, a snake_case name or a
+  site's menu; fewer than a third of its words in the language's own script; one stray
+  Hebrew letter; one word making most of a long line; and a French, Italian, Spanish,
+  German or Ukrainian line tagged as another language, by wordfreq. A fault in it is a
+  no. On the 86 labelled arguments it takes the checks from 15 of the 59 that should not
+  spend to 36, with no false block on the 27 that should, nor on 32 more of a reader's
+  own lines written after it; `scripts/eval_rail.py` now prints both rows. Jev is not
+  measured here.
 - The week's shnayim mikra sheet as a PDF: `targum export mikra` (targum-internal#105).
   This Shabbat's portion — or the week of `--on` — with Onkelos beside each verse, the
   haftarah the calendar names for it with the reader's language beside it, and with
