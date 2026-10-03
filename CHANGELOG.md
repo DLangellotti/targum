@@ -462,6 +462,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- How hard a sentence is is now asked, by default, in the `without-register` wording, whose
+  top three rungs say how rare a word is and no longer call it literary, classical,
+  archaic, poetic or rabbinic (targum-internal#320, decided 2026-10-03). The library's
+  sentence levels were scored again in it. The old wording stays askable as
+  `--prompt situations`, and answers that do not name a wording are still read as it.
 - The Hebrew annotator keeps DICTA's syntax (targum-internal#134). Each word now records
   which word governs it and how, with its prefixes (`Token.syntax`), and the first word of
   a construct chain says "construct" on its card: בֵּית in בֵּית הַסֵּפֶר. Until now no

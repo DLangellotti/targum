@@ -111,7 +111,8 @@ LEVELS: tuple[tuple[str, str], ...] = (
 #: literary, classical, archaic, poetic or rabbinic. The rungs below are `LEVELS`' own,
 #: word for word, so the only thing that differs is what the top of the ladder says old
 #: Hebrew is. Measured on a sample of scripture and modern prose matched on coverage
-#: (`scripts/sentence_bias.py`); switchable, and not the default.
+#: (`scripts/sentence_bias.py`), and the default since 2026-10-03: the library is scored
+#: in it. `situations` stays askable by name.
 WITHOUT_REGISTER: tuple[tuple[str, str], ...] = (
     *LEVELS[:6],
     (
@@ -134,8 +135,9 @@ PROMPTS: dict[str, tuple[tuple[str, str], ...]] = {
     "situations": LEVELS,
     "without-register": WITHOUT_REGISTER,
 }
-#: The wording the library was scored in, and the one asked unless another is named.
-PROMPT = "situations"
+#: The wording the library was scored in, and the one asked unless another is named
+#: (`without-register` since 2026-10-03, targum-internal#320; `situations` before).
+PROMPT = "without-register"
 
 #: The level past the ladder's top.
 BEYOND = len(ULPAN)
