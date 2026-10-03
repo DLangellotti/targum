@@ -2343,7 +2343,11 @@ def weekly_page(
 
     spec = LEVELS[level]
     said = page_words(language)
-    blurb = issue.blurb
+    # The issue's standfirst is one sentence in Hebrew, the same on every language's page,
+    # so a search result for the Russian page read nothing Russian. What the series is
+    # follows it, in the page's language, as the daily's description says its cycle's
+    # (targum-internal#188).
+    blurb = " ".join(filter(None, (issue.blurb, text("series.weekly.what", language))))
     press = _press(issue)
     # An issue in the archive is not this week's, and its hero said so anyway (copy
     # audit, 2026-09-28): the newest published issue is "this week's", every older one
@@ -2416,10 +2420,17 @@ def daily_page(
     the cycle's manuscript beside the headline, and the waitlist at the foot.
     Everything it needs was decided at build time; what is left at serve time is a lookup.
     """
-    from ..strings import text
+    from ..strings import said_hebrew_date, said_reference, text
 
     # The cycle's name and sentence as the follow button already says them (#188).
     named = text(f"series.{cycle.slug}.name", language)
+    titled = said_reference(day.title, language)
+    # Only today's address is indexed — a dated day falls out of the window in a
+    # fortnight — so it is the one that says where its other languages are, and each
+    # language canonicals to itself, as the shelf and the text pages do (#188).
+    here, alternates = _addressed_in(
+        f"{address}/{cycle.slug}" if address and is_today else "", language
+    )
     return (
         _environment()
         .get_template("daily.html.j2")
@@ -2428,7 +2439,7 @@ def daily_page(
             tn=page_counts(language),
             page_language=_page_language(language),
             strings=script_strings(language, "parasha."),
-            title=f"{day.title} — {named} — targum",
+            title=f"{titled} — {named} — targum",
             # The reference goes in the description because it is how somebody who keeps
             # the cycle recognises the day: "Kelim 28:2-3" says which one faster than any
             # sentence about it.
@@ -2436,17 +2447,24 @@ def daily_page(
                 "daily.head.description",
                 language,
                 name=named,
-                date=day.hdate,
-                title=day.title,
+                date=said_hebrew_date(day.hdate, language),
+                title=titled,
                 blurb=text(f"series.{cycle.slug}.what", language),
             ),
-            canonical=f"{address}/{cycle.slug}" if address and is_today else "",
+            canonical=here,
+            alternates=alternates,
             og_type="article",
             cycle=cycle,
+            # The cycle's own words in the page's language: its name, its sentence, how
+            # much a day is, and whose picture it is. The calendar's names — the day's
+            # reading and its Hebrew date — through the catalogue's book and month names.
+            series=lambda slug, what: text(f"series.{slug}.{what}", language),
+            ref=lambda said: said_reference(said, language),
+            hdate=lambda said: said_hebrew_date(said, language),
             day=day,
             nearby=nearby or [],
             others=others or [],
-            absent=absent or [],
+            absent=[_absent_in(name, why, language) for name, why in absent or []],
             opens=opens,
             is_today=is_today,
             signed_in=signed_in,
@@ -2455,6 +2473,19 @@ def daily_page(
             translation_said=_translation_said(day, language),
         )
     )
+
+
+def _absent_in(name: str, why: str, language: str) -> tuple[str, str]:
+    """A cycle this shelf does not carry, and why, in `language`.
+
+    Keyed by the name as `daily.cycles.ABSENT` writes it; a name the catalogue has no key
+    for is said as written, since a new row there should not stop the page."""
+    from ..strings import catalogue, text
+
+    key = "daily.absent." + "-".join(name.lower().split())
+    if key not in catalogue("en"):
+        return name, why
+    return text(key, language), text(f"{key}.why", language)
 
 
 def _translation_said(day: Any, language: str = "en") -> str:
@@ -2520,9 +2551,17 @@ def parasha_page(
     """
     from ..parasha.build import COLLECTION_ID
     from ..parasha.models import neighbours
-    from ..strings import said_on, text
+    from ..strings import said_hebrew_date, said_on, said_reference, text
 
     said = said_on(shabbat, language) if shabbat is not None else "Shabbat"
+    # The range as the page's language names the book — «Числа 4:21-7:89» — and the
+    # Hebrew date as it names the month (#188). English is left exactly as Hebcal wrote it.
+    ranged = said_reference(portion.summary, language)
+    # The portion's own address is the one indexed, in each language (#188). "This
+    # Shabbat" at `/parasha` canonicals to the portion it means, as it always has.
+    here, alternates = _addressed_in(
+        f"{address}/parasha/{portion.slug}" if address else "", language
+    )
     previous, following = neighbours(portion, listed or [])
     # The row to point at on the shelf: this portion's own, or — for a doubled week,
     # which is not on the shelf beside its halves — the first of its halves that is.
@@ -2559,7 +2598,7 @@ def parasha_page(
             title=(
                 text("parasha.head.this-week", language, name=portion.name)
                 if shabbat is not None
-                else f"{portion.name} — {portion.summary} — targum"
+                else f"{portion.name} — {ranged} — targum"
                 if portion.summary
                 else text("parasha.head.a-portion", language, name=portion.name)
             ),
@@ -2567,11 +2606,13 @@ def parasha_page(
             # who knows the portion recognises it — a search result that leads with
             # אתם נצבים says which reading this is faster than the chapter numbers do.
             description=(
-                f"{portion.name} — {portion.opening} — {portion.summary}. "
+                f"{portion.name} — {portion.opening} — {ranged}. "
                 + text("parasha.head.description", language)
             ).replace(" —  — ", " — "),
-            canonical=f"{address}/parasha/{portion.slug}" if address else "",
+            canonical=here,
+            alternates=alternates,
             portion=portion,
+            ref=lambda said: said_reference(said, language),
             schedule=schedule,
             other=other,
             diaspora=diaspora,
@@ -2581,7 +2622,7 @@ def parasha_page(
             this_week=shabbat is not None,
             # The Hebrew date belongs to the Shabbat, not the portion — a portion falls
             # on a different one every year — so it arrives from the week's own record.
-            hdate=hdate,
+            hdate=said_hebrew_date(hdate, language),
             haftarah=haftarah,
             haftarah_reason=haftarah_reason,
             haftarah_readable=haftarah_readable,
@@ -2591,10 +2632,7 @@ def parasha_page(
             all_href=all_href,
             taamim=taamim,
             shabbat_said=said,
-            translation_said=(
-                "the Metsudah linear translation, published under CC BY and matched to "
-                "the Hebrew verse by verse on this machine"
-            ),
+            translation_said=text("parasha.page.metsudah-linear", language),
         )
     )
 

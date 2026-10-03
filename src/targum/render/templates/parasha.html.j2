@@ -91,7 +91,7 @@
     {{ t("parasha.page.dateline", "{name} is read on {when} — {summary}, {verses} in {aliyot}.",
           name=named,
           when=shabbat_said ~ ((" (" ~ hdate ~ ")") if hdate else ""),
-          summary=portion.summary,
+          summary=ref(portion.summary),
           verses=tn("parasha.page.verses", portion.verses, "{n} verse", "{n} verses"),
           aliyot=tn("parasha.page.aliyot", portion.aliyot, "{n} aliyah", "{n} aliyot")) }}
     {%- if portion.kind.value == 'festival' %}
@@ -180,9 +180,16 @@
   {% if haftarah %}
   <h2 class="label">{{ t("parasha.page.the-haftarah", "The haftarah") }}</h2>
   <p class="dateline">
-    {{ haftarah.summary }}{% if haftarah.hebrew %} — from
-    <bdi lang="he" dir="rtl">{{ haftarah.hebrew }}</bdi>{% endif %}, {{ haftarah.verses }} verses.{% if haftarah_reason %}
-    Read this week in place of the portion's own: {{ haftarah_reason }}.{% endif %}
+    {#- One key for the sentence, with the book's Hebrew riding in a blank as markup, as
+        the portion's dateline above does (targum-internal#188). -#}
+    {%- set book -%}<bdi lang="he" dir="rtl">{{ haftarah.hebrew }}</bdi>{%- endset -%}
+    {%- set counted = tn("parasha.page.verses", haftarah.verses, "{n} verse", "{n} verses") -%}
+    {%- if haftarah.hebrew %}
+    {{ t("parasha.page.haftarah-from", "{summary} — from {book}, {verses}.", summary=ref(haftarah.summary), book=book, verses=counted) }}
+    {%- else %}
+    {{ t("parasha.page.haftarah-says", "{summary}, {verses}.", summary=ref(haftarah.summary), verses=counted) }}
+    {%- endif %}{% if haftarah_reason %}
+    {{ t("parasha.page.haftarah-instead", "Read this week in place of the portion's own: {reason}.", reason=haftarah_reason) }}{% endif %}
   </p>
   {% if haftarah_readable %}
   <div class="embed" id="haftarah">
@@ -190,7 +197,7 @@
     <iframe
       name="haftarah"
       src="/parasha/read/{{ haftarah.folder }}/reader/{{ haftarah.opens }}"
-      title="{{ t("parasha.page.haftarah-title", "The haftarah, {summary}", summary=haftarah.summary) }}"
+      title="{{ t("parasha.page.haftarah-title", "The haftarah, {summary}", summary=ref(haftarah.summary)) }}"
       loading="lazy"></iframe>
   </div>
   {% endif %}
@@ -277,7 +284,7 @@
           <a class="story" href="/parasha/{{ one.slug }}" {% if one.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ one.hebrew or one.name }}</a>
           <span class="row">
             <span class="outlets" lang="en" dir="ltr">{{ one.name }}</span>
-            <span class="licence">{{ one.summary }}</span>
+            <span class="licence">{{ ref(one.summary) }}</span>
           </span>
         </li>
         {%- endfor %}
