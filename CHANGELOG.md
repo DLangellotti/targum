@@ -462,6 +462,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- The Hebrew annotator keeps DICTA's syntax (targum-internal#134). Each word now records
+  which word governs it and how, with its prefixes (`Token.syntax`), and the first word of
+  a construct chain says "construct" on its card: בֵּית in בֵּית הַסֵּפֶר. Until now no
+  card ever said it, because DICTA's morphology never marks the construct and the
+  annotator threw away the syntax that does. The scene gate's smichut and numeral checks
+  read the stored annotation where it carries the syntax, and read the scene again with
+  local DICTA where it does not (`dialogue/agreement.py`, and
+  `scripts/score_scene_checks.py --annotations`). The annotator is renamed
+  (`syntax+grammar/3`), so every Hebrew text is re-annotated at the next rebuild: free of
+  spend, not of time (see CLAUDE.md on renames). `SCHEMA_VERSION` is unchanged.
 - A Hebrew verb's own pointing now picks its conjugation table, per occurrence
   (targum-internal#307, decided 2026-10-03). `אוכל` is `אָכַל`'s present, the past of the
   פֻּעַל `אוכל` and the future of `יָכֹל` letter for letter, so it drew no table; written
