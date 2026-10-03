@@ -62,7 +62,9 @@ def test_the_key_is_of_the_stored_text_and_the_marks_never_travel() -> None:
     assert state == {"passage": strip_taamim(verse)}
     (question,) = questions.values()
     assert question["type"] == "score"
-    assert question["criteria"] == [text for _, text in sentence_level.LEVELS]
+    assert question["criteria"] == [
+        text for _, text in sentence_level.PROMPTS[sentence_level.PROMPT]
+    ]
 
 
 def test_a_sentence_answered_elsewhere_stays_as_context_and_is_not_asked() -> None:
