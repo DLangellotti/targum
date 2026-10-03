@@ -10,7 +10,8 @@ and nothing bought. Every verb token is put in one bucket:
   unique                the bare spelling names one verb, and that is the table
   settled by binyan     several verbs spell it the same; the binyan targum worked out
                         for this word matches exactly one of them (#307)
-  settled by pointing   several; the pointed form the reader saw belongs to one
+  settled by pointing   several; the pointed form the reader saw belongs to one, or
+                        opens on a vowel only one of them could (#307, per occurrence)
   settled, both agree   both signals decide and name the same verb
   settled by reading    several, and no binyan; every form the word is written in on
                         the page is read as the same one of them by targum's own
@@ -47,6 +48,7 @@ from targum.annotate.paradigms import (  # noqa: E402
     Table,
     bare,
     binyan_of,
+    pointed_form,
     table,
     written_form,
 )
@@ -117,7 +119,7 @@ def measure(
             where = bucket(
                 verbs,
                 lemma,
-                str(token.get("surface") or ""),
+                pointed_form(str(token.get("surface") or ""), token.get("built")),
                 token.get("binyan"),
                 tuple(written[(lemma, str(token.get("headword") or ""))]),
                 tuple(said[(lemma, str(token.get("headword") or ""))]),
@@ -144,13 +146,7 @@ def bucket(
     if len(candidates) == 1:
         return "unique"
     known = verbs.verbs
-    pointed = [
-        lid
-        for lid in candidates
-        if surface
-        and (verb := known.get(lid))
-        and (verb.lemma == surface or any(form.written == surface for form in verb.forms))
-    ]
+    pointed = verbs.pointed_as(candidates, surface)
     built = [lid for lid in candidates if binyan and binyan_of(known[lid].lemma) == str(binyan)]
     present = verbs._by_present(candidates, said)
     if len(pointed) == 1 and len(built) == 1:
@@ -161,6 +157,9 @@ def bucket(
         chosen, where = built[0], "settled by binyan"
     elif len(pointed) == 1:
         chosen, where = pointed[0], "settled by pointing"
+        named = verbs.binyan_of(chosen)
+        if binyan and named and named != str(binyan):
+            return "refused: conflict"
     else:
         read = verbs._by_reading(candidates, written) if not binyan and written else None
         if read is not None:

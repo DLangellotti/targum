@@ -1837,6 +1837,7 @@ def _paradigm_at(
     feature_at: dict[str, int],
     written: tuple[str, ...] = (),
     said: tuple[tuple[str, str, str], ...] = (),
+    seen: str = "",
 ) -> int:
     """Where this word's conjugations sit in the page's own tables, or 0 for none.
 
@@ -1850,9 +1851,11 @@ def _paradigm_at(
     from 55.4% of the shelf's verb tokens to 72.4%. It is a fact about the lemma's
     analysis rather than about this occurrence, so it keys the cache beside the lemma.
 
-    The surface is not passed. `Table.of` would take it, but the table is drawn once per
-    lemma for the whole page, and a pointing is per occurrence: the first one on the page
-    would be deciding for all the others.
+    `seen` is this occurrence's own pointed form (`paradigms.pointed_form`), and it is
+    passed per occurrence, never for the lemma (decided 2026-10-03, targum-internal#307):
+    the table drawn once for the word is drawn without it, so the first occurrence on the
+    page does not decide for the others, and each occurrence whose vowels name a verb —
+    or refuse the word's — carries its own (`paradigmsHere`). It keys the cache too.
 
     `written` is every form this word takes on the page, which is the other way round:
     all of them have a say, so none decides for the rest (targum-internal#307, 2026-09-27).
@@ -1879,9 +1882,11 @@ def _paradigm_at(
         key += "\u0000" + "|".join(sorted(set(written)))
     if said:
         key += "\u0000" + "|".join(sorted({"\u0001".join(one) for one in said}))
+    if seen:
+        key += "\u0000\u0002" + seen
     if key in table_at:
         return table_at[key]
-    found = paradigm_table().of(lemma, binyan=binyan or None, written=written, said=said)
+    found = paradigm_table().of(lemma, seen=seen, binyan=binyan or None, written=written, said=said)
     if found is None:
         table_at[key] = 0
         return 0
@@ -3523,8 +3528,14 @@ def render(
         # And the grammar each of those forms was tagged with, which is what tells a
         # participle's verb from a verb spelled like it (#307).
         verb_said: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+        # Where an occurrence's own pointing names another table than the word's, or
+        # refuses it: per segment, rows of [the token's row, the table] (#307, decided
+        # 2026-10-03). Only where it differs, so a page the vowels change nothing on
+        # weighs what it did.
+        paradigms_here: dict[str, list[list[int]]] = {}
         if annotation is not None:
-            from ..annotate.paradigms import written_form
+            from ..annotate.paradigms import bare as unpointed
+            from ..annotate.paradigms import pointed_form, written_form
 
             for sid in section.segment_ids:
                 for token in chips(annotation.tokens.get(sid) or ()):
@@ -3623,6 +3634,19 @@ def render(
                     if label:
                         row.append(label)
                     rows.append(row)
+                    seen = pointed_form(token.surface, token.built) if token.pos == "VERB" else ""
+                    if seen and seen != unpointed(seen):
+                        here = _paradigm_at(
+                            token,
+                            tables,
+                            table_at,
+                            feature_at,
+                            tuple(verb_forms.get(word, ())),
+                            tuple(verb_said.get(word, ())),
+                            seen,
+                        )
+                        if here != paradigms[lemma_at[word]]:
+                            paradigms_here.setdefault(sid, []).append([len(rows) - 1, here])
                     if token.stands_for and antecedents_shown():
                         placed = _stands_at(token, sid, before_of.get(sid), bare, to_bare)
                         if placed and placed[0] in section.segment_ids:
@@ -3989,6 +4013,9 @@ def render(
                         else {}
                     ),
                     **({"stands": stands} if stands else {}),
+                    # An occurrence's own table where its pointing says another than the
+                    # word's (targum-internal#307). Absent wherever it says nothing new.
+                    **({"paradigmsHere": paradigms_here} if paradigms_here else {}),
                     # A verb's citation form and a noun's lying plural, parallel to the
                     # lemmas. Left out while nothing on the page has either — which is
                     # every text glossed before they existed.

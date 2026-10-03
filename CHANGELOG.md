@@ -451,6 +451,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- A Hebrew verb's own pointing now picks its conjugation table, per occurrence
+  (targum-internal#307, decided 2026-10-03). `אוכל` is `אָכַל`'s present, the past of the
+  פֻּעַל `אוכל` and the future of `יָכֹל` letter for letter, so it drew no table; written
+  `אוֹכֵל`, it opens on the vowel only the פעל's present does. `paradigms.opening_of` reads
+  that vowel, and `Table.pointed_as` keeps a verb only where it has a form in those
+  letters whose binyan and tense open on it. It refuses wherever anything else could be
+  it: a verb whose binyan cannot be read, any verb outside the lemma's candidates spelled
+  alike, the word's own binyan saying otherwise, or the page's present or readings naming
+  another verb. Render-time only, from the surface already stored: no annotator rename,
+  no re-annotation. The page carries an occurrence's table as `paradigmsHere` only where
+  it differs from the word's. Measured over the shelf's current builds (149,521 verb
+  tokens): 77.1% → 77.8%, and `אוכל` 102 → 422 of its 828 tokens. The 77.1% counted
+  letters-only matches on unpointed text as "settled by pointing", though the page never
+  passed a surface; measured with no surface, as the page drew, it is 76.3%.
 - A Russian daily or parasha page says the rest of itself in Russian
   (targum-internal#188). A reading names its book the way the Russian shelf does —
   «Числа 4:21-7:89», not "Numbers 4:21-7:89" — and a Hebrew date its month, «19 элуля

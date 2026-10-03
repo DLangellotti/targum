@@ -6047,6 +6047,103 @@ def test_a_participle_takes_the_table_of_the_verb_whose_present_it_is(
     assert past.get("paradigms", [0]) == [0]
 
 
+def _pointed_page(
+    tmp_path: Path, lemma: str, words: list[tuple[str, str | None]]
+) -> dict[str, Any]:
+    """A page whose only verb is `lemma`, written as each (surface, binyan)."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(
+                    start=at,
+                    end=at + 1,
+                    surface=surface,
+                    lemma=lemma,
+                    band=1,
+                    pos="VERB",
+                    binyan=binyan,
+                )
+                for at, (surface, binyan) in enumerate(words)
+            ]
+        },
+    )
+    html = render(
+        document, make_segmented(segments), [translation], tmp_path, annotation=annotation
+    )[0].read_text(encoding="utf-8")
+    return dict(json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)))
+
+
+def test_an_occurrence_s_own_pointing_draws_its_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#307, decided 2026-10-03. Unpointed, `אוכל` is `אָכַל`'s present and
+    the past of the פֻּעַל `אוכל`, so the word draws no table. The occurrence written
+    `אוֹכֵל` opens on the פעל's present, and carries `אָכַל`'s table as its own; the one
+    written without points carries nothing of its own."""
+    from targum.annotate import paradigms
+
+    paal = paradigms.Paradigm(
+        lemma="אָכַל",
+        forms=(
+            paradigms.Form(written="אכל", features=("3rd", "masculine", "past", "singular")),
+            paradigms.Form(written="אוכל", features=("masculine", "present", "singular")),
+        ),
+    )
+    pual = paradigms.Paradigm(
+        lemma="אוכל",
+        forms=(paradigms.Form(written="אוכל", features=("3rd", "masculine", "past", "singular")),),
+    )
+    shelf = paradigms.Table(verbs={"a": paal, "u": pual}, by_form={"אוכל": ("a", "u")})
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+    data = _pointed_page(tmp_path, "אוכל", [("אוֹכֵל", None), ("אוכל", None)])
+    extensions = data["extensions"]
+    assert extensions.get("paradigms", [0]) == [0], "the word itself is still undecided"
+    ((sid, here),) = data["paradigmsHere"].items()
+    assert here == [[0, 1]], "the pointed occurrence alone, on its own row"
+    assert {form for form, _codes in extensions["conjugations"][1]} == {"אכל", "אוכל"}
+
+
+def test_an_occurrence_whose_pointing_disagrees_refuses_the_word_s_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Refuse-on-conflict, per occurrence. The word is tagged פעל, so it draws `הָלַךְ`;
+    the occurrence pointed `הִלֵּךְ` is the פיעל, and draws nothing rather than a table
+    its own vowels say is wrong. The one pointed `הָלַךְ` agrees, and keeps the word's."""
+    from targum.annotate import paradigms
+
+    paal = paradigms.Paradigm(
+        lemma="הָלַךְ", forms=(paradigms.Form(written="הָלַכְתִּי", features=("1st", "past")),)
+    )
+    piel = paradigms.Paradigm(
+        lemma="הִלֵּךְ", forms=(paradigms.Form(written="הִלַּכְתִּי", features=("1st", "past")),)
+    )
+    shelf = paradigms.Table(verbs={"a": paal, "b": piel}, by_form={"הלך": ("a", "b")})
+    monkeypatch.setattr(paradigms, "table", lambda: shelf)
+
+    data = _pointed_page(tmp_path, "הלך", [("הָלַךְ", "פעל"), ("הִלֵּךְ", "פעל")])
+    assert data["extensions"]["paradigms"] == [1]
+    ((sid, here),) = data["paradigmsHere"].items()
+    assert here == [[1, 0]]
+
+
 # -- a commentary's comments are separated (targum-internal#200) ------------------------
 
 
