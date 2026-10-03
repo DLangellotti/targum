@@ -29,7 +29,10 @@ from targum.annotate.paradigms import (
     Table,
     bare,
     binyan_of,
+    binyan_unpointed,
     family_of,
+    opening_of,
+    pointed_form,
     present_wanted,
     readings,
     table,
@@ -537,8 +540,9 @@ def test_the_coverage_measurement_counts_what_the_readings_settle(tmp_path: Path
     measure_conjugations: Any = load_script("measure_conjugations")
     path = tmp_path / "mishnah"
     path.mkdir()
+    # Unpointed, as a news page is: pointed, `אוֹמֵר` is settled by its own vowel first.
     tokens = [
-        {"pos": "VERB", "lemma": "אומר", "surface": surface} for surface in ("אוֹמֵר", "אוֹמְרִים")
+        {"pos": "VERB", "lemma": "אומר", "surface": surface} for surface in ("אומר", "אומרים")
     ]
     (path / "annotation.json").write_text(
         json.dumps({"language": "he", "tokens": {"s": tokens}}, ensure_ascii=False),
@@ -733,9 +737,10 @@ def test_the_coverage_measurement_counts_what_the_present_settles(tmp_path: Path
     measure_conjugations: Any = load_script("measure_conjugations")
     path = tmp_path / "mishnah"
     path.mkdir()
+    # Unpointed: pointed, `עוֹמֵד` is settled by its own vowel before its tense is asked.
     tokens = [
-        {"pos": "VERB", "lemma": "עומד", "surface": "עוֹמֵד", "feats": PRESENT},
-        {"pos": "VERB", "lemma": "עומד", "surface": "עוֹמְדִים", "feats": PRESENT_PLURAL},
+        {"pos": "VERB", "lemma": "עומד", "surface": "עומד", "feats": PRESENT},
+        {"pos": "VERB", "lemma": "עומד", "surface": "עומדים", "feats": PRESENT_PLURAL},
     ]
     (path / "annotation.json").write_text(
         json.dumps({"language": "he", "tokens": {"s": tokens}}, ensure_ascii=False),
@@ -745,3 +750,154 @@ def test_the_coverage_measurement_counts_what_the_present_settles(tmp_path: Path
     tally, _lemmas, _skipped = measure_conjugations.measure(tmp_path)
     assert tally["settled by the present"] == 2
     assert "settled by the present" in measure_conjugations.COVERED
+
+
+# -- the pointing, per occurrence (targum-internal#307, decided 2026-10-03) ------------
+
+
+@pytest.mark.parametrize(
+    ("pointed", "opens"),
+    [
+        ("אוֹכֵל", "vo"),
+        ("אֹכַל", "o"),
+        ("אוּכַל", "u"),
+        ("יִכְתֹּב", "hiriq"),
+        ("יִכָּתֵב", "hiriq-dagesh"),
+        ("יִיכָּתֵב", "hiriq-dagesh"),
+        ("טִהֵר", "hiriq-open"),
+        ("יֵאָכֵל", "tsere-qamats"),
+        ("יֵשֵׁב", "tsere"),
+        ("מְשֻׁלָּח", "shva-u"),
+        ("מְשַׁלֵּחַ", "shva"),
+        ("קָם", "qamats"),
+        ("אוכל", None),
+        ("", None),
+    ],
+)
+def test_a_word_opens_on_the_vowel_its_pointing_says(pointed: str, opens: str | None) -> None:
+    """The one place the pointing tells apart what the letters cannot: `אוֹכֵל` and `אוּכַל`
+    are the same four letters, and a present and a future."""
+    assert opening_of(pointed) == opens
+
+
+def test_the_pointed_form_is_the_verb_without_its_clitics() -> None:
+    assert pointed_form("וְאוֹכֵל", "ו and + אוכל") == "אוֹכֵל"
+    assert pointed_form("הָאוֹכֵל", "ה the + אוכל") == "אוֹכֵל"
+    assert pointed_form("וַיֹּ֨אמֶר", "ו and + יֹּאמֶר") == "יֹּאמֶר", "cantillation is not a point"
+    assert pointed_form("אוכל") == "אוכל"
+    assert pointed_form("") == ""
+
+
+@pytest.mark.parametrize(
+    ("lemma", "binyan"),
+    [("אוכל", "פועל"), ("הוכל", "הופעל"), ("הוסף", "הופעל"), ("התלבש", "התפעל")],
+)
+def test_an_unpointed_lemma_s_shape_can_say_its_binyan(lemma: str, binyan: str) -> None:
+    assert binyan_unpointed(lemma) == binyan
+
+
+@pytest.mark.parametrize("lemma", ["אכל", "הוליד", "הודה", "קומם", "התקין", "אָכַל", ""])
+def test_a_shape_two_binyanim_share_says_nothing(lemma: str) -> None:
+    """`הוליד` and `הודה` are הִפְעִיל, `קומם` a פּוֹלֵל, `התקין` the הִפְעִיל of ת־ק־ן; a
+    pointed lemma is `binyan_of`'s to read."""
+    assert binyan_unpointed(lemma) is None
+
+
+def eats() -> Table:
+    """`אוכל` as the source spells it: `אָכַל`'s present and the past of the פֻּעַל `אוכל`."""
+    paal = Paradigm(
+        lemma="אָכַל",
+        forms=(
+            Form(written="אכל", features=("3rd", "masculine", "past", "singular")),
+            Form(written="אוכל", features=("masculine", "present", "singular")),
+        ),
+    )
+    pual = Paradigm(
+        lemma="אוכל",
+        forms=(Form(written="אוכל", features=("3rd", "masculine", "past", "singular")),),
+    )
+    return Table(verbs={"a": paal, "u": pual}, by_form={"אוכל": ("a", "u"), "אכל": ("a",)})
+
+
+def test_the_vowel_the_word_opens_on_picks_the_verb() -> None:
+    """targum-internal#307: unpointed, `אוכל` is both, and nothing on the page says which.
+    The occurrence's own pointing does: a holam on the ו is the פעל's present, and a
+    shuruk is the פֻּעַל's past."""
+    shelf = eats()
+    assert shelf.of("אוכל") is None
+    assert (found := shelf.of("אוכל", seen="אוֹכֵל")) is not None and found.lemma == "אָכַל"
+    assert (found := shelf.of("אוכל", seen="אוּכַּל")) is not None and found.lemma == "אוכל"
+    assert shelf.of("אוכל", seen="אוכל") is None, "unpointed, it says nothing new"
+    assert shelf.of("אוכל", seen="אִכֵּל") is None, "a vowel neither opens on"
+
+
+def test_where_the_vowel_and_the_binyan_disagree_neither_is_taken() -> None:
+    """Refuse-on-conflict, kept: the pointing names the פעל and the word was tagged פֻּעַל,
+    so no table — though either alone would have drawn one."""
+    shelf = eats()
+    assert shelf.of("אוכל", seen="אוֹכֵל", binyan="פועל") is None
+    assert (found := shelf.of("אוכל", seen="אוֹכֵל", binyan="פעל")) is not None
+    assert found.lemma == "אָכַל"
+
+
+def test_a_verb_outside_the_candidates_spelled_alike_refuses() -> None:
+    """The verb the word is may not be one the lemma reaches. `נִכְתֹּב` "we shall write",
+    filed under `נכתב`, reaches only `נִכְתַּב`, whose past opens the same way — but
+    `כָּתַב` writes `נכתוב`, and that is a rival."""
+    nifal = Paradigm(
+        lemma="נִכְתַּב",
+        forms=(Form(written="נכתב", features=("3rd", "masculine", "past", "singular")),),
+    )
+    paal = Paradigm(
+        lemma="כָּתַב",
+        forms=(Form(written="נכתוב", features=("1st", "future", "plural")),),
+    )
+    alone = Table(verbs={"n": nifal}, by_form={"נכתב": ("n",)})
+    assert alone.of("נכתב", seen="נִכְתַּב") is not None
+    both = Table(verbs={"n": nifal, "p": paal}, by_form={"נכתב": ("n",), "נכתוב": ("p",)})
+    two_lemmas = Table(verbs=both.verbs, by_form={"נכתב": ("n", "x"), "נכתוב": ("p",)})
+    assert two_lemmas.of("נכתב", seen="נִכְתֹּב") is None
+
+
+def test_a_verb_whose_binyan_cannot_be_read_is_never_the_one_left() -> None:
+    """An unpointed lemma of no telling shape could be any binyan. It is not ruled out,
+    so nothing is chosen while it stands, and it is never chosen for being left."""
+    paal = eats().verbs["a"]
+    unread = Paradigm(
+        lemma="אכל",
+        forms=(Form(written="אוכל", features=("1st", "future", "singular")),),
+    )
+    shelf = Table(verbs={"a": paal, "x": unread}, by_form={"אוכל": ("a", "x")})
+    assert shelf.of("אוכל", seen="אוֹכֵל") is None
+
+
+def test_the_pointing_settles_the_commonest_stub_on_the_shipped_table(shipped: Table) -> None:
+    """The measure in miniature, on the real table and with no readings: `אוֹכֵל` is
+    `אָכַל`'s, and `אוּכַל` — `יָכֹל`'s "I can" and the הֻפְעַל `הוכל` alike — is nobody's."""
+    bare_shelf = Table(verbs=shipped.verbs, by_form=shipped.by_form)
+    assert bare_shelf.of("אוכל") is None
+    found = bare_shelf.of("אוכל", seen="אוֹכֵל")
+    assert found is not None and found.lemma == "אָכַל"
+    assert bare_shelf.of("אוכל", seen="אוּכַל") is None
+
+
+def test_the_coverage_measurement_counts_what_the_pointing_settles(tmp_path: Path) -> None:
+    """The measurement passes each occurrence its own pointing, as the page now does, and
+    refuses the one whose binyan says otherwise."""
+    measure_conjugations: Any = load_script("measure_conjugations")
+    path = tmp_path / "mishnah"
+    path.mkdir()
+    tokens = [
+        {"pos": "VERB", "lemma": "אוכל", "surface": "וְאוֹכֵל", "built": "ו and + אוכל"},
+        {"pos": "VERB", "lemma": "אוכל", "surface": "אוֹכֵל", "binyan": "פועל"},
+        {"pos": "VERB", "lemma": "אוכל", "surface": "אוכל"},
+    ]
+    (path / "annotation.json").write_text(
+        json.dumps({"language": "he", "tokens": {"s": tokens}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    measure_conjugations.table = eats
+    tally, _lemmas, _skipped = measure_conjugations.measure(tmp_path)
+    assert tally["settled by pointing"] == 1
+    assert tally["refused: conflict"] == 1
+    assert tally["still ambiguous"] == 1

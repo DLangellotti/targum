@@ -237,6 +237,9 @@ var targumReader = function () {
   // the tables, the tables themselves, and the feature names they point into. All three
   // absent on a page with no Hebrew verb that has one, which is most pages.
   var paradigmAt = extensions.paradigms || [];
+  // And an occurrence's own, where its pointing names another table than the word's or
+  // refuses it (targum-internal#307): per segment, [row, table]. Absent on most pages.
+  var paradigmsHere = data.paradigmsHere || {};
   var conjugationTables = extensions.conjugations || [];
   var conjugationFeatures = extensions.features || [];
   // The other verbs built on this one's root (targum-internal#301): an index per lemma
@@ -4651,8 +4654,22 @@ var targumReader = function () {
     return box;
   }
 
-  function conjugations(index, surface) {
-    var rows = conjugationTables[paradigmAt[index] || 0];
+  // The table this occurrence draws: its own where the page carries one, else the word's.
+  function paradigmOf(index, word, row) {
+    var pair = word && word.closest ? word.closest(".pair") : null;
+    if (pair && row && !besideCell(word)) {
+      var id = pair.getAttribute("data-id");
+      var at = (wordData[id] || []).indexOf(row);
+      var here = paradigmsHere[id] || [];
+      for (var i = 0; i < here.length; i++) {
+        if (here[i][0] === at) return here[i][1];
+      }
+    }
+    return paradigmAt[index] || 0;
+  }
+
+  function conjugations(index, surface, word, row) {
+    var rows = conjugationTables[paradigmOf(index, word, row)];
     if (!rows || !rows.length) return null;
 
     var box = document.createElement("details");
@@ -5272,7 +5289,7 @@ var targumReader = function () {
       // The table itself, where this page carries one (targum-internal#300). About six
       // verbs in ten have one; Pealim above stays for the rest, and for anybody who
       // wants more than a table.
-      var drawn = conjugations(index, word.textContent);
+      var drawn = conjugations(index, word.textContent, word, row);
       if (drawn) card.appendChild(drawn);
       var kin = siblingLine(index);
       if (kin) card.appendChild(kin);
