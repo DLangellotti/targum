@@ -4590,6 +4590,9 @@ class Handler(BaseHTTPRequestHandler):
     page: str
     adding: str
     progress: str
+    #: The Tanakh map (targum-internal#144). Empty on a handler built by hand, which is
+    #: how the tests build one that serves no map.
+    tanakh: str = ""
     playlists: str
     catalogue: str
     you: str
@@ -4695,6 +4698,8 @@ class Handler(BaseHTTPRequestHandler):
             "/add",
             "/chat",
             "/progress",
+            "/tanakh-map",
+            "/tanakh-map.json",
             "/library",
             "/you",
             "/playlists",
@@ -5937,6 +5942,7 @@ class Handler(BaseHTTPRequestHandler):
             "Disallow: /reader/",
             "Disallow: /readers",
             "Disallow: /progress",
+            "Disallow: /tanakh-map",
             "Disallow: /job/",
             "Disallow: /glossary/",
             "Disallow: /health",
@@ -6493,6 +6499,7 @@ class Handler(BaseHTTPRequestHandler):
                     "/slips",
                     "/playlists.json",
                     "/playlists/",
+                    "/tanakh-map.json",
                 )
             ):
                 return self._json(
@@ -6612,6 +6619,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/progress":
             page = self._desk("progress", self.progress)
             return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/tanakh-map":
+            if not self.tanakh:
+                return self._not_found()
+            page = self._desk("tanakh", self.tanakh)
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+        if route == "/tanakh-map.json":
+            return self._tanakh_map()
         # Learn holds the top of each of these; this is the rest. `/words` was a redirect
         # to the progress page for a while, from when the word list lived there — an old
         # tab pointing here now lands on the word list itself, which is what it wanted.
@@ -9523,6 +9537,62 @@ class Handler(BaseHTTPRequestHandler):
             }
         self._json(answer)
 
+    def _tanakh_map(self) -> None:
+        """The Tanakh map's shading for whoever is asking (targum-internal#144).
+
+        `chapters` is each chapter's whole percentage of running words whose dictionary
+        form the reader has marked known — `coverage.chapter_map`, said as the map says
+        it. A chapter it cannot measure is left out rather than sent as 0: an Aramaic
+        chapter, whose words are not on a Hebrew list, stays unshaded on the page. `week`
+        is the chapters this Shabbat's portion is read from, off the parasha index and
+        never the network, so the page can ring them in ink.
+
+        Signed out there is no list to measure, and the page draws its structure only.
+        """
+        from . import coverage as coverage_module
+
+        week = self._portion_chapters()
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False, "chapters": {}, "week": week})
+        marked = self.store.marked(person, "he")
+        known = {lemma for lemma, status in marked.items() if status == coverage_module.KNOWN}
+        shares = coverage_module.chapter_map(known)
+        self._json(
+            {
+                "signedIn": True,
+                "chapters": {
+                    ref: coverage_module.map_percent(share)
+                    for ref, share in shares.items()
+                    if share is not None
+                },
+                "week": week,
+            }
+        )
+
+    @staticmethod
+    def _portion_chapters() -> list[str]:
+        """The chapters this week's portion is read from, as the map names them —
+        `["Genesis 12", "Genesis 13", …]` — or nothing where there is no parasha corpus
+        on this machine or no ordinary portion this week.
+
+        Chapter-level, as the issue says it must be for now: a portion that starts or
+        ends mid-chapter takes the whole of that chapter with it.
+        """
+        try:
+            from .parasha import build as corpus
+
+            portion = corpus.current()
+        except Exception:  # noqa: BLE001 - no corpus is a map with no ring, not a 500
+            return []
+        if portion is None or not portion.books:
+            return []
+        found = [int(n) for n in re.findall(r"(\d+):\d+", portion.summary)]
+        if not found:
+            return []
+        book = portion.books[0]
+        return [f"{book} {n}" for n in range(min(found), max(found) + 1)]
+
     def _reading(self) -> None:
         """What the reader knew of what they read, a point a month, per language
         (targum-internal#291). `line` is empty under three points, and `months` says how
@@ -11084,6 +11154,7 @@ def start(
         list_page,
         playlists_page,
         progress_page,
+        tanakh_map_page,
         you_page,
     )
     from .translate.anthropic_provider import AnthropicProvider
@@ -11154,11 +11225,13 @@ def start(
             # A Telegram door, where the deployment has given it a bot (#328).
             "telegram": telegram_module.from_environment(library, keeping, public),
             "progress": progress_page(token),
+            "tanakh": tanakh_map_page(token),
             # The desk pages said in another language, rendered once each at start-up
             # like the English ones, and chosen per request (targum-internal#184).
             "translated": {
                 code: {
                     "progress": progress_page(token, language=code),
+                    "tanakh": tanakh_map_page(token, language=code),
                     "page": learn_page(token, language=code, connector=connector_is_open()),
                     "you": you_page(token, language=code),
                     "playlists": playlists_page(token, language=code),

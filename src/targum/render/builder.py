@@ -2172,6 +2172,130 @@ def progress_page(token: str, language: str = "en") -> str:
     )
 
 
+#: The Writings' Hebrew names, which the parasha corpus never needed: `parasha.cut` holds
+#: the Torah's and the Prophets', by the English names the chapter file uses too.
+KETUVIM = {
+    "Psalms": "תהילים",
+    "Proverbs": "משלי",
+    "Job": "איוב",
+    "Song of Songs": "שיר השירים",
+    "Ruth": "רות",
+    "Lamentations": "איכה",
+    "Ecclesiastes": "קהלת",
+    "Esther": "אסתר",
+    "Daniel": "דניאל",
+    "Ezra": "עזרא",
+    "Nehemiah": "נחמיה",
+    "I Chronicles": "דברי הימים א",
+    "II Chronicles": "דברי הימים ב",
+}
+
+#: The Hebrew count: twenty-four books, so the four the printed Bible splits are one
+#: each on the map. By the chapter file's name, to the book it is part of and what its
+#: half is called there. The Twelve stay twelve, as the issue asks.
+ONE_BOOK = {
+    "I Samuel": ("Samuel", "שמואל", "I"),
+    "II Samuel": ("Samuel", "שמואל", "II"),
+    "I Kings": ("Kings", "מלכים", "I"),
+    "II Kings": ("Kings", "מלכים", "II"),
+    "Ezra": ("Ezra–Nehemiah", "עזרא ונחמיה", "Ezra"),
+    "Nehemiah": ("Ezra–Nehemiah", "עזרא ונחמיה", "Nehemiah"),
+    "I Chronicles": ("Chronicles", "דברי הימים", "I"),
+    "II Chronicles": ("Chronicles", "דברי הימים", "II"),
+}
+
+
+def tanakh_map() -> list[dict[str, Any]]:
+    """The Tanakh as the map draws it: three parts, their books in the Hebrew order and
+    count, and every chapter with where it is read (targum-internal#144).
+
+    A chapter's address is its book's catalogue door with the chapter's first verse on
+    it, `/open/genesis#12:1`: the door opens the reader's copy, and its contents page
+    sends `#12:1` on to the file that holds it. A book the catalogue does not have has
+    no address, and the map draws it as unavailable rather than as unknown. The portion
+    a Torah chapter falls in is the one its first verse is read in, as the book's own
+    contents page files it.
+    """
+    from .. import catalogue as catalogue_module
+    from .. import coverage as coverage_module
+    from ..parasha.cut import BOOKS, NEVIIM
+
+    hebrew = {**BOOKS, **NEVIIM, **KETUVIM}
+    counted = coverage_module.read_map()
+    parts: dict[str, list[dict[str, Any]]] = {}
+    for book, part, chapters in counted.books:
+        entry = catalogue_module.matching(f"sefaria:{book}")
+        door = f"/open/{entry.id}" if entry is not None and entry.language == "he" else ""
+        starts = _portion_starts(book) if part == "torah" else []
+        run = []
+        for number in range(1, chapters + 1):
+            ref = f"{book} {number}"
+            chapter = counted.chapters.get(ref)
+            portion = next(
+                (s for s in reversed(starts) if (s.chapter, s.verse) <= (number, 1)), None
+            )
+            run.append(
+                {
+                    "ref": ref,
+                    "number": number,
+                    "verses": chapter.verses if chapter else 0,
+                    "language": chapter.language if chapter else "he",
+                    "href": f"{door}#{number}:1" if door else "",
+                    "portion": portion.name if portion else "",
+                }
+            )
+        name, whole, half = ONE_BOOK.get(book, (book, hebrew.get(book, ""), ""))
+        books = parts.setdefault(part, [])
+        if books and books[-1]["name"] == name:
+            books[-1]["halves"].append({"book": book, "mark": half, "chapters": run})
+            continue
+        books.append(
+            {
+                "name": name,
+                "hebrew": whole,
+                "halves": [{"book": book, "mark": half, "chapters": run}],
+            }
+        )
+    return [{"part": part, "books": books} for part, books in parts.items()]
+
+
+def _portion_starts(book: str) -> list[Any]:
+    """Where each portion begins in one book of the Torah, or nothing where the parasha
+    corpus is not on this machine: the card then names no portion, which is true."""
+    try:
+        from ..parasha.build import portions_for
+
+        return portions_for(book)
+    except Exception:  # noqa: BLE001 - a missing corpus is a card with one line fewer
+        return []
+
+
+def tanakh_map_page(token: str, language: str = "en") -> str:
+    """Every chapter of the Tanakh, shaded by how much of it the reader knows
+    (targum-internal#144).
+
+    Built once, like the other desk pages: the books, the chapters and their addresses
+    are the same for everyone, and the shading is asked for by `tanakh.js` from
+    `/tanakh-map.json`, which answers for whoever is signed in. `steps` is where the ramp
+    turns, handed to the script so the page and the server count one way.
+    """
+    from ..coverage import MAP_STEPS
+
+    return (
+        _environment()
+        .get_template("tanakh.html.j2")
+        .render(
+            t=page_words(language),
+            page_language=_page_language(language),
+            token=token,
+            languages=_language_names(language),
+            parts=tanakh_map(),
+            steps=list(MAP_STEPS),
+            strings=script_strings(language, "tanakh."),
+        )
+    )
+
+
 #: One catalogue, one name for it. There were two — a Library and a Beit Midrash — and
 #: the split made the Tanakh harder to find rather than easier to avoid. What the Beit
 #: Midrash was for is now a tag on the entries themselves.

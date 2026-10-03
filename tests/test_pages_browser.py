@@ -44,6 +44,7 @@ from targum.render.builder import (
     playlists_page,
     progress_page,
     signin_page,
+    tanakh_map_page,
     you_page,
 )
 
@@ -63,6 +64,7 @@ def pages() -> dict[str, str]:
         "library": library_page(TOKEN),
         "playlists": playlists_page(TOKEN),
         "progress": progress_page(TOKEN),
+        "tanakh": tanakh_map_page(TOKEN),
         "you": you_page(TOKEN),
     }
     built.update({f"words:{which}": list_page(TOKEN, which) for which in LISTS})

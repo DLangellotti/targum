@@ -792,6 +792,35 @@ gets its name. The page stays as it is.
   and its sound is their clocks, first to last (`Part.phrase_spans`). Playing it on a tap,
   and lighting the phrase while it plays, is its own entry when it is built; until then
   the line is text.
+### The Tanakh map is the knowledge ramp, and Aramaic is off it — 2026-09-28
+
+`/tanakh-map` draws every chapter of the Tanakh as a square (targum-internal#144), shaded
+by the share of its running words the reader has marked known. The issue asked for the
+ramp's steps and the Aramaic treatment to be written here, since the mockup's four-step
+leaf fill never was.
+
+- **The ramp is the charts' own four leaf steps** (`--step-1` … `--step-4`, words.css),
+  and a fifth tone under them: a chapter measured and not yet within reach is `--rule`,
+  the "nothing yet" the day strip already uses. The turns are **50, 75, 90 and 95%** of
+  running words (`coverage.MAP_STEPS`), packed at the top because running words climb
+  fast: the commonest hundred dictionary forms are about half of any chapter, and 95% is
+  where reading goes on without stopping. A share is rounded down, so a square and its
+  card never disagree across a turn.
+- **What is not on the Hebrew scale never wears a leaf.** Aramaic — Daniel 2–7, Ezra 4–6
+  and 7 — is the charts' `--off`, named in the legend and the card as not measured yet,
+  and is shaded from an Aramaic list only once there is one. A book the library does not
+  have is a dashed outline with nothing in it and no link: unavailable, never 0% known.
+  A square not yet shaded — signed out, or before the answer lands — is a hairline.
+- **This week's portion is ink**, a ring inside the square so the shade under it still
+  reads.
+- **The squares are pointed at, not pressed, on a phone.** At seven pixels a square
+  cannot take §8's 44px without taking its neighbours' taps, so under a coarse pointer a
+  tap shows the card and the card's **Read**, tonal, is the press and is in the thumb
+  registry. With a mouse the square is the link. The keyboard meets the map as one stop
+  and walks it with the arrows, rather than as 929.
+- **A card, not the desk.** The map stands on a card because `--rule` and the first
+  step are too close to the desk's ground to be told apart on it; the chapter's card
+  floats at the foot of the window, a floating panel's tier (§13).
 
 ### The back office is four tabs — 2026-09-28
 
