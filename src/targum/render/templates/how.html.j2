@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+{% include '_public_head.html.j2' %}
+<style>{{ asset('reader.css') }}{{ asset('about.css') }}{{ asset('how.css') }}</style>
+{{ hebrew_face() }}
+{{ scripture_face() }}
+{{ chrome_face() }}
+</head>
+{#- How targum reads Hebrew (targum-internal#401, decided 2026-09-30).
+
+    The one page that tells the recipe, and it tells it confidently: each hard part of
+    Hebrew for a machine, and a real example of it solved. It says what is solved and
+    never how far short anything falls, names no model and quotes no prompt. Every
+    example is the pipeline's own output, copied out of a build into `how.json` by
+    `scripts/how_examples.py`; nothing here is typed in to look right.
+
+    The examples' English is the reader's English, so it stays English on every page and
+    says so with `lang="en"`. What the page says around the examples is in its language.
+
+    Nothing is fetched and no script runs: the vowel switch is a checkbox, and the reel's
+    frame is carried as webp data. -#}
+{%- macro where(said) -%}
+{%- if said == 'weekly' %}{{ t("how.where.weekly", "targum's weekly news") }}{% else %}<span lang="en">{{ said }}</span>{% endif -%}
+{%- endmacro -%}
+{%- macro kind(said) -%}
+{%- if said == 'noun' %}{{ t("how.kind.noun", "noun") }}
+{%- elif said == 'verb, past' %}{{ t("how.kind.verb-past", "verb, past") }}
+{%- elif said == 'name' %}{{ t("how.kind.name", "name") }}
+{%- else %}{{ said }}{% endif -%}
+{%- endmacro -%}
+{%- macro sentence(s, scripture=false) -%}
+<p class="he{% if scripture %} scripture{% endif %}" lang="he" dir="rtl">{{ s.before }}<b>{{ s.word }}</b>{{ s.after }}</p>
+{%- endmacro -%}
+<body class="about how">
+<div class="corner">
+  <a class="enter" href="/account/signin">{{ t("about.page.sign-in", "Sign in") }}</a>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <div class="card">
+  <h1>{{ t("how.page.title", "How targum reads Hebrew") }}</h1>
+  <p class="lede">{{ t("how.page.lede", "Hebrew is easy to read once you know it, and hard for a machine that does not. These are the hard parts, each solved on a real text. Every example is targum's own output, copied from a reader.") }}</p>
+
+  {#- 1. Vowels. The switch is the reader's own, named the same. -#}
+  <section class="part" id="vowels">
+    <h2>{{ t("how.vowels.title", "Hebrew hides its vowels") }}</h2>
+    <p>{{ t("how.vowels.said", "Hebrew is printed without its vowels, and a learner reads by them. targum points every word of a text that came without them, and the reader can take the points off again.") }}</p>
+    <div class="example vowels">
+      <input type="checkbox" id="how-points" class="how-switch-box" checked>
+      <label class="how-switch" for="how-points">{{ t("how.vowels.switch", "Vowel points") }}</label>
+      <p class="he pointed" lang="he" dir="rtl">{{ how.vowels.pointed }}</p>
+      <p class="he bare" lang="he" dir="rtl">{{ how.vowels.plain }}</p>
+      <p class="en" lang="en">{{ how.vowels.english }}</p>
+      <p class="from">{{ where(how.vowels.where) }}</p>
+    </div>
+  </section>
+
+  {#- 2. One spelling, several words: two pairs, each the same letters. -#}
+  <section class="part" id="spelling">
+    <h2>{{ t("how.spelling.title", "One spelling can be five words") }}</h2>
+    <p>{{ t("how.spelling.said", "Without vowels, ספר can be a book, a barber, a border, he counted or he told. Only the sentence says which. targum reads each word in its sentence and files it as the word it is there.") }}</p>
+    {% for pair in how.homographs %}
+    <div class="pair-row">
+      {% for card in pair %}
+      <div class="example word-card">
+        <p class="headword" lang="he" dir="rtl">{{ card.sentence.word }}</p>
+        <p class="what">{{ kind(card.kind) }} · <span lang="en">{{ card.meaning }}</span></p>
+        {{ sentence(card.sentence, scripture=card.where != 'weekly') }}
+        <p class="en" lang="en">{{ card.english }}</p>
+        <p class="from">{{ where(card.where) }}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {#- 3. Prefixes, taken off one at a time. -#}
+  <section class="part" id="prefixes">
+    <h2>{{ t("how.prefixes.title", "Words wear their prefixes") }}</h2>
+    <p>{{ t("how.prefixes.said", "And, the, in, to, from, that and as are single letters, written onto the front of the next word, often several at once. targum takes them off and files what is left under its dictionary form.") }}</p>
+    <div class="example">
+      <ul class="splits">
+        {% for word in how.prefixes %}
+        <li>
+          <span class="whole" lang="he" dir="rtl">{{ word.word }}</span>
+          <span class="pieces" dir="rtl">
+            {% for part in word.parts %}<span class="piece"><span lang="he">{{ part.letters }}</span> <small lang="en">{{ part.means }}</small></span>{% endfor %}
+            <span class="piece stem"><span lang="he">{{ word.stem }}</span>{% if word.suffix %} <small>{{ t("how.prefixes.ending", "with an ending") }}</small>{% endif %}</span>
+          </span>
+          <span class="lemma"><span lang="he" dir="rtl">{{ word.lemma }}</span> <span lang="en">{{ word.meaning }}</span></span>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="from">{{ where('weekly') }}</p>
+    </div>
+  </section>
+
+  {#- 4. One root across its patterns, Torah and news in the same rows. -#}
+  <section class="part" id="roots">
+    <h2>{{ t("how.roots.title", "Roots and patterns") }}</h2>
+    <p>{{ t("how.roots.said", "Most Hebrew words grow from a root of three letters set into a pattern. targum names a verb's root and its pattern, and one word list runs from Genesis to this week's news.") }}</p>
+    <div class="example roots">
+      <p class="root"><span lang="he" dir="rtl">{{ how.roots.root }}</span></p>
+      {% for row in how.roots.rows %}
+      <div class="pattern">
+        <p class="pattern-name"><span lang="he" dir="rtl">{{ row.pattern }}</span> <span lang="en">{{ row.meaning }}</span></p>
+        {% for use in row.uses %}
+        <div class="use">
+          {{ sentence(use.sentence, scripture=use.where != 'weekly') }}
+          <p class="en" lang="en">{{ use.english }}</p>
+          <p class="from">{{ where(use.where) }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {#- 5. Speech: the run that was heard, and the sentences and times it became. -#}
+  <section class="part" id="speech">
+    <h2>{{ t("how.speech.title", "Speech has no punctuation") }}</h2>
+    <p>{{ t("how.speech.said", "A transcript of speech comes back as one run of words, with no full stop and no comma. targum gives it its sentences back without changing a word that was heard, and times every word to the recording, so the line you read is the line you hear.") }}</p>
+    <div class="example speech">
+      <p class="label">{{ t("how.speech.heard", "As heard") }}</p>
+      <p class="he heard" lang="he" dir="rtl">{{ how.speech.heard }}</p>
+      <p class="label">{{ t("how.speech.read", "As read") }}</p>
+      {% for line in how.speech.sentences %}
+      <p class="he timed" lang="he" dir="rtl">
+        {%- for w in line.words %}<span class="w">{{ w.word }}<small dir="ltr">{{ clock(w.at) }}</small></span>{% endfor -%}
+      </p>
+      <p class="en" lang="en">{{ line.english }}</p>
+      {% endfor %}
+      <p class="from">{{ t("how.speech.from", "A recorded team meeting") }}</p>
+    </div>
+  </section>
+
+  {#- 6. The shape a text came in: a reel upright, a chat as a chat. -#}
+  <section class="part" id="media">
+    <h2>{{ t("how.media.title", "Any medium, the right reader") }}</h2>
+    <p>{{ t("how.media.said", "A text is read in the shape it came in. A reel stays upright with its words beside it, a post keeps its author at the top, and a chat stays a chat, each line under the name of whoever sent it.") }}</p>
+    <div class="media-row">
+      <div class="example reel">
+        <img class="frame{% if how.media.reel.tall %} tall{% endif %}" src="{{ how.media.reel.poster }}" alt="{{ t("how.media.reel-frame", "A frame of the reel") }}" width="216" height="384">
+        <div class="reel-lines">
+          {% for line in how.media.reel.lines %}
+          <p class="he" lang="he" dir="rtl">{{ line.pointed }}</p>
+          <p class="en" lang="en">{{ line.english }}</p>
+          {% endfor %}
+          <p class="from"><span lang="en">{{ how.media.reel.author }}</span> · <a href="{{ how.media.reel.home }}" rel="noopener">{{ t("how.media.on-youtube", "On YouTube") }}</a></p>
+        </div>
+      </div>
+      <div class="example chat">
+        <ol class="turns">
+          {% for turn in how.media.chat.turns %}
+          <li>
+            <p class="who" lang="he" dir="rtl">{{ turn.speaker }}</p>
+            <p class="he" lang="he" dir="rtl">{{ turn.text }}</p>
+            <p class="en" lang="en">{{ turn.english }}</p>
+          </li>
+          {% endfor %}
+        </ol>
+        <p class="from">{{ t("how.media.chat-from", "A building's group chat, read from a screenshot") }}</p>
+      </div>
+    </div>
+  </section>
+
+  {#- 7. Onkelos, with its own words. -#}
+  <section class="part" id="aramaic">
+    <h2>{{ t("how.aramaic.title", "Aramaic beside the Torah") }}</h2>
+    <p>{{ t("how.aramaic.said", "Onkelos, the Aramaic translation read beside the Torah each week, is a language of its own, and targum keeps a word list of its own for it. A word of Onkelos is filed under its Aramaic headword, apart from the Hebrew it translates.") }}</p>
+    <div class="example aramaic">
+      <p class="he scripture" lang="he" dir="rtl">{{ how.aramaic.torah }}</p>
+      <p class="he scripture onkelos" lang="arc" dir="rtl">
+        {%- for word in how.aramaic.words %}{% if not loop.first %} {% endif %}{% if word.meaning %}<b>{{ word.form }}</b>{% else %}{{ word.form }}{% endif %}{% endfor -%}
+      </p>
+      <ul class="aramaic-words">
+        {% for word in how.aramaic.words if word.meaning %}
+        <li><span class="he scripture" lang="arc" dir="rtl">{{ word.form }}</span>
+          {%- if word.built %} <span class="built" lang="arc" dir="rtl">{{ word.built }}</span>{% endif %}
+          <span lang="en">{{ word.meaning }}</span></li>
+        {% endfor %}
+      </ul>
+      <p class="from">{{ t("how.aramaic.from", "Onkelos on Genesis 1:1, with the verse it translates") }}</p>
+    </div>
+  </section>
+
+  {#- Whoever's work these stand on, where their licence asks to be named. -#}
+  <section class="part credits" id="credits">
+    <h2>{{ t("reader.page.credits", "Credits") }}</h2>
+    <p class="credit">{{ t("reader.page.vowel-points-by", "Vowel points by") }} <a href="https://huggingface.co/dicta-il" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+    <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+    <p class="credit">{{ t("how.credit.biblical", "The Tanakh's words are tagged by") }} <a href="https://github.com/openscriptures/morphhb" rel="noopener">Open Scriptures</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+    <p class="credit">{{ t("how.credit.english", "Genesis and Exodus in English from") }} <span lang="en">Metsudah Chumash, Metsudah Publications, 2009</span> · CC BY</p>
+    <p class="credit">{{ t("how.credit.reel", "The reel is by") }} <a href="{{ how.media.reel.home }}" rel="noopener">{{ how.media.reel.author }}</a> · <a href="https://creativecommons.org/licenses/by/3.0/" rel="noopener">CC BY 3.0</a></p>
+  </section>
+
+  <p class="log-more">{{ t("about.page.the-work-is-on", "The work is on") }}
+    <a href="https://github.com/DLangellotti/targum">GitHub</a>.</p>
+  </div>
+</main>
+
+{% include '_public_foot.html.j2' %}
+</body>
+</html>

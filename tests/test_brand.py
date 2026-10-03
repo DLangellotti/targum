@@ -340,6 +340,8 @@ THUMBED = (
     # The root on a word card, where it opens the words of it a reader has met
     # (targum-internal#96, behind `TARGUM_OCCURRENCES`).
     ".gloss-card .verb .root-open",
+    # The vowel switch on /how (targum-internal#401).
+    ".how-switch",
 )
 
 

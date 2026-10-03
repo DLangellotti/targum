@@ -1500,6 +1500,57 @@ def about_page(language: str = "en", address: str = "") -> str:
     )
 
 
+#: The examples /how shows, copied out of real builds by `scripts/how_examples.py`.
+HOW = Path(__file__).resolve().parent.parent / "how.json"
+
+
+def how_examples() -> dict[str, Any]:
+    """What /how shows, as the script wrote it down."""
+    examples: dict[str, Any] = json.loads(HOW.read_text(encoding="utf-8"))
+    return examples
+
+
+def how_page(language: str = "en", address: str = "") -> str:
+    """How targum reads Hebrew: each hard part, and a real example of it solved
+    (targum-internal#401).
+
+    Written for somebody who builds things, in the public register. It says what is
+    solved and shows it working; it does not say how, which model, or where a stage falls
+    short. Every example is the pipeline's own output, read out of a build by
+    `scripts/how_examples.py` into `how.json`, so nothing on the page is typed in to look
+    right. The prose is said in the page's language; the examples' English is the
+    reader's own English, so it stays English and says so.
+
+    Baked in like every public page: the reel's frame is carried as webp data and the
+    vowel switch is a checkbox, so the page fetches nothing and runs no script.
+    """
+    said = page_words(language)
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/how" if address else "", language)
+    examples = how_examples()
+
+    def clock(seconds: float) -> str:
+        """A word's time in the recording, as a player writes it: 0:12.0."""
+        return f"{int(seconds // 60)}:{seconds % 60:04.1f}"
+
+    return (
+        _environment()
+        .get_template("how.html.j2")
+        .render(
+            t=said,
+            page_language=_page_language(language),
+            title=said("how.head.title", "How targum reads Hebrew"),
+            description=said(
+                "how.head.description",
+                "The hard parts of Hebrew for a machine, and each one solved on a real text.",
+            ),
+            canonical=here,
+            alternates=alternates,
+            how=examples,
+            clock=clock,
+        )
+    )
+
+
 def front_page(
     language: str = "en",
     address: str = "",

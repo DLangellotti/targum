@@ -1791,6 +1791,24 @@ def test_the_about_page_is_open_to_strangers(tmp_path: Path) -> None:
         server.shutdown()
 
 
+def test_how_targum_reads_hebrew_is_open_to_strangers(tmp_path: Path) -> None:
+    """targum-internal#401: the page is for people who have never signed in, so the
+    holding page must not swallow it, and the foot that every page wears reaches it."""
+    port, _, server = hosted(tmp_path)
+    try:
+        status, body, _ = call(port, "GET", "/how")
+        assert status == 200
+        assert b"How targum reads Hebrew" in body
+        assert b"Coming soon" not in body
+        status, body, _ = call(port, "GET", "/how?lang=ru")
+        assert status == 200
+        assert "Как targum читает иврит".encode() in body
+        _, body, _ = call(port, "GET", "/about")
+        assert b'href="/how"' in body
+    finally:
+        server.shutdown()
+
+
 def test_the_holding_page_links_to_it(tmp_path: Path) -> None:
     port, _, server = hosted(tmp_path)
     try:

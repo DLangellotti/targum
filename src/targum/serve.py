@@ -68,6 +68,7 @@ from .render.builder import (
     daily_page,
     front_page,
     holding_page,
+    how_page,
     legal_is_public,
     legal_page,
     not_found_page,
@@ -511,6 +512,8 @@ LEGAL_ROUTES = tuple(f"/{name}" for name in LEGAL)
 OPEN_TO_STRANGERS = frozenset(
     {
         "/about",
+        # How targum reads Hebrew (targum-internal#401): a page for strangers by design.
+        "/how",
         "/account/signin",
         "/account/enter",
         "/account/sign-in",
@@ -5922,6 +5925,7 @@ class Handler(BaseHTTPRequestHandler):
             "User-agent: *",
             "Allow: /$",
             "Allow: /about",
+            "Allow: /how",
             "Allow: /library",
             "Allow: /weekly",
             "Allow: /parasha",
@@ -5953,7 +5957,7 @@ class Handler(BaseHTTPRequestHandler):
         where = self.address or ""
         # `/connect` is here because it is a page a stranger searches for by name —
         # "targum ChatGPT" is how somebody finds out this exists at all (#80).
-        paths = ["/", "/about", "/library"]
+        paths = ["/", "/about", "/how", "/library"]
         if connector_is_open():
             paths.append("/connect")
         if legal_is_public():
@@ -6012,13 +6016,13 @@ class Handler(BaseHTTPRequestHandler):
             for edition in issue.editions
         ]
         # The pages that really answer in both languages, and only those
-        # (targum-internal#188; `/connect` since #392). A sitemap that claims a Russian
-        # version of `/about`, which serves one language at one address, teaches a
-        # crawler to distrust the claims it makes about the pages that do have one.
-        # The portions and today's page of each cycle since their names and headings
-        # were said in Russian too (#188).
+        # (targum-internal#188; `/connect` since #392, `/how` since #401). A sitemap
+        # that claims a Russian version of `/about`, which serves one language at one
+        # address, teaches a crawler to distrust the claims it makes about the pages that
+        # do have one. The portions and today's page of each cycle since their names and
+        # headings were said in Russian too (#188).
         bilingual = (
-            {"/", "/library", "/connect"}
+            {"/", "/library", "/connect", "/how"}
             | {path for path in paths if path.startswith(("/library/", "/parasha/"))}
             | {f"/{cycle.slug}" for cycle in daily_cycles()}
             | set(weekly_paths)
@@ -6518,6 +6522,10 @@ class Handler(BaseHTTPRequestHandler):
         # has to work from a mail client, hours later, possibly after a restart.
         if route == "/about":
             page = about_page(language=self._page_language(), address=self.address)
+            return self._send(200, page.encode("utf-8"), HTML)
+        if route == "/how":
+            # `?lang=` like every page with the foot's EN / RU (targum-internal#188).
+            page = how_page(language=self._public_language(), address=self.address)
             return self._send(200, page.encode("utf-8"), HTML)
         if route == "/series/stop":
             # Followed out of an email, with no account and no key.
