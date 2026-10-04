@@ -164,7 +164,8 @@
       <span class="label">{{ t("reader.page.the-recording", "The recording") }}</span>
       <a class="more-get" download>{{ t("reader.page.save-the-audio", "Save the audio") }}</a>
       {#- Whose recording it is, beside the control that carries it off (#342). -#}
-      {% if speech_credit %}<span class="more-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {{ speech_licence }}{% endif %}</span>{% endif %}
+      {% if voices %}{% for v in voices %}<span class="more-credit">{{ v.credited }} {{ v.credit }}{% if v.licence %} · {{ v.licence }}{% endif %}</span>{% endfor %}
+      {% elif speech_credit %}<span class="more-credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {{ speech_licence }}{% endif %}</span>{% endif %}
       <button type="button" class="more-close">{{ t("reader.page.close-the-player", "Close the player") }}</button>
     </div>
     {% endif %}
@@ -213,6 +214,17 @@
           <path d="M9 5.5h4.5M2.5 11h11M2.5 13.5h7" class="faint"/>
         </svg>
       </button>
+    </div>
+    {% endif %}
+    {#- Chanted or spoken (targum-internal#412): a portion's aliyah carries the chanting
+        and the plain reading of the book, and this says which one the player plays.
+        The same pill as the renderings, a choice with a position; the opening position
+        is the first, and the script moves it to whichever the reader chose last. -#}
+    {% if voices %}
+    <div class="group recordings" id="recordings" role="group" aria-label="{{ t("reader.page.which-reading", "Which reading") }}" data-what="{{ t("reader.page.which-reading", "Which reading") }}">
+      {%- for v in voices %}
+      <button type="button" class="recording-key{% if loop.first %} on{% endif %}" data-recording="{{ v.key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}" title="{{ v.credited }} {{ v.credit }}">{% if v.key == "chanted" %}{{ t("reader.page.chanted", "Chanted") }}{% else %}{{ t("reader.page.spoken", "Spoken") }}{% endif %}</button>
+      {%- endfor %}
     </div>
     {% endif %}
     {#- Watch the recording. Only on a text whose import kept its pictures, and on when
@@ -847,7 +859,13 @@
       that asks for them to be named, and naming them in a file nobody opens is not
       naming them. The text's own credit is on the library page; this one travels with
       the audio, because the audio is what can be saved and carried off. -#}
-  {% if speech_credit %}
+  {#- Both, where an aliyah carries two readings: each is somebody's, under its own
+      licence, and the one not playing can be switched to and saved all the same. -#}
+  {% if voices %}
+  {% for v in voices %}
+  <p class="credit">{{ v.credited }} {{ v.credit }}{% if v.licence %} · {% if v.licence_url %}<a href="{{ v.licence_url }}" rel="noopener">{{ v.licence }}</a>{% else %}{{ v.licence }}{% endif %}{% endif %}</p>
+  {% endfor %}
+  {% elif speech_credit %}
   <p class="credit">{{ speech_credited | default("Read by", true) }} {{ speech_credit }}{% if speech_licence %} · {% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}{% endif %}</p>
   {% endif %}
   {#- Said once, here, rather than left for a reader to work out from a wrong card.

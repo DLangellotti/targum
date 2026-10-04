@@ -2590,6 +2590,29 @@ body.has-player .foot:has(+ .list-end:not([hidden])) { margin-block-end: 1rem; }
 }
 .bar .practice[hidden] { display: none; }
 
+/* Chanted or spoken (targum-internal#412). The same pill again: which reading the player
+   plays is a choice with a position, and ink, not accent. */
+.bar .recordings {
+  gap: 0;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.bar .recordings .recording-key {
+  padding: 0.28rem 0.6rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.bar .recordings .recording-key:hover { color: var(--ink); background: none; }
+.bar .recordings .recording-key.on {
+  background: var(--ink-soft);
+  color: var(--paper);
+}
+
 /* The readings in Hebrew are the Hebrew alone, laid out the way "source only" lays it. */
 body.practice-hebrew .pair { grid-template-columns: 1fr; }
 body.practice-hebrew .pair > .tr { display: none; }
