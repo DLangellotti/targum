@@ -39,6 +39,7 @@ from ..models import (
     read_artifact,
 )
 from ..renderings import commentator, words_in
+from ..translate.prompts import BESIDE
 from .calendar import Haftarah, Reading
 from .calendar import slug as reading_slug
 
@@ -483,11 +484,14 @@ def _translations(
         for one in book.translations:
             who = commentator(one.name)
             key = (one.target_language, who)
+            # A targum keeps its own name too: "Onkelos Genesis" is what names it
+            # "Onkelos" on its switch, where the portion's name would say "Aramaic".
+            kept_name = bool(who) or one.target_language in BESIDE
             merged = by_rendering.get(key)
             if merged is None:
                 merged = one.model_copy(
                     update={
-                        "name": one.name if who else name,
+                        "name": one.name if kept_name else name,
                         "document_hash": document_hash,
                         "segments": {},
                         "coarse": [],

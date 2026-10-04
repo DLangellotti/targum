@@ -3526,8 +3526,10 @@ def render(
         companion_key,
         is_commentary,
         is_companion,
-        words_in as commentary_words_in,
         words_key,
+    )
+    from ..renderings import (
+        words_in as commentary_words_in,
     )
 
     if reads is not None and any(t.target_language in reads for t in translations):

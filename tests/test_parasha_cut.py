@@ -231,6 +231,7 @@ def test_a_book_carrying_onkelos_cuts_a_portion_carrying_it(corpus: Path, librar
     assert sorted(by_language) == ["arc", "en"]
     assert by_language["arc"].segments.keys() == verses
     assert all(text.startswith("ארמית") for text in by_language["arc"].segments.values())
+    assert by_language["arc"].name == "Onkelos Deuteronomy", "named for the targum (#414)"
 
 
 def test_rashi_in_two_languages_is_carried_beside_the_english_not_into_it(
