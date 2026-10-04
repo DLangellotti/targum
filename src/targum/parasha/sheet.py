@@ -87,6 +87,17 @@ class Sheet:
     personal: bool
 
 
+def _file_of(translation: Translation) -> str:
+    """A rendering's file beside the reader: its language, or for a commentary its work
+    and language — Rashi in English beside the Metsudah English is two files, not one
+    written over the other (targum-internal#414)."""
+    from ..ids import slug
+    from ..renderings import commentator
+
+    who = commentator(translation.name)
+    return f"{slug(who)}-{translation.target_language}" if who else translation.target_language
+
+
 def keep(portion: Cut, folder: Path) -> Path:
     """Write what the sheet is set from beside a built reader, at `folder/print`.
 
@@ -103,13 +114,19 @@ def keep(portion: Cut, folder: Path) -> Path:
     portion.document.write(out / "document.json")
     portion.segmented.write(out / "segments.json")
     for translation in portion.translations:
-        translation.write(out / "translations" / f"{translation.target_language}.json")
+        translation.write(out / "translations" / f"{_file_of(translation)}.json")
     if portion.vocalization is not None:
         portion.vocalization.write(out / "vocalization.json")
     else:
         (out / "vocalization.json").unlink(missing_ok=True)
+    from ..renderings import is_commentary
+
     languages = sorted(
-        {t.target_language for t in portion.translations if t.target_language not in BESIDE}
+        {
+            t.target_language
+            for t in portion.translations
+            if t.target_language not in BESIDE and not is_commentary(t.name)
+        }
     )
     cited = {
         language: {bare: list(pair) for bare, pair in cited_forms([portion], language).items()}
@@ -421,8 +438,10 @@ def make(
             )
         )
     if view.companions is None:
-        # The reader's own default: the one rendering in their language beside the verse.
-        view = replace(view, companions=(own_language(text.translations, reads),))
+        # The reader's own default (targum-internal#414): their language, Onkelos and
+        # Rashi beside the verse, and Rashi in English off. A key this text has no
+        # rendering for is passed over.
+        view = replace(view, companions=(own_language(text.translations, reads), "targum", "rashi"))
     html = mikra_html(
         text,
         reading_of_prophets,

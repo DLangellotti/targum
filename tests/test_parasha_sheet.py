@@ -184,10 +184,13 @@ def test_the_portions_page_offers_the_download_with_its_choices(serving: tuple[i
     page = fetch(port, "/parasha")[2].decode()
     form = page.partition('<form class="sheet-choices"')[2].partition("</form>")[0]
     assert f'action="/parasha/{SLUG}.pdf"' in form and "Download PDF" in form
-    # The reader's defaults, ticked: their language, the vowels, the te'amim, the
-    # meanings and the haftarah; Onkelos offered and not ticked.
+    # The reader's defaults, ticked: their language, Onkelos and Rashi, the vowels, the
+    # te'amim, the meanings and the haftarah; Rashi in English offered and not ticked
+    # (targum-internal#414).
     assert '<input type="checkbox" name="with" value="en" checked>' in form
-    assert '<input type="checkbox" name="with" value="targum">' in form
+    assert '<input type="checkbox" name="with" value="targum" checked>' in form
+    assert '<input type="checkbox" name="with" value="rashi" checked>' in form
+    assert '<input type="checkbox" name="with" value="rashi-en">' in form
     for name in ("vowels", "taamim", "gloss", "haftarah"):
         assert f'<input type="hidden" name="{name}" value="0">' in form
         assert f'<input type="checkbox" name="{name}" value="1" checked>' in form
@@ -427,3 +430,51 @@ def test_a_mark_takes_the_whole_word_it_stands_in() -> None:
         chrome="en",
     )
     assert again is not None and '<span class="lit s2">והארץ</span>' in again
+
+
+def test_rashi_prints_in_hebrew_and_english_in_the_view_the_reader_has(
+    built: Index,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """targum-internal#414. The sheet's sources keep Rashi in Hebrew and in English as two
+    files beside the English rather than one over it; `with=rashi` and `with=rashi-en`
+    print each, named and with his comments apart; and with no `with=` the sheet is the
+    reader's own default, Rashi in Hebrew on and Rashi in English off."""
+    from targum.models import Translation, read_artifact
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    folder = cal.root() / "read" / SLUG / "print" / "translations"
+    english = read_artifact(Translation, folder / "en.json")
+    assert english is not None
+    sid = next(iter(english.segments))
+    added = []
+    for language, said in (("he", "פירוש ראשון\nפירוש שני"), ("en", "First comment")):
+        rashi = english.model_copy(
+            update={
+                "name": "Rashi on Deuteronomy",
+                "target_language": language,
+                "segments": {key: (said if key == sid else "—") for key in english.segments},
+            }
+        )
+        path = folder / f"{sheet._file_of(rashi)}.json"
+        rashi.write(path)
+        added.append(path)
+    try:
+        assert sorted(p.name for p in folder.glob("*.json")) == [
+            "en.json",
+            "rashi-en.json",
+            "rashi-he.json",
+        ]
+        both = _sheet(companions=("en", "rashi", "rashi-en"))
+        assert '<div class="note" lang="he" dir="rtl"><span class="cmp-name"' in both
+        assert ">Rashi</span>" in both and ">Rashi · English</span>" in both
+        assert "First comment" in both and "פירוש ראשון" in both
+        # Only the verse he comments on carries him: an unremarked verse prints no dash.
+        assert both.count(">Rashi</span>") == 1
+        default = _sheet()
+        assert ">Rashi</span>" in default and ">Rashi · English</span>" not in default
+        assert 'class="tr" lang="en"' in default
+    finally:
+        for path in added:
+            path.unlink()

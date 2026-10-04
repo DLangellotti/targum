@@ -4271,7 +4271,8 @@ def export_mikra(
         typer.Option(
             "--with",
             help="The companions, in order, as the reader names them: a language for a "
-            "translation, `targum` for Onkelos — `en,targum`. Empty for the text alone. "
+            "translation, `targum` for Onkelos, `rashi` for Rashi and `rashi-en` for Rashi "
+            "in English — `en,targum,rashi`. Empty for the text alone. "
             "Overrides --into.",
         ),
     ] = None,

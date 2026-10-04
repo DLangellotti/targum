@@ -239,6 +239,29 @@ body {
 /* Two companions or more share the column beside the verse, one under the next, each in
    its own language; the text alone takes the width. */
 .trs > .tr + .tr { margin-block-start: 0.4rem; }
+/* A commentary — Rashi — under the verse the whole width of the page, as a chumash sets
+   him: quieter and a step smaller than the verse, his comments kept apart, named in the
+   label face, and free to cross a page, since one comment can outrun one
+   (targum-internal#414). */
+.note {
+  margin-block: 0.2rem 0.8rem;
+  padding-inline-start: 0.7rem;
+  border-inline-start: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 0.875em;
+  line-height: 1.6;
+  white-space: pre-line;
+  break-inside: auto;
+}
+.note[dir="rtl"] { font-family: var(--reading-hebrew); }
+.note[dir="rtl"] > .cmp-name { text-align: right; }
+.cmp-name {
+  display: block;
+  font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.6875rem;
+  color: var(--ink-soft);
+  white-space: normal;
+}
 .pair.alone > .src { flex: 1 1 100%; }
 
 /* The marked words (targum-internal#415). A word the reader is learning is lit as the

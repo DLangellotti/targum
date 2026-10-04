@@ -78,7 +78,11 @@
           <input type="hidden" name="with" value="">
           <label><input type="checkbox" name="with" value="en"{% if sheet_translation == 'en' %} checked{% endif %}> {{ t("parasha.sheet.english", "English") }}</label>
           <label><input type="checkbox" name="with" value="ru"{% if sheet_translation == 'ru' %} checked{% endif %}> {{ t("parasha.sheet.russian", "Russian") }}</label>
-          <label><input type="checkbox" name="with" value="targum"> {{ t("parasha.sheet.onkelos", "Onkelos") }}</label>
+          {#- Onkelos and Rashi on, Rashi in English off: the reader's own defaults
+              (targum-internal#414), so the PDF from here is the page a reader opens. -#}
+          <label><input type="checkbox" name="with" value="targum" checked> {{ t("parasha.sheet.onkelos", "Onkelos") }}</label>
+          <label><input type="checkbox" name="with" value="rashi" checked> {{ t("parasha.sheet.rashi", "Rashi") }}</label>
+          <label><input type="checkbox" name="with" value="rashi-en"> {{ t("parasha.sheet.rashi-english", "Rashi · English") }}</label>
           <input type="hidden" name="vowels" value="0">
           <label><input type="checkbox" name="vowels" value="1" checked> {{ t("parasha.sheet.vowels", "Vowels") }}</label>
           <input type="hidden" name="taamim" value="0">
