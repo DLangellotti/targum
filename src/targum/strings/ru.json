@@ -2554,6 +2554,8 @@
   "reader.next.known-ahead.other": "Здесь вы уже знаете {n} слова.",
   "reader.next.connect": "Тренируйте отмеченные слова в Claude или ChatGPT.",
   "reader.next.connect-go": "Подключить",
+  "reader.next.shabbat": "В следующую субботу",
+  "reader.next.shabbat-known": "Вы уже знаете {n} из её слов.",
   "mail.weekly.subject": "Недельный обзор новостей · {dated}",
   "mail.weekly.preheader": "Новости недели на иврите в трёх вариантах.",
   "mail.weekly.button": "Читать выпуск",

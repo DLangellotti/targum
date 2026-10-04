@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from ..annotate.base import chips, kind_of
 from ..annotate.difficulty import hard_share
 from ..errors import TargumError
 from ..paths import write_atomic
@@ -30,7 +31,8 @@ from .calendar import Haftarah as Reference
 from .calendar import Reading, Schedule, always, root
 from .calendar import year as readings_for
 from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, parse_ref
-from .models import Haftarah, Index, Portion, Week
+from .cut import Portion as Cut
+from .models import Haftarah, Index, Portion, Week, neighbours
 from .sheet import keep as keep_sheet
 
 #: How many years of calendar to point at. Enough that a box which cannot reach Hebcal
@@ -309,6 +311,13 @@ def build(
         # And what the week's sheet is set from, beside the reader: the box has no
         # books to cut it from again (targum-internal#415).
         keep_sheet(portion, folder)
+        # And its words, by dictionary form, beside the reader: what the last aliyah of
+        # the portion before this one counts a reader's word list against when it offers
+        # this one as next Shabbat's (targum-internal#416).
+        write_atomic(
+            folder / LEMMAS,
+            json.dumps(vocabulary(portion), ensure_ascii=False) + "\n",
+        )
         opening, opening_ref = portion.opening()
         usual = ordinary(occurrences[slug])
         index.portions[slug] = Portion(
@@ -654,3 +663,125 @@ def current(
 
     index = index or load()
     return index.on(pointing_at(moment).isoformat(), schedule)
+
+
+#: A portion's words, by dictionary form, in a file beside its reader (targum-internal#416).
+#: Not served on its own: `following`'s answer carries it to a reader who has a word list.
+LEMMAS = "lemmas.json"
+
+
+def vocabulary(portion: Cut) -> list[str]:
+    """Every word of a cut portion by its dictionary form, once each, sorted.
+
+    The reader's own rule for what counts (`lemmasHere` in `reader.js`): each chip as
+    the page draws it, a name of several words as one, and names and numbers left out,
+    because they are never counted as vocabulary. So a count against this list and the
+    header's "N of M known" on that portion's own pages are the same kind of number.
+    """
+    if portion.annotation is None:
+        return []
+    found: set[str] = set()
+    for tokens in portion.annotation.tokens.values():
+        for token in chips(tokens):
+            if token.lemma and not kind_of(token.pos, token.entity):
+                found.add(token.lemma)
+    return sorted(found)
+
+
+_lemmas: dict[tuple[Path, int], list[str]] = {}
+
+
+def lemmas_of(portion: Portion) -> list[str] | None:
+    """The words a built portion holds, or None where its build wrote none.
+
+    None and not an empty list, because a corpus built before this file existed is not
+    a portion with no words: the offer is still made, without a count.
+    """
+    path = root() / "read" / portion.folder / LEMMAS
+    try:
+        stamp = path.stat().st_mtime_ns
+    except OSError:
+        return None
+    key = (path, stamp)
+    if key not in _lemmas:
+        try:
+            words = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(words, list):
+            return None
+        _lemmas.clear()  # one portion is asked about at a time; keep only the latest
+        _lemmas[key] = [str(one) for one in words]
+    return _lemmas[key]
+
+
+def following(
+    folder: str,
+    schedule: Schedule = Schedule.diaspora,
+    moment: datetime | None = None,
+    index: Index | None = None,
+) -> Portion | None:
+    """What is read the Shabbat after the reading in `folder`, on one schedule.
+
+    For the offer at the end of a portion's last aliyah, and of its haftarah
+    (targum-internal#416). By the calendar first: the occurrence of this reading nearest
+    to this Shabbat — last week's read late, next week's read early — and the week after
+    it on the reader's own schedule, so a doubled week, a festival Shabbat and the weeks
+    Israel and the diaspora part company all come out as they are read. A haftarah is
+    found by the weeks that read it.
+
+    Where the calendar has nothing to say — a portion that is doubled in every year the
+    index points at, the last week the index holds, וזאת הברכה which no Shabbat reads —
+    the cycle's own order answers, as the shelf has it (`neighbours`), and the year wraps.
+
+    Only somewhere a reader can go: None where the next reading has no built reader.
+    """
+    from .calendar import pointing_at
+
+    index = index or load()
+    built = readable(index)
+    portion = next((one for one in index.portions.values() if one.folder == folder), None)
+    haftarah = (
+        None
+        if portion is not None
+        else next((one for one in index.haftarot.values() if one.folder == folder), None)
+    )
+    if portion is None and haftarah is None:
+        return None
+
+    weeks = [week for week in index.weeks if week.schedule is schedule]
+    weeks.sort(key=lambda week: week.day)
+
+    def reads_it(week: Week) -> bool:
+        if portion is not None:
+            return week.slug == portion.slug
+        assert haftarah is not None
+        if week.haftarah:
+            return week.haftarah == haftarah.key
+        own = index.portions.get(week.slug)
+        return own is not None and own.haftarah == haftarah.key
+
+    shabbat = pointing_at(moment)
+    at = [n for n, week in enumerate(weeks) if reads_it(week)]
+    if at:
+
+        def distance(n: int) -> tuple[int, int]:
+            apart = (date.fromisoformat(weeks[n].day) - shabbat).days
+            # Equally far either side, the one still to come.
+            return abs(apart), 0 if apart >= 0 else 1
+
+        nearest = min(at, key=distance)
+        if nearest + 1 < len(weeks):
+            after = index.portions.get(weeks[nearest + 1].slug)
+            if after is not None and after.folder in built:
+                return after
+
+    listed = [one for one in index.listed() if one.folder in built]
+    if portion is None:
+        assert haftarah is not None
+        # The portion this haftarah is ordinarily read with, and the one after that.
+        portion = next((one for one in index.listed() if one.haftarah == haftarah.key), None)
+        if portion is None:
+            return None
+    _, after = neighbours(portion, listed)
+    return after
