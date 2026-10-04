@@ -307,6 +307,7 @@ def build(
             clean=True,
             folder=folder,
             recordings_beside=True,
+            commentary_words=portion.commentary_words,
         )
         # And what the week's sheet is set from, beside the reader: the box has no
         # books to cut it from again (targum-internal#415).
@@ -393,6 +394,7 @@ def build(
             clean=True,
             folder=folder,
             recordings_beside=True,
+            commentary_words=portion.commentary_words,
         )
         keep_sheet(portion, folder)
         opening, opening_ref = portion.opening()

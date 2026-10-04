@@ -36,6 +36,7 @@ from .models import (
     keeps_its_own_pointing,
     read_artifact,
 )
+from .renderings import commentary_ref, with_commentaries
 from .segment import HebrewSegmenter, Segmenter, segment_document
 from .translate import build as build_provider
 from .usage import Usage
@@ -715,7 +716,13 @@ class Build:
         for path in self.translation_files:
             document = ingest.load(str(path))
             target = segment_document(document, self.segmenter)
-            name = document.title or (path.stem if isinstance(path, Path) else str(path))
+            # A commentary is named by its reference, which says what it is on both
+            # sides: Sefaria titles the Hebrew of Rashi in Hebrew (targum-internal#414).
+            name = (
+                commentary_ref(document.source)
+                or document.title
+                or (path.stem if isinstance(path, Path) else str(path))
+            )
 
             # Some pairs do not need matching: both sides were published against the same
             # verse numbering, so the correspondence is stated rather than inferred. Both
@@ -972,6 +979,73 @@ class Build:
             self.moves = moves_module.keep(path.parent, moves_module.between(existing, annotation))
         annotation.write(path)
         return annotation
+
+    def annotate_commentaries(
+        self, segmented: SegmentedDocument, translations: list[Translation]
+    ) -> dict[str, Annotation]:
+        """The words of each commentary read in the text's own language — Rashi beside
+        the Torah — so a word of it can be tapped like a word of the Hebrew
+        (targum-internal#414).
+
+        Read here, at build time, by the annotator the Hebrew has: DICTA, which runs on
+        this machine and spends nothing. Not at render, the way Onkelos's words are,
+        because Onkelos is read by a hand table and Rashi by a model a second a verse
+        long. Kept beside the rendering (`renderings.words_path`) under the rendering's
+        own text, so the portion cut carries it and a rebuild reads it again only when
+        the edition changes or the annotator does.
+
+        A commentary in another language — Rashi in English — has no words to tap here,
+        any more than a translation does.
+        """
+        from .annotate import lemma
+        from .renderings import (
+            as_segmented,
+            is_commentary,
+            rendering_hash,
+            words_key,
+            words_path,
+        )
+
+        found: dict[str, Annotation] = {}
+        if not self.difficulty:
+            return found
+        own = segmented.language.split("-")[0]
+        for translation in translations:
+            if not is_commentary(translation.name):
+                continue
+            if translation.target_language.split("-")[0] != own:
+                continue
+            text = as_segmented(translation, segmented)
+            if not text.segments:
+                continue
+            annotator = annotate_module.Annotator(
+                # Not the Torah's chain: scripture is looked up in the Open Scriptures
+                # tagging by verse, and a verse of Rashi is not that verse. Its source is
+                # the commentary's, which `is_biblical` reads as rabbinic.
+                lemmatizer=lemma.for_text(f"sefaria:{translation.name}", own),
+                bands=None,
+            )
+            path = words_path(self.resolved_out, translation)
+            existing = read_artifact(Annotation, path)
+            if (
+                not self.force
+                and existing is not None
+                and existing.document_hash == rendering_hash(translation)
+                and existing.annotator == annotator.name
+            ):
+                self.reused.append(f"words ({translation.name})")
+                found[words_key(translation)] = existing
+                continue
+            self.notify(f"Finding the words of {translation.name}…")
+            try:
+                words = annotator.annotate(text)
+            except TargumError as error:
+                self.notify(f"{error.message} {translation.name} is drawn without its words.")
+                continue
+            words.document_hash = rendering_hash(translation)
+            words.write(path)
+            found[words_key(translation)] = words
+        return found
 
     def vocalize(self, segmented: SegmentedDocument) -> Vocalization | None:
         """The pointed form of each segment, for the reader's vowel toggle.
@@ -2272,6 +2346,8 @@ class Build:
         # worked out from them, and a stage cannot use what has not run yet.
         vocalization = self.vocalize(segmented)
         annotation = self.annotate(segmented, vocalization, only=only)
+        # And the words of a commentary beside it, so Rashi is tapped like the Torah is.
+        commentary_words = self.annotate_commentaries(segmented, translations)
         # Russian's marks come the other way round: after the words, which settle a
         # homograph's stress. Hebrew's vowels are None here only for a language without
         # them, so this is never a second pointing of one text.
@@ -2306,6 +2382,7 @@ class Build:
                 whole=self.whole,
                 folder=self.resolved_out,
                 moves=self.moves,
+                commentary_words=commentary_words,
             )
 
         # Anything a source keeps beside the reader for the page to draw, before the
@@ -2331,7 +2408,9 @@ class Build:
             on_ready(result)
 
         try:
-            result.glossary = self.glossary(annotation, only=only)
+            result.glossary = self.glossary(
+                with_commentaries(annotation, commentary_words, only), only=only
+            )
         except TargumError as error:
             # The reader is already written and, where this is serving a page, already
             # open. Losing the meanings is worth saying; it is not worth taking back a

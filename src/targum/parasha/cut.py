@@ -22,7 +22,7 @@ only new ids, and they are named for the aliyah so they cannot collide with a bo
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..models import (
@@ -38,6 +38,8 @@ from ..models import (
     glossaries_in,
     read_artifact,
 )
+from ..renderings import commentator, words_in
+from ..translate.prompts import BESIDE
 from .calendar import Haftarah, Reading
 from .calendar import slug as reading_slug
 
@@ -148,6 +150,9 @@ class Book:
     annotation: Annotation | None
     vocalization: Vocalization | None
     glossaries: dict[str, Glossary]
+    #: The words of each commentary beside it, by `renderings.words_key` — Rashi's,
+    #: read at build time (targum-internal#414).
+    commentary_words: dict[str, Annotation] = field(default_factory=dict)
 
 
 def library_root() -> Path:
@@ -190,6 +195,7 @@ def book_in(name: str, folder: Path) -> Book:
         annotation=read_artifact(Annotation, folder / "annotation.json"),
         vocalization=read_artifact(Vocalization, folder / "vocalization.json"),
         glossaries=glossaries_in(folder),
+        commentary_words=words_in(folder, translations),
     )
 
 
@@ -211,6 +217,9 @@ class Portion:
     #: behind the shelf needs to know which book on the shelf to ask
     #: (targum-internal#227, the daily half).
     books: tuple[str, ...] = ()
+    #: The words of each commentary carried, narrowed to the verses kept, so Rashi is
+    #: tapped in a portion as in its book (targum-internal#414). Handed to `render`.
+    commentary_words: dict[str, Annotation] = field(default_factory=dict)
 
     @property
     def verses(self) -> int:
@@ -455,32 +464,57 @@ def assemble(
         vocalization=_vocalization(books, kept, document.content_hash),
         glossaries=_glossaries(books),
         books=tuple(book.folder.name for book in books.values()),
+        commentary_words=_commentary_words(books, kept),
     )
 
 
 def _translations(
     name: str, books: dict[str, Book], kept: set[str], document_hash: str
 ) -> list[Translation]:
-    """One translation per language, carrying only the segments this portion holds."""
-    by_language: dict[str, Translation] = {}
+    """One translation per rendering, carrying only the segments this portion holds.
+
+    A translation is one per language, renamed for the portion: a portion that crosses
+    from one book into the next carries one English, not two. A commentary is one per
+    commentator and language, and keeps its own name (targum-internal#414): the name is
+    what says Rashi is a commentary, and keyed by language alone his English was merged
+    into the Metsudah English, writing his comments over the verses.
+    """
+    by_rendering: dict[tuple[str, str], Translation] = {}
     for book in books.values():
         for one in book.translations:
-            merged = by_language.get(one.target_language)
+            who = commentator(one.name)
+            key = (one.target_language, who)
+            # A targum keeps its own name too: "Onkelos Genesis" is what names it
+            # "Onkelos" on its switch, where the portion's name would say "Aramaic".
+            kept_name = bool(who) or one.target_language in BESIDE
+            merged = by_rendering.get(key)
             if merged is None:
                 merged = one.model_copy(
                     update={
-                        "name": name,
+                        "name": one.name if kept_name else name,
                         "document_hash": document_hash,
                         "segments": {},
                         "coarse": [],
                         "confidence": {},
                     }
                 )
-                by_language[one.target_language] = merged
+                by_rendering[key] = merged
             merged.segments.update({k: v for k, v in one.segments.items() if k in kept})
             merged.coarse.extend([c for c in one.coarse if c in kept])
             merged.confidence.update({k: v for k, v in one.confidence.items() if k in kept})
-    return list(by_language.values())
+    return list(by_rendering.values())
+
+
+def _commentary_words(books: dict[str, Book], kept: set[str]) -> dict[str, Annotation]:
+    """Each commentary's words, narrowed to the verses this portion holds."""
+    out: dict[str, Annotation] = {}
+    for book in books.values():
+        for key, words in book.commentary_words.items():
+            held = out.get(key)
+            if held is None:
+                held = out[key] = words.model_copy(update={"tokens": {}})
+            held.tokens.update({sid: t for sid, t in words.tokens.items() if sid in kept})
+    return out
 
 
 def _annotation(books: dict[str, Book], kept: set[str], document_hash: str) -> Annotation | None:

@@ -51,7 +51,7 @@ from ..models import (
     glossaries_in,
     read_artifact,
 )
-from ..translate.prompts import BESIDE
+from ..translate.prompts import BESIDE, language_name
 from ..vocalize import has_taamim, pointed_positions, strip_nikkud, strip_taamim
 from .builder import (
     BIBLICAL_FACE,
@@ -96,10 +96,14 @@ class Word:
 
 @dataclass(slots=True)
 class Cell:
-    """One companion's line beside (or under) the source: a translation, Onkelos."""
+    """One companion's line beside (or under) the source: a translation, Onkelos, Rashi."""
 
     text: str
     language: str
+    #: The work's name over its line where it is a commentary — "Rashi", "Rashi ·
+    #: English" — and whether its comments keep their line breaks (targum-internal#414).
+    label: str = ""
+    commented: bool = False
 
     @property
     def direction(self) -> str:
@@ -144,10 +148,10 @@ def first_sense(meaning: str) -> str:
 
 
 #: What a companion is called in a view: a translation by its language, Onkelos as
-#: `targum`, as the reader's companion keys name it (targum-internal#414), with `arc`
-#: taken for it as well. Rashi will be `rashi` when the sheet carries him; a key the text
-#: has no rendering for is passed over rather than refused, so a link made by a newer
-#: reader still prints.
+#: `targum`, Rashi as `rashi` and Rashi in English as `rashi-en` — the reader's own
+#: companion keys (`renderings.companion_key`, targum-internal#414) — with `arc` taken
+#: for Onkelos as well. A key the text has no rendering for is passed over rather than
+#: refused, so a link made by a newer reader still prints.
 TARGUM_KEYS = frozenset({"targum", "arc"})
 
 
@@ -175,13 +179,47 @@ class View:
 
 def companion(translations: Sequence[Translation], key: str) -> Translation | None:
     """The rendering a view's companion key names in this text, or None."""
+    from ..renderings import companion_key, is_commentary
+
     for translation in translations:
         code = translation.target_language
         if key in TARGUM_KEYS and code in BESIDE:
             return translation
+        if is_commentary(translation.name):
+            if companion_key(translation, translation.source_language, BESIDE) == key:
+                return translation
+            continue
         if code == key and code not in BESIDE:
             return translation
     return None
+
+
+def _translations_into(translations: Sequence[Translation]) -> list[Translation]:
+    """The renderings into a language a reader reads: not Onkelos, which is beside the
+    text, and not a commentary, which is about it (targum-internal#414)."""
+    from ..renderings import is_commentary
+
+    return [
+        t for t in translations if t.target_language not in BESIDE and not is_commentary(t.name)
+    ]
+
+
+def _cell(translation: Translation, segment_id: str) -> Cell:
+    """One companion's line for one verse; a commentary's named, its comments kept apart,
+    and an unremarked verse left blank rather than drawn as a dash."""
+    from ..renderings import EMPTY, commentator, is_commentary
+
+    text = translation.segments.get(segment_id, "")
+    if not is_commentary(translation.name):
+        return Cell(text=text, language=translation.target_language)
+    who = commentator(translation.name)
+    own = translation.target_language.split("-")[0] == translation.source_language.split("-")[0]
+    return Cell(
+        text="" if text.strip() == EMPTY else text,
+        language=translation.target_language,
+        label=who if own else f"{who} · {language_name(translation.target_language)}",
+        commented=True,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,13 +376,16 @@ def listed_word(token: Token, glossary: Glossary, known: Collection[str] | None)
 def _translation(translations: list[Translation], into: str | None) -> Translation:
     """The rendering the page sets beside the text: the one asked for by language, or the
     reader's own first choice — the first that is into a language rather than beside it."""
+    from ..renderings import is_commentary
+
+    plain = [t for t in translations if not is_commentary(t.name)] or translations
     if into:
-        for translation in translations:
+        for translation in plain:
             if translation.target_language == into:
                 return translation
-        have = ", ".join(sorted({t.target_language for t in translations}))
+        have = ", ".join(sorted({t.target_language for t in plain}))
         raise TargumError(f"This text has no translation into {into}.", f"It has: {have}.")
-    ordered = sorted(translations, key=lambda t: t.target_language in BESIDE)
+    ordered = sorted(plain, key=lambda t: t.target_language in BESIDE)
     return ordered[0]
 
 
@@ -354,7 +395,7 @@ def _glossary(
     """The meanings in the language the page is read in. Onkelos is not a language a
     meaning is written in, so a page set beside it takes the reader's own language."""
     wanted = [translation.target_language] + [
-        t.target_language for t in translations if t.target_language not in BESIDE
+        t.target_language for t in _translations_into(translations)
     ]
     for code in [*wanted, "en"]:
         if code in glossaries:
@@ -441,10 +482,7 @@ def _chapters(
                     kind=kind,
                     level=segment.level or 2,
                     source=shown,
-                    cells=[
-                        Cell(text=one.segments.get(sid, ""), language=one.target_language)
-                        for one in translations
-                    ],
+                    cells=[_cell(one, sid) for one in translations],
                     verse=verse_address(segment.ref) if segment.kind is BlockKind.verse else "",
                     source_html=marked,
                 )
@@ -606,7 +644,7 @@ def own_language(translations: list[Translation], reads: Collection[str] = ("en"
     """The reader's own language among a text's renderings: the first of `reads` the text
     is rendered into, else the first rendering into a language rather than beside it —
     decided by what the reader reads, not by which file sorts first — or English."""
-    into = [t.target_language for t in translations if t.target_language not in BESIDE]
+    into = [t.target_language for t in _translations_into(translations)]
     return next((code for code in reads if code in into), into[0] if into else "en")
 
 

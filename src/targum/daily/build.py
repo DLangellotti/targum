@@ -108,6 +108,7 @@ def build(
             vocalization=portion.vocalization,
             clean=True,
             folder=folder,
+            commentary_words=portion.commentary_words,
         )
         built.setdefault(one.cycle, {})[one.day.isoformat()] = {
             "title": one.title,

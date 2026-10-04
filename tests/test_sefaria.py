@@ -889,17 +889,16 @@ def test_fill_in_missing_segments_is_never_asked_for(monkeypatch: pytest.MonkeyP
 # -- Rashi on the Torah (targum-internal#200) -------------------------------------------
 
 
-def test_rashi_is_pinned_twice_because_numbers_is_filed_differently() -> None:
-    """Four books share a Hebrew edition and Numbers does not: its title ends four words
-    differently. A build that pinned one string would take four books and miss the fifth
-    in silence, which is why this is a table."""
-    assert len({pair.hebrew for pair in sefaria.RASHI_TORAH.values()}) == 2
-    assert sefaria.version_for("he", "Rashi on Genesis") == sefaria.version_for(
-        "he", "Rashi on Deuteronomy"
-    )
-    assert sefaria.version_for("he", "Rashi on Numbers").endswith("corrected vocalization")
-    # One English edition covers all five.
-    assert len({pair.english for pair in sefaria.RASHI_TORAH.values()}) == 1
+def test_rashi_is_metsudahs_on_both_sides_in_all_five_books() -> None:
+    """targum-internal#414: the Metsudah Rashi Chumash, CC-BY, Hebrew and English. One
+    edition on both sides is what makes a verse's Hebrew comments and its English ones the
+    same comments in the same order, and it is filed under one title in every book, so
+    the Numbers trap Silbermann's set is gone with it."""
+    assert set(sefaria.RASHI_TORAH) == {"Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"}
+    for book in sefaria.RASHI_TORAH:
+        hebrew = sefaria.version_for("he", f"Rashi on {book}")
+        assert hebrew == "Rashi Chumash, Metsudah Publications, 2009"
+        assert sefaria.version_for("en", f"Rashi on {book}") == hebrew
 
 
 def test_rashi_outside_the_torah_is_refused_by_name() -> None:

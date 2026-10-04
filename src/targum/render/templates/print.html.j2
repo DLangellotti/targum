@@ -48,18 +48,27 @@
     {% if line.cells %}<p class="tr" lang="{{ line.cells[0].language }}" dir="{{ line.cells[0].direction }}">{{ line.cells[0].text|isolate(line.cells[0].direction) }}</p>{% endif %}
   </div>
   {% else %}
-  <div class="pair {{ line.kind }}{% if not line.cells %} alone{% endif %}">
+  <div class="pair {{ line.kind }}{% if not line.cells|rejectattr("commented")|list %} alone{% endif %}">
     <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{% if line.verse %}<span class="verse-number">{{ line.verse.split(':')[1] }}</span>{% endif %}{% if line.source_html %}{{ line.source_html }}{% else %}{{ line.source|isolate(source_direction) }}{% endif %}</p>
     {#- Each companion the view has on, in its order: one beside the verse is a column,
         and two or more share it, one under the other. -#}
-    {% if line.cells|length == 1 %}
-    <p class="tr" lang="{{ line.cells[0].language }}" dir="{{ line.cells[0].direction }}">{{ line.cells[0].text|isolate(line.cells[0].direction) }}</p>
-    {% elif line.cells %}
+    {%- set plain = line.cells|rejectattr("commented")|list %}
+    {%- set notes = line.cells|selectattr("commented")|selectattr("text")|list %}
+    {% if plain|length == 1 %}
+    <p class="tr" lang="{{ plain[0].language }}" dir="{{ plain[0].direction }}">{{ plain[0].text|isolate(plain[0].direction) }}</p>
+    {% elif plain %}
     <div class="trs">
-      {% for cell in line.cells %}<p class="tr" lang="{{ cell.language }}" dir="{{ cell.direction }}">{{ cell.text|isolate(cell.direction) }}</p>{% endfor %}
+      {% for cell in plain %}<p class="tr" lang="{{ cell.language }}" dir="{{ cell.direction }}">{{ cell.text|isolate(cell.direction) }}</p>{% endfor %}
     </div>
     {% endif %}
   </div>
+  {#- A commentary — Rashi — runs under the verse the whole width of the page, as a
+      chumash sets him, named and with his comments apart; free to cross a page, because
+      one comment can be longer than a page; and on a verse he says nothing about, not
+      there at all (targum-internal#414). -#}
+  {% for cell in notes %}
+  <div class="note" lang="{{ cell.language }}" dir="{{ cell.direction }}"><span class="cmp-name" lang="en" dir="ltr">{{ cell.label }}</span>{{ cell.text|isolate(cell.direction) }}</div>
+  {% endfor %}
   {% endif %}
   {% endfor %}
   {% if chapter.words %}
