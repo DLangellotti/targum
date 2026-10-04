@@ -478,3 +478,118 @@ def test_rashi_prints_in_hebrew_and_english_in_the_view_the_reader_has(
     finally:
         for path in added:
             path.unlink()
+
+
+def _laid_out(
+    html: str,
+) -> tuple[list[float], list[float], list[tuple[int, float, float, float, float]]]:
+    """The heights of the source's own lines, bare and glossed, and every meaning's box,
+    as WeasyPrint lays the page out."""
+    printed._find_pango()
+    try:
+        from weasyprint import HTML
+    except (ImportError, OSError):
+        pytest.skip("WeasyPrint or Pango is not installed")
+    bare: list[float] = []
+    glossed: list[float] = []
+    meanings: list[tuple[int, float, float, float, float]] = []
+
+    def classes(box: object) -> str:
+        element = getattr(box, "element", None)
+        return (element.get("class") or "") if element is not None else ""
+
+    def walk(box: object, page: int) -> None:
+        kind = type(box).__name__
+        if (
+            kind == "BlockBox"
+            and getattr(box, "element_tag", "") == "p"
+            and "src" in classes(box).split()
+        ):
+            for line in box.children:  # type: ignore[attr-defined]
+                if type(line).__name__ != "LineBox":
+                    continue
+                has = any(classes(one) == "gl" for one in line.descendants())
+                (glossed if has else bare).append(round(line.height, 2))
+        if kind == "BlockBox" and classes(box) == "gl":
+            meanings.append((page, box.position_x, box.position_y, box.width, box.height))  # type: ignore[attr-defined]
+        for child in getattr(box, "children", None) or []:
+            walk(child, page)
+
+    for number, page in enumerate(HTML(string=html).render().pages):
+        walk(page._page_box, number)
+    return bare, glossed, meanings
+
+
+def test_meanings_never_overlap_and_every_line_is_one_height(
+    built: Index,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Genesis 1:2 printed "a vacuity" over "chaos", and a glossed line stood taller than
+    the lines around it (targum-internal#415, 2026-10-05). With meanings on, every line of
+    the text is one height, and no meaning reaches into its neighbour; with them off, the
+    page keeps the reader's leading."""
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    _rare(cal.root() / "read")
+    # Every word rare, and each verse's meanings set side by side: the closest they come.
+    bare, glossed, meanings = _laid_out(_sheet(aliyah=1, haftarah=False))
+    assert glossed and bare, "lines with a meaning and lines without"
+    assert set(glossed) == set(bare) and len(set(bare)) == 1, (set(bare), set(glossed))
+    for index, one in enumerate(meanings):
+        for other in meanings[index + 1 :]:
+            same_line = one[0] == other[0] and abs(one[2] - other[2]) < 1
+            assert not (
+                same_line and one[1] < other[1] + other[3] and other[1] < one[1] + one[3]
+            ), "two meanings overlap"
+    plain, _, none = _laid_out(_sheet(aliyah=1, haftarah=False, gloss=False))
+    assert not none and max(plain) < min(bare), "without meanings, the reader's leading"
+
+
+def test_two_meanings_side_by_side_do_not_touch() -> None:
+    """The case Genesis 1:2 printed wrong: short words next to each other, each with a
+    meaning wider than itself."""
+    from targum.models import Token
+
+    text = "תֹהוּ וָבֹהוּ וְחֹשֶׁךְ עַל תֹהוּ וָבֹהוּ וְחֹשֶׁךְ"
+    words = text.split(" ")
+    starts = [sum(len(word) + 1 for word in words[:n]) for n in range(len(words))]
+    tokens = [
+        Token(start=start, end=start + len(word), surface=word, lemma=f"w{n}", band=5)
+        for n, (start, word) in enumerate(zip(starts, words, strict=True))
+    ]
+    meanings = {f"w{n}": "a long meaning here" for n in range(len(words))}
+
+    def mark(token: Token, glossary: object) -> printed.Mark:
+        return printed.Mark(status=1, meaning=meanings[token.lemma])
+
+    line = printed.Line(
+        kind="verse",
+        level=2,
+        source=text,
+        verse="Genesis 1:2",
+        source_html=printed._marked(
+            text, text, tokens, mark, None, set(), direction="rtl", chrome="en"
+        ),
+    )
+    part = printed.Part(
+        title="בראשית",
+        english="Bereshit",
+        chapters=[printed.Chapter(title="", lines=[line] * 3)],
+        source_language="he",
+        target_language="en",
+    )
+    html = printed._page(
+        [part],
+        title="בראשית",
+        english="Bereshit",
+        chrome="en",
+        accented=False,
+        under=False,
+        size="a4",
+    )
+    _, glossed, boxes = _laid_out(html)
+    assert len(boxes) >= 3 * len(words) and len(set(glossed)) == 1
+    for index, one in enumerate(boxes):
+        for other in boxes[index + 1 :]:
+            if one[0] == other[0] and abs(one[2] - other[2]) < 1:
+                assert one[1] + one[3] <= other[1] + 0.01 or other[1] + other[3] <= one[1] + 0.01
