@@ -6,6 +6,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Next Shabbat's portion at the end of the last aliyah (targum-internal#416): "Next
+  Shabbat · נֹחַ · Noach", linking that portion's reader, and under it "You already know
+  109 of its words", counted against the reader's own word list (`targum:vocab:he`) by
+  the header's rule, known meaning marked known. The haftarah's end carries the same
+  offer. `GET /parasha/next/<folder>?schedule=` (`parasha.build.following`) says what
+  follows by the calendar on the schedule the browser keeps (`targum:schedule`, as the
+  Weekly portion shelf does), from the occurrence nearest this Shabbat, so a doubled
+  week, a festival Shabbat and the weeks Israel and the diaspora part are as read; where
+  the calendar is silent the cycle answers and the year wraps. The next portion's words
+  go only to a reader with a word list; signed out, or with nothing known, the offer
+  stands without a count. `targum parasha build` now writes each portion's words beside
+  its reader (`read/<slug>/lemmas.json`, names and numbers left out); a corpus built
+  before this offers the portion without a count until it is rebuilt and shipped. On a
+  portion's last aliyah the library's own "Up next" pick stands down for it.
 - Download PDF on a portion (targum-internal#415): the week's shnayim mikra sheet, set on
   the box when pressed, from the ⋯ menu of a portion's reader and a button on its
   `/parasha` page. `GET /parasha/<slug>.pdf` sets what `targum export mikra` sets: the

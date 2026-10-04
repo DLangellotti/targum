@@ -2377,6 +2377,8 @@
   "reader.next.known-ahead.other": "You already know {n} words in this one.",
   "reader.next.connect": "Practise the words you marked, in Claude or ChatGPT.",
   "reader.next.connect-go": "Connect",
+  "reader.next.shabbat": "Next Shabbat",
+  "reader.next.shabbat-known": "You already know {n} of its words.",
   "mail.weekly.subject": "Weekly News Digest · {dated}",
   "mail.weekly.preheader": "The week's news in Hebrew, at three levels.",
   "mail.weekly.button": "Read this week's issue",
