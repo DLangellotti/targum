@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-03
+A map of the Tanakh shades every chapter by how much of it you would understand.
+A new page shows the hard parts of Hebrew, each one solved on a real text.
+The Library has a Life in Israel subject, for texts about settling in the country.
+
 2026-10-02
 Paste a link on the front page and targum says what it would make of it.
 A Hebrew verb's card fills forms missing from its table, worked out from its root and pattern.
