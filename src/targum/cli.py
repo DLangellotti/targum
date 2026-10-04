@@ -4630,6 +4630,9 @@ def parasha_leyning(
             references.setdefault(one.haftarah.key, one.haftarah)
 
     wanted = [only] if only else sorted(readings)
+    alone = {
+        leyning_module.pocket_name(one.name): one for one in readings.values() if not one.doubled
+    }
     done = silent = 0
     for name in wanted if torah else []:
         found = readings.get(name)
@@ -4648,8 +4651,18 @@ def parasha_leyning(
         portion = cut_module.cut(reading, cut_module.books_for(reading, library))
         if not again and leyning_module.attached(portion.document.source):
             continue
+        # A doubled week is aligned a file at a time, each against its own half's
+        # aliyah, so it is handed the two halves read on their own (targum-internal#413).
+        halves = [
+            alone[leyning_module.pocket_name(half)]
+            for half in reading.name.split("-")
+            if leyning_module.pocket_name(half) in alone
+        ]
         leyning_module.attach(
-            reading, portion, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+            reading,
+            portion,
+            notify=lambda line: console.print(f"[dim]{line}[/dim]"),
+            halves=halves if reading.doubled and len(halves) == 2 else None,
         )
         done += 1
 

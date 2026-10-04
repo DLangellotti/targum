@@ -348,6 +348,46 @@ def _one_file_per_aliyah(
     return parts
 
 
+def _clocks_by_file(
+    halves: list[Reading],
+    portion: Portion,
+    files: list[Path],
+    duration_of: Callable[[Path], float],
+    notify: Callable[[str], None],
+) -> dict[str, list[list[float]]] | None:
+    """A doubled week's clock, put together a file at a time instead of in one pass.
+
+    Each of the fourteen files is one aliyah of one half, so it is aligned against that
+    aliyah's verses — the same short alignment a portion read on its own gets — and moved
+    along by the length of every file before it. The joined file is the same files end
+    to end, so the result is the clock one pass over it would give.
+
+    One pass over forty minutes is what torchaudio's `forced_align` could not do for
+    Tazria-Metzora or Chukat-Balak: it died with SIGSEGV every time, which no `except`
+    catches (targum-internal#413). None where the files and the halves' aliyot do not
+    pair up one for one, and the caller falls back to the single pass.
+    """
+    named = [
+        (half, aliyah.number)
+        for half in halves
+        for aliyah in sorted(half.aliyot, key=lambda one: one.number)
+    ]
+    if len(named) != len(files):
+        return None
+    clocks: dict[str, list[list[float]]] = {}
+    elapsed = 0.0
+    for (half, number), file in zip(named, files, strict=True):
+        verses = _verses(portion, number, half)
+        if not verses:
+            return None
+        for ref, rows in clocks_for(file, verses, notify).items():
+            clocks.setdefault(ref, []).extend(
+                [round(start + elapsed, 3), round(end + elapsed, 3)] for start, end in rows
+            )
+        elapsed += duration_of(file)
+    return clocks
+
+
 def _cut_from_the_pair(
     reading: Reading,
     portion: Portion,
@@ -355,6 +395,7 @@ def _cut_from_the_pair(
     into: Path,
     keep: Path,
     notify: Callable[[str], None],
+    halves: list[Reading] | None = None,
 ) -> list[Part]:
     """A doubled week: the two portions' recordings, re-divided where this week divides.
 
@@ -395,7 +436,9 @@ def _cut_from_the_pair(
     if not master.is_file():
         notify(f"    joining {len(files)} files into one reading…")
         concatenated(files, master)
-    clocks = clocks_for(master, verses, notify)
+    clocks = _clocks_by_file(halves, portion, files, duration_of, notify) if halves else None
+    if clocks is None:
+        clocks = clocks_for(master, verses, notify)
     spans = verse_spans(clocks)
     if not spans:
         return []
@@ -469,11 +512,14 @@ def attach(
     *,
     downloads: Path | None = None,
     notify: Callable[[str], None] = print,
+    halves: list[Reading] | None = None,
 ) -> Recording | None:
     """Give one portion its chanted reading. None where there is none to give.
 
     Two ways in, because a doubled week is not a portion with more verses in it — it is
-    the same verses divided somewhere else. See the two helpers above.
+    the same verses divided somewhere else. See the two helpers above. `halves`, for a
+    doubled week, are the two portions read on their own, whose aliyot say which verses
+    each of the fourteen files holds.
     """
     into = recording_index.folder(portion.document.source)
     keep = downloads or downloads_root()
@@ -487,7 +533,7 @@ def attach(
     if wanted:
         parts = _one_file_per_aliyah(reading, portion, wanted, into, keep, notify)
     else:
-        parts = _cut_from_the_pair(reading, portion, pair, into, keep, notify)
+        parts = _cut_from_the_pair(reading, portion, pair, into, keep, notify, halves)
 
     if not parts:
         return None

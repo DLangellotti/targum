@@ -301,3 +301,51 @@ def test_a_haftarah_file_that_reads_something_else_is_refused(tmp_path, monkeypa
     assert made.parts[0].audio == "haftarah.mp3"
     assert made.parts[0].spans == {"Isaiah 54:1": [0.0, 3.8]}
     assert leyning.attached("sefaria:Isaiah 54:1-55:5")
+
+
+def test_a_doubled_week_is_clocked_a_file_at_a_time(tmp_path, monkeypatch) -> None:
+    """targum-internal#413. One pass of `forced_align` over a forty-minute doubled week
+    died with SIGSEGV (Tazria-Metzora, Chukat-Balak). Each file is one aliyah of one half,
+    so each is aligned against that aliyah's verses alone and moved along by the length
+    of the files before it — the clock one pass over the joined file would have given."""
+    from types import SimpleNamespace
+
+    from targum.models import BlockKind
+    from targum.parasha.calendar import Aliyah
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    heard: list[tuple[str, int]] = []
+
+    class Aligner:
+        def available(self) -> tuple[bool, str]:
+            return True, "fake"
+
+        def align(self, audio: Path, words: list[str], language: str) -> list[tuple]:
+            heard.append((audio.name, len(words)))
+            return [(n * 1.0, n + 0.5, -0.1) for n in range(len(words))]
+
+    monkeypatch.setattr(leyning, "CtcAligner", Aligner)
+
+    def verse(ref: str) -> SimpleNamespace:
+        return SimpleNamespace(kind=BlockKind.verse, ref=ref, text="אֵ֥ת הַשָּׁמַ֖יִם")
+
+    refs = ["Leviticus 12:1", "Leviticus 12:2", "Leviticus 14:1", "Leviticus 14:2"]
+    portion = SimpleNamespace(segmented=SimpleNamespace(segments=[verse(r) for r in refs]))
+    halves = [
+        SimpleNamespace(aliyot=[Aliyah(1, "Leviticus", "12:1", "12:2", 2)]),
+        SimpleNamespace(aliyot=[Aliyah(1, "Leviticus", "14:1", "14:2", 2)]),
+    ]
+    files = [tmp_path / "Tazria-1.mp3", tmp_path / "Metzora-1.mp3"]
+    for one in files:
+        one.write_bytes(b"ID3" + one.name.encode())
+
+    clocks = leyning._clocks_by_file(halves, portion, files, lambda _: 100.0, lambda _: None)
+    assert clocks is not None
+    assert heard == [("Tazria-1.mp3", 4), ("Metzora-1.mp3", 4)], "a file at a time"
+    assert clocks["Leviticus 12:1"] == [[0.0, 0.5], [1.0, 1.5]]
+    assert clocks["Leviticus 14:1"][0] == [100.0, 100.5], "after the first file's length"
+    assert clocks["Leviticus 14:2"][-1] == [103.0, 103.5]
+
+    assert leyning._clocks_by_file(halves, portion, files[:1], lambda _: 1.0, print) is None, (
+        "files that do not pair up with the aliyot fall back to the single pass"
+    )
