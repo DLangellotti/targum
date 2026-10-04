@@ -84,7 +84,11 @@ global.fetch = (address) =>
     ok: true,
     json: () =>
       Promise.resolve(
-        String(address).indexOf("/jobs") >= 0 ? { jobs: payload.jobs || [] } : shelfAnswer
+        String(address).indexOf("/jobs") >= 0
+          ? { jobs: payload.jobs || [] }
+          : String(address).indexOf("/portions") >= 0
+            ? payload.portions || {}
+            : shelfAnswer
       ),
   });
 
@@ -114,6 +118,11 @@ setTimeout(() => {
     if (step.door) {
       const item = doorItems().find((c) => c.children[0].getAttribute("data-door") === step.door);
       if (item) item.children[0].fire("click", {});
+    }
+    /* The Weekly portion shelf's calendar (targum-internal#411): `{schedule: "Israel"}`. */
+    if (step.schedule) {
+      const press = byId["portion-schedule"].children.find((c) => c.textContent === step.schedule);
+      if (press) press.fire("click", {});
     }
     if (step.crumb) {
       const back = byId["crumbs"].children.find((c) => c.tagName === "button");
@@ -163,6 +172,7 @@ setTimeout(() => {
       cells: [],
       draws: "",
       opens: open.tagName,
+      href: open.href || "",
     };
   };
   const read = (row) => {
@@ -207,6 +217,7 @@ setTimeout(() => {
       cells: open.children.slice(2).map((cell) => cell.textContent.trim()),
       draws: row.children.length > 1 ? row.children[1].textContent : "",
       opens: open.tagName,
+      href: open.href || "",
     };
   };
   /* Written, then done. The page polls while anything is building (design.md §12,
@@ -269,6 +280,32 @@ setTimeout(() => {
       doors,
       crumbs: byId["crumbs"].hidden ? "" : byId["crumbs"].textContent,
       hash: global.location.hash || "",
+      /* The Weekly portion shelf (targum-internal#411): whether it is up, its cards in
+         order, and the calendar switch where the two calendars part company. */
+      portions: {
+        hidden: !byId["portions"] || !!byId["portions"].hidden,
+        cards: (byId["portion-cards"] ? byId["portion-cards"].children : []).map((item) => {
+          const open = item.children[0];
+          const part = (name) => (open.children.find((c) => c.className === name) || {}).textContent || "";
+          return {
+            slug: item.getAttribute("data-portion") || "",
+            thisWeek: String(item.className).indexOf("this-week") >= 0,
+            when: part("portion-when"),
+            name: part("portion-name"),
+            english: part("portion-english"),
+            span: part("portion-span"),
+            href: open.href || "",
+            tag: open.tagName,
+          };
+        }),
+        schedule: !byId["portion-schedule"] || byId["portion-schedule"].hidden
+          ? []
+          : byId["portion-schedule"].children.map((c) => ({
+              text: c.textContent,
+              on: c.getAttribute("aria-pressed") === "true",
+            })),
+        kept: global.localStorage.getItem("targum:schedule") || "",
+      },
       views: JSON.parse(global.localStorage.getItem("targum:library") || "{}"),
       kindOn: (byId["kind-chips"].children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",
       // The hard-words gauge is a column, so it exists on a row and not on a card.

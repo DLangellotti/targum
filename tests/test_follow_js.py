@@ -76,9 +76,16 @@ QUIET = {
 }
 
 
+def test_the_weeks_portion_is_asked_for_by_the_calendar_this_reader_keeps() -> None:
+    """targum-internal#411: the Library's Weekly portion shelf keeps Israel's calendar or
+    the diaspora's, and Learn and the bell ask for this week's portion by the same one."""
+    got = run(series=[PARASHA], schedule="israel")
+    assert got["asked"] == ["/account/follows", "/series?schedule=israel"]
+
+
 def test_the_row_names_every_series_and_where_it_is_this_week() -> None:
     got = run(series=[WEEKLY, PARASHA, QUIET])
-    assert got["asked"] == ["/account/follows", "/series"] and got["shown"]
+    assert got["asked"] == ["/account/follows", "/series?schedule=diaspora"] and got["shown"]
     assert [r["id"] for r in got["rows"]] == ["weekly", "parasha", "mishna-yomi"]
     assert got["rows"][1]["now"].startswith("כי תבוא") and "Sep" in got["rows"][1]["now"]
     assert got["rows"][2]["now"] == "The latest one isn't ready yet."

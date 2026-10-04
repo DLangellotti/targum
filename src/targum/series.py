@@ -109,7 +109,9 @@ def _parasha(schedule: str) -> dict[str, Any]:
         "title": portion.name,
         "hebrew": portion.hebrew,
         "when": pointing_at().isoformat(),
-        "reader": f"/parasha/read/{portion.folder}/reader/sec-0001.html",
+        # The same reader the Library's row and its Weekly portion shelf open
+        # (targum-internal#410), at its first aliyah: Learn frames the reading itself.
+        "reader": corpus.reader_href(portion, "sec-0001.html"),
         **_identity(corpus_root() / "read" / portion.folder),
     }
     return out

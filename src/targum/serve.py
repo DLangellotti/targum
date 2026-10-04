@@ -613,6 +613,24 @@ def parasha_url(entry_id: str) -> str | None:
     return f"/parasha/{slug}"
 
 
+def parasha_reader(entry_id: str) -> str | None:
+    """Where a signed-in reader opening a portion's catalogue entry is sent, or None.
+
+    Its reader, which is built once for the box and opened by everybody, so nothing is
+    built and nothing is spent (targum-internal#410). `parasha_url` is the same question
+    asked for a stranger, whose answer is the portion's public page. Only for a portion
+    that is actually built, for the same reason.
+    """
+    if not entry_id.startswith("parasha-"):
+        return None
+    from .parasha import build as corpus
+
+    portion = corpus.load().portions.get(entry_id.removeprefix("parasha-"))
+    if portion is None or portion.folder not in corpus.readable():
+        return None
+    return corpus.reader_href(portion)
+
+
 #: The three the weekly's own door answers, all of them plain forms so they work with
 #: no JavaScript at all — which matters because two of them are followed out of an email
 #: client, where JavaScript is not a thing that exists.
@@ -4706,6 +4724,7 @@ class Handler(BaseHTTPRequestHandler):
             "/readers",
             "/suggest",
             "/series",
+            "/portions",
             "/words/common",
             "/jobs",
             "/account/export",
@@ -6443,6 +6462,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_weekly(route)
         if shelves_are_public() and (route == "/parasha" or route.startswith("/parasha/")):
             return self._serve_parasha(route)
+        # A portion's reader is in the Library too (targum-internal#410), so a reader who
+        # is signed in opens it whether or not the shelves are open to strangers.
+        portion_file = PARASHA_READER.match(route)
+        if portion_file is not None and self._authorised():
+            return self._serve_parasha_reader(portion_file.group(1), portion_file.group(2))
+        # And a portion's catalogue id opens that reader for them, where a stranger is
+        # sent to its public page below. Same id, two answers by who is asking — so a
+        # 302: a browser keeps a 301 and would send a reader who signs in later to the
+        # page meant for somebody who has not.
+        named = PUBLIC_TEXT.match(route)
+        reading_at = parasha_reader(named.group(1)) if named and self._authorised() else None
+        if reading_at is not None:
+            query = urlparse(self.path).query
+            return self._sent_on(reading_at + (f"?{query}" if query else ""))
         daily_cycle = DAILY_ROUTE.match(route) if shelves_are_public() else None
         if daily_cycle is not None:
             return self._serve_daily(daily_cycle.group(1), daily_cycle.group(2) or "")
@@ -6500,6 +6533,7 @@ class Handler(BaseHTTPRequestHandler):
                     "/playlists.json",
                     "/playlists/",
                     "/tanakh-map.json",
+                    "/portions",
                 )
             ):
                 return self._json(
@@ -6718,6 +6752,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._suggest()
         if route == "/account/follows":
             return self._follows(None)
+        if route == "/portions":
+            # The Library's Weekly portion shelf (targum-internal#411): the cycle, each
+            # with its reader, and which is read this Shabbat on each schedule. Asked for
+            # rather than baked into the page, which is rendered once at start-up and
+            # would go on saying the week it was started in.
+            from .parasha import build as parasha_corpus
+
+            return self._json(parasha_corpus.shelf())
         if route == "/series":
             # What comes out on its own clock, and where each is this week (2026-09-11):
             # the page draws the row to follow, and Learn puts a new instalment of a
@@ -10924,6 +10966,11 @@ class Handler(BaseHTTPRequestHandler):
             self._sent_on(where + fragment)
 
         entry_id = unquote(name).strip("/")
+        # A portion is read where everybody reads it, never built into a shelf of one's
+        # own (targum-internal#410): its door is its reader.
+        reading_at = parasha_reader(entry_id)
+        if reading_at is not None:
+            return sent(reading_at)
         entry = next((e for e in catalogue_module.CATALOGUE if e.id == entry_id), None)
         if entry is None:
             return sent("/library")
