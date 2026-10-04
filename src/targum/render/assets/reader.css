@@ -4611,8 +4611,10 @@ body.has-player.list-ended .list-end {
 
 /* Add to playlist, in the bar's This text group: drawn as the bar's other controls are —
    a pill with no line until the pointer or the focus finds it, in the bar's ink — and
-   never as a bare link. */
-.bar .group .more-playlist {
+   never as a bare link. Download PDF beside it on a portion (targum-internal#415) is the
+   same press. */
+.bar .group .more-playlist,
+.bar .group .more-sheet {
   display: inline-flex;
   align-items: center;
   padding: 0.2rem 0.75rem;
@@ -4625,11 +4627,15 @@ body.has-player.list-ended .list-end {
   cursor: pointer;
 }
 .bar .group .more-playlist:hover,
-.bar .group .more-playlist:focus-visible { color: var(--ink); border-color: var(--rule); }
+.bar .group .more-playlist:focus-visible,
+.bar .group .more-sheet:hover,
+.bar .group .more-sheet:focus-visible { color: var(--ink); border-color: var(--rule); }
 .bar .group .more-playlist[aria-expanded="true"] { color: var(--ink); background: var(--teal-wash); }
-.bar-more.open .group .more-playlist { border-color: var(--rule); }
+.bar-more.open .group .more-playlist,
+.bar-more.open .group .more-sheet { border-color: var(--rule); }
 @media (hover: none) and (pointer: coarse) {
-  .bar .group .more-playlist { min-block-size: 44px; }
+  .bar .group .more-playlist,
+  .bar .group .more-sheet { min-block-size: 44px; }
 }
 
 /* Add to a playlist, in place (2026-09-24): a floating panel under the press, on every

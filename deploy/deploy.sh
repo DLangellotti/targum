@@ -110,7 +110,10 @@ uv build --wheel >/dev/null
 WHEEL="$(ls -t dist/*.whl | head -1)"
 echo "   $(basename "$WHEEL")"
 # The extras the box installs, said once for the export below and the install on the box.
-BOX_EXTRAS="difficulty covers bring stress russian"
+# `print` is WeasyPrint, for the week's sheet as a PDF (targum-internal#415); it installs
+# without Pango, and without Pango the sheet is refused in a sentence rather than the
+# service failing — `provision.sh` puts Pango on the box.
+BOX_EXTRAS="difficulty covers bring stress russian print"
 # The lockfile's versions, as constraints for the box's install. uv tool install resolves
 # the wheel's requirements fresh and ignores uv.lock, so a requirement with only a floor
 # took whatever PyPI had that day: transformers 5.17.0 broke every Hebrew build on

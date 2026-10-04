@@ -62,6 +62,10 @@
           the wrong end and the button reads backwards. -#}
       <p class="actions">
         <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
+        {#- The week's sheet on paper (targum-internal#415): the portion beside Onkelos,
+            the haftarah, and for a reader signed in the words they looked up this week.
+            Set on the box when pressed. -#}
+        <a class="btn tonal sheet" href="{{ sheet_href }}">{{ t("parasha.page.download-pdf", "Download PDF") }}</a>
       </p>
     </div>
     {#- Decoration: it says nothing the words have not said, so it is hidden from a

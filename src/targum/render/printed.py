@@ -366,7 +366,13 @@ def own_language(translations: list[Translation], reads: Collection[str] = ("en"
     return next((code for code in reads if code in into), into[0] if into else "en")
 
 
-def week_words(kept: Iterable[Kept], texts: Iterable[Cut], target: str = "en") -> list[Word]:
+def week_words(
+    kept: Iterable[Kept],
+    texts: Iterable[Cut] = (),
+    target: str = "en",
+    *,
+    cited: Mapping[str, tuple[str, str]] | None = None,
+) -> list[Word]:
     """The words of a reader's week — looked up, or kept — as the sheet lists them.
 
     Each with the meaning the reader kept beside it — their own note first, then what the
@@ -375,7 +381,32 @@ def week_words(kept: Iterable[Kept], texts: Iterable[Cut], target: str = "en") -
     them, and as kept where it is not. A word with no meaning anywhere is left off, as the
     edition leaves one off: paper cannot offer to look one up. `target` is the language
     the meanings are read in.
+
+    `cited` is `cited_forms` of the week's texts, given where it was worked out earlier —
+    the box keeps it beside each portion rather than the annotation it comes from
+    (`parasha.sheet`) — and then `texts` is not read.
     """
+    if cited is None:
+        cited = cited_forms(texts, target)
+    out: list[Word] = []
+    seen: set[str] = set()
+    for one in kept:
+        bare = strip_nikkud(one.lemma)[0]
+        if bare in seen:
+            continue
+        form, found = cited.get(bare, (one.lemma, ""))
+        meaning = first_sense(one.meaning) or found
+        if not meaning:
+            continue
+        seen.add(bare)
+        out.append(Word(form=form, meaning=meaning, language=one.language))
+    return out
+
+
+def cited_forms(texts: Iterable[Cut], target: str = "en") -> dict[str, tuple[str, str]]:
+    """Every word the texts carry, bare of points, with the form they cite it in and its
+    first sense in `target` — what `week_words` sets a reader's word beside. The first
+    text to carry a word decides it."""
     cited: dict[str, tuple[str, str]] = {}
     for text in texts:
         if text.annotation is None:
@@ -396,19 +427,7 @@ def week_words(kept: Iterable[Kept], texts: Iterable[Cut], target: str = "en") -
                 meaning = first_sense(glossary.entries.get(key, ""))
                 form = glossary.citations.get(key) or token.headword or token.lemma
                 cited[bare] = (form, meaning)
-    out: list[Word] = []
-    seen: set[str] = set()
-    for one in kept:
-        bare = strip_nikkud(one.lemma)[0]
-        if bare in seen:
-            continue
-        form, found = cited.get(bare, (one.lemma, ""))
-        meaning = first_sense(one.meaning) or found
-        if not meaning:
-            continue
-        seen.add(bare)
-        out.append(Word(form=form, meaning=meaning, language=one.language))
-    return out
+    return cited
 
 
 def mikra_html(
@@ -520,3 +539,56 @@ def write_pdf(html: str, out: Path) -> Path:
     # relative address resolves to nothing rather than to the working directory.
     HTML(string=html).write_pdf(out)
     return out
+
+
+def write_pdf_within(html: str, out: Path, seconds: float) -> Path:
+    """`write_pdf` in a process of its own, stopped after `seconds` (targum-internal#415).
+
+    For the server, where a page is set because somebody pressed Download. WeasyPrint
+    holds the thread it runs on until it is done and cannot be told to stop; in a child
+    process a page that runs long is killed rather than waited on, and what it held goes
+    back when it exits. Bereshit with its haftarah, measured on 2026-10-04: seven seconds
+    of CPU and a hundred megabytes at the peak.
+    """
+    import subprocess
+    import tempfile
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=out.parent) as scratch:
+        page = Path(scratch) / "page.html"
+        page.write_text(html, encoding="utf-8")
+        setting = Path(scratch) / "page.pdf"
+        try:
+            done = subprocess.run(
+                [sys.executable, "-m", "targum.render.printed", str(page), str(setting)],
+                capture_output=True,
+                text=True,
+                timeout=seconds,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise TargumError(
+                f"The PDF took longer than {seconds:.0f} seconds to set, and was stopped.",
+                "Try again in a minute.",
+            ) from error
+        if done.returncode != 0 or not setting.is_file():
+            said = [line for line in done.stderr.strip().splitlines() if line.strip()]
+            raise TargumError(said[-1] if said else "The PDF could not be set.")
+        setting.replace(out)
+    return out
+
+
+def _main(arguments: list[str]) -> int:
+    """`python -m targum.render.printed page.html page.pdf`: what `write_pdf_within`
+    runs. The refusal is the last line on stderr, which is what the caller reads."""
+    page, out = (Path(one) for one in arguments)
+    try:
+        write_pdf(page.read_text(encoding="utf-8"), out)
+    except TargumError as error:
+        print(error.message, file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(_main(sys.argv[1:]))

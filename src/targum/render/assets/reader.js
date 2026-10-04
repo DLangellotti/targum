@@ -11660,3 +11660,20 @@ else targumReader();
   }
   group.hidden = false;
 })();
+
+/* The week's sheet as a PDF (targum-internal#415), from the ⋯ menu.
+ *
+ * Only on a portion's reader served from the corpus: its folder is the portion's name,
+ * and the box sets the sheet for that name when the link is pressed. A haftarah's
+ * folder is not a portion, and a reader opened off a disk has no box behind it.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+  var group = document.getElementById("to-sheet");
+  var link = document.getElementById("more-sheet");
+  var served = /^\/parasha\/read\/([a-z0-9-]+)\/reader\//.exec(location.pathname);
+  if (!group || !link || !served || served[1].indexOf("haftarah-") === 0) return;
+  link.href = "/parasha/" + served[1] + ".pdf";
+  group.hidden = false;
+})();

@@ -4274,7 +4274,7 @@ def export_mikra(
 
     from .parasha import calendar as reading_calendar
     from .parasha import cut as cutting
-    from .render.printed import SIZES, Word, mikra_html, own_language, week_words, write_pdf
+    from .render.printed import SIZES, Word, cited_forms, mikra_html, write_pdf
 
     if size not in SIZES:
         fail(TargumError(f"No paper called {size}.", f"Try one of: {', '.join(SIZES)}."))
@@ -4319,32 +4319,23 @@ def export_mikra(
     reads: tuple[str, ...] = ("en",)
     if reader:
         from .accounts import Store
+        from .parasha.sheet import reader_week
         from .serve import default_store
 
         keeping = Store(store or default_store())
         person = keeping.person_by_email(reader)
         if person is None:
             fail(TargumError(f"No account for {reader}."))
-        # English first where they read it, as the account's own default is English.
-        reads = tuple(sorted(keeping.reads(person.id), key=lambda code: code != "en"))
-        language = own_language(portion.translations, reads)
-        began = reading_calendar.week_began(shabbat)
-        window = (
+        texts = [one for one in (portion, haftarah) if one is not None]
+        week, looked, reads = reader_week(
+            keeping,
             person.id,
-            int(began.timestamp() * 1000),
-            int((began + timedelta(days=7)).timestamp() * 1000),
+            shabbat,
+            portion.translations,
+            lambda language: cited_forms(texts, language),
         )
-        # The words looked up that week, where the record names them; where it names none
-        # — the record off or stopped, or a week before look-ups carried their word — the
-        # words kept that week, and the list's heading says which it is.
-        found = keeping.looked_up_between(*window, languages=("he", "arc"), target=language)
-        looked = bool(found)
         if not looked:
-            found = keeping.kept_between(*window, languages=("he", "arc"), target=language)
             console.print("[dim]No look-ups recorded that week: listing the words kept.[/dim]")
-        week = week_words(
-            found, [one for one in (portion, haftarah) if one is not None], target=language
-        )
     try:
         html = mikra_html(
             portion,

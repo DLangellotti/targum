@@ -933,6 +933,27 @@ titles. `front.css` carries the landing's values under `body.front`, because `re
 which these pages still load, means something else by `.bar`, `.hero` and `.label`; where
 the two copies differ, `landing.css` is right.
 
+### The week's sheet is a download — 2026-10-04
+
+Download PDF on a portion (targum-internal#415): in the ⋯ menu of its reader, and a tonal
+button beside Read on its public page. It is the sheet `targum export mikra` prints, set
+on the box when pressed. Everything under "The week's sheet is the edition, twice" holds.
+
+- **Signed in, the list is the reader's**: the words they looked up this week, or kept,
+  as the command gives them. Signed out, the sheet has no list and is in the language the
+  page answers in.
+- **The plain sheet is kept and a reader's is not.** The one with nobody's words on it is
+  the same for everyone in that language on that paper, so the box keeps it; a reader's
+  is set each time and kept nowhere, because a file of their week on the box would be a
+  second copy of their record.
+- **This week's portion takes this week's haftarah and date**, as the page does; any other
+  portion takes its own haftarah and no date.
+- **Onkelos where the shelf has it**, the reader's language beside the portion where it
+  does not, and the paper does not say which.
+- **A sheet that cannot be set is one sentence**, "The PDF can't be made right now. Try
+  again in a minute.", whatever the reason — no Pango, a corpus built before the sheet, a
+  press that ran past its time. The reason is in the log.
+
 ### A text can be printed, and the page is the reader's — 2026-09-27
 
 `targum export pdf <folder>` sets a reader's edition on paper (targum-internal#105). The
@@ -957,9 +978,9 @@ beyond the mark's minimum size, so what paper takes from the rules above is writ
   A word with no meaning yet is left off, because paper cannot offer to look one up.
 - **Chapters run on.** A reader turns a chapter at a time; a printer should not spend a
   sheet on a title and a byline.
-- **No Print button yet.** A control belongs in the ⋯ menu and asks for a server that can
-  set the page; the box has no Pango and the extra is off it. The command line is the
-  door until a reader asks for one on the page.
+- **The week's sheet has a button; the edition does not yet.** A control belongs in the ⋯
+  menu and asks for a server that can set the page. The portion's reader has one since
+  2026-10-04 (below); any other text's edition is still the command line's.
 
 ### Mail is drawn, and fetches nothing — 2026-09-27
 
