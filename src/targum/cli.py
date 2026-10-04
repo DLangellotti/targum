@@ -4261,6 +4261,34 @@ def export_mikra(
     ] = True,
     size: Annotated[str, typer.Option("--size", help="a4 or letter.")] = "a4",
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    beside: Annotated[
+        str | None,
+        typer.Option(
+            "--with",
+            help="The companions, in order, as the reader names them: a language for a "
+            "translation, `targum` for Onkelos — `en,targum`. Empty for the text alone. "
+            "Overrides --into.",
+        ),
+    ] = None,
+    gloss: Annotated[
+        bool,
+        typer.Option(
+            "--gloss/--no-gloss",
+            help="Meanings above the words: with --for, the words they are learning, lit; "
+            "without, the rarer words.",
+        ),
+    ] = True,
+    aliyah: Annotated[
+        int | None, typer.Option("--aliyah", help="One aliyah, from 1, not the whole portion.")
+    ] = None,
+    with_haftarah: Annotated[
+        bool | None,
+        typer.Option(
+            "--haftarah/--no-haftarah",
+            help="The haftarah after the portion. Default: with the whole portion, not with "
+            "one aliyah.",
+        ),
+    ] = None,
 ) -> None:
     """The week's shnayim mikra sheet as a PDF (targum-internal#105): the portion with
     Onkelos beside each verse, the haftarah, and with --for the words looked up this week.
@@ -4274,7 +4302,18 @@ def export_mikra(
 
     from .parasha import calendar as reading_calendar
     from .parasha import cut as cutting
-    from .render.printed import SIZES, Word, mikra_html, own_language, week_words, write_pdf
+    from .render.printed import (
+        SIZES,
+        Marker,
+        View,
+        Word,
+        cited_forms,
+        learning_marker,
+        mikra_html,
+        own_language,
+        rare_marker,
+        write_pdf,
+    )
 
     if size not in SIZES:
         fail(TargumError(f"No paper called {size}.", f"Try one of: {', '.join(SIZES)}."))
@@ -4317,34 +4356,47 @@ def export_mikra(
     week: list[Word] = []
     looked = True
     reads: tuple[str, ...] = ("en",)
+    marker: Marker = rare_marker
     if reader:
         from .accounts import Store
+        from .parasha.sheet import reader_week
         from .serve import default_store
 
         keeping = Store(store or default_store())
         person = keeping.person_by_email(reader)
         if person is None:
             fail(TargumError(f"No account for {reader}."))
-        # English first where they read it, as the account's own default is English.
-        reads = tuple(sorted(keeping.reads(person.id), key=lambda code: code != "en"))
-        language = own_language(portion.translations, reads)
-        began = reading_calendar.week_began(shabbat)
-        window = (
+        texts = [one for one in (portion, haftarah) if one is not None]
+        week, looked, reads = reader_week(
+            keeping,
             person.id,
-            int(began.timestamp() * 1000),
-            int((began + timedelta(days=7)).timestamp() * 1000),
+            shabbat,
+            portion.translations,
+            lambda language: cited_forms(texts, language),
         )
-        # The words looked up that week, where the record names them; where it names none
-        # — the record off or stopped, or a week before look-ups carried their word — the
-        # words kept that week, and the list's heading says which it is.
-        found = keeping.looked_up_between(*window, languages=("he", "arc"), target=language)
-        looked = bool(found)
         if not looked:
-            found = keeping.kept_between(*window, languages=("he", "arc"), target=language)
             console.print("[dim]No look-ups recorded that week: listing the words kept.[/dim]")
-        week = week_words(
-            found, [one for one in (portion, haftarah) if one is not None], target=language
+        marker = learning_marker(
+            keeping.learning_words(
+                person.id, languages=("he",), target=own_language(portion.translations, reads)
+            )
         )
+    if beside is not None:
+        companions: tuple[str, ...] | None = tuple(
+            key.strip().lower() for key in beside.split(",") if key.strip()
+        )
+    else:
+        companions = (into,) if into else None
+    view = View(
+        companions=companions,
+        vowels=vowels,
+        taamim=accents,
+        under=under,
+        gloss=gloss,
+        aliyah=aliyah,
+        haftarah=with_haftarah if with_haftarah is not None else aliyah is None,
+        size=size,
+    )
     try:
         html = mikra_html(
             portion,
@@ -4357,10 +4409,9 @@ def export_mikra(
             looked=looked,
             into=into,
             reads=reads,
-            vowels=vowels,
-            accents=accents,
-            under=under,
-            size=size,
+            view=view,
+            marker=marker,
+            address=f"targum.page/parasha/{reading.slug}",
         )
         written = write_pdf(html, out or Path.cwd() / f"{reading.slug}-{shabbat.isoformat()}.pdf")
     except TargumError as error:

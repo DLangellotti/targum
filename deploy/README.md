@@ -89,6 +89,17 @@ rebuild on 2026-10-01, both with CI green. Torch, the CUDA packages and ru-core-
 left out of the constraints: torch comes from PyTorch's CPU index as a +cpu build, and the
 model wheel is pinned by its URL. To move a library on the box, move it in uv.lock.
 
+The week's sheet as a PDF (targum-internal#415) is set by WeasyPrint, which the `print`
+extra installs, through Pango, which it does not. `provision.sh` installs Pango on a fresh
+box; on the live one it is this, once, before the deploy that carries the extra:
+
+```sh
+ssh root@targum.page 'apt-get update -qq && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35'
+```
+
+Without it the service still starts, and Download PDF answers "The PDF can't be made right
+now" with the reason in the log.
+
 ## A test account
 
 An account for trying targum as a new reader meets it, as often as you like: signing

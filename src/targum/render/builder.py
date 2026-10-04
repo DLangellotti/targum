@@ -22,7 +22,7 @@ from datetime import UTC, date, datetime
 from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -2917,11 +2917,22 @@ def parasha_page(
         all_href = f"/library#parasha-{mine.slug}" if mine else f"/library#group:{COLLECTION_ID}"
     else:
         all_href = "/parasha#sources"
+    # The week's sheet as a PDF (targum-internal#415): this week's haftarah on the
+    # schedule the page is showing, and the language a visitor pressed for.
+    asking = [("schedule", "israel")] if shabbat is not None and schedule.value == "israel" else []
+    if asked:
+        asking.append(("lang", asked))
+    sheet_href = f"/parasha/{portion.slug}.pdf" + (f"?{urlencode(asking)}" if asking else "")
+    sheet_action = f"/parasha/{portion.slug}.pdf"
     return (
         _environment()
         .get_template("parasha.html.j2")
         .render(
             signed_in=signed_in,
+            sheet_href=sheet_href,
+            sheet_action=sheet_action,
+            sheet_keep=asking,
+            sheet_translation="ru" if language.split("-")[0] == "ru" else "en",
             joined_from="/parasha",
             asked=asked,
             t=page_words(language),

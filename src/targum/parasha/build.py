@@ -31,6 +31,7 @@ from .calendar import Reading, Schedule, always, root
 from .calendar import year as readings_for
 from .cut import BOOKS, NEVIIM, MissingBook, books_for, cut, cut_haftarah, parse_ref
 from .models import Haftarah, Index, Portion, Week
+from .sheet import keep as keep_sheet
 
 #: How many years of calendar to point at. Enough that a box which cannot reach Hebcal
 #: for a while still knows what this Shabbat is, and few enough that a build is quick.
@@ -305,6 +306,9 @@ def build(
             folder=folder,
             recordings_beside=True,
         )
+        # And what the week's sheet is set from, beside the reader: the box has no
+        # books to cut it from again (targum-internal#415).
+        keep_sheet(portion, folder)
         opening, opening_ref = portion.opening()
         usual = ordinary(occurrences[slug])
         index.portions[slug] = Portion(
@@ -381,6 +385,7 @@ def build(
             folder=folder,
             recordings_beside=True,
         )
+        keep_sheet(portion, folder)
         opening, opening_ref = portion.opening()
         record.opens = (
             "sec-0001.html" if any(one.name == "sec-0001.html" for one in written) else "index.html"

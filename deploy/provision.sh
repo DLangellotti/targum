@@ -11,6 +11,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "== packages =="
 apt-get update -qq
 apt-get install -y -qq curl ca-certificates debian-keyring debian-archive-keyring apt-transport-https sqlite3 ffmpeg
+# What WeasyPrint sets the week's sheet through (targum-internal#415): Pango, its
+# FreeType half, HarfBuzz's subsetter for the embedded faces, one font for anything the
+# embedded faces do not draw, and URW's P052, which fontconfig gives for Palatino — the
+# Latin reading face and the wordmark's (design.md §3), which the box has no copy of.
+# The `print` extra in the tool is the Python half.
+apt-get install -y -qq --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35
 
 echo "== caddy =="
 if ! command -v caddy >/dev/null; then

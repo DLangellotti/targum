@@ -735,6 +735,9 @@ PARASHA_READER = re.compile(
     r"^/parasha/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html|audio/[a-z0-9-]{1,40}\.mp3)?$"
 )
 
+#: A portion's week sheet as a PDF (targum-internal#415): `/parasha/bereshit.pdf`.
+PARASHA_SHEET = re.compile(r"^/parasha/([a-z0-9-]{1,64})\.pdf$")
+
 #: A learning cycle at its own address: `/mishna-yomi`, `/mishna-yomi/2026-09-01`, and
 #: one file of a built reader under `/mishna-yomi/read/<date>/reader/…`. The slugs are the
 #: four this shelf carries and nothing else matches, so a cycle Hebcal publishes and
@@ -5109,6 +5112,9 @@ class Handler(BaseHTTPRequestHandler):
         reading = PARASHA_READER.match(route)
         if reading is not None:
             return self._serve_parasha_reader(reading.group(1), reading.group(2))
+        sheet = PARASHA_SHEET.match(route)
+        if sheet is not None:
+            return self._serve_parasha_sheet(sheet.group(1))
 
         index = corpus.load()
         if not index.portions:
@@ -5192,6 +5198,56 @@ class Handler(BaseHTTPRequestHandler):
             week=parts,
         )
         return self._send(200, page.encode("utf-8"), HTML)
+
+    def _serve_parasha_sheet(self, slug: str) -> None:
+        """The portion's week sheet as a PDF, set on request (targum-internal#415).
+
+        The same sheet as `targum export mikra`: the portion beside Onkelos — or beside
+        the reader's language where the shelf has no Onkelos yet — the haftarah, and, for
+        a reader signed in, the words they looked up this week. Signed out it is the
+        sheet without the list, in the language the page would answer in, and it is set
+        once and kept (`parasha.sheet`). A refusal is one sentence in the reader's
+        language; what went wrong is in the log.
+        """
+        from .parasha import sheet
+
+        # Blanks kept: `with=` is the text alone, not the default.
+        query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
+        person = self._person()
+        try:
+            made = sheet.make(
+                slug,
+                store=self.store if person is not None else None,
+                person_id=person.id if person is not None else None,
+                language=self._public_language(),
+                israel=query.get("schedule", [""])[0] == "israel",
+                view=sheet.view_from(query),
+            )
+        except TargumError as error:
+            log.warning("sheet %s refused: %s (%s)", slug, error.message, error.hint or "")
+            said = self._say(
+                "parasha.sheet.not-now",
+                "The PDF can't be made right now. Try again in a minute.",
+            )
+            return self._send(503, said.encode("utf-8"), "text/plain; charset=utf-8")
+        if made is None:
+            return self._send(404, b"not found", "text/plain")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Disposition", f'attachment; filename="{made.name}"')
+        self.send_header("Content-Length", str(len(made.pdf)))
+        # Never kept on the way: the same address is a reader's own words for one person
+        # and the plain sheet for another, and the box keeps the plain one itself.
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        if getattr(self, "_robots_tag", ""):
+            self.send_header("X-Robots-Tag", self._robots_tag)
+        self.end_headers()
+        try:
+            self.wfile.write(made.pdf)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        return None
 
     @staticmethod
     def _parasha_week(

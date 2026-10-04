@@ -63,6 +63,33 @@
       <p class="actions">
         <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
       </p>
+      {#- The week's sheet on paper (targum-internal#415), set on the box when pressed. A
+          stranger here has no reader open to say how they read, so the few choices that
+          change the paper are asked beside the button, each as the reader opens: their
+          language beside the verse, the vowels and the te'amim, meanings over the
+          harder words — or, signed in, over the words they are learning — and the
+          haftarah after. A box left empty is sent as a 0 (the hidden field before it),
+          because a form sends nothing for an unticked box. Onkelos and Rashi join the
+          companions as the shelf carries them (#414). -#}
+      <form class="sheet-choices" action="{{ sheet_action }}" method="get">
+        {% for name, value in sheet_keep %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+        <fieldset>
+          <legend class="sr-only">{{ t("parasha.sheet.choose", "What the PDF shows") }}</legend>
+          <input type="hidden" name="with" value="">
+          <label><input type="checkbox" name="with" value="en"{% if sheet_translation == 'en' %} checked{% endif %}> {{ t("parasha.sheet.english", "English") }}</label>
+          <label><input type="checkbox" name="with" value="ru"{% if sheet_translation == 'ru' %} checked{% endif %}> {{ t("parasha.sheet.russian", "Russian") }}</label>
+          <label><input type="checkbox" name="with" value="targum"> {{ t("parasha.sheet.onkelos", "Onkelos") }}</label>
+          <input type="hidden" name="vowels" value="0">
+          <label><input type="checkbox" name="vowels" value="1" checked> {{ t("parasha.sheet.vowels", "Vowels") }}</label>
+          <input type="hidden" name="taamim" value="0">
+          <label><input type="checkbox" name="taamim" value="1" checked> {{ t("parasha.sheet.taamim", "Chanting marks") }}</label>
+          <input type="hidden" name="gloss" value="0">
+          <label><input type="checkbox" name="gloss" value="1" checked> {{ t("parasha.sheet.gloss", "Meanings above words") }}</label>
+          <input type="hidden" name="haftarah" value="0">
+          <label><input type="checkbox" name="haftarah" value="1" checked> {{ t("parasha.sheet.haftarah", "Haftarah") }}</label>
+        </fieldset>
+        <button type="submit" class="btn tonal sheet">{{ t("parasha.page.download-pdf", "Download PDF") }}</button>
+      </form>
     </div>
     {#- Decoration: it says nothing the words have not said, so it is hidden from a
         screen reader rather than described to one. -#}

@@ -6,6 +6,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Download PDF on a portion (targum-internal#415): the week's shnayim mikra sheet, set on
+  the box when pressed, from the ⋯ menu of a portion's reader and a button on its
+  `/parasha` page. `GET /parasha/<slug>.pdf` sets what `targum export mikra` sets: the
+  portion beside Onkelos (the reader's language where the shelf has no Onkelos yet), the
+  haftarah, and for a reader signed in the words they looked up this week, or kept.
+  Signed out, the sheet has no list and is kept on the box under `<cache>/sheets` by the
+  hash of its page; a reader's own is set each time and kept nowhere. Two at a time, each
+  in a process of its own that is stopped after three minutes; any refusal is one
+  sentence and the reason goes to the log. `targum parasha build` now keeps what the
+  sheet is set from beside each reader (`read/<folder>/print/`: the cut text, its
+  renderings, its pointing and the forms its words are cited in, not the annotation), so
+  **the corpus has to be built and shipped again** for the PDF to work. The box takes the
+  `print` extra on the next deploy, and needs Pango, which `provision.sh` now installs
+  on a fresh box: on the live one, `apt-get install -y --no-install-recommends
+  libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35`
+  as root. The sheet prints the view the reader was on (companions, vowels, te'amim,
+  beside or under, marks, this aliyah or the whole portion and the haftarah), and
+  `/parasha` asks for those in a row of boxes; it carries the lockup over the first title
+  and the mark and its address at every foot, on §4's paper; and the words a reader is
+  learning are lit with their meaning just above them, or signed out, the rarer words'
+  meanings. The build keeps the words and meanings for that beside each reader
+  (`print/words.json`, `print/glossary.<lang>.json`). `targum export mikra` takes the same
+  view (`--with`, `--aliyah`, `--haftarah/--no-haftarah`, `--gloss/--no-gloss`).
 - Two readings on every aliyah, chanted and spoken (targum-internal#412). A portion's
   section carries the PocketTorah chanting attached to the portion and Rabbi Dan Be'eri's
   plain reading of the book, with a Chanted / Spoken switch in the bar, kept per browser,
