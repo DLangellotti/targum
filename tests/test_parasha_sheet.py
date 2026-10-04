@@ -593,3 +593,63 @@ def test_two_meanings_side_by_side_do_not_touch() -> None:
         for other in boxes[index + 1 :]:
             if one[0] == other[0] and abs(one[2] - other[2]) < 1:
                 assert one[1] + one[3] <= other[1] + 0.01 or other[1] + other[3] <= one[1] + 0.01
+
+
+def test_rashi_keeps_his_own_leading_and_carries_no_meanings(
+    built: Index,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The room a meaning needs is the verse's alone: Rashi's rows under it are set at their
+    own height whether the verse's words carry meanings or not, and his words carry none
+    (targum-internal#414, #415)."""
+    from targum.models import Translation, read_artifact
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    folder = cal.root() / "read" / SLUG / "print" / "translations"
+    english = read_artifact(Translation, folder / "en.json")
+    assert english is not None
+    sid = next(iter(english.segments))
+    rashi = english.model_copy(
+        update={
+            "name": "Rashi on Deuteronomy",
+            "target_language": "he",
+            "segments": {
+                key: ("פירוש ראשון על הפסוק הזה " * 12 if key == sid else "—")
+                for key in english.segments
+            },
+        }
+    )
+    rashi.write(folder / f"{sheet._file_of(rashi)}.json")
+    _rare(cal.root() / "read")
+
+    def notes(html: str) -> list[float]:
+        _laid_out(html)  # skips without Pango
+        from weasyprint import HTML
+
+        heights: list[float] = []
+
+        def walk(box: object) -> None:
+            element = getattr(box, "element", None)
+            classes = (element.get("class") or "") if element is not None else ""
+            if type(box).__name__ == "BlockBox" and classes == "note":
+                heights.extend(
+                    round(line.height, 2)
+                    for line in box.children  # type: ignore[attr-defined]
+                    if type(line).__name__ == "LineBox"
+                )
+            for child in getattr(box, "children", None) or []:
+                walk(child)
+
+        for page in HTML(string=html).render().pages:
+            walk(page._page_box)
+        return heights
+
+    glossed = _sheet(companions=("en", "rashi"), aliyah=1, haftarah=False)
+    note = glossed.partition('<div class="note"')[2].partition("</div>")[0]
+    assert note and 'class="g"' not in note and 'class="lit' not in note
+    plain = _sheet(companions=("en", "rashi"), aliyah=1, haftarah=False, gloss=False)
+    with_meanings, without = notes(glossed), notes(plain)
+    assert len(with_meanings) > 1 and with_meanings == without
+    _, verse_lines, _ = _laid_out(glossed)
+    assert max(with_meanings) < min(verse_lines), "not the glossed verse's tall line"
