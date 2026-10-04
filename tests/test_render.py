@@ -5494,7 +5494,8 @@ def test_rashi_sits_beside_the_verse_named_for_rashi_and_every_companion_starts_
     Rashi in English is "Rashi · English", not the portion's name. Each is a cell under
     the verse, after Onkelos and Rashi before his English, the order a printed chumash
     sets them in, whatever order the files arrive in; and a new reader
-    starts with the English, Onkelos and Rashi all on (David, 2026-10-04)."""
+    starts with the English, Onkelos and Rashi on and Rashi in English off (David,
+    2026-10-04)."""
     html = _genesis(
         tmp_path,
         [_rashi_beside("en", "Comment"), _english(), _rashi_beside("he", "פירוש"), _onkelos()],
@@ -5516,11 +5517,14 @@ def test_rashi_sits_beside_the_verse_named_for_rashi_and_every_companion_starts_
         ("rashi-en", "Rashi · English"),
     ]
     assert ">Hebrew<" not in toggles
-    assert toggles.count('data-on="1"') == 4 and 'data-on="0"' not in toggles
-    # A cell for each under the verse, none hidden, and Rashi's empty where he is silent.
+    # On for a new reader: the translation, Onkelos and Rashi; Rashi in English is off.
+    on = dict(re.findall(r'data-companion="([\w-]+)"[^>]*data-on="(\d)"', toggles))
+    assert on == {"translation": "1", "targum": "1", "rashi": "1", "rashi-en": "0"}
+    # A cell for each under the verse, and only Rashi's English hidden.
     cells = re.findall(r'<p class="cmp[^"]*" data-t="(t\d)" data-companion="([\w-]+)"[^>]*>', html)
     assert [key for _, key in cells] == ["targum", "rashi", "rashi-en"] * 2
-    assert not re.search(r'<p class="cmp[^>]*hidden', html)
+    hidden = re.findall(r'<p class="cmp[^"]*"[^>]*data-companion="([\w-]+)"[^>]*hidden', html)
+    assert hidden == ["rashi-en", "rashi-en"]
     assert len(re.findall(r'<p class="cmp commented empty" data-t="t2"', html)) == 1
 
 

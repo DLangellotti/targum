@@ -475,9 +475,10 @@ def _page_language(language: str) -> str:
 
 
 #: Which companions wait off the page until a reader turns them on (targum-internal#414).
-#: None: David, 2026-10-04, "a new reader starts with English, Onkelos and Rashi all on",
-#: the page a printed chumash is. Each is one press from off, and the press is kept.
-COMPANIONS_OFF: frozenset[str] = frozenset()
+#: David, 2026-10-04: a new reader starts with the English, Onkelos and Rashi's Hebrew on,
+#: the page a printed chumash is, and Rashi in English off. Each is one press away, and
+#: the press is kept.
+COMPANIONS_OFF: frozenset[str] = frozenset({"rashi-en"})
 
 
 def _companion_label(translation: Translation, source_language: str) -> str:
