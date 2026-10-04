@@ -8037,7 +8037,7 @@ var targumReader = function () {
    * is the translation. Kept per reader rather than per text (`prefs.companions`, by the
    * companion's key, the same on every book and portion), because whether somebody reads
    * Rashi is a fact about them, the way the chanting marks are. A choice never made is
-   * the page's own default: the translation and Onkelos, with Rashi one press away.
+   * the page's own default: every one of them on, the page a printed chumash is.
    *
    * The cells are written into the page, hidden where a companion is off, so turning one
    * on is a class and not a fetch. Their text is put back from the payload here, like the

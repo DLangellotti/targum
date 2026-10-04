@@ -265,7 +265,10 @@ def test_rashi_in_two_languages_is_carried_beside_the_english_not_into_it(
         annotator="test/1",
         method="frequency",
         method_note="",
-        tokens={sid: [Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3)] for sid in hebrew.segments},
+        tokens={
+            sid: [Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3)]
+            for sid in hebrew.segments
+        },
     ).write(words_path(folder, hebrew))
 
     reading = a_reading(corpus)

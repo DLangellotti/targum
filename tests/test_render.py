@@ -5392,14 +5392,24 @@ def test_every_rendering_reaches_the_page_with_its_own_direction(tmp_path: Path)
     # One translation, so no switch: Onkelos is not a position of it.
     assert 'id="translation"' not in html
     toggles = _companions(html)
-    assert 'data-companion="translation" data-on="1" aria-pressed="true" title="JPS 1917">English<' in toggles
+    assert (
+        'data-companion="translation" data-on="1" aria-pressed="true" title="JPS 1917">English<'
+        in toggles
+    )
     assert re.search(r'data-companion="targum" data-translation-id="t1" data-on="1"', toggles)
     assert ">Onkelos</button>" in toggles
     # The cells are the English's, in its language and direction...
     cells = re.findall(r'<p class="tr" lang="(\w+)" dir="(\w+)">', html)
     assert cells and set(cells) == {("en", "ltr")}
     # ...and Onkelos is under every line, right to left.
-    assert len(re.findall(r'<p class="cmp" data-t="t1" data-companion="targum" lang="arc" dir="rtl">', html)) == 2
+    assert (
+        len(
+            re.findall(
+                r'<p class="cmp" data-t="t1" data-companion="targum" lang="arc" dir="rtl">', html
+            )
+        )
+        == 2
+    )
 
 
 def test_two_renderings_in_one_language_are_named_by_the_rendering(tmp_path: Path) -> None:
@@ -5471,6 +5481,112 @@ def test_onkelos_is_kept_whatever_the_reader_reads(tmp_path: Path) -> None:
 
     nothing = _payload(_genesis(tmp_path / "ru", [_english(), _onkelos()], reads=["ru"]))
     assert [v["language"] for v in nothing["translations"].values()] == ["en", "arc"]
+
+
+def _rashi_beside(into: str, saying: str) -> Translation:
+    return _rendering("Rashi on Genesis", into, {GENESIS[1].id: f"{saying} 1"})
+
+
+def test_rashi_sits_beside_the_verse_named_for_rashi_and_every_companion_starts_on(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#414. Rashi in Hebrew is named "Rashi" on its switch, not "Hebrew";
+    Rashi in English is "Rashi · English", not the portion's name. Each is a cell under
+    the verse, after Onkelos and Rashi before his English, the order a printed chumash
+    sets them in, whatever order the files arrive in; and a new reader
+    starts with the English, Onkelos and Rashi all on (David, 2026-10-04)."""
+    html = _genesis(
+        tmp_path,
+        [_rashi_beside("en", "Comment"), _english(), _rashi_beside("he", "פירוש"), _onkelos()],
+    )
+    shipped = _payload(html)["translations"]
+    assert [(v["language"], v.get("companion", "")) for v in shipped.values()] == [
+        ("en", ""),
+        ("arc", "targum"),
+        ("he", "rashi"),
+        ("en", "rashi-en"),
+    ]
+    assert 'id="translation"' not in html, "one translation: the companions are no switch"
+    toggles = _companions(html)
+    labels = re.findall(r'data-companion="([\w-]+)"[^>]*>([^<]+)</button>', toggles)
+    assert labels == [
+        ("translation", "English"),
+        ("targum", "Onkelos"),
+        ("rashi", "Rashi"),
+        ("rashi-en", "Rashi · English"),
+    ]
+    assert ">Hebrew<" not in toggles
+    assert toggles.count('data-on="1"') == 4 and 'data-on="0"' not in toggles
+    # A cell for each under the verse, none hidden, and Rashi's empty where he is silent.
+    cells = re.findall(r'<p class="cmp[^"]*" data-t="(t\d)" data-companion="([\w-]+)"[^>]*>', html)
+    assert [key for _, key in cells] == ["targum", "rashi", "rashi-en"] * 2
+    assert not re.search(r'<p class="cmp[^>]*hidden', html)
+    assert len(re.findall(r'<p class="cmp commented empty" data-t="t2"', html)) == 1
+
+
+def test_rashi_in_hebrew_is_kept_for_a_reader_who_reads_english_or_russian(
+    tmp_path: Path,
+) -> None:
+    """The `reads` filter kept only Onkelos beside a reader's own language, so a Library
+    page for a reader of English dropped Rashi's Hebrew (targum-internal#414). A
+    commentary in the text's own language is read like the text; one in English answers
+    to `reads` like any translation."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    every = [
+        _english(),
+        russian,
+        _onkelos(),
+        _rashi_beside("he", "פירוש"),
+        _rashi_beside("en", "Comment"),
+    ]
+    english = _payload(_genesis(tmp_path / "en", every, reads=["en"]))["translations"]
+    assert [(v["language"], v.get("companion", "")) for v in english.values()] == [
+        ("en", ""),
+        ("arc", "targum"),
+        ("he", "rashi"),
+        ("en", "rashi-en"),
+    ]
+    reader = _payload(_genesis(tmp_path / "ru", every, reads=["ru"]))["translations"]
+    assert [(v["language"], v.get("companion", "")) for v in reader.values()] == [
+        ("ru", ""),
+        ("arc", "targum"),
+        ("he", "rashi"),
+    ]
+
+
+def test_rashi_in_hebrew_ships_his_words_with_the_pages_meanings(tmp_path: Path) -> None:
+    """Rashi's words were read at build time (DICTA) and kept beside the rendering; the
+    page ships them as a table filed with its own Hebrew, its meanings looked up in the
+    page's own glossaries, so a word of Rashi is tapped like a word of the verse."""
+    from targum.models import Glossary
+    from targum.renderings import words_key
+
+    rashi = _rashi_beside("he", "פירוש")
+    words = Annotation(
+        document_hash="x",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="",
+        tokens={GENESIS[1].id: [Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3)]},
+    )
+    glossary = Glossary(
+        source_language="he", target_language="en", provider="null", entries={"פירוש": "commentary"}
+    )
+    html = _genesis(
+        tmp_path,
+        [_english(), rashi],
+        commentary_words={words_key(rashi): words},
+        glossaries={"en": glossary},
+    )
+    table = _payload(html)["translations"]["t1"]["tokens"]
+    assert table["own"] is True and table["language"] == "he"
+    assert table["lemmas"] == ["פירוש"]
+    assert table["glosses"] == {"en": ["commentary"]}
+    assert table["words"] == {
+        GENESIS[1].id: [[0, 5, 3, 0, 0, 0, table["words"][GENESIS[1].id][0][6], 0, 0]]
+    }
+    assert GENESIS[2].id not in table["words"], "nothing to tap where Rashi is silent"
 
 
 def test_a_torah_opens_in_its_own_language_with_onkelos_one_press_away(tmp_path: Path) -> None:
@@ -5558,6 +5674,9 @@ def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Pat
     mine, theirs = _payload(alone), _payload(both)
     assert theirs["translations"]["t0"] == mine["translations"]["t0"]
     assert {**theirs, "translations": {"t0": theirs["translations"]["t0"]}} == mine
+
+
+# -- hear a silent text (targum-internal#246) ----------------------------------------
 
 
 def test_a_silent_section_is_offered_a_voice_in_the_languages_the_voice_reads(

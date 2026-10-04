@@ -474,10 +474,10 @@ def _page_language(language: str) -> str:
     return code if code in languages() else SOURCE
 
 
-#: Which companions are beside the verse before a reader has said (targum-internal#414,
-#: David, 2026-10-04): Onkelos, which is what shnayim mikra reads, and the translation.
-#: Rashi is one press away, because a page with every comment open is a page of Rashi.
-COMPANIONS_ON = frozenset({"targum"})
+#: Which companions wait off the page until a reader turns them on (targum-internal#414).
+#: None: David, 2026-10-04, "a new reader starts with English, Onkelos and Rashi all on",
+#: the page a printed chumash is. Each is one press from off, and the press is kept.
+COMPANIONS_OFF: frozenset[str] = frozenset()
 
 
 def _companion_label(translation: Translation, source_language: str) -> str:
@@ -3526,7 +3526,7 @@ def render(
         companion_key,
         is_commentary,
         is_companion,
-        words_in,
+        words_in as commentary_words_in,
         words_key,
     )
 
@@ -3550,18 +3550,24 @@ def render(
     # press away — asked of the language rather than left to the order the files on disk
     # happen to sort in. Stable, so nothing else moves. Beside a translation, the
     # commentaries come after the targum, the order a printed chumash sets them in.
-    translations = sorted(
-        translations,
-        key=lambda t: (
-            (0 if not is_companion(t, BESIDE) else 1 if t.target_language in BESIDE else 2)
-            if with_companions
-            else int(t.target_language in BESIDE)
-        ),
-    )
+    # A commentary's own words come before their translation: Rashi, then Rashi in
+    # English, the way the Metsudah page sets them.
+    own_language = segmented.language.split("-")[0]
+
+    def beside_order(t: Translation) -> tuple[int, int]:
+        if not with_companions:
+            return (int(t.target_language in BESIDE), 0)
+        if not is_companion(t, BESIDE):
+            return (0, 0)
+        if t.target_language in BESIDE:
+            return (1, 0)
+        return (2, 0 if t.target_language.split("-")[0] == own_language else 1)
+
+    translations = sorted(translations, key=beside_order)
     commentary_words_of: Mapping[str, Annotation] = (
         commentary_words
         if commentary_words is not None
-        else words_in(folder, translations)
+        else commentary_words_in(folder, translations)
         if folder is not None
         else {}
     )
@@ -3857,7 +3863,7 @@ def render(
                     if with_companions
                     else ""
                 ),
-                "on": companion_key(translation, segmented.language, BESIDE) in COMPANIONS_ON,
+                "on": companion_key(translation, segmented.language, BESIDE) not in COMPANIONS_OFF,
                 "language": translation.target_language,
                 "direction": direction_for(translation.target_language),
                 "kind": translation.kind,
@@ -3908,10 +3914,11 @@ def render(
                         **(
                             {
                                 "tokens": commentary_beside_words(
-                                    translation, section, held, glossaries
+                                    translation, section, read_words, glossaries
                                 )
                             }
-                            if (held := commentary_words_of.get(words_key(translation))) is not None
+                            if (read_words := commentary_words_of.get(words_key(translation)))
+                            is not None
                             else {}
                         ),
                     }
@@ -4450,7 +4457,8 @@ def render(
                     "language": translation.target_language,
                     "direction": direction_for(translation.target_language),
                     "commented": _commentary_named(translation.name),
-                    "on": companion_key(translation, segmented.language, BESIDE) in COMPANIONS_ON,
+                    "on": companion_key(translation, segmented.language, BESIDE)
+                    not in COMPANIONS_OFF,
                     "text": {
                         sid: line
                         for sid in section.segment_ids

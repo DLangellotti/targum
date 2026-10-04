@@ -186,7 +186,10 @@ def chapter(out: Path, taamim: bool = False, parts: int = 1) -> Path:
 
 
 def bilingual(
-    out: Path, second: tuple[str, str, str] = ("Russian", "ru", "На земле Израиля")
+    out: Path,
+    second: tuple[str, str, str] = ("Russian", "ru", "На земле Израиля"),
+    commentary_words: dict[str, Annotation] | None = None,
+    meanings: dict[str, str] | None = None,
 ) -> Path:
     """The same chapter with two translations and a glossary for each.
 
@@ -256,7 +259,10 @@ def bilingual(
                 source_language="he",
                 target_language="en",
                 provider="test",
-                entries={lemma: f"the English of {lemma}" for lemma in lemmas},
+                entries={
+                    **{lemma: f"the English of {lemma}" for lemma in lemmas},
+                    **(meanings or {}),
+                },
             ),
             # Deliberately thinner than the English one: the last word has a meaning in
             # one language and none in the other, which is the case where a page that
@@ -268,6 +274,7 @@ def bilingual(
                 entries={lemma: f"по-русски {lemma}" for lemma in lemmas[:-1]},
             ),
         },
+        commentary_words=commentary_words,
     )
     return pages[0]
 
@@ -1346,6 +1353,60 @@ def beside_rashi(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
 
 
+@pytest.fixture(scope="module")
+def rashi_with_words(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Rashi in Hebrew with his words read, as the build reads them (targum-internal#414)."""
+    from targum.renderings import words_key
+
+    saying = "פירוש ראשון\nפירוש שני"
+    ids = [f"{n:04d}.000-aaaaaa" for n in range(VERSES // 20)]
+    words = Annotation(
+        document_hash="r",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens={
+            sid: [
+                Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3),
+                Token(start=6, end=11, surface="ראשון", lemma="ראשון", band=3),
+            ]
+            for sid in ids
+        },
+    )
+    rashi = Translation(
+        name="Rashi on Genesis",
+        document_hash="h",
+        source_language="he",
+        target_language="he",
+        provider="null",
+        segments={},
+    )
+    return bilingual(
+        tmp_path_factory.mktemp("rashi-words") / "reader",
+        ("Rashi on Genesis", "he", saying),
+        commentary_words={words_key(rashi): words},
+        meanings={"פירוש": "commentary; explanation"},
+    )
+
+
+def test_a_word_of_rashi_is_a_hebrew_word_with_its_meaning(browser, rashi_with_words: Path) -> None:
+    """targum-internal#414. Rashi's words are tappable, read at build time, and a word of
+    his is a Hebrew word: its card is Hebrew, with the meaning the page's own glossary
+    holds for it, looked up in advance rather than bought on the tap."""
+    context, page = open_reader(browser, rashi_with_words)
+    page.wait_for_selector(".cmp-text .w")
+    words = page.evaluate(
+        "() => [...document.querySelectorAll('.cmp[data-companion=\"rashi\"] .w')]"
+        ".slice(0, 2).map(w => w.textContent)"
+    )
+    assert words == ["פירוש", "ראשון"]
+    card = page.evaluate(TAP_WORD, ".cmp-text .w")
+    assert card["lang"] == "he"
+    assert card["meaning"] == "commentary; explanation"
+    context.close()
+
+
 #: How the translation column is drawing right now: whether it is stamped a commentary,
 #: and what the browser actually resolves that to. The computed value is the point — a
 #: class nothing styles would pass a test that only looked for the class.
@@ -1365,9 +1426,9 @@ def test_pressing_a_commentary_separates_its_comments_in_the_browser(
     browser, beside_rashi: Path
 ) -> None:
     """targum-internal#200 and #414. A verse of Rashi is several comments joined with a
-    newline, and drawn run together they read as one. Rashi is one press away under the
-    verse: off until pressed, then a column of its own whose comments keep their breaks,
-    and the press is kept for the reader, on this text and every other.
+    newline, and drawn run together they read as one. Rashi sits under the verse in a
+    column of its own whose comments keep their breaks, on for a new reader (David,
+    2026-10-04); turned off it stays off for that reader, on this text and every other.
 
     The computed `white-space` is what is asserted rather than the class, because a class
     that nothing styles would satisfy a test looking only for the class.
@@ -1377,26 +1438,30 @@ def test_pressing_a_commentary_separates_its_comments_in_the_browser(
     page.goto(address(beside_rashi))
     page.wait_for_selector(".pair")
 
-    assert not page.evaluate(BESIDE, "rashi")["shown"], "Rashi is one press away, not open"
+    rashi = page.evaluate(BESIDE, "rashi")
+    assert rashi["shown"], "a new reader starts with Rashi on"
+    assert rashi["space"] == "pre-line"
+    assert rashi["first"] == "פירוש ראשון\nפירוש שני (0)"
     english = page.evaluate(COMMENTED)
     assert not english["marked"] and english["space"] == "normal"
+    assert page.evaluate(CELLS)["langs"] == ["en"], "the translation stays where it was"
 
     page.click('#companions [data-companion="rashi"]')
-    rashi = page.evaluate(BESIDE, "rashi")
-    assert rashi["shown"] and rashi["space"] == "pre-line"
-    assert rashi["first"] == "פירוש ראשון\nפירוש שני (0)"
-    assert page.evaluate(CELLS)["langs"] == ["en"], "the translation stays where it was"
-    assert page.evaluate(PREFS)["companions"] == {"rashi": True}
+    assert not page.evaluate(BESIDE, "rashi")["shown"]
+    assert page.evaluate(PREFS)["companions"] == {"rashi": False}
 
     page.reload()
     page.wait_for_selector(".pair")
-    assert page.evaluate(BESIDE, "rashi")["shown"], "the press was not kept"
+    assert not page.evaluate(BESIDE, "rashi")["shown"], "the press was not kept"
+    page.click('#companions [data-companion="rashi"]')
+    assert page.evaluate(BESIDE, "rashi")["shown"]
 
     # And the translation is turned off and on the same way.
     page.click('#companions [data-companion="translation"]')
-    assert page.evaluate(
-        "() => getComputedStyle(document.querySelector('.pair .tr')).display"
-    ) == "none"
+    assert (
+        page.evaluate("() => getComputedStyle(document.querySelector('.pair .tr')).display")
+        == "none"
+    )
     context.close()
 
 
