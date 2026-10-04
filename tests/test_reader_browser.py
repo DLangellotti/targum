@@ -1296,24 +1296,46 @@ def beside_onkelos(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
 
 
-def test_onkelos_changes_the_column_and_the_card_stays_in_english(
+def test_onkelos_sits_under_the_verse_and_the_card_stays_in_english(
     browser, beside_onkelos: Path
 ) -> None:
-    """Targum Onkelos is read beside the Hebrew, not into a language (targum-internal#65).
-    Pressed, the column turns Aramaic and right to left — and a word tapped under it still
-    means what it means in English, written as English, rather than looking for a meaning
-    in Aramaic that nobody holds and a lookup would buy."""
+    """Targum Onkelos is read beside the Hebrew, not into a language (targum-internal#65),
+    and since targum-internal#414 it sits under each verse in a cell of its own, on until
+    a reader turns it off, while the column stays English. A word tapped in the Hebrew
+    still means what it means in English, rather than looking for a meaning in Aramaic
+    that nobody holds and a lookup would buy."""
     context, page = open_reader(browser, beside_onkelos)
-    page.evaluate(SWITCH, "t1")
 
     cells = page.evaluate(CELLS)
-    assert cells["langs"] == ["arc"] and cells["dirs"] == ["rtl"]
-    assert "בְּאַרְעָא" in cells["first"]
+    assert cells["langs"] == ["en"], "the column is the translation's"
+    beside = page.evaluate(BESIDE, "targum")
+    assert beside["shown"] and beside["langs"] == ["arc"] and beside["dirs"] == ["rtl"]
+    assert "בְּאַרְעָא" in beside["first"]
 
     card = page.evaluate(TAP_FIRST)
     assert card["meaning"] == f"the English of {card['text']}"
     assert card["lang"] == "en" and not card["asking"]
     context.close()
+
+
+#: One companion's cells under the verses (targum-internal#414): whether they are on
+#: show, in what language and direction, the first one's text and how it wraps.
+BESIDE = """
+(key) => {
+  const cells = [...document.querySelectorAll('.cmp[data-companion="' + key + '"]')];
+  const text = cells.length ? cells[0].querySelector('.cmp-text') : null;
+  return {
+    shown: cells.length > 0 && cells.every((c) => getComputedStyle(c).display !== 'none'),
+    langs: [...new Set(cells.map((c) => c.getAttribute('lang')))],
+    dirs: [...new Set(cells.map((c) => c.getAttribute('dir')))],
+    first: text ? text.textContent : '',
+    space: text ? getComputedStyle(text).whiteSpace : '',
+  };
+}
+"""
+
+#: The reader's kept preferences.
+PREFS = "() => JSON.parse(localStorage.getItem('targum:prefs') || '{}')"
 
 
 @pytest.fixture(scope="module")
@@ -1342,28 +1364,39 @@ COMMENTED = """
 def test_pressing_a_commentary_separates_its_comments_in_the_browser(
     browser, beside_rashi: Path
 ) -> None:
-    """targum-internal#200. A verse of Rashi is several comments joined with a newline,
-    and only the rendering the page opens on is stamped as a commentary by the template.
-    So on a text carrying both, pressing Rashi drew its comments run together — the exact
-    thing that was fixed, undone by one press.
+    """targum-internal#200 and #414. A verse of Rashi is several comments joined with a
+    newline, and drawn run together they read as one. Rashi is one press away under the
+    verse: off until pressed, then a column of its own whose comments keep their breaks,
+    and the press is kept for the reader, on this text and every other.
 
     The computed `white-space` is what is asserted rather than the class, because a class
     that nothing styles would satisfy a test looking only for the class.
     """
-    context, page = open_reader(browser, beside_rashi)
+    context = opened(browser, scrolling=False)
+    page = context.new_page()
+    page.goto(address(beside_rashi))
+    page.wait_for_selector(".pair")
 
+    assert not page.evaluate(BESIDE, "rashi")["shown"], "Rashi is one press away, not open"
     english = page.evaluate(COMMENTED)
     assert not english["marked"] and english["space"] == "normal"
 
-    page.evaluate(SWITCH, "t1")
-    rashi = page.evaluate(COMMENTED)
-    assert rashi["marked"], "the swap never stamped the commentary"
-    assert rashi["space"] == "pre-line"
+    page.click('#companions [data-companion="rashi"]')
+    rashi = page.evaluate(BESIDE, "rashi")
+    assert rashi["shown"] and rashi["space"] == "pre-line"
+    assert rashi["first"] == "פירוש ראשון\nפירוש שני (0)"
+    assert page.evaluate(CELLS)["langs"] == ["en"], "the translation stays where it was"
+    assert page.evaluate(PREFS)["companions"] == {"rashi": True}
 
-    # And back: English is prose again, so a newline in it goes on collapsing.
-    page.evaluate(SWITCH, "t0")
-    back = page.evaluate(COMMENTED)
-    assert not back["marked"] and back["space"] == "normal"
+    page.reload()
+    page.wait_for_selector(".pair")
+    assert page.evaluate(BESIDE, "rashi")["shown"], "the press was not kept"
+
+    # And the translation is turned off and on the same way.
+    page.click('#companions [data-companion="translation"]')
+    assert page.evaluate(
+        "() => getComputedStyle(document.querySelector('.pair .tr')).display"
+    ) == "none"
     context.close()
 
 
@@ -1402,7 +1435,7 @@ def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
     """Tapping works in Onkelos as in the Hebrew (targum-internal#202, criterion 5). The
     word opens an Aramaic card with the hand table's meaning, and a level set on it goes
     to the Aramaic list — never the Hebrew one, whose same-spelled entry does not colour
-    it either (David, 2026-09-15)."""
+    it either (David, 2026-09-15). Under the verse as it was in the column (#414)."""
     context, page = open_reader(browser, beside_onkelos)
     page.evaluate(
         """() => {
@@ -1411,16 +1444,15 @@ def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
         }"""
     )
     page.reload()
-    page.wait_for_selector(".pair")
-    page.evaluate(SWITCH, "t1")
+    page.wait_for_selector(".cmp-text .w")
 
     words = page.evaluate(
-        "() => [...document.querySelectorAll('.tr .w')].slice(0, 2)"
+        "() => [...document.querySelectorAll('.cmp-text .w')].slice(0, 2)"
         ".map(w => [w.textContent, w.getAttribute('data-status')])"
     )
     assert words[0] == ["בְּאַרְעָא", None], "the Hebrew list's ארעא is not Onkelos's"
 
-    card = page.evaluate(TAP_WORD, ".tr .w")
+    card = page.evaluate(TAP_WORD, ".cmp-text .w")
     assert card["lang"] == "arc"
     assert card["meaning"].startswith("land; earth; ground")
     assert "ב + ארעא" in card["form"]
@@ -1435,7 +1467,8 @@ def test_a_word_in_onkelos_is_a_word_and_kept_in_the_aramaic_list(
     assert not any("arc:" in text for text in stores.values()), "the page's key never leaves it"
     assert "ארעא" in json.loads(stores.get("targum:meanings:arc:en", "{}"))
     assert (
-        page.evaluate("() => document.querySelector('.tr .w').getAttribute('data-status')") == "1"
+        page.evaluate("() => document.querySelector('.cmp-text .w').getAttribute('data-status')")
+        == "1"
     )
     context.close()
 

@@ -325,6 +325,84 @@ def beside_words(
     }
 
 
+def commentary_beside_words(
+    translation: Translation,
+    section: Section,
+    words: Annotation,
+    glossaries: Mapping[str, Glossary] | None,
+) -> dict[str, Any]:
+    """The words of a commentary read beside the text in its own language — Rashi
+    beside the Torah — so a word of it is tapped like a word of the Hebrew
+    (targum-internal#414).
+
+    The same table as Onkelos's (`beside_words`), with two differences. The words were
+    read at build time, by the annotator the Hebrew has, and kept beside the rendering
+    (`Build.annotate_commentaries`); so they are read here rather than worked out. And a
+    word of Rashi is a Hebrew word, so its meaning is the one the page's own glossaries
+    hold for it, in every language they hold, and it is kept in the reader's Hebrew list
+    rather than one of its own.
+    """
+    lemmas: list[str] = []
+    heads: list[str] = []
+    at: dict[tuple[str, str], int] = {}
+    builts: list[str] = [""]
+    built_at: dict[str, int] = {"": 0}
+    rows_by: dict[str, list[list[int]]] = {}
+    for sid in section.segment_ids:
+        text = translation.segments.get(sid, "")
+        tokens = words.tokens.get(sid)
+        if not text or not tokens:
+            continue
+        bare_text, to_bare = strip_nikkud(text)
+        rows: list[list[int]] = []
+        for token in tokens:
+            if token.end > len(text):
+                # Read from another edition's text: nothing here lines up with it.
+                rows = []
+                break
+            word = (token.lemma, token.head)
+            if word not in at:
+                at[word] = len(lemmas)
+                lemmas.append(token.lemma)
+                heads.append(token.head)
+            if token.built and token.built not in built_at:
+                built_at[token.built] = len(builts)
+                builts.append(token.built)
+            start, end = js_span(bare_text, *map_span(token.start, token.end, to_bare))
+            rows.append(
+                [
+                    start,
+                    end,
+                    token.band,
+                    1 if token.split else 0,
+                    at[word],
+                    0,
+                    kind_of(token.pos, token.entity),
+                    built_at.get(token.built or "", 0),
+                    0,
+                ]
+            )
+        if rows:
+            rows_by[sid] = rows
+    forms = [head or lemma for lemma, head in zip(lemmas, heads, strict=True)]
+    glosses = {
+        code: filled
+        for code, book in (glossaries or {}).items()
+        if (filled := [book.entries.get(form, "") for form in forms]) and any(filled)
+    }
+    return {
+        "language": translation.target_language,
+        # Filed with the page's own words, not under a prefix of their own the way
+        # Onkelos's Aramaic is: they are Hebrew words.
+        "own": True,
+        "words": rows_by,
+        "lemmas": lemmas,
+        "heads": heads,
+        "built": builts,
+        **({"glosses": glosses} if glosses else {}),
+    }
+
+
 def section_minutes(sections: list[Section], by_id: Mapping[str, Segment]) -> dict[int, int]:
     """How long each section takes to read, by section number.
 
@@ -394,6 +472,30 @@ def _page_language(language: str) -> str:
 
     code = (language or SOURCE).split("-")[0].lower()
     return code if code in languages() else SOURCE
+
+
+#: Which companions are beside the verse before a reader has said (targum-internal#414,
+#: David, 2026-10-04): Onkelos, which is what shnayim mikra reads, and the translation.
+#: Rashi is one press away, because a page with every comment open is a page of Rashi.
+COMPANIONS_ON = frozenset({"targum"})
+
+
+def _companion_label(translation: Translation, source_language: str) -> str:
+    """What a companion's own switch says: "Onkelos", "Rashi", "Rashi · English".
+
+    By the work rather than the language. Beside the verse a reader turns on a work —
+    the targum, the commentary — and "Aramaic" names neither the targum nor which one.
+    """
+    from ..renderings import commentator
+
+    who = commentator(translation.name)
+    if who:
+        own = translation.target_language.split("-")[0] == source_language.split("-")[0]
+        return who if own else f"{who} · {language_name(translation.target_language)}"
+    named = translation.name or ""
+    if "onkelos" in named.lower() or "אונקלוס" in named:
+        return "Onkelos"
+    return language_name(translation.target_language)
 
 
 def _commentary_named(name: str) -> bool:
@@ -3355,6 +3457,7 @@ def render(
     folder: Path | None = None,
     moves: Mapping[str, object] | None = None,
     recordings_beside: bool = False,
+    commentary_words: Mapping[str, Annotation] | None = None,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
 
@@ -3418,14 +3521,50 @@ def render(
     if not translations:
         raise ValueError("a reader needs at least one translation")
 
+    from ..renderings import (
+        EMPTY,
+        companion_key,
+        is_commentary,
+        is_companion,
+        words_in,
+        words_key,
+    )
+
     if reads is not None and any(t.target_language in reads for t in translations):
+        # A commentary in the text's own language is read the way the text is — Rashi in
+        # Hebrew beside the Torah — whatever the reader reads the meanings in
+        # (targum-internal#414). One in another language answers to `reads` like a
+        # translation: Rashi in English is offered to a reader of English.
+        own = segmented.language.split("-")[0]
         translations = [
-            t for t in translations if t.target_language in reads or t.target_language in BESIDE
+            t
+            for t in translations
+            if t.target_language in reads
+            or t.target_language in BESIDE
+            or (is_commentary(t.name) and t.target_language.split("-")[0] == own)
         ]
+    # Beside the verse, rather than in the switch, only where there is a translation
+    # for them to sit beside: a text carrying Onkelos alone still reads it in the column.
+    with_companions = any(not is_companion(t, BESIDE) for t in translations)
     # And it comes after them, so a Torah opens in the reader's language with Onkelos one
     # press away — asked of the language rather than left to the order the files on disk
-    # happen to sort in. Stable, so nothing else moves.
-    translations = sorted(translations, key=lambda t: t.target_language in BESIDE)
+    # happen to sort in. Stable, so nothing else moves. Beside a translation, the
+    # commentaries come after the targum, the order a printed chumash sets them in.
+    translations = sorted(
+        translations,
+        key=lambda t: (
+            (0 if not is_companion(t, BESIDE) else 1 if t.target_language in BESIDE else 2)
+            if with_companions
+            else int(t.target_language in BESIDE)
+        ),
+    )
+    commentary_words_of: Mapping[str, Annotation] = (
+        commentary_words
+        if commentary_words is not None
+        else words_in(folder, translations)
+        if folder is not None
+        else {}
+    )
 
     if clean and out_dir.exists():
         shutil.rmtree(out_dir)
@@ -3594,7 +3733,11 @@ def render(
             if (found := unwordly_in(segment.text))
         }
     # Which languages the renderings are in, for naming them on the switch.
-    into = [translation.target_language for translation in translations]
+    into = [
+        translation.target_language
+        for translation in translations
+        if not (with_companions and is_companion(translation, BESIDE))
+    ]
     # Whether this text is an imported recording. The contents page asks so its
     # waiting rows can offer the work actually owed — a transcript, not a translation.
     from ..audio import manifest as manifest_module
@@ -3700,10 +3843,21 @@ def render(
                 # the rendering's own name where two are in the same language, since
                 # "English | English" says nothing. The full name is the button's title.
                 "label": (
-                    language_name(translation.target_language)
+                    _companion_label(translation, segmented.language)
+                    if with_companions and is_companion(translation, BESIDE)
+                    else language_name(translation.target_language)
                     if into.count(translation.target_language) == 1
                     else translation.name
                 ),
+                # Which companion this is, where it sits beside the verse rather than in
+                # the switch (targum-internal#414): what a reader's on or off is kept
+                # under, the same on every text. "" for a translation.
+                "companion": (
+                    companion_key(translation, segmented.language, BESIDE)
+                    if with_companions
+                    else ""
+                ),
+                "on": companion_key(translation, segmented.language, BESIDE) in COMPANIONS_ON,
                 "language": translation.target_language,
                 "direction": direction_for(translation.target_language),
                 "kind": translation.kind,
@@ -3746,6 +3900,24 @@ def render(
                 # pressed Rashi got the comments run together again — the same shape of
                 # bug as the language and direction three fields up, one press away.
                 **({"commented": True} if _commentary_named(translation.name) else {}),
+                # Beside the verse, in a cell of its own that the reader turns on and off
+                # (targum-internal#414), rather than one position of the switch.
+                **(
+                    {
+                        "companion": companion_key(translation, segmented.language, BESIDE),
+                        **(
+                            {
+                                "tokens": commentary_beside_words(
+                                    translation, section, held, glossaries
+                                )
+                            }
+                            if (held := commentary_words_of.get(words_key(translation))) is not None
+                            else {}
+                        ),
+                    }
+                    if with_companions and is_companion(translation, BESIDE)
+                    else {}
+                ),
             }
             for index, translation in enumerate(translations)
         }
@@ -4168,6 +4340,11 @@ def render(
                 translation.target_language in BESIDE
                 and any(translation.segments.get(sid) for sid in section.segment_ids)
                 for translation in translations
+            )
+            # And Rashi's, beside it (targum-internal#414).
+            or any(
+                with_companions and words_key(translation) in commentary_words_of
+                for translation in translations
             ),
             # The case lens, on a page whose words carry a case — which is to say a
             # Russian one (targum-internal#261).
@@ -4262,6 +4439,30 @@ def render(
             # set on every `.tr`, because a translation's line has no such structure and
             # a stray newline in one should go on collapsing.
             primary_commentary=_commentary_named(drawing.name),
+            # The companions beside each verse (targum-internal#414): Onkelos, Rashi, Rashi
+            # in English, each a cell of its own under the verse, in the order a printed
+            # chumash sets them. Only those with something in this section.
+            companions=[
+                {
+                    "id": f"t{index}",
+                    "key": companion_key(translation, segmented.language, BESIDE),
+                    "label": _companion_label(translation, segmented.language),
+                    "language": translation.target_language,
+                    "direction": direction_for(translation.target_language),
+                    "commented": _commentary_named(translation.name),
+                    "on": companion_key(translation, segmented.language, BESIDE) in COMPANIONS_ON,
+                    "text": {
+                        sid: line
+                        for sid in section.segment_ids
+                        if (line := translation.segments.get(sid, "")) and line.strip() != EMPTY
+                    },
+                }
+                for index, translation in enumerate(translations)
+                if with_companions
+                and is_companion(translation, BESIDE)
+                and index in covering
+                and index != drawn_at
+            ],
             data=embed_json(
                 {
                     "schemaVersion": PAYLOAD_VERSION,

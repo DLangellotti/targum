@@ -233,6 +233,56 @@ def test_a_book_carrying_onkelos_cuts_a_portion_carrying_it(corpus: Path, librar
     assert all(text.startswith("ארמית") for text in by_language["arc"].segments.values())
 
 
+def test_rashi_in_two_languages_is_carried_beside_the_english_not_into_it(
+    corpus: Path, library: Path
+) -> None:
+    """targum-internal#414. A portion carried one rendering per language, renamed for the
+    portion: so Rashi in English was merged into the Metsudah English, writing his comments
+    over the verses, and lost the name that says it is a commentary. A commentary is now
+    carried per commentator and language, under its own name, with its words narrowed to
+    the same verses, and the English is the English."""
+    from targum.renderings import rendering_hash, words_key, words_path
+
+    folder = library / "דברים-he"
+    english = read_artifact(Translation, folder / "translations" / "aligned.deuteronomy.en.json")
+    assert english is not None
+    rashi = {
+        language: english.model_copy(
+            update={
+                "name": "Rashi on Deuteronomy",
+                "target_language": language,
+                "segments": {sid: f"{saying} {sid}" for sid in english.segments},
+            }
+        )
+        for language, saying in (("he", "פירוש"), ("en", "Comment"))
+    }
+    for language, one in rashi.items():
+        one.write(folder / "translations" / f"aligned.rashi-on-deuteronomy.{language}.json")
+    hebrew = rashi["he"]
+    Annotation(
+        document_hash=rendering_hash(hebrew),
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="",
+        tokens={sid: [Token(start=0, end=5, surface="פירוש", lemma="פירוש", band=3)] for sid in hebrew.segments},
+    ).write(words_path(folder, hebrew))
+
+    reading = a_reading(corpus)
+    portion = cutmod.cut(reading, cutmod.books_for(reading, library))
+    verses = {s.id for s in portion.segmented.segments if s.kind is BlockKind.verse}
+    by = {(t.target_language, t.name): t for t in portion.translations}
+    assert len(portion.translations) == 3
+    assert ("he", "Rashi on Deuteronomy") in by and ("en", "Rashi on Deuteronomy") in by
+    plain = [t for t in portion.translations if t.target_language == "en" and "Rashi" not in t.name]
+    assert len(plain) == 1
+    assert all(text.startswith("Deuteronomy") for text in plain[0].segments.values())
+    assert by[("en", "Rashi on Deuteronomy")].segments.keys() == verses
+
+    words = portion.commentary_words[words_key(hebrew)]
+    assert words.tokens.keys() == verses, "the words come narrowed to the portion's verses"
+
+
 def test_the_portion_declares_itself_scripture(corpus: Path, library: Path) -> None:
     """`is_biblical` reads the source, and it decides the face the page carries and that
     a verse is a row rather than a paragraph."""

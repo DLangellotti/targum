@@ -188,10 +188,26 @@
         written with, which the script takes as the opening position rather than
         assuming the first. A rendering with nothing for this section is offered
         disabled, not as a button that empties the column. -#}
-    {% if translations|length > 1 %}
+    {% set mains = translations|rejectattr("companion")|list %}
+    {% set beside_verse = translations|selectattr("companion")|list %}
+    {% if mains|length > 1 %}
     <div class="group renderings" id="translation" role="group" aria-label="{{ t("reader.page.translation", "Translation") }}" data-what="Translation" data-drawn="{{ drawn_id }}">
-      {%- for t in translations %}
+      {%- for t in mains %}
       <button type="button" class="rendering{% if t.id == drawn_id %} on{% endif %}" data-translation="{{ t.id }}" aria-pressed="{{ 'true' if t.id == drawn_id else 'false' }}" title="{{ t.name }}"{% if t.id not in covered %} disabled{% endif %}>{{ t.label }}</button>
+      {%- endfor %}
+    </div>
+    {% endif %}
+    {#- Beside the verse (targum-internal#414): the translation, Onkelos, Rashi, each on or
+        off on its own, the way the columns of a printed chumash are each there or not.
+        The same pill as the switch above, with a fill under every one that is on rather
+        than under one: these are not positions of one choice. Kept per reader and on
+        every text, so Rashi opened in Genesis is open in Exodus. -#}
+    {% if beside_verse %}
+    <div class="group renderings companions" id="companions" role="group" aria-label="{{ t("reader.page.beside-the-verse", "Beside the verse") }}" data-what="Beside the verse">
+      {%- set main = (mains|selectattr("id", "equalto", drawn_id)|first) or (mains|first) %}
+      <button type="button" class="rendering companion on" data-companion="translation" data-on="1" aria-pressed="true" title="{{ main.name if main else '' }}">{{ main.label if main else t("reader.page.translation", "Translation") }}</button>
+      {%- for t in beside_verse %}
+      <button type="button" class="rendering companion{% if t.on %} on{% endif %}" data-companion="{{ t.companion }}" data-translation-id="{{ t.id }}" data-on="{{ 1 if t.on else 0 }}" aria-pressed="{{ 'true' if t.on else 'false' }}" title="{{ t.name }}">{{ t.label }}</button>
       {%- endfor %}
     </div>
     {% endif %}
@@ -741,6 +757,17 @@
     <p class="src unaccented" data-form="unaccented" lang="{{ tongue }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
     {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {#- The companions, under the verse and its translation, a column each (#414). A
+        cell for every companion on every verse, empty where it says nothing, so the
+        columns stay columns; a companion that is off is hidden, not left out, so turning
+        it on is a class rather than a rebuild. -#}
+    {% if companions %}
+    <div class="beside">
+      {%- for c in companions %}
+      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="en" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|isolate(c.direction) }}</span></p>
+      {%- endfor %}
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 {% endfor %}

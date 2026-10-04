@@ -2386,6 +2386,7 @@ def build(
         # expense. The server has always read both from here; the command line did not,
         # and had no way to know it was buying something already paid for.
         from . import catalogue as catalogue_module
+        from .annotate.gloss import GLOSS_MODEL
 
         known = catalogue_module.matching(source)
         builder = Build(
@@ -2406,6 +2407,10 @@ def build(
             machine=machine,
             difficulty=words,
             gloss=gloss,
+            # The model meanings are bought on, which is what they are cached under: the
+            # server has always named it, and a build from here that took the prose model
+            # instead bought again every meaning the shelf already held (#414).
+            gloss_model=GLOSS_MODEL,
             transcriber_name=transcriber or "",
             transcript=transcript,
             video=video,

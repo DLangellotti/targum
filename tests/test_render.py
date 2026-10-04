@@ -5328,7 +5328,13 @@ def _markup(html: str) -> str:
 
 
 def _switch(html: str) -> str:
-    found = re.search(r'<div class="group renderings".*?</div>', html, re.S)
+    found = re.search(r'<div class="group renderings" id="translation".*?</div>', html, re.S)
+    return found.group(0) if found else ""
+
+
+def _companions(html: str) -> str:
+    """The on-and-off switches for what sits beside the verse (targum-internal#414)."""
+    found = re.search(r'<div class="group renderings companions".*?</div>', html, re.S)
     return found.group(0) if found else ""
 
 
@@ -5371,8 +5377,9 @@ def test_a_text_with_one_translation_draws_no_switch(tmp_path: Path) -> None:
 def test_every_rendering_reaches_the_page_with_its_own_direction(tmp_path: Path) -> None:
     """Both renderings ship, each with the language and direction of its own target:
     Hebrew against English runs RTL/LTR and against Onkelos RTL/RTL, in one file. The
-    cells are written with the first and say so; the switch names each by its language
-    and pressed on the one drawn."""
+    column is the English's and says so; Onkelos sits under the verse in a cell of its
+    own, in its own language and direction, and is turned on and off rather than chosen
+    instead of the English (targum-internal#414)."""
     html = _genesis(tmp_path, [_english(), _onkelos()])
     shipped = _payload(html)["translations"]
     assert {k: (v["language"], v["direction"]) for k, v in shipped.items()} == {
@@ -5380,17 +5387,19 @@ def test_every_rendering_reaches_the_page_with_its_own_direction(tmp_path: Path)
         "t1": ("arc", "rtl"),
     }
     assert shipped["t1"]["text"][GENESIS[1].id] == "ארמית 1"
+    assert shipped["t1"]["companion"] == "targum" and "companion" not in shipped["t0"]
 
-    switch = _switch(html)
-    assert 'data-drawn="t0"' in switch
-    assert ">English</button>" in switch and ">Aramaic</button>" in switch
-    assert 'title="JPS 1917"' in switch and 'title="Onkelos"' in switch
-    assert re.search(r'class="rendering on" data-translation="t0" aria-pressed="true"', switch)
-    assert re.search(r'class="rendering" data-translation="t1" aria-pressed="false"', switch)
-    assert "disabled" not in switch, "both cover the chapter, so neither is refused"
-    # The cells are the first rendering's, in its language and direction.
+    # One translation, so no switch: Onkelos is not a position of it.
+    assert 'id="translation"' not in html
+    toggles = _companions(html)
+    assert 'data-companion="translation" data-on="1" aria-pressed="true" title="JPS 1917">English<' in toggles
+    assert re.search(r'data-companion="targum" data-translation-id="t1" data-on="1"', toggles)
+    assert ">Onkelos</button>" in toggles
+    # The cells are the English's, in its language and direction...
     cells = re.findall(r'<p class="tr" lang="(\w+)" dir="(\w+)">', html)
     assert cells and set(cells) == {("en", "ltr")}
+    # ...and Onkelos is under every line, right to left.
+    assert len(re.findall(r'<p class="cmp" data-t="t1" data-companion="targum" lang="arc" dir="rtl">', html)) == 2
 
 
 def test_two_renderings_in_one_language_are_named_by_the_rendering(tmp_path: Path) -> None:
@@ -5428,9 +5437,9 @@ def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: P
         _segment(5, "שורה שלישית"),
     ]
     english = _rendering("JPS 1917", "en", {segments[1].id: "Hello world"})
-    onkelos = _rendering("Onkelos", "arc", {segments[1].id: "שלם", segments[3].id: "עוד"})
+    russian = _rendering("Russian", "ru", {segments[1].id: "Привет", segments[3].id: "Ещё"})
     document = Document(source="memory", title="ספר", language="he", blocks=[], content_hash="h")
-    pages = render(document, make_segmented(segments), [english, onkelos], tmp_path / "r")
+    pages = render(document, make_segmented(segments), [english, russian], tmp_path / "r")
     one, two, three = (p.read_text(encoding="utf-8") for p in pages[1:])
 
     assert 'data-drawn="t0"' in _switch(one) and "disabled" not in _switch(one)
@@ -5441,9 +5450,9 @@ def test_a_section_only_the_second_rendering_covers_is_drawn_from_it(tmp_path: P
     refused = r'data-translation="t0" aria-pressed="false" title="JPS 1917" disabled>'
     assert re.search(refused, switch)
     assert re.search(r'class="rendering on" data-translation="t1" aria-pressed="true"', switch)
-    assert '<p class="tr" lang="arc" dir="rtl">' in two
+    assert '<p class="tr" lang="ru" dir="ltr">' in two
     assert '<p class="tr" lang="en"' not in two
-    assert 'id="waiting-note"' not in two, "the chapter is translated, in Aramaic"
+    assert 'id="waiting-note"' not in two, "the chapter is translated, in Russian"
 
     assert 'id="waiting-note"' in three
     assert "We haven't translated this chapter yet." in three
@@ -5466,12 +5475,12 @@ def test_onkelos_is_kept_whatever_the_reader_reads(tmp_path: Path) -> None:
 
 def test_a_torah_opens_in_its_own_language_with_onkelos_one_press_away(tmp_path: Path) -> None:
     """Whatever order the renderings arrive in — a folder's files sort by name — the page
-    is drawn in the language a person reads, and Onkelos waits on the switch."""
+    is drawn in the language a person reads, and Onkelos sits under the verse."""
     html = _genesis(tmp_path, [_onkelos(), _english()])
     shipped = _payload(html)["translations"]
     assert [v["language"] for v in shipped.values()] == ["en", "arc"]
-    assert 'data-drawn="t0"' in _switch(html)
     assert set(re.findall(r'<p class="tr" lang="(\w+)"', html)) == {"en"}
+    assert 'data-companion="targum"' in _companions(html)
 
 
 def test_shnayim_mikra_is_offered_only_where_onkelos_is_beside_the_hebrew(
@@ -5530,12 +5539,13 @@ def test_onkelos_ships_words_of_its_own_and_the_hebrew_ships_what_it_did(
 
 
 def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Path) -> None:
-    """The regression that matters, from the other side: a second rendering adds the
+    """The regression that matters, from the other side: a second translation adds the
     switch and its own data, and leaves every byte of the text, the cells and the first
     rendering's data exactly as a one-rendering page has them. Every existing text takes
     the one-rendering path, and it is pinned to be the same markup it always was."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
     alone = _genesis(tmp_path / "alone", [_english([GENESIS[2].id])])
-    both = _genesis(tmp_path / "both", [_english([GENESIS[2].id]), _onkelos()])
+    both = _genesis(tmp_path / "both", [_english([GENESIS[2].id]), russian])
 
     switch = _switch(both)
     assert switch
@@ -5548,9 +5558,6 @@ def test_the_switch_adds_a_control_and_changes_nothing_in_the_text(tmp_path: Pat
     mine, theirs = _payload(alone), _payload(both)
     assert theirs["translations"]["t0"] == mine["translations"]["t0"]
     assert {**theirs, "translations": {"t0": theirs["translations"]["t0"]}} == mine
-
-
-# -- hear a silent text (targum-internal#246) ----------------------------------------
 
 
 def test_a_silent_section_is_offered_a_voice_in_the_languages_the_voice_reads(
