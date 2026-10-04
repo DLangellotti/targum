@@ -774,6 +774,15 @@ class Spoken(NamedTuple):
     #: The video cut's shape as a player draws it, `[width, height]`, or `[]`. What lets
     #: the page stand an upright film upright before the film has loaded.
     frame: list[int] = []
+    #: Which of a section's readings this is, where it has two (targum-internal#412):
+    #: "chanted" for the leyning and "spoken" for the book read aloud. The key the switch
+    #: and the reader's kept choice go by; "" for the one reading every other text has.
+    voice: str = ""
+    #: Whether `audio` is a file on this disk rather than a data URI. `render()` copies
+    #: it beside the reader and writes the relative address in its place — the video's
+    #: arrangement, for a portion's pages, which carried their chanting inlined at three
+    #: megabytes an aliyah before they carried two readings.
+    beside: bool = False
 
 
 SILENT = Spoken({}, {}, "")
@@ -789,6 +798,57 @@ def _inlined(path: Path) -> str:
         return ""
     mime = mimetypes.guess_type(path.name)[0] or "audio/mpeg"
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+
+
+def _word_clocks(
+    spoken: Spoken, bare: Mapping[str, str], to_bare: Mapping[str, list[int]]
+) -> dict[str, list[list[Any]]]:
+    """A reading's word clocks with their char offsets mapped into the bare text, like
+    every token row, so the card can find the sound under a tapped word by overlap."""
+    return {
+        sid: [
+            [*js_span(bare[sid], *map_span(int(cs), int(ce), to_bare[sid])), s, e]
+            for cs, ce, s, e in rows
+        ]
+        for sid, rows in spoken.words.items()
+        if sid in to_bare
+    }
+
+
+def _copy_beside(source: Path, sidecar: Path) -> None:
+    """A file put beside the reader, unless the copy already there is this file."""
+    # Size and mtime both: a re-transcoded part of identical size is still a
+    # different file, and copy2 carries the mtime over so the pair agree.
+    fresh = sidecar.is_file() and (
+        sidecar.stat().st_size == source.stat().st_size
+        and sidecar.stat().st_mtime >= source.stat().st_mtime
+    )
+    if fresh:
+        return
+    # Copied beside and renamed over, never written in place: a hosted rebuild runs
+    # while somebody may be streaming this very file, and a rename leaves their open
+    # handle on the old bytes — the same move write_atomic makes for the same reason.
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    passing = sidecar.with_name(sidecar.name + ".part")
+    shutil.copy2(source, passing)
+    os.replace(passing, sidecar)
+
+
+def _carried(spoken: Spoken, out_dir: Path, number: int) -> Spoken:
+    """A reading named on this disk, copied into `audio/` and named by where it now is.
+
+    Named by the reading and the section, so the chanting and the plain reading of one
+    aliyah never share a name, and a relative address, so a folder that travels to a
+    disk keeps its sound and the page still fetches nothing from any network.
+    """
+    if not spoken.beside:
+        return spoken
+    source = Path(spoken.audio)
+    if not source.is_file():
+        return SILENT
+    name = f"{spoken.voice or 'reading'}-{number:04d}{source.suffix.lower() or '.mp3'}"
+    _copy_beside(source, out_dir / "audio" / name)
+    return spoken._replace(audio=f"audio/{name}", beside=False)
 
 
 def _scene(document: Document, segments: list[Segment]) -> Spoken:
@@ -815,13 +875,15 @@ def _scene(document: Document, segments: list[Segment]) -> Spoken:
     return Spoken(speakers, spans, audio)
 
 
-def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
+def _read_aloud(document: Document, segments: list[Segment], *, beside: bool = False) -> Spoken:
     """A recording of scripture, found by ref and never by position.
 
     The section decides which part of the recording it wants by naming the verses it
     holds. A reader built for one chapter, for a range, or for a whole book all ask the
     same question and all get the right answer — where a positional rule would hand a
     reader of Job 3 the sound of Job 1 and say nothing.
+
+    `beside` names the file rather than inlining it; see `Spoken.beside`.
     """
     from ..recording import index as recording_index
 
@@ -838,7 +900,11 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
     }
     if not spans:
         return SILENT
-    audio = _inlined(recording_index.folder(document.source) / part.audio)
+    path = recording_index.folder(document.source) / part.audio
+    if beside:
+        audio = str(path) if path.is_file() else ""
+    else:
+        audio = _inlined(path)
     if not audio:
         return SILENT
     words = {
@@ -855,7 +921,101 @@ def _read_aloud(document: Document, segments: list[Segment]) -> Spoken:
         recording.licence_url,
         "the reading",
         words,
+        beside=beside,
     )
+
+
+def _read_from_the_books(segments: list[Segment]) -> Spoken:
+    """A section of a portion, in the reading of the books it is cut from.
+
+    The book's recording is one file per chapter and is found by the book's own source —
+    "Genesis 1:5" is read in `sefaria:Genesis` — so a section that crosses a chapter
+    takes a piece of each, and one that crosses a book (a haftarah of two prophets)
+    takes a piece of each book. The pieces are joined into one file by
+    `recording.splice`, and where that cannot be done (no ffmpeg, a file that will not
+    read) the section keeps the first chapter's file whole: its verses in that chapter
+    are heard, and the rest go without a control rather than pointing at the wrong sound.
+    Always beside the reader, never inlined.
+    """
+    from ..errors import TargumError
+    from ..recording import Part, Recording
+    from ..recording import index as recording_index
+    from ..recording import splice as splicing
+
+    refs = [segment.ref for segment in segments if segment.ref]
+    books = list(dict.fromkeys(ref.rsplit(" ", 1)[0] for ref in refs if " " in ref))
+    pieces: list[tuple[Path, Part]] = []
+    credited: Recording | None = None
+    for book in books:
+        recording = recording_index.load(f"sefaria:{book}")
+        if recording is None:
+            continue
+        home = recording_index.folder(recording.source)
+        parts = recording.parts_for(refs)
+        if parts and credited is None:
+            credited = recording
+        pieces += [(home, part) for part in parts]
+    if not pieces or credited is None:
+        return SILENT
+    try:
+        path, by_ref = splicing.splice(pieces, refs)
+    except TargumError:
+        home, part = pieces[0]
+        path, by_ref = home / part.audio, dict(part.spans)
+        if not path.is_file():
+            return SILENT
+    spans = {
+        segment.id: list(by_ref[segment.ref])
+        for segment in segments
+        if segment.ref and segment.ref in by_ref
+    }
+    if not spans:
+        return SILENT
+    return Spoken(
+        {},
+        spans,
+        str(path),
+        credited.credit,
+        credited.licence,
+        credited.licence_url,
+        "the reading",
+        voice="spoken",
+        beside=True,
+    )
+
+
+def voices(
+    document: Document,
+    segments: list[Segment],
+    folder: Path | None = None,
+    *,
+    beside: bool = False,
+) -> list[Spoken]:
+    """Every reading this section can be heard in, the one the page opens on first.
+
+    One, or none, for every text but scripture cut out of its books with `beside` asked
+    for — which is what a portion is built with (targum-internal#412). A portion has
+    two: the chanting attached to the portion itself, and the plain reading attached to
+    the books, which the Library's Tanakh already carries. Both are named beside the
+    reader rather than inlined, since a page that carried two would carry six megabytes.
+
+    A book's own reader is not a cut: its recording *is* the plain reading, found by
+    `speech` as it always was, and asking the books again would offer it twice.
+    """
+    if not beside or not is_biblical(document.source):
+        spoken = speech(document, segments, folder)
+        return [spoken] if spoken.audio else []
+    books = {
+        f"sefaria:{segment.ref.rsplit(' ', 1)[0]}" for segment in segments if " " in segment.ref
+    }
+    if document.source in books:
+        spoken = _read_aloud(document, segments, beside=True)
+        return [spoken] if spoken.audio else []
+    chanted = _read_aloud(document, segments, beside=True)._replace(
+        voice="chanted", credited="Chanted by"
+    )
+    plain = _read_from_the_books(segments)
+    return [one for one in (chanted, plain) if one.audio]
 
 
 def _read_along(document: Document, segments: list[Segment]) -> Spoken:
@@ -3183,11 +3343,16 @@ def render(
     whole: bool = False,
     folder: Path | None = None,
     moves: Mapping[str, object] | None = None,
+    recordings_beside: bool = False,
 ) -> list[Path]:
     """Write the reader. Returns every file written, index first.
 
     `folder` is the targum's own directory, where an imported recording's manifest and
     parts live — see `speech`. None for every text that has no such folder to ask.
+
+    `recordings_beside` is a portion's: each section carries both its readings, chanted
+    and spoken, as files in `audio/` beside the pages rather than inside them — see
+    `voices`. Off, a text's one recording rides inside the page as it always has.
 
     `glossaries` is keyed by target language, because a meaning is written in one and a
     reader may hold translations into two. A word means what it means in Russian and
@@ -3850,7 +4015,16 @@ def render(
         # Who speaks each line and where it is said, for a dialogue. Empty for every
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
-        spoken = speech(document, segments, folder)
+        #
+        # A portion's section has two readings (targum-internal#412), each a file beside
+        # the page; the first is the one the page opens on, and everything below that
+        # knew one recording goes on asking it.
+        aloud = [
+            _carried(taken, out_dir, section.number)
+            for taken in voices(document, segments, folder, beside=recordings_beside)
+        ]
+        aloud = [taken for taken in aloud if taken.audio]
+        spoken = aloud[0] if aloud else SILENT
         # Hear a silent text (targum-internal#246): on a Hebrew section with no
         # recording, and only while the voice has a price, the door and what it costs
         # in the reader's own hours. Nothing where audio exists or the voice is unpriced.
@@ -3883,22 +4057,7 @@ def render(
         spoken_video = ""
         if spoken.video:
             reel = Path(spoken.video)
-            sidecar = out_dir / "video" / reel.name
-            # Size and mtime both: a re-transcoded part of identical size is still a
-            # different file, and copy2 carries the mtime over so the pair agree.
-            fresh = sidecar.is_file() and (
-                sidecar.stat().st_size == reel.stat().st_size
-                and sidecar.stat().st_mtime >= reel.stat().st_mtime
-            )
-            if not fresh:
-                # Copied beside and renamed over, never written in place: a hosted
-                # rebuild runs while somebody may be streaming this very file, and a
-                # rename leaves their open handle on the old bytes — the same move
-                # write_atomic makes for the same reason.
-                sidecar.parent.mkdir(parents=True, exist_ok=True)
-                passing = sidecar.with_name(sidecar.name + ".part")
-                shutil.copy2(reel, passing)
-                os.replace(passing, sidecar)
+            _copy_beside(reel, out_dir / "video" / reel.name)
             spoken_video = f"video/{reel.name}"
         # Whether this section is an imported recording's part still waiting for its
         # transcript. The page says which work is owed, and the button asks for it.
@@ -4044,7 +4203,22 @@ def render(
             unaccented=unaccented,
             machine=machine,
             speakers=speakers,
-            spoken=spoken.spans,
+            # Every line either reading can say gets its control; pressed under the
+            # reading that has no span for it, the control does nothing.
+            spoken={sid: span for taken in reversed(aloud) for sid, span in taken.spans.items()},
+            # The switch and the credits, where a section has two readings.
+            voices=[
+                {
+                    "key": taken.voice,
+                    "credit": taken.credit,
+                    "credited": taken.credited,
+                    "licence": taken.licence,
+                    "licence_url": taken.licence_url,
+                }
+                for taken in aloud
+            ]
+            if len(aloud) > 1
+            else [],
             # The player asks whether there is a recording; the per-line controls ask
             # whether there are spans. Prose has the first and not the second.
             spoken_audio=bool(spoken.audio),
@@ -4215,24 +4389,30 @@ def render(
                                 # the bare text like every token row, so the card can
                                 # find the sound under a tapped word by overlap alone.
                                 **(
-                                    {
-                                        "words": {
-                                            sid: [
-                                                [
-                                                    *js_span(
-                                                        bare[sid],
-                                                        *map_span(int(cs), int(ce), to_bare[sid]),
-                                                    ),
-                                                    s,
-                                                    e,
-                                                ]
-                                                for cs, ce, s, e in rows
-                                            ]
-                                            for sid, rows in spoken.words.items()
-                                            if sid in to_bare
-                                        }
-                                    }
+                                    {"words": _word_clocks(spoken, bare, to_bare)}
                                     if spoken.words
+                                    else {}
+                                ),
+                                # A portion's two readings, the first being the one
+                                # above. Each its own file, spans and clocks, and its
+                                # own credit, which the switch puts beside the player.
+                                **(
+                                    {
+                                        "voices": [
+                                            {
+                                                "key": taken.voice,
+                                                "audio": taken.audio,
+                                                "spans": taken.spans,
+                                                **(
+                                                    {"words": _word_clocks(taken, bare, to_bare)}
+                                                    if taken.words
+                                                    else {}
+                                                ),
+                                            }
+                                            for taken in aloud
+                                        ]
+                                    }
+                                    if len(aloud) > 1
                                     else {}
                                 ),
                             }

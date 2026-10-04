@@ -3339,6 +3339,147 @@ def test_no_verse_of_a_page_ends_up_under_the_player(read_aloud) -> None:
         assert line["bottom"] <= laid["seat"]["top"], line["id"]
 
 
+# -- a portion's two readings (targum-internal#412) ------------------------------------
+#
+# The chanting and the plain reading of the same verses, as two files beside the page,
+# and a switch between them. Told apart here by length: the plain reading is slower.
+
+SPOKEN_SPAN = 0.6
+
+
+def two_readings(home: Path, out: Path, monkeypatch) -> Path:
+    """Ruth 1:1-12 as a portion is built: chanted for itself, and Ruth read plainly."""
+    from targum.errors import TargumError
+    from targum.recording import Part, Recording
+    from targum.recording import index as recording_index
+    from targum.recording import splice as splicing
+
+    # The plain reading is one chapter here, so the file whole is the cut; standing
+    # ffmpeg aside keeps the test off a binary CI may not have.
+    def no_splice(*_: object) -> None:
+        raise TargumError("no ffmpeg here")
+
+    monkeypatch.setattr(splicing, "splice", no_splice)
+    portion = "sefaria:Ruth 1:1-12"
+    for source, name, span, credit in (
+        (portion, "chanted.wav", READ_SPAN, "Somebody Chanting"),
+        ("sefaria:Ruth", "spoken.wav", SPOKEN_SPAN, "Somebody Reading"),
+    ):
+        folder = home / recording_index.slug(source)
+        folder.mkdir(parents=True, exist_ok=True)
+        voice(folder / name, span * READ_VERSES)
+        recording = Recording(
+            source=source,
+            credit=credit,
+            licence="CC BY-SA 3.0",
+            parts=[
+                Part(
+                    ref="Ruth 1",
+                    audio=name,
+                    spans={
+                        f"Ruth 1:{n + 1}": [n * span, (n + 1) * span] for n in range(READ_VERSES)
+                    },
+                )
+            ],
+        )
+        (folder / recording_index.MANIFEST).write_text(
+            recording.model_dump_json(), encoding="utf-8"
+        )
+    segments = [
+        Segment(
+            id=f"{n:04d}.000-aaaaaa",
+            block_id=f"b{n:04d}",
+            block_index=n,
+            index=0,
+            kind=BlockKind.verse,
+            text=" ".join(coin(n * 4 + i) for i in range(4)),
+            ref=f"Ruth 1:{n + 1}",
+        )
+        for n in range(READ_VERSES)
+    ]
+    document = Document(
+        source=portion,
+        title="Ruth",
+        language="he",
+        blocks=[Block(id=s.block_id, kind=s.kind, text=s.text, ref=s.ref) for s in segments],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="test/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"Verse {s.ref}." for s in segments},
+    )
+    return render(document, segmented, [translation], out, recordings_beside=True)[0]
+
+
+READINGS = """
+() => ({
+  pressed: [...document.querySelectorAll("[data-recording]")]
+    .filter((b) => b.getAttribute("aria-pressed") === "true")
+    .map((b) => b.getAttribute("data-recording")),
+  length: window.TargumPlayer.length(),
+  get: document.querySelector(".player-get").getAttribute("href"),
+})
+"""
+
+
+@pytest.fixture
+def portion_page(browser, tmp_path, monkeypatch):
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    built = two_readings(tmp_path / "recordings", tmp_path / "reader", monkeypatch)
+    context = opened(browser, scrolling=False)
+    open_page = context.new_page()
+    open_page.goto(address(built))
+    open_page.wait_for_selector("#player")
+    open_page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
+    yield open_page
+    context.close()
+
+
+def test_a_portion_opens_chanted_and_switches_to_spoken(portion_page) -> None:
+    opened_on = portion_page.evaluate(READINGS)
+    assert opened_on["pressed"] == ["chanted"]
+    assert opened_on["length"] == pytest.approx(READ_SPAN * READ_VERSES, abs=0.05)
+    assert opened_on["get"].startswith("audio/chanted-0001.wav")
+
+    portion_page.click('[data-recording="spoken"]')
+    portion_page.wait_for_function(
+        f"() => Math.abs(window.TargumPlayer.length() - {SPOKEN_SPAN * READ_VERSES}) < 0.05"
+    )
+    switched = portion_page.evaluate(READINGS)
+    assert switched["pressed"] == ["spoken"]
+    assert switched["get"].startswith("audio/spoken-0001.wav"), "saving takes what is playing"
+
+    # A verse pressed now is the plain reading's verse, at the plain reading's seconds.
+    portion_page.locator(".pair.voiced .say").nth(2).click()
+    portion_page.wait_for_function(
+        "() => window.TargumPlayer.at() >= %s" % (2 * SPOKEN_SPAN), timeout=3000
+    )
+    assert portion_page.locator(".say.saying").count() == 1
+
+
+def test_the_choice_of_reading_is_kept(portion_page) -> None:
+    portion_page.click('[data-recording="spoken"]')
+    portion_page.reload()
+    portion_page.wait_for_selector("#player")
+    portion_page.wait_for_function(
+        f"() => Math.abs(window.TargumPlayer.length() - {SPOKEN_SPAN * READ_VERSES}) < 0.05"
+    )
+    assert portion_page.evaluate(READINGS)["pressed"] == ["spoken"]
+
+
+def test_both_readers_are_credited(portion_page) -> None:
+    credits = portion_page.text_content("#credits") or ""
+    assert "Chanted by Somebody Chanting" in credits
+    assert "Read by Somebody Reading" in credits
+
+
 # -- keeping a phrase ----------------------------------------------------------------
 
 

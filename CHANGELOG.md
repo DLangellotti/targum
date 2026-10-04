@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- Two readings on every aliyah, chanted and spoken (targum-internal#412). A portion's
+  section carries the PocketTorah chanting attached to the portion and Rabbi Dan Be'eri's
+  plain reading of the book, with a Chanted / Spoken switch in the bar, kept per browser,
+  and both readers credited. Be'eri reads a chapter to a file, so an aliyah's verses are
+  cut out of each chapter they fall in and joined into one file (`recording/splice.py`,
+  `audio.tools.splice`), kept in the cache by what it was cut from; an aliyah across a
+  chapter hears both. Both files ride beside the reader in `reader/audio/` rather than
+  inlined, and `/parasha/read/…/reader/audio/*.mp3` serves them with ranges. Verse by
+  verse for both. Asked for by the parasha build only (`render(recordings_beside=True)`):
+  every other text keeps its one recording inlined, exactly as before. A portion with no
+  chanting yet has the plain reading alone, and so does a haftarah.
 - A Weekly portion shelf in the Library (targum-internal#411): this Shabbat's portion
   first, in a wide card that says it is this Shabbat's and when, then the year onward
   from it and round, each card opening the portion's reader. Above the list and on the

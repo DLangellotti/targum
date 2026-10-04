@@ -9982,6 +9982,13 @@ var targumReader = function () {
   // Said for the first-run line, which is another closure's: there is something to play.
   document.body.classList.add("has-voice");
 
+  /* Where the sound is. Inlined, it is the data URI itself; a portion's readings are
+     files beside the page (targum-internal#412), asked for with the page's own query so
+     a served reader's key travels with them, the way the video sidecar's does. */
+  function addressOf(src) {
+    return /^data:/.test(src) ? src : src + (location.search || "");
+  }
+
   /* One media element, not two clocks. Where the import kept its pictures the page
      carries a <video> pointed at the sidecar beside this file, and that element is the
      player's whole instrument — same HTMLMediaElement, so every span, timer and rate
@@ -10031,16 +10038,19 @@ var targumReader = function () {
     });
   }
   var videoDead = false;
-  var audio = videoEl || new Audio(speech.audio);
+  var audio = videoEl || new Audio(addressOf(speech.audio));
   var spans = speech.spans || {};
   /* Each written word's clock, where the build could pair one: rows of
      [charStart, charEnd, start, end] per segment, in the bare text's own offsets. */
   var wordClocks = speech.words || {};
   /* In reading order, because the object came from the page in that order and following
      along means walking it. */
-  var order = Object.keys(spans).map(function (id) {
-    return { id: id, start: spans[id][0], end: spans[id][1] };
-  });
+  function ordered(table) {
+    return Object.keys(table).map(function (id) {
+      return { id: id, start: table[id][0], end: table[id][1] };
+    });
+  }
+  var order = ordered(spans);
   // No spans is a shape, not a failure: prose is recorded as one reading and played
   // straight through. Everything below works without them — what goes is the highlight
   // that would otherwise crawl down a sentence at a time, which is a thing to do to a
@@ -10485,19 +10495,22 @@ var targumReader = function () {
     seek(to);
   }
 
-  if (stepBack || stepOn) {
+  /* A function, because a portion's two readings need not both be timed word by word,
+     and the labels follow whichever is playing. */
+  function labelSteps() {
     var byWord = starts().length > 0;
     if (stepBack) {
       stepBack.setAttribute("aria-label", byWord ? "Back a word" : "Back five seconds");
       stepBack.setAttribute("title", byWord ? "Back a word" : "Back five seconds");
-      stepBack.addEventListener("click", function () { stepBy(true); });
     }
     if (stepOn) {
       stepOn.setAttribute("aria-label", byWord ? "Forward a word" : "Forward five seconds");
       stepOn.setAttribute("title", byWord ? "Forward a word" : "Forward five seconds");
-      stepOn.addEventListener("click", function () { stepBy(false); });
     }
   }
+  labelSteps();
+  if (stepBack) stepBack.addEventListener("click", function () { stepBy(true); });
+  if (stepOn) stepOn.addEventListener("click", function () { stepBy(false); });
 
   /* Where the reader had got to, kept across the door. Per text, like the closed player
      and the shut picture; capped and pruned like `targum:place` further up, because a
@@ -10509,6 +10522,9 @@ var targumReader = function () {
   var HEARD = "targum:heard";
   var HEARDS = 100;
   var keptAt = 0;
+  /* Whose place it is. The text's, for the reading a page opens on; a portion's other
+     reading keeps its own, since the same verse is somewhere else in it. */
+  var heardOf = spokenOf;
 
   /* How near the end counts as the end. Two seconds on anything long enough for two
      seconds to be a moment, and a tenth of the way on anything shorter — a fixed two on
@@ -10519,14 +10535,14 @@ var targumReader = function () {
   }
 
   function keepHeard() {
-    if (!spokenOf) return;
+    if (!heardOf) return;
     var length = span();
     if (!length) return;
     var now = audio.currentTime;
     try {
       var all = JSON.parse(localStorage.getItem(HEARD) || "{}");
-      if (now <= 0.5 || length - now <= tail(length)) delete all[spokenOf];
-      else all[spokenOf] = { at: Math.round(now * 100) / 100, when: Date.now() };
+      if (now <= 0.5 || length - now <= tail(length)) delete all[heardOf];
+      else all[heardOf] = { at: Math.round(now * 100) / 100, when: Date.now() };
       Object.keys(all)
         .sort(function (a, b) { return (all[b].when || 0) - (all[a].when || 0); })
         .slice(HEARDS)
@@ -10537,12 +10553,12 @@ var targumReader = function () {
   }
 
   function resume() {
-    if (!spokenOf) return;
+    if (!heardOf) return;
     var length = span();
     if (!length) return;
     var kept = null;
     try {
-      kept = JSON.parse(localStorage.getItem(HEARD) || "{}")[spokenOf];
+      kept = JSON.parse(localStorage.getItem(HEARD) || "{}")[heardOf];
     } catch (e) {}
     if (!kept || !kept.at || kept.at >= length - tail(length)) return;
     try {
@@ -10560,7 +10576,7 @@ var targumReader = function () {
      at the wrong second. */
   function whenKnown(run) {
     if (span()) run();
-    else audio.addEventListener("loadedmetadata", run);
+    else audio.addEventListener("loadedmetadata", run, { once: true });
   }
   whenKnown(resume);
 
@@ -10845,7 +10861,9 @@ var targumReader = function () {
   }, true);
 
   /* Saving the audio. The file is already in the page, so this asks the network for
-     nothing — the same reason the fonts and the icons ride inside it. */
+     nothing — the same reason the fonts and the icons ride inside it. A portion's is
+     beside the page instead, and saving it asks for the file the player already has. */
+  var offer = function () {};
   if (player) {
     /* Both copies: the strip's, and the one the `···` menu carries on a phone, where
        the strip's row has no width for a one-off action. Distinct classes on purpose —
@@ -10868,11 +10886,16 @@ var targumReader = function () {
         "audio/webm": "webm",
         "audio/flac": "flac",
       };
-      var kind = speech.audio.slice(5).split(";")[0].split(",")[0];
-      gets.forEach(function (one) {
-        one.setAttribute("href", speech.audio);
-        one.setAttribute("download", (named || "dialogue") + "." + (ENDS[kind] || "mp3"));
-      });
+      /* A file beside the page is named by its own suffix; a data URI by its type. */
+      offer = function (src) {
+        var kind = src.slice(5).split(";")[0].split(",")[0];
+        var end = /^data:/.test(src) ? ENDS[kind] : (/\.([a-z0-9]+)$/i.exec(src) || [])[1];
+        gets.forEach(function (one) {
+          one.setAttribute("href", addressOf(src));
+          one.setAttribute("download", (named || "dialogue") + "." + (end || "mp3"));
+        });
+      };
+      offer(speech.audio);
     }
 
     /* Put away, and stays away. A reader who has met the player once does not need to be
@@ -10931,6 +10954,72 @@ var targumReader = function () {
         remeasure();
       });
     }
+  }
+
+  /* Chanted or spoken (targum-internal#412). A portion's aliyah carries the chanting and
+     the plain reading of the book, each its own file with its own verse spans, and the
+     switch hands the one instrument the other file. Everything above reads `spans`,
+     `order` and `wordClocks` at call time, so swapping them is the whole of it. The
+     choice is the reader's and kept per browser, like the speed: which reading a person
+     wants to follow is a fact about them and not about the aliyah. */
+  var recordings = !videoEl && speech.voices && speech.voices.length > 1 ? speech.voices : null;
+  if (recordings) {
+    var RECORDING_STORE = "targum:recording";
+    var recordingKeys = Array.prototype.slice.call(document.querySelectorAll("[data-recording]"));
+    var useRecording = function (key, chosen) {
+      var found = null;
+      recordings.forEach(function (one) {
+        if (one.key === key) found = one;
+      });
+      if (!found) return;
+      var rate = nearestRate(audio.playbackRate);
+      // Written now: the pause `halt` causes is told after the source has changed, by
+      // which time the place it would keep is the new reading's nought.
+      keepHeard();
+      halt();
+      audio.src = addressOf(found.audio);
+      spans = found.spans || {};
+      wordClocks = found.words || {};
+      order = ordered(spans);
+      wordStarts = null;
+      labelSteps();
+      heardOf = found === recordings[0] ? spokenOf : spokenOf + "|" + found.key;
+      // A new source puts the element back to its default speed; the reader's is kept.
+      setRate(rate, false);
+      offer(found.audio);
+      if (fill) fill.style.inlineSize = "0%";
+      if (clock) clock.textContent = "";
+      if (player) player.classList.remove("placed");
+      whenKnown(function () {
+        resume();
+        paint();
+      });
+      var named = "";
+      recordingKeys.forEach(function (button) {
+        var on = button.getAttribute("data-recording") === found.key;
+        button.classList.toggle("on", on);
+        button.setAttribute("aria-pressed", on ? "true" : "false");
+        if (on) named = button.textContent;
+      });
+      if (chosen) {
+        try {
+          targumKeep(RECORDING_STORE, found.key);
+        } catch (e) {}
+        var reader = window.TargumReader;
+        if (reader && reader.say && named) reader.say(named);
+      }
+    };
+    recordingKeys.forEach(function (button) {
+      button.addEventListener("click", function () {
+        if (button.getAttribute("aria-pressed") === "true") return;
+        useRecording(button.getAttribute("data-recording"), true);
+      });
+    });
+    var keptRecording = "";
+    try {
+      keptRecording = localStorage.getItem(RECORDING_STORE) || "";
+    } catch (e) {}
+    if (keptRecording && keptRecording !== recordings[0].key) useRecording(keptRecording, false);
   }
 
   /* The picture, on when the text opens and put away by hand. A text that carries media
@@ -11349,7 +11438,7 @@ var targumReader = function () {
         if (group) group.hidden = true;
         else button.hidden = true;
       });
-      audio = new Audio(speech.audio);
+      audio = new Audio(addressOf(speech.audio));
       wire(audio);
       setRate(rate, false);
       // The place was restored onto the element that has just been thrown away. The

@@ -729,7 +729,11 @@ def daily_cycles() -> tuple[Any, ...]:
     return CYCLES
 
 
-PARASHA_READER = re.compile(r"^/parasha/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html)?$")
+#: One file of a built portion: a page, or one of its readings in `audio/` beside it
+#: (targum-internal#412).
+PARASHA_READER = re.compile(
+    r"^/parasha/read/([a-z0-9-]{1,64})/reader/([a-z0-9-]{0,40}\.html|audio/[a-z0-9-]{1,40}\.mp3)?$"
+)
 
 #: A learning cycle at its own address: `/mishna-yomi`, `/mishna-yomi/2026-09-01`, and
 #: one file of a built reader under `/mishna-yomi/read/<date>/reader/…`. The slugs are the
@@ -4922,7 +4926,14 @@ class Handler(BaseHTTPRequestHandler):
     # The sidecar video parts beside a reader. A closed table rather than `mimetypes`:
     # these are the only files a build writes that a page addresses by name, and a table
     # that cannot grow by accident is a door that cannot open by accident.
-    MEDIA_KINDS = {".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm"}
+    # A portion's readings joined them (targum-internal#412): an aliyah's chanting and
+    # its plain reading are files in `audio/` beside its page.
+    MEDIA_KINDS = {
+        ".mp4": "video/mp4",
+        ".m4v": "video/mp4",
+        ".webm": "video/webm",
+        ".mp3": "audio/mpeg",
+    }
 
     # How long a slow client may sit on one 64 KiB chunk before the thread is taken
     # back, and how long the whole response may run. A part is tens of megabytes and
@@ -5363,6 +5374,9 @@ class Handler(BaseHTTPRequestHandler):
         target = (base / (name or "index.html")).resolve()
         if not target.is_file() or base not in target.parents:
             return self._send(404, b"not found", "text/plain")
+        moving = self.MEDIA_KINDS.get(target.suffix.lower())
+        if moving:
+            return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
         return self._send(200, target.read_bytes(), kind, frames="out")
 

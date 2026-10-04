@@ -172,6 +172,42 @@ def cut(source: Path, into: Path, start: float, end: float) -> None:
         raise TargumError(UNREADABLE) from error
 
 
+def splice(pieces: list[tuple[Path, float, float]], into: Path) -> None:
+    """Several cuts, end to end, as one file: (source, start, end) each, in order.
+
+    One pass through the concat filter rather than cutting each and joining the files:
+    mp3 frames carry the encoder's padding at both ends of every file, and a join of
+    stream copies puts a few tens of milliseconds of it at every seam — and every span
+    after the seam that much late. Re-encoded, like `cut()`, for the same reason.
+    """
+    into.parent.mkdir(parents=True, exist_ok=True)
+    command = ["ffmpeg", "-nostdin", "-y"]
+    for source, start, end in pieces:
+        command += ["-ss", f"{max(0.0, start):.3f}", "-to", f"{end:.3f}", "-i", str(source)]
+    # Each piece brought to one rate and one channel first: the filter refuses inputs
+    # that differ, and two books read years apart need not have been encoded alike.
+    shaped = "".join(
+        f"[{n}:a]aformat=sample_rates=44100:channel_layouts=mono[a{n}];" for n in range(len(pieces))
+    )
+    joined = "".join(f"[a{n}]" for n in range(len(pieces)))
+    command += [
+        "-filter_complex",
+        f"{shaped}{joined}concat=n={len(pieces)}:v=0:a=1[out]",
+        "-map",
+        "[out]",
+        "-ac",
+        "1",
+        "-b:a",
+        BITRATE,
+        str(into),
+    ]
+    try:
+        subprocess.run(command, capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        into.unlink(missing_ok=True)
+        raise TargumError(UNREADABLE) from error
+
+
 def cut_video(source: Path, into: Path, start: float, end: float) -> None:
     """One part of a video, pictures kept, at the sidecar's modest size.
 

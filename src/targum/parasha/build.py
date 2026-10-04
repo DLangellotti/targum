@@ -289,6 +289,10 @@ def build(
         # per aliyah is one chanted file per page. Built whole, a portion would want all
         # seven files inlined into one document, which is twelve megabytes nobody asked
         # for before they have read a word.
+        #
+        # And each aliyah carries two readings now, the chanting and the plain reading
+        # of the book (targum-internal#412), as files in `reader/audio/` rather than
+        # inside the page, which was three megabytes an aliyah with one.
         render(
             portion.document,
             portion.segmented,
@@ -299,6 +303,7 @@ def build(
             vocalization=portion.vocalization,
             clean=True,
             folder=folder,
+            recordings_beside=True,
         )
         opening, opening_ref = portion.opening()
         usual = ordinary(occurrences[slug])
@@ -374,6 +379,7 @@ def build(
             vocalization=portion.vocalization,
             clean=True,
             folder=folder,
+            recordings_beside=True,
         )
         opening, opening_ref = portion.opening()
         record.opens = (
