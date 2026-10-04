@@ -110,11 +110,32 @@
     write(SEEN, kept);
   }
 
+  /* Which calendar this reader keeps: Israel's or the diaspora's, which part company
+     for a few weeks in some years (targum-internal#411). A fact about this browser, kept
+     the way the follows are; the diaspora's until they say, because that is what
+     `/parasha` opens on. The Library's Weekly portion shelf sets it, and the week's
+     portion on Learn and in the bell is asked for by it. */
+  var SCHEDULE = "targum:schedule";
+  function schedule() {
+    try {
+      return localStorage.getItem(SCHEDULE) === "israel" ? "israel" : "diaspora";
+    } catch (e) {
+      return "diaspora";
+    }
+  }
+  function setSchedule(which) {
+    try {
+      localStorage.setItem(SCHEDULE, which === "israel" ? "israel" : "diaspora");
+    } catch (e) {
+      /* nothing to keep it in; the page still answers for this visit */
+    }
+  }
+
   function list() {
     if (typeof fetch !== "function") return Promise.resolve([]);
     return sync()
       .then(function () {
-        return fetch(keyed("/series"), { headers: keyHeaders({}) });
+        return fetch(keyed("/series?schedule=" + schedule()), { headers: keyHeaders({}) });
       })
       .then(function (response) {
         return response.json();
@@ -268,6 +289,8 @@
     fresh: fresh,
     whenSaid: whenSaid,
     draw: draw,
+    schedule: schedule,
+    setSchedule: setSchedule,
   };
 
   // The profile carries the row; anywhere else this only answers questions. This

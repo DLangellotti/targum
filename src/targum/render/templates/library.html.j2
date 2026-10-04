@@ -35,6 +35,18 @@
       first thing that reader has to read, and thirteen chips they do not yet
       understand should not come before it. -#}
   <p class="note lead" id="picked-lead" hidden></p>
+  {#- The Weekly portion (targum-internal#411): this Shabbat's first, then the year onward
+      from it. Above the list, because "which portion is it this week" is asked every
+      week and the list cannot answer it. Every card opens the portion's reader, which is
+      built for everybody, so nothing here builds or spends (#410). Drawn by
+      `library.js` from `/portions`, and only on the Hebrew shelf. -#}
+  <section class="portions" id="portions" aria-labelledby="portions-head" hidden>
+    <div class="portions-top">
+      <h2 class="portions-head" id="portions-head">{{ t("library.page.weekly-portion", "Weekly portion") }} <bdi class="portions-hebrew" lang="he" dir="rtl">פרשת השבוע</bdi></h2>
+      <div class="segmented" id="portion-schedule" role="group" aria-label="{{ t("library.page.which-calendar", "Which calendar") }}" hidden></div>
+    </div>
+    <ol class="portion-cards" id="portion-cards"></ol>
+  </section>
   <div class="tabs" id="where" role="tablist" aria-label="{{ t("library.page.which-texts", "Which texts") }}"></div>
 
   <section class="panel" id="picked">

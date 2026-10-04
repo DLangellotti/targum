@@ -19,6 +19,8 @@ const assets = path.resolve(__dirname, "../../src/targum/render/assets");
 const stored = {};
 if (payload.follows) stored["targum:follows"] = JSON.stringify(payload.follows);
 if (payload.seen) stored["targum:series-seen"] = JSON.stringify(payload.seen);
+// The calendar this reader keeps, which the week's portion is asked for by (#411).
+if (payload.schedule) stored["targum:schedule"] = payload.schedule;
 install({ TARGUM_KEY: "k", stored });
 // The day the fixtures were written about, so "new for a week" is decided by them and
 // not by the day the suite happens to run.

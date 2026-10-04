@@ -396,13 +396,16 @@
     .catch(function () {});
 
   // A followed series' instalment that landed (2026-09-11): said here on every page,
-  // with a door to its page; Learn puts it in the sheet as well.
+  // with a door to its reader; Learn puts it in the sheet as well. The reader and not the
+  // series' public page, as Learn's own door does (David, 2026-09-11: "it should open the
+  // reader, not their marketing landing pages") — the week's portion included, which a
+  // signed-in reader opens in the Library's reader (targum-internal#410).
   if (window.TargumFollow) {
     window.TargumFollow.list().then(function (series) {
       window.TargumFollow.fresh(series).forEach(function (one) {
         var inst = one.instalment;
         note("series:" + one.id + ":" + inst.id, one.name + ": " + iso(inst.hebrew || inst.title), {
-          href: keyed(one.page || window.TargumFollow.readerOf(one)),
+          href: keyed(window.TargumFollow.readerOf(one) || one.page),
           label: t("building.open", "Open"),
         });
       });

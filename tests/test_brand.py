@@ -256,6 +256,8 @@ THUMBED = (
     ".ways-link",
     # And the door that makes a silent section's audio (2026-09-10, #246).
     ".voice-go",
+    # And the Weekly portion shelf's Diaspora / Israel switch (targum-internal#411).
+    "#portion-schedule .segment",
     # And the Add page's box (2026-09-13, targum-internal#249): Choose files, Ask
     # targum, Continue, the × on a file in the box, Change, the presses on a priced card,
     # and Choose file for a translation or a transcript.

@@ -318,6 +318,83 @@ def test_a_catalogue_id_naming_a_portion_nobody_built_is_not_redirected(serving:
     assert get(serving, "/library/parasha-no-such-portion")[0] == 404
 
 
+def _location(port: int, path: str) -> tuple[int, str | None]:
+    conn = HTTPConnection("127.0.0.1", port)
+    conn.request("GET", path)
+    answer = conn.getresponse()
+    answer.read()
+    conn.close()
+    return answer.status, answer.headers.get("Location")
+
+
+def test_a_signed_in_reader_opening_a_portions_id_goes_straight_into_its_reader(
+    serving: int,
+) -> None:
+    """targum-internal#410: the portion's reader is built once for the box, so a reader
+    who is signed in is sent to it — nothing to build, nothing to spend — and a stranger
+    still lands on the public page. A 302, because the answer depends on who asks and a
+    browser keeps a 301."""
+    status, where = _location(serving, "/library/parasha-nitzavim-vayeilech?k=test-key")
+    assert status == 302
+    assert where == "/parasha/read/nitzavim-vayeilech/reader/index.html?k=test-key"
+    assert _location(serving, "/library/parasha-nitzavim-vayeilech") == (
+        301,
+        "/parasha/nitzavim-vayeilech",
+    ), "signed out, the public page is still the answer"
+
+
+def test_the_door_onto_a_portion_is_its_reader(serving: int) -> None:
+    """`/open/<id>` is every link to a text, from Learn, the reader and the palette; a
+    portion's is its reader rather than the library's offer to build it."""
+    status, where = _location(serving, "/open/parasha-nitzavim-vayeilech?k=test-key")
+    assert status == 302
+    assert where == "/parasha/read/nitzavim-vayeilech/reader/index.html?k=test-key"
+
+
+def test_a_signed_in_reader_opens_a_portion_with_the_shelves_shut(
+    serving: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The portion is in the Library now, so its reader answers a reader who is signed in
+    whether or not the shelves are open to strangers — and still nobody else."""
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "")
+    reader = "/parasha/read/nitzavim-vayeilech/reader/index.html"
+    assert get(serving, reader + "?k=test-key")[0] == 200
+    assert get(serving, reader)[0] != 200
+    status, where = _location(serving, "/library/parasha-nitzavim-vayeilech?k=test-key")
+    assert (status, where) == (302, reader + "?k=test-key")
+
+
+def test_the_weekly_shelf_is_the_cycle_with_this_weeks_named(serving: int) -> None:
+    """targum-internal#411: `/portions` is what the Library's shelf draws — each built
+    portion with its reader, and which is read this Shabbat on each calendar this box
+    has built."""
+    status, body = get(serving, "/portions?k=test-key")
+    assert status == 200
+    answer = json.loads(body)
+    assert answer["week"] == {"diaspora": "nitzavim-vayeilech"}
+    assert answer["shabbat"] == "2026-09-05"
+    by_slug = {one["slug"]: one for one in answer["portions"]}
+    this_week = by_slug["nitzavim-vayeilech"]
+    assert this_week["href"] == "/parasha/read/nitzavim-vayeilech/reader/index.html"
+    assert this_week["id"] == "parasha-nitzavim-vayeilech"
+    assert get(serving, this_week["href"])[0] == 200, "every card opens something"
+    assert all(one["href"].startswith("/parasha/read/") for one in answer["portions"])
+
+
+def test_the_weekly_shelf_lists_only_what_is_built(built: Index, tmp_path: Path) -> None:
+    """A card with no reader behind it opens a 404; it is left off instead."""
+    shelf = corpus_build.shelf(built)
+    listed = [one["slug"] for one in shelf["portions"] if one["listed"]]
+    assert listed == [
+        one.slug for one in built.listed() if one.folder in corpus_build._built(built)
+    ]
+    portion = built.portions["nitzavim-vayeilech"]
+    shutil.rmtree(tmp_path / "parasha" / "read" / portion.folder)
+    gone = corpus_build.shelf(built)
+    assert "nitzavim-vayeilech" not in {one["slug"] for one in gone["portions"]}
+    assert gone["week"] == {} and gone["shabbat"] == ""
+
+
 def test_the_sitemap_names_the_portions_by_their_own_addresses(
     serving: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:

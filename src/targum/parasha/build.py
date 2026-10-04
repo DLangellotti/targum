@@ -573,6 +573,66 @@ def readable(index: Index | None = None) -> set[str]:
     return _built(index)
 
 
+def reader_href(portion: Portion, page: str = "index.html") -> str:
+    """Where a portion's reader is served: the one copy everybody opens.
+
+    A portion is built once, for the whole box, under the corpus root — never into a
+    reader's own shelf — so opening one builds nothing and spends nothing
+    (targum-internal#410). The Library's row, its Weekly portion shelf and Learn's door
+    all name it through here, so the three can never drift onto different addresses.
+    """
+    return f"/parasha/read/{portion.folder}/reader/{page}"
+
+
+def shelf(index: Index | None = None, moment: datetime | None = None) -> dict[str, object]:
+    """What the Library's Weekly portion shelf draws (targum-internal#411).
+
+    The cycle in the order of the year, as `Index.listed()` has it, each portion with its
+    reader's address; and which of them is read this Shabbat on each schedule. Which
+    schedule is the reader's is the page's to know — it is kept in their browser, as the
+    other things a page remembers are — so both are said and the page picks.
+
+    Only what is built: a portion with no reader behind it is a card that opens a 404.
+    This week's reading is said even where it is not on the cycle — a doubled week, a
+    festival — because it is still what is read, and the shelf puts it first.
+    """
+    from .calendar import pointing_at
+
+    index = index or load()
+    built = readable(index)
+
+    def card(portion: Portion, listed: bool) -> dict[str, object]:
+        return {
+            "slug": portion.slug,
+            # The catalogue's id, so the page can say the name in the reader's language
+            # the way the row does. A doubled week has none, and is named in English.
+            "id": f"parasha-{portion.slug}",
+            "name": portion.name,
+            "hebrew": portion.hebrew or portion.name,
+            "summary": portion.summary,
+            "numbers": list(portion.numbers),
+            "href": reader_href(portion),
+            "listed": listed,
+        }
+
+    cards = [card(one, True) for one in index.listed() if one.folder in built]
+    on_cycle = {str(one["slug"]) for one in cards}
+    week: dict[str, str] = {}
+    for schedule in Schedule:
+        portion = current(schedule, moment, index=index)
+        if portion is None or portion.folder not in built:
+            continue
+        week[schedule.value] = portion.slug
+        if portion.slug not in on_cycle:
+            cards.append(card(portion, False))
+            on_cycle.add(portion.slug)
+    return {
+        "shabbat": pointing_at(moment).isoformat() if week else "",
+        "week": week,
+        "portions": cards,
+    }
+
+
 def current(
     schedule: Schedule = Schedule.diaspora,
     moment: datetime | None = None,

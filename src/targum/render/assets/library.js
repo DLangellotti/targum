@@ -574,6 +574,9 @@
         // arrival began asking in subjects; nothing on this page read them until now.
         tags: entry.tags || [],
         built: built || null,
+        // Where it opens without being built: a portion's reader, which the box keeps
+        // for everybody (targum-internal#410). "" for every other text.
+        opens: portionsAt[entry.id] || "",
         drawn: !!(built && built.drawn),
         opened: built ? built.opened || 0 : 0,
       });
@@ -803,6 +806,16 @@
     return found ? { title: found[1], level: found[2] } : { title: text, level: "" };
   }
 
+  /* Where pressing a row goes, or "" where pressing it offers a build. A portion opens
+     its reader, which is built once for the box: nothing to build and nothing to spend
+     (targum-internal#410). A text the reader has, theirs or the shared shelf's, opens
+     that copy. */
+  function readerFor(row) {
+    if (row.opens) return row.opens;
+    if (row.built) return "/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html";
+    return "";
+  }
+
   /* One text as a card: the shape the page is browsed in (design.md §12, 2026-09-17).
    *
    * The same facts the row carries, laid out to be scanned rather than compared — the
@@ -820,9 +833,10 @@
     var item = el("li", "card-item");
     item.setAttribute("data-row", row.id);
 
-    var open = el(row.built ? "a" : "button", "card");
-    if (row.built) {
-      open.href = keyed("/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html");
+    var reading = readerFor(row);
+    var open = el(reading ? "a" : "button", "card");
+    if (reading) {
+      open.href = keyed(reading);
     } else {
       open.type = "button";
       open.setAttribute("data-build", row.id);
@@ -1009,9 +1023,10 @@
     var item = el("li", member ? "member" : null);
     item.setAttribute("data-row", row.id);
 
-    var open = el(row.built ? "a" : "button", "row-open");
-    if (row.built) {
-      open.href = keyed("/reader/" + encodeURIComponent(row.built.name) + "/reader/index.html");
+    var reading = readerFor(row);
+    var open = el(reading ? "a" : "button", "row-open");
+    if (reading) {
+      open.href = keyed(reading);
     } else {
       open.type = "button";
       open.setAttribute("data-build", row.id);
@@ -2194,14 +2209,194 @@
     return found;
   }
 
+  /* --- the Weekly portion shelf (targum-internal#411) ---------------------------------
+   *
+   * The fifty-four portions are catalogue rows, behind the Beit Midrash's door and in
+   * their collection, and that is where somebody looking for Vayera finds it. What that
+   * cannot answer is the question a reader of the portion asks every week: which one is
+   * it this Shabbat? So a shelf of its own, above the list: this week's first, then the
+   * year onward from it, round to where it began.
+   *
+   * Every card opens the portion's reader, which the box builds once for everybody: a
+   * card here never builds and never spends (#410). `/portions` says which is read this
+   * week on both calendars, and the reader's own — `TargumFollow.schedule()`, the
+   * diaspora's until they say — picks. The switch is drawn only in a week the two
+   * calendars read different portions, as `/parasha` draws it.
+   */
+
+  //: Each portion's reader by its catalogue id, filled from `/portions`.
+  var portionsAt = {};
+  //: What `/portions` said, kept so the shelf can be drawn again for the other calendar.
+  var portionShelf = null;
+
+  /* Kept by `follow.js`, which rides in the bar on every page, so Learn and the bell
+     ask for the week's portion by the same calendar. The fallback is the same key, for a
+     page that has the shelf without the bar. */
+  var SCHEDULE = "targum:schedule";
+  function scheduleKept() {
+    var follow = window.TargumFollow;
+    if (follow && follow.schedule) return follow.schedule();
+    try {
+      return localStorage.getItem(SCHEDULE) === "israel" ? "israel" : "diaspora";
+    } catch (e) {
+      return "diaspora";
+    }
+  }
+  function keepSchedule(which) {
+    var follow = window.TargumFollow;
+    if (follow && follow.setSchedule) return follow.setSchedule(which);
+    try {
+      localStorage.setItem(SCHEDULE, which);
+    } catch (e) {}
+  }
+
+  /* The cards in the order the shelf shows them: this week's reading, then the cycle
+     onward from it and round. A doubled week stands first as one card; its halves keep
+     their places at the end of the year, where they come round again. */
+  function portionOrder(answer, schedule) {
+    var all = (answer && answer.portions) || [];
+    var week = (answer && answer.week) || {};
+    var cycle = all.filter(function (one) {
+      return one.listed;
+    });
+    var slug = week[schedule] || week.diaspora || week.israel || "";
+    var first = null;
+    all.forEach(function (one) {
+      if (one.slug === slug) first = one;
+    });
+    if (!first) return cycle;
+    var last = first.numbers && first.numbers.length ? first.numbers[first.numbers.length - 1] : 0;
+    var start = 0;
+    for (var i = 0; i < cycle.length; i++) {
+      if (cycle[i].numbers && cycle[i].numbers[0] > last) {
+        start = i;
+        break;
+      }
+    }
+    var onward = last ? cycle.slice(start).concat(cycle.slice(0, start)) : cycle;
+    return [first].concat(
+      onward.filter(function (one) {
+        return one.slug !== first.slug;
+      })
+    );
+  }
+
+  function catalogued(id) {
+    for (var i = 0; i < catalogue.length; i++) if (catalogue[i].id === id) return catalogue[i];
+    return null;
+  }
+
+  // "10 Oct", in the page's language. Noon, so no timezone moves the Shabbat to Friday.
+  function shabbatSaid(iso) {
+    var at = new Date(iso + "T12:00:00");
+    if (isNaN(at.getTime())) return "";
+    try {
+      return at.toLocaleDateString(saidIn, { day: "numeric", month: "short" });
+    } catch (e) {
+      return iso;
+    }
+  }
+
+  function portionCard(one, thisWeek, shabbat) {
+    var item = el("li", "portion-item" + (thisWeek ? " this-week" : ""));
+    item.setAttribute("data-portion", one.slug);
+    var open = el("a", "portion-card");
+    open.href = keyed(one.href);
+    if (thisWeek) {
+      var when = el(
+        "span",
+        "portion-when",
+        shabbat
+          ? t("library.portions.this-shabbat-on", "This Shabbat · {date}", { date: shabbatSaid(shabbat) })
+          : t("library.portions.this-shabbat", "This Shabbat")
+      );
+      when.setAttribute("lang", saidIn);
+      open.appendChild(when);
+    }
+    var name = el("bdi", "portion-name", one.hebrew);
+    name.setAttribute("lang", "he");
+    name.setAttribute("dir", "rtl");
+    open.appendChild(name);
+    var entry = catalogued(one.id);
+    var english = el("span", "portion-english", titleIn(entry) || one.name);
+    english.setAttribute("lang", entry && namedIn(entry) ? uiLanguage : "en");
+    english.setAttribute("dir", "ltr");
+    open.appendChild(english);
+    // The verses: the whole of the blurb on this week's card, which has the room; the
+    // range alone on the rest.
+    var span = el("span", "portion-span", (thisWeek && blurbIn(entry)) || one.summary || "");
+    span.setAttribute("lang", thisWeek && entry && blurbIn(entry) ? uiLanguage : "en");
+    open.appendChild(span);
+    item.appendChild(open);
+    return item;
+  }
+
+  function drawPortions() {
+    var section = document.getElementById("portions");
+    var list = document.getElementById("portion-cards");
+    if (!section || !list) return;
+    var schedule = scheduleKept();
+    var ordered = portionOrder(portionShelf, schedule);
+    list.textContent = "";
+    if (!ordered.length) {
+      section.hidden = true;
+      return;
+    }
+    var week = (portionShelf && portionShelf.week) || {};
+    var current = week[schedule] || week.diaspora || week.israel || "";
+    ordered.forEach(function (one, place) {
+      list.appendChild(portionCard(one, place === 0 && one.slug === current, portionShelf.shabbat));
+    });
+    // Both calendars, only in a week they part company.
+    var pick = document.getElementById("portion-schedule");
+    if (pick) {
+      pick.textContent = "";
+      var apart = !!(week.diaspora && week.israel && week.diaspora !== week.israel);
+      pick.hidden = !apart;
+      if (apart) {
+        [
+          ["diaspora", t("library.portions.diaspora", "Diaspora")],
+          ["israel", t("library.portions.israel", "Israel")],
+        ].forEach(function (pair) {
+          var press = el("button", "segment", pair[1]);
+          press.type = "button";
+          press.setAttribute("aria-pressed", schedule === pair[0] ? "true" : "false");
+          press.addEventListener("click", function () {
+            keepSchedule(pair[0]);
+            drawPortions();
+          });
+          pick.appendChild(press);
+        });
+      }
+    }
+  }
+
+  /* The shelf is Hebrew's: under another language it is not this page's. */
+  function placePortions(code) {
+    var section = document.getElementById("portions");
+    if (!section) return;
+    var any = !!(portionShelf && portionShelf.portions && portionShelf.portions.length);
+    section.hidden = !any || code !== lang.HOME;
+  }
+
   /* The shelf and what is building, asked for together (design.md §12, 2026-09-17).
      `/jobs` is what the bell polls; the library reads the same answer, so the two can
      never disagree about what is happening. A build is no longer a row here (2026-09-25:
      it is on Your targums), but a catalogue text being built somewhere else still turns
      into a built row here when it finishes, which is what `follow()` watches for. */
-  Promise.all([ask("/readers"), ask("/jobs").catch(function () { return {}; })]).then(function (both) {
+  Promise.all([
+    ask("/readers"),
+    ask("/jobs").catch(function () { return {}; }),
+    ask("/portions").catch(function () { return {}; }),
+  ]).then(function (both) {
     var data = both[0] || {};
     buildingNow = (both[1] && both[1].jobs) || [];
+    portionShelf = both[2] && both[2].portions ? both[2] : null;
+    portionsAt = {};
+    ((portionShelf && portionShelf.portions) || []).forEach(function (one) {
+      if (one.id && one.href) portionsAt[one.id] = one.href;
+    });
+    drawPortions();
     var readers = data.readers || [];
     var shared = data.shared || [];
     catalogueKnown = data.catalogue || {};
@@ -2637,6 +2832,7 @@
     function show(code) {
       chosen = code;
       view = viewFor(code);
+      placePortions(code);
       find.value = view.find || "";
       inHebrew = code === lang.HOME;
       // An address into the tree opens the tree, where the shelf showing is Hebrew's.

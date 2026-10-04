@@ -6,6 +6,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- A Weekly portion shelf in the Library (targum-internal#411): this Shabbat's portion
+  first, in a wide card that says it is this Shabbat's and when, then the year onward
+  from it and round, each card opening the portion's reader. Above the list and on the
+  Hebrew shelf only. `GET /portions` (`parasha.build.shelf`) says the cycle and which
+  portion each calendar reads this week, and the page picks by the calendar the reader
+  keeps, `targum:schedule`, the diaspora's until they say, as `/parasha` defaults. A
+  Diaspora / Israel switch is drawn only in a week the two read different portions, and
+  a press is kept; Learn's `/series` and the bell now ask by the same calendar.
+- Portions open in the Library (targum-internal#410). A portion's row, among the cards
+  and in the table, is a link to its reader, which the box builds once for everybody, so
+  opening one builds nothing and spends nothing. A signed-in reader opening
+  `/library/parasha-<slug>` or `/open/parasha-<slug>` is sent to the same reader, with a
+  302 because the answer depends on who asks; a stranger still gets the 301 to
+  `/parasha/<slug>`, which stays the public page. The reader answers a signed-in reader
+  even where the shelves are shut to strangers. Learn's door names the reader through
+  the same helper (`parasha.build.reader_href`), and the bell opens a followed series'
+  reader rather than its public page, as Learn's door already did.
 - "Life in Israel", a subject of its own (targum-internal#393): `Tag.israel` and the
   arrival's `israel` door, said "Life in Israel: money, health, school, home" and in
   Russian, and a Library chip. One subject for the four olim ones of #386, by decision

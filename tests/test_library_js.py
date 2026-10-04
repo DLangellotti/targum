@@ -1495,3 +1495,221 @@ def test_stories_are_a_subject_by_their_kind(tmp_path: Path) -> None:
         for row in browse(tmp_path, catalogue=shelf, view={"subject": "stories"})["rows"]
     }
     assert titles == {"מעשה", "רומן", "מחזה"}, titles
+
+
+# -- the weekly portion (targum-internal#410, #411) --------------------------------------
+
+
+def _portions_catalogue() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Four portions in their ordered collection, and a text outside it: enough of a year
+    to see the shelf start in the middle and come round."""
+    names = [("bereshit", "בְּרֵאשִׁית", "Bereshit"), ("noach", "נֹחַ", "Noach")]
+    names += [("lech-lecha", "לֶךְ־לְךָ", "Lech-Lecha"), ("vayera", "וַיֵּרָא", "Vayera")]
+    catalogue = [
+        {
+            "id": f"parasha-{slug}",
+            "title": hebrew,
+            "english": english,
+            "author": "בראשית",
+            "language": "he",
+            "source": f"sefaria:{english}",
+            "blurb": f"{english} blurb.",
+            "blurbs": {"ru": f"{english} по-русски."},
+            "named": {"ru": f"{english}-ru"},
+            "words": 1000,
+            "minutes": 10,
+            "kind": "prose",
+            "register": "biblical",
+            "difficulty": 12,
+            "spoken": False,
+            "tags": ["tanakh"],
+            "translations": [],
+        }
+        for slug, hebrew, english in names
+    ]
+    catalogue.append({**catalogue[0], "id": "ruth", "title": "רות", "english": "Ruth"})
+    group = {
+        "id": "torah-portions",
+        "title": "פרשות השבוע",
+        "english": "The Torah, by portion",
+        "blurb": "",
+        "members": [f"parasha-{slug}" for slug, _, _ in names],
+        "ordered": True,
+        "door": "portions",
+    }
+    return catalogue, group
+
+
+def _shelf(week: dict[str, str], extra: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """What `/portions` answers, for the four above."""
+    cards = [
+        {
+            "slug": slug,
+            "id": f"parasha-{slug}",
+            "name": slug.title(),
+            "hebrew": slug,
+            "summary": f"Genesis {n}:1-{n}:9",
+            "numbers": [n],
+            "href": f"/parasha/read/{slug}/reader/index.html",
+            "listed": True,
+        }
+        for n, slug in enumerate(["bereshit", "noach", "lech-lecha", "vayera"], start=1)
+    ]
+    return {"shabbat": "2026-10-24", "week": week, "portions": cards + (extra or [])}
+
+
+def test_a_portion_opens_its_reader_and_never_offers_a_build(tmp_path: Path) -> None:
+    """#410: the portion's reader is built once for everybody, so the row is a link to it
+    — in the table and among the cards — and pressing it spends nothing."""
+    catalogue, group = _portions_catalogue()
+    shelf_answer = _shelf({"diaspora": "noach"})
+    for shape in ("list", "cards"):
+        drawn = draw(
+            tmp_path,
+            catalogue=catalogue,
+            collections=[group],
+            portions=shelf_answer,
+            view={"shape": shape},
+            opened={"torah-portions": True},
+        )
+        rows = {row["id"]: row for row in drawn["rows"]}
+        assert rows["parasha-noach"]["opens"] == "a", shape
+        assert rows["parasha-noach"]["href"] == "/parasha/read/noach/reader/index.html?k=k"
+        assert rows["ruth"]["opens"] == "button", "every other text is still built to be read"
+
+
+def test_a_portion_nobody_built_stays_what_it_was(tmp_path: Path) -> None:
+    """A row the box has no reader for is not turned into a link to a 404."""
+    catalogue, group = _portions_catalogue()
+    drawn = draw(
+        tmp_path,
+        catalogue=catalogue,
+        collections=[group],
+        portions={},
+        opened={"torah-portions": True},
+    )
+    rows = {row["id"]: row for row in drawn["rows"]}
+    assert rows["parasha-noach"]["opens"] == "button"
+    assert drawn["portions"]["hidden"], "no shelf without portions to put on it"
+
+
+def test_the_weekly_shelf_starts_this_shabbat_and_comes_round(tmp_path: Path) -> None:
+    """#411: this week's portion first, then the year onward from it, round to the
+    start. Each card opens the reader, and this week's says it is this week's."""
+    catalogue, group = _portions_catalogue()
+    drawn = draw(
+        tmp_path,
+        catalogue=catalogue,
+        collections=[group],
+        portions=_shelf({"diaspora": "lech-lecha"}),
+    )
+    shelf_drawn = drawn["portions"]
+    assert not shelf_drawn["hidden"]
+    assert [card["slug"] for card in shelf_drawn["cards"]] == [
+        "lech-lecha",
+        "vayera",
+        "bereshit",
+        "noach",
+    ]
+    first, second = shelf_drawn["cards"][:2]
+    assert first["thisWeek"] and not second["thisWeek"]
+    assert first["when"].startswith("This Shabbat · ")
+    assert first["name"] == "lech-lecha" and first["english"] == "Lech-Lecha"
+    assert first["span"] == "Lech-Lecha blurb.", "this week's card has room for the blurb"
+    assert second["span"] == "Genesis 4:1-4:9", "the rest carry the range"
+    assert all(card["tag"] == "a" for card in shelf_drawn["cards"])
+    assert first["href"] == "/parasha/read/lech-lecha/reader/index.html?k=k"
+    assert shelf_drawn["schedule"] == [], "one reading on both calendars is no choice"
+
+
+def test_the_shelf_follows_the_calendar_the_reader_keeps(tmp_path: Path) -> None:
+    """Where Israel and the diaspora read different portions the switch is drawn, the
+    diaspora's is the default as on `/parasha`, and a press is kept for next time."""
+    catalogue, group = _portions_catalogue()
+    apart = _shelf({"diaspora": "noach", "israel": "lech-lecha"})
+    drawn = draw(tmp_path, catalogue=catalogue, collections=[group], portions=apart)
+    assert drawn["portions"]["cards"][0]["slug"] == "noach"
+    assert drawn["portions"]["schedule"] == [
+        {"text": "Diaspora", "on": True},
+        {"text": "Israel", "on": False},
+    ]
+
+    pressed = draw(
+        tmp_path,
+        catalogue=catalogue,
+        collections=[group],
+        portions=apart,
+        do=[{"schedule": "Israel"}],
+    )
+    assert pressed["portions"]["cards"][0]["slug"] == "lech-lecha"
+    assert pressed["portions"]["kept"] == "israel"
+
+    kept = draw(
+        tmp_path,
+        catalogue=catalogue,
+        collections=[group],
+        portions=apart,
+        stored={"targum:schedule": "israel"},
+    )
+    assert kept["portions"]["cards"][0]["slug"] == "lech-lecha", "a kept calendar is used"
+    assert [one["on"] for one in kept["portions"]["schedule"]] == [False, True]
+
+
+def test_a_doubled_week_stands_first_and_its_halves_come_round_last(tmp_path: Path) -> None:
+    """A doubled week is not on the cycle — its halves are — but it is what is read, so it
+    leads; the halves wait at the end of the year, where they come round again."""
+    catalogue, group = _portions_catalogue()
+    doubled = {
+        "slug": "noach-lech-lecha",
+        "id": "parasha-noach-lech-lecha",
+        "name": "Noach-Lech-Lecha",
+        "hebrew": "נח-לך לך",
+        "summary": "Genesis 2:1-3:9",
+        "numbers": [2, 3],
+        "href": "/parasha/read/noach-lech-lecha/reader/index.html",
+        "listed": False,
+    }
+    drawn = draw(
+        tmp_path,
+        catalogue=catalogue,
+        collections=[group],
+        portions=_shelf({"diaspora": "noach-lech-lecha"}, [doubled]),
+    )
+    cards = drawn["portions"]["cards"]
+    assert [card["slug"] for card in cards] == [
+        "noach-lech-lecha",
+        "vayera",
+        "bereshit",
+        "noach",
+        "lech-lecha",
+    ]
+    assert cards[0]["english"] == "Noach-Lech-Lecha", "no catalogue row: its own name"
+
+
+def test_the_weekly_shelf_is_hebrews_and_speaks_the_readers_language(tmp_path: Path) -> None:
+    """Under another language the shelf is not this page's; in Russian a card carries the
+    catalogue's Russian name, as the row does."""
+    catalogue, group = _portions_catalogue()
+    russian = {**catalogue[-1], "id": "voina", "language": "ru", "title": "Война"}
+    elsewhere = draw(
+        tmp_path,
+        catalogue=[*catalogue, russian],
+        collections=[group],
+        portions=_shelf({"diaspora": "noach"}),
+        readers=[shelf("voina", "voina-ru", language="ru")],
+        language="ru",
+    )
+    assert elsewhere["portions"]["hidden"]
+
+    from targum.render.builder import script_strings
+
+    said = draw(
+        tmp_path,
+        catalogue=catalogue,
+        collections=[group],
+        portions=_shelf({"diaspora": "noach"}),
+        strings=script_strings("ru", "library."),
+    )
+    first = said["portions"]["cards"][0]
+    assert first["english"] == "Noach-ru"
+    assert first["when"].startswith("В эту субботу")

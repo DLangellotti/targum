@@ -535,10 +535,14 @@ def test_a_row_says_what_the_text_is() -> None:
 
 def test_the_library_has_one_heading() -> None:
     """ "Picked for you" was a panel title on a page that also held the reader's shelf
-    and their trash. With nothing else on the page it only repeated the h1."""
+    and their trash. With nothing else on the page it only repeated the h1.
+
+    The one h2 is the Weekly portion shelf's (targum-internal#411): a shelf of its own
+    above the list, which says something the h1 does not."""
     library = PAGES["library"]
     assert "Picked for you" not in library
-    assert len(re.findall(r"<h2\b", library)) == 0
+    assert re.findall(r"<h2\b[^>]*\bid=\"([^\"]+)\"", library) == ["portions-head"]
+    assert len(re.findall(r"<h2\b", library)) == 1
 
 
 # -- the header every page wears --------------------------------------------------
