@@ -325,6 +325,10 @@ a.bar-brand:hover { color: var(--accent); }
 
 .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .group { display: flex; gap: 0.25rem; align-items: center; }
+/* A group a script shows only where it applies — Add to playlist, Download PDF — is
+   written `hidden`, and the rule above would draw it anyway: on every page those three
+   pressed out the bar until it wrapped, and the text started a line lower. */
+.group[hidden] { display: none; }
 
 /* Three reading modes in the width two words used to take. The state is carried by a
    single pill that slides between them rather than by three buttons lighting up, so
