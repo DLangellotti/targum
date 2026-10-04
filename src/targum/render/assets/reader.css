@@ -288,9 +288,15 @@ a.bar-brand:hover { color: var(--accent); }
 @media (min-width: 60.01rem) and (max-width: 75rem) {
   .bar-english,
   .bar-title .known { display: none; }
-  /* "No recording" beside a button that says "Hear this section" is said twice, and
-     the voice's row was what wrapped the bar again (2026-09-27). The cost stays: it is
-     what the press is agreed to. */
+}
+/* "No recording" beside a button that says "Hear this section" is said twice, and the
+   voice's row was what wrapped the bar again (2026-09-27). Put away between 60 and 75rem
+   at first; it is said twice at every width the bar is one row, and at 1280px it was
+   the word that wrapped the bar once Add to playlist stopped being drawn where it was
+   hidden — which had been wrapping it already (targum-internal#415). The cost stays: it
+   is what the press is agreed to. Under 60rem the row is in the ⋯ menu, where the label
+   names it. */
+@media (min-width: 60.01rem) {
   .bar-more .voice-offer .label { display: none; }
 }
 
