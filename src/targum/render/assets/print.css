@@ -269,9 +269,17 @@ body {
    never rests on colour alone — and known words are left as they are. A meaning stands
    just over its word, small, in the chrome face and muted ink, the first time the word
    comes in an aliyah; a rare word on a sheet nobody signed in for has its meaning and
-   no light. The word and its meaning are one box whose baseline is the word's, so the
-   line still reads as a line; the lines are set a little further apart to hold it. */
-.glossed .src[lang] { line-height: 2.7; }
+   no light.
+
+   The word and its meaning are one box whose baseline is the word's, as wide as the
+   wider of the two, so a meaning longer than its word moves the next word along rather
+   than printing over the next meaning (they collided at Genesis 1:2, "a vacuity" over
+   "chaos", while a meaning could hang past its word). And every line of the text is
+   set at one height that already holds a meaning above it, glossed or not, so the
+   column keeps one rhythm: a line was taller wherever it carried one. The height is the
+   reading line plus a meaning's line, and the box inside is set close so it never
+   reaches past it. Without meanings the page keeps the reader's leading. */
+.glossed .src[lang] { line-height: 2.8; }
 .lit { border-radius: 4px; border-block-end: 1px solid var(--leaf-line); }
 .lit.s1 { background: var(--leaf-1); }
 .lit.s2 { background: var(--leaf-2); }
@@ -289,12 +297,10 @@ body {
   letter-spacing: 0.01em;
   color: var(--ink-soft);
   white-space: nowrap;
-  /* A meaning may stand out past its word by a little on each side, as an interlinear
-     edition's does, so a word is not pushed from its neighbours by every gloss longer
-     than it; only one wider than that by more than the overhang spaces the line. */
-  margin-inline: -1.1em;
+  /* A hair of room on each side, so two meanings side by side never touch. */
+  padding-inline: 0.2em;
 }
 .g .gw {
   display: block;
-  line-height: 1.6;
+  line-height: 1.3;
 }

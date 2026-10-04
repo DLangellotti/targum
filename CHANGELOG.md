@@ -627,6 +627,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2026-09-28).
 
 ### Fixed
+- The week's sheet's meanings above words no longer print over each other, and every
+  line of the text is one height while meanings are on (targum-internal#415). A meaning
+  could hang past its word, so two short words side by side, as at Genesis 1:2, printed
+  "a vacuity" over "chaos"; the word's box is now as wide as its meaning. And a line
+  carrying a meaning stood taller than its neighbours, so the Hebrew column ran
+  unevenly; every line now keeps the room for one.
 - The Hebrew stress gold read an accent written before a holam male — the codex puts
   גָּדוֹל's on the dalet — as stressing the vowel before it, and filed 296 of its 3,000
   words as mil'el that are milra (targum-internal#325). Read now as the holam's, under a

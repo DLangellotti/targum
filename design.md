@@ -974,6 +974,10 @@ on the box when pressed. Everything under "The week's sheet is the edition, twic
   and nothing is set above it — paper never buys a meaning. Above the word rather than
   in ruby: the typesetter does not lay ruby out, so the word and its meaning are one box
   whose baseline is the word's, and the lines are set a little further apart to hold it.
+  The box is as wide as the wider of the two, so a long meaning moves the next word
+  along rather than printing over the next meaning; and with meanings on, every line of
+  the text is one height that already holds one, so the column keeps one rhythm whether
+  a line carries a meaning or not (2026-10-05). Without them, the reader's leading.
 
 ### A text can be printed, and the page is the reader's — 2026-09-27
 
