@@ -5554,6 +5554,15 @@ def test_rashi_in_hebrew_is_kept_for_a_reader_who_reads_english_or_russian(
     ]
 
 
+def test_beside_a_switch_of_translations_the_toggle_says_translation(tmp_path: Path) -> None:
+    """With English and Russian on the switch, the companions' own toggle for the column
+    is "Translation": the switch says which, and two buttons reading "English" say
+    nothing (targum-internal#414)."""
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    toggles = _companions(_genesis(tmp_path, [_english(), russian, _onkelos()]))
+    assert re.search(r'data-companion="translation"[^>]*>Translation</button>', toggles)
+
+
 def test_rashi_in_hebrew_ships_his_words_with_the_pages_meanings(tmp_path: Path) -> None:
     """Rashi's words were read at build time (DICTA) and kept beside the rendering; the
     page ships them as a table filed with its own Hebrew, its meanings looked up in the

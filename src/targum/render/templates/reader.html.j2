@@ -204,8 +204,11 @@
         every text, so Rashi opened in Genesis is open in Exodus. -#}
     {% if beside_verse %}
     <div class="group renderings companions" id="companions" role="group" aria-label="{{ t("reader.page.beside-the-verse", "Beside the verse") }}" data-what="Beside the verse">
+      {#- Named for its language where it is the only one; beside a switch of several it
+          is "Translation", because the switch above says which, and two buttons both
+          reading "English" say nothing. -#}
       {%- set main = (mains|selectattr("id", "equalto", drawn_id)|first) or (mains|first) %}
-      <button type="button" class="rendering companion on" data-companion="translation" data-on="1" aria-pressed="true" title="{{ main.name if main else '' }}">{{ main.label if main else t("reader.page.translation", "Translation") }}</button>
+      <button type="button" class="rendering companion on" data-companion="translation" data-on="1" aria-pressed="true" title="{{ main.name if main else '' }}">{{ main.label if main and mains|length == 1 else t("reader.page.translation", "Translation") }}</button>
       {%- for t in beside_verse %}
       <button type="button" class="rendering companion{% if t.on %} on{% endif %}" data-companion="{{ t.companion }}" data-translation-id="{{ t.id }}" data-on="{{ 1 if t.on else 0 }}" aria-pressed="{{ 'true' if t.on else 'false' }}" title="{{ t.name }}">{{ t.label }}</button>
       {%- endfor %}
