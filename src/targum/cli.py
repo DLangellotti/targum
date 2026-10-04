@@ -4582,13 +4582,20 @@ def parasha_leyning(
     again: Annotated[
         bool, typer.Option("--again", help="Re-align portions that already have audio.")
     ] = False,
+    torah: Annotated[
+        bool, typer.Option("--torah/--no-torah", help="Attach the portions' aliyot.")
+    ] = True,
+    haftarot: Annotated[
+        bool, typer.Option("--haftarot/--no-haftarot", help="Attach the portions' haftarot.")
+    ] = True,
 ) -> None:
-    """Give the portions their chanted reading, from PocketTorah.
+    """Give the portions, and their haftarot, their chanted reading, from PocketTorah.
 
     CC BY-SA 3.0, Avery-Binder trope, already one file per aliyah — which is one file per
-    section of a built portion, so nothing is cut. The slow part is the forced alignment
-    that puts each verse at its own second of the recording: about a minute an aliyah, so
-    the whole Torah is a few hours. It is cached and resumable, and `--only` does one.
+    section of a built portion, so nothing is cut — and one per haftarah. The slow part
+    is the forced alignment that puts each verse at its own second of the recording:
+    about a minute an aliyah, so the whole Torah is a few hours. It is cached and
+    resumable, and `--only` does one portion and its haftarah.
 
     Run `targum parasha build` afterwards, or before: a reader picks the recording up at
     render time, so the portions have to be rebuilt once their audio is attached.
@@ -4606,19 +4613,25 @@ def parasha_leyning(
             "Run `targum parasha build` first.",
         )
     have = leyning_module.listing()
-    # The same set the corpus was built from, asked for the same way rather than by a
-    # second copy of the loop. Nothing is fetched: a corpus that is not on disk is a
-    # corpus this command has nothing to attach audio to.
+    # The same readings the corpus was built from: every one in its nineteen-year span,
+    # not only the next two years'. The narrow window left out every portion that is
+    # always doubled in it — Matot, Masei, Nitzavim, Vayeilech in 2026-27 — and those
+    # are on the shelf, because the shelf is built from the wide one (targum-internal#413).
+    # Nothing is fetched: a corpus that is not on disk is a corpus this command has
+    # nothing to attach audio to.
     this = date.today().year
-    readings = corpus.distinct(
-        range(this, this + corpus.YEARS_AHEAD),
-        (calendar_module.Schedule.diaspora, calendar_module.Schedule.israel),
-        allow_fetch=False,
-    )
+    schedules = (calendar_module.Schedule.diaspora, calendar_module.Schedule.israel)
+    readings: dict[str, calendar_module.Reading] = {}
+    references: dict[str, calendar_module.Haftarah] = {}
+    for one in corpus.walk(range(this, this + corpus.CORPUS_YEARS), schedules, allow_fetch=False):
+        if one.slug in index.portions:
+            readings.setdefault(one.slug, one)
+        if one.haftarah is not None:
+            references.setdefault(one.haftarah.key, one.haftarah)
 
     wanted = [only] if only else sorted(readings)
     done = silent = 0
-    for name in wanted:
+    for name in wanted if torah else []:
         found = readings.get(name)
         if found is None:
             console.print(f"[yellow]{name} is not a reading this corpus knows.[/yellow]")
@@ -4639,9 +4652,40 @@ def parasha_leyning(
             reading, portion, notify=lambda line: console.print(f"[dim]{line}[/dim]")
         )
         done += 1
+
+    # The haftarot. PocketTorah files one beside each portion read on its own, and the
+    # corpus keys a haftarah by what it is, so a portion's file is offered to the
+    # haftarah the corpus says that portion ordinarily has. A doubled week's haftarah is
+    # one of its halves', and so is reached through that half. `attach_haftarah` checks
+    # the file really reads that text before keeping it.
+    given = refused = 0
+    sung = leyning_module.haftarah_listing() if haftarot else {}
+    for name in wanted if haftarot else []:
+        found = readings.get(name)
+        record = index.portions.get(name)
+        if found is None or record is None or found.doubled or not record.haftarah:
+            continue
+        file = sung.get(leyning_module.pocket_name(found.name))
+        held = index.haftarot.get(record.haftarah)
+        reference = references.get(record.haftarah)
+        if file is None or held is None or not held.folder or reference is None:
+            continue
+        text = cut_module.cut_haftarah(reference, cut_module.books_for(reference, library))
+        if not again and leyning_module.attached(text.document.source):
+            continue
+        made = leyning_module.attach_haftarah(
+            found.name, text, file, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+        )
+        if made is None:
+            refused += 1
+        else:
+            given += 1
+
     console.print(
         f"[green]{done} portions given their reading[/green]; "
-        f"{silent} have none (doubled weeks and festivals). "
+        f"{silent} have none (festivals). "
+        f"[green]{given} haftarot given theirs[/green]; "
+        f"{refused} whose file did not read the corpus's haftarah. "
         "Run `targum parasha build` to put it in the readers."
     )
 

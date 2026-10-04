@@ -65,6 +65,19 @@ TIMEOUT = 120.0
 #: (`3megillot`, `AchreiMot`, `V'Zot`), and a separator never gets in.
 _PART = re.compile(r"^(?P<stem>[A-Za-z0-9'’!._ -]+)-(?P<number>\d+)\.mp3$")
 
+#: A portion's haftarah, which the collection files beside its aliyot as `Noach-H.mp3`.
+#: The same narrow stem, for the same reason.
+_HAFTARAH = re.compile(r"^(?P<stem>[A-Za-z0-9'’!._ -]+)-H\.mp3$")
+
+#: The two names that do not meet even closed up. Hebcal transliterates the ת of
+#: Va'etchanan as "tch" and PocketTorah as "th"; V'Zot HaBerachah is "VezotHaberakhah"
+#: there. Keyed by Hebcal's flattened name, valued by PocketTorah's. Without these the
+#: two portions were silent with all fourteen files on the disk (targum-internal#413).
+_SPELLED = {
+    "vaetchanan": "vaethanan",
+    "vzothaberachah": "vezothaberakhah",
+}
+
 
 def _flat(name: str) -> str:
     """A name with everything but its letters and digits taken out.
@@ -74,6 +87,13 @@ def _flat(name: str) -> str:
     go through this and meet in the middle.
     """
     return "".join(c for c in name.lower() if c.isalnum())
+
+
+def pocket_name(name: str) -> str:
+    """A reading's name as the collection's stems are keyed: flattened, then respelled
+    where the two sides transliterate differently."""
+    flat = _flat(name)
+    return _SPELLED.get(flat, flat)
 
 
 def stems(files: Iterable[str]) -> dict[str, dict[int, str]]:
@@ -87,15 +107,35 @@ def stems(files: Iterable[str]) -> dict[str, dict[int, str]]:
     return out
 
 
+def haftarah_files(files: Iterable[str]) -> dict[str, str]:
+    """The collection's haftarot, one per portion, keyed by the portion's flattened name."""
+    out: dict[str, str] = {}
+    for name in files:
+        found = _HAFTARAH.match(name)
+        if found:
+            out[_flat(found["stem"])] = name
+    return out
+
+
 def listing() -> dict[str, dict[int, str]]:
     """What the collection holds, asked once and cached with everything else."""
+    return stems(names())
+
+
+def haftarah_listing() -> dict[str, str]:
+    """The collection's haftarah files, from the same cached listing."""
+    return haftarah_files(names())
+
+
+def names() -> list[str]:
+    """Every file name in the collection, asked once and cached."""
     import httpx
 
     cache = Cache()
     key = cache.key("pockettorah", collection=COLLECTION)
     stored = cache.get("pockettorah", key)
     if isinstance(stored, list):
-        return stems(str(one) for one in stored)
+        return [str(one) for one in stored]
     try:
         with httpx.Client(timeout=TIMEOUT, follow_redirects=True) as client:
             answer = client.get(METADATA)
@@ -106,9 +146,9 @@ def listing() -> dict[str, dict[int, str]]:
             "The recordings could not be listed.",
             f"{METADATA} said: {bad}",
         ) from bad
-    names = [str(one.get("name", "")) for one in payload.get("files", [])]
-    cache.put("pockettorah", key, names)
-    return stems(names)
+    listed = [str(one.get("name", "")) for one in payload.get("files", [])]
+    cache.put("pockettorah", key, listed)
+    return listed
 
 
 def files_for(reading: Reading, have: dict[str, dict[int, str]] | None = None) -> dict[int, str]:
@@ -122,7 +162,7 @@ def files_for(reading: Reading, have: dict[str, dict[int, str]] | None = None) -
     if reading.doubled or not reading.numbers:
         return {}
     have = listing() if have is None else have
-    found = have.get(_flat(reading.name), {})
+    found = have.get(pocket_name(reading.name), {})
     if len(found) < len(reading.aliyot):
         return {}
     return {
@@ -152,7 +192,7 @@ def halves_of(reading: Reading, have: dict[str, dict[int, str]] | None = None) -
     have = listing() if have is None else have
     out: list[str] = []
     for half in reading.name.split("-"):
-        found = have.get(_flat(half), {})
+        found = have.get(pocket_name(half), {})
         if not found:
             return []
         numbers = sorted(found)
@@ -173,7 +213,7 @@ def fetch(name: str, into: Path) -> Path:
 
     into.mkdir(parents=True, exist_ok=True)
     target = (into / name).resolve()
-    if target.parent != into.resolve() or not _PART.match(name):
+    if target.parent != into.resolve() or not (_PART.match(name) or _HAFTARAH.match(name)):
         raise TargumError(
             f"{name!r} is not a name this collection can have.",
             "A file name that leaves its own directory is refused, not fetched.",
@@ -211,7 +251,10 @@ def _verses(portion: Portion, number: int, reading: Reading) -> list[tuple[str, 
 
 
 def clocks_for(
-    audio: Path, verses: list[tuple[str, str]], notify: Callable[[str], None]
+    audio: Path,
+    verses: list[tuple[str, str]],
+    notify: Callable[[str], None],
+    scores: list[float] | None = None,
 ) -> dict[str, list[list[float]]]:
     """Each verse's words as [start, end] inside this file, from a forced alignment.
 
@@ -219,6 +262,10 @@ def clocks_for(
     and a model trained on speech has never seen one. The vowels stay, because they are
     what the letters are said as. The words are the ones `spoken_words` counts, so row n
     of a verse is the verse's nth word to the build that reads it back.
+
+    `scores`, where given, is filled with the aligner's own score for each word, which
+    is how a caller that is not sure the text and the recording are the same reading
+    asks how well they matched.
     """
     aligner = CtcAligner()
     usable, hint = aligner.available()
@@ -255,6 +302,8 @@ def clocks_for(
             )
         cache.put("pockettorah-align", key, [list(row) for row in timed])
 
+    if scores is not None:
+        scores.extend(float(score) for _, _, score in timed)
     clocks: dict[str, list[list[float]]] = {}
     for ref, (start, end, _score) in zip(owners, timed, strict=True):
         clocks.setdefault(ref, []).append([round(float(start), 3), round(float(end), 3)])
@@ -456,6 +505,72 @@ def attach(
     return recording
 
 
+def attach_haftarah(
+    name: str,
+    portion: Portion,
+    file: str,
+    *,
+    downloads: Path | None = None,
+    notify: Callable[[str], None] = print,
+) -> Recording | None:
+    """Give a haftarah its chanted reading: one file, one section, one part.
+
+    The file is the one PocketTorah filed beside a portion (`Noach-H.mp3`), and which
+    haftarah that is was PocketTorah's choice, not the calendar's: a portion whose
+    custom varies — Ashkenazi or Sephardi, or the haftarah a neighbouring portion lends
+    it — may hold a different reading from the one this corpus shows. So the match is
+    measured rather than assumed. The whole text is aligned against the file and kept
+    only where the aligner's mean score clears `MATCH_FLOOR`, the line it already uses
+    to say a part does not follow its recording; below it the haftarah stays silent and
+    nothing is left in the shelf, because a folder with no manifest stops `ship-audio`.
+    """
+    from statistics import mean
+
+    from ..audio.align import MATCH_FLOOR
+
+    keep = downloads or downloads_root()
+    verses = [
+        (segment.ref, segment.text)
+        for segment in portion.segmented.segments
+        if segment.kind is BlockKind.verse and segment.ref
+    ]
+    if not verses:
+        return None
+    source_file = fetch(file, keep)
+    scores: list[float] = []
+    clocks = clocks_for(source_file, verses, notify, scores)
+    score = mean(scores) if scores else MATCH_FLOOR - 1
+    if not clocks or score < MATCH_FLOOR:
+        notify(f"  {name}: {file} does not read this haftarah (score {score:.2f})")
+        return None
+
+    into = recording_index.folder(portion.document.source)
+    into.mkdir(parents=True, exist_ok=True)
+    audio_name = "haftarah.mp3"
+    target = into / audio_name
+    if not target.is_file() or target.stat().st_size != source_file.stat().st_size:
+        target.write_bytes(source_file.read_bytes())
+    recording = Recording(
+        source=portion.document.source,
+        credit=CREDIT,
+        licence=LICENCE,
+        licence_url=LICENCE_URL,
+        parts=[
+            Part(
+                ref=f"{name} haftarah",
+                audio=audio_name,
+                spans=verse_spans(clocks),
+                clocks=clocks,
+            )
+        ],
+    )
+    (into / recording_index.MANIFEST).write_text(
+        recording.model_dump_json(indent=2) + "\n", encoding="utf-8"
+    )
+    notify(f"  {name}: haftarah attached, {len(clocks)} verses (score {score:.2f})")
+    return recording
+
+
 def attached(source: str) -> bool:
     """Whether a portion already has its reading, so a rerun can skip it."""
     return (recording_index.folder(source) / recording_index.MANIFEST).is_file()
@@ -466,8 +581,12 @@ __all__ = [
     "LICENCE",
     "LICENCE_URL",
     "attach",
+    "attach_haftarah",
     "attached",
     "clocks_for",
     "files_for",
+    "haftarah_files",
+    "haftarah_listing",
     "listing",
+    "pocket_name",
 ]

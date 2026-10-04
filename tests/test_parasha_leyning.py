@@ -231,3 +231,73 @@ def test_the_aligner_s_words_are_kept_rather_than_collapsed(tmp_path, monkeypatc
 
     again = leyning.clocks_for(audio, verses, lambda _: None)
     assert again == clocks and len(heard) == 1, "the second attach reads the cache"
+
+
+def test_the_names_that_do_not_meet_closed_up_are_respelled() -> None:
+    """targum-internal#413. Hebcal's "Va'etchanan" and "V'Zot HaBerachah" are
+    "Vaethanan" and "VezotHaberakhah" in the collection; flattening alone left both
+    portions silent with their files on the disk."""
+    grouped = leyning.stems(
+        [f"Vaethanan-{n}.mp3" for n in range(1, 8)]
+        + [f"VezotHaberakhah-{n}.mp3" for n in range(1, 8)]
+    )
+    made = cal.always()[0]
+    assert made.name == "V'Zot HaBerachah"
+    assert leyning.files_for(made, grouped)[1] == "VezotHaberakhah-1.mp3"
+    assert leyning.pocket_name("Va'etchanan") == "vaethanan"
+    assert leyning.pocket_name("Noach") == "noach"
+
+
+def test_a_haftarah_file_is_found_and_is_not_an_aliyah() -> None:
+    files = ["Noach-1.mp3", "Noach-H.mp3", "Lech-Lecha-H.mp3", "haftarah-3.mp3", "cover.jpg"]
+    assert leyning.haftarah_files(files) == {
+        "noach": "Noach-H.mp3",
+        "lechlecha": "Lech-Lecha-H.mp3",
+    }
+    assert "H" not in str(leyning.stems(files)), "the haftarah is not an eighth aliyah"
+
+
+def test_a_haftarah_file_that_reads_something_else_is_refused(tmp_path, monkeypatch) -> None:
+    """PocketTorah's choice of haftarah is not always the corpus's, so the match is
+    measured: an alignment scoring below the floor leaves nothing on the shelf, not even
+    an empty folder, which `ship-audio` would refuse the whole shelf over."""
+    from types import SimpleNamespace
+
+    from targum.models import BlockKind
+
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    score = {"value": -9.0}
+
+    class Aligner:
+        def available(self) -> tuple[bool, str]:
+            return True, "fake"
+
+        def align(self, audio: Path, words: list[str], language: str) -> list[tuple]:
+            return [(n * 1.0, n + 0.8, score["value"]) for n in range(len(words))]
+
+    monkeypatch.setattr(leyning, "CtcAligner", Aligner)
+    keep = tmp_path / "downloads"
+    keep.mkdir()
+    (keep / "Noach-H.mp3").write_bytes(b"ID3not-really-audio")
+    verse = SimpleNamespace(kind=BlockKind.verse, ref="Isaiah 54:1", text="רָנִּי עֲקָרָה לֹא יָלָדָה")
+    portion = SimpleNamespace(
+        segmented=SimpleNamespace(segments=[verse]),
+        document=SimpleNamespace(source="sefaria:Isaiah 54:1-55:5"),
+    )
+
+    refused = leyning.attach_haftarah(
+        "Noach", portion, "Noach-H.mp3", downloads=keep, notify=lambda _: None
+    )
+    assert refused is None
+    assert not (tmp_path / "recordings").exists() or not any((tmp_path / "recordings").iterdir())
+
+    score["value"] = -1.0
+    (keep / "Noach-H.mp3").write_bytes(b"ID3not-really-audio, again")
+    made = leyning.attach_haftarah(
+        "Noach", portion, "Noach-H.mp3", downloads=keep, notify=lambda _: None
+    )
+    assert made is not None and len(made.parts) == 1
+    assert made.parts[0].audio == "haftarah.mp3"
+    assert made.parts[0].spans == {"Isaiah 54:1": [0.0, 3.8]}
+    assert leyning.attached("sefaria:Isaiah 54:1-55:5")
