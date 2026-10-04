@@ -94,7 +94,7 @@ extra installs, through Pango, which it does not. `provision.sh` installs Pango 
 box; on the live one it is this, once, before the deploy that carries the extra:
 
 ```sh
-ssh root@targum.page 'apt-get update -qq && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core'
+ssh root@targum.page 'apt-get update -qq && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35'
 ```
 
 Without it the service still starts, and Download PDF answers "The PDF can't be made right

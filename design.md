@@ -953,6 +953,27 @@ on the box when pressed. Everything under "The week's sheet is the edition, twic
 - **A sheet that cannot be set is one sentence**, "The PDF can't be made right now. Try
   again in a minute.", whatever the reason — no Pango, a corpus built before the sheet, a
   press that ran past its time. The reason is in the log.
+- **The paper is the page the reader was on** (David, 2026-10-04). The link carries the
+  view: the companions on and in their order (a translation by its language, Onkelos as
+  `targum`, Rashi as `rashi` once the shelf carries him), the vowels and the te'amim, beside
+  or under, the marks on or off, and this aliyah or the whole portion with its haftarah.
+  Each default is the reader's. `/parasha` has no reader behind it, so it asks the few
+  choices that change the paper in a row of boxes beside its button, ticked as the reader
+  opens.
+- **It is ours, quietly.** The lockup once, small and centred over the first title with a
+  hairline under it, the way a publisher's name stands on a chumash's title page; the mark
+  at §2's 4 mm and `targum.page/parasha/<slug>` at the foot of every page, in the page
+  number's ink; §4's paper behind it all. The wordmark is set in the page's reading face
+  rather than taken from `lockup.svg`, whose live text names a face the box may not have.
+- **The words being learned are lit as the reader lights them**, leaf at the step's wash
+  with the hairline under it, and their meaning stands just above the word, small, in
+  the chrome face and muted ink, the first time the word comes in an aliyah. Known words
+  are plain. Signed out there is nobody's list, so the words in the looked-up bands get
+  their meaning above them and nothing is lit. A meaning is the reader's own, else the
+  text's glossary, cut to a first sense that fits; where there is none the word is lit
+  and nothing is set above it — paper never buys a meaning. Above the word rather than
+  in ruby: the typesetter does not lay ruby out, so the word and its meaning are one box
+  whose baseline is the word's, and the lines are set a little further apart to hold it.
 
 ### A text can be printed, and the page is the reader's — 2026-09-27
 

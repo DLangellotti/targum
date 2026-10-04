@@ -3401,6 +3401,39 @@ class Store:
         ).fetchall()
         return [_kept(row) for row in rows]
 
+    def learning_words(
+        self, person_id: int | None, *, languages: Iterable[str], target: str
+    ) -> dict[str, tuple[int, str]]:
+        """Every word the reader is learning — steps 1 to 3, the reader's marks — by its
+        dictionary form and the form they met it in, bare of points, with the step and the
+        meaning they keep for it in `target`, as `kept_between` gives one ("" where they
+        keep none). What the week's sheet lights (targum-internal#415). Names and numbers
+        are not vocabulary."""
+        codes = sorted({code.split("-")[0].lower() for code in languages})
+        if person_id is None or not codes:
+            return {}
+        from .vocalize.base import strip_nikkud
+
+        marks = ", ".join("?" for _ in codes)
+        rows = self.db.execute(
+            "SELECT w.language, w.lemma, w.surface, w.status, w.note AS own,"
+            " w.meaning AS said, m.note AS note, m.meaning AS meaning FROM word w"
+            " LEFT JOIN meaning m ON m.person = w.person AND m.source = w.language"
+            " AND m.target = ? AND m.term = w.lemma AND m.gone = 0"
+            " WHERE w.person = ? AND w.gone = 0 AND w.status IN (1, 2, 3)"
+            " AND (w.band IS NULL OR w.band NOT IN ('name', 'number'))"
+            f" AND w.language IN ({marks})",
+            (target.split("-")[0].lower(), int(person_id), *codes),
+        ).fetchall()
+        out: dict[str, tuple[int, str]] = {}
+        for row in rows:
+            kept = _kept(row)
+            for form in (kept.lemma, kept.surface):
+                bare = strip_nikkud(form)[0] if form else ""
+                if bare and bare not in out:
+                    out[bare] = (int(row["status"]), kept.meaning)
+        return out
+
     def looked_up_between(
         self,
         person_id: int | None,

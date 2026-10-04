@@ -16,6 +16,13 @@
   --ink-soft: #6b645c;
   --rule: #e2dcd1;
   --chrome: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  /* §4's leaf, for the reader's learning words: its 18/14/10% washes and the hairline
+     under each, as the reader draws them under `body.marking`. Written out, because the
+     typesetter does not mix colours. */
+  --leaf-1: rgba(90, 115, 64, 0.18);
+  --leaf-2: rgba(90, 115, 64, 0.14);
+  --leaf-3: rgba(90, 115, 64, 0.10);
+  --leaf-line: rgba(90, 115, 64, 0.45);
 }
 
 /* The margins are wide enough to hang a verse number in (the reader's -2.6rem), and the
@@ -25,6 +32,8 @@
    element to inherit a `lang` from. */
 @page {
   margin: 20mm 20mm 22mm;
+  /* §4's paper, as the page is on screen (targum-internal#415). */
+  background: #fbf9f5;
   @top-center {
     content: string(chapter);
     font-size: 0.6875rem;
@@ -39,6 +48,42 @@
 }
 @page :first {
   @top-center { content: none; }
+}
+
+/* The foot's other half: the mark at §2's 4 mm and where the text lives, in the chrome
+   face at the page number's size and ink, on every page, quietly. The address is Latin,
+   so the box reads left to right whatever the page does, and the mark leads it (§3). */
+@page {
+  @bottom-left {
+    direction: ltr;
+    text-align: left;
+    font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+    font-size: 0.6875rem;
+    color: #6b645c;
+    vertical-align: middle;
+  }
+}
+
+/* The imprint: the lockup, once, over the first title — the mark leading the wordmark,
+   §3's reading face at 600, lowercase, −0.01em, and a hairline under it as a publisher
+   sets their name on a title page. 26 mm wide, above §3's 18 mm minimum. */
+.imprint {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.4rem;
+  margin-block-end: 1.75rem;
+  padding-block-end: 0.9rem;
+  border-block-end: 1px solid var(--rule);
+}
+.imprint-mark { width: 4.6mm; height: 5.6mm; }
+.imprint .wordmark {
+  font-family: var(--reading);
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  color: #201e1b;
 }
 
 /* The page is paper, and paper is already the page colour: no background is printed. */
@@ -190,3 +235,43 @@ body {
 /* The reader's own words of the week, after both readings: the same list, set once for
    the whole sheet rather than after a chapter. */
 .words.week { margin-block-start: 3rem; }
+
+/* Two companions or more share the column beside the verse, one under the next, each in
+   its own language; the text alone takes the width. */
+.trs > .tr + .tr { margin-block-start: 0.4rem; }
+.pair.alone > .src { flex: 1 1 100%; }
+
+/* The marked words (targum-internal#415). A word the reader is learning is lit as the
+   reader lights it — leaf, quieter at each step, with the hairline under it so a mark
+   never rests on colour alone — and known words are left as they are. A meaning stands
+   just over its word, small, in the chrome face and muted ink, the first time the word
+   comes in an aliyah; a rare word on a sheet nobody signed in for has its meaning and
+   no light. The word and its meaning are one box whose baseline is the word's, so the
+   line still reads as a line; the lines are set a little further apart to hold it. */
+.glossed .src[lang] { line-height: 2.7; }
+.lit { border-radius: 4px; border-block-end: 1px solid var(--leaf-line); }
+.lit.s1 { background: var(--leaf-1); }
+.lit.s2 { background: var(--leaf-2); }
+.lit.s3 { background: var(--leaf-3); }
+.g {
+  display: inline-block;
+  text-align: center;
+  line-height: 1;
+}
+.g .gl {
+  display: block;
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  /* A meaning may stand out past its word by a little on each side, as an interlinear
+     edition's does, so a word is not pushed from its neighbours by every gloss longer
+     than it; only one wider than that by more than the overhang spaces the line. */
+  margin-inline: -1.1em;
+}
+.g .gw {
+  display: block;
+  line-height: 1.6;
+}

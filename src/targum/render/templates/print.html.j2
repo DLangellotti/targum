@@ -14,11 +14,19 @@
 <meta charset="utf-8">
 <title>{{ title }}{% if english %} · {{ english }}{% endif %}</title>
 <style>{{ asset('print.css') }}</style>
-<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } }</style>
+<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } @bottom-left { content: url("{{ mark }}") "\2002{{ address }}"; } }</style>
 {{ hebrew_face }}
 {{ chrome_face }}
 </head>
-<body class="{% if under %}under{% else %}beside{% endif %}{% if verses %} verses{% endif %}">
+<body class="{% if under %}under{% else %}beside{% endif %}{% if verses %} verses{% endif %}{% if glossed %} glossed{% endif %}">
+{#- The imprint (targum-internal#415): the lockup once, over the title of the first page,
+    small and centred as a publisher's name stands on a chumash's title page. Drawn here
+    rather than from lockup.svg, whose wordmark is live text in a face the box may not
+    have: the mark is two rectangles, and the wordmark is the page's own reading face. -#}
+<header class="imprint" dir="ltr" lang="en">
+  <svg class="imprint-mark" xmlns="http://www.w3.org/2000/svg" viewBox="12 4 72 88" aria-hidden="true"><rect x="20" y="12" width="22" height="62" rx="5" fill="#201e1b"/><rect x="54" y="22" width="22" height="62" rx="5" fill="#a5824f"/></svg>
+  <span class="wordmark">targum</span>
+</header>
 {% for part in parts %}
 {% set source_language = part.source_language %}{% set source_direction = part.source_direction %}
 {% set target_language = part.target_language %}{% set target_direction = part.target_direction %}
@@ -37,12 +45,20 @@
   {% if line.kind == 'heading' %}
   <div class="pair head">
     <h{{ line.level }} class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{{ line.source|isolate(source_direction) }}</h{{ line.level }}>
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ line.translation|isolate(target_direction) }}</p>
+    {% if line.cells %}<p class="tr" lang="{{ line.cells[0].language }}" dir="{{ line.cells[0].direction }}">{{ line.cells[0].text|isolate(line.cells[0].direction) }}</p>{% endif %}
   </div>
   {% else %}
-  <div class="pair {{ line.kind }}">
-    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{% if line.verse %}<span class="verse-number">{{ line.verse.split(':')[1] }}</span>{% endif %}{{ line.source|isolate(source_direction) }}</p>
-    <p class="tr" lang="{{ target_language }}" dir="{{ target_direction }}">{{ line.translation|isolate(target_direction) }}</p>
+  <div class="pair {{ line.kind }}{% if not line.cells %} alone{% endif %}">
+    <p class="src" lang="{{ source_language }}" dir="{{ source_direction }}">{% if line.verse %}<span class="verse-number">{{ line.verse.split(':')[1] }}</span>{% endif %}{% if line.source_html %}{{ line.source_html }}{% else %}{{ line.source|isolate(source_direction) }}{% endif %}</p>
+    {#- Each companion the view has on, in its order: one beside the verse is a column,
+        and two or more share it, one under the other. -#}
+    {% if line.cells|length == 1 %}
+    <p class="tr" lang="{{ line.cells[0].language }}" dir="{{ line.cells[0].direction }}">{{ line.cells[0].text|isolate(line.cells[0].direction) }}</p>
+    {% elif line.cells %}
+    <div class="trs">
+      {% for cell in line.cells %}<p class="tr" lang="{{ cell.language }}" dir="{{ cell.direction }}">{{ cell.text|isolate(cell.direction) }}</p>{% endfor %}
+    </div>
+    {% endif %}
   </div>
   {% endif %}
   {% endfor %}

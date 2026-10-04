@@ -5211,7 +5211,8 @@ class Handler(BaseHTTPRequestHandler):
         """
         from .parasha import sheet
 
-        query = parse_qs(urlparse(self.path).query)
+        # Blanks kept: `with=` is the text alone, not the default.
+        query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
         person = self._person()
         try:
             made = sheet.make(
@@ -5220,7 +5221,7 @@ class Handler(BaseHTTPRequestHandler):
                 person_id=person.id if person is not None else None,
                 language=self._public_language(),
                 israel=query.get("schedule", [""])[0] == "israel",
-                size=query.get("size", ["a4"])[0],
+                view=sheet.view_from(query),
             )
         except TargumError as error:
             log.warning("sheet %s refused: %s (%s)", slug, error.message, error.hint or "")

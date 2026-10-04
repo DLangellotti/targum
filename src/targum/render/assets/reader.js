@@ -11661,19 +11661,95 @@ else targumReader();
   group.hidden = false;
 })();
 
-/* The week's sheet as a PDF (targum-internal#415), from the ⋯ menu.
+/* The week's sheet as a PDF (targum-internal#415), from the ⋯ menu, as the page is.
  *
  * Only on a portion's reader served from the corpus: its folder is the portion's name,
  * and the box sets the sheet for that name when the link is pressed. A haftarah's
  * folder is not a portion, and a reader opened off a disk has no box behind it.
+ *
+ * The link carries the view the reader is in when it is pressed, read off the page
+ * rather than kept in step with it: which companions stand beside the verse, the vowels
+ * and the te'amim, beside or under, whether words are marked, and this aliyah or the
+ * whole portion with its haftarah. The box reads the same names (`parasha.sheet.
+ * view_from`), and a name it does not know it passes over.
  */
 (function () {
   "use strict";
   if (location.protocol === "file:") return;
   var group = document.getElementById("to-sheet");
-  var link = document.getElementById("more-sheet");
-  var served = /^\/parasha\/read\/([a-z0-9-]+)\/reader\//.exec(location.pathname);
-  if (!group || !link || !served || served[1].indexOf("haftarah-") === 0) return;
-  link.href = "/parasha/" + served[1] + ".pdf";
+  var whole = document.getElementById("more-sheet");
+  var one = document.getElementById("more-sheet-aliyah");
+  var served = /^\/parasha\/read\/([a-z0-9-]+)\/reader\/(?:sec-(\d+)\.html)?/.exec(location.pathname);
+  if (!group || !whole || !served || served[1].indexOf("haftarah-") === 0) return;
+  var base = "/parasha/" + served[1] + ".pdf";
+  var body = document.body;
+
+  function prefs() {
+    try {
+      return JSON.parse(localStorage.getItem("targum:prefs") || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  // The form of the text that is showing, from the first verse's cells.
+  function shown(form) {
+    var cell = document.querySelector('.pair .src[data-form="' + form + '"]');
+    return !!cell && cell.offsetParent !== null && !cell.hidden;
+  }
+
+  // The companions on, in the order they stand. Where the page has its own switches for
+  // them (targum-internal#414) those say; otherwise the one translation showing.
+  function companions() {
+    if (body.classList.contains("mode-source")) return [];
+    var keys = [];
+    var language = "";
+    var column = document.querySelector(".pair .tr[lang]");
+    if (column) language = (column.getAttribute("lang") || "").split("-")[0].toLowerCase();
+    var switches = document.querySelectorAll("#companions .companion[data-companion]");
+    if (!switches.length) return language ? [language] : [];
+    Array.prototype.forEach.call(switches, function (key) {
+      var on = key.getAttribute("aria-pressed") === "true" || key.classList.contains("on");
+      if (!on) return;
+      var name = key.getAttribute("data-companion");
+      keys.push(name === "translation" ? language : name);
+    });
+    return keys.filter(function (key) {
+      return !!key;
+    });
+  }
+
+  function view(aliyah) {
+    var kept = prefs();
+    var pointed = shown("pointed") || shown("unaccented");
+    var asked = [
+      ["with", companions().join(",")],
+      ["vowels", pointed ? "1" : "0"],
+      ["taamim", pointed && !shown("unaccented") && kept.taamim !== false ? "1" : "0"],
+      ["layout", body.classList.contains("mode-inter") ? "under" : "beside"],
+      ["gloss", kept.marking === false ? "0" : "1"],
+    ];
+    if (aliyah) asked.push(["aliyah", aliyah]);
+    return (
+      base +
+      "?" +
+      asked
+        .map(function (pair) {
+          return pair[0] + "=" + encodeURIComponent(pair[1]);
+        })
+        .join("&")
+    );
+  }
+
+  var aliyah = served[2] ? String(Number(served[2])) : "1";
+  function press(link, which) {
+    link.href = view(which);
+    // Read again as it is pressed, so a switch turned after the page opened is on paper.
+    link.addEventListener("click", function () {
+      link.href = view(which);
+    });
+  }
+  press(whole, "");
+  if (one) press(one, aliyah);
   group.hidden = false;
 })();

@@ -20,7 +20,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   **the corpus has to be built and shipped again** for the PDF to work. The box takes the
   `print` extra on the next deploy, and needs Pango, which `provision.sh` now installs
   on a fresh box: on the live one, `apt-get install -y --no-install-recommends
-  libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core` as root.
+  libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core fonts-urw-base35`
+  as root. The sheet prints the view the reader was on (companions, vowels, te'amim,
+  beside or under, marks, this aliyah or the whole portion and the haftarah), and
+  `/parasha` asks for those in a row of boxes; it carries the lockup over the first title
+  and the mark and its address at every foot, on §4's paper; and the words a reader is
+  learning are lit with their meaning just above them, or signed out, the rarer words'
+  meanings. The build keeps the words and meanings for that beside each reader
+  (`print/words.json`, `print/glossary.<lang>.json`). `targum export mikra` takes the same
+  view (`--with`, `--aliyah`, `--haftarah/--no-haftarah`, `--gloss/--no-gloss`).
 - Two readings on every aliyah, chanted and spoken (targum-internal#412). A portion's
   section carries the PocketTorah chanting attached to the portion and Rabbi Dan Be'eri's
   plain reading of the book, with a Chanted / Spoken switch in the bar, kept per browser,

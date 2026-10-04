@@ -32,7 +32,7 @@ import json
 import logging
 import threading
 from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -50,7 +50,7 @@ from ..translate.prompts import BESIDE
 
 if TYPE_CHECKING:
     from ..accounts import Store
-    from ..render.printed import Word
+    from ..render.printed import View, Word
     from .cut import Portion as Cut
 
 log = logging.getLogger(__name__)
@@ -116,7 +116,62 @@ def keep(portion: Cut, folder: Path) -> Path:
         for language in languages
     }
     write_atomic(out / "cited.json", json.dumps(cited, ensure_ascii=False) + "\n")
+    _keep_words(portion, out)
     return out
+
+
+#: What of a token the sheet reads: where it stands, what it is, how rare, and what its
+#: meaning is filed under. Everything else on it is the card's.
+_TOKEN_FIELDS = {"start", "end", "surface", "lemma", "band", "pos", "entity", "headword"}
+
+
+def _keep_words(portion: Cut, out: Path) -> None:
+    """The words a sheet marks, and their meanings, beside the reader (targum-internal
+    #415): the annotation's tokens with only what `printed._marked` reads, the names and
+    numbers left out, and each glossary cut to the words the text carries, first sense
+    only. A tenth of what they were cut from."""
+    from ..models import Annotation, Glossary, Token
+    from ..render.printed import first_sense
+
+    for stale in out.glob("glossary.*.json"):
+        stale.unlink()
+    annotation = portion.annotation
+    if annotation is None:
+        (out / "words.json").unlink(missing_ok=True)
+        return
+    from ..annotate.base import NOT_A_WORD, not_vocabulary
+
+    tokens = {
+        sid: [
+            Token(**one.model_dump(include=_TOKEN_FIELDS))
+            for one in kept
+            if one.lemma not in NOT_A_WORD and not not_vocabulary(one.pos, one.entity)
+        ]
+        for sid, kept in annotation.tokens.items()
+    }
+    slim = Annotation(
+        document_hash=annotation.document_hash,
+        language=annotation.language,
+        annotator=annotation.annotator,
+        method=annotation.method,
+        method_note=annotation.method_note,
+        band_count=annotation.band_count,
+        tokens={sid: kept for sid, kept in tokens.items() if kept},
+    )
+    slim.write(out / "words.json")
+    used = {token.glossed_as for kept in slim.tokens.values() for token in kept}
+    for code, glossary in portion.glossaries.items():
+        Glossary(
+            source_language=glossary.source_language,
+            target_language=glossary.target_language,
+            provider=glossary.provider,
+            entries={
+                key: first_sense(value)
+                for key, value in glossary.entries.items()
+                if key in used and first_sense(value)
+            },
+            citations={key: value for key, value in glossary.citations.items() if key in used},
+        ).write(out / f"glossary.{code}.json")
 
 
 def kept(folder: Path) -> tuple[Cut, dict[str, dict[str, tuple[str, str]]]]:
@@ -143,14 +198,23 @@ def kept(folder: Path) -> tuple[Cut, dict[str, dict[str, tuple[str, str]]]]:
         for language, forms in loaded.items()
         if isinstance(forms, dict)
     }
+    from ..models import Annotation, Glossary
+
+    glossaries = {
+        path.name.removeprefix("glossary.").removesuffix(".json"): glossary
+        for path in sorted(where.glob("glossary.*.json"))
+        if (glossary := read_artifact(Glossary, path)) is not None
+    }
     cut = Cut(
         reading=None,
         document=document,
         segmented=segmented,
         translations=translations,
-        annotation=None,
+        # The words the sheet marks, where the build kept them; a corpus built before
+        # the marks has none, and its sheet is the plain one.
+        annotation=read_artifact(Annotation, where / "words.json"),
         vocalization=read_artifact(Vocalization, where / "vocalization.json"),
-        glossaries={},
+        glossaries=glossaries,
     )
     return cut, cited
 
@@ -187,6 +251,58 @@ def reader_week(
     if not looked:
         found = store.kept_between(*window, languages=("he", "arc"), target=language)
     return week_words(found, target=language, cited=cite(language)), looked, reads
+
+
+#: The switches a view is written with, each on unless it says 0 (`view_from`).
+_SWITCHES = ("vowels", "taamim", "gloss", "haftarah")
+
+
+def view_from(query: Mapping[str, list[str]]) -> View:
+    """The view a Download link asks for, read off its query (targum-internal#415).
+
+        with=en,targum   the companions on, in order: a translation by its language,
+                         Onkelos as `targum`; `with=` empty is the text alone; absent,
+                         the reader's default — their own language
+        vowels=0         the text bare; taamim=0 the vowels without the chanting marks
+        layout=under     each companion under its verse, not beside it
+        gloss=0          no marks and no meanings above the words
+        aliyah=3         that aliyah only — and then no haftarah unless haftarah=1
+        haftarah=0       the portion without the haftarah
+        size=letter      the paper
+
+    Anything it does not know, it passes over: a link from a newer reader still prints.
+    """
+    from ..render.printed import View
+
+    def one(name: str) -> str | None:
+        # The last value: a form sends a hidden 0 before each box, and the box's 1 after
+        # it where it is ticked.
+        values = query.get(name)
+        return values[-1].strip().lower() if values else None
+
+    companions: tuple[str, ...] | None = None
+    if "with" in query:
+        # Every value, as a form's boxes send them, and each a list as a link writes it.
+        said = ",".join(query["with"]).lower()
+        companions = tuple(
+            dict.fromkeys(key for key in (k.strip() for k in said.split(",")) if key)
+        )[:6]
+    aliyah: int | None = None
+    asked = one("aliyah")
+    if asked and asked.isdigit() and 0 < int(asked) < 100:
+        aliyah = int(asked)
+    switches = {name: one(name) for name in _SWITCHES}
+    haftarah = switches["haftarah"]
+    return View(
+        companions=companions,
+        vowels=switches["vowels"] != "0",
+        taamim=switches["taamim"] != "0",
+        under=one("layout") == "under",
+        gloss=switches["gloss"] != "0",
+        aliyah=aliyah,
+        haftarah=(haftarah == "1") if aliyah is not None else haftarah != "0",
+        size=one("size") or "a4",
+    )
 
 
 def _cache() -> Path:
@@ -232,21 +348,32 @@ def make(
     person_id: int | None = None,
     language: str = "en",
     israel: bool = False,
-    size: str = "a4",
+    view: View | None = None,
 ) -> Sheet | None:
     """The sheet for one portion, or None where the corpus has no such portion.
 
     This week's portion takes this week's haftarah, the date, and the reason a special
     haftarah displaced its own; any other portion takes the haftarah it ordinarily has
     and no date, as its page does. A reader signed in (`store` and `person_id`) gets
-    their words of this week at the end; anybody else gets the sheet in `language`.
+    their words of this week at the end, and the words they are learning lit with their
+    meanings above them; anybody else gets the sheet in `language`, with the rarer
+    words' meanings above them. `view` is what the reader's page showed (`view_from`).
     """
-    from ..render.printed import SIZES, mikra_html
+    from ..render.printed import (
+        SIZES,
+        Marker,
+        View,
+        learning_marker,
+        mikra_html,
+        own_language,
+        rare_marker,
+    )
     from . import build as corpus
     from .calendar import Schedule, pointing_at, root
 
-    if size not in SIZES:
-        size = "a4"
+    view = view or View()
+    if view.size not in SIZES:
+        view = replace(view, size="a4")
     index = corpus.load()
     portion = index.portions.get(slug)
     if portion is None or portion.folder not in corpus.readable(index):
@@ -279,6 +406,7 @@ def make(
     week: list[Word] = []
     looked = True
     reads: Collection[str] = (language,)
+    marker: Marker = rare_marker
     if store is not None and person_id is not None:
         week, looked, reads = reader_week(
             store,
@@ -287,6 +415,14 @@ def make(
             text.translations,
             lambda code: cited.get(code, {}),
         )
+        marker = learning_marker(
+            store.learning_words(
+                person_id, languages=("he",), target=own_language(text.translations, reads)
+            )
+        )
+    if view.companions is None:
+        # The reader's own default: the one rendering in their language beside the verse.
+        view = replace(view, companions=(own_language(text.translations, reads),))
     html = mikra_html(
         text,
         reading_of_prophets,
@@ -297,7 +433,10 @@ def make(
         week=week,
         looked=looked,
         reads=reads,
-        size=size,
+        view=view,
+        marker=marker,
+        address=f"targum.page/parasha/{slug}",
     )
-    personal = bool(week)
+    # Anything of the reader's on it — their list, their lit words — makes it theirs.
+    personal = store is not None and person_id is not None
     return Sheet(pdf=_set(html, personal=personal), name=f"{slug}.pdf", personal=personal)

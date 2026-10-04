@@ -134,13 +134,14 @@
     <div class="group to-playlist" id="to-playlist" hidden>
       <a class="more-playlist" id="more-playlist" data-title="{{ title }}">{{ t("reader.page.add-to-playlist", "Add to playlist") }}</a>
     </div>
-    {#- The week's sheet as a PDF (targum-internal#415): the portion beside Onkelos, the
-        haftarah, and the reader's words of the week, set on the box when pressed. Hidden
+    {#- The week's sheet as a PDF (targum-internal#415), as the page is when pressed: the
+        whole portion and its haftarah, or the aliyah open. Set on the box. Hidden
         in the file and shown by the script only on a portion's reader served from the
         corpus, whose folder names the portion; a haftarah's reader and every other text
         leave it hidden. -#}
     <div class="group to-sheet" id="to-sheet" hidden>
-      <a class="more-sheet" id="more-sheet">{{ t("reader.page.download-pdf", "Download PDF") }}</a>
+      <a class="more-sheet" id="more-sheet" download>{{ t("reader.page.download-pdf", "Download PDF") }}</a>
+      <a class="more-sheet" id="more-sheet-aliyah" download>{{ t("reader.page.download-pdf-aliyah", "This aliyah as PDF") }}</a>
     </div>
     {#- Hear a silent text (2026-09-10, targum-internal#246): on a section with no
         recording, the one door that makes one — a call to action, so ink (§9) — with

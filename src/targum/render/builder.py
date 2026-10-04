@@ -2923,12 +2923,16 @@ def parasha_page(
     if asked:
         asking.append(("lang", asked))
     sheet_href = f"/parasha/{portion.slug}.pdf" + (f"?{urlencode(asking)}" if asking else "")
+    sheet_action = f"/parasha/{portion.slug}.pdf"
     return (
         _environment()
         .get_template("parasha.html.j2")
         .render(
             signed_in=signed_in,
             sheet_href=sheet_href,
+            sheet_action=sheet_action,
+            sheet_keep=asking,
+            sheet_translation="ru" if language.split("-")[0] == "ru" else "en",
             joined_from="/parasha",
             asked=asked,
             t=page_words(language),
