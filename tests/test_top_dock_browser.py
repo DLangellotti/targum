@@ -1,4 +1,12 @@
-"""A picture docked at the top of a phone takes its room out of the page.
+"""The picture at the top of a phone takes its room out of the page.
+
+Since targum-internal#422 a phone has one way for a video to stand: the picture under the
+bar, its row of controls under it, and the transcript under those. That is what the
+picture docked at the top used to be, and the rules this file was written for are the
+same rules, so they are kept; what went is the corner the reader chose (there is one
+now) and full screen (the browser's, under ⋯).
+
+Written first for the dock (2026-09-20):
 
 The band at the foot has always been measured and told to the stylesheet, so the page is
 padded by it and the strip rides on it. The one resident that can stand at the top
@@ -24,7 +32,6 @@ from test_reader_browser import (  # noqa: E402, F401
     browser,
     settled,
     video_reader,
-    watch,
 )
 
 PHONE = {"width": 390, "height": 844}
@@ -36,24 +43,23 @@ STANDS = """() => {
   };
   const panel = document.getElementById('video');
   const shown = !panel.hidden;
+  // The lines on show: under a picture the title and byline are said under it instead.
+  const lines = [...document.querySelectorAll('#reader .pair')]
+    .filter((p) => p.getClientRects().length);
   return {
-    corner: panel.className,
     head: getComputedStyle(document.documentElement).getPropertyValue('--head').trim(),
     picture: shown ? rect(panel) : null,
     bar: rect(document.querySelector('.bar')),
-    first: rect(document.querySelector('.pair')),
-    twentieth: rect(document.querySelectorAll('.pair')[19]),
+    first: rect(lines[0]),
+    twentieth: lines[19] ? rect(lines[19]) : null,
     scrollY: window.scrollY,
   };
 }"""
 
 
-def opened_with(browser, built, corner: str):  # noqa: F811
+def opened_on_a_phone(browser, built):  # noqa: F811
     context = browser.new_context(
         viewport=PHONE, is_mobile=True, has_touch=True, reduced_motion="reduce"
-    )
-    context.add_init_script(
-        f"try {{ localStorage.setItem('targum:video-corner', '{corner}'); }} catch (e) {{}}"
     )
     page = context.new_page()
     page.goto(address(built))
@@ -64,21 +70,22 @@ def opened_with(browser, built, corner: str):  # noqa: F811
     return context, page
 
 
-@pytest.mark.parametrize("corner", ["top-start", "top-end"])
-def test_a_picture_at_the_top_stands_over_neither_the_bar_nor_the_text(
+def test_the_picture_stands_under_the_bar_and_over_none_of_the_text(
     browser,  # noqa: F811
     tmp_path,
-    corner,
 ) -> None:
-    context, page = opened_with(browser, video_reader(tmp_path, lines=40), corner)
+    """The bar, then the picture and its controls, then the first line — none over the
+    next. The bar is on top now (#422): it was under the picture when the picture was a
+    dock the reader could put at the top or the foot."""
+    context, page = opened_on_a_phone(browser, video_reader(tmp_path, lines=40))
     try:
         got = page.evaluate(STANDS)
     finally:
         context.close()
-    assert got["scrollY"] == 0 and got["picture"]["top"] <= 1, got
-    assert got["bar"]["top"] >= got["picture"]["bottom"] - 1, f"the bar is under it: {got}"
-    assert got["first"]["top"] >= got["bar"]["bottom"] - 1, (
-        f"and the first line can be read without scrolling, which it could not be: {got}"
+    assert got["scrollY"] == 0 and got["bar"]["top"] <= 1, got
+    assert got["picture"]["top"] >= got["bar"]["bottom"] - 1, f"the picture is under the bar: {got}"
+    assert got["first"]["top"] >= got["picture"]["bottom"] - 1, (
+        f"and the first line can be read without scrolling: {got}"
     )
 
 
@@ -88,47 +95,38 @@ def test_a_line_brought_to_the_top_lands_under_the_picture_not_behind_it(
 ) -> None:
     """`--ceiling` is every line's `scroll-margin`, and it is how the voice brings the
     line it is saying to the top. It counted the bar and not the picture."""
-    context, page = opened_with(browser, video_reader(tmp_path, lines=40), "top-start")
+    context, page = opened_on_a_phone(browser, video_reader(tmp_path, lines=40))
     try:
         page.evaluate(
-            "() => document.querySelectorAll('.pair')[19].scrollIntoView({ block: 'start' })"
+            "() => [...document.querySelectorAll('#reader .pair')]"
+            ".filter((p) => p.getClientRects().length)[19].scrollIntoView({ block: 'start' })"
         )
         page.wait_for_timeout(300)
         got = page.evaluate(STANDS)
     finally:
         context.close()
     assert got["scrollY"] > 0, got
-    # Against the picture as well as the bar: before this the bar was behind the picture
-    # too, so a line that cleared the bar had cleared nothing.
+    # The picture stays with the reader as they scroll: it is the transcript that moves.
+    assert got["picture"]["top"] >= got["bar"]["bottom"] - 1, f"still under the bar: {got}"
     assert got["twentieth"]["top"] >= got["picture"]["bottom"] - 1, f"clear of the picture: {got}"
-    assert got["twentieth"]["top"] >= got["bar"]["bottom"] - 1, f"and of the bar: {got}"
-    assert got["twentieth"]["top"] < got["bar"]["bottom"] + 60, f"and at the top, not below: {got}"
-
-
-def test_a_picture_at_the_foot_leaves_the_top_as_it_was(browser, tmp_path) -> None:  # noqa: F811
-    context, page = opened_with(browser, video_reader(tmp_path, lines=40), "bottom-end")
-    try:
-        got = page.evaluate(STANDS)
-    finally:
-        context.close()
-    assert got["head"] == "" and got["bar"]["top"] == 0, got
+    assert got["twentieth"]["top"] < got["picture"]["bottom"] + 60, (
+        f"and at the top, not below: {got}"
+    )
 
 
 def test_the_room_at_the_top_goes_when_the_picture_does(browser, tmp_path) -> None:  # noqa: F811
-    """Watching is the whole window and closing is no picture at all: neither leaves a
-    picture's height of empty paper above the bar."""
-    context, page = opened_with(browser, video_reader(tmp_path, lines=40), "top-start")
+    """Put away under ⋯, the picture leaves no picture's height of empty paper above the
+    text, and brought back it takes its room again."""
+    context, page = opened_on_a_phone(browser, video_reader(tmp_path, lines=40))
     try:
         assert page.evaluate(STANDS)["head"] != ""
-        watch(page)
-        page.wait_for_timeout(300)
-        assert page.evaluate(STANDS)["head"] == "", "nothing is kept clear under a full window"
-        page.keyboard.press("v")
-        page.wait_for_timeout(300)
-        assert page.evaluate(STANDS)["head"] != "", "and it is back with the dock"
-        page.evaluate("() => document.querySelector('#video .video-close').click()")
+        page.evaluate("() => window.TargumVideo.hide()")
         page.wait_for_timeout(400)
         closed = page.evaluate(STANDS)
+        page.evaluate("() => document.querySelector('.group [data-video]').click()")
+        page.wait_for_timeout(400)
+        back = page.evaluate(STANDS)
     finally:
         context.close()
-    assert closed["head"] == "" and closed["bar"]["top"] == 0, closed
+    assert closed["head"] == "" and closed["bar"]["top"] == 0 and closed["picture"] is None, closed
+    assert back["head"] != "" and back["picture"] is not None, back

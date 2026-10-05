@@ -1,4 +1,8 @@
-"""A word tapped under a docked picture, on a phone.
+"""A word tapped under the picture, on a phone.
+
+(The picture was docked when this was written; since targum-internal#422 it stands at
+the top of a phone above its transcript, always, and is put away under ⋯. The rules
+below hold as they were: a card is a visit, and the line is the place.)
 
 On a narrow window a docked picture suspends paging (`pagingSuspended`): a page cut to
 what is left under a picture leaves most of a pair of empty paper, so the reader scrolls
@@ -131,9 +135,12 @@ WHERE = """() => {
   const picture = document.getElementById('video');
   const card = document.getElementById('gloss-card');
   const bar = document.querySelector('.bar').getBoundingClientRect().bottom;
-  // The first line whose Hebrew starts under the bar: the line a reader is on.
+  // The first line whose Hebrew starts under the bar — or, with the picture up, under the
+  // picture, which stands under the bar on a phone (#422): the line a reader is on.
+  // The reader keeps 16px under whatever stands at the top (`ceiling`), and so does this.
+  const top = picture.hidden ? bar : picture.getBoundingClientRect().bottom + 16;
   const pairs = [...document.querySelectorAll('.pair')].filter((p) => !p.hidden);
-  const on = pairs.find((p) => p.getBoundingClientRect().bottom > bar + 4);
+  const on = pairs.find((p) => p.getBoundingClientRect().bottom > top + 4);
   return {
     paged: document.body.classList.contains('paged'),
     scrollY: Math.round(window.scrollY),
@@ -147,9 +154,12 @@ WHERE = """() => {
 
 A_WORD_ON_SCREEN = """() => {
   const foot = parseFloat(getComputedStyle(document.body).getPropertyValue('--foot')) || 0;
-  const word = [...document.querySelectorAll('span.w')].find((w) => {
+  // Under the picture, which stands at the top of a phone over the transcript (#422).
+  const picture = document.getElementById('video');
+  const top = picture.hidden ? 120 : picture.getBoundingClientRect().bottom + 10;
+  const word = [...document.querySelectorAll('#reader span.w')].find((w) => {
     const r = w.getBoundingClientRect();
-    return r.width > 0 && r.top > 120 && r.bottom < window.innerHeight - foot - 40;
+    return r.width > 0 && r.top > top && r.bottom < window.innerHeight - foot - 40;
   });
   const r = word.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
@@ -213,7 +223,7 @@ def test_closing_the_picture_turns_to_the_page_the_reader_was_on(
         page.evaluate("() => window.scrollTo(0, 2500)")
         page.wait_for_timeout(300)
         before = page.evaluate(WHERE)
-        page.evaluate("() => document.querySelector('#video .video-close').click()")
+        page.evaluate("() => window.TargumVideo.hide()")
         page.wait_for_function("() => document.body.classList.contains('paged')")
         page.wait_for_timeout(300)
         after = page.evaluate(WHERE)
@@ -234,7 +244,7 @@ def test_opening_the_picture_keeps_the_page_that_was_open(
     top of a transcript they were a third of the way through."""
     context, page = on_a_phone(browser, talk(tmp_path))
     try:
-        page.evaluate("() => document.querySelector('#video .video-close').click()")
+        page.evaluate("() => window.TargumVideo.hide()")
         page.wait_for_function("() => document.body.classList.contains('paged')")
         for _ in range(4):
             page.locator("#turn .forward").tap()

@@ -351,10 +351,9 @@
     if (end.hidden) {
       end.hidden = false;
       document.body.classList.add("list-ended");
-      // Out of the watching frame, so the card is on the page and not under a film.
-      var box = document.getElementById("video");
-      var mode = box && box.classList.contains("watching") ? box.querySelector(".video-mode") : null;
-      if (mode) mode.click();
+      // Under a large picture the transcript is a panel, and the card is at its foot:
+      // the panel opens, so the card is on the page and not behind the picture (#422).
+      if (window.TargumVideo && window.TargumVideo.transcript) window.TargumVideo.transcript(true);
       if (end.scrollIntoView) end.scrollIntoView({ block: "start" });
       fillEnd(end);
       document.dispatchEvent(new CustomEvent("targum:list-end", { detail: { list: list } }));
@@ -467,9 +466,9 @@
     window.TargumFootWay = way;
     if (window.TargumReader && window.TargumReader.foot) window.TargumReader.foot(way);
 
-    // And in the watching frame, where the foot of the text cannot be seen: the same
-    // Next among the picture's own keys.
-    var keys = document.querySelector("#video .video-keys");
+    // And under the picture, where the foot of the text cannot be seen while it stands
+    // large: the same Next in the row of its controls (#422).
+    var keys = document.querySelector("#video .film-tools");
     if (keys) {
       if (near.back !== null) {
         keys.appendChild(
@@ -492,7 +491,9 @@
    * the last page — the reader's own answer, where it gives one — and the bottom of the
    * window. */
   function watchingNow() {
-    return document.body.classList.contains("watching");
+    // A large picture with its transcript put away: there is nothing to scroll (#422).
+    var body = document.body.classList;
+    return body.contains("film-theatre") && !body.contains("film-panel");
   }
   function atEnd() {
     if (watchingNow()) return true;

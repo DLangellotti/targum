@@ -88,6 +88,17 @@
       {% endif %}
     </div>
     {% endif %}
+    {#- How the picture stands (targum-internal#422): the transcript beside it, or the
+        picture large with the line said under it. Kept per reader, like the speed. Only
+        on a text that carries a picture, and only while the picture is up; on a phone
+        the picture is always above its transcript and the switch is not drawn. The
+        controls under the picture play it, so Listen stands down while it is up. -#}
+    {% if spoken_video %}
+    <div class="film-views" id="film-views" role="group" aria-label="{{ t("reader.film.view", "How the video stands") }}">
+      <button type="button" class="film-view" data-film-view="beside" aria-pressed="true" title="{{ t("reader.film.beside-title", "The transcript beside the video (v)") }}">{{ t("reader.film.beside", "Beside") }}</button>
+      <button type="button" class="film-view" data-film-view="theatre" aria-pressed="false" title="{{ t("reader.film.theatre-title", "The video large, the line under it (v)") }}">{{ t("reader.film.theatre", "Theatre") }}</button>
+    </div>
+    {% endif %}
     <div class="bar-tools">
       {#- Aa: how the text is set, and what stands beside it. -#}
       <button type="button" class="bar-tool aa-open" id="aa-open" data-pop="aa" aria-haspopup="true" aria-expanded="false" aria-controls="aa"
@@ -119,6 +130,20 @@
     <div class="group recordings" id="recordings" role="group" aria-label="{{ t("reader.page.which-reading", "Which reading") }}" data-what="{{ t("reader.page.which-reading", "Which reading") }}">
       {%- for v in voices %}
       <button type="button" class="recording-key{% if loop.first %} on{% endif %}" data-recording="{{ v.key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}" title="{{ v.credited }} {{ v.credit }}"><span class="pick-name">{% if v.key == "chanted" %}{{ t("reader.page.chanted", "Chanted") }}{% else %}{{ t("reader.page.spoken", "Spoken") }}{% endif %}</span><span class="pick-meta">{{ v.credit }}</span></button>
+      {%- endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {#- How fast the video plays, from "1× ▾" under the picture (targum-internal#422). One
+      of the bar's panels so it is a visit like them: one at a time, focus in and back,
+      Escape and a press outside shut it, and a sheet from the foot on a phone. Drawn
+      under its own press rather than under the bar (`data-near`). -#}
+  {% if spoken_video %}
+  <div class="bar-pop rates-pop" id="rates" role="group" aria-labelledby="rates-head" dir="ltr" data-near>
+    <div class="more-head"><b id="rates-head">{{ t("reader.page.speed", "Speed") }}</b><button type="button" data-pop-close="rates" aria-label="{{ t("reader.page.close", "Close") }}">×</button></div>
+    <div class="film-rates">
+      {%- for rate in ["0.5", "0.75", "1", "1.25", "1.5", "2"] %}
+      <button type="button" class="film-rate-pick" data-rate="{{ rate }}" aria-pressed="{{ 'true' if rate == '1' else 'false' }}" dir="ltr">{{ rate }}×</button>
       {%- endfor %}
     </div>
   </div>
@@ -342,6 +367,21 @@
         </svg>
       </button>
     </div>
+    {#- What the strip carried, for while the picture is up and the strip is not
+        (targum-internal#422): Hear first, and a step either side of the voice. The
+        file and its credit are the recording's row further down. -#}
+    <div class="group film-only" data-what="{{ t("reader.page.hear-first", "Hear first") }}">
+      <button type="button" class="more-switch more-first" aria-pressed="false"
+              title="{{ t("reader.film.hear-first-title", "Press a line to hear it before you see it") }}" aria-label="{{ t("reader.page.hear-first", "Hear first") }}"><span class="sw" aria-hidden="true"></span></button>
+    </div>
+    <div class="group film-only more-step" data-what="{{ t("reader.page.step", "Step") }}">
+      <button type="button" class="more-back" aria-label="{{ t("reader.page.back", "Back") }}" title="{{ t("reader.page.back", "Back") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M11 3.5 5.5 8 11 12.5"></path><path d="M4 3.5v9"></path></svg>
+      </button>
+      <button type="button" class="more-on" aria-label="{{ t("reader.page.forward", "Forward") }}" title="{{ t("reader.page.forward", "Forward") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3.5 10.5 8 5 12.5"></path><path d="M12 3.5v9"></path></svg>
+      </button>
+    </div>
     {% endif %}
     {#- Where the video lives, opened at the line in front of the reader. Only where it
         lives somewhere, and not on a post, whose film goes home from the post's head
@@ -445,6 +485,90 @@
     that takes all of it back. The press left the page, so this is where the Undo can be. -#}
 <p class="arrived" id="arrived" dir="ltr" role="status" hidden><span id="arrived-said"></span> <button type="button" id="arrived-undo">{{ t("reader.finish.undo", "Undo") }}</button></p>
 
+{#- The picture and its transcript (targum-internal#422, David, 2026-10-05). Two ways to
+    stand, chosen in the bar and kept per reader: Beside — the picture at the left with
+    one thin row of controls under it, and the transcript beside it, the line being said
+    lit as a verse is when it is chanted; and Theatre — the picture large, the line being
+    said under it as a subtitle, its words tappable, with the lines either side faded and
+    the transcript one press away. While it plays everything but the picture, the line of
+    where the voice is and the subtitle steps back. On a phone the picture stands above
+    its controls and the transcript runs under them.
+
+    It replaced a picture in a corner that could be picked up and sized, with a second
+    floating player bar under it and a full-screen mode of its own. Full screen is the
+    browser's, under ⋯; the strip is the transport only while the picture is put away.
+
+    The `<video>` is the page's one media element when it exists, and never fetched from
+    any network: the file stands beside this one, so a folder that travels to a disk keeps
+    its picture (design.md §12). `data-src`, not `src`: the page arrived with the serve key
+    in its query and the script hands it on. The shape the build measured is `data-film`,
+    so an upright film is upright before it has loaded. -#}
+{% if spoken_video %}
+<div class="video{% if spoken_frame and spoken_frame[1] > spoken_frame[0] %} tall{% endif %}" id="video" hidden role="region" aria-label="{{ t("reader.film.the-video", "The video") }}"{% if spoken_frame %} data-film="{{ spoken_frame[0] }} / {{ spoken_frame[1] }}"{% endif %}>
+  <div class="film-frame">
+    <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
+    {#- The picture is the biggest thing on the page to press, so a press on it plays
+        and pauses — the same wiring as every other play press (`data-play-scene`). No
+        glyph sits on it: the row under it says whether it is playing. -#}
+    <button type="button" class="video-tap" data-play-scene aria-pressed="false" aria-label="{{ t("reader.page.play-or-pause-the-picture", "Play or pause the picture") }}"></button>
+  </div>
+  {#- One thin row: play, where it is, the line of it, how long, how fast, and the line
+      held. Text labels and thin strokes, nothing filled (#421's bar). -#}
+  <div class="film-ctl" role="group" aria-label="{{ t("reader.film.controls", "Video controls") }}" dir="ltr">
+    <button type="button" class="film-play" data-play-scene aria-pressed="false" aria-label="{{ t("reader.film.play", "Play the video") }}" title="{{ t("reader.film.play-title", "Play and pause (Space)") }}">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path class="play" d="M5 3.2 12.8 8 5 12.8Z"></path>
+        <path class="pause" d="M5.5 3.8v8.4M10.5 3.8v8.4"></path>
+      </svg>
+    </button>
+    <span class="film-at" aria-hidden="true">0:00</span>
+    {#- A slider like the strip's, and answering the same keys. The faint band on it is
+        the line being said. -#}
+    <span class="film-track" role="slider" tabindex="0" aria-label="{{ t("reader.page.position", "Position") }}"
+          aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00"><span class="film-line"></span><span class="film-fill"></span></span>
+    <span class="film-length" aria-hidden="true"></span>
+    <span class="film-tools">
+      <button type="button" class="film-rate" data-pop="rates" aria-haspopup="true" aria-expanded="false" aria-controls="rates"
+              aria-label="{{ t("reader.page.speed", "Speed") }}" title="{{ t("reader.page.speed", "Speed") }}"><span class="film-rate-now">1×</span><svg class="caret" viewBox="0 0 8 8" aria-hidden="true" focusable="false"><path d="M1.5 3 4 5.5 6.5 3"></path></svg></button>
+      <button type="button" class="film-loop" aria-pressed="false" title="{{ t("reader.film.loop-title", "Play the line being said again and again") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 7.2V6.5A2.5 2.5 0 0 1 5.5 4h7.2M10.6 1.9 12.7 4l-2.1 2.1M13 8.8v.7A2.5 2.5 0 0 1 10.5 12H3.3M5.4 14.1 3.3 12l2.1-2.1"></path></svg>
+        <span class="film-word film-loop-long">{{ t("reader.film.loop", "Loop this line") }}</span><span class="film-word film-loop-short" aria-hidden="true">{{ t("reader.film.loop-short", "Loop") }}</span>
+      </button>
+      <button type="button" class="film-transcript" aria-pressed="false" aria-controls="reader" title="{{ t("reader.film.transcript-title", "The whole transcript beside the video") }}">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01"></path></svg>
+        <span class="film-word">{{ t("reader.page.transcript", "Transcript") }}</span>
+      </button>
+    </span>
+  </div>
+  {#- What it is and whose, under the controls, in Beside. -#}
+  <div class="film-about">
+    <p class="film-name" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</p>
+    {% if english %}<p class="film-english" lang="en" dir="ltr">{{ english }}</p>{% endif %}
+    <p class="film-source" dir="ltr">
+      {%- if speech_credit %}<span>{{ speech_credit }}</span>{% endif %}
+      {%- if speech_licence %}<span>{% if speech_licence_url %}<a href="{{ speech_licence_url }}" rel="noopener">{{ speech_licence }}</a>{% else %}{{ speech_licence }}{% endif %}</span>{% endif %}
+      {%- if not standalone %}<span>{{ t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) }}</span>{% endif %}
+      <span class="film-length-said"></span>
+      {%- if spoken_home and not (post and post.home) %}<span><a class="film-home" data-home="{{ "at" if spoken_home_timed else "" }}" href="{{ spoken_home }}" target="_blank" rel="noreferrer noopener">{{ t("reader.film.watch-on", "Watch on {service}", service=spoken_home_named) }}</a></span>{% endif %}
+    </p>
+  </div>
+  {#- The line being said, under the picture, in Theatre. Its words are the transcript's
+      own, copied in by the script as the clock reaches them, so they carry the same
+      levels and open the same card. The lines either side are there to be glanced at,
+      not read, and a screen reader is told the line itself. -#}
+  <div class="film-sub" id="film-sub">
+    <p class="film-far film-before" lang="{{ source_language }}" dir="{{ source_direction }}" aria-hidden="true"></p>
+    <div class="film-now" aria-live="off"></div>
+    {% if translated %}<p class="film-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
+    <p class="film-far film-after" lang="{{ source_language }}" dir="{{ source_direction }}" aria-hidden="true"></p>
+  </div>
+</div>
+{#- The transcript's heading while it is a panel beside a large picture. -#}
+<div class="film-panel-head" id="film-panel-head" dir="ltr" hidden>
+  <span>{{ t("reader.page.transcript", "Transcript") }}</span>
+  <button type="button" class="film-panel-close" aria-label="{{ t("reader.film.close-transcript", "Close the transcript") }}" title="{{ t("reader.film.close-transcript", "Close the transcript") }}">×</button>
+</div>
+{% endif %}
 <main id="reader">
 {#- Small on purpose. A chapter page is for reading, and an image that competed with the
     text would be a decoration; this is a mark, the size of a stamp, that says which book
@@ -598,99 +722,6 @@
     </svg>
   </a>
   <button type="button" class="player-close" aria-label="{{ t("reader.page.close-the-player", "Close the player") }}">×</button>
-</div>
-{% endif %}
-{#- The picture, in the same corner the player stands in, and away until asked for.
-    The `<video>` is the page's one media element when it exists — the player strip
-    drives it, and closing the panel only hides the picture, never stops the sound.
-    The address is relative and the file stands beside this one: never inlined — a
-    part of video is ten times the whole page — and never fetched from any network,
-    so a folder that travels to a disk keeps its picture (design.md §12). -#}
-{% if spoken_video %}
-{#- data-src, not src: the page itself arrived with the serve key in its query, and a
-    bare relative src would ask for the sidecar without it — refused, and the fallback
-    would hide the whole feature. The script appends location.search, which is the key
-    when there is one and nothing off a disk. -#}
-{#- The film's shape, where the build measured it: `tall` for the layout and `data-film`
-    for the frame, so an upright film is upright before it has loaded. Not a `style`
-    attribute — the served page's policy refuses one — so `reader.js` reads this. -#}
-<div class="video{% if spoken_frame and spoken_frame[1] > spoken_frame[0] %} tall{% endif %}" id="video" hidden role="group" aria-label="Watch {{ spoken_label }}"{% if spoken_frame %} data-film="{{ spoken_frame[0] }} / {{ spoken_frame[1] }}"{% endif %}>
-  <video class="video-el" playsinline preload="metadata" data-src="{{ spoken_video }}"></video>
-  {#- Tap the picture to play or pause it. The strip's button is 2rem in a row that is
-      already crowded on a phone, and the picture is the biggest target on the page and
-      already under the reader's thumb. `data-play-scene` is the whole wiring: the
-      script collects every one of them as a scene button, so this gets the same click
-      handler and the same `aria-pressed` as the strip's play, and there is no second
-      idea of whether the film is running. The glyph shows while paused and goes while
-      playing — a control that sits permanently over the picture would cover the thing
-      the reader came for, to say what they can already see.
-
-      Named for where it is rather than for what it plays: the strip's button already
-      says "Play <the text>", and two controls answering to the same name is one name
-      too many for anybody listening to the page rather than looking at it. -#}
-  <button type="button" class="video-tap" data-play-scene aria-pressed="false" aria-label="{{ t("reader.page.play-or-pause-the-picture", "Play or pause the picture") }}">
-    <span class="video-tap-glyph" aria-hidden="true">
-      <svg viewBox="0 0 16 16" focusable="false">
-        <path class="play" d="M5 3.5 12.5 8 5 12.5Z"></path>
-        <rect class="stop" x="4.5" y="4.5" width="7" height="7" rx="1"></rect>
-      </svg>
-    </span>
-  </button>
-  {#- The line being said, over the picture, while the picture is the page. The text is
-      the page's own — copied out of the pair the clock is inside rather than carried a
-      second time — so a subtitle is never a translation the reader cannot also read in
-      place. Hebrew above English, and empty between lines rather than holding the last
-      one up over a silence. `aria-hidden`, because the pair it was copied from is still
-      in the page and a screen reader that met both would meet every line twice. -#}
-  <div class="video-titles" aria-hidden="true">
-    <p class="video-src" lang="{{ source_language }}" dir="{{ source_direction }}"></p>
-    {% if translated %}<p class="video-tr" lang="{{ target_language }}" dir="{{ target_direction }}"></p>{% endif %}
-  </div>
-  <div class="video-keys">
-    {#- Picked up and put anywhere on a wide window (design.md §12, 2026-09-13). A key of
-        its own rather than the panel's frame: the picture is the play button, and a
-        press on it has to stay a press. Arrow keys move it for a keyboard. -#}
-    {#- Said in words as well as drawn (2026-09-14: "the controls on the player don't make it
-        obvious you can drag it or resize it"): the grip is a bar across the top of the
-        picture that says Move, and the other keys say what they do beside their glyphs. -#}
-    <button type="button" class="video-grip" aria-label="{{ t("reader.page.move-the-video", "Move the video") }}" title="{{ t("reader.page.drag-to-move-the-video", "Drag to move the video") }}">
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <circle cx="6" cy="4" r="1.1"/><circle cx="10" cy="4" r="1.1"/>
-        <circle cx="6" cy="8" r="1.1"/><circle cx="10" cy="8" r="1.1"/>
-        <circle cx="6" cy="12" r="1.1"/><circle cx="10" cy="12" r="1.1"/>
-      </svg>
-      <span class="video-word">{{ t("reader.page.move", "Move") }}</span>
-    </button>
-    {#- Watching or reading. Not a third state of the toggle in the bar: that one is
-        whether there is a picture at all, and this is what the picture is doing. -#}
-    {#- Full screen from the corner, the transcript from full screen: one key, whose glyph
-        and word say where pressing it goes — outward to fill the window, or inward to a
-        corner beside the text. -#}
-    <button type="button" class="video-mode" aria-pressed="true" aria-label="{{ t("reader.page.show-the-transcript", "Show the transcript") }}" title="{{ t("reader.page.minimise-and-show-the-transcript-v", "Minimise and show the transcript (v)") }}">
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <path class="expand" d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/>
-        <path class="shrink" d="M13.5 6.5h-4v-4M9.5 6.5 14 2M2.5 9.5h4v4M6.5 9.5 2 14"/>
-      </svg>
-      <span class="video-word">{{ t("reader.page.transcript", "Transcript") }}</span>
-    </button>
-    {#- Which corner it stands in while the reader reads. Four, cycled — a picture parked
-        over the sentence being read is the whole complaint the note made, and a corner
-        the layout keeps room for answers it for good. A picture that has been picked up
-        comes back to its corner on the first press. -#}
-    <button type="button" class="video-corner" aria-label="{{ t("reader.page.put-the-picture-in-a-corner", "Put the picture in a corner") }}" title="{{ t("reader.page.put-the-picture-in-a-corner", "Put the picture in a corner") }}">
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-        <rect x="2.5" y="2.5" width="11" height="11" rx="1"/>
-        <rect x="8.5" y="8.5" width="5" height="5" rx="1" class="corner"/>
-      </svg>
-    </button>
-    <button type="button" class="video-close" aria-label="{{ t("reader.page.close-the-video", "Close the video") }}" title="{{ t("reader.page.close-the-video", "Close the video") }}"><span aria-hidden="true">×</span><span class="video-word">{{ t("reader.page.close", "Close") }}</span></button>
-  </div>
-  {#- Its size, from the corner across from the one it is held by. -#}
-  <button type="button" class="video-size" aria-label="{{ t("reader.page.resize-the-video", "Resize the video") }}" title="{{ t("reader.page.drag-to-resize-the-video", "Drag to resize the video") }}">
-    <svg viewBox="0 0 12 12" aria-hidden="true" focusable="false">
-      <path d="M10.5 2 2 10.5M10.5 5.5 5.5 10.5M10.5 9 9 10.5"/>
-    </svg>
-  </button>
 </div>
 {% endif %}
 {% if preread %}
@@ -1025,8 +1056,10 @@
         track is a slider and answers like one, and the picture's grip and its size handle
         move by the arrows. They work only with the thing itself in focus, and say so. -#}
     {% if spoken_audio %}<dt>Tab ← →</dt><dd>{{ t("reader.page.keys-on-the-track", "with the recording's track in focus, back or forward five seconds; Home and End jump to its start and end") }}</dd>{% endif %}
-    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.page.watch-it-full-screen-or-read-alongside", "watch it full screen, or read alongside it with the picture in a corner") }}</dd>
-    <dt>Tab ↑ ↓ ← →</dt><dd>{{ t("reader.page.keys-on-the-picture", "with the picture's Move or its size handle in focus, move or resize it; Shift for bigger steps") }}</dd>{% endif %}
+    {#- The video's own (targum-internal#422): which way it stands, and a line at a time.
+        In Theatre, with no transcript to walk, ← → step lines as well. -#}
+    {% if spoken_video %}<dt>v</dt><dd>{{ t("reader.film.key-v", "the transcript beside the video, or the video large") }}</dd>
+    <dt>↑ ↓</dt><dd>{{ t("reader.film.key-lines", "the line before, the line after; ← → as well in Theatre") }}</dd>{% endif %}
     <dt>PageDown</dt><dd>{{ t("reader.page.next-page-pageup-back-on-the-last", "next page; PageUp back. On the last page, the next chapter") }}</dd>
     {% else %}<dt>Esc</dt><dd>{{ t("reader.page.close-this", "close this") }}</dd>
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}

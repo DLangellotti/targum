@@ -207,12 +207,18 @@ THUMBED = (
     ".player-video",
     ".player-get",
     ".player-close",
-    ".video-mode",
-    ".video-corner",
-    ".video-close",
-    # And the picture's grip and size key, on a wide touch screen (2026-09-13).
-    ".video-grip",
-    ".video-size",
+    # The row under a video's picture, the switch beside it in the bar, the transcript
+    # panel's ×, the speed's picks and the step in ⋯ (targum-internal#422, 2026-10-05).
+    # They replaced the picture's mode, corner, close, grip and size keys.
+    ".film-play",
+    ".film-rate",
+    ".film-loop",
+    ".film-transcript",
+    ".film-view",
+    ".film-panel-close",
+    ".film-rate-pick",
+    ".more-back",
+    ".more-on",
     # What to work on (2026-09-18, targum-internal#103): the two answers a word row has.
     ".work-keys button",
     ".fold",

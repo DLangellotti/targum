@@ -1847,15 +1847,15 @@ body[data-case="Loc"] .w.case-Loc {
   :is(
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button, .video-close,
+    .list-close, .list-foot button,
     /* The four that had no reach anywhere. The block further down already carries the
        play button, both steps, the download and the ×; these were simply never added to
-       either. The speed and the picture toggle draw at 24-38px in the strip, and the
-       picture's own mode and corner keys at 24px beside a `.video-close` that had its
-       44px already — so the × was comfortable and the two keys next to it were not. */
-    .player-rate-now, .player-video, .video-mode, .video-corner,
-    /* The grip and the size key, on a wide touch screen (2026-09-13). */
-    .video-grip, .video-size,
+       either. The speed and the picture toggle draw at 24-38px in the strip. */
+    .player-rate-now, .player-video,
+    /* The row under the picture, the switch beside it in the bar, and the panel's ×
+       (targum-internal#422): thin on purpose, and given their reach here. */
+    .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close,
+    .film-rate-pick, .more-back, .more-on,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
@@ -1869,15 +1869,15 @@ body[data-case="Loc"] .w.case-Loc {
   :is(
     .site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet,
     .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button,
-    .list-close, .list-foot button, .video-close,
+    .list-close, .list-foot button,
     /* The four that had no reach anywhere. The block further down already carries the
        play button, both steps, the download and the ×; these were simply never added to
-       either. The speed and the picture toggle draw at 24-38px in the strip, and the
-       picture's own mode and corner keys at 24px beside a `.video-close` that had its
-       44px already — so the × was comfortable and the two keys next to it were not. */
-    .player-rate-now, .player-video, .video-mode, .video-corner,
-    /* The grip and the size key, on a wide touch screen (2026-09-13). */
-    .video-grip, .video-size,
+       either. The speed and the picture toggle draw at 24-38px in the strip. */
+    .player-rate-now, .player-video,
+    /* The row under the picture, the switch beside it in the bar, and the panel's ×
+       (targum-internal#422): thin on purpose, and given their reach here. */
+    .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close,
+    .film-rate-pick, .more-back, .more-on,
     /* Hear first, in the strip (2026-09-15, targum-internal#265). */
     .player-first,
     /* "inferred" after a reading (design.md §12, 2026-09-27): a word-sized button whose
@@ -3265,71 +3265,66 @@ body.paged .credits { margin-block-end: 6rem; }
 .player-slower:focus-visible, .player-faster:focus-visible,
 .player-back:focus-visible, .player-on:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
 
-/* The picture, above the player in the same corner and on when the text opens: a text
-   that carries media opens as its media (§1, §12, 2026-09-03). The transport is still
-   the strip below and this panel only shows what the import kept — closing it hides the
-   picture and never stops the sound. A floating overlay, so the shadow is allowed (§8);
-   the panel radius is the 8 of panels and the picture sits inside on the 4 of controls. */
+/* --- the picture and its transcript (targum-internal#422, David, 2026-10-05) -----------
+   A text that carries a video opens with its picture up, standing one of two ways, chosen
+   in the bar and kept per reader. Beside: the picture at the left with one thin row of
+   controls under it, what it is and whose under that, and the transcript beside it,
+   following the voice, the line being said lit as a verse is while it is chanted.
+   Theatre: the picture large, the line being said under it as a line of the transcript
+   set large — its words tappable, the word being said lit where the recording was
+   aligned word by word, the English small under it, the lines either side faded — and the
+   transcript a panel one press away, the picture growing smaller to make room. While it
+   plays, everything but the picture, a hairline of where the voice is and the line being
+   said steps back. On a phone: the picture, its controls, and the transcript under them.
+
+   It replaced a picture in a corner that could be picked up and sized, with a second
+   floating transport under it and a black full-screen frame of its own (§12). The script
+   works the sizes out (`--film-w`, the picture's width; `--film-col`, the column it
+   stands in) because they answer to the window's height and the film's own shape as
+   well as the width. The picture itself is §4's ink surface, as a literal, because a
+   letterbox is the one dark field on a page that has one look. */
+.video[hidden],
+.film-panel-head[hidden] { display: none; }
+.film-panel-head { display: none; }
+
 .video {
   position: fixed;
-  inset-block-end: 4.75rem;
-  inset-inline-end: 1.25rem;
-  z-index: 26;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.25rem;
-  inline-size: min(20rem, calc(100vw - 2.5rem));
-  padding: 0.4rem;
-  /* The overlay's lighter line directly, not via the shared border-color rule near
-     the top of the file — this shorthand is written later and would win over it. */
-  border: 1px solid var(--overlay-rule, var(--rule));
-  border-radius: 8px;
-  background: var(--paper-raised);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 8px 20px -14px rgb(0 0 0 / 35%);
-}
-
-/* A vertical film docks as a vertical panel. At the landscape panel's width a 9:16
-   picture is six hundred pixels of video down the corner of the page, which is not a
-   dock — it is a takeover. `:not(.free)` so a reader who sized it by hand keeps their
-   size; the dock is only the starting shape. */
-.video.tall:not(.watching):not(.free) {
-  inline-size: min(11rem, calc(100vw - 2.5rem));
-}
-
-.video[hidden] { display: none; }
-
-.video-el {
-  flex: 1 1 auto;
-  min-inline-size: 0;
-  inline-size: 100%;
-  /* The film's own shape once its metadata lands, and 16/9 until then (design.md §12,
-     2026-09-17). `--film` is written on the panel by `reader.js`, so the picture, the
-     tap target over it and the full-screen frame all take the same value. */
-  aspect-ratio: var(--film, 16 / 9);
-  object-fit: contain;
-  border-radius: 4px;
-  /* A letterbox is dark: §4's ink surface, as a literal, because there is no token
-     for a dark field on a page that has one look (2026-09-19). */
-  background: #171614;
-}
-
-.video-keys {
-  flex: none;
+  z-index: 14;
+  inset-block: var(--bar-foot, 3.5rem) 0;
+  left: 0;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  align-items: flex-start;
+  inline-size: var(--film-col, 50vw);
+  padding: 1.5rem 2.5rem;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  direction: ltr;
+  text-align: start;
 }
+.video > * { inline-size: var(--film-w, 100%); flex: none; }
 
-/* Tap the picture to play or pause. Placed here, with the panel's other parts and
-   before the `.video.watching` and `.video.dock-*` blocks, because those are
-   single-class rules of equal weight where source order alone decides: this one styles
-   a child and must not be written after a state rule that repositions the panel. */
+.film-frame {
+  position: relative;
+  aspect-ratio: var(--film, 16 / 9);
+  border-radius: 6px;
+  overflow: hidden;
+  background: #171614;
+}
+.video-el {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
+}
+/* The picture plays and pauses when pressed, and draws nothing over itself to say so:
+   the row under it says whether it is playing. */
 .video-tap {
   position: absolute;
   inset: 0;
-  z-index: 1;
-  display: grid;
-  place-items: center;
   margin: 0;
   padding: 0;
   border: 0;
@@ -3337,570 +3332,498 @@ body.paged .credits { margin-block-end: 6rem; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* The keys sit beside the picture rather than over it, so they are lifted out of the
-   tap layer: the overlay spans the panel and a close button that cannot be pressed is
-   worse than a picture that cannot be tapped. */
-.video-keys { position: relative; z-index: 2; }
-/* The subtitle is decoration copied out of the page and is `aria-hidden` already; it
-   must not swallow a tap meant for the picture underneath it. */
-.video-titles { pointer-events: none; }
-.video-tap-glyph {
-  display: grid;
-  place-items: center;
-  inline-size: 3.25rem;
-  block-size: 3.25rem;
-  border-radius: 50%;
-  color: var(--paper);
-  background: rgb(0 0 0 / 45%);
-  transition: opacity 180ms ease;
-}
-.video-tap svg { inline-size: 1.375rem; block-size: 1.375rem; fill: currentColor; }
-.video-tap .stop { display: none; }
-.video-tap[aria-pressed="true"] .play { display: none; }
-.video-tap[aria-pressed="true"] .stop { display: block; }
-/* Playing, the glyph goes. It comes back for the keyboard, and for a pointer that can
-   really hover — `@media (hover: hover)` and not a bare `:hover`, because a phone keeps
-   `:hover` on whatever it last tapped until something else is tapped. Tapping the film to
-   play therefore left the glyph lit over a playing film, showing a stop square in the
-   middle of the picture with no way to make it go. */
-.video-tap[aria-pressed="true"] .video-tap-glyph { opacity: 0; }
-.video-tap:focus-visible .video-tap-glyph { opacity: 1; }
-@media (hover: hover) {
-  .video-tap:hover .video-tap-glyph { opacity: 1; }
-}
 .video-tap:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
-@media (prefers-reduced-motion: reduce) {
-  .video-tap-glyph { transition: none; }
+/* A word's card over a paused picture (C): the frame steps down under it. */
+body.film-card.film-theatre .film-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, #171614 24%, transparent);
+  pointer-events: none;
 }
 
-.video-close,
-.video-mode,
-.video-corner,
-.video-grip {
-  flex: none;
-  display: grid;
-  place-items: center;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+/* --- one thin row ---
+   Play, where it is, the line of it, how long, how fast, and the line held. Text and thin
+   strokes in muted ink; the live choice is ink, underlined in leaf, as in the bar. */
+.film-ctl {
+  display: flex;
+  align-items: center;
+  block-size: 2.25rem;
+  margin-block-start: 0.55rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.film-ctl button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 4px;
   background: none;
-  color: var(--ink-soft);
+  color: inherit;
+  font: inherit;
   cursor: pointer;
-  font-size: 1.0625rem;
-  line-height: 1;
 }
-.video-mode svg,
-.video-corner svg {
-  inline-size: 0.85rem;
-  block-size: 0.85rem;
+.film-ctl button:hover { color: var(--ink); }
+.film-ctl button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: 4px; }
+.film-ctl svg {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.4;
+  stroke-width: 1.3;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* The small square says which corner, so it is filled rather than drawn: the icon is a
-   picture of the answer, not a second outline to read. It is drawn in the bottom-end
-   corner and moved to the other three, so the button always shows where the picture
-   is standing rather than where pressing it would send it. */
-.video-corner svg .corner { fill: currentColor; stroke: none; }
-.video-corner[data-corner="bottom-start"] svg .corner { transform: translateX(-6px); }
-.video-corner[data-corner="top-start"] svg .corner { transform: translate(-6px, -6px); }
-.video-corner[data-corner="top-end"] svg .corner { transform: translateY(-6px); }
-/* On a page that reads right to left the end is the left: the square is drawn at the
-   bottom right, so in RTL it moves for the end corners and stays for the start ones, the
-   way the resize key below already turns (2026-09-14). */
-html[dir="rtl"] .video-corner[data-corner="bottom-end"] svg .corner { transform: translateX(-6px); }
-html[dir="rtl"] .video-corner[data-corner="bottom-start"] svg .corner { transform: none; }
-html[dir="rtl"] .video-corner[data-corner="top-end"] svg .corner { transform: translate(-6px, -6px); }
-html[dir="rtl"] .video-corner[data-corner="top-start"] svg .corner { transform: translateY(-6px); }
-.video-close:hover, .video-mode:hover, .video-corner:hover, .video-grip:hover { color: var(--ink); }
-.video-close:focus-visible,
-.video-mode:focus-visible,
-.video-corner:focus-visible,
-.video-grip:focus-visible,
-.video-size:focus-visible { box-shadow: 0 0 0 1px var(--focus); }
+.film-ctl .film-play {
+  justify-content: center;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  margin-inline-start: -0.45rem;
+  border-radius: 999px;
+  color: var(--ink);
+}
+.film-play svg { inline-size: 0.95rem; block-size: 0.95rem; }
+.film-play .play { fill: currentColor; stroke: none; }
+.film-play .pause { display: none; stroke-width: 2.2; }
+.film-play[aria-pressed="true"] .play { display: none; }
+.film-play[aria-pressed="true"] .pause { display: inline; }
+.film-at,
+.film-length {
+  min-inline-size: 2.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.film-length { text-align: end; }
+/* The line of it: a hairline the voice fills in muted ink, with a faint band in leaf
+   where the line being said sits. A slider, and as tall as a pointer needs. */
+.film-track {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  margin-inline: 0.9rem;
+  cursor: pointer;
+  touch-action: none;
+}
+.film-track::before,
+.film-fill {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 50%;
+  block-size: 2px;
+  margin-block-start: -1px;
+  border-radius: 999px;
+}
+.film-track::before { inset-inline-end: 0; background: var(--rule); }
+.film-fill { inline-size: 0; background: var(--ink-soft); }
+.film-line {
+  position: absolute;
+  inset-block-start: 50%;
+  block-size: 0.5rem;
+  margin-block-start: -0.25rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--leaf) 22%, transparent);
+}
+.film-line[hidden] { display: none; }
+.film-track:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.film-tools { display: flex; align-items: center; }
+/* Each thing in the row after the length stands behind a short hairline. */
+.film-ctl .film-tools > * {
+  position: relative;
+  margin-inline-start: 0.95rem;
+  padding-inline-start: 0.95rem;
+}
+.film-ctl .film-tools > *::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 50%;
+  block-size: 0.875rem;
+  margin-block-start: -0.4375rem;
+  inline-size: 1px;
+  background: var(--rule);
+}
+.film-rate .caret { inline-size: 0.5rem; block-size: 0.5rem; margin-inline-start: -0.15rem; }
+.film-rate[aria-expanded="true"] { color: var(--ink); }
+.film-word { line-height: 1.2; padding-block: 0.15rem; border-block-end: 1.5px solid transparent; }
+.film-loop[aria-pressed="true"],
+.film-transcript[aria-pressed="true"] { color: var(--ink); }
+.film-loop[aria-pressed="true"] .film-word,
+.film-transcript[aria-pressed="true"] .film-word { border-block-end-color: var(--leaf); }
+.film-loop-short { display: none; }
+.film-ctl .film-transcript { display: none; }
+body.film-theatre .film-ctl .film-transcript { display: inline-flex; }
+/* A playlist's Back and Next, in the row, quietly (list.js). */
+.film-tools .list-key { margin-block: 0; }
 
-/* --- picked up --------------------------------------------------------------
-   The picture can be moved anywhere and sized from a corner (§12, 2026-09-13). Wide
-   windows only: below 60rem the panel is an occupant of the band, full-bleed, and a
-   thing pulled down to close — there is nowhere else for it to stand. So both keys are
-   drawn only where they can do something, and never over the full-screen picture.
+/* --- what it is and whose, under the row, Beside --- */
+.film-about { margin-block-start: 1.1rem; }
+.film-about p { margin: 0; }
+.film-name {
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.25rem;
+  line-height: 1.45;
+}
+.film-name[dir="rtl"] { text-align: left; }
+.film-about .film-english {
+  margin-block-start: 0.2rem;
+  color: var(--ink-soft);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.45;
+}
+.film-about .film-source {
+  margin-block-start: 0.85rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.film-source > span:empty { display: none; }
+.film-source > span:not(:empty) ~ span:not(:empty)::before {
+  content: "·";
+  margin-inline: 0.55rem;
+  color: var(--rule);
+}
+.film-source a {
+  color: inherit;
+  text-decoration: none;
+  border-block-end: 1px solid var(--rule);
+}
+.film-source a:hover { color: var(--ink); border-block-end-color: var(--ink-soft); }
 
-   The grip is a key in the rail rather than the panel's frame, because the tap layer
-   spans the panel and a press on the picture plays it. The size key sits at the foot,
-   in the inline corner across from the one the panel is held by: a dock at the end is
-   held at its end and grows toward its start, so a handle at the end would run away
-   from the pointer that is pulling it. Picked up, the panel is held at its start. */
-.video-grip,
-.video-size { display: none; }
-.video-grip svg { inline-size: 0.85rem; block-size: 0.85rem; fill: currentColor; }
-@media (min-width: 60.01rem) {
-  .video .video-grip { display: grid; cursor: grab; touch-action: none; }
-  .video.moving,
-  .video.moving .video-grip { cursor: grabbing; }
-  .video .video-size {
-    position: absolute;
-    z-index: 3;
-    inset-block: auto 0;
-    inset-inline: 0 auto;
-    display: grid;
-    place-items: end start;
-    inline-size: 1.5rem;
-    block-size: 1.5rem;
-    padding: 0.2rem;
-    border: 0;
-    border-radius: 4px;
-    background: none;
-    color: var(--ink-soft);
-    cursor: nesw-resize;
-    touch-action: none;
-  }
-  .video .video-size svg {
-    inline-size: 0.75rem;
-    block-size: 0.75rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    /* Drawn for the bottom-right corner and turned to face whichever corner it is in. */
-    transform: scaleX(-1);
-  }
-  .video.dock-bottom-start .video-size,
-  .video.dock-top-start .video-size,
-  .video.free .video-size { inset-inline: auto 0; place-items: end; cursor: nwse-resize; }
-  .video.dock-bottom-start .video-size svg,
-  .video.dock-top-start .video-size svg,
-  .video.free .video-size svg { transform: none; }
-  html[dir="rtl"] .video .video-size { cursor: nwse-resize; }
-  html[dir="rtl"] .video .video-size svg { transform: none; }
-  html[dir="rtl"] .video.dock-bottom-start .video-size,
-  html[dir="rtl"] .video.dock-top-start .video-size,
-  html[dir="rtl"] .video.free .video-size { cursor: nesw-resize; }
-  html[dir="rtl"] .video.dock-bottom-start .video-size svg,
-  html[dir="rtl"] .video.dock-top-start .video-size svg,
-  html[dir="rtl"] .video.free .video-size svg { transform: scaleX(-1); }
-  .video .video-size:hover { color: var(--ink); }
-  .video.watching .video-grip,
-  .video.watching .video-size { display: none; }
+/* --- the line under the picture, Theatre --- */
+.film-sub { display: none; margin-block-start: 0.9rem; text-align: center; }
+.film-sub p { margin: 0; }
+.film-far {
+  color: color-mix(in srgb, var(--ink) 30%, var(--paper));
+  font-size: 1.0625em;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.film-now { margin-block: 0.55rem 0.1rem; }
+/* The transcript's own line, set large: none of a pair's chrome comes with it. */
+.film-sub .film-pair,
+.film-sub .film-pair:hover {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.film-sub .film-pair .src {
+  max-width: none;
+  margin: 0;
+  color: var(--ink);
+  font-size: 2em;
+  line-height: 1.5;
+}
+.film-sub .film-pair .w { padding-inline: 0.12em; border-radius: 6px; }
+/* A long line is set smaller rather than run out of the window: a talk transcribed in
+   long breaths has lines of three sentences. */
+.film-sub[data-long="1"] .film-pair .src { font-size: 1.5em; }
+.film-sub[data-long="2"] .film-pair .src { font-size: 1.2em; line-height: 1.6; }
+.film-sub .film-tr {
+  margin-block-end: 0.75rem;
+  color: var(--ink-soft);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.45;
 }
 
-/* --- the keys, said in words (2026-09-14) -------------------------------------------
-   "The controls on the player don't make it obvious you can drag it or resize it", and in
-   full screen that you can minimise it or reach the transcript. Glyphs alone were the
-   whole of it. So on a wide window the keys are a bar across the top of the picture:
-   Move, drawn as a grip and filling the bar so the bar is the thing to take hold of, then
-   Full screen, the corner and Close. The size key is a visible handle in its corner. Full
-   screen, the two keys are pills in words over a dark backing: Transcript, which shrinks
-   the picture into its corner beside the text, and Close. */
-.video-word { display: none; }
-.video-mode .shrink { display: none; }
-.video.watching .video-mode .expand { display: none; }
-.video.watching .video-mode .shrink { display: inline; }
-.video-mode svg path { fill: none; }
-
-@media (min-width: 60.01rem) {
-  .video:not(.watching) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.35rem;
-  }
-  .video:not(.watching) .video-el { inline-size: 100%; }
-  .video:not(.watching) .video-keys {
-    order: -1;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.25rem;
-  }
-  .video:not(.watching) .video-grip {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.4rem;
-    inline-size: auto;
-    block-size: 1.75rem;
-    padding-inline: 0.5rem;
-    background: var(--paper);
-    color: var(--ink-soft);
-    font-size: 0.8125rem;
-    font-weight: 600;
-  }
-  .video:not(.watching) .video-mode {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    inline-size: auto;
-    block-size: 1.75rem;
-    padding-inline: 0.5rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-  }
-  .video:not(.watching) .video-corner,
-  .video:not(.watching) .video-close { inline-size: 1.75rem; block-size: 1.75rem; }
-  .video:not(.watching) .video-grip .video-word,
-  .video:not(.watching) .video-mode .video-word { display: inline; }
-  .video:not(.watching) .video-grip:hover,
-  .video:not(.watching) .video-mode:hover,
-  .video:not(.watching) .video-corner:hover,
-  .video:not(.watching) .video-close:hover {
-    color: var(--ink);
-    background: color-mix(in srgb, var(--ink) 8%, transparent);
-  }
-  .video:not(.watching) .video-size {
-    inline-size: 1.75rem;
-    block-size: 1.75rem;
-    padding: 0.3rem;
-    border-radius: 8px;
-    color: var(--ink);
-    background: color-mix(in srgb, var(--paper-raised) 88%, transparent);
-    box-shadow: 0 0 0 1px var(--overlay-rule, var(--rule));
-  }
-  .video:not(.watching) .video-size svg { inline-size: 0.9rem; block-size: 0.9rem; }
-  .video:not(.watching) .video-size:hover { background: var(--paper-raised); }
-
-  /* The bar across a vertical panel. It was written for 20rem and the upright dock is
-     narrower, so "Full screen" ran off the panel's edge and the corner and close keys
-     were under it. The panel is as wide as its keys need — still well short of the
-     landscape one — and the grip keeps its dots and drops its word, which is the one
-     word here a reader does not need to be told. */
-  .video.tall:not(.watching):not(.free) { inline-size: min(13.5rem, calc(100vw - 2.5rem)); }
-  .video.tall:not(.watching) .video-grip .video-word { display: none; }
-  .video.tall:not(.watching) .video-grip { flex: 0 0 auto; }
-  .video.tall:not(.watching) .video-mode { margin-inline-end: auto; }
+/* The word being said, in the transcript and in the line under the picture: §8's
+   selection, ink-soft with paper on it — the one chip that means "this one now". */
+body.film .w.voiced-now,
+body.film.marking .w.voiced-now {
+  background: var(--ink-soft);
+  color: var(--paper);
+  box-shadow: none;
+  text-decoration: none;
 }
 
-.video.watching .video-keys { gap: 0.5rem; margin: 1rem; }
-.video.watching .video-mode,
-.video.watching .video-close {
+/* --- the transcript beside it --- */
+body.film #reader .pair {
+  display: block;
+  margin-block-end: 0.2rem;
+  padding: 0.75rem 1.1rem 0.85rem;
+  border-radius: 8px;
+}
+body.film #reader .pair .src { max-width: none; }
+body.film #reader .pair .tr {
+  max-width: none;
+  margin-block-start: 0.2rem;
+  padding: 0;
+  border: 0;
+  font-size: 0.9375em;
+}
+body.film #reader .pair.voiced.now { background: var(--paper-raised); }
+/* The title, the byline and the part's heading are said under the picture, Beside, and
+   in the bar; the transcript is what was said. */
+body.film #reader .pair.head,
+body.film #reader .pair.byline { display: none; }
+body.film #reader .pair.voiced.now .tr { color: var(--ink); }
+/* The strip and Listen are the audio reader's; the row under the picture plays it. */
+body.film #player,
+body.film .bar .listen { display: none; }
+
+/* --- the switch in the bar --- */
+.film-views { display: none; }
+body.film .film-views {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  inline-size: auto;
-  block-size: 2.25rem;
-  padding-inline: 0.9rem;
-  border-radius: 999px;
-  background: rgb(0 0 0 / 55%);
-  color: #fbf9f5;
-  font-size: 0.9375rem;
-  font-weight: 600;
+  gap: 1.1rem;
+  margin-inline-end: 0.9rem;
+  padding-inline-end: 1.2rem;
+  border-inline-end: 1px solid var(--rule);
 }
-.video.watching .video-mode .video-word,
-.video.watching .video-close .video-word { display: inline; }
-.video.watching .video-mode:hover,
-.video.watching .video-close:hover { color: #fbf9f5; background: rgb(0 0 0 / 75%); }
-
-/* --- the dock --------------------------------------------------------------
-   Reading, with the picture in a corner the reader chose, which is where it starts: a
-   control fixed over a page of text takes its room out of the layout (§12), and
-   `room()` keeps the reading clear of whichever corner this is. A picture the reader
-   has picked up and put somewhere else floats, and takes nothing (2026-09-13).
-
-   Before watching, deliberately: a panel carries its corner and its mode at once, and
-   these two sets of insets have the same weight. Written the other way round, the
-   corner won and the full-screen picture stayed a 20rem box in the margin. */
-/* Above the strip, by however tall the strip actually is. 4.75rem was the height of a
-   player showing only its name; one showing a bar and a clock — which is every text a
-   reader has been in before — is taller than that, and the picture sat on it. The
-   script keeps `--player-tall` measured; the fallback is the old figure, for the frame
-   before the first measurement and for a browser without a ResizeObserver. */
-.video.dock-bottom-end { inset-block: auto calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 0.75rem); inset-inline: auto 1.25rem; }
-.video.dock-bottom-start { inset-block: auto calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 0.75rem); inset-inline: 1.25rem auto; }
-.video.dock-top-end { inset-block: max(4.5rem, var(--bar-foot, 0px)) auto; inset-inline: auto 1.25rem; }
-.video.dock-top-start { inset-block: max(4.5rem, var(--bar-foot, 0px)) auto; inset-inline: 1.25rem auto; }
-
-/* --- watching --------------------------------------------------------------
-   A text carrying a video sidecar opens as video (§12, 2026-09-03): the picture fills
-   the window and the line being said is drawn over it. The reading page is left
-   standing underneath rather than torn down — leaving this mode has to put the reader
-   back on the sentence they were on, and a page that was never un-laid-out is a page
-   that never has to be found again. */
-.video.watching {
-  inset: 0;
-  inline-size: auto;
-  padding: 0;
-  gap: 0;
+.bar .film-view {
+  padding: 0.2rem 0;
   border: 0;
+  border-block-end: 1.5px solid transparent;
   border-radius: 0;
-  box-shadow: none;
-  background: #171614;
-  z-index: 40;
-  display: grid;
-  /* One cell the size of the window, said out loud. Left implicit the track is `auto`,
-     and an `auto` track is sized by what is in it: a film at the size the importer
-     keeps (480x854 for a reel) made the row 2562px tall on a 900px window, with the
-     line and the transport under the fold. The fixture films are 64px and never did. */
-  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
-}
-/* Everything in the one cell, so the picture, the titles, the keys and the transport
-   stack without any of them being taken out of the flow and placed by hand. */
-.video.watching > * { grid-area: 1 / 1; }
-.video.watching .video-el {
-  inline-size: 100%;
-  block-size: 100%;
-  min-inline-size: 0;
-  min-block-size: 0;
-  aspect-ratio: auto;
-  border-radius: 0;
-}
-.video.watching .video-keys {
-  justify-self: end;
-  align-self: start;
-  flex-direction: row;
-  margin: 0.75rem;
-  /* The band's docked keys carry a pale ground to stand on a film (below 60rem). These
-     are pills with a ground of their own, and the box stayed on behind them on a phone
-     held sideways — the portrait block had already taken it off (R-07). */
   background: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  cursor: pointer;
 }
-/* Over a film, not over a page: the paper as a literal, beside the letterbox's
-   literal above, so the pair that draws the frame is written in one place. */
-.video.watching .video-close,
-.video.watching .video-mode { color: color-mix(in srgb, #fbf9f5 80%, transparent); }
-.video.watching .video-close:hover,
-.video.watching .video-mode:hover { color: #fbf9f5; }
-/* The corner is about where the picture stands while the reader reads, and in this
-   mode it stands nowhere: the window is where it is. */
-.video.watching .video-corner { display: none; }
+.bar .film-view:hover { color: var(--ink); background: none; }
+.bar .film-view[aria-pressed="true"] { color: var(--ink); border-block-end-color: var(--leaf); }
 
-/* The line, over the picture. A scrim rather than a panel — the words have to be
-   readable over whatever the frame happens to be, and a box would be a second surface
-   sitting on the film. Hebrew above English, and gone between lines: a subtitle that
-   holds the last line up over a silence tells the reader the voice is still saying it. */
-.video-titles {
-  align-self: end;
-  justify-self: center;
-  inline-size: min(52rem, 92%);
-  margin-block-end: 6.5rem;
-  padding: 0.75rem 1rem;
+/* --- ⋯, while the picture is up: Hear first, the step, and the file --- */
+.bar-more.open .group.film-only { display: none; }
+body.film .bar-more.open .group.film-only { display: flex; }
+.bar-more .more-step { gap: 0.15rem; }
+/* The recording's row — the file and whose it is — at every width while the picture is
+   up, since the strip that carried them on a wide window is not on the page. */
+body.film .bar-more.open .group.more-player {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1rem;
+  row-gap: 0.1rem;
+}
+body.film .bar-more.open .more-player .label,
+body.film .bar-more.open .more-player .more-credit { flex: 1 0 100%; margin-block-start: 0; }
+body.film .bar-more.open .more-player .more-get { order: 1; }
+body.film .bar-more .more-player .more-close { display: none; }
+
+/* --- the speed, under its press --- */
+.rates-pop .film-rates { display: grid; gap: 0.1rem; }
+.rates-pop .film-rate-pick {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.1rem;
+  padding: 0.35rem 0.8rem;
+  border: 0;
   border-radius: 6px;
-  text-align: center;
-  background: rgb(0 0 0 / 45%);
-  display: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+  cursor: pointer;
 }
-.video.watching .video-titles.saying { display: block; }
-.video-src {
-  margin: 0;
-  font-size: 1.5rem;
-  line-height: 1.45;
-  color: #fbf9f5;
+.rates-pop .film-rate-pick:hover,
+.rates-pop .film-rate-pick:focus-visible { background: var(--paper-raised); }
+.rates-pop .film-rate-pick[aria-pressed="true"] {
+  text-decoration: underline 1.5px var(--leaf);
+  text-underline-offset: 0.35em;
 }
-.video-tr {
-  margin: 0.35rem 0 0;
+@media (min-width: 60.01rem) {
+  .bar-pop.rates-pop.open {
+    position: fixed;
+    inset: var(--near-top, 50%) auto auto var(--near-left, 50%);
+    min-inline-size: 7.5rem;
+    padding: 0.35rem;
+  }
+}
+
+/* --- the panel's head, Theatre --- */
+body.film-panel .film-panel-head:not([hidden]) {
+  position: fixed;
+  z-index: 13;
+  inset-block-start: var(--bar-foot, 3.5rem);
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  inline-size: 26.25rem;
+  block-size: 3.25rem;
+  padding: 0 1rem 0 1.6rem;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+}
+.film-panel-close {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
   font-size: 1.0625rem;
-  line-height: 1.4;
-  /* The second line of the pair here as everywhere else, and it says so by weight of
-     colour rather than by being smaller than the scale allows. */
-  color: color-mix(in srgb, #fbf9f5 78%, transparent);
+  cursor: pointer;
 }
+.film-panel-close:hover { color: var(--ink); background: var(--paper-raised); }
 
-/* Watching is the whole window, so the page underneath must not scroll behind it. */
-body.watching { overflow: hidden; }
-
-/* The transport, over the picture, while the picture is the page. Item 4 of the note:
-   one transport on screen and never two. It is the same strip and the same element,
-   moved rather than copied, so the speed, the place and the bar are the ones the
-   reader already had. */
-.video.watching .player {
-  position: static;
-  justify-self: center;
-  align-self: end;
-  margin-block-end: 1.25rem;
-  /* Wide, where in the corner it is a pill. The strip's middle column is fixed at
-     8.5rem so the card does not breathe as the clock ticks, which is right for a pill
-     and wrong here twice over: the label wraps onto a second line and the bar a reader
-     is meant to drag is an inch long. */
-  inline-size: min(38rem, 92vw);
-}
-.video.watching .player-body { flex: 1 1 auto; inline-size: auto; min-inline-size: 0; }
-
-/* Held up, rather than held sideways. `screen.orientation.lock()` works only inside
-   the Fullscreen API and not at all in Safari on iOS, so the note's "on mobile the
-   screen flips horizontal" cannot be had by asking the browser — and a page that tells
-   the reader to turn their phone before it will work is a page that has failed. Both
-   ways up instead: laid over the picture in landscape, under it in portrait, where a
-   16:9 frame leaves most of the window empty and the line can have some of it. */
-@media (orientation: portrait) {
-  /* Read down the window: the picture, the line it is saying, and the transport at the
-     foot where every strip in this reader lives. The empty room goes between the line
-     and the transport rather than between the picture and the line — a caption is part
-     of the frame it belongs to, and half a screen of paper between them makes it a
-     paragraph about the film instead. */
-  .video.watching { grid-template-rows: auto auto minmax(0, 1fr); }
-  .video.watching .video-el {
-    grid-row: 1;
-    align-self: start;
-    margin-block-start: 3rem;
-    block-size: auto;
-    aspect-ratio: var(--film, 16 / 9);
+/* --- the two ways of standing, on a wide window --- */
+@media (min-width: 60.01rem) {
+  /* The page beside the picture's column: the transcript, its foot and its credits. The
+     bar keeps the whole width. */
+  /* The picture holds the left whichever way the text reads, so the side is named per
+     direction: the left is where a Hebrew page's lines end and an English page's begin.
+     Weighted past the word list's own padding and margins, which are written by the
+     reading direction and would otherwise put them on the picture's side. */
+  html:not([dir="rtl"]) body.reader.film.film-beside,
+  html:not([dir="rtl"]) body.reader.film.film-panel { padding-inline-start: var(--film-col, 50vw); }
+  html[dir="rtl"] body.reader.film.film-beside,
+  html[dir="rtl"] body.reader.film.film-panel { padding-inline-end: var(--film-col, 50vw); }
+  /* The bar is laid out left to right whatever the text, so its start is the left. */
+  body.reader.film.film-beside > .bar,
+  body.reader.film.film-panel > .bar { margin-inline-start: calc(-1 * var(--film-col, 50vw)); }
+  body.film main {
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 1.25rem 2rem 50vh;
   }
-  /* A film taller than it is wide fills the window's height instead, and the line it is
-     saying goes under it as any portrait frame's does. Upright is the shape a phone
-     holds, so this is the common case on a phone and not the exception. */
-  .video.watching.tall .video-el {
-    margin-block-start: 0;
-    block-size: 100%;
+  body.film-panel main {
+    max-width: none;
+    padding: 3.75rem 1.4rem 50vh 1.2rem;
+  }
+  body.film .list-tab { display: none; }
+  /* The word list, where a reader opens it: at the window's right edge whichever way
+     the text reads, since the picture holds the left. */
+  body.film .list {
+    right: 0;
+    left: auto;
+    border-inline-start: 0;
+    border-left: 1px solid var(--rule);
+  }
+  html:not([dir="rtl"]) body.reader.film.has-list.list-open { padding-inline-end: 15rem; }
+  html[dir="rtl"] body.reader.film.has-list.list-open { padding-inline-start: 15rem; }
+  html body.reader.film.has-list.list-open > .bar { margin-inline-end: -15rem; }
+  html body.reader.film-theatre:not(.film-panel).has-list.list-open > .bar { margin-inline-start: 0; }
+  html:not([dir="rtl"]) body.reader.film-theatre:not(.film-panel).has-list.list-open { padding-inline-start: 0; }
+  html[dir="rtl"] body.reader.film-theatre:not(.film-panel).has-list.list-open { padding-inline-end: 0; }
+  body.film-theatre.has-list.list-open .video { right: 15rem; }
+  body.film-panel.has-list.list-open .video { right: 41.25rem; }
+  body.film-panel.has-list.list-open .film-panel-head:not([hidden]) { right: 15rem; }
+
+  /* Theatre: the picture in the middle of what is left of the window, and the line
+     under it. The page underneath is not shown and does not scroll; with the transcript
+     open the picture keeps the window to the panel's edge. */
+  body.film-theatre .video {
+    inset-inline: 0;
+    left: 0;
+    right: 0;
+    align-items: center;
     inline-size: auto;
-    /* Sized by its height, and never past the window: a 9:16 film in a window a little
-       squarer than 9:16 is wider than the screen at full height. */
-    max-inline-size: 100%;
-    justify-self: center;
   }
-  .video.watching.tall { grid-template-rows: minmax(0, 1fr) auto auto; }
-  .video.watching.tall .video-titles { grid-row: 2; }
-  .video.watching.tall .player { grid-row: 3; }
-  .video.watching .video-keys { grid-row: 1; align-self: start; }
-  .video.watching .video-titles {
-    grid-row: 2;
-    margin-block: 1.25rem 0;
-    background: none;
+  body.film-panel .video {
+    right: 26.25rem;
+    border-right: 1px solid var(--rule);
   }
-  .video.watching .player { grid-row: 3; align-self: end; }
-  .video.watching .video-src { color: var(--ink); }
-  .video.watching .video-tr { color: var(--ink-soft); }
-  /* The frame is a letterbox in the middle of the page rather than the page itself, so
-     the page around it is the paper it always was and the line reads as text on it. */
-  .video.watching { background: var(--paper); }
-  .video.watching .video-close,
-  .video.watching .video-mode { color: var(--ink-soft); }
-  .video.watching .video-close:hover,
-  .video.watching .video-mode:hover { color: var(--ink); }
-  /* On paper the keys are the reader's own pills, in the room above the picture rather
-     than on it. The phone's docked keys carry a pale ground of their own to stand on a
-     film, and it stayed on here under dark pills written for a dark frame: two grey
-     lozenges in a milky box, with words nobody could read (the audit's R-07,
-     targum-internal#274). */
-  .video.watching .video-keys {
-    position: relative;
-    inset: auto;
-    z-index: 3;
-    grid-row: 1;
-    justify-self: end;
-    align-self: start;
-    margin: 0.4rem 0.75rem 0;
-    padding: 0;
-    background: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+  body.film-theatre .film-about { display: none; }
+  body.film-theatre .film-sub {
+    display: block;
+    flex: 1 1 auto;
+    min-block-size: 0;
+    overflow-y: auto;
+    scrollbar-width: none;
   }
-  .video.watching .video-close,
-  .video.watching .video-mode {
-    block-size: 2.25rem;
-    border: 1px solid var(--rule);
-    background: var(--paper-raised);
-  }
-  .video.watching .video-close:hover,
-  .video.watching .video-mode:hover { background: var(--paper-raised); }
-  /* The tap that plays is the picture's, so it is the picture's size and in its place;
-     spread over the whole panel it put a grey disc in the empty paper under the line.
-     And no disc at all: the strip at the foot is the one play button on the screen. */
-  .video.watching .video-tap {
-    position: relative;
-    inset: auto;
-    grid-row: 1;
-    align-self: start;
-    margin-block-start: 3rem;
-    inline-size: 100%;
-    aspect-ratio: var(--film, 16 / 9);
-  }
-  /* The tap that plays is the picture's, so it follows the picture when that fills the
-     window rather than sitting in a 16/9 box over the top of it. */
-  .video.watching.tall .video-tap {
-    margin-block-start: 0;
-    block-size: 100%;
-    inline-size: auto;
-    max-inline-size: 100%;
-    justify-self: center;
-  }
-  .video.watching .video-tap-glyph { display: none; }
+  body.film-theatre:not(.film-panel) { overflow: hidden; }
+  body.film-theatre:not(.film-panel) main { display: none; }
+  body.film-panel .film-sub[data-long="0"] .film-pair .src { font-size: 1.75em; }
 }
 
-@media (max-width: 46rem) {
-  .video-src { font-size: 1.0625rem; }
-  .video-tr { font-size: 0.9375rem; }
+/* --- C: it steps back while it plays ---
+   The bar and the row fade, and what stays is the picture, the hairline of where the
+   voice is and the line being said. The bar's ground stays paper and nothing moves. */
+.bar,
+.film-ctl > *,
+.film-line,
+.film-about,
+.film-far { transition: opacity 400ms ease; }
+body.film-quiet .bar { opacity: 0; }
+body.film-quiet .film-ctl > :not(.film-track),
+body.film-quiet .film-line,
+body.film-quiet .film-about { opacity: 0; }
+body.film-quiet .film-far { opacity: 0.55; }
+/* The hairline alone, the picture's width, where the row was. */
+.film-ctl { position: relative; }
+body.film-quiet .film-track {
+  position: absolute;
+  inset: 0;
+  margin: 0;
 }
-/* The strip keeps a start for the words tab (`--tab`), and while watching the tab is under
-   the picture's panel: the reserve was empty room, and the label paid for it — "Watch
-   the v…" on a 390px phone. */
+body.film-quiet .film-frame,
+body.film-quiet .video-tap { cursor: none; }
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .film-ctl > *,
+  .film-line,
+  .film-about,
+  .film-far { transition: none; }
+}
+
+/* --- on a phone: the picture, its row, and the transcript under them ---
+   The picture is the window's width and stays at the top under the bar while the
+   transcript scrolls; an upright one is held to under half the window. No switch: the
+   one way of standing a phone has is this one. */
 @media (max-width: 60rem) {
-  .video.watching .player { padding-inline: 0.75rem; }
+  body.film .video {
+    position: sticky;
+    inset-block: var(--bar-foot, 3.25rem) auto;
+    z-index: 14;
+    display: block;
+    inline-size: auto;
+    padding: 0 0 0.15rem;
+    border-block-end: 1px solid var(--rule);
+  }
+  .video > * { inline-size: auto; }
+  /* A phone held sideways is wider than the picture is tall: held to half the window,
+     with the letterbox either side. */
+  .film-frame { border-radius: 0; max-block-size: 50svh; }
+  .video.tall .film-frame {
+    block-size: min(45svh, 24rem);
+    inline-size: auto;
+    margin-inline: auto;
+  }
+  .film-ctl { padding-inline: 1rem; margin-block-start: 0.2rem; }
+  .film-ctl .film-play { margin-inline-start: -0.4rem; }
+  .film-length,
+  .film-about,
+  body.film .film-sub,
+  body.film .film-ctl .film-transcript { display: none; }
+  .film-loop-long { display: none; }
+  .film-loop-short { display: inline; }
+  .film-ctl .film-tools > * { margin-inline-start: 0.75rem; padding-inline-start: 0.75rem; }
+  .film-ctl .film-tools > :first-child { margin-inline-start: 0.25rem; }
+  .film-ctl .film-tools > :first-child::before { display: none; }
+  body.film .film-views { display: none; }
+  body.film main { padding-block-start: 0.75rem; }
+  body.film #reader .pair { padding: 0.65rem 0.8rem 0.75rem; }
 }
-/* Landscape only: in portrait the line is under the picture and has a row of its own,
-   and this margin is the room the transport takes when the line is over it. */
-@media (max-width: 46rem) and (orientation: landscape) {
-  .video.watching .video-titles { margin-block-end: 5rem; }
-}
-
-/* An upright film in a window that is not. Held to the window's height the picture is a
-   column in the middle of it with a letterbox either side wider than itself — and the
-   line and the transport were both laid across that one column: on a phone turned
-   sideways they covered two thirds of the picture, and at any size they sat where a
-   reel burns its own captions in. The empty room is beside the picture, so that is
-   where they go: the film at the start, the line it is saying next to it as text, the
-   transport under the line. Nothing stands on the picture but its own keys. */
-@media (orientation: landscape) {
-  /* `:not([hidden])` for its weight: below 60rem the rule that lifts watching out of
-     the band is written last, carries it too, and sets the padding to nought. */
-  .video.watching.tall:not([hidden]) {
-    grid-template: minmax(0, 1fr) auto / auto minmax(0, 36rem);
-    justify-content: center;
-    column-gap: 2rem;
-    padding-inline: 1rem;
-  }
-  /* A strip at the foot of a phone is square because it meets the window's edges. Here
-     it stands free on the letterbox, so it is a panel (§8). */
-  .video.watching.tall .player { border-radius: 8px; }
-  .video.watching.tall .video-el {
-    grid-area: 1 / 1 / -1 / 2;
-    justify-self: center;
-    inline-size: auto;
-    max-inline-size: 45vw;
-  }
-  .video.watching.tall .video-titles {
-    grid-area: 1 / 2;
-    align-self: center;
-    justify-self: stretch;
-    inline-size: auto;
-    margin: 0;
-    padding: 0;
-    background: none;
-  }
-  .video.watching.tall .player {
-    grid-area: 2 / 2;
-    inline-size: 100%;
-  }
-  /* In the grid, at the far end from the picture — below 60rem the band places the keys
-     by hand at the start, which here is half on the film and half off it. */
-  .video.watching.tall .video-keys {
-    position: relative;
-    inset: auto;
-    grid-area: 1 / 1 / -1 / -1;
-  }
-  /* The tap that plays is the picture's, here as in portrait: spread over the window it
-     put its disc in the middle of the line being read. */
-  .video.watching.tall .video-tap {
-    position: relative;
-    inset: auto;
-    grid-area: 1 / 1 / -1 / 2;
-    justify-self: center;
-    block-size: 100%;
-    inline-size: auto;
-    max-inline-size: 45vw;
-    aspect-ratio: var(--film, 9 / 16);
-  }
+@media (hover: none) and (pointer: coarse) {
+  .film-ctl { block-size: 2.75rem; }
 }
 
 /* The word list slides in from the same edge, so the player steps aside for it rather
-   than sitting under it — and the video panel above the player steps the same step,
-   or the picture floats over the words. Wide windows only: below 60rem the list is a
-   bottom sheet and both rise above it instead — that rule lives with the sheet's. */
+   than sitting under it. Wide windows only: below 60rem the list is a bottom sheet and
+   the player rises above it instead — that rule lives with the sheet's. */
 @media (min-width: 60.01rem) {
-  body.has-list.list-open .player,
-  body.has-list.list-open .video { inset-inline-end: 15rem; }
+  body.has-list.list-open .player { inset-inline-end: 15rem; }
 }
 
 /* The turning arrows are 2.75rem tall and sit 2.25rem up; this clears them. The words
@@ -3993,7 +3916,7 @@ html:fullscreen { background: var(--paper); }
   .bar .more[aria-expanded="true"] { color: var(--paper); background: var(--ink-soft); }
 
   /* --- the occupants: one place, one at a time --- */
-  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
+  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
     position: fixed;
     inset-block: auto 0;
     inset-inline: 0;
@@ -4125,94 +4048,6 @@ html:fullscreen { background: var(--paper); }
   .bar-more.open .more-player .more-get,
   .bar-more.open .more-player .more-close { order: 1; white-space: nowrap; }
 
-  /* --- the docked picture, which is a band occupant here and not in the margin ---
-     On a wide window the picture stands in a corner and lifts itself over the strip by
-     `--player-tall`, because `room()` cuts the pages around it and nothing else moves.
-     Here it is a resident: `seatFoot` measures it into `--occupant` and the strip stands
-     on its top edge, the way it stands on the sheet and the menu. Keeping the wide
-     window's lift as well made the two of them each make room for the other — the strip
-     rose by the picture's height and the picture rose by the strip's, so the strip came
-     down inside the picture and the room saved under it was empty paper. One of the two
-     offsets has to go, and it is this one: the band is what the rest of the foot obeys. */
-  /* --- the picture's keys, over the picture rather than beside it ---
-
-     Three 24px buttons in a column cannot each answer a 44px tap: that wants 132px and
-     the column has about 74, so each one's reach ran into its neighbours and the middle
-     key answered over 34px.
-
-     Laid across they fit, but as a flex item beside the picture they took 140px of a
-     360px panel and the picture was left 184px wide — 64px when docked at the top. So
-     they come out of the flow and stand ON the picture, which is where a picture's own
-     controls belong: the panel keeps its whole width for the film, and the keys are a
-     row in its corner at full size. */
-  /* No `position: relative` on the panel here: it is already `position: fixed`, which is
-     a containing block of its own, and relative would drop it out of the dock and into
-     the flow — it did, and the picture landed among the paragraphs. */
-  .video-keys {
-    position: absolute;
-    /* The panel's own padding, so the keys sit on the film's corner rather than the
-       panel's. An absolute inset is measured to the padding box, so `0` put them 12px
-       above the film and 16px past its edge — a pale block overhanging a black film,
-       which is what it looked like. These two match the band sheet's
-       `padding: 0.75rem 1rem 1rem` on the occupants above. */
-    inset-block-start: 0.75rem;
-    inset-inline-start: 1rem;
-    z-index: 3;
-    flex-direction: row;
-    gap: 0.25rem;
-    padding: 0.25rem;
-    border-end-end-radius: 8px;
-    /* Over a film that may be bright or dark in the same second, so the keys carry
-       their own ground rather than trusting the frame behind them. */
-    background: color-mix(in srgb, var(--paper-raised) 82%, transparent);
-    backdrop-filter: blur(4px);
-  }
-  .video-close,
-  .video-mode,
-  .video-corner {
-    inline-size: 2.75rem;
-    block-size: 2.75rem;
-  }
-
-  .video.dock-bottom-end,
-  .video.dock-bottom-start {
-    inset-block: auto 0;
-    inset-inline: 0;
-  }
-  /* And the two at the top, which this block had forgotten. `.video.dock-top-*` carries
-     two classes and the band sheet's `.video` carries one, so the wide window's narrow
-     corner box won on specificity however late the sheet was written — a picture docked
-     at the top of a phone drew 96px wide with a 64px film in it. Full-bleed, like the
-     two below. */
-  .video.dock-top-end,
-  .video.dock-top-start {
-    inset-block: 0 auto;
-    inset-inline: 0;
-  }
-
-  /* A vertical film is an occupant of the band like any other: the sheet is the width
-     of the window and the picture stands in the middle of it, sized by its height. The
-     wide window's narrow panel (`.video.tall`, four classes) outranked the sheet, so a
-     reel on a phone was an 11rem box in the corner with the page showing beside it —
-     and in a Hebrew text the corner it took is where every line begins. */
-  .video.tall:not(.watching):not(.free) {
-    inline-size: auto;
-    justify-content: center;
-  }
-  .video.tall:not(.watching) .video-el {
-    flex: none;
-    inline-size: auto;
-    block-size: min(16rem, calc(45svh - 1.75rem));
-  }
-  /* Beside the picture rather than on it, so on the sheet's own ground — and down the
-     edge, because a row of three reaches back over a picture this narrow. */
-  .video.tall:not(.watching) .video-keys {
-    flex-direction: column;
-    background: none;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-
   /* --- the strip --- */
   body .player,
   body.paged .player {
@@ -4259,14 +4094,6 @@ html:fullscreen { background: var(--paper); }
   /* --- the page, above the lot --- */
   body { padding-block-end: var(--foot, 0px); }
 
-  /* --- and below what stands at the top --- */
-  /* A picture docked at the top is a resident too, and takes its room out of the page
-     like the rest: the page begins under it, and the bar — the one strip that is always
-     targum's — sticks under it rather than behind it. `--head` is `reader.js`'s measure
-     of it, and nothing when nothing is there. Not while watching: the picture is the
-     window then, and the measure is not taken. */
-  body { padding-block-start: var(--head, 0px); }
-  .bar { inset-block-start: var(--head, 0px); }
 
   /* --- how it moves --- */
   /* An occupant rises from the foot of the window, and what stands on the band — the
@@ -4279,7 +4106,7 @@ html:fullscreen { background: var(--paper); }
     to { transform: none; }
   }
   .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
-  .keys-card:not([hidden]), .video:not([hidden]), .bar-more.open {
+  .keys-card:not([hidden]), .bar-more.open {
     animation: rise 220ms cubic-bezier(0.32, 0.72, 0, 1);
   }
   body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
@@ -4288,10 +4115,10 @@ html:fullscreen { background: var(--paper); }
   /* Let go of, an occupant settles back or goes on down along the line the finger
      drew — the same curve. Under the finger it has no transition at all: it is the
      finger's, and a transition there would be a lag. */
-  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
+  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
     transition: transform 200ms cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .list.pulling, .gloss-card.pulling, .pick-card.pulling, .keys-card.pulling, .video.pulling,
+  .list.pulling, .gloss-card.pulling, .pick-card.pulling, .keys-card.pulling,
   .bar-more.pulling {
     transition: none;
   }
@@ -4303,36 +4130,14 @@ html:fullscreen { background: var(--paper); }
    sheet mid-flight. */
 @media (prefers-reduced-motion: reduce) {
   .list:not([hidden]), .gloss-card:not([hidden]), .pick-card:not([hidden]),
-  .keys-card:not([hidden]), .video:not([hidden]), .bar-more.open,
-  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more { animation: none; transition: none; }
+  .keys-card:not([hidden]), .bar-more.open,
+  .list, .gloss-card, .pick-card, .keys-card, .bar-more { animation: none; transition: none; }
   body .player, body.paged .player, body .list-tab, body.paged .list-tab, .turn, body.paged .turn {
     transition: none;
   }
   /* A turned page arrives; it does not come in from anywhere. Here rather than in the
      block above, because the turn's own rules are written after that one. */
   #reader.turned-from-left, #reader.turned-from-right { animation: none; }
-}
-
-/* Watching, on a narrow window, and written last on purpose.
-   Below 60rem every occupant of the band becomes a bottom sheet: half the height of the
-   window, on paper, with a rise as it arrives and a scroll inside it. Watching is not an
-   occupant — it is the window — and those rules are weighted the same as these, so
-   written any earlier they capped the picture at 45svh and left the reading page showing
-   underneath it. The band's treatment is right for the docked picture and this is the
-   one state it is wrong for. */
-@media (max-width: 60rem) {
-  .video.watching:not([hidden]) {
-    inset: 0;
-    inline-size: auto;
-    max-inline-size: none;
-    max-block-size: none;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    overflow: hidden;
-    z-index: 40;
-    animation: none;
-  }
 }
 
 /* Hear a silent text (targum-internal#246): the one door in This text that asks the
@@ -4385,7 +4190,7 @@ html:fullscreen { background: var(--paper); }
 .pager a { padding: 0.35rem 0.8rem; border-radius: 999px; }
 .pager a:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 @media (max-width: 60rem) {
-  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {
+  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {
     border-block-start: 0;
     border-start-start-radius: var(--radius-sheet);
     border-start-end-radius: var(--radius-sheet);
@@ -4576,12 +4381,13 @@ body.has-player.list-ended .list-end {
   .list-key { min-block-size: 44px; }
 }
 
-/* In the picture's keys it is one of them, not a second style. Shown only while
-   watching: docked, the foot of the text has its own. */
+/* In the row under the picture it is one of its controls, not a second style. Shown only
+   while the picture stands large with the transcript put away (#422): beside the
+   transcript, the foot of the text has its own. */
 .video-list-next,
 .video-list-back { display: none; }
-.video.watching .video-list-next,
-.video.watching .video-list-back { display: inline-flex; }
+body.film-theatre:not(.film-panel) .video-list-next,
+body.film-theatre:not(.film-panel) .video-list-back { display: inline-flex; }
 
 .list-end {
   max-width: calc(var(--measure) * 2 + var(--gap));

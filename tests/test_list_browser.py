@@ -90,8 +90,8 @@ def test_arriving_plays_nothing_and_next_plays_the_next(browser, tmp_path) -> No
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
         assert page.evaluate(PAUSED), "opening an item from its playlist plays nothing"
-        assert page.evaluate("() => document.body.classList.contains('watching')"), (
-            "inside a playlist a video opens watching"
+        assert page.evaluate("() => document.body.classList.contains('film-theatre')"), (
+            "inside a playlist a video opens large, in Theatre"
         )
         page.click("#video .video-list-next")
         page.wait_for_url("**/two/**go=1")
@@ -204,11 +204,10 @@ def test_the_text_alone_still_opens_as_its_transcript(browser, tmp_path) -> None
         page.goto(address(one))
         page.wait_for_selector("#video:not([hidden])")
         page.wait_for_timeout(200)
-        assert not page.evaluate("() => document.body.classList.contains('watching')")
-        stored = page.evaluate(
-            "() => Object.keys(localStorage).filter((k) => k.startsWith('targum:video-watch:'))"
-        )
-        assert stored == []
+        assert not page.evaluate("() => document.body.classList.contains('film-theatre')")
+        # Nor did it write the reader's own way of standing (#422).
+        stored = page.evaluate("() => localStorage.getItem('targum:film-view')")
+        assert stored is None
     finally:
         context.close()
 
@@ -246,7 +245,9 @@ def test_the_ones_not_ready_are_passed_and_the_last_leads_to_the_end(
         page.click("#video .video-list-next")
         # Empty until #367 fills it, so waited on as a state rather than as something seen.
         page.wait_for_function("() => document.getElementById('list-end').hidden === false")
-        assert not page.evaluate("() => document.body.classList.contains('watching')")
+        # The end is on the page: under a large picture the transcript opens beside it,
+        # with the end at its foot (#422; it used to leave the full-screen mode).
+        assert page.evaluate("() => document.body.classList.contains('film-panel')")
         assert "/two/" in page.url, "the end is shown here, and nothing is loaded after it"
     finally:
         context.close()
