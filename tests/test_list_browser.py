@@ -326,7 +326,7 @@ def test_the_end_card_adds_up_what_each_item_came_to(browser, tmp_path) -> None:
 
 # --- review fixes, 2026-09-24 -------------------------------------------------------
 
-from test_reader_browser import dialogue  # noqa: E402
+from test_reader_browser import dialogue, strip_up  # noqa: E402
 
 
 def test_the_end_names_the_words_and_its_door_is_a_pill(browser, tmp_path) -> None:  # noqa: F811
@@ -415,7 +415,10 @@ def test_a_hebrew_title_keeps_its_punctuation_on_its_own_side(browser, tmp_path)
 
 @pytest.mark.parametrize("viewport", [None, {"width": 390, "height": 844}])
 def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewport) -> None:  # noqa: F811
-    """On an audio scene the strip stood over Next, and a press there hit Hear first."""
+    """On an audio scene the strip stood over Next, and a press there hit Hear first.
+
+    Since targum-internal#421 the strip waits for the bar's Listen, so it is brought up
+    first: the question is still where Next stands while the strip is out."""
     monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
     one = dialogue(tmp_path / "dialogues", tmp_path / "one" / "x", turns=3, words=True)
     two = dialogue(tmp_path / "dialogues", tmp_path / "two" / "x", turns=3, words=True)
@@ -424,6 +427,7 @@ def test_next_stands_clear_of_the_player(browser, tmp_path, monkeypatch, viewpor
     try:
         page.goto(at(one, 0))
         page.wait_for_selector("#list-nav", state="attached")
+        strip_up(page)
         page.evaluate("() => window.scrollTo(0, document.documentElement.scrollHeight)")
         page.wait_for_timeout(200)
         hit = page.evaluate(
