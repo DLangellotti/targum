@@ -14,7 +14,7 @@
 <meta charset="utf-8">
 <title>{{ title }}{% if english %} · {{ english }}{% endif %}</title>
 <style>{{ asset('print.css') }}</style>
-<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } @bottom-left { content: url("{{ mark }}") "\2002{{ address }}"; } }</style>
+<style>@page { size: {{ size }}; @top-center { font-family: "{{ hebrew_family }}", "Iowan Old Style", Palatino, Georgia, serif; } @bottom-left { content: element(foot); } }</style>
 {{ hebrew_face }}
 {{ chrome_face }}
 </head>
@@ -23,6 +23,10 @@
     small and centred as a publisher's name stands on a chumash's title page. Drawn here
     rather than from lockup.svg, whose wordmark is live text in a face the box may not
     have: the mark is two rectangles, and the wordmark is the page's own reading face. -#}
+{#- The foot of every page: the mark and the address as one running element, so the two
+    are centred on each other — a margin box's own image sits on the text's baseline and
+    stands above it (2026-10-05). -#}
+<div class="foot" dir="ltr" lang="en"><img class="foot-mark" src="{{ mark }}" alt=""><span>{{ address }}</span></div>
 <header class="imprint" dir="ltr" lang="en">
   <svg class="imprint-mark" xmlns="http://www.w3.org/2000/svg" viewBox="12 4 72 88" aria-hidden="true"><rect x="20" y="12" width="22" height="62" rx="5" fill="#201e1b"/><rect x="54" y="22" width="22" height="62" rx="5" fill="#a5824f"/></svg>
   <span class="wordmark">targum</span>
