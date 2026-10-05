@@ -55,6 +55,7 @@
    so the box reads left to right whatever the page does, and the mark leads it (§3). */
 @page {
   @bottom-left {
+    width: 80mm;
     direction: ltr;
     text-align: left;
     font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
@@ -63,6 +64,18 @@
     vertical-align: middle;
   }
 }
+.foot {
+  position: running(foot);
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-family: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  font-size: 0.6875rem;
+  line-height: 1;
+  color: #6b645c;
+}
+.foot-mark { display: block; flex: none; }
+.foot span { white-space: nowrap; }
 
 /* The imprint: the lockup, once, over the first title — the mark leading the wordmark,
    §3's reading face at 600, lowercase, −0.01em, and a hairline under it as a publisher

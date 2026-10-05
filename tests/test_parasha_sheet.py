@@ -385,7 +385,7 @@ def test_the_page_carries_the_imprint_and_the_address(
     html = _sheet()
     assert '<header class="imprint" dir="ltr" lang="en">' in html
     assert '<span class="wordmark">targum</span>' in html
-    assert f'"\\2002targum.page/parasha/{SLUG}"' in html
+    assert f">targum.page/parasha/{SLUG}</span>" in html
     assert "background: #fbf9f5" in html
 
 

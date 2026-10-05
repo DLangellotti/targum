@@ -5,6 +5,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- The PDF's foot sets the mark and the address on one line, centred on each other
+  (targum-internal#415). The mark was a margin box's image, which sits on the text's
+  baseline and stood above the address; the foot is now a running element (`.foot`,
+  `content: element(foot)`) laid out with flex, and the address no longer wraps.
+
 ### Added
 - Next Shabbat's portion at the end of the last aliyah (targum-internal#416): "Next
   Shabbat · נֹחַ · Noach", linking that portion's reader, and under it "You already know
