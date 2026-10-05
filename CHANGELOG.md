@@ -531,8 +531,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from the mockups): the mark, the title, "N of M known", and at the far end Listen (the
   recording choice inside it, "Chanted ▾", where an aliyah has two), Aa, print (on a
   portion's reader only) and ⋯. Nothing was taken away. **Aa** holds the translation, the
-  layout (Read / By verse / By aliyah), the columns beside the verse (Translation,
-  Onkelos, Rashi, Rashi · English, only those the text has), the vowels or stress marks,
+  columns beside the verse (Translation, Onkelos, Rashi, Rashi · English, only those the
+  text has), shnayim mikra, the vowels or stress marks,
   the te'amim, "As said", text size and line spacing, as plain rows with quiet switches.
   **Print** is a two-line choice, this aliyah or the whole portion and its haftarah. **⋯**
   holds the view (beside, under, the text alone), pages or one scroll, highlighting, the
@@ -546,8 +546,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   while a panel is out, and stays solid paper (it was frosted glass) at one height. Every
   panel is a dialog or group with `aria-expanded` on its press, takes focus when opened
   from the keyboard, gives it back on Escape, and shuts on a press outside; on a phone
-  each is a sheet from the foot, and the × is not drawn. The strip at the foot is
-  unchanged. Ten new strings, in Russian too.
+  each is a sheet from the foot, and the × is not drawn. Read is the only layout:
+  shnayim mikra is its own switch in Aa ("Each verse twice in Hebrew, then once in
+  Onkelos"), offering By verse and By aliyah while on; meanwhile the column switches
+  are grey with "Shown in Read", and pressing one puts the practice down and brings that
+  column back. The player strip no longer stands at the foot when a recorded text opens
+  (reversing design.md §12, 2026-09-03): ▶ Listen starts the voice and brings up a slim
+  strip with the line, step, speed, Hear first, the file and ×; × puts it away and
+  returns focus to Listen, and nothing is remembered. A text with video keeps its strip,
+  which is the picture's transport. `TargumPlayer.show()` brings it up without playing.
+  Ten new strings, in Russian too.
 
 - How hard a sentence is is now asked, by default, in the `without-register` wording, whose
   top three rungs say how rare a word is and no longer call it literary, classical,

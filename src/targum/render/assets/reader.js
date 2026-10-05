@@ -8209,6 +8209,17 @@ var targumReader = function () {
 
   companionKeys.forEach(function (key) {
     key.addEventListener("click", function () {
+      // Pressed while shnayim mikra holds the columns aside: the practice goes, and the
+      // text comes back to Read with this column on (#421).
+      if (practising && practiceKind()) {
+        choosePractice("");
+        prefs.companions[key.getAttribute("data-companion") || ""] = true;
+        save();
+        applyCompanions();
+        relayout();
+        redraw();
+        return;
+      }
       prefs.companions[key.getAttribute("data-companion") || ""] = !companionOn(key);
       save();
       applyCompanions();
@@ -8248,6 +8259,9 @@ var targumReader = function () {
   // again here, so a page whose Onkelos has nothing for this section offers nothing.
   var practising = !!(practiceGroup && besideId && covers(besideId));
   if (practiceGroup && !practising) practiceGroup.hidden = true;
+  // Its switch in Aa and everything under it go with it (#421).
+  var practiceBox = document.getElementById("practice-box");
+  if (practiceBox && !practising) practiceBox.hidden = true;
   var PRACTICE = "targum:practice";
   var practiceStore = read(PRACTICE, "{}");
   var practiceAt = documentId + "#" + sectionId;
@@ -8422,7 +8436,39 @@ var targumReader = function () {
 
     drawVerseWalk(kind === "verse" ? record : null);
     drawPracticeFoot(kind, record);
+    paintPracticeSwitch(kind);
     if (!first) relayout();
+  }
+
+  /* Shnayim mikra is a switch, not a layout (David, 2026-10-05, targum-internal#421).
+     On, it offers the two ways of keeping it, and the columns beside the verse stand
+     aside: their switches go grey and say "Shown in Read", because a switch that looks
+     pressed and does nothing is a switch that lies. */
+  var practiceSwitch = document.getElementById("practice-on");
+  var practiceHow = document.getElementById("practice-how");
+  var columnsHeld = document.getElementById("columns-held");
+  //: The way the practice was last kept, for the switch to turn it back on with.
+  var practiceWay = "verse";
+
+  function paintPracticeSwitch(kind) {
+    if (kind) practiceWay = kind;
+    if (practiceSwitch) {
+      practiceSwitch.classList.toggle("on", !!kind);
+      practiceSwitch.setAttribute("aria-pressed", kind ? "true" : "false");
+    }
+    if (practiceHow) practiceHow.hidden = !kind;
+    if (columnsHeld) columnsHeld.hidden = !kind;
+    companionKeys.forEach(function (key) {
+      key.classList.toggle("held", !!kind);
+      if (kind) key.setAttribute("aria-describedby", "columns-held");
+      else key.removeAttribute("aria-describedby");
+    });
+  }
+
+  if (practiceSwitch) {
+    practiceSwitch.addEventListener("click", function () {
+      choosePractice(practiceKind() ? "" : practiceWay);
+    });
   }
 
   function showPracticeVerse() {
@@ -11366,21 +11412,21 @@ var targumReader = function () {
       offer(speech.audio);
     }
 
-    /* Put away, and stays away. A reader who has met the player once does not need to be
-       shown it every time they open a scene; the bar keeps its button for coming back. */
-    // Per text, not per browser. It was one key for everything, on the reasoning that a
-    // reader who has met the player once need not meet it again — and the cost of that
-    // was closing it on one scene and finding every other scene silent, with a control
-    // that was simply not on the page and no way to know why. Put away means put away
-    // here.
+    /* Away until Listen (targum-internal#421, David, 2026-10-05). The strip used to stand
+       at the foot the moment a recorded text opened, so a reader who did not know the
+       audio was there would find it; the bar's own ▶ Listen does that now, and two
+       Listens on one screen was one too many. So nothing stands at the foot when a text
+       opens. The strip comes up when the voice starts — from Listen, from Space, from a
+       line's own press — with the line, the step, the speed, Hear first and the file,
+       and its × puts it away again. Nothing is kept: the next text opens the same way.
+       (Before this the × was remembered per text, `targum:player-closed:<text>`; that
+       store is no longer read.) */
     // The page needs to know a player is out: the blocks at the foot of a text sit after
     // the pairs, and the pairs are the only thing `room` budgets for — so the Done line
     // and the suggestion land inside the band the player is fixed in.
     function standing(out) {
       document.body.classList.toggle("has-player", !!out);
     }
-
-    var STORE = "targum:player-closed:" + spokenOf;
 
     /* The pages were laid out before this ran, with room kept for a player that may be
        put away — so whenever that changes, they are laid out again. */
@@ -11389,39 +11435,48 @@ var targumReader = function () {
       if (reader && reader.relayout) reader.relayout();
     }
 
-    try {
-      if (localStorage.getItem(STORE) === "1") {
-        player.hidden = true;
-        remeasure();
-      }
-    } catch (e) {}
+    function bringUp() {
+      if (!player.hidden) return;
+      player.hidden = false;
+      standing(true);
+      remeasure();
+    }
+
+    // Only where the bar carries Listen, which is every page that has a recording; a
+    // page built before the bar did keeps its strip standing. And not under a picture: a
+    // text with video opens as its video (§1), with the strip as the picture's transport
+    // and the way the picture comes back once it is put away, so there it still stands.
+    var listenFirst = scenes.length > 1 && !videoEl;
+    if (listenFirst) {
+      player.hidden = true;
+      remeasure();
+    }
     standing(!player.hidden);
 
-    /* Both copies, for the reason above. The bar's play button brings the strip back,
-       so a reader who closes it from the menu still has the way back the §12 rule asks
-       for: a control that can be turned off has to be turnable on from where it was. */
+    /* Both copies — the strip's ×, and the menu's on a phone. Put away, the strip leaves
+       the bar's Listen as the way back, which is where focus goes. */
     Array.prototype.slice.call(document.querySelectorAll(".player-close, .more-close")).forEach(
       function (shut) {
         shut.addEventListener("click", function () {
           halt();
           player.hidden = true;
-          try { targumKeep(STORE, "1"); } catch (e) {}
           standing(false);
           remeasure();
+          if (listenFirst && scenes[0] && scenes[0].getClientRects().length) {
+            scenes[0].focus({ preventScroll: true });
+          }
         });
       }
     );
 
-    /* Coming back through the bar's button unhides it, so the two are never out of step. */
-    if (scenes.length > 1) {
-      scenes[0].addEventListener("click", function () {
-        if (!player.hidden) return;
-        player.hidden = false;
-        try { targumForget(STORE); } catch (e) {}
-        standing(true);
-        remeasure();
-      });
+    /* Up as the voice starts, however it was started. */
+    if (listenFirst) {
+      scenes[0].addEventListener("click", bringUp);
+      audio.addEventListener("playing", bringUp);
     }
+    // And on its own, without starting the voice: for a page that frames this one, and
+    // for the browser tests about the transport, which are about the transport.
+    if (window.TargumPlayer) window.TargumPlayer.show = bringUp;
   }
 
   /* Chanted or spoken (targum-internal#412). A portion's aliyah carries the chanting and

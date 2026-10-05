@@ -46,6 +46,7 @@ from test_reader_browser import (  # noqa: E402, F401
     opened,
     recorded,
     render,
+    with_onkelos,
 )
 
 
@@ -413,3 +414,108 @@ def test_listening_steps_the_bar_back_and_a_pause_brings_it(browser, tmp_path, m
     page.wait_for_function("() => !document.getElementById('listen').classList.contains('playing')")
     assert not page.evaluate(QUIET), "a pause brings the bar back"
     context.close()
+
+
+# -- the strip waits for Listen (David, 2026-10-05) ----------------------------------
+
+
+STRIP = """
+() => {
+  const strip = document.getElementById('player');
+  return {
+    shown: !strip.hidden && strip.getClientRects().length > 0,
+    playing: document.getElementById('listen').classList.contains('playing'),
+    onListen: document.activeElement === document.querySelector('.listen-play'),
+    standing: document.body.classList.contains('has-player'),
+  };
+}
+"""
+
+
+def test_the_strip_waits_for_listen_and_its_x_puts_it_away(browser, tmp_path, monkeypatch) -> None:
+    """Nothing at the foot when a recorded text opens. Listen starts the voice and brings
+    the strip up with every control it had; its × stops the voice, puts it away and
+    hands focus back to Listen; and nothing is remembered, so the page opens the same
+    way again."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    reader = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context, page = open_page(browser, reader)
+    opened_with = page.evaluate(STRIP)
+    page.click(".listen-play")
+    page.wait_for_function("() => document.getElementById('listen').classList.contains('playing')")
+    up = page.evaluate(STRIP)
+    controls = page.evaluate(
+        """() => ['.player-play', '.player-track', '.player-back', '.player-on',
+                  '.player-slower', '.player-rate-now', '.player-faster', '.player-first',
+                  '.player-get', '.player-close']
+          .filter((s) => { const e = document.querySelector('#player ' + s);
+                           return e && e.getClientRects().length > 0; })"""
+    )
+    page.focus(".player-close")
+    page.keyboard.press("Enter")
+    away = page.evaluate(STRIP)
+    page.reload()
+    page.wait_for_selector(".pair")
+    again = page.evaluate(STRIP)
+    context.close()
+
+    assert not opened_with["shown"] and not opened_with["standing"], "nothing at the foot"
+    assert up["shown"] and up["playing"] and up["standing"]
+    assert len(controls) == 10, controls
+    assert not away["shown"] and not away["playing"] and away["onListen"]
+    assert not again["shown"], "put away is not remembered, and neither is up"
+
+
+# -- shnayim mikra is a practice switch (David, 2026-10-05) ----------------------------
+
+
+PRACTICE = """
+() => {
+  const sw = document.getElementById('practice-on');
+  const how = document.getElementById('practice-how');
+  const held = document.getElementById('columns-held');
+  return {
+    on: sw.getAttribute('aria-pressed'),
+    how: !how.hidden && how.getClientRects().length > 0,
+    note: how.querySelector('.aa-note').textContent.trim(),
+    held: !held.hidden && held.getClientRects().length > 0,
+    heldText: held.textContent.trim(),
+    grey: [...document.querySelectorAll('#companions .companion')]
+      .every((k) => k.classList.contains('held')),
+    layout: [...document.querySelectorAll('#aa .aa-label')]
+      .some((l) => l.textContent.trim() === 'Layout'),
+    walking: document.body.classList.contains('practice-verse'),
+  };
+}
+"""
+
+
+def test_shnayim_mikra_is_a_switch_and_a_column_press_puts_it_down(
+    browser, with_onkelos: Path
+) -> None:
+    """Read is the only layout. The practice is its own switch in Aa; on, it says what it
+    does and offers By verse and By aliyah, and the column switches go grey with "Shown
+    in Read". Pressing one puts the practice down and brings the text back to Read with
+    that column on."""
+    context, page = open_page(browser, with_onkelos / "sec-0001.html", scrolling=False)
+    page.click("#aa-open")
+    off = page.evaluate(PRACTICE)
+    page.click("#practice-on")
+    on = page.evaluate(PRACTICE)
+    ways = page.evaluate(
+        "() => [...document.querySelectorAll('#practice .practice-key')]"
+        ".filter((k) => k.getClientRects().length).map((k) => k.textContent.trim())"
+    )
+    page.click('#companions [data-companion="targum"]')
+    back = page.evaluate(PRACTICE)
+    targum = page.get_attribute('#companions [data-companion="targum"]', "aria-pressed")
+    context.close()
+
+    assert not off["layout"], "no Layout row: Read is the only layout"
+    assert off["on"] == "false" and not off["how"] and not off["held"] and not off["grey"]
+    assert on["on"] == "true" and on["how"] and on["walking"]
+    assert on["note"] == "Each verse twice in Hebrew, then once in Onkelos"
+    assert ways == ["By verse", "By aliyah"]
+    assert on["held"] and on["heldText"] == "Shown in Read" and on["grey"]
+    assert back["on"] == "false" and not back["walking"] and not back["grey"]
+    assert targum == "true", "the column pressed is on"

@@ -5422,3 +5422,58 @@ body.practice-section .beside-add { display: none; }
 @media (max-width: 40rem) {
   .bar-title .known { display: none; }
 }
+
+/* --- the strip, slim, and only once the voice has started (#421, David, 2026-10-05) ---
+   It comes up when Listen is pressed and goes with its ×, so it never has to say what it
+   is: the name it carried before a press ("Listen to the reading") is gone unless it has
+   a refusal to report, and the line and the clock are always there. Drawn the way the
+   bar's Listen is — paper, a hairline, a pill — with the play press in ink rather than a
+   filled brown disc: the bar's Listen is the main control, and this is its transport. */
+.player {
+  gap: 0.35rem;
+  padding-block: 0.4rem;
+  padding-inline: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: var(--shadow-raised);
+  font-family: var(--chrome);
+}
+.player-play {
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--ink);
+}
+.player-play:hover { border-color: var(--ink-soft); }
+.player-play:active { background: var(--paper-raised); }
+.player:not(.refused) .player-said { display: none; }
+.player:not(.refused) .player-track,
+.player:not(.refused) .player-clock { display: block; }
+.player-body { inline-size: 9rem; padding-inline: 0.25rem; }
+.player-fill { background: var(--ink-soft); }
+
+/* --- shnayim mikra, a practice in Aa (#421, David, 2026-10-05) ---
+   One switch; on, the line that says what it does and the two ways of keeping it. While
+   it is on the column switches above go grey with "Shown in Read" beside their heading:
+   they still answer, and a press on one puts the practice down. */
+.aa-practice[hidden],
+.aa-practice-how[hidden],
+.aa-held[hidden],
+.bar-pop .practice .practice-key[hidden] { display: none; }
+.aa-note {
+  margin: 0;
+  padding: 0 1.1rem 0.15rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.aa-practice-how .aa-row { justify-content: flex-start; }
+.aa-held {
+  display: block;
+  padding: 0 1.1rem 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.bar .aa-switch.held { color: var(--ink-soft); }
+.bar .aa-switch.held .sw { opacity: 0.45; }

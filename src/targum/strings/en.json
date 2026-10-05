@@ -2628,11 +2628,11 @@
   "reader.page.listen": "Listen",
   "reader.page.text-and-columns": "Text and columns",
   "reader.page.print-or-save-pdf": "Print or save as PDF",
-  "reader.page.layout": "Layout",
   "reader.page.text-size": "Text size",
   "reader.page.this-aliyah": "This aliyah",
   "reader.page.whole-portion-and-haftarah": "Whole portion and haftarah",
   "reader.page.view": "View",
   "reader.page.word-list": "Word list",
-  "reader.page.show-column": "Show {name}"
+  "reader.page.show-column": "Show {name}",
+  "reader.page.shown-in-read": "Shown in Read"
 }

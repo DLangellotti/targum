@@ -162,19 +162,6 @@
       </div>
     </div>
     {% endif %}
-    {#- Shnayim mikra (targum-internal#202), named Layout here: the text as usual, each
-        verse twice in Hebrew and once in Onkelos, or the whole section that way. Drawn
-        only where the source is Hebrew and Onkelos is beside it. -#}
-    {% if practice %}
-    <div class="aa-row">
-      <span class="aa-label" title="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}">{{ t("reader.page.layout", "Layout") }}</span>
-      <div class="group practice" id="practice" role="group" aria-label="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}" data-what="Shnayim mikra">
-        <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="{{ t("reader.page.read-as-usual", "Read as usual") }}">{{ t("reader.page.read", "Read") }}</button>
-        <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}">{{ t("reader.page.by-verse", "By verse") }}</button>
-        <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="The whole {{ practice }} twice in Hebrew, then once in Onkelos">By {{ practice }}</button>
-      </div>
-    </div>
-    {% endif %}
     {#- Beside the verse (targum-internal#414): the translation, Onkelos, Rashi, each on or
         off on its own, the way the columns of a printed chumash are each there or not.
         Kept per reader and on every text, so Rashi opened in Genesis is open in Exodus.
@@ -183,6 +170,10 @@
     <div class="aa-rule" role="presentation"></div>
     <div class="group companions" id="companions" role="group" aria-labelledby="aa-beside" data-what="Beside the verse">
       <span class="aa-head" id="aa-beside">{{ t("reader.page.beside-the-verse", "Beside the verse") }}</span>
+      {#- While shnayim mikra lays the text out its own way the columns stand aside, and
+          the switches say so rather than looking pressed and doing nothing (David, on the
+          live site, 2026-10-05). A press on one puts the practice down and the column up. -#}
+      <span class="aa-held" id="columns-held" hidden>{{ t("reader.page.shown-in-read", "Shown in Read") }}</span>
       {#- Named for its language where it is the only one; beside a switch of several it
           is "Translation", because the switch above says which. -#}
       {%- set main = (mains|selectattr("id", "equalto", drawn_id)|first) or (mains|first) %}
@@ -190,6 +181,29 @@
       {%- for t in beside_verse %}
       <button type="button" class="aa-switch companion{% if t.on %} on{% endif %}" data-companion="{{ t.companion }}" data-translation-id="{{ t.id }}" data-on="{{ 1 if t.on else 0 }}" aria-pressed="{{ 'true' if t.on else 'false' }}" title="{{ t.name }}"><span class="aa-name">{{ t.label }}</span><span class="sw" aria-hidden="true"></span></button>
       {%- endfor %}
+    </div>
+    {% endif %}
+    {#- Shnayim mikra (targum-internal#202): a practice, not a layout (David, 2026-10-05).
+        Read is the only way the text is laid out; this switch puts the practice on, and
+        while it is on it offers the two ways people keep it — verse by verse, or the whole
+        section at a time. Drawn only where the source is Hebrew and Onkelos is beside it;
+        the script hides the lot where Onkelos has nothing for this section. The Read press
+        stays in the group, unseen, as the practice's "off". -#}
+    {% if practice %}
+    <div class="aa-practice" id="practice-box">
+      <div class="aa-rule" role="presentation"></div>
+      <button type="button" class="aa-switch practice-switch" id="practice-on" aria-pressed="false" aria-controls="practice-how"
+              title="{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}"><span class="aa-name">{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}</span><span class="sw" aria-hidden="true"></span></button>
+      <div class="aa-practice-how" id="practice-how" hidden>
+        <p class="aa-note">{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}</p>
+        <div class="aa-row">
+          <div class="group practice" id="practice" role="group" aria-label="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}" data-what="Shnayim mikra">
+            <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="{{ t("reader.page.read-as-usual", "Read as usual") }}" hidden>{{ t("reader.page.read", "Read") }}</button>
+            <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}">{{ t("reader.page.by-verse", "By verse") }}</button>
+            <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="The whole {{ practice }} twice in Hebrew, then once in Onkelos">By {{ practice }}</button>
+          </div>
+        </div>
+      </div>
     </div>
     {% endif %}
     {% if has_nikkud or said or has_taamim %}
@@ -496,10 +510,12 @@
   {%- endif %}
 </div>
 {% endif %}
-{#- The player. Shown on a dialogue the moment it opens, because a reader who does not
-    know the audio is there will not go looking for it in a toolbar — and put away with the
-    × for anyone who would rather read. The bar keeps its own button, which is how it comes
-    back.
+{#- The player: the transport for the bar's ▶ Listen. In the page from the start, put away by
+    the script as the page opens, and brought up when the voice starts — Listen, Space, a
+    line's own press — then put away again by its × (targum-internal#421, David,
+    2026-10-05; design.md §12). It stood here from the moment a dialogue opened until
+    then, because a reader who did not know the audio was there would not go looking for
+    it; the bar's Listen says so now, and saying it twice was one too many.
 
     In the corner rather than across the top: a bar over the text is a second toolbar,
     and it moves the reading down to make room for something a reader may never press. -#}

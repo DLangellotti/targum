@@ -32,7 +32,8 @@ forever** — no gradients, bevels or metallic ramps on them, ever. Interactive 
 UI elements may carry the gloss recipe and hover lift in §9. Metallic gold ramps stay banned
 everywhere.
 
-**A text that carries media opens as its media.** The player stands and is named; a
+**A text that carries media opens as its media.** The bar says it can be heard — ▶ Listen,
+first among its tools — and the strip comes up when it is pressed (§12, 2026-10-05); a
 picture is on. Nothing plays until pressed — inside a playlist a swipe is a press, see
 §12 (2026-09-23) — and the text is still the page. This replaced
 "the reader is a reader, not a player" on 2026-09-03 — see §12. What that sentence also
@@ -364,10 +365,18 @@ portions:
   on. The same row on a phone, smaller; the English title waits for a wide window and the
   count for anything wider than a phone.
 - **Aa** is how the text is set and what stands beside it: the level, the translation,
-  the layout (Read / By verse / By aliyah — shnayim mikra, named for what it does to the
-  page), the columns beside the verse, the vowels or stress marks, the te'amim, "As said",
-  text size (a small A, a line for where the size stands, a large A) and line spacing.
-  Plain labelled rows; only the rows the text has.
+  the columns beside the verse, shnayim mikra, the vowels or stress marks, the te'amim,
+  "As said", text size (a small A, a line for where the size stands, a large A) and line
+  spacing. Plain labelled rows; only the rows the text has.
+- **Read is the only layout; shnayim mikra is a practice** (David, on the live site, the
+  same day). The first build offered "Layout: Read / By verse / By aliyah", and in the
+  last two the column switches stayed pressed and did nothing, with nothing saying why.
+  So the practice is its own switch in Aa, where Onkelos is beside the text as before.
+  On, it says what it is — "Each verse twice in Hebrew, then once in Onkelos" — and
+  offers By verse and By aliyah (By chapter on a book). While it is on, the column
+  switches are grey, with "Shown in Read" under their heading, and the ×/+ on the columns
+  are not drawn; pressing a column's switch puts the practice down and brings the text
+  back to Read with that column on.
 - **Print** is a two-line choice, this aliyah or the whole portion and its haftarah, and
   is drawn only where a server can set the paper (a portion's reader; "The week's sheet
   is a download", below). Any other text's edition is still the command line's.
@@ -390,9 +399,21 @@ portions:
   below). One at a time; `aria-expanded` on the press; focus goes in when opened from the
   keyboard and back to the press on Escape; a press outside shuts it.
 
-What it does not overturn: the strip at the foot is still the transport (step, speed,
-Hear first, the file, the picture), shown as before; the keyboard's letters are
-unchanged; §8's 44px reach holds for every new press, and `test_brand.py` lists them.
+- **The strip waits for Listen** (David, reviewing the first build of this, same day). It
+  stood at the foot the moment a recorded text opened (2026-09-03, below), which with ▶
+  Listen in the bar said "you can hear this" twice. Now nothing stands at the foot when a
+  text opens. Pressing Listen — or Space, or a line's own press — starts the voice and
+  brings up a slim strip in the bar's style: paper, a hairline, a pill, the play press in
+  ink. It carries the line of where the voice is, the step back and on, the speed, Hear
+  first where it applies, the picture where there is one, the file, and ×. Its × puts it
+  away and hands focus back to Listen; nothing is remembered, so the next text opens the
+  same way. On a phone the file and the credit are in ⋯, as they were. A text with video
+  keeps its strip standing: it opens as its picture (§1), and the strip is the picture's
+  transport and the way the picture comes back once it is put away.
+
+What it does not overturn: the strip is still the transport, with every control it had;
+the keyboard's letters are unchanged; §8's 44px reach holds for every new press, and
+`test_brand.py` lists them.
 
 ### The focus ring on the public pages is teal — 2026-10-02
 
@@ -3277,7 +3298,10 @@ What stands in its place:
 
 - **A text with a recording opens with the player standing and named.** Not a button in
   the bar to be discovered, and not a strip that reads as chrome: the first thing a
-  stranger can say about the page is that it can be heard.
+  stranger can say about the page is that it can be heard. *Reversed 2026-10-05 (David,
+  targum-internal#421), see "The reader's bar is one row": the bar's ▶ Listen is now the
+  named thing that says so, and the strip stays away until it is pressed. The aim — a
+  stranger knows the page can be heard — stands; it is said once, in the bar.*
 - **A text with video opens with its picture on.** The toggle stays, so the picture can be
   put away; the default reverses. *Carried further 2026-09-03, see "A video text opens as
   video" above: the picture is not on beside the page, it is the page until the reader

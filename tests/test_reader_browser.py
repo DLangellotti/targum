@@ -421,11 +421,35 @@ def press_in_aa(page, selector: str) -> None:
     page.keyboard.press("Escape")
 
 
+def practise_by_section(page) -> None:
+    """Shnayim mikra, kept a section at a time. A switch in Aa since targum-internal#421:
+    on, it offers its two ways, and By aliyah (or By chapter) is the second."""
+    if not page.evaluate("() => !!document.querySelector('#aa.open')"):
+        page.click("#aa-open")
+    if page.get_attribute("#practice-on", "aria-pressed") != "true":
+        page.click("#practice-on")
+    page.click('#practice [data-practice="section"]')
+    page.keyboard.press("Escape")
+
+
 def press_in_more(page, selector: str) -> None:
     """Press a control that lives behind ⋯ (targum-internal#421), opening it first."""
     if not page.evaluate("() => !!document.querySelector('.bar-more.open')"):
         page.click(".bar-tools [data-more]")
     page.click(selector)
+
+
+def strip_up(page) -> None:
+    """Bring the player strip up without starting the voice.
+
+    Since targum-internal#421 (David, 2026-10-05) the strip waits for the bar's Listen: a
+    recorded text opens with nothing at the foot, and pressing Listen starts the voice
+    and brings the strip up. The tests here are about the transport itself — its step,
+    speed, line and seat — so they bring it up the way Listen does (`TargumPlayer.show`)
+    and leave the voice where it was. `test_reader_bar_browser.py` presses Listen."""
+    page.wait_for_function("() => !!(window.TargumPlayer && window.TargumPlayer.show)")
+    page.evaluate("() => window.TargumPlayer.show()")
+    page.wait_for_selector("#player")
 
 
 def opened(browser, viewport=None, scrolling: bool = True):
@@ -1562,7 +1586,7 @@ def test_a_word_of_onkelos_under_the_verse_is_a_word_too(browser, with_onkelos: 
     page = context.new_page()
     page.goto(address(with_onkelos / "sec-0001.html"))
     page.wait_for_selector(".pair.verse")
-    press_in_aa(page, '#practice [data-practice="verse"]')
+    press_in_aa(page, "#practice-on")  # a switch since #421; on, it keeps it verse by verse
     page.click(".practice-line button")
     page.click(".practice-line button")
     assert page.evaluate(WALK)["onkelos"][0] == "ארמית Ruth 2:1", "the line reads as before"
@@ -2149,7 +2173,7 @@ def paged_scene(browser, tmp_path, monkeypatch):
     context = opened(browser, scrolling=False)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_function("() => document.body.classList.contains('paged')")
     yield open_page
     context.close()
@@ -2177,7 +2201,7 @@ def scene(browser, tmp_path, monkeypatch):
     context = opened(browser)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     yield open_page
     context.close()
 
@@ -2251,7 +2275,7 @@ def worded_scene(browser, tmp_path, monkeypatch):
     context = opened(browser)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     yield open_page
     context.close()
 
@@ -2372,7 +2396,7 @@ def _sitting(browser, tmp_path, monkeypatch, me: dict) -> list[dict]:
     page.route("**/account/me*", answer)
     page.route("**/events*", answer)
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.wait_for_timeout(400)  # the account's answer, which decides everything
     page.locator(".w").first.click()
     page.keyboard.press("Escape")
@@ -2647,7 +2671,7 @@ def test_hear_first_is_never_remembered(scene) -> None:
     scene.click(".player-first")
     assert scene.evaluate(HEARD)["on"] == "true"
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     assert scene.evaluate(HEARD)["on"] == "false"
 
 
@@ -2678,7 +2702,7 @@ def test_the_speed_is_kept(scene) -> None:
     one slower too."""
     scene.click(".player-faster")
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     assert scene.evaluate(SPEED)["rate"] == "1.25×"
 
 
@@ -2873,7 +2897,7 @@ def test_a_step_on_an_aligned_text_is_a_word(browser, tmp_path: Path) -> None:
     context = opened(browser)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     assert page.locator(".player-back").get_attribute("aria-label") == "Back a word"
     assert page.locator(".player-on").get_attribute("aria-label") == "Forward a word"
 
@@ -2962,7 +2986,7 @@ def test_a_text_is_picked_up_where_it_was_left(scene) -> None:
     assert stopped > 0.3, stopped
 
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     scene.wait_for_function("() => document.getElementById('player').classList.contains('placed')")
     seen = scene.evaluate(ALONG)
     assert abs(seen["at"] - stopped) < 0.5, seen
@@ -2979,7 +3003,7 @@ def test_a_text_heard_to_its_end_starts_again(scene) -> None:
         "() => !document.getElementById('player').classList.contains('playing')", timeout=8000
     )
     scene.reload()
-    scene.wait_for_selector("#player")
+    strip_up(scene)
     scene.wait_for_timeout(300)
     seen = scene.evaluate(ALONG)
     assert seen["at"] < 0.3, seen
@@ -3021,7 +3045,7 @@ def test_the_player_is_a_strip_on_a_phone(browser, tmp_path, monkeypatch) -> Non
     context = opened(browser, viewport=PHONE)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     box = page.locator("#player").bounding_box()
     assert box["x"] == 0 and box["width"] == PHONE["width"], box
     assert box["height"] <= 56, "a strip, not a card"
@@ -3062,7 +3086,7 @@ def phone(browser, tmp_path, monkeypatch, scrolling: bool):
     context = opened(browser, viewport=PHONE, scrolling=scrolling)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_selector("#list-tab")
     if not scrolling:
         open_page.wait_for_function("() => document.body.classList.contains('paged')")
@@ -3301,7 +3325,7 @@ def read_aloud(browser, tmp_path, monkeypatch):
     context = opened(browser, scrolling=False)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_function("() => document.body.classList.contains('paged')")
     yield open_page
     context.close()
@@ -3375,7 +3399,7 @@ def test_the_credit_can_be_reached_on_a_phone_with_no_keyboard(
     context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.wait_for_function("() => document.body.classList.contains('paged')")
     first = page.evaluate(
         """() => ({
@@ -3417,7 +3441,7 @@ def test_the_recording_row_wraps_rather_than_splitting_into_columns(
     context = opened(browser, viewport={"width": 390, "height": 844}, scrolling=False)
     page = context.new_page()
     page.goto(address(built))
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.click(".bar .more")
     page.wait_for_selector(".bar-more.open")
     laid = page.evaluate(
@@ -3551,7 +3575,7 @@ def portion_page(browser, tmp_path, monkeypatch):
     context = opened(browser, scrolling=False)
     open_page = context.new_page()
     open_page.goto(address(built))
-    open_page.wait_for_selector("#player")
+    strip_up(open_page)
     open_page.wait_for_function("() => window.TargumPlayer && window.TargumPlayer.length() > 0")
     yield open_page
     context.close()
@@ -3586,7 +3610,7 @@ def test_the_choice_of_reading_is_kept(portion_page) -> None:
     portion_page.click("#voices-open")
     portion_page.click('[data-recording="spoken"]')
     portion_page.reload()
-    portion_page.wait_for_selector("#player")
+    strip_up(portion_page)
     portion_page.wait_for_function(
         f"() => Math.abs(window.TargumPlayer.length() - {SPOKEN_SPAN * READ_VERSES}) < 0.05"
     )
@@ -4589,7 +4613,7 @@ def test_the_page_is_laid_out_for_where_the_band_will_be_not_where_it_is(
     page = context.new_page()
     page.goto(address(built))
     page.wait_for_function("() => document.body.classList.contains('paged')")
-    page.wait_for_selector("#player")
+    strip_up(page)
 
     def pages_and_ceiling() -> dict:
         return page.evaluate(
@@ -4639,7 +4663,7 @@ def test_opening_the_menu_on_a_phone_leaves_the_pages_where_they_were(
     page = context.new_page()
     page.goto(address(built))
     page.wait_for_function("() => document.body.classList.contains('paged')")
-    page.wait_for_selector("#player")
+    strip_up(page)
     page.wait_for_timeout(450)
     look = """() => ({
       pages: document.getElementById('page-of').textContent,
@@ -5338,7 +5362,7 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
     page.wait_for_selector(".pair.verse")
     assert page.evaluate(WALK)["label"] == ["Read", "By verse", "By aliyah"]
 
-    press_in_aa(page, '#practice [data-practice="verse"]')
+    press_in_aa(page, "#practice-on")  # a switch since #421; on, it keeps it verse by verse
     walk = page.evaluate(WALK)
     assert (walk["at"], walk["read"], walk["press"], walk["columns"]) == (
         "Ruth 2:1",
@@ -5370,7 +5394,7 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
         ["Ruth 2:1", "Ruth 2:2", "Ruth 2:3", "Ruth 2:4"],
     )
 
-    press_in_aa(page, '#practice [data-practice=""]')
+    press_in_aa(page, "#practice-on")  # off is Read
     walk = page.evaluate(WALK)
     assert (walk["at"], walk["read"], walk["columns"]) == (None, [], 30), "reading as usual again"
     context.close()
@@ -5406,7 +5430,7 @@ def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
     page = context.new_page()
     page.goto(address(with_onkelos / "sec-0001.html"))
     page.wait_for_selector(".pair.verse")
-    press_in_aa(page, '#practice [data-practice="section"]')
+    practise_by_section(page)
 
     def last_page() -> None:
         for _ in range(20):
@@ -5436,7 +5460,7 @@ def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
     assert (foot["said"], foot["press"], foot["done"]) == ("Once in Onkelos", "Start again", True)
     assert foot["column"] == ["arc", True]
 
-    press_in_aa(page, '#practice [data-practice=""]')
+    press_in_aa(page, "#practice-on")  # off is Read
     foot = page.evaluate(FOOT)
     assert foot["said"] is None and foot["column"] == ["en", True]
     context.close()
