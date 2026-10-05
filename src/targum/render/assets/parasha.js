@@ -98,8 +98,12 @@
       else chip.removeAttribute("aria-current");
     });
     if (window.history && history.replaceState) {
-      var url = location.pathname + (on ? "" : "?taamim=off");
-      history.replaceState(null, "", url);
+      /* Only the marks change: a language or a schedule in the address stays in it. */
+      var query = new URLSearchParams(location.search);
+      if (on) query.delete("taamim");
+      else query.set("taamim", "off");
+      var rest = query.toString();
+      history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "") + location.hash);
     }
   }
 
@@ -192,6 +196,70 @@
     });
   }
   window.targumWeek = { readThisWeek: readThisWeek, mark: markWeek };
+
+  /* The week's sheet (QA, 2026-10-05). The PDF is set when it is asked for and takes
+     five or six seconds the first time, and a button that does nothing for that long is
+     pressed again. So the press says it is preparing until the file arrives, and says the
+     one sentence the box says when it cannot. Without this — no script, or no `fetch` —
+     the form is an ordinary GET and the browser downloads the file itself. */
+  var sheetForm = document.querySelector("form.sheet-choices");
+  var sheetButton = sheetForm && sheetForm.querySelector('button[type="submit"]');
+  if (sheetForm && sheetButton && typeof fetch === "function" && window.URL && URL.createObjectURL) {
+    var sheetNote = document.createElement("p");
+    sheetNote.className = "sheet-note";
+    sheetNote.setAttribute("role", "status");
+    sheetNote.hidden = true;
+    sheetForm.appendChild(sheetNote);
+    var sheetLabel = sheetButton.textContent;
+    var preparing = false;
+
+    function sheetName(response) {
+      var said = response.headers.get("Content-Disposition") || "";
+      var found = /filename="?([^";]+)"?/.exec(said);
+      return found ? found[1] : "parasha.pdf";
+    }
+    function settle() {
+      preparing = false;
+      sheetButton.textContent = sheetLabel;
+      sheetButton.removeAttribute("aria-busy");
+    }
+
+    sheetForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      if (preparing) return;
+      preparing = true;
+      sheetNote.hidden = true;
+      sheetButton.textContent = t("parasha.sheet.preparing", "Preparing PDF…");
+      sheetButton.setAttribute("aria-busy", "true");
+      var asking = new URLSearchParams(new FormData(sheetForm)).toString();
+      var address = sheetForm.getAttribute("action") + (asking ? "?" + asking : "");
+      fetch(address, { credentials: "same-origin" })
+        .then(function (response) {
+          if (!response.ok) throw new Error(String(response.status));
+          var name = sheetName(response);
+          return response.blob().then(function (blob) {
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = name;
+            link.hidden = true;
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(function () {
+              URL.revokeObjectURL(link.href);
+              link.remove();
+            }, 60000);
+          });
+        })
+        .then(settle, function () {
+          settle();
+          sheetNote.textContent = t(
+            "parasha.sheet.not-now",
+            "The PDF can't be made right now. Try again in a minute."
+          );
+          sheetNote.hidden = false;
+        });
+    });
+  }
 
   /* The portions, folded on a phone: fifty-odd rows are a long tail under the ask. */
   var sources = document.getElementById("sources");

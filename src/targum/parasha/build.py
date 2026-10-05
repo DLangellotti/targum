@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import threading
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Iterator
@@ -296,19 +297,7 @@ def build(
         # And each aliyah carries two readings now, the chanting and the plain reading
         # of the book (targum-internal#412), as files in `reader/audio/` rather than
         # inside the page, which was three megabytes an aliyah with one.
-        render(
-            portion.document,
-            portion.segmented,
-            portion.translations,
-            folder / "reader",
-            annotation=portion.annotation,
-            glossaries=portion.glossaries,
-            vocalization=portion.vocalization,
-            clean=True,
-            folder=folder,
-            recordings_beside=True,
-            commentary_words=portion.commentary_words,
-        )
+        render_readers(portion, folder)
         # And what the week's sheet is set from, beside the reader: the box has no
         # books to cut it from again (targum-internal#415).
         keep_sheet(portion, folder)
@@ -383,19 +372,7 @@ def build(
         portion = cut_haftarah(reference, books)
         folder_name = f"haftarah-{key}"
         folder = root() / "read" / folder_name
-        written = render(
-            portion.document,
-            portion.segmented,
-            portion.translations,
-            folder / "reader",
-            annotation=portion.annotation,
-            glossaries=portion.glossaries,
-            vocalization=portion.vocalization,
-            clean=True,
-            folder=folder,
-            recordings_beside=True,
-            commentary_words=portion.commentary_words,
-        )
+        written = render_readers(portion, folder)
         keep_sheet(portion, folder)
         opening, opening_ref = portion.opening()
         record.opens = (
@@ -448,6 +425,100 @@ def build(
         f"{len(index.weeks)} weeks pointed"
     )
     return index
+
+
+#: The languages a reading's reader is built in again, beside the one it is built in first
+#: (QA, 2026-10-05). A reader's own words — Listen, Chanted, "0 of 99 known" — and the
+#: column it opens on are written into the page when it is built, in its first
+#: rendering's language, so the Russian portion page framing the English reader showed a
+#: Russian olah an English one. The second build is the same reading with the Russian
+#: rendering first, in `reader-ru/` beside `reader/`, and is served at the portion's
+#: address with `-ru` after it: `/parasha/read/bereshit-ru/reader/sec-0001.html`. The
+#: folder keeps the shape `reader.js` reads a portion's name off, so the offer of next
+#: Shabbat's reading and the print link find their way without the script knowing.
+#: A reading with no rendering in the language — the haftarot, today — has no second
+#: build, and its page frames the reader it has.
+ALSO_IN = ("ru",)
+
+
+def reader_dir(folder: str, language: str = "en") -> Path:
+    """Where a reading's reader in `language` is written: `reader/` for the first build."""
+    code = language.split("-")[0].lower()
+    return root() / "read" / folder / ("reader" if code not in ALSO_IN else f"reader-{code}")
+
+
+def built_in(folder: str, language: str) -> bool:
+    """Whether `folder` has a reader of its own in `language` (English always has one)."""
+    code = language.split("-")[0].lower()
+    if code not in ALSO_IN:
+        return (reader_dir(folder) / "index.html").is_file()
+    return (reader_dir(folder, code) / "index.html").is_file()
+
+
+def served_as(folder: str, language: str = "en") -> str:
+    """The name a reading's reader in `language` is served under: the folder, or the
+    folder with the language after it where a reader was built in that language. A
+    language with none gets the folder, so a page always frames something."""
+    code = language.split("-")[0].lower()
+    return f"{folder}-{code}" if code in ALSO_IN and built_in(folder, code) else folder
+
+
+def read_as(name: str, folders: Iterable[str]) -> tuple[str, str]:
+    """The folder and the language a served name means: `bereshit-ru` is Bereshit's
+    reader in Russian. A name that is itself a folder is that folder, whatever it ends
+    in, so no portion's own name is ever read as a language."""
+    known = set(folders)
+    if name in known:
+        return name, "en"
+    for code in ALSO_IN:
+        base = name.removesuffix(f"-{code}")
+        if base != name and base in known and built_in(base, code):
+            return base, code
+    return name, "en"
+
+
+def render_readers(portion: Cut, folder: Path) -> list[Path]:
+    """Write a reading's reader, and again in each of `ALSO_IN` it has a rendering in.
+
+    Returns the first build's files, index first, as `render` does. The second build's
+    recordings are the first's — the same files, under the same names — so they are not
+    kept twice: the box serves `reader-ru/audio/…` out of `reader/audio/`.
+    """
+    written = render(
+        portion.document,
+        portion.segmented,
+        portion.translations,
+        folder / "reader",
+        annotation=portion.annotation,
+        glossaries=portion.glossaries,
+        vocalization=portion.vocalization,
+        clean=True,
+        folder=folder,
+        recordings_beside=True,
+        commentary_words=portion.commentary_words,
+    )
+    for code in ALSO_IN:
+        out = folder / f"reader-{code}"
+        first = [t for t in portion.translations if t.target_language.split("-")[0] == code]
+        if not first:
+            # A reading that has lost its rendering keeps no stale reader in it.
+            shutil.rmtree(out, ignore_errors=True)
+            continue
+        render(
+            portion.document,
+            portion.segmented,
+            first + [t for t in portion.translations if t not in first],
+            out,
+            annotation=portion.annotation,
+            glossaries=portion.glossaries,
+            vocalization=portion.vocalization,
+            clean=True,
+            folder=folder,
+            recordings_beside=True,
+            commentary_words=portion.commentary_words,
+        )
+        shutil.rmtree(out / "audio", ignore_errors=True)
+    return written
 
 
 #: How many aliyot a reading is cut into, spelled rather than numbered — the blurb is a
@@ -595,15 +666,17 @@ def readable(index: Index | None = None) -> set[str]:
     return _built(index)
 
 
-def reader_href(portion: Portion, page: str = "index.html") -> str:
+def reader_href(portion: Portion, page: str = "index.html", language: str = "en") -> str:
     """Where a portion's reader is served: the one copy everybody opens.
 
     A portion is built once, for the whole box, under the corpus root — never into a
     reader's own shelf — so opening one builds nothing and spends nothing
     (targum-internal#410). The Library's row, its Weekly portion shelf and Learn's door
     all name it through here, so the three can never drift onto different addresses.
+
+    `language` asks for the reader built in it (`ALSO_IN`), where there is one.
     """
-    return f"/parasha/read/{portion.folder}/reader/{page}"
+    return f"/parasha/read/{served_as(portion.folder, language)}/reader/{page}"
 
 
 def shelf(index: Index | None = None, moment: datetime | None = None) -> dict[str, object]:

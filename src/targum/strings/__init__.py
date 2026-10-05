@@ -234,6 +234,21 @@ def said_reference(reference: str, language: str = SOURCE) -> str:
     return _said_names("reference.", reference, language)
 
 
+def said_portion(slug: str, name: str, language: str = SOURCE) -> str:
+    """A Torah portion's name as `language` writes it: «Берешит» for Bereshit (QA,
+    2026-10-05).
+
+    Keyed by the portion's slug, `portion.name.<slug>`, because the name is the calendar's
+    and the slug is what does not move. English is the name the calendar wrote, untouched,
+    so nothing on an English page moves; a language with no key for a reading says that
+    name too.
+    """
+    code = (language or SOURCE).split("-")[0].lower()
+    if code == SOURCE:
+        return name
+    return catalogue(code).get(f"portion.name.{slug}") or name
+
+
 def said_hebrew_date(hdate: str, language: str = SOURCE) -> str:
     """A Hebrew date as `language` names its month: «19 элуля 5786» for "19 Elul 5786".
 
