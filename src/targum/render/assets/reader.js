@@ -7566,10 +7566,11 @@ var targumReader = function () {
    * once per layout with everything shown, which is what the scrolling page has always
    * cost, and never again until something moves.
    *
-   * Nothing here is fixed-height or overflow-hidden. The run fits the room by
-   * construction; a single pair taller than the room gets a page of its own and that
-   * page scrolls, which is the honest answer, and the last page scrolls to reach the
-   * pager and the offer at the foot.
+   * The run fits the room by construction. A single pair taller than the room — a
+   * verse with Rashi beside it — is cut between two of its lines across pages (`sliced`
+   * below), and the foot of the text takes a page of its own when the last page has no
+   * room for it, so no line of any page stands under the arrows, the count or the player
+   * (QA 2026-10-05). Only a cut verse's pair is given a height, and only while paged.
    */
   var turn = document.getElementById("turn");
   // The player floats at the foot too, so a page has to be measured around it the same
@@ -7638,11 +7639,195 @@ var targumReader = function () {
     return out;
   }
 
-  function pageFor(index, list) {
+  // The page a pair is on: the first that holds it, which for a verse cut across pages
+  // is the one with the verse itself on it. `offset`, pixels down the pair, picks the
+  // piece of a cut verse that holds that height instead.
+  function pageFor(index, list, offset) {
+    var found = -1;
     for (var n = 0; n < list.length; n++) {
-      if (index >= list[n][0] && index <= list[n][1]) return n;
+      if (index < list[n][0] || index > list[n][1]) continue;
+      if (found < 0) found = n;
+      if (!offset || list[n].pair !== index || offset < list[n].to) return n;
     }
-    return 0;
+    return found < 0 ? 0 : found;
+  }
+
+  /* --- a verse taller than the page (QA 2026-10-05, B2) -------------------------------
+   *
+   * A verse with Rashi beside it runs to thirty lines on a phone and to more than a
+   * window on a laptop, and a pair could not be split: it got a page of its own, ran on
+   * under the arrows, the count and the player, and the reader read Rashi through them.
+   * Now such a pair is cut across pages between two lines — never through one — and each
+   * page shows its piece: the pair is clipped to it and drawn up by what is above the
+   * piece, so the page is still a run of whole lines that fits the room. The verse and
+   * its translation are on the first piece; the commentary carries on over the next.
+   * Print takes the clipping off with the rest of the paging.
+   */
+  // The heights down a pair where a cut would go through a line, merged into bands.
+  function linesOf(pair) {
+    var top = pair.getBoundingClientRect().top;
+    var lines = [];
+    var range = document.createRange();
+    var walker = document.createTreeWalker(pair, NodeFilter.SHOW_TEXT);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.data.trim()) continue;
+      range.selectNodeContents(node);
+      var rects = range.getClientRects();
+      for (var i = 0; i < rects.length; i++) {
+        if (rects[i].height) lines.push([rects[i].top - top - 2, rects[i].bottom - top + 2]);
+      }
+    }
+    lines.sort(function (a, b) {
+      return a[0] - b[0];
+    });
+    var bands = [];
+    lines.forEach(function (line) {
+      var last = bands[bands.length - 1];
+      if (last && line[0] <= last[1]) last[1] = Math.max(last[1], line[1]);
+      else bands.push([line[0], line[1]]);
+    });
+    return bands;
+  }
+
+  // Where to cut a pair of `height`, the first piece in `first` pixels and every other in
+  // `room`: [0, cut, cut, ..., height]. Each cut is above the line the room ends in.
+  function cutsFrom(bands, height, first, room) {
+    var cuts = [0];
+    var from = 0;
+    var budget = first;
+    while (height - from > budget) {
+      var limit = from + budget;
+      var cut = limit;
+      for (var b = 0; b < bands.length; b++) {
+        if (bands[b][1] <= limit) continue;
+        if (bands[b][0] < limit) cut = bands[b][0];
+        break;
+      }
+      // A single line taller than the room is cut where the room ends, the one case
+      // where a line is split rather than a page left with nothing on it.
+      if (cut <= from + 24) cut = limit;
+      cut = Math.floor(cut);
+      cuts.push(cut);
+      from = cut;
+      budget = room;
+    }
+    cuts.push(height);
+    return cuts;
+  }
+
+  // The pages again, with any page that runs past the room cut at its last pair.
+  function sliced(list, tops, heights, room) {
+    var out = [];
+    list.forEach(function (range) {
+      var last = range[1];
+      var above = tops[last] - tops[range[0]];
+      if (above + heights[last] <= room + 1 || room - above < 80) {
+        out.push(range);
+        return;
+      }
+      var cuts = cutsFrom(linesOf(pairs[last]), heights[last], room - above, room);
+      for (var k = 0; k + 1 < cuts.length; k++) {
+        var page = k === 0 ? [range[0], last] : [last, last];
+        page.pair = last;
+        page.from = cuts[k];
+        page.to = cuts[k + 1];
+        page.height = heights[last];
+        out.push(page);
+      }
+    });
+    return out;
+  }
+
+  // What stands under the last pair on the last page — Done, the credits, the pager and
+  // what comes next — measured as it will stand there.
+  function tailHeight() {
+    var last = pairs[pairs.length - 1];
+    if (!last) return 0;
+    var had = body.classList.contains("last-page");
+    body.classList.add("last-page");
+    var from = last.getBoundingClientRect().bottom;
+    var to = from;
+    Array.prototype.forEach.call(
+      document.querySelectorAll(".pager, .credits, .foot, .practice-step, .next-up"),
+      function (thing) {
+        if (thing.closest(".bar, .bar-pop, .bar-more")) return;
+        var box = thing.getBoundingClientRect();
+        if (box.height) to = Math.max(to, box.bottom);
+      }
+    );
+    if (!had) body.classList.remove("last-page");
+    return Math.max(0, to - from);
+  }
+
+  // Room on the last page for the foot of the text, so the credit line is not read
+  // through the arrows either. The last pair goes over to a page of its own with the
+  // foot where it fits there whole; where it does not, it is cut so that its last lines
+  // stand over the foot — the foot never stands on a page without the end of the text.
+  function withTail(list, tops, heights, room) {
+    var end = list[list.length - 1];
+    if (!end) return list;
+    var first = end[0];
+    var last = end[1];
+    var height = heights[last];
+    var cut = end.pair === last;
+    var from = cut ? end.from : 0;
+    var used = cut && from ? height - from : tops[last] + height - tops[first];
+    var tail = tailHeight();
+    if (!tail || used + tail <= room) return list;
+    var before = list.slice(0, -1);
+    if (!cut && first < last && height + tail <= room) {
+      return before.concat([[first, last - 1], [last, last]]);
+    }
+    // The first gap between lines at or below where the last piece has to begin.
+    var want = Math.max(from + 1, height - (room - tail));
+    var at = height;
+    var bands = linesOf(pairs[last]);
+    for (var b = 0; b < bands.length; b++) {
+      if (bands[b][0] >= want) {
+        at = Math.floor(bands[b][0]);
+        break;
+      }
+      if (bands[b][1] >= want) want = bands[b][1];
+    }
+    var head = end.slice();
+    head.pair = last;
+    head.from = from;
+    head.to = at;
+    head.height = height;
+    var foot = [last, last];
+    foot.pair = last;
+    foot.from = at;
+    foot.to = height;
+    foot.height = height;
+    return before.concat([head, foot]);
+  }
+
+  // A page that only carries on what an earlier page began: the rest of a verse's
+  // commentary. It has no words of the verse on it.
+  function carriesOn(n) {
+    return !!(pages[n] && pages[n].from);
+  }
+
+  var cutPair = null;
+  function unslice() {
+    if (!cutPair) return;
+    cutPair.classList.remove("sliced");
+    cutPair.style.removeProperty("--cut-top");
+    cutPair.style.removeProperty("--cut-size");
+    cutPair = null;
+  }
+
+  // The piece of a cut verse this page shows. The foot's own page shows none of it.
+  function slice(range) {
+    unslice();
+    if (range.pair === undefined) return;
+    var pair = pairs[range.pair];
+    if (!pair) return;
+    if (!range.from && range.to >= range.height) return;
+    pair.style.setProperty("--cut-top", range.from + "px");
+    pair.style.setProperty("--cut-size", range.to - range.from + "px");
+    pair.classList.add("sliced");
+    cutPair = pair;
   }
 
   // What is left of the window under the bar and above whatever floats at its foot.
@@ -7692,6 +7877,7 @@ var targumReader = function () {
 
   function paginate() {
     if (!paged()) return;
+    unslice();
     pairs.forEach(function (pair) {
       pair.hidden = false;
     });
@@ -7719,8 +7905,10 @@ var targumReader = function () {
     var glue = pairs.map(function (pair) {
       return pair.classList.contains("head");
     });
-    pages = boundariesFrom(tops, heights, Math.max(160, room() - lead), opens, glue);
+    var budget = Math.max(160, room() - lead);
+    pages = boundariesFrom(tops, heights, budget, opens, glue);
     if (!pages.length) pages = [[0, pairs.length - 1]];
+    pages = withTail(sliced(pages, tops, heights, budget), tops, heights, budget);
   }
 
   function showPage(n, quiet) {
@@ -7728,6 +7916,7 @@ var targumReader = function () {
     current = Math.max(0, Math.min(pages.length - 1, n));
     var range = pages[current];
     for (var i = 0; i < pairs.length; i++) pairs[i].hidden = i < range[0] || i > range[1];
+    slice(range);
     body.classList.toggle("last-page", current === pages.length - 1);
     // The back arrow does nothing on the first page, and a button that does nothing
     // should say so — dimmed by the stylesheet, named inert for a screen reader. The
@@ -7930,6 +8119,9 @@ var targumReader = function () {
     }
     if (!paging || !paged()) return;
     var held = pages.length ? pairs[pages[current][0]] : null;
+    // How far down a cut verse the page was, so a relayout keeps the reader on the piece
+    // of the commentary they were reading rather than sending them back to the verse.
+    var down = held && carriesOn(current) ? pages[current].from : 0;
     var here = anchor();
     // A word the reader stood on, and nothing weaker. `anchor` otherwise falls back to
     // whatever line the middle of the window lands on, which in page mode is a line they
@@ -7940,16 +8132,22 @@ var targumReader = function () {
     // line is now on page two — so a reader who had opened the text and touched nothing
     // was moved to page two a moment later. In page mode the page is the place, and only
     // a word the reader marked is a better answer than it.
-    if (here && here.word && here.pair && !here.pair.hidden) held = here.pair;
+    if (here && here.word && here.pair && !here.pair.hidden && here.pair !== held) {
+      held = here.pair;
+      down = 0;
+    }
     // And the verse a link named, while it is still on the page. The link turned to
     // its page in the fallback's metrics; the real face lands, the page is one line
     // shorter, and holding the page's first line hands the reader the page *before*
     // the verse they asked for. Once they have turned away from it, the page is the
     // place again.
     var linked = verseInHash();
-    if (linked && !linked.hidden) held = linked;
+    if (linked && !linked.hidden && linked !== held) {
+      held = linked;
+      down = 0;
+    }
     paginate();
-    showPage(held ? pageFor(pairs.indexOf(held), pages) : current, true);
+    showPage(held ? pageFor(pairs.indexOf(held), pages, down) : current, true);
   }
 
   /* The line a scrolling reader is on: the first whose foot is under the bar. Not
@@ -7980,6 +8178,7 @@ var targumReader = function () {
     if (turn) turn.hidden = !on;
     paging = true;
     if (!paged()) {
+      unslice();
       pairs.forEach(function (pair) {
         pair.hidden = false;
       });
@@ -9232,7 +9431,7 @@ var targumReader = function () {
   // word the back arrow returns to are the same one. Null for a page with no words.
   function footOf(n) {
     var range = pages[n];
-    if (!range) return null;
+    if (!range || carriesOn(n)) return null;
     for (var i = range[1]; i >= range[0]; i--) {
       var id = pairs[i].getAttribute("data-id");
       var tokens = wordData[id] || [];
@@ -9279,7 +9478,12 @@ var targumReader = function () {
     if (entry && pageAt(entry) === current) return entry;
     var foot = footOf(current);
     if (foot && (!from || later(foot, from))) return foot;
-    if (!turnBy(1)) return entry;
+    // Over the pages that only carry on a verse's commentary, to the page the next word
+    // is on: they have no word of the verse to stand on.
+    var ahead = 1;
+    var there = entry ? pageAt(entry) : -1;
+    while (current + ahead < there && carriesOn(current + ahead)) ahead++;
+    if (!turnBy(ahead)) return entry;
     if (entry && pageAt(entry) === current) return entry;
     return footOf(current);
   }
@@ -10028,6 +10232,19 @@ var targumReader = function () {
     onFirstPage: function () {
       return !paged() || current <= 0;
     },
+    // The page a pair's own line is on, turned to quietly when it is not the one showing:
+    // for the voice, whose verse has to be in front of the reader (QA 2026-10-05, B1).
+    // True when it turned. A scrolling reader has no page to turn.
+    turnToPair: function (pair) {
+      if (!paged() || !pages.length) return false;
+      var index = pairs.indexOf(pair);
+      if (index < 0) return false;
+      var n = pageFor(index, pages);
+      if (n === current) return false;
+      showPage(n, true);
+      if (window.scrollTo) window.scrollTo(0, 0);
+      return true;
+    },
     where: where,
     placeNear: placeNear,
     stopHover: stopHover,
@@ -10604,6 +10821,10 @@ var targumReader = function () {
     if (!marked) return;
     marked.classList.add("now");
     if (filmFollow && filmFollow(marked)) return;
+    /* On pages, the verse's page first: the voice goes on past the foot of the page,
+       and a verse on a page nobody can see is not followed (QA 2026-10-05, B1). */
+    var reader = window.TargumReader;
+    if (reader && reader.turnToPair) reader.turnToPair(marked);
     /* Only when it has gone off the page. Scrolling a line that is already in front of
        the reader moves the text under their eyes for no reason. */
     var box = marked.getBoundingClientRect();
@@ -10619,9 +10840,35 @@ var targumReader = function () {
        the sheet, a card — and the reader's own stylesheet knows how tall the lot is. */
     var band = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--foot"));
     if (band > 0) floor = Math.min(floor, window.innerHeight - band - 12);
-    if (box.top < 64 || box.bottom > floor) {
-      marked.scrollIntoView({ block: "center", behavior: behaviour() });
+    var topBar = document.querySelector(".bar");
+    var ceiling = Math.max(64, topBar ? topBar.getBoundingClientRect().bottom + 8 : 0);
+    /* The verse's own line is what is being chanted, and it is what has to be in view:
+       a verse with Rashi beside it is taller than the window, and centring the whole
+       block put the Hebrew off the top of the screen and left the listener looking at
+       the commentary (QA 2026-10-05, B1). */
+    var line = sayingLine(marked) || marked;
+    var said = line.getBoundingClientRect();
+    var fits = box.height <= floor - ceiling;
+    var seen = said.top >= ceiling && said.bottom <= floor;
+    if (seen && (!fits || (box.top >= ceiling && box.bottom <= floor))) return;
+    /* To the top third of what can be read, with as much of the verse under it as fits;
+       a verse that fits whole is brought on whole. */
+    var by = said.top - (ceiling + (floor - ceiling) / 4);
+    if (fits) {
+      by = Math.max(by, box.bottom - floor);
+      by = Math.min(by, box.top - ceiling);
     }
+    if (Math.abs(by) < 1) return;
+    window.scrollBy({ top: by, behavior: behaviour() });
+  }
+
+  /* The cell of the verse the voice is saying: the Hebrew as it is showing. */
+  function sayingLine(pair) {
+    var cells = pair.querySelectorAll(".src");
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i].getClientRects().length) return cells[i];
+    }
+    return null;
   }
 
   /* Time listened and time watched (targum-internal#339), off the element's own events so a
@@ -11518,6 +11765,12 @@ var targumReader = function () {
       });
       if (!found) return;
       var rate = nearestRate(audio.playbackRate);
+      // Switched while the whole aliyah is playing, the voice goes on in the other
+      // reading from the start of the verse it was on (QA 2026-10-05, S4): the same verse
+      // is somewhere else in the other file, and its start is the one place both have.
+      // Paused, it stays paused, at the other reading's own kept place.
+      var going = following && !audio.paused && !playing && order.length > 0;
+      var verse = going ? (marked && marked.getAttribute("data-id")) || at(audio.currentTime) : "";
       // Written now: the pause `halt` causes is told after the source has changed, by
       // which time the place it would keep is the new reading's nought.
       keepHeard();
@@ -11541,6 +11794,12 @@ var targumReader = function () {
       whenKnown(function () {
         resume();
         paint();
+        if (!going) return;
+        var from = spans[verse] ? spans[verse][0] : order.length ? order[0].start : 0;
+        following = true;
+        pressed(true);
+        play(from);
+        mark(at(from));
       });
       var named = "";
       recordingKeys.forEach(function (button) {
@@ -12484,10 +12743,18 @@ else targumReader();
     }
   }
 
-  // The form of the text that is showing, from the first verse's cells.
-  function shown(form) {
-    var cell = document.querySelector('.pair .src[data-form="' + form + '"]');
-    return !!cell && cell.offsetParent !== null && !cell.hidden;
+  // The form of the text that is showing, from the reader's own state: the vowels and
+  // the te'amim are classes on the body, and which cells a verse has is in its markup.
+  // Not from a verse's cell on screen — on any page but the first the first verse is
+  // hidden, and the sheet went out bare (QA 2026-10-05, B3).
+  function vowelsOn() {
+    return body.classList.contains("nikkud") && !!document.querySelector(".pair.points");
+  }
+  function taamimOn(kept) {
+    if (!vowelsOn()) return false;
+    // A text with no te'amim to take off is as published, which the box reads as on.
+    if (!document.querySelector(".pair.accented")) return kept.taamim !== false;
+    return body.classList.contains("taamim");
   }
 
   // The companions on, in the order they stand. Where the page has its own switches for
@@ -12513,11 +12780,10 @@ else targumReader();
 
   function view(aliyah) {
     var kept = prefs();
-    var pointed = shown("pointed") || shown("unaccented");
     var asked = [
       ["with", companions().join(",")],
-      ["vowels", pointed ? "1" : "0"],
-      ["taamim", pointed && !shown("unaccented") && kept.taamim !== false ? "1" : "0"],
+      ["vowels", vowelsOn() ? "1" : "0"],
+      ["taamim", taamimOn(kept) ? "1" : "0"],
       ["layout", body.classList.contains("mode-inter") ? "under" : "beside"],
       ["gloss", kept.marking === false ? "0" : "1"],
     ];
@@ -12534,11 +12800,79 @@ else targumReader();
   }
 
   var aliyah = served[2] ? String(Number(served[2])) : "1";
+  var said = document.getElementById("sheet-said");
+  var t = window.TargumStrings ? window.TargumStrings.t : function (key, english) {
+    return english;
+  };
+  var NOT_NOW = t("reader.page.pdf-not-now", "The PDF can't be made right now. Try again in a minute.");
+
+  function tell(text) {
+    if (said) {
+      said.textContent = text;
+      said.hidden = !text;
+    }
+    var reader = window.TargumReader;
+    if (text && reader && reader.say) reader.say(text);
+  }
+
+  // The sheet is set on the box when it is asked for, five or six seconds for a portion
+  // (QA 2026-10-05, S5), and a link that downloads says nothing while it waits. So it is
+  // fetched here, the press says "Preparing PDF…" until the file is in hand, and the
+  // file is handed to the browser to save. A refusal is the box's own sentence.
+  function fetchSheet(link) {
+    var name = link.querySelector(".pick-name");
+    var was = name ? name.textContent : "";
+    link.classList.add("making");
+    link.setAttribute("aria-busy", "true");
+    if (name) name.textContent = t("reader.page.preparing-pdf", "Preparing PDF…");
+    tell("");
+    function done() {
+      link.classList.remove("making");
+      link.removeAttribute("aria-busy");
+      if (name) name.textContent = was;
+    }
+    fetch(link.href, { credentials: "same-origin" })
+      .then(function (response) {
+        if (!response.ok) {
+          return response.text().then(function (text) {
+            var sentence = (text || "").trim();
+            var plain = /^text\/plain/.test(response.headers.get("Content-Type") || "");
+            throw { said: plain && sentence && sentence.length < 200 && response.status !== 404 ? sentence : NOT_NOW };
+          });
+        }
+        var named = /filename="?([^";]+)"?/.exec(response.headers.get("Content-Disposition") || "");
+        return response.blob().then(function (blob) {
+          var file = URL.createObjectURL(blob);
+          var save = document.createElement("a");
+          save.href = file;
+          save.download = named ? named[1] : served[1] + ".pdf";
+          save.hidden = true;
+          document.body.appendChild(save);
+          save.click();
+          save.remove();
+          setTimeout(function () {
+            URL.revokeObjectURL(file);
+          }, 60000);
+          done();
+        });
+      })
+      .catch(function (why) {
+        done();
+        tell(why && why.said ? why.said : NOT_NOW);
+      });
+  }
+
   function press(link, which) {
     link.href = view(which);
     // Read again as it is pressed, so a switch turned after the page opened is on paper.
-    link.addEventListener("click", function () {
+    link.addEventListener("click", function (event) {
       link.href = view(which);
+      // A modified press — a new tab, a save-as — is the browser's to do.
+      if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (!window.fetch || !window.URL || !URL.createObjectURL) return;
+      event.preventDefault();
+      if (link.classList.contains("making")) return;
+      fetchSheet(link);
     });
   }
   press(whole, "");
@@ -12675,6 +13009,20 @@ else targumReader();
   var waiting = 0;
   var pointerNear = false;
   var focusInside = false;
+  // Whether the last pointer was a finger. A tap is a pointer event at the place it
+  // landed, and on a phone the tap on Listen landed by the bar: the bar took it for a
+  // pointer resting at the top and never stepped back, and `:hover` stays on whatever
+  // was last touched (QA 2026-10-05, S3). A finger at the top has its own rule below.
+  var coarse = window.matchMedia ? window.matchMedia("(hover: none), (pointer: coarse)") : null;
+  var touching = !!(coarse && coarse.matches);
+  document.addEventListener(
+    "pointerdown",
+    function (event) {
+      touching = event.pointerType === "touch";
+      if (touching && pointerNear) pointerNear = false;
+    },
+    { passive: true, capture: true }
+  );
 
   function playing() {
     return !!(listen && listen.classList.contains("playing"));
@@ -12688,7 +13036,7 @@ else targumReader();
     if (keys && !keys.hidden) return true;
     if (pointerNear) return true;
     if (focusInside && keyboardFocus(document.activeElement)) return true;
-    if (bar.matches(":hover")) return true;
+    if (!touching && bar.matches(":hover")) return true;
     return false;
   }
 
@@ -12744,6 +13092,8 @@ else targumReader();
   document.addEventListener(
     "pointermove",
     function (event) {
+      if (event.pointerType === "touch") return;
+      touching = false;
       var near = event.clientY <= bar.getBoundingClientRect().bottom + NEAR;
       if (near === pointerNear) return;
       pointerNear = near;
@@ -12757,7 +13107,11 @@ else targumReader();
     "touchstart",
     function (event) {
       var touch = event.touches && event.touches[0];
-      if (touch && touch.clientY <= bar.getBoundingClientRect().bottom + NEAR) back();
+      if (!touch || touch.clientY > bar.getBoundingClientRect().bottom + NEAR) return;
+      back();
+      // A finger lifts, where a pointer stays: with the voice going the bar steps back
+      // again after the same moment it waits after Listen.
+      if (playing()) settleSoon();
     },
     { passive: true }
   );

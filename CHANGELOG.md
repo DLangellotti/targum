@@ -28,6 +28,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - Download PDF on the portion page says «Готовим PDF…» / "Preparing PDF…" until the file
   arrives, and the one-sentence refusal under the button if the box cannot make it. With
   no script it is still a plain GET form.
+- The reader's findings from the live QA pass of 2026-10-05, with Rashi kept on by
+  default and at full length (David's call):
+  - **Listen keeps the verse being chanted on screen.** The follow-along centred the
+    whole verse-and-Rashi block, which put the Hebrew off the top of the window; on pages
+    it never turned to the verse's page at all. It now turns to that page
+    (`TargumReader.turnToPair`) and brings the verse's own Hebrew line into the top third
+    of the room, on pages and on a scroll.
+  - **No line stands under the page controls.** A verse taller than the page could not be
+    split, so it ran on under the arrows, "1 of 19", the words tab and the player. Such a
+    verse is now cut across pages between two of its lines — the verse and its
+    translation on the first piece, the commentary carrying on over the next — and the
+    foot of the text (Done, the credits, the pager) takes a page of its own when the last
+    page has no room for it. A relayout keeps the reader on the piece they were reading.
+  - **The sheet printed from any page is the reader's view.** The print press read the
+    vowels and te'amim off the first verse's cell, hidden on every page but the first, so
+    a sheet asked for from page 4 came out bare; it reads the reader's own state now.
+  - **On a phone every press of the bar stays on the screen while the voice plays** (⋯
+    was at x=373–417 on a 390px window): the voice's line gives way first, then the
+    title. And the bar steps back after a tap on Listen: a touch is no longer taken for
+    a pointer resting at the top, and a touch's leftover `:hover` no longer holds it out.
+  - **Chanted → Spoken while playing goes on playing**, from the start of the verse it
+    was on, in the other reading. Paused, it stays paused.
+  - **Download PDF in the reader says "Preparing PDF…"** on the press while the box sets
+    the sheet (five or six seconds for a portion), then saves it under the box's name; a
+    refusal is the box's one sentence under the choice.
 - A level pressed on a word's card (1, 2, 3, known or ignore) leaves the card beside the
   word while it lingers and fades (targum-internal#420). The card was rebuilt against
   the span the redraw had just replaced, which has no rectangle, so it jumped to the

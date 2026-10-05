@@ -2128,6 +2128,8 @@
   "nav.your-playlists": "Ваши плейлисты",
   "reader.page.add-to-playlist": "Добавить в плейлист",
   "reader.page.download-pdf": "Скачать PDF",
+  "reader.page.preparing-pdf": "Готовим PDF…",
+  "reader.page.pdf-not-now": "Сейчас не получается сделать PDF. Попробуйте через минуту.",
   "playlists.unreached": "Не удалось связаться с targum. Попробуйте чуть позже.",
   "serve.playlists-kept": "У вас уже {most} плейлистов. Сначала удалите один.",
   "playlists.page.from-targum": "От targum",

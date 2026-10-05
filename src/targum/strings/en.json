@@ -1995,6 +1995,8 @@
   "nav.your-playlists": "Your playlists",
   "reader.page.add-to-playlist": "Add to playlist",
   "reader.page.download-pdf": "Download PDF",
+  "reader.page.preparing-pdf": "Preparing PDF…",
+  "reader.page.pdf-not-now": "The PDF can't be made right now. Try again in a minute.",
   "playlists.unreached": "We couldn't reach targum. Try again in a moment.",
   "serve.playlists-kept": "You already have {most} playlists. Delete one first.",
   "playlists.page.from-targum": "From targum",

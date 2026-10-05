@@ -4350,9 +4350,12 @@ def test_the_arrows_stop_at_the_end_rather_than_coming_round() -> None:
     )
     # On pages, forward stops at the foot of the page and turns one page from there —
     # loudly, the way PageDown does — rather than turning straight to the next word owed
-    # and leaving the lines under this one unread.
+    # and leaving the lines under this one unread. One page, that is, past the pages that
+    # only carry on a cut verse's commentary, which have no word to stand on (QA
+    # 2026-10-05).
     assert "var foot = footOf(current);" in onward
-    assert "if (!turnBy(1)) return entry;" in onward
+    assert "var ahead = 1;" in onward
+    assert "if (!turnBy(ahead)) return entry;" in onward
     # The first press on a page already clear goes to its foot, not some pages on.
     assert "return onward(edge, forward) || step(null, forward);" in script
     # And off the foot of the last page, the next chapter — the one place the walk
