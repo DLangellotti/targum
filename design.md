@@ -224,7 +224,10 @@ arrow, a loudspeaker, from `_glyphs.html.j2` — with the word kept as the contr
   rest, raised, floating. A hairline (ink at 8%) stands only where two same-tone
   surfaces meet.
 - Hover lifts muted to ink; row hovers are 7–10% accent washes. Selection is ink-soft with
-  paper text. Focus is a 2px `#b8935e` ring.
+  paper text. Focus is a 2px `#b8935e` ring. In the reader a hovered line wears the same
+  raised band as the line being said — except while a voice is going, when the band is
+  the voice's alone and a hovered line takes a 1px rule outline instead, so the pointer
+  never reads as the voice having jumped (targum-internal#420).
 - **Motion is rare and purposeful:** the mode pill slides 240ms on
   `cubic-bezier(0.32, 0.72, 0, 1)`; mode switches settle with a 200ms fade. On the desk
   one curve moves everything, `cubic-bezier(0.2, 0.8, 0.2, 1)`, 240ms in and 160ms out,
