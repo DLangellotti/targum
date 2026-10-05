@@ -3646,19 +3646,26 @@ def test_the_toggles_are_drawings_with_a_sentence_behind_them(tmp_path: Path) ->
         assert len(found) == 1, f"{marker}: expected one button, found {len(found)}"
         return found[0]
 
+    # Since the bar became one row (targum-internal#421) the switches live in Aa and ⋯,
+    # where each is a row with its name beside it, so the name is the visible label and
+    # the sentence stays on the hover. What is pinned is the same promise in its new
+    # place: a name that is a noun, never a state ("Vowels" / "No vowels"), and the
+    # longer sentence behind it.
     vowels = control("data-nikkud-toggle")
-    assert "<svg" in vowels and ">Vowels<" not in vowels and ">No vowels<" not in vowels
+    assert '<span class="aa-name">Vowel points</span>' in vowels
+    assert ">No vowels<" not in vowels
     assert "title=" in vowels, "the words move to the hover"
-    assert "aria-label=" in vowels, "and stay for anyone not hovering"
 
     # The marking control only renders on a text that has words to mark, so it is read
-    # from the template rather than from a fixture built without annotation.
-
+    # from the template rather than from a fixture built without annotation. Behind ⋯
+    # its row names it (`data-what`), and the switch keeps its title and its label for
+    # anyone not hovering.
     template = _reader_template()
     mark = re.search(r"<button\b[^>]*data-marking.*?</button>", template, re.S)
     assert mark is not None
-    assert "<svg" in mark.group(0) and ">Mark<" not in mark.group(0)
+    assert 'class="sw"' in mark.group(0) and ">Mark<" not in mark.group(0)
     assert "title=" in mark.group(0) and "aria-label=" in mark.group(0)
+    assert 'data-what="Highlight what you have not learned"' in template
 
 
 def test_the_speed_is_a_pair_in_the_player_and_only_where_there_is_a_voice(
@@ -3702,7 +3709,8 @@ def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None
     assert vowels is not None
     assert 'aria-pressed="false"' in vowels.group(0)
     assert "data-step" not in vowels.group(0)
-    assert 'class="dots"' in vowels.group(0)
+    # Drawn as a switch in Aa since targum-internal#421: one thing, on or off.
+    assert 'class="sw"' in vowels.group(0)
 
     from targum.render.builder import ASSETS
 
@@ -4191,7 +4199,10 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     # panel (targum-internal#261).
     assert escape.index("hideCard();") < escape.index('showCase("");')
     assert escape.index('showCase("");') < escape.index("showList(false);")
-    assert escape.count("return;") == 7
+    # A panel of the bar (Aa, print, the reading; targum-internal#421) is outermost of
+    # all, and it gives focus back to the press that opened it.
+    assert escape.index("closeAnyPop(true)") < escape.index("showMore(false);")
+    assert escape.count("return;") == 8
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
@@ -4691,7 +4702,8 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "if (!roomy.matches) {" in room and "residents().forEach" in room
     assert "occupants()" not in script, "the card is not measured with the residents"
     assert "return [listBox, keysCard, videoPanel];" in script
-    assert "return [card, chip, more];" in script
+    # And the bar's panels, which are visits like ⋯ (targum-internal#421).
+    assert "return [card, chip, more].concat(" in script
     assert room.count("settledTop(thing, false)") == 1
     assert room.count("settledTop(thing, true)") == 1
     over = "\n  .gloss-card, .pick-card, .bar-more.open { z-index: 30; }\n"
@@ -5333,9 +5345,19 @@ def _switch(html: str) -> str:
 
 
 def _companions(html: str) -> str:
-    """The on-and-off switches for what sits beside the verse (targum-internal#414)."""
-    found = re.search(r'<div class="group renderings companions".*?</div>', html, re.S)
-    return found.group(0) if found else ""
+    """The on-and-off switches for what sits beside the verse (targum-internal#414).
+
+    In the Aa panel since targum-internal#421, where each is a row with its name and a
+    drawn switch. The drawing is taken off here so what the tests read is the name on
+    the press, as it was: `...>Rashi</button>`."""
+    found = re.search(r'<div class="group companions".*?</div>', html, re.S)
+    if not found:
+        return ""
+    return (
+        found.group(0)
+        .replace('<span class="aa-name">', "")
+        .replace('</span><span class="sw" aria-hidden="true"></span>', "")
+    )
 
 
 #: Genesis 1:1–2, against a published English and against Onkelos: RTL beside LTR and

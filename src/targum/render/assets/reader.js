@@ -3167,12 +3167,17 @@ var targumReader = function () {
           if (left) {
             // Ink rather than leaf. Leaf is what you know; work still to do is not an
             // achievement, and colouring it as one would say the opposite of the number.
+            // Its own span since the bar became one row (#421): the row says how many of
+            // how many, and this rides with it where there is room.
+            var tail = document.createElement("span");
+            tail.className = "known-left";
             var rest = document.createElement("b");
             rest.className = "left";
             rest.textContent = String(left);
-            headerKnown.appendChild(document.createTextNode(" · "));
-            headerKnown.appendChild(rest);
-            headerKnown.appendChild(document.createTextNode(t("reader.header.left", " left")));
+            tail.appendChild(document.createTextNode(" · "));
+            tail.appendChild(rest);
+            tail.appendChild(document.createTextNode(t("reader.header.left", " left")));
+            headerKnown.appendChild(tail);
           }
         }
       }
@@ -3490,6 +3495,13 @@ var targumReader = function () {
      turning a tablet does not find the state half-kept. */
   var occupant = null;
   var sheetWas = false;
+  //: The bar's panels by name (targum-internal#421), gathered here because the band's
+  //: bookkeeping below asks after them before the code that opens them has run.
+  var pops = {};
+  ["aa", "print", "voices"].forEach(function (name) {
+    var panel = document.getElementById(name);
+    if (panel) pops[name] = panel;
+  });
   /* The same bookkeeping as `sheetWas`, for the picture. A reader on a phone taps a word
      and the card takes the band, which puts the film away — and the film is the reason
      they are on the page. Sending them to the strip's toggle to fetch it back turns one
@@ -3525,6 +3537,8 @@ var targumReader = function () {
       showKeys(false);
     } else if (was === "more") {
       showMore(false);
+    } else if (pops[was]) {
+      showPop(was, false);
     } else if (was === "video") {
       // Put away through its own closure, which holds the button state and the store.
       // Remembered, because the reader did not put it away: the band took it, and what
@@ -3695,11 +3709,16 @@ var targumReader = function () {
   // and opening it cut Genesis 1 from 26 pages into 31 on a phone (targum-internal#273).
   // A setting inside it that changes the page lays the page out itself.
   function overlays() {
-    return [card, chip, more];
+    return [card, chip, more].concat(
+      Object.keys(pops).map(function (name) {
+        return pops[name];
+      })
+    );
   }
 
+  // The bar's panels (#421) are visits like ⋯, and drawn over the page like it.
   function overlay(which) {
-    return which === "card" || which === "chip" || which === "more";
+    return which === "card" || which === "chip" || which === "more" || !!pops[which];
   }
 
   // Where a thing at the foot will stand once it has stopped moving. The strip, the
@@ -6793,6 +6812,7 @@ var targumReader = function () {
     root.style.setProperty("--leading", prefs.leading);
     // Hebrew and Arabic keep their extra room as the leading moves.
     root.style.setProperty("--leading-rtl", (prefs.leading + 0.2).toFixed(2));
+    paintSize();
   }
 
   // A cycle rather than a one-way increase, but one that includes the default and
@@ -8496,6 +8516,8 @@ var targumReader = function () {
 
   function showKeys(open) {
     if (!keysCard) return;
+    // Pressed from ⋯ (#421): the menu has done its job, and the card takes its place.
+    if (open && more && more.classList.contains("open")) showMore(false);
     if (open) occupy("keys");
     keysCard.hidden = !open;
     // The button discloses the panel, so it has to say whether the panel is open. Focus
@@ -8522,21 +8544,196 @@ var targumReader = function () {
     true
   );
 
-  // The menu behind ⋯: on a narrow window, everything the bar has no row for. Under
-  // 60rem it opens in the band like the sheet and the card; on a wide window it is
-  // not a menu at all — its groups lie in the bar — and this is never called.
+  /* The bar's four panels (targum-internal#421): Aa, print, the recording choice and ⋯.
+     One at a time. Under its press on a wide window; from the foot on a phone, where each
+     is an overlay of the band like the card — drawn over the page, laying nothing out
+     (§12, 2026-09-14). Focus goes to the first control inside as one opens, and back to
+     the press that opened it as it closes from the keyboard; Escape closes it, and so
+     does a press anywhere outside it. `aria-expanded` on every press that names it. */
   var more = document.getElementById("more");
   var moreButtons = Array.prototype.slice.call(document.querySelectorAll("[data-more]"));
+  // `pops`, the bar's panels by name, is gathered with the band's bookkeeping above.
+  var popPresses = Array.prototype.slice.call(document.querySelectorAll("[data-pop]"));
+  //: Which panel is out, by name ("more" for ⋯), and the press that opened it.
+  var popOpen = null;
+  var popFrom = null;
 
-  function showMore(open) {
+  function pressOf(name) {
+    if (name === "more") return document.querySelector(".bar-tools [data-more]");
+    return document.querySelector('[data-pop="' + name + '"]');
+  }
+
+  // The panel under its own press, on a wide window: its far edge at the press's.
+  function placePop(panel, press) {
+    if (!roomy.matches || !press || !bar) {
+      panel.style.removeProperty("inset-inline-end");
+      return;
+    }
+    var edge = bar.getBoundingClientRect().right - press.getBoundingClientRect().right;
+    panel.style.setProperty("inset-inline-end", Math.max(12, Math.round(edge - 6)) + "px");
+  }
+
+  function firstControl(panel) {
+    var all = panel.querySelectorAll("button:not([disabled]), a[href], select, [tabindex='0']");
+    for (var i = 0; i < all.length; i++) {
+      // Not the sheet's own ×, which is the last thing a reader opening Aa came for.
+      if (all[i].hasAttribute("data-pop-close") || all[i].closest(".more-head")) continue;
+      if (all[i].getClientRects().length) return all[i];
+    }
+    return null;
+  }
+
+  function popped(name, open) {
+    body.classList.toggle("pop-open", !!open);
+    if (open) {
+      popOpen = name;
+      if (typeof CustomEvent === "function") {
+        document.dispatchEvent(new CustomEvent("targum:pop", { detail: name }));
+      }
+    } else if (popOpen === name) {
+      popOpen = null;
+      document.dispatchEvent(new CustomEvent("targum:pop", { detail: "" }));
+    }
+  }
+
+  function showMore(open, focusIn) {
     if (!more) return;
+    var was = more.classList.contains("open");
+    if (open) closePops();
     if (open) occupy("more");
+    if (open) {
+      popFrom = pressOf("more");
+      placePop(more, popFrom);
+    }
     more.classList.toggle("open", !!open);
     moreButtons.forEach(function (button) {
       button.setAttribute("aria-expanded", open ? "true" : "false");
     });
+    if (open !== was) popped("more", !!open);
+    if (open && focusIn) {
+      var first = firstControl(more);
+      if (first) first.focus({ preventScroll: true });
+    }
     if (!open) vacate("more");
     if (seatFoot()) relayout();
+  }
+
+  function showPop(name, open, focusIn) {
+    var panel = pops[name];
+    if (!panel) return;
+    var was = panel.classList.contains("open");
+    if (open) {
+      closePops(name);
+      if (more && more.classList.contains("open")) showMore(false);
+      occupy(name);
+      popFrom = pressOf(name);
+      placePop(panel, popFrom);
+    }
+    panel.classList.toggle("open", !!open);
+    popPresses.forEach(function (press) {
+      if (press.getAttribute("data-pop") !== name) return;
+      press.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    if (open !== was) popped(name, !!open);
+    if (open) {
+      if (name === "aa") paintSize();
+      if (focusIn) {
+        var first = firstControl(panel);
+        if (first) first.focus({ preventScroll: true });
+      }
+    } else {
+      vacate(name);
+    }
+  }
+
+  // Every panel but one shut, ⋯ aside, which has its own door.
+  function closePops(except) {
+    Object.keys(pops).forEach(function (name) {
+      if (name !== except && pops[name].classList.contains("open")) showPop(name, false);
+    });
+  }
+
+  // Put away whatever is out, and hand focus back to its press when the keyboard did it.
+  function closeAnyPop(refocus) {
+    var name = popOpen;
+    if (!name) return false;
+    var back = popFrom;
+    if (name === "more") showMore(false);
+    else showPop(name, false);
+    if (refocus && back && back.getClientRects().length) back.focus({ preventScroll: true });
+    return true;
+  }
+
+  popPresses.forEach(function (press) {
+    press.addEventListener("click", function () {
+      var name = press.getAttribute("data-pop");
+      var panel = pops[name];
+      if (!panel) return;
+      // `detail` is 0 for a press from the keyboard, which is when focus goes inside.
+      showPop(name, !panel.classList.contains("open"), fromKeys());
+    });
+  });
+  Array.prototype.slice.call(document.querySelectorAll("[data-pop-close]")).forEach(function (shut) {
+    shut.addEventListener("click", function () {
+      var name = shut.getAttribute("data-pop-close");
+      showPop(name, false);
+      var press = pressOf(name);
+      if (press && press.getClientRects().length) press.focus({ preventScroll: true });
+    });
+  });
+
+  // Whether the last press came from the keyboard, read off the click that is being
+  // handled: a pointer's click carries the count of presses, a key's carries none.
+  var lastClickDetail = 1;
+  document.addEventListener(
+    "click",
+    function (event) {
+      lastClickDetail = event.detail;
+    },
+    true
+  );
+  function fromKeys() {
+    return lastClickDetail === 0;
+  }
+
+  // A row of ⋯ that takes the reader somewhere else — full screen, the talk, the word
+  // list, the picture, the original — has done the menu's job, and the menu goes.
+  if (more) {
+    more.addEventListener("click", function (event) {
+      var at = event.target;
+      if (!at || !at.closest) return;
+      if (!at.closest('[data-fullscreen], #talk-open, [data-toggle="list"], .home, [data-video]')) return;
+      setTimeout(function () {
+        showMore(false);
+      }, 0);
+    });
+  }
+
+  // A press anywhere outside the panel that is out puts it away — the same as a tap on
+  // the page has always put ⋯ away. Not a press on its own press, which toggles it.
+  document.addEventListener("click", function (event) {
+    if (!popOpen || popOpen === "more") return;
+    var panel = pops[popOpen];
+    var at = event.target;
+    if (!panel || !at || !at.closest) return;
+    if (panel.contains(at)) return;
+    if (at.closest('[data-pop="' + popOpen + '"]')) return;
+    showPop(popOpen, false);
+  });
+
+  // The size of the type, drawn as a line in Aa: where it stands between the smallest
+  // and the largest the reader allows. Asked as the panel opens and as it changes.
+  var sizeMeter = document.querySelector("#aa .aa-meter i");
+  function paintSize() {
+    if (!sizeMeter) return;
+    var at = (prefs.size - 0.875) / (1.75 - 0.875);
+    sizeMeter.style.inlineSize = Math.round(Math.max(0, Math.min(1, at)) * 100) + "%";
+    var steps = document.querySelectorAll("#aa [data-type]");
+    Array.prototype.forEach.call(steps, function (step) {
+      var which = step.getAttribute("data-type");
+      var end = (which === "smaller" && prefs.size <= 0.875) || (which === "larger" && prefs.size >= 1.75);
+      step.setAttribute("aria-disabled", end ? "true" : "false");
+    });
   }
 
   watchFoot();
@@ -8758,7 +8955,12 @@ var targumReader = function () {
         return;
       }
       if (button.hasAttribute("data-more")) {
-        showMore(!(more && more.classList.contains("open")));
+        var opening = !(more && more.classList.contains("open"));
+        var from = popFrom;
+        showMore(opening, opening && fromKeys());
+        // Shut from the keyboard, by the panel's own × or the press again: focus goes
+        // back to the ⋯ rather than to a control that has just gone.
+        if (!opening && fromKeys() && from && from.getClientRects().length) from.focus({ preventScroll: true });
         return;
       }
       if (button.hasAttribute("data-keys")) {
@@ -8766,7 +8968,9 @@ var targumReader = function () {
         // Closed from the × on the card itself: the button just pressed is gone with
         // the card, so focus goes back to the one in the bar that opened it.
         if (keysCard && keysCard.hidden && keysCard.contains(button) && keysButton) {
-          keysButton.focus();
+          // Behind ⋯ since #421, where the press is out of sight: then the ⋯ itself.
+          var keysBack = keysButton.getClientRects().length ? keysButton : pressOf("more");
+          if (keysBack) keysBack.focus();
         }
         return;
       }
@@ -9291,6 +9495,10 @@ var targumReader = function () {
 
   document.addEventListener("keydown", function (event) {
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    // Escape shuts a panel of the bar even from the choice inside it (#421).
+    if (event.key === "Escape" && /^(SELECT)$/.test(event.target.tagName) && closeAnyPop(true)) {
+      return;
+    }
     if (/^(INPUT|SELECT|TEXTAREA)$/.test(event.target.tagName)) return;
 
     // A key is the letter on it, whatever the shift and caps lock happened to be. Read
@@ -9431,7 +9639,9 @@ var targumReader = function () {
         return;
       case "Escape": {
         // One layer a press. Closing the keys and then dropping out of the queue in the
-        // same keystroke costs a reader their place for looking a shortcut up.
+        // same keystroke costs a reader their place for looking a shortcut up. A panel
+        // of the bar first, with focus back on the press that opened it (#421).
+        if (closeAnyPop(true)) return;
         if (more && more.classList.contains("open")) {
           showMore(false);
           return;
@@ -10307,6 +10517,11 @@ var targumReader = function () {
   var fill = player && player.querySelector(".player-fill");
   var clock = player && player.querySelector(".player-clock");
   var said = player && player.querySelector(".player-said");
+  // The bar's copy of the player (targum-internal#421): play, a thin line and the clock.
+  // It shows what the strip shows and keeps no state of its own.
+  var listenBox = document.getElementById("listen");
+  var barFill = listenBox && listenBox.querySelector(".listen-fill");
+  var barClock = listenBox && listenBox.querySelector(".listen-clock");
   var scene = scenes[0] || null;
   var stopAt = null;
   var playing = null;      /* the one-line button, when a single line is playing */
@@ -10387,6 +10602,10 @@ var targumReader = function () {
       button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     if (player) player.classList.toggle("playing", !!on);
+    if (listenBox) {
+      listenBox.classList.toggle("playing", !!on);
+      if (on) listenBox.classList.add("placed");
+    }
     // The first-run line is another closure's; it hears that a recording has started.
     if (on && typeof CustomEvent === "function") {
       document.dispatchEvent(new CustomEvent("targum:playing"));
@@ -10563,6 +10782,9 @@ var targumReader = function () {
     var now = audio.currentTime;
     if (fill) fill.style.inlineSize = (now / length) * 100 + "%";
     if (clock) clock.textContent = clocked(now) + " / " + clocked(length);
+    // The bar's player (#421): the same line, thinner, and only where the voice is.
+    if (barFill) barFill.style.inlineSize = (now / length) * 100 + "%";
+    if (barClock) barClock.textContent = clocked(now);
     if (trackEl) {
       trackEl.setAttribute("aria-valuemax", String(Math.floor(length)));
       trackEl.setAttribute("aria-valuenow", String(Math.floor(now)));
@@ -10639,6 +10861,7 @@ var targumReader = function () {
       return;
     }
     if (player) player.classList.add("placed");
+    if (listenBox) listenBox.classList.add("placed");
     if (following) mark(at(seconds));
     paint();
     keepHeard();
@@ -10811,6 +11034,7 @@ var targumReader = function () {
       return;
     }
     if (player) player.classList.add("placed");
+    if (listenBox) listenBox.classList.add("placed");
     paint();
   }
 
@@ -11234,6 +11458,9 @@ var targumReader = function () {
       if (fill) fill.style.inlineSize = "0%";
       if (clock) clock.textContent = "";
       if (player) player.classList.remove("placed");
+      if (barFill) barFill.style.inlineSize = "0%";
+      if (barClock) barClock.textContent = "";
+      if (listenBox) listenBox.classList.remove("placed");
       whenKnown(function () {
         resume();
         paint();
@@ -11243,8 +11470,13 @@ var targumReader = function () {
         var on = button.getAttribute("data-recording") === found.key;
         button.classList.toggle("on", on);
         button.setAttribute("aria-pressed", on ? "true" : "false");
-        if (on) named = button.textContent;
+        // The name, not the credit beside it in the bar's choice (#421).
+        var name = button.querySelector(".pick-name") || button;
+        if (on) named = name.textContent;
       });
+      // And the bar's player says which reading it now plays.
+      var now = document.getElementById("voice-now");
+      if (now && named) now.textContent = named;
       if (chosen) {
         try {
           targumKeep(RECORDING_STORE, found.key);
@@ -11996,4 +12228,258 @@ else targumReader();
   press(whole, "");
   if (one) press(one, aliyah);
   group.hidden = false;
+  // And the bar's print press, which has nothing to offer anywhere else (#421).
+  var opener = document.getElementById("print-open");
+  if (opener) opener.hidden = false;
+})();
+
+/* The columns switch themselves (targum-internal#421, B).
+ *
+ * Beside the verse, each companion's name carries a quiet × under the pointer, which
+ * turns that column off; a column that is off leaves a faint "+ Rashi · English" at the
+ * head of the first verse while any column stands, which turns it back on. Both press the Aa panel's own switch,
+ * so there is one idea of what is on and it is kept where it always was. On a phone
+ * there is no hover and no ×: Aa is the way in there, and the + stays.
+ */
+(function () {
+  "use strict";
+  var group = document.getElementById("companions");
+  if (!group) return;
+  var keys = Array.prototype.slice.call(group.querySelectorAll(".companion[data-companion]"));
+  var columns = keys.filter(function (key) {
+    return key.getAttribute("data-companion") !== "translation";
+  });
+  if (!columns.length) return;
+  var first = null;
+  var pairs = document.querySelectorAll(".pair");
+  for (var i = 0; i < pairs.length && !first; i++) {
+    if (pairs[i].querySelector(":scope > .beside")) first = pairs[i];
+  }
+  if (!first) return;
+  var beside = first.querySelector(":scope > .beside");
+  first.classList.add("beside-first");
+
+  function nameOf(key) {
+    var named = key.querySelector(".aa-name");
+    return (named || key).textContent.trim();
+  }
+
+  function keyFor(name) {
+    for (var n = 0; n < columns.length; n++) {
+      if (columns[n].getAttribute("data-companion") === name) return columns[n];
+    }
+    return null;
+  }
+
+  // The × on every column's name. Drawn, not a control in the tab order: there is one
+  // per verse per column, and the keyboard's way to the same switch is Aa.
+  Array.prototype.forEach.call(document.querySelectorAll(".cmp .cmp-name"), function (label) {
+    var x = document.createElement("span");
+    x.className = "cmp-x";
+    x.setAttribute("aria-hidden", "true");
+    x.textContent = "\u00d7";
+    label.appendChild(x);
+  });
+
+  // The + for each column that is off, at the head of the first verse.
+  var add = document.createElement("span");
+  add.className = "beside-add";
+  beside.insertBefore(add, beside.firstChild);
+
+  function paint() {
+    add.textContent = "";
+    columns.forEach(function (key) {
+      if (key.getAttribute("aria-pressed") === "true") return;
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "cmp-add";
+      chip.setAttribute("data-add", key.getAttribute("data-companion") || "");
+      var shown = window.TargumStrings
+        ? window.TargumStrings.t("reader.page.show-column", "Show {name}", { name: nameOf(key) })
+        : "Show " + nameOf(key);
+      chip.setAttribute("aria-label", shown);
+      chip.title = shown;
+      chip.textContent = "+ " + nameOf(key);
+      add.appendChild(chip);
+    });
+    add.hidden = !add.childNodes.length;
+  }
+
+  document.addEventListener("click", function (event) {
+    var at = event.target;
+    if (!at || !at.closest) return;
+    var x = at.closest(".cmp-x");
+    if (x) {
+      var cell = x.closest(".cmp");
+      var key = cell && keyFor(cell.getAttribute("data-companion"));
+      if (key && key.getAttribute("aria-pressed") === "true") key.click();
+      event.stopPropagation();
+      return;
+    }
+    var chip = at.closest(".cmp-add");
+    if (chip) {
+      var off = keyFor(chip.getAttribute("data-add"));
+      if (off && off.getAttribute("aria-pressed") !== "true") off.click();
+      event.stopPropagation();
+    }
+  }, true);
+
+  new MutationObserver(paint).observe(group, {
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["aria-pressed"],
+  });
+  paint();
+})();
+
+/* The bar steps back (targum-internal#421, C).
+ *
+ * While a reader reads on down the page, or listens, the bar fades to the mark, the
+ * count and the player's pause with its thin line; the rest waits. It comes back for the
+ * pointer near the top, a scroll up, a pause, Escape, or keyboard focus anywhere in the
+ * bar, and it never steps back while one of its panels is out. Its ground stays paper
+ * the whole time, so the text never shows through it, and its height never changes, so
+ * nothing on the page moves. `prefers-reduced-motion` keeps the change and drops the fade.
+ */
+(function () {
+  "use strict";
+  var bar = document.querySelector(".bar");
+  if (!bar) return;
+  var body = document.body;
+  var listen = document.getElementById("listen");
+  var tools = bar.querySelector(".bar-tools");
+  //: How near the top the pointer has to come, in pixels below the bar's foot.
+  var NEAR = 56;
+  //: How far a reader scrolls down, in one go, before the bar steps back.
+  var DOWN = 48;
+  //: How long the bar waits, once a recording is playing, before it steps back.
+  var SETTLE = 2500;
+  var lastY = window.scrollY;
+  var travelled = 0;
+  var waiting = 0;
+  var pointerNear = false;
+  var focusInside = false;
+
+  function playing() {
+    return !!(listen && listen.classList.contains("playing"));
+  }
+
+  // Anything that holds the bar out: a panel, the keys card, focus inside it, the
+  // pointer at the top, or the reader at the top of the page.
+  function held() {
+    if (body.classList.contains("pop-open")) return true;
+    var keys = document.getElementById("keys");
+    if (keys && !keys.hidden) return true;
+    if (pointerNear) return true;
+    if (focusInside && keyboardFocus(document.activeElement)) return true;
+    if (bar.matches(":hover")) return true;
+    return false;
+  }
+
+  function quiet(on) {
+    if (on && held()) on = false;
+    if (on === bar.classList.contains("quiet")) return;
+    if (on && tools) {
+      // How far the player rides to the edge into the room the tools leave.
+      var gap = parseFloat(getComputedStyle(tools.parentNode).columnGap) || 0;
+      bar.style.setProperty("--tools", Math.round(tools.getBoundingClientRect().width + gap) + "px");
+    }
+    bar.classList.toggle("quiet", !!on);
+  }
+
+  function back() {
+    clearTimeout(waiting);
+    waiting = 0;
+    travelled = 0;
+    quiet(false);
+  }
+
+  function settleSoon() {
+    clearTimeout(waiting);
+    waiting = setTimeout(function () {
+      waiting = 0;
+      if (playing()) quiet(true);
+    }, SETTLE);
+  }
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      var y = window.scrollY;
+      var moved = y - lastY;
+      lastY = y;
+      if (y <= bar.offsetHeight) {
+        back();
+        return;
+      }
+      if (moved < -6) {
+        back();
+        if (playing()) settleSoon();
+        return;
+      }
+      if (moved > 0) {
+        travelled += moved;
+        if (travelled > DOWN) quiet(true);
+      }
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    "pointermove",
+    function (event) {
+      var near = event.clientY <= bar.getBoundingClientRect().bottom + NEAR;
+      if (near === pointerNear) return;
+      pointerNear = near;
+      if (near) back();
+      else if (playing()) settleSoon();
+    },
+    { passive: true }
+  );
+  // A finger at the top of a phone, where nothing hovers.
+  document.addEventListener(
+    "touchstart",
+    function (event) {
+      var touch = event.touches && event.touches[0];
+      if (touch && touch.clientY <= bar.getBoundingClientRect().bottom + NEAR) back();
+    },
+    { passive: true }
+  );
+
+  // Keyboard focus, not the focus a pointer leaves on what it pressed: pressing play
+  // with the mouse leaves the button focused, and that is not a reader in the bar.
+  function keyboardFocus(element) {
+    try {
+      return !!element && element.matches(":focus-visible");
+    } catch (e) {
+      return true;
+    }
+  }
+  bar.addEventListener("focusin", function (event) {
+    focusInside = keyboardFocus(event.target);
+    if (focusInside) back();
+  });
+  bar.addEventListener("focusout", function (event) {
+    if (event.relatedTarget && bar.contains(event.relatedTarget)) return;
+    focusInside = false;
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") back();
+  });
+  document.addEventListener("targum:pop", function (event) {
+    if (event.detail) back();
+  });
+
+  // Play steps it back after a moment; pause brings it straight back.
+  if (listen && window.MutationObserver) {
+    var was = playing();
+    new MutationObserver(function () {
+      var now = playing();
+      if (now === was) return;
+      was = now;
+      if (now) settleSoon();
+      else back();
+    }).observe(listen, { attributes: true, attributeFilter: ["class"] });
+  }
 })();

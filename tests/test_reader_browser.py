@@ -411,6 +411,23 @@ def address(reader: Path) -> str:
     return f"http://127.0.0.1:{_SERVED['port']}{reader}"
 
 
+def press_in_aa(page, selector: str) -> None:
+    """Press a control that lives in the Aa panel (targum-internal#421): open the panel,
+    press, and put it away again with Escape, the way a reader goes back to the text —
+    so the panel is never standing over whatever the test presses next."""
+    if not page.evaluate("() => !!document.querySelector('#aa.open')"):
+        page.click("#aa-open")
+    page.click(selector)
+    page.keyboard.press("Escape")
+
+
+def press_in_more(page, selector: str) -> None:
+    """Press a control that lives behind ⋯ (targum-internal#421), opening it first."""
+    if not page.evaluate("() => !!document.querySelector('.bar-more.open')"):
+        page.click(".bar-tools [data-more]")
+    page.click(selector)
+
+
 def opened(browser, viewport=None, scrolling: bool = True):
     """A context the way every test here wants one: reduced motion, and — unless a test
     is about the pages — the scrolling reader."""
@@ -1446,18 +1463,18 @@ def test_pressing_a_commentary_separates_its_comments_in_the_browser(
     assert not english["marked"] and english["space"] == "normal"
     assert page.evaluate(CELLS)["langs"] == ["en"], "the translation stays where it was"
 
-    page.click('#companions [data-companion="rashi"]')
+    press_in_aa(page, '#companions [data-companion="rashi"]')
     assert not page.evaluate(BESIDE, "rashi")["shown"]
     assert page.evaluate(PREFS)["companions"] == {"rashi": False}
 
     page.reload()
     page.wait_for_selector(".pair")
     assert not page.evaluate(BESIDE, "rashi")["shown"], "the press was not kept"
-    page.click('#companions [data-companion="rashi"]')
+    press_in_aa(page, '#companions [data-companion="rashi"]')
     assert page.evaluate(BESIDE, "rashi")["shown"]
 
     # And the translation is turned off and on the same way.
-    page.click('#companions [data-companion="translation"]')
+    press_in_aa(page, '#companions [data-companion="translation"]')
     assert (
         page.evaluate("() => getComputedStyle(document.querySelector('.pair .tr')).display")
         == "none"
@@ -1545,7 +1562,7 @@ def test_a_word_of_onkelos_under_the_verse_is_a_word_too(browser, with_onkelos: 
     page = context.new_page()
     page.goto(address(with_onkelos / "sec-0001.html"))
     page.wait_for_selector(".pair.verse")
-    page.click('#practice [data-practice="verse"]')
+    press_in_aa(page, '#practice [data-practice="verse"]')
     page.click(".practice-line button")
     page.click(".practice-line button")
     assert page.evaluate(WALK)["onkelos"][0] == "ארמית Ruth 2:1", "the line reads as before"
@@ -1748,7 +1765,7 @@ def test_a_change_of_type_keeps_you_on_the_same_page(paged) -> None:
     paged.keyboard.press("Space")
     paged.keyboard.press("Space")
     before = paged.evaluate(PAGE)
-    paged.click('[data-type="larger"]')
+    press_in_aa(paged, '[data-type="larger"]')
     paged.wait_for_timeout(100)
     after = paged.evaluate(PAGE)
     assert after["first"] <= before["first"] <= after["last"], (
@@ -3546,11 +3563,14 @@ def test_a_portion_opens_chanted_and_switches_to_spoken(portion_page) -> None:
     assert opened_on["length"] == pytest.approx(READ_SPAN * READ_VERSES, abs=0.05)
     assert opened_on["get"].startswith("audio/chanted-0001.wav")
 
+    # Inside the player since targum-internal#421: the bar's "Chanted ▾" opens the choice.
+    portion_page.click("#voices-open")
     portion_page.click('[data-recording="spoken"]')
     portion_page.wait_for_function(
         f"() => Math.abs(window.TargumPlayer.length() - {SPOKEN_SPAN * READ_VERSES}) < 0.05"
     )
     switched = portion_page.evaluate(READINGS)
+    assert portion_page.inner_text("#voice-now") == "Spoken", "and the player says which"
     assert switched["pressed"] == ["spoken"]
     assert switched["get"].startswith("audio/spoken-0001.wav"), "saving takes what is playing"
 
@@ -3563,6 +3583,7 @@ def test_a_portion_opens_chanted_and_switches_to_spoken(portion_page) -> None:
 
 
 def test_the_choice_of_reading_is_kept(portion_page) -> None:
+    portion_page.click("#voices-open")
     portion_page.click('[data-recording="spoken"]')
     portion_page.reload()
     portion_page.wait_for_selector("#player")
@@ -3931,61 +3952,64 @@ def test_a_phrase_and_a_row_on_the_list_copy_themselves_too(page) -> None:
     assert label and label.startswith("Copy "), "the row beside the text carries one"
 
 
-@pytest.mark.parametrize(("width", "says"), [(1100, "?"), (1280, "Keys"), (1600, "Keys")])
-def test_the_keys_say_keys_where_the_bar_has_room(
-    browser, built: Path, width: int, says: str
-) -> None:
-    """targum-internal#338. The bar's `?` read as help to the first stranger, and opened a
-    table of keyboard shortcuts. It says "Keys" now.
-
-    A word is wider than a mark, in a bar that already puts away its English title between
-    60 and 75rem so as not to wrap — and measured at 1100px the word cost it a second row.
-    So it is the word from 75rem and the mark below it, and what is pinned is that the
-    word never makes the bar taller than the mark did.
-    """
+@pytest.mark.parametrize("width", [1100, 1280, 1600])
+def test_the_keys_are_a_named_row_behind_the_more_press(browser, built: Path, width: int) -> None:
+    """targum-internal#338, and #421. The bar's `?` read as help to the first stranger, so
+    it said "Keys" — and at 1100px the word cost the two-row bar a third row, so between
+    60 and 75rem it was the mark again. The bar is one row now (#421, David, 2026-10-05)
+    and Keys is behind ⋯ at every width, a row named Keys whose press keeps the mark: the
+    name is said by the row, never by a `?` alone in a corner. What is pinned is that the
+    row says Keys, a screen reader hears the whole of it, the bar stays one row, and the
+    press still opens the card."""
     context = opened(browser, viewport={"width": width, "height": 800})
     open_page = context.new_page()
     open_page.goto(address(built))
     open_page.wait_for_timeout(300)
+    in_bar = open_page.evaluate(
+        "() => [...document.querySelectorAll('.bar [data-keys]')]"
+        ".filter((b) => b.getClientRects().length).length"
+    )
+    open_page.click(".bar-tools [data-more]")
     got = open_page.evaluate(
         """() => {
-          const press = document.querySelector('.bar [data-keys]');
-          const bar = () => document.querySelector('.bar').getBoundingClientRect().height;
-          const word = press.querySelector('.keys-word');
-          const mark = press.querySelector('.keys-mark');
-          const tall = bar();
-          word.style.display = 'none';
-          mark.style.display = 'inline';
-          const withMark = bar();
-          word.style.display = '';
-          mark.style.display = '';
+          const press = document.querySelector('.bar-more.open [data-keys]');
+          const row = press.closest('.group');
           return {
+            row: row.getAttribute('data-what'),
             says: press.innerText.trim(),
             named: press.getAttribute('aria-label'),
-            tall, withMark,
+            tall: document.querySelector('.bar').getBoundingClientRect().height,
             sideways: document.documentElement.scrollWidth > window.innerWidth,
           };
         }"""
     )
-    open_page.locator(".bar [data-keys]").click()
+    open_page.locator(".bar-more.open [data-keys]").click()
     opens = open_page.evaluate("() => !document.getElementById('keys').hidden")
+    menu_gone = open_page.evaluate("() => !document.querySelector('.bar-more.open')")
     context.close()
 
-    assert got["says"] == says, got
+    assert in_bar == 0, "not in the row itself"
+    assert got["row"] == "Keys" and got["says"] == "?", got
     assert got["named"] == "Keyboard shortcuts", "and a screen reader is told the whole of it"
-    assert got["tall"] == got["withMark"], f"the word cost the bar a row at {width}px: {got}"
+    assert got["tall"] <= 60, f"one row at {width}px: {got}"
     assert not got["sideways"]
     assert opens, "and it still opens the card"
+    assert menu_gone, "and the card takes the menu's place"
 
 
 @pytest.mark.parametrize("direction", ["rtl", "ltr"])
 def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     browser, built: Path, tmp_path: Path, direction: str
 ) -> None:
-    """Under 60rem the bar is one row: the mark, the title, the three modes and ⋯. Left
-    to wrap on its own it once put the mark on a line by itself, the controls on the next
-    two, and the title on the last, a full bar's height below the corner. Everything the
-    row has no room for is behind ⋯, and none of it is drawn in the bar."""
+    """Under 60rem the bar is one row: the mark, the title, Aa and ⋯ (and Listen and
+    print where a text has them). Left to wrap on its own it once put the mark on a line
+    by itself, the controls on the next two, and the title on the last, a full bar's
+    height below the corner.
+
+    Since targum-internal#421 (David, 2026-10-05) the row is the same at every width:
+    the vowel points and the type are in Aa, and the reading modes are behind ⋯ with the
+    other rare things. They were in the phone's row because a reader reaches for the
+    vowels mid-sentence; Aa is one press from them, and the row is calmer for it."""
     html = built.read_text(encoding="utf-8")
     if direction == "ltr":
         html = html.replace(
@@ -4011,10 +4035,12 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
             titleBetween: title.left >= mark.right && title.right <= controls.left,
             height: bar.height,
             more: shown('.bar .more').length,
+            aa: shown('.bar #aa-open').length,
             modes: shown('.bar .modes button').length,
-            parallel: shown('.bar .modes [data-mode="parallel"]').length,
             nikkud: shown('.bar [data-nikkud-toggle]').length,
-            others: shown('.bar .bar-more button, .bar .bar-more select').length,
+            others: shown(
+              '.bar .bar-more button, .bar .bar-more select, .bar .bar-pop button'
+            ).length,
             width: document.documentElement.scrollWidth,
           };
         }"""
@@ -4022,12 +4048,12 @@ def test_the_mark_and_the_title_share_the_bar_s_first_line_on_a_phone(
     context.close()
 
     assert measured["titleBeside"] and measured["controlsBeside"], "one row"
-    assert measured["titleBetween"], "the title sits between the mark and the modes"
+    assert measured["titleBetween"], "the title sits between the mark and the tools"
     assert measured["height"] <= 56, f"a bar {measured['height']}px tall is not one row"
-    # Two modes, not three: one column makes parallel and interlinear the same page.
-    assert measured["more"] == 1 and measured["modes"] == 2 and measured["parallel"] == 0
-    assert measured["nikkud"] == 1, "the vowel points are in the row, not behind the ⋯"
-    assert measured["others"] == 0, "everything else is behind the ⋯"
+    assert measured["more"] == 1 and measured["aa"] == 1
+    assert measured["modes"] == 0, "the reading modes are behind ⋯"
+    assert measured["nikkud"] == 0, "the vowel points are in Aa"
+    assert measured["others"] == 0, "nothing of a panel is drawn until it is opened"
     assert measured["width"] <= 390
 
 
@@ -4267,10 +4293,13 @@ def test_the_menu_is_drawn_over_the_sheet_and_a_tap_on_the_page_closes_it(
         "() => [...document.querySelectorAll('.bar-more.open .group[data-what]')]"
         ".map((g) => g.getAttribute('data-what'))"
     )
-    assert "Type" in names and "Pages, or one long scroll" in names, names
-    size = page.evaluate("() => parseFloat(getComputedStyle(document.body).fontSize)")
-    page.click('.bar-more.open [data-type="larger"]')
-    assert page.evaluate("() => parseFloat(getComputedStyle(document.body).fontSize)") > size
+    # The type moved to Aa with targum-internal#421; the pages switch is the setting
+    # that lays the page out again from inside ⋯ now.
+    assert "View" in names and "Pages, or one long scroll" in names, names
+    assert "Type" not in names, "the type is in Aa"
+    was = page.get_attribute(".bar-more.open [data-paged]", "aria-pressed")
+    page.click(".bar-more.open [data-paged]")
+    assert page.get_attribute(".bar-more.open [data-paged]", "aria-pressed") != was
     assert page.evaluate(BAND)["menu"], "the menu stayed up for its own control"
     page.mouse.click(page.viewport_size["width"] / 2, 200)
     assert not page.evaluate(BAND)["menu"], "a tap on the page closed it"
@@ -4454,6 +4483,8 @@ def test_the_reader_goes_full_screen_on_f_and_from_the_bar(browser, built: Path)
     # loudly and with both values, if the button never catches up.
     pressed = playwright_api.expect(page.locator("[data-fullscreen]"))
     pressed.to_have_attribute("aria-pressed", "true")
+    # From ⋯ since targum-internal#421, which goes once the press has done its work.
+    page.click(".bar-tools [data-more]")
     page.click("[data-fullscreen]")
     page.wait_for_function("() => !document.fullscreenElement")
     pressed.to_have_attribute("aria-pressed", "false")
@@ -5307,7 +5338,7 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
     page.wait_for_selector(".pair.verse")
     assert page.evaluate(WALK)["label"] == ["Read", "By verse", "By aliyah"]
 
-    page.click('#practice [data-practice="verse"]')
+    press_in_aa(page, '#practice [data-practice="verse"]')
     walk = page.evaluate(WALK)
     assert (walk["at"], walk["read"], walk["press"], walk["columns"]) == (
         "Ruth 2:1",
@@ -5339,7 +5370,7 @@ def test_by_verse_a_reader_walks_the_aliyah_twice_and_once_and_comes_back_to_it(
         ["Ruth 2:1", "Ruth 2:2", "Ruth 2:3", "Ruth 2:4"],
     )
 
-    page.click('#practice [data-practice=""]')
+    press_in_aa(page, '#practice [data-practice=""]')
     walk = page.evaluate(WALK)
     assert (walk["at"], walk["read"], walk["columns"]) == (None, [], 30), "reading as usual again"
     context.close()
@@ -5375,7 +5406,7 @@ def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
     page = context.new_page()
     page.goto(address(with_onkelos / "sec-0001.html"))
     page.wait_for_selector(".pair.verse")
-    page.click('#practice [data-practice="section"]')
+    press_in_aa(page, '#practice [data-practice="section"]')
 
     def last_page() -> None:
         for _ in range(20):
@@ -5405,7 +5436,7 @@ def test_by_aliyah_the_whole_of_it_twice_then_its_onkelos_and_then_done(
     assert (foot["said"], foot["press"], foot["done"]) == ("Once in Onkelos", "Start again", True)
     assert foot["column"] == ["arc", True]
 
-    page.click('#practice [data-practice=""]')
+    press_in_aa(page, '#practice [data-practice=""]')
     foot = page.evaluate(FOOT)
     assert foot["said"] is None and foot["column"] == ["en", True]
     context.close()
@@ -5652,7 +5683,7 @@ def test_the_picture_can_be_put_away_and_stays_away(browser, tmp_path) -> None:
         assert page.get_attribute(".group [data-video]", "aria-pressed") == "false"
 
         # And the toggle brings it back, which is what "the toggle stays" means.
-        page.click(".group [data-video]")
+        press_in_more(page, ".group [data-video]")
         page.wait_for_selector("#video:not([hidden])")
     finally:
         context.close()
@@ -6768,7 +6799,8 @@ def test_hear_this_section_posts_the_press_and_reopens_the_page(
 
     page.route("http://reader.test/**", answer)
     page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
-    page.wait_for_selector("#voice-go")
+    # Behind ⋯ since targum-internal#421: there, not necessarily on show.
+    page.wait_for_selector("#voice-go", state="attached")
     page.evaluate("() => document.getElementById('voice-go').click()")
     page.wait_for_timeout(600)
     context.close()
@@ -7017,11 +7049,13 @@ def test_stress_marks_ride_the_vowel_switch_and_move_no_word(browser, tmp_path: 
     (targum-internal#260)."""
     reader = russian(tmp_path / "reader", stressed=True)
     html = reader.read_text(encoding="utf-8")
-    assert 'aria-label="Stress marks"' in html and 'aria-label="Vowel points"' not in html
+    # A named row in Aa since targum-internal#421: the name on it is what is read out.
+    assert '<span class="aa-name">Stress marks</span>' in html
+    assert '<span class="aa-name">Vowel points</span>' not in html
     context, page = open_reader(browser, reader)
     bare = page.evaluate(CARD_LINES, "руку")
     page.keyboard.press("Escape")
-    page.click("[data-nikkud-toggle]")
+    press_in_aa(page, "[data-nikkud-toggle]")
     page.wait_for_timeout(200)
     shown = page.evaluate(
         "() => [...document.querySelectorAll('.pair .src')].filter((c) => !c.hidden"
@@ -7054,7 +7088,13 @@ def test_one_case_is_shown_at_a_time_and_only_when_asked(browser, tmp_path: Path
     )
     assert options[:3] == ["cases", "nominative · 2", "genitive · 0"]
     assert "accusative · 1" in options and "instrumental · 1" in options
+    # Behind ⋯ since targum-internal#421. Escape takes the menu off first, one layer a
+    # press, and the case stays shown.
+    page.click(".bar-tools [data-more]")
     page.select_option("[data-case-lens]", "Acc")
+    assert page.evaluate(CASES_SHOWN) == ["руку"]
+    page.keyboard.press("Escape")
+    assert page.evaluate("() => !document.querySelector('.bar-more.open')")
     assert page.evaluate(CASES_SHOWN) == ["руку"]
     page.keyboard.press("c")
     assert page.evaluate("() => document.body.getAttribute('data-case')") == "Ins"

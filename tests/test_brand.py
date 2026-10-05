@@ -347,6 +347,17 @@ THUMBED = (
     # The Tanakh map's Read, the press a phone's tap on a square leads to (design.md §12,
     # "The Tanakh map is the knowledge ramp", 2026-09-28).
     ".tanakh-read",
+    # The reader's bar as one row (targum-internal#421, 2026-10-05): Aa, print and ⋯,
+    # Listen and the reading inside it, the rows and steps of Aa, the picks of the print
+    # and the reading, the rows of ⋯, and the + that brings a column back.
+    ".bar .bar-tool",
+    ".bar .listen-play",
+    ".bar .listen-voice",
+    ".bar .aa-switch",
+    ".bar .aa-step",
+    ".bar-pop .recordings .recording-key",
+    ".bar-pop .to-sheet .more-sheet",
+    ".cmp-add",
 )
 
 
