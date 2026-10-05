@@ -354,6 +354,24 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A verse taller than the page is cut between its lines — 2026-10-05
+
+Rashi stays on by default and at full length (David, after the QA pass before the
+portion's post). A verse with Rashi beside it runs to thirty lines on a phone, and a page
+was a run of whole verses, so that verse had a page of its own that ran on under the
+arrows, the page count, the words tab and the player.
+
+- **A page never has a line under what stands at the foot.** A verse taller than the
+  room is cut across pages between two of its lines, never through one: the verse and its
+  translation are on the first piece, and the commentary carries on over the next. The
+  foot of the text takes a page of its own when the last page has no room for it. On
+  paper nothing is cut.
+- **The voice follows the verse, not the block.** While a recording plays, the reader is
+  turned to the page the verse being said is on, and its Hebrew line is brought to the
+  top third of the room. The commentary under it is the reader's to page through.
+- **A press that waits says so.** Download PDF is set on the box and takes seconds; the
+  press reads "Preparing PDF…" in muted ink until the file is in hand. No spinner.
+
 ### A video stands beside its transcript, or large — 2026-10-05
 
 A video text was a picture in a corner of the reading page — picked up, moved and sized

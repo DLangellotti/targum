@@ -2170,11 +2170,24 @@ body.first-page .turn button[data-turn="-1"]:hover { background: var(--paper-rai
 body.paged main { padding-block-end: 1rem; }
 /* And on the last page, what sits under the text clears the arrows too. */
 body.paged .foot, body.paged .pager { margin-block-end: 6rem; }
+/* A verse taller than the page, cut between two lines across pages (QA 2026-10-05): the
+   pair stands as tall as its piece, what is in it is drawn up by what is above the
+   piece, and the rest is clipped — so nothing of it is under the arrows and there is no
+   blank to scroll into. The script measures the cuts; this only draws them. */
+body.paged .pair.sliced {
+  box-sizing: border-box;
+  block-size: var(--cut-size);
+  overflow-x: visible;
+  overflow-y: clip;
+}
+body.paged .pair.sliced > * { translate: 0 calc(0px - var(--cut-top, 0px)); }
 
 @media print {
   .bar, .pager, .turn { display: none; }
   /* The whole chapter, whichever page was on show. */
   body.paged .pair[hidden] { display: grid; }
+  body.paged .pair.sliced { block-size: auto; overflow: visible; }
+  body.paged .pair.sliced > * { translate: none; }
   body { background: #fbf9f5; color: #1c1a17; }
 }
 
@@ -4973,6 +4986,19 @@ body.film-theatre:not(.film-panel) .video-list-back { display: inline-flex; }
   text-underline-offset: 0.35em;
 }
 .pick-meta { color: var(--ink-soft); font-size: 0.8125rem; }
+/* A sheet being set on the box (QA 2026-10-05): the press says so in its own words, in
+   the quiet colour, until the file is in hand. */
+.bar-pop .to-sheet .more-sheet.making { cursor: progress; }
+.bar-pop .to-sheet .more-sheet.making .pick-name { color: var(--ink-soft); }
+.print-pop .sheet-said {
+  max-inline-size: 22rem;
+  margin: 0.2rem 0 0;
+  padding: 0.35rem 0.7rem 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  white-space: normal;
+}
+.print-pop .sheet-said[hidden] { display: none; }
 .pick-meta[lang|="he"] { font-size: 0.9375rem; }
 
 /* ⋯: the rare things, a row each, named by what the row says of itself. */
@@ -5172,6 +5198,14 @@ body.practice-section .beside-add { display: none; }
   .bar .listen-play { padding: 0 0.5rem; }
   .listen-word { display: none; }
   .listen.placed .listen-track { inline-size: 3.5rem; }
+  /* Every press stays on the screen while the voice plays (QA 2026-10-05, S1): the line
+     of where the voice is gives way first, then the title, and the tools never do. */
+  .bar > .controls,
+  [dir="rtl"] .bar > .controls { flex: 0 1 auto; min-inline-size: 0; }
+  .bar .listen { min-inline-size: 0; }
+  .bar .listen > *,
+  .bar .bar-tools { flex: none; }
+  .bar .listen.placed .listen-track { flex: 0 1 3.5rem; min-inline-size: 0; }
   .bar-pop.open,
   .bar-more.open {
     position: fixed;

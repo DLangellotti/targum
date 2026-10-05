@@ -283,6 +283,8 @@
     <div class="group to-sheet" id="to-sheet" hidden>
       {% if not standalone %}<a class="more-sheet" id="more-sheet-aliyah" download><span class="pick-name">{{ t("reader.page.this-aliyah", "This aliyah") }}</span><span class="pick-meta" lang="{{ source_language }}" dir="{{ source_direction }}">{{ section.title }}</span></a>{% endif %}
       <a class="more-sheet" id="more-sheet" download><span class="pick-name">{{ t("reader.page.whole-portion-and-haftarah", "Whole portion and haftarah") }}</span><span class="pick-meta" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</span></a>
+      {#- Why a sheet could not be made, in the box's one sentence; the script fills it. -#}
+      <p class="sheet-said" id="sheet-said" hidden></p>
     </div>
   </div>
 
