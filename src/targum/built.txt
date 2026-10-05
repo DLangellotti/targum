@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-04
+Each section of the weekly portion can be heard chanted or spoken, with a switch between the two.
+Rashi, in Hebrew or in English, and the Aramaic sit beside each verse of the week's portion.
+The Library leads with this Shabbat's portion, and each portion ends on a link to the next one.
+
 2026-10-03
 A map of the Tanakh shades every chapter by how much of it you would understand.
 A new page shows the hard parts of Hebrew, each one solved on a real text.
