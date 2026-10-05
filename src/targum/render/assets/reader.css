@@ -221,12 +221,8 @@ body {
 [dir="rtl"] .bar > .controls { order: 1; margin-inline-start: 0; margin-inline-end: auto; }
 [dir="rtl"] .bar > .bar-title { order: 2; direction: rtl; }
 
-/* The menu behind ⋯. On a wide window there is no menu: the wrapper is `contents`, so
-   its groups lie in the bar exactly as they always have, and neither the ⋯ nor the
-   menu's own head exists. Under 60rem the reverse — the phone rules at the foot of
-   this file. */
-.bar-more { display: contents; }
-.bar .more-head, .bar .more { display: none; }
+/* The menu behind ⋯ is a panel at every width since the bar became one row
+   (targum-internal#421): see "The bar, one calm row" at the foot of this file. */
 
 /* Full ink, not the controls' soft grey: the mark is the one thing here that is not a
    control, and the two columns need their difference in weight to read as the mark. */
@@ -289,16 +285,8 @@ a.bar-brand:hover { color: var(--accent); }
   .bar-english,
   .bar-title .known { display: none; }
 }
-/* "No recording" beside a button that says "Hear this section" is said twice, and the
-   voice's row was what wrapped the bar again (2026-09-27). Put away between 60 and 75rem
-   at first; it is said twice at every width the bar is one row, and at 1280px it was
-   the word that wrapped the bar once Add to playlist stopped being drawn where it was
-   hidden — which had been wrapping it already (targum-internal#415). The cost stays: it
-   is what the press is agreed to. Under 60rem the row is in the ⋯ menu, where the label
-   names it. */
-@media (min-width: 60.01rem) {
-  .bar-more .voice-offer .label { display: none; }
-}
+/* "No recording" names the voice's row behind ⋯, where it has always been on a phone and
+   is at every width since the bar became one row (targum-internal#421). */
 
 /* Said rather than shown. Marking a word from the keyboard changes a count in the far
    corner and nothing else, which a screen reader never reaches and a reader watching the
@@ -4771,3 +4759,721 @@ body.has-player.list-ended .list-end {
   .playlist-menu .pm-name,
   .playlist-menu .pm-confirm { min-block-size: 2.75rem; }
 }
+
+/* =====================================================================================
+   The bar, one calm row (targum-internal#421, David, 2026-10-05).
+
+   A. One row: the mark, the title, how much of it you know, and at the far end Listen
+      (the recording choice inside it), Aa, print and ⋯. Text labels and thin icons; the
+      live choice is underlined in leaf; nothing is a filled dark pill.
+   B. The columns beside the verse switch themselves: a quiet × on a column's name under
+      the pointer, and a faint + for a column that is off.
+   C. The bar steps back while a reader reads on or listens, to the mark, the count and
+      the player, and its ground stays paper so the text never shows through it.
+
+   Written after everything above, the phone's rules included, so that it wins: the rules
+   it replaces are the two-row bar's, and are left where they are only where a test of the
+   older layout still reads them. */
+
+.bar {
+  flex-wrap: nowrap;
+  gap: 0;
+  min-block-size: 3.5rem;
+  padding: 0 1.5rem;
+  /* Paper, never glass: text scrolling under a bar that has stepped back must not show
+     through it. And no filter, which made the bar the box its panels were placed in. */
+  background: var(--paper);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-block-end: 1px solid var(--rule);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+}
+/* The same order whichever way the text reads: the mark, the title and the count at the
+   start, the tools at the end. The title keeps its own direction on its own element. */
+.bar > .bar-title,
+[dir="rtl"] .bar > .bar-title {
+  order: 1;
+  direction: ltr;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-inline-start: 1.1rem;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: start;
+}
+.bar > .controls,
+[dir="rtl"] .bar > .controls {
+  order: 2;
+  flex: none;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+}
+.bar-title .up,
+.bar-title > span[lang] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  border: 0;
+}
+.bar-title .up:hover { color: var(--accent); }
+.bar-title .bar-english { color: var(--ink-soft); font-family: var(--reading); font-size: 0.9375rem; }
+.bar-title .bar-english::before { content: "\00b7"; margin-inline-end: 0.6rem; color: var(--rule); }
+/* The count, behind a hairline: a figure, not a title. */
+.bar-title .known {
+  display: inline-block;
+  margin-inline-start: 0.6rem;
+  padding-inline-start: 1.1rem;
+  border-inline-start: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+}
+.bar-title .known[hidden] { display: none; }
+.bar-title .known b:not(.left) + b { color: var(--ink); }
+/* What is left to mark is the word list's line; the row says how many of how many. */
+.bar .known-left { display: none; }
+.bar-title .known.done { color: var(--leaf); }
+
+/* --- the tools at the end --- */
+.bar-tools { display: flex; align-items: center; gap: 0.2rem; }
+.bar .bar-tool {
+  display: grid;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+}
+.bar .bar-tool[hidden] { display: none; }
+.bar .bar-tool:hover { color: var(--ink); background: none; }
+.bar .bar-tool[aria-expanded="true"] { color: var(--ink); background: var(--paper-raised); }
+.bar .bar-tool svg {
+  inline-size: 18px;
+  block-size: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bar .bar-tool.more svg { fill: currentColor; stroke: none; }
+.bar .aa-glyph { font-family: var(--reading); font-size: 1.0625rem; line-height: 1; letter-spacing: 0.01em; }
+.bar .aa-glyph small { font-size: 0.8125rem; }
+
+/* --- Listen, and the reading inside it --- */
+.listen {
+  display: flex;
+  align-items: center;
+  block-size: 2.25rem;
+  padding-inline: 0.25rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink);
+}
+.bar .listen button { border: 0; background: none; border-radius: 999px; }
+.bar .listen-play {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  block-size: 1.75rem;
+  padding: 0 0.7rem 0 0.55rem;
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+.bar .listen-play:hover { color: var(--accent); }
+.bar .listen-play svg {
+  inline-size: 13px;
+  block-size: 13px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.listen-play .pause { display: none; fill: none; }
+.listen-play[aria-pressed="true"] .play { display: none; }
+.listen-play[aria-pressed="true"] .pause { display: block; }
+/* The line and the clock once the voice has started, in place of the word. */
+.listen-track,
+.listen-clock { display: none; }
+.listen.placed .listen-word { display: none; }
+.listen.placed .listen-play { padding-inline-end: 0.35rem; }
+.listen.placed .listen-track {
+  display: block;
+  position: relative;
+  inline-size: 7.5rem;
+  block-size: 2px;
+  margin-inline: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.listen-fill { display: block; block-size: 100%; inline-size: 0; background: var(--ink-soft); }
+.listen.placed .listen-clock {
+  display: block;
+  margin-inline-end: 0.5rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.bar .listen .listen-voice {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  block-size: 1.75rem;
+  position: relative;
+  padding: 0 0.65rem 0 0.7rem;
+  border-radius: 0 999px 999px 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.bar .listen .listen-voice:hover,
+.bar .listen .listen-voice[aria-expanded="true"] { color: var(--ink); background: none; }
+/* The hairline between play and the reading: drawn, so a thumb's taller reach does not
+   draw it taller than the pill. */
+.bar .listen .listen-voice::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.3rem;
+  inset-inline-start: 0;
+  inline-size: 1px;
+  background: var(--rule);
+}
+.listen-voice .caret { inline-size: 8px; block-size: 8px; fill: none; stroke: currentColor; stroke-width: 1.2; }
+
+/* --- the panels: under the press on a wide window --- */
+.bar-pop,
+.bar-more { display: none; }
+.bar-pop.open,
+.bar-more.open {
+  position: absolute;
+  inset-block-start: calc(100% - 0.35rem);
+  inset-inline-end: 1rem;
+  z-index: 40;
+  display: block;
+  min-inline-size: 16rem;
+  max-inline-size: min(21rem, calc(100vw - 2rem));
+  max-block-size: calc(100vh - 5rem);
+  overflow-y: auto;
+  padding: 0.5rem 0 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow-raised);
+  color: var(--ink);
+  direction: ltr;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  text-align: start;
+}
+.bar .bar-pop .more-head,
+.bar .bar-more .more-head { display: none; }
+.pop-head,
+.aa-head {
+  display: block;
+  margin: 0;
+  padding: 0.35rem 1.1rem 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.aa-rule { block-size: 1px; margin: 0.45rem 1.1rem; background: var(--rule); }
+/* A rule divides two groups, and is never the first thing in the panel. */
+.aa > .more-head + .aa-rule { display: none; }
+
+/* A row: its name, then its control at the end. */
+.aa-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-block-size: 2.25rem;
+  padding: 0 1.1rem;
+}
+.aa-label { color: var(--ink); }
+/* A choice with a position: words, the live one underlined in leaf. The renderings, the
+   layout, the level and the reading all take it, here and only here. */
+.bar-pop .renderings,
+.bar-pop .practice,
+.bar-pop .levels,
+.bar-pop .recordings {
+  gap: 0.9rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.bar-pop .renderings .rendering,
+.bar-pop .practice .practice-key,
+.bar-pop .levels .level {
+  padding: 0.2rem 0;
+  border: 0;
+  border-block-end: 1.5px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.bar-pop .renderings .rendering:hover,
+.bar-pop .practice .practice-key:hover,
+.bar-pop .levels .level:hover { color: var(--ink); background: none; }
+.bar-pop .renderings .rendering.on,
+.bar-pop .practice .practice-key.on,
+.bar-pop .levels .level.here {
+  border-block-end-color: var(--leaf);
+  background: none;
+  color: var(--ink);
+}
+
+/* On or off: the row is the press, the switch is drawn at its end. */
+.bar .aa-switch,
+.bar .bar-more .more-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  inline-size: 100%;
+  min-block-size: 2.25rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  text-align: start;
+}
+.bar .aa-switch:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); }
+.bar .aa-switch.on,
+.bar .bar-more .more-switch.on { background: none; color: var(--ink); border-color: transparent; }
+.bar .aa-switch.on:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.bar .aa-switch:focus-visible { outline-offset: -2px; }
+.sw {
+  position: relative;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1rem;
+  border-radius: 999px;
+  background: var(--rule);
+  transition: background-color 160ms ease;
+}
+.sw::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: 12px;
+  block-size: 12px;
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 1px 1px rgb(28 26 23 / 0.12);
+  transition: transform 160ms ease;
+}
+[aria-pressed="true"] > .sw { background: var(--leaf); }
+[aria-pressed="true"] > .sw::after { transform: translateX(12px); }
+.companions { display: block; }
+.companions .aa-switch:disabled { opacity: 0.4; }
+
+/* Text size: a small A, how far along the size is, and a large one. */
+.aa-size { display: flex; align-items: center; gap: 0.6rem; }
+.bar .aa-step {
+  display: grid;
+  place-items: center;
+  min-inline-size: 1.75rem;
+  block-size: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-family: var(--reading);
+  line-height: 1;
+}
+.bar .aa-step:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.bar .aa-step[aria-disabled="true"] { opacity: 0.4; }
+.bar .aa-step.small { font-size: 0.8125rem; }
+.bar .aa-step.large { font-size: 1.25rem; }
+.bar .aa-step.leading svg {
+  inline-size: 18px;
+  block-size: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.aa-meter {
+  position: relative;
+  inline-size: 3.5rem;
+  block-size: 2px;
+  border-radius: 999px;
+  background: var(--rule);
+}
+.aa-meter i {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 20%;
+  border-radius: 999px;
+  background: var(--leaf);
+}
+
+/* The recording choice and print: a short list of picks, each a name and a quiet
+   second line at its end. */
+.voices-pop.open,
+.print-pop.open { min-inline-size: 15rem; padding: 0.4rem; }
+.print-pop .pop-head { padding: 0.35rem 0.7rem 0.3rem; }
+.voices-pop .recordings,
+.print-pop .to-sheet { display: grid; gap: 0.1rem; }
+.print-pop .to-sheet[hidden] { display: none; }
+.bar-pop .recordings .recording-key,
+.bar-pop .to-sheet .more-sheet {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.25rem;
+  min-block-size: 2.4rem;
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink);
+  font-size: 0.875rem;
+  text-align: start;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bar-pop .recordings .recording-key:hover,
+.bar-pop .to-sheet .more-sheet:hover,
+.bar-pop .to-sheet .more-sheet:focus-visible { background: var(--paper-raised); color: var(--ink); }
+.bar-pop .recordings .recording-key.on { background: none; color: var(--ink); }
+.bar-pop .recordings .recording-key.on .pick-name {
+  text-decoration: underline 1.5px var(--leaf);
+  text-underline-offset: 0.35em;
+}
+.pick-meta { color: var(--ink-soft); font-size: 0.8125rem; }
+.pick-meta[lang|="he"] { font-size: 0.9375rem; }
+
+/* ⋯: the rare things, a row each, named by what the row says of itself. */
+.bar-more.open { display: grid; gap: 0; padding: 0.4rem 0; }
+.bar-more.open .group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-block-size: 2.4rem;
+  padding: 0.2rem 1.1rem;
+  border: 0;
+}
+.bar-more.open .group[hidden] { display: none; }
+.bar-more.open .group::before { content: attr(data-what); flex: 1 1 auto; color: var(--ink); }
+.bar-more.open .group.more-player::before { content: none; }
+/* The recording's own row is the phone's, where the strip has no room for it; on a wide
+   window the strip carries the file and the close itself. */
+@media (min-width: 60.01rem) {
+  .bar-more.open .group.more-player { display: none; }
+}
+.bar-more.open .group .label { flex: 1 1 auto; color: var(--ink); }
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button,
+.bar-more .group select,
+.bar-more .group .home {
+  display: grid;
+  place-items: center;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0 0.45rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-soft);
+}
+.bar-more .group select { display: block; border: 1px solid var(--rule); font-size: 0.8125rem; }
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button:not(.more-switch):hover,
+.bar-more .group .home:hover { color: var(--ink); background: var(--paper-raised); }
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button.on:not(.more-switch),
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button[aria-expanded="true"] { color: var(--ink); background: var(--paper-raised); }
+.bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button svg,
+.bar-more .group .home svg {
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bar-more .group .more-switch { inline-size: auto; min-block-size: 2rem; padding: 0; }
+/* The view's three drawings: the live one in ink and underlined, no sliding pill. */
+.bar-more .modes { gap: 0.15rem; padding: 0; border: 0; background: none; }
+.bar-more.open .modes button {
+  display: grid;
+  place-items: center;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  padding: 0 0.45rem;
+  background: none;
+  color: var(--ink-soft);
+}
+.bar-more.open .modes button:hover { color: var(--ink); background: none; }
+.bar-more.open .modes button svg { inline-size: 16px; block-size: 16px; }
+.bar-more .modes .slide { display: none; }
+.bar-more.open .modes button { border: 0; border-block-end: 1.5px solid transparent; border-radius: 0; }
+.bar-more.open .modes button.on { color: var(--ink); background: none; border-block-end-color: var(--leaf); }
+.bar-more .modes button:disabled { opacity: 0.35; }
+.bar-more [data-keys] .keys-word { display: none; }
+.bar-more [data-keys] .keys-mark { display: inline; font-size: 0.9375rem; }
+.bar-more .more-playlist {
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.bar-more.open .group.to-playlist::before { content: none; }
+.bar-more .more-playlist:hover { color: var(--accent); }
+.bar-more.open .voice-offer { flex-wrap: wrap; padding-block: 0.5rem; }
+.bar-more.open .voice-offer .label { flex: 1 1 auto; margin: 0; text-align: start; }
+.bar-more.open .voice-offer .voice-cost { flex: 1 0 100%; }
+.bar-more.open .group.voice-offer::before { content: none; }
+.bar-more .voice-go { display: block; block-size: auto; color: var(--paper); background: var(--ink); }
+.bar-more .voice-go:hover { color: var(--paper); background: var(--ink-soft); }
+
+/* --- B: the columns switch themselves --- */
+.cmp-x {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-inline-start: 0.3rem;
+  border-radius: 4px;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+  line-height: 1;
+  vertical-align: -1px;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 160ms ease;
+}
+.cmp-name:hover .cmp-x { opacity: 0.8; }
+.cmp-x:hover { color: var(--ink); background: var(--paper-raised); }
+.cmp-name:hover { color: var(--ink); }
+/* On a phone nothing hovers, so nothing is drawn to hover over: Aa is the way in. */
+@media (hover: none) { .cmp-x { display: none; } }
+.beside-add {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  direction: ltr;
+  gap: 0.4rem;
+  margin-block-end: 0.1rem;
+}
+.beside-add[hidden] { display: none; }
+.pair > .beside .beside-add { justify-self: stretch; }
+.cmp-add {
+  display: inline-flex;
+  align-items: center;
+  block-size: 1.25rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.6875rem;
+  line-height: 1;
+  opacity: 0.8;
+}
+.cmp-add:hover { opacity: 1; color: var(--ink); border-color: var(--ink-soft); }
+body.practice-verse .beside-add,
+body.practice-section .beside-add { display: none; }
+
+/* --- C: the bar steps back --- */
+.bar .bar-brand,
+.bar .bar-title > *,
+.bar .bar-tools,
+.bar .listen-word,
+.bar .listen-voice,
+.bar .listen { transition: opacity 400ms ease, transform 400ms ease, border-color 400ms ease; }
+.bar { transition: border-color 400ms ease; }
+.bar.quiet { border-block-end-color: transparent; }
+.bar.quiet .bar-brand { opacity: 0.55; }
+.bar.quiet .bar-title > :not(.known),
+.bar.quiet .bar-tools { opacity: 0; pointer-events: none; }
+/* The title folds away rather than leaving a hole, so the count stands by the mark. */
+.bar .bar-title > :not(.known) { max-inline-size: 30rem; overflow: hidden; }
+.bar .bar-title > *,
+.bar .bar-title .known { transition: opacity 400ms ease, max-inline-size 400ms ease, margin 400ms ease, padding 400ms ease, border-color 400ms ease; }
+.bar.quiet .bar-title { gap: 0; }
+.bar.quiet .bar-title > :not(.known) { max-inline-size: 0; }
+.bar.quiet .bar-title .known { margin-inline-start: 0.4rem; padding-inline-start: 0; border-inline-start-color: transparent; }
+.bar.quiet .listen { border-color: transparent; transform: translateX(var(--tools, 0px)); }
+.bar.quiet .listen .listen-voice { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .bar,
+  .bar .bar-brand,
+  .bar .bar-title > *,
+  .bar .bar-tools,
+  .bar .listen-word,
+  .bar .listen-voice,
+  .bar .listen,
+  .bar .bar-title .known,
+  .sw,
+  .sw::after,
+  .cmp-x { transition: none; }
+}
+
+/* --- a thumb's reach (§8) --- */
+@media (hover: none) and (pointer: coarse) {
+  .bar .bar-tool,
+  .bar .listen-play,
+  .bar .listen-voice,
+  .bar .aa-switch,
+  .bar .aa-step,
+  .bar-pop .recordings .recording-key,
+  .bar-pop .to-sheet .more-sheet,
+  .bar-more .group:not(.more-player):not(.voice-offer):not(.modes) button,
+  .bar-more .group .home,
+  .cmp-add { min-block-size: 44px; }
+  .bar .bar-tool,
+  .bar .aa-step { min-inline-size: 44px; }
+}
+
+/* --- on a phone: the same row, smaller, and the panels are sheets from the foot --- */
+@media (max-width: 60rem) {
+  .bar { padding: 0 0.75rem 0 1rem; min-block-size: 3.25rem; gap: 0; }
+  .bar > .bar-title,
+  [dir="rtl"] .bar > .bar-title { flex: 1 1 auto; margin-inline-start: 0.8rem; display: flex; }
+  .bar > .controls,
+  [dir="rtl"] .bar > .controls { gap: 0.4rem; margin-inline-start: 0.5rem; }
+  .bar .more { display: grid; padding: 0; font-size: 0.8125rem; }
+  .bar .more[aria-expanded="true"] { color: var(--ink); background: var(--paper-raised); }
+  .listen { padding-inline: 0.1rem; }
+  .bar .listen-play { padding: 0 0.5rem; }
+  .listen-word { display: none; }
+  .listen.placed .listen-track { inline-size: 3.5rem; }
+  .bar-pop.open,
+  .bar-more.open {
+    position: fixed;
+    inset-block: auto 0;
+    inset-inline: 0;
+    z-index: 30;
+    min-inline-size: 0;
+    max-inline-size: none;
+    max-block-size: 70svh;
+    padding: 0.5rem 0 calc(1rem + env(safe-area-inset-bottom, 0px));
+    border: 0;
+    border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    background: var(--paper);
+    box-shadow: var(--shadow-floating);
+    overscroll-behavior: contain;
+    font-size: 0.9375rem;
+  }
+  .voices-pop.open,
+  .print-pop.open { padding: 0.75rem 0.75rem calc(1rem + env(safe-area-inset-bottom, 0px)); }
+  .bar:has(.bar-pop.open) { z-index: 30; }
+  .bar .bar-pop .more-head,
+  .bar .bar-more .more-head {
+    display: flex;
+    align-items: center;
+    padding: 0.3rem 1.1rem 0.5rem;
+    color: var(--ink-soft);
+    font-size: 0.8125rem;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+  .bar .bar-pop .more-head b,
+  .bar .bar-more .more-head b { font-weight: 500; }
+  .bar .bar-pop .more-head button,
+  .bar .bar-more .more-head button {
+    margin-inline-start: auto;
+    display: grid;
+    place-items: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    font-size: 1.0625rem;
+  }
+  .aa-row, .bar .aa-switch, .bar-more.open .group { min-block-size: 2.75rem; }
+  .bar-more.open .group { border-block-end: 0; }
+  @keyframes pop-rise {
+    from { transform: translateY(100%); }
+    to { transform: none; }
+  }
+  .bar-pop.open { animation: pop-rise 220ms cubic-bezier(0.32, 0.72, 0, 1); }
+}
+@media (max-width: 60rem) and (prefers-reduced-motion: reduce) {
+  .bar-pop.open { animation: none; }
+}
+/* The English title waits for a wide window, and the count for anything wider than a
+   phone; the title says where you are. */
+.bar-title .bar-english { display: inline; }
+@media (max-width: 60rem) {
+  .bar-title .bar-english { display: none; }
+}
+@media (max-width: 40rem) {
+  .bar-title .known { display: none; }
+}
+
+/* --- the strip, slim, and only once the voice has started (#421, David, 2026-10-05) ---
+   It comes up when Listen is pressed and goes with its ×, so it never has to say what it
+   is: the name it carried before a press ("Listen to the reading") is gone unless it has
+   a refusal to report, and the line and the clock are always there. Drawn the way the
+   bar's Listen is — paper, a hairline, a pill — with the play press in ink rather than a
+   filled brown disc: the bar's Listen is the main control, and this is its transport. */
+.player {
+  gap: 0.35rem;
+  padding-block: 0.4rem;
+  padding-inline: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: var(--shadow-raised);
+  font-family: var(--chrome);
+}
+.player-play {
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 1px solid var(--rule);
+  background: none;
+  color: var(--ink);
+}
+.player-play:hover { border-color: var(--ink-soft); }
+.player-play:active { background: var(--paper-raised); }
+.player:not(.refused) .player-said { display: none; }
+.player:not(.refused) .player-track,
+.player:not(.refused) .player-clock { display: block; }
+.player-body { inline-size: 9rem; padding-inline: 0.25rem; }
+.player-fill { background: var(--ink-soft); }
+
+/* --- shnayim mikra, a practice in Aa (#421, David, 2026-10-05) ---
+   One switch; on, the line that says what it does and the two ways of keeping it. While
+   it is on the column switches above go grey with "Shown in Read" beside their heading:
+   they still answer, and a press on one puts the practice down. */
+.aa-practice[hidden],
+.aa-practice-how[hidden],
+.aa-held[hidden],
+.bar-pop .practice .practice-key[hidden] { display: none; }
+.aa-note {
+  margin: 0;
+  padding: 0 1.1rem 0.15rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.aa-practice-how .aa-row { justify-content: flex-start; }
+.aa-held {
+  display: block;
+  padding: 0 1.1rem 0.2rem;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.bar .aa-switch.held { color: var(--ink-soft); }
+.bar .aa-switch.held .sw { opacity: 0.45; }

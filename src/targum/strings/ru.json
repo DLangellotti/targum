@@ -2805,5 +2805,15 @@
   "tanakh.card.aramaic": "Арамейский. Мы пока не сверяем его с вашими словами на иврите.",
   "tanakh.card.share": "Вы знаете {share}% её слов.",
   "tanakh.card.read": "Читать: {ref}",
-  "progress.page.the-tanakh-chapter-by-chapter": "Танах, глава за главой"
+  "progress.page.the-tanakh-chapter-by-chapter": "Танах, глава за главой",
+  "reader.page.listen": "Слушать",
+  "reader.page.text-and-columns": "Текст и колонки",
+  "reader.page.print-or-save-pdf": "Печать или PDF",
+  "reader.page.text-size": "Размер текста",
+  "reader.page.this-aliyah": "Эта алия",
+  "reader.page.whole-portion-and-haftarah": "Вся глава и гафтара",
+  "reader.page.view": "Вид",
+  "reader.page.word-list": "Список слов",
+  "reader.page.show-column": "Показать: {name}",
+  "reader.page.shown-in-read": "Видны при чтении"
 }
