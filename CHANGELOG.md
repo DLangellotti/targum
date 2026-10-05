@@ -536,6 +536,35 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The drawer in a reader opens the conversation of the line's own language.
 
 ### Changed
+- A video text has a viewer of its own (targum-internal#422, David's A + B + C from the
+  mockups). **Beside**: the picture at the left with one thin row under it — play and
+  pause, the time, a hairline of where the voice is (the line being said a faint band on
+  it), the length, the speed ("1× ▾", the six speeds as one of the bar's panels) and Loop
+  this line — then the title, the source, the licence, the part and "Watch on YouTube",
+  and the transcript beside it following the voice, the line being said lit as a chanted
+  verse is, English under each line, and the word being said lit where the recording was
+  aligned word by word. **Theatre**: the picture large and, under its row, the line being
+  said set large — the transcript's own words, tappable with their levels, the spoken
+  word lit — its English small under it and the lines either side faded; Transcript
+  opens the transcript as a panel and the picture grows smaller. The bar carries a
+  **Beside | Theatre** switch, kept per reader (`targum:film-view`), and `v` turns between
+  them; Listen stands down while the picture is up. **C**: while it plays, the bar and
+  the row step back to the picture, the hairline and the line; a pause, the pointer, a
+  touch or a key brings them back, and nothing steps back while a panel or a word's card
+  is out. A word tapped while it plays stops it: the card opens over the paused frame,
+  which steps down under it, and the word stays marked in the line. ↑ ↓ step a line
+  (← → too in Theatre with the transcript put away). On a phone: the picture the window's
+  width, its row under it, and the transcript under that. It replaces the picture in a
+  corner (picked up, moved and sized), its own full-screen mode and the floating strip
+  that stood under it: full screen is the browser's, under ⋯, as on every text; ⋯ also
+  carries the picture on and off, Hear first, the step either side and the file while
+  the picture is up. Put away, the page is an audio reader, with Listen and the strip,
+  whose toggle brings the picture back; that is still kept per text. The stores of the
+  corner, the place, the size and full screen are no longer read. Inside a playlist a
+  video opens in Theatre, writing nothing, and its end opens the transcript. 25 Russian
+  strings are new (see the PR). design.md §12 has the entry; the tests that pinned the
+  corner, the drag, the size and full screen went with them
+  (`tests/test_video_viewer_browser.py` has the new ones).
 - The reader's bar is one calm row on every text (targum-internal#421, David's A + B + C
   from the mockups): the mark, the title, "N of M known", and at the far end Listen (the
   recording choice inside it, "Chanted ▾", where an aliyah has two), Aa, print (on a

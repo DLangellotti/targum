@@ -4304,7 +4304,11 @@ def test_a_card_a_pointer_opened_survives_the_key_that_marks_it() -> None:
 
     script = (ASSETS / "reader.js").read_text(encoding="utf-8")
     body = script[script.index("function markLookedUp(") : script.index("function statusRow(")]
-    assert body.index('word.closest(".pair")') < body.index("redraw();"), "read it first"
+    # `.film-pair` too since #422: the line under a video is a copy of its transcript's
+    # line, held in a `film-pair` so nothing that walks the transcript counts it.
+    assert body.index('word.closest(".pair, .film-pair")') < body.index("redraw();"), (
+        "read it first"
+    )
 
 
 def test_the_word_decides_whether_to_scroll_and_the_sentence_moves() -> None:
@@ -4676,8 +4680,10 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "inset-inline-end" not in tab, "the end corner is the player's and the arrows'"
     assert "body.paged .list-tab { inset-block-end: 5.5rem; }" in css, "the player's row, wide"
     phone = css[css.index("/* --- the phone: one band at the foot") :]
-    # The video panel is in the occupant list by design — §12's moving-pictures entry.
-    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .video, .bar-more.open {"
+    # The video panel was in the occupant list by design — §12's moving-pictures entry —
+    # until targum-internal#422, when a phone's picture went to stand at the top, above its
+    # transcript, always; it is no longer in the band at all.
+    shared = "\n  .list, .gloss-card, .pick-card, .keys-card, .bar-more.open {"
     occupants = phone.split(shared, 1)[1]
     occupants = occupants.split("\n  }\n", 1)[0]
     assert "position: fixed;" in occupants and "inset-block: auto 0;" in occupants

@@ -4648,6 +4648,8 @@ def render(
             previous=None if section.number == 1 else sections[section.number - 2],
             following=None if section.number == len(sections) else sections[section.number],
             standalone=single,
+            # How many parts the text is in, for the line under a video (#422).
+            section_count=len(sections),
         )
         name = "index.html" if single else section.filename
         written.append(_write(out_dir / name, html))

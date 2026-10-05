@@ -2637,7 +2637,10 @@ var targumReader = function () {
     // `has-voice` is the player's own word that there is a recording to play. Asking only
     // whether a strip exists was asking the markup, and a page with none still answers.
     var voiced = document.body.classList.contains("has-voice");
-    if (voiced && strip && !strip.hidden && !heard) {
+    // Or the picture, whose controls are its transport while it is up (#422).
+    var picture = document.getElementById("video");
+    var transport = (strip && !strip.hidden) || (picture && !picture.hidden);
+    if (voiced && transport && !heard) {
       pointingAtPlay = true;
       first.textContent = document.getElementById("video")
         ? t("reader.first.watch", "Now press play. The page follows the film, line by line.")
@@ -2873,6 +2876,12 @@ var targumReader = function () {
     // whole chapter for nothing.
     if (paged() && pages.length) {
       for (var p = pages[current][0]; p <= pages[current][1]; p++) markPair(pairs[p]);
+      return;
+    }
+    // Under a large picture with its transcript put away (#422), nothing of the text is
+    // on the page but the line under the picture — the same reason, the same answer.
+    if (main && !main.getClientRects().length) {
+      Array.prototype.forEach.call(document.querySelectorAll(".pair.film-said"), markPair);
       return;
     }
     var margin = window.innerHeight / 2;
@@ -3498,15 +3507,10 @@ var targumReader = function () {
   //: The bar's panels by name (targum-internal#421), gathered here because the band's
   //: bookkeeping below asks after them before the code that opens them has run.
   var pops = {};
-  ["aa", "print", "voices"].forEach(function (name) {
+  ["aa", "print", "voices", "rates"].forEach(function (name) {
     var panel = document.getElementById(name);
     if (panel) pops[name] = panel;
   });
-  /* The same bookkeeping as `sheetWas`, for the picture. A reader on a phone taps a word
-     and the card takes the band, which puts the film away — and the film is the reason
-     they are on the page. Sending them to the strip's toggle to fetch it back turns one
-     tap into three, so the band gives back what it took. */
-  var pictureWas = false;
   var restoring = 0;
 
   function occupy(which) {
@@ -3539,12 +3543,6 @@ var targumReader = function () {
       showMore(false);
     } else if (pops[was]) {
       showPop(was, false);
-    } else if (was === "video") {
-      // Put away through its own closure, which holds the button state and the store.
-      // Remembered, because the reader did not put it away: the band took it, and what
-      // the band takes it gives back — see `vacate`.
-      pictureWas = true;
-      if (window.TargumVideo) window.TargumVideo.hide();
     }
     if (which === "list") sheetWas = false;
   }
@@ -3557,22 +3555,12 @@ var targumReader = function () {
     // An overlay that leaves a sheet standing hands the band back to the sheet.
     occupant = overlay(which) && listBox && !listBox.hidden ? "list" : null;
     if (which === "list") sheetWas = false;
-    if (which === "video") pictureWas = false;
-    if ((!sheetWas && !pictureWas) || roomy.matches) return;
+    if (!sheetWas || roomy.matches) return;
     restoring = requestAnimationFrame(function () {
       restoring = 0;
       if (occupant !== null) return;
-      /* At most one of these is ever set: the band holds one occupant at a time, so a
-         sheet that was folded and a picture that was put away cannot both be waiting.
-         The sheet first anyway, so its behaviour is exactly what it was. */
-      if (sheetWas) {
-        sheetWas = false;
-        pictureWas = false;
-        showList(true, false);
-        return;
-      }
-      pictureWas = false;
-      if (window.TargumVideo) window.TargumVideo.show();
+      sheetWas = false;
+      showList(true, false);
     });
   }
 
@@ -3644,7 +3632,7 @@ var targumReader = function () {
       said["--foot"] = foot > 0 ? Math.round(foot) + "px" : null;
       var head = 0;
       residents().forEach(function (thing) {
-        if (standing(thing) && !atFoot(thing) && !thing.classList.contains("watching")) {
+        if (standing(thing) && !atFoot(thing)) {
           head = Math.max(head, thing.getBoundingClientRect().height);
         }
       });
@@ -3697,12 +3685,11 @@ var targumReader = function () {
      by the height of a picture that was nowhere near it — the strip floated a third of
      the way up a phone with empty paper beneath it and the text running behind it. The
      wide window already asks this question in `room`; the narrow one did not. */
+  //
+  // Since targum-internal#422 the picture always stands at the top on a phone, above its
+  // controls, with the transcript running under it — it is never in the band at all.
   function atFoot(thing) {
-    return !(
-      thing === videoPanel &&
-      thing.classList &&
-      (thing.classList.contains("dock-top-start") || thing.classList.contains("dock-top-end"))
-    );
+    return thing !== videoPanel;
   }
 
   // The menu behind ⋯ joined them on 2026-09-14, for the card's reason: it is a visit,
@@ -4047,7 +4034,7 @@ var targumReader = function () {
   // there is none, or where a comma or a stop comes first.
   var AUXILIARY_REACH = 4;
   function auxiliaryBefore(word) {
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var row = rowOf(word);
     if (!pair || !row || besideCell(word)) return null;
     var id = pair.getAttribute("data-id");
@@ -4353,7 +4340,7 @@ var targumReader = function () {
   function hearFor(word) {
     // The recording is of the Hebrew; an Onkelos word has no clock in it.
     if (besideCell(word)) return null;
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
     return hearButton(
@@ -4365,7 +4352,7 @@ var targumReader = function () {
   }
 
   function levelOf(word) {
-    var pair = word.closest(".pair");
+    var pair = word.closest(".pair, .film-pair");
     if (!pair) return "";
     var segmentId = pair.getAttribute("data-id");
     var index = parseInt(word.getAttribute("data-lemma"), 10);
@@ -4434,7 +4421,7 @@ var targumReader = function () {
       // so the span is detached afterwards and has no ancestors left to search — asking
       // a detached word for its sentence answers null, and the card shut itself on every
       // word marked with a pointer.
-      var pair = word.closest ? word.closest(".pair") : null;
+      var pair = word.closest ? word.closest(".pair, .film-pair") : null;
       redraw();
       // The card asked what the word means and the level is an answer, so it is spent:
       // it fades where it stands rather than being carried on to the next word. See
@@ -4531,7 +4518,7 @@ var targumReader = function () {
 
   // The bare surface of the word that was tapped, whichever cell it was tapped in.
   function bareSurface(word) {
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return word.textContent;
     var cell = besideCell(word);
@@ -4589,7 +4576,7 @@ var targumReader = function () {
   var accentNames = null;
   function accentOf(word) {
     if (!prefs.nikkud || !prefs.taamim || besideCell(word)) return "";
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return "";
     var id = pair.getAttribute("data-id");
@@ -4645,7 +4632,7 @@ var targumReader = function () {
   // The token row under a tapped word — the one thing that knows this occurrence's
   // sound, build and grammar, which its dictionary form cannot.
   function rowOf(word) {
-    var pair = word.closest ? word.closest(".pair") : null;
+    var pair = word.closest ? word.closest(".pair, .film-pair") : null;
     var span = (word.getAttribute("data-bare") || "").split(",");
     if (!pair || span.length !== 2) return null;
     var cell = besideCell(word);
@@ -4854,7 +4841,7 @@ var targumReader = function () {
 
   // The table this occurrence draws: its own where the page carries one, else the word's.
   function paradigmOf(index, word, row) {
-    var pair = word && word.closest ? word.closest(".pair") : null;
+    var pair = word && word.closest ? word.closest(".pair, .film-pair") : null;
     if (pair && row && !besideCell(word)) {
       var id = pair.getAttribute("data-id");
       var at = (wordData[id] || []).indexOf(row);
@@ -5541,7 +5528,7 @@ var targumReader = function () {
     }
 
     // What a pronoun stands for, and a way to go to it (targum-internal#264).
-    var standsIn = word.closest ? word.closest(".pair") : null;
+    var standsIn = word.closest ? word.closest(".pair, .film-pair") : null;
     var standsHere = standsIn && row ? standingAt(standsIn.getAttribute("data-id"), row) : null;
     if (standsHere) {
       var stand = document.createElement("span");
@@ -6998,7 +6985,7 @@ var targumReader = function () {
   function anchor() {
     var word = standing && standing.parentNode ? standing : null;
     if (!word && lookedUp && lookedUp.parentNode) word = lookedUp;
-    var pair = word ? word.closest(".pair") : null;
+    var pair = word ? word.closest(".pair, .film-pair") : null;
     var top = ceiling();
     var box = pair ? pair.getBoundingClientRect() : null;
     // Unless they have scrolled away from it, in which case the word is somewhere they
@@ -7555,33 +7542,17 @@ var targumReader = function () {
   var current = 0;
   var paging = false;
 
-  /* Whether a docked picture is standing in the way of paging.
+  /* Whether the picture is standing in the way of paging.
 
-     Paging cuts a page to what is left under the band, and on a phone a docked picture
-     takes about a third of the window. What would not fit goes to the next page, so the
-     text stopped short and left up to a full pair of empty paper under it — 182px
-     measured in every dock corner on an 844px window, and it moves with the window
-     height rather than staying still. Scrolling has no remainder, so there is nothing
-     to leave behind.
-
-     Watching is not suspended: the picture is the whole window then and there is no
-     reading column under it to cut. And the reader's own setting is never written to —
-     this reads it, so pages come back the moment the picture is closed or watched.
-
-     Closed by the reader, that is. A word's card takes the band and the band holds one
-     thing at a time, so the card puts the picture away — and gives it back when it goes
-     (`pictureWas`). That is a visit, not a closing, and it un-suspended paging all the
-     same: every tap on a word under a docked picture laid the chapter out in pages and
-     showed page one, the word the reader had asked about nowhere on the screen (David,
-     on his phone, 2026-09-20). A card covers the page and does not move it (design.md
-     §12), so while the picture is only put away for an overlay — or for the frame
-     between the overlay going and the picture coming back — nothing here has changed.
-     Put away for the words sheet is different: the sheet is a mode and means to stay,
-     and pages under it are what they always were. */
+     While a text's picture is up its transcript scrolls, at every width
+     (targum-internal#422): beside the picture it follows the voice down a column, in
+     Theatre it is a panel or not on the page at all, and on a phone it runs under the
+     picture. A page cut to the room the picture leaves would only leave paper under the
+     last line (182px of it, measured on a phone in 2026-09). The reader's own setting is
+     never written to — this reads it, so pages come back the moment the picture is put
+     away. A word's card is a visit and puts nothing away, so it changes nothing here. */
   function pagingSuspended() {
-    if (roomy.matches || !videoPanel) return false;
-    if (pictureWas && (occupant === null || overlay(occupant))) return true;
-    return !videoPanel.hidden && !videoPanel.classList.contains("watching");
+    return !!videoPanel && !videoPanel.hidden;
   }
 
   /* What the last layout was told, so a picture docking or closing can be noticed. */
@@ -7674,28 +7645,6 @@ var targumReader = function () {
         }
         foot = Math.max(foot, window.innerHeight - settledTop(thing, true) + 12);
       });
-    } else if (
-      videoPanel &&
-      !videoPanel.hidden &&
-      !videoPanel.classList.contains("watching") &&
-      !videoPanel.classList.contains("free")
-    ) {
-      /* The dock, on a wide window, where the panel is not in the band. The picture
-         covering the sentence being read was the complaint; §12 answered that a control
-         fixed over a page of text takes its room out of the layout rather than out of the
-         reading, so the corner it stands in is a corner the pages are cut around.
-         Watching is the whole window and budgets nothing: there is no reading column
-         under it to keep clear. Nor does a picture the reader picked up and put
-         somewhere (`free`, §12 2026-09-13): they chose where it covers, and cutting the
-         pages around that spot would move the words away from where they put it. */
-      var picture = videoPanel.getBoundingClientRect();
-      if (picture.height) {
-        var atTop =
-          videoPanel.classList.contains("dock-top-start") ||
-          videoPanel.classList.contains("dock-top-end");
-        if (atTop) top = Math.max(top, picture.bottom + 12);
-        else foot = Math.max(foot, window.innerHeight - picture.top + 12);
-      }
     }
     return Math.max(160, window.innerHeight - top - foot - 24);
   }
@@ -7904,7 +7853,10 @@ var targumReader = function () {
 
   // The same page after the layout has changed under it — the type a step larger, the
   // vowels on, the list open. Held by the pair the reader is on, not by a number.
-  function relayout() {
+  // `held`, where the caller knows the line better than the layout can tell afterwards:
+  // a picture put away above the transcript, whose going the browser's own scroll
+  // anchoring hides from `lineUnderTheBar` (#422).
+  function relayout(held) {
     /* The band first, and before any early return: a scrolling reader has a band too.
        Moving the picture from the foot to the top changes what stands there without
        changing any size, so no observer fires — and the only other way in returns early
@@ -7922,7 +7874,8 @@ var targumReader = function () {
          page one, and one who opened a picture on page nine was handed the top of the
          transcript. The place is the line they are on — the top of the page that was
          open, or the line under the bar of a scroll — taken before anything moves. */
-      var from = pages.length ? pairs[pages[current][0]] : lineUnderTheBar();
+      var from =
+        held && held.parentNode ? held : pages.length ? pairs[pages[current][0]] : lineUnderTheBar();
       applyPaged();
       /* Past the first line only. At the top of a text there is no place to keep, and
          bringing its first line under the bar takes the title off the screen — which is
@@ -8609,8 +8562,17 @@ var targumReader = function () {
     return document.querySelector('[data-pop="' + name + '"]');
   }
 
-  // The panel under its own press, on a wide window: its far edge at the press's.
+  // The panel under its own press, on a wide window: its far edge at the press's. One
+  // that is not in the bar's row — the video's speed, under the picture (#422) — is
+  // placed against the window instead, under its press and lined up with its start.
   function placePop(panel, press) {
+    if (panel.hasAttribute("data-near")) {
+      if (!roomy.matches || !press) return;
+      var at = press.getBoundingClientRect();
+      panel.style.setProperty("--near-top", Math.round(at.bottom + 6) + "px");
+      panel.style.setProperty("--near-left", Math.round(Math.max(12, at.left - 8)) + "px");
+      return;
+    }
     if (!roomy.matches || !press || !bar) {
       panel.style.removeProperty("inset-inline-end");
       return;
@@ -8951,15 +8913,6 @@ var targumReader = function () {
   dismissible(chip, hideChip);
   dismissible(keysCard, function () { showKeys(false); });
   dismissible(more, function () { showMore(false); });
-  // The video panel closes through its own closure, which runs after this one and
-  // holds the button state and the store — hence the window indirection, the same
-  // door occupy() uses to put it away. The video carries no controls of its own
-  // (the strip is the transport), so the pull conflicts with nothing.
-  if (videoPanel) {
-    dismissible(videoPanel, function () {
-      if (window.TargumVideo) window.TargumVideo.hide();
-    });
-  }
 
   /* --- clicks -------------------------------------------------------------- */
 
@@ -9672,12 +9625,12 @@ var targumReader = function () {
       case "a":
         toggleTaamim();
         return;
-      // Between watching and reading, on a text that carries a picture and nowhere
-      // else. Handed back where there is none, so the key falls through to whatever
-      // the page would otherwise do with it rather than doing nothing loudly.
+      // Beside or Theatre (targum-internal#422), on a text whose picture is up and
+      // nowhere else. Handed back where there is none, so the key falls through to
+      // whatever the page would otherwise do with it rather than doing nothing loudly.
       case "v": {
         var pictures = window.TargumVideo;
-        if (!pictures || !pictures.watch || !pictures.watch()) return;
+        if (!pictures || !pictures.turn || !pictures.turn()) return;
         break;
       }
       case "?":
@@ -9884,7 +9837,12 @@ var targumReader = function () {
   applyType();
   applyMode();
   applyMarking();
-  showList(prefs.list === null ? roomy.matches : prefs.list, prefs.list === null ? false : true);
+  // Open by default on a wide window, where it is a column beside the text — except
+  // beside a video, which takes that room itself (#422); one press opens it there.
+  showList(
+    prefs.list === null ? roomy.matches && !videoPanel : prefs.list,
+    prefs.list === null ? false : true
+  );
   // A remembered preference for vowels is worth nothing on a text that has none, and
   // leaving it set would hide every sentence on the page. `sourceMarked` means "the
   // source carries its own phonetic layer, so open in the form this text was published
@@ -10154,6 +10112,14 @@ var targumReader = function () {
     boundariesFrom: boundariesFrom,
     pageFor: pageFor,
     through: through,
+    // A pair's words drawn now, wherever it is on the page: the line under a video
+    // copies its words out of the transcript as the voice reaches it (#422), and the
+    // transcript draws only what is on screen.
+    draw: markPair,
+    // And whatever of the transcript has just come on screen, when it comes on without
+    // a scroll: a panel opened beside the picture, or the picture's way of standing
+    // changed.
+    look: markVisible,
     // Putting the player away gives a page its room back, and bringing it out takes the
     // room again. Both are a change of layout like any other, and this is how the rest
     // of the page says so.
@@ -10572,10 +10538,15 @@ var targumReader = function () {
   var stopAt = null;
   var playing = null;      /* the one-line button, when a single line is playing */
   var playingEnd = 0;      /* where that line ends, for re-arming its timer at a new speed */
-  var hearFirst = player && player.querySelector(".player-first");
+  // The strip's, and ⋯'s copy for while the picture is up and the strip is not (#422):
+  // two presses, one switch.
+  var hearFirsts = Array.prototype.slice.call(document.querySelectorAll(".player-first, .more-first"));
+  var hearFirst = hearFirsts[0] || null;
   var hearing = null;      /* the pair whose text is hidden while its line plays */
   var following = false;   /* whether the whole scene is running */
   var marked = null;
+  // How the transcript follows the voice while the picture is up (#422); set further down.
+  var filmFollow = null;
 
   /* The same question the rest of the page asks, asked the same way. Read at the moment
      of scrolling rather than once at load, because a reader can change the setting while
@@ -10591,6 +10562,7 @@ var targumReader = function () {
     marked = id ? document.querySelector('.pair.voiced[data-id="' + CSS.escape(id) + '"]') : null;
     if (!marked) return;
     marked.classList.add("now");
+    if (filmFollow && filmFollow(marked)) return;
     /* Only when it has gone off the page. Scrolling a line that is already in front of
        the reader moves the text under their eyes for no reason. */
     var box = marked.getBoundingClientRect();
@@ -10743,6 +10715,9 @@ var targumReader = function () {
   var slower = player && player.querySelector(".player-slower");
   var faster = player && player.querySelector(".player-faster");
   var rateNow = player && player.querySelector(".player-rate-now");
+  // And the video's "1× ▾" with its six picks (#422), which say the same figure.
+  var filmRateNow = document.querySelector(".film-rate-now");
+  var ratePicks = Array.prototype.slice.call(document.querySelectorAll(".film-rate-pick"));
 
   /* Whatever was stored, the nearest step — a number from a version of this table that
      no longer exists is snapped rather than obeyed, and anything else is the pace it was
@@ -10766,6 +10741,10 @@ var targumReader = function () {
     } catch (e) {}
     var i = RATES.indexOf(rate);
     if (rateNow) rateNow.textContent = rate + "×";
+    if (filmRateNow) filmRateNow.textContent = rate + "×";
+    ratePicks.forEach(function (pick) {
+      pick.setAttribute("aria-pressed", parseFloat(pick.getAttribute("data-rate")) === rate ? "true" : "false");
+    });
     // aria-disabled rather than disabled: a disabled button drops the keyboard focus that
     // was on it, and the reader who just pressed it is still standing there.
     if (slower) slower.setAttribute("aria-disabled", i === 0 ? "true" : "false");
@@ -10812,7 +10791,10 @@ var targumReader = function () {
      recording was to press the line said there — which works on a dialogue, where every
      line has a button, and not at all on an hour of prose read straight through.
      Dragging it is the one gesture every player on earth has already taught. */
-  var trackEl = player && player.querySelector(".player-track");
+  // The strip's, and the one under the picture (#422): the same slider twice.
+  var trackEls = Array.prototype.slice.call(document.querySelectorAll(".player-track, .film-track"));
+  // Said to by the picture's own code further down, once it has been set up.
+  var filmPaint = null;
 
   function span() {
     var length = audio.duration;
@@ -10831,20 +10813,19 @@ var targumReader = function () {
     // The bar's player (#421): the same line, thinner, and only where the voice is.
     if (barFill) barFill.style.inlineSize = (now / length) * 100 + "%";
     if (barClock) barClock.textContent = clocked(now);
-    if (trackEl) {
+    trackEls.forEach(function (trackEl) {
       trackEl.setAttribute("aria-valuemax", String(Math.floor(length)));
       trackEl.setAttribute("aria-valuenow", String(Math.floor(now)));
       // The clock and not the percentage: "four ten of nine twenty" is where you are,
       // and "forty-six percent" is arithmetic about where you are.
       trackEl.setAttribute("aria-valuetext", clocked(now) + " of " + clocked(length));
-    }
-    caption(saidAt(now));
+    });
+    if (filmPaint) filmPaint(now, length);
+    caption(heldAt(now));
   }
 
   /* Which line the voice is inside, or none: `at` below answers with the first line
-     where this answers with nothing, and the difference is the whole of a subtitle.
-     A caption that holds the last line up over a silence is telling the reader the
-     voice is still saying it. */
+     where this answers with nothing. */
   function saidAt(seconds) {
     for (var i = 0; i < order.length; i++) {
       if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
@@ -10852,16 +10833,21 @@ var targumReader = function () {
     return null;
   }
 
-  /* The line, over the picture. Copied out of the pair it belongs to rather than
-     carried a second time in the page: a subtitle is never a translation the reader
-     cannot also read in place, and the form it is copied in is the form the reader
-     chose — pointed, plain or unaccented — because a caption in a form they turned off
-     is the page arguing with them. */
-  var titles = document.querySelector(".video-titles");
-  var titleSrc = titles && titles.querySelector(".video-src");
-  var titleTr = titles && titles.querySelector(".video-tr");
-  var saidNow = null;
+  /* The line under the picture (targum-internal#422): the last one the voice has begun,
+     held through the silence after it, or the first before anything has been said. It is
+     a line of the transcript set large, not a caption over a film, so it stays put while
+     nothing is said rather than blinking out between sentences. */
+  function heldAt(seconds) {
+    var held = order.length ? order[0].id : null;
+    for (var i = 0; i < order.length; i++) {
+      if (seconds >= order[i].start) held = order[i].id;
+      else break;
+    }
+    return held;
+  }
 
+  /* The form of a line the reader has on show — pointed, plain or unaccented — because a
+     line in a form they turned off is the page arguing with them. */
   function shownForm(pair) {
     var forms = pair.querySelectorAll(".src");
     for (var i = 0; i < forms.length; i++) {
@@ -10872,19 +10858,10 @@ var targumReader = function () {
     return forms[0] || null;
   }
 
+  // Drawn by the picture's own code, further down, where there is a picture.
+  var filmCaption = null;
   function caption(id) {
-    if (!titles || id === saidNow) return;
-    saidNow = id;
-    var pair = id ? document.querySelector('.pair[data-id="' + id + '"]') : null;
-    if (!pair) {
-      titles.classList.remove("saying");
-      return;
-    }
-    var form = shownForm(pair);
-    var tr = pair.querySelector(".tr");
-    if (titleSrc) titleSrc.textContent = form ? form.textContent : "";
-    if (titleTr) titleTr.textContent = tr ? tr.textContent : "";
-    titles.classList.add("saying");
+    if (filmCaption) filmCaption(id);
   }
 
   /* Moving the voice. A single line that was running stops being a single line — the
@@ -10913,7 +10890,7 @@ var targumReader = function () {
     keepHeard();
   }
 
-  if (trackEl) {
+  trackEls.forEach(function (trackEl) {
     var dragging = false;
     var along = function (event) {
       var box = trackEl.getBoundingClientRect();
@@ -10964,13 +10941,14 @@ var targumReader = function () {
       event.stopPropagation();
       seek(to);
     });
-  }
+  });
 
   /* A step either side. One word where the recording was aligned word by word, five
      seconds where it was not — and the label says which, because a control whose size
      changes silently is a control that lies. */
-  var stepBack = player && player.querySelector(".player-back");
-  var stepOn = player && player.querySelector(".player-on");
+  // The strip's, and ⋯'s for while the picture is up (#422).
+  var stepBacks = Array.prototype.slice.call(document.querySelectorAll(".player-back, .more-back"));
+  var stepOns = Array.prototype.slice.call(document.querySelectorAll(".player-on, .more-on"));
   var wordStarts = null;
 
   function starts() {
@@ -11012,18 +10990,18 @@ var targumReader = function () {
      and the labels follow whichever is playing. */
   function labelSteps() {
     var byWord = starts().length > 0;
-    if (stepBack) {
+    stepBacks.forEach(function (stepBack) {
       stepBack.setAttribute("aria-label", byWord ? "Back a word" : "Back five seconds");
       stepBack.setAttribute("title", byWord ? "Back a word" : "Back five seconds");
-    }
-    if (stepOn) {
+    });
+    stepOns.forEach(function (stepOn) {
       stepOn.setAttribute("aria-label", byWord ? "Forward a word" : "Forward five seconds");
       stepOn.setAttribute("title", byWord ? "Forward a word" : "Forward five seconds");
-    }
+    });
   }
   labelSteps();
-  if (stepBack) stepBack.addEventListener("click", function () { stepBy(true); });
-  if (stepOn) stepOn.addEventListener("click", function () { stepBy(false); });
+  stepBacks.forEach(function (key) { key.addEventListener("click", function () { stepBy(true); }); });
+  stepOns.forEach(function (key) { key.addEventListener("click", function () { stepBy(false); }); });
 
   /* Where the reader had got to, kept across the door. Per text, like the closed player
      and the shut picture; capped and pruned like `targum:place` further up, because a
@@ -11134,17 +11112,19 @@ var targumReader = function () {
   /* Hear first (targum-internal#265). A switch and nothing more: off each time the page
      opens, written nowhere, and said in words when it moves. Pressing it off mid-line
      brings the text back at once rather than making the reader wait out the sentence. */
-  if (hearFirst) {
-    hearFirst.addEventListener("click", function () {
-      var on = hearFirst.getAttribute("aria-pressed") !== "true";
-      hearFirst.setAttribute("aria-pressed", on ? "true" : "false");
+  hearFirsts.forEach(function (key) {
+    key.addEventListener("click", function () {
+      var on = key.getAttribute("aria-pressed") !== "true";
+      hearFirsts.forEach(function (each) {
+        each.setAttribute("aria-pressed", on ? "true" : "false");
+      });
       if (!on && hearing) { hearing.classList.remove("hearing"); hearing = null; }
       var reader = window.TargumReader;
       if (reader && reader.say) {
         reader.say(on ? "Hear first. Press a line to hear it before you see it." : "Hear first is off.");
       }
     });
-  }
+  });
 
   /* Word by word (targum-internal#265, step 2). A line played on its own lights each of
      its words as the voice reaches it, where the recording was aligned word by word — the
@@ -11165,7 +11145,7 @@ var targumReader = function () {
   // The word on show whose letters a clock covers. Only the source cell: the cells not on
   // show hold no words, and an Onkelos cell's offsets are its own.
   function wordAt(id, from, to) {
-    var pair = document.querySelector('.pair[data-id="' + CSS.escape(id) + '"]');
+    var pair = document.querySelector('#reader .pair[data-id="' + CSS.escape(id) + '"]');
     if (!pair) return null;
     var words = pair.querySelectorAll(".src .w[data-bare]");
     for (var i = 0; i < words.length; i++) {
@@ -11324,9 +11304,6 @@ var targumReader = function () {
     // Every stop the reader can cause arrives here: the play button, the space bar, the
     // tab going to the background, the end of the text.
     element.addEventListener("pause", keepHeard);
-    // A text that has finished is not saying anything. Pausing keeps the line up —
-    // stopping to read it is why anyone pauses — but running off the end takes it down.
-    element.addEventListener("ended", function () { caption(null); });
   }
   wire(audio);
 
@@ -11436,17 +11413,18 @@ var targumReader = function () {
     }
 
     function bringUp() {
-      if (!player.hidden) return;
+      // Not while the picture is up: its own controls are the transport then (#422).
+      if (!player.hidden || (videoBox && !videoBox.hidden)) return;
       player.hidden = false;
       standing(true);
       remeasure();
     }
 
     // Only where the bar carries Listen, which is every page that has a recording; a
-    // page built before the bar did keeps its strip standing. And not under a picture: a
-    // text with video opens as its video (§1), with the strip as the picture's transport
-    // and the way the picture comes back once it is put away, so there it still stands.
-    var listenFirst = scenes.length > 1 && !videoEl;
+    // page built before the bar did keeps its strip standing. A text with a picture is
+    // the same since #422: while the picture is up the controls under it play it, and
+    // once it is put away the page is an audio reader, with Listen and this strip.
+    var listenFirst = scenes.length > 1;
     if (listenFirst) {
       player.hidden = true;
       remeasure();
@@ -11553,367 +11531,494 @@ var targumReader = function () {
     if (keptRecording && keptRecording !== recordings[0].key) useRecording(keptRecording, false);
   }
 
-  /* The picture, on when the text opens and put away by hand. A text that carries media
-     opens as its media (design.md §1, §12, 2026-09-03): the default reversed after the
-     first stranger was shown a page with a recording and never found out it could be
-     heard. The toggle still only decides whether the picture is on the page, never
-     whether anything sounds — nothing plays until pressed, which is the half of the old
-     rule that survived. Kept per text, like the closed player, but stored the other way
-     up: the store now records that a reader put the picture away, because the thing
-     worth remembering is the departure from the default and not the default itself. On a
-     narrow window the panel is an occupant of the band, one at a time with the sheet and
-     the cards. */
+  /* The picture and its transcript (targum-internal#422, David, 2026-10-05; design.md
+     §12). A text that carries a video opens with its picture up, in one of two ways of
+     standing that the reader chooses in the bar and that are kept per reader, like the
+     speed: Beside — the picture at the left, one thin row of controls under it, and the
+     transcript beside it following the voice — and Theatre — the picture large, the
+     line being said under it with its words tappable, and the transcript a panel one
+     press away. While it plays, all of that but the picture, the line of where the voice
+     is and the line being said steps back; a pause, the pointer or a key brings it back.
+     On a phone the picture stands above its controls and the transcript runs under it.
+
+     It replaced a picture that stood in a corner, could be picked up, moved and sized,
+     and went full screen with a second floating transport over it. The picture can
+     still be put away — under ⋯ — and then the page is an audio reader, with Listen and
+     the strip; and full screen is the browser's, under ⋯ as on every text.
+
+     Whether the picture is up is kept per text, the way it was (`targum:video-shut:`,
+     recording a reader who put it away). The old stores of how it stood — the corner,
+     the place, the size, full screen — are left where they are and read by nothing. */
   if (videoBox && videoEl) {
+    var body = document.body;
     var flips = Array.prototype.slice.call(document.querySelectorAll("[data-video]"));
-    /* A new key, not the old one inverted: `targum:video-open` meant "this reader opened
-       the picture", and reading those stored 1s as "put it away" would shut the panel for
-       exactly the readers who liked it. The old key is left where it is and ignored. */
     var VIDEO_STORE = "targum:video-shut:" + spokenOf;
+    //: Beside or Theatre, kept per reader rather than per text: how somebody likes to
+    //: watch is a fact about them, like the speed and the type size.
+    var VIEW_STORE = "targum:film-view";
+    var VIEWS = ["beside", "theatre"];
+    var viewKeys = Array.prototype.slice.call(document.querySelectorAll("[data-film-view]"));
+    var filmCtl = videoBox.querySelector(".film-ctl");
+    var filmPlay = videoBox.querySelector(".film-play");
+    var filmFill = videoBox.querySelector(".film-fill");
+    var filmLine = videoBox.querySelector(".film-line");
+    var filmAt = videoBox.querySelector(".film-at");
+    var filmLength = videoBox.querySelector(".film-length");
+    var filmLengthSaid = videoBox.querySelector(".film-length-said");
+    var loopKey = videoBox.querySelector(".film-loop");
+    var transcriptKey = videoBox.querySelector(".film-transcript");
+    var panelHead = document.getElementById("film-panel-head");
+    var panelShut = panelHead ? panelHead.querySelector(".film-panel-close") : null;
+    var sub = document.getElementById("film-sub");
+    var subBefore = sub ? sub.querySelector(".film-before") : null;
+    var subNow = sub ? sub.querySelector(".film-now") : null;
+    var subTr = sub ? sub.querySelector(".film-tr") : null;
+    var subAfter = sub ? sub.querySelector(".film-after") : null;
+    var card = document.getElementById("gloss-card");
+    var wideFilm = window.matchMedia("(min-width: 60.01rem)");
+    var S = window.TargumStrings || {
+      t: function (key, english) {
+        return english;
+      },
+    };
+    //: The transcript beside a large picture, in pixels: the panel's width in the CSS.
+    var PANEL = 420;
+    var view = "beside";
+    var panel = false;
 
-    var revideo = function () {
+    var filmUp = function () {
+      return !videoBox.hidden;
+    };
+    var say = function (text) {
       var reader = window.TargumReader;
-      if (reader && reader.relayout) reader.relayout();
+      if (reader && reader.say && text) reader.say(text);
+    };
+    var relay = function (held) {
+      var reader = window.TargumReader;
+      if (reader && reader.relayout) reader.relayout(held);
+    };
+    // The line a reader is on under the picture: the first whose foot is below it.
+    var lineUnder = function () {
+      var top = videoBox.getBoundingClientRect().bottom;
+      var lines = document.querySelectorAll("#reader .pair");
+      for (var i = 0; i < lines.length; i++) {
+        if (!lines[i].getClientRects().length) continue;
+        if (lines[i].getBoundingClientRect().bottom > top + 20) return lines[i];
+      }
+      return null;
+    };
+    var look = function () {
+      var reader = window.TargumReader;
+      if (reader && reader.look) reader.look();
     };
 
-    /* Watching or reading, and which corner the picture stands in while the reader
-       reads. Two stores, kept the two different ways for the two different reasons the
-       rate and the shut picture are: what the picture is doing is a fact about this
-       text, and where a reader likes it to stand is a fact about the reader, like the
-       type size. The mode store records the departure, so the default can move again
-       without reading old rows backwards.
-
-       And it moved (design.md §12, 2026-09-17): a video text opens as its transcript
-       now, so the departure is watching rather than reading. That inverts what the store
-       means, which is exactly the bug this file has already had once — see
-       `targum:video-open` above. So the key is new, `targum:video-watch:`, a 1 means
-       "this reader chose full screen here", and the old key is left where it is and
-       ignored. Inverting it in place would have opened full screen for precisely the
-       readers who had asked for the opposite. */
-    var WATCH_STORE = "targum:video-watch:" + spokenOf;
-    var CORNER_STORE = "targum:video-corner";
-    var CORNERS = ["bottom-end", "bottom-start", "top-start", "top-end"];
-    var SAID_CORNER = {
-      "bottom-end": "Bottom, reading end.",
-      "bottom-start": "Bottom, reading start.",
-      "top-start": "Top, reading start.",
-      "top-end": "Top, reading end.",
+    /* The film's shape: off the file once it is known, off what the build measured
+       before then, and 16:9 failing both. */
+    var shape = function () {
+      var wide = videoEl.videoWidth;
+      var high = videoEl.videoHeight;
+      if (wide && high) return wide / high;
+      var built = (videoBox.getAttribute("data-film") || "").split(" / ");
+      var w = parseFloat(built[0]);
+      var h = parseFloat(built[1]);
+      return w > 0 && h > 0 ? w / h : 16 / 9;
     };
-    var modeKey = videoBox.querySelector(".video-mode");
-    var cornerKey = videoBox.querySelector(".video-corner");
-    var watching = false;
-    /* Where the transport lives when it is not over the picture. Held rather than
-       looked up, because putting it back has to put it back exactly: the player is a
-       sibling of the pairs and the order it is in decides what Tab reaches after it. */
-    var playerHome = player ? player.parentNode : null;
-    var playerNext = player ? player.nextSibling : null;
 
-    var showWatch = function (on, chosen) {
-      if (videoDead || videoBox.hidden) on = false;
-      watching = !!on;
-      videoBox.classList.toggle("watching", watching);
-      document.body.classList.toggle("watching", watching);
-      if (modeKey) {
-        modeKey.setAttribute("aria-pressed", watching ? "true" : "false");
-        // What pressing it does, not what the page is doing: a button labelled with the
-        // state it is in is a button nobody can predict.
-        var next = watching ? "Show the transcript" : "Watch full screen";
-        modeKey.setAttribute("aria-label", next);
-        modeKey.setAttribute(
-          "title",
-          (watching ? "Minimise and show the transcript" : "Watch full screen") + " (v)"
-        );
-        // And in words beside the glyph (2026-09-14): where pressing it goes.
-        var word = modeKey.querySelector(".video-word");
-        if (word) word.textContent = watching ? "Transcript" : "Full screen";
+    /* How big the picture is, worked out rather than left to the stylesheet, because it
+       answers to the window's height as well as its width and to the film's own shape:
+       a reel beside its transcript is a narrow column, and the transcript has the rest.
+       Said to the stylesheet as `--film-w`, the picture's width, and `--film-col`, the
+       width of the column the picture stands in — which the transcript is laid out
+       beside. Under 60rem the stylesheet has it: the picture is the window's width. */
+    var fit = function () {
+      var root = document.documentElement.style;
+      if (!filmUp() || !wideFilm.matches) {
+        root.removeProperty("--film-w");
+        root.removeProperty("--film-col");
+        return;
       }
-      /* One transport, moved rather than copied. Item 4 of the note asked that the two
-         players never be on screen together, and the honest reading of that on a page
-         with one media element and one strip is that the strip belongs to whichever
-         surface is showing. Moved, so the speed, the place and the bar are the ones the
-         reader already had — a second set of controls would be a second state to keep
-         in step, which is the bug the note was describing. */
-      if (player && playerHome) {
-        if (watching) videoBox.appendChild(player);
-        else if (player.parentNode !== playerHome) playerHome.insertBefore(player, playerNext);
+      var W = document.documentElement.clientWidth || window.innerWidth;
+      var H = window.innerHeight;
+      var bar = document.querySelector(".bar");
+      var top = bar ? bar.getBoundingClientRect().height : 56;
+      var ratio = shape();
+      var w;
+      var col;
+      // The word list, where a reader has it open, is a column at the window's edge.
+      var list = document.getElementById("list");
+      var listed = list && !list.hidden && body.classList.contains("list-open") ? 240 : 0;
+      if (view === "theatre") {
+        var area = (panel ? W - PANEL : W) - listed;
+        // Room under it for the controls and three lines of the transcript.
+        w = Math.min(area - 160, 1120, (H - top - 300) * ratio);
+        col = panel ? W - PANEL : 0;
+      } else {
+        // Room under it for the controls and the lines that say what it is.
+        w = Math.min((W - listed) * 0.6 - 80, (H - top - 210) * ratio);
+        col = w + 80;
       }
+      w = Math.max(160, Math.round(w));
+      root.setProperty("--film-w", w + "px");
+      root.setProperty("--film-col", Math.round(Math.max(col, 0)) + "px");
+    };
+
+    /* --- the line under the picture -------------------------------------------- */
+
+    /* Copied out of the transcript as the clock reaches it, words and all: the same
+       spans with the same levels, inside a holder that answers to the line's id, so a
+       tap on one opens the same card a tap in the transcript does. The transcript draws
+       its words only where they are on screen, so the line is drawn first. When the
+       transcript redraws a line — a word just marked known — the copy follows. */
+    var subFor = null;
+    var subWatch = null;
+    var plainOf = function (pair) {
+      var form = pair ? shownForm(pair) : null;
+      return form ? form.textContent.replace(/[⁦-⁩]/g, "").trim() : "";
+    };
+    var neighbour = function (id, by) {
+      for (var i = 0; i < order.length; i++) {
+        if (order[i].id === id) {
+          var next = order[i + by];
+          return next ? document.querySelector('#reader .pair[data-id="' + CSS.escape(next.id) + '"]') : null;
+        }
+      }
+      return null;
+    };
+    var copyLine = function (pair) {
+      if (!subNow) return;
+      var form = shownForm(pair);
+      var holder = document.createElement("div");
+      // Its own class rather than `pair`, so nothing that walks the transcript counts it;
+      // the card's helpers answer to both.
+      holder.className = "film-pair";
+      holder.setAttribute("data-id", pair.getAttribute("data-id"));
+      if (form) {
+        var copy = form.cloneNode(true);
+        copy.removeAttribute("id");
+        Array.prototype.forEach.call(copy.querySelectorAll(".voiced-now, .looked-up, .queued"), function (w) {
+          w.classList.remove("voiced-now", "looked-up", "queued");
+          w.removeAttribute("tabindex");
+          w.removeAttribute("aria-describedby");
+        });
+        holder.appendChild(copy);
+      }
+      // A word looked up from here stays marked while its card is up (C).
+      var was = subNow.querySelector(".w.looked-up");
+      var kept = was ? was.getAttribute("data-bare") : null;
+      subNow.textContent = "";
+      subNow.appendChild(holder);
+      if (kept) {
+        var again = holder.querySelector('.w[data-bare="' + kept + '"]');
+        if (again) again.classList.add("looked-up");
+      }
+      subLit = null;
+    };
+    var drawSub = function (id) {
+      if (!sub) return;
+      var pair = id ? document.querySelector('#reader .pair[data-id="' + CSS.escape(id) + '"]') : null;
+      if (subFor) subFor.classList.remove("film-said");
+      if (subWatch) subWatch.disconnect();
+      subFor = pair;
+      sub.classList.toggle("empty", !pair);
+      if (!pair) {
+        if (subNow) subNow.textContent = "";
+        if (subTr) subTr.textContent = "";
+        if (subBefore) subBefore.textContent = "";
+        if (subAfter) subAfter.textContent = "";
+        return;
+      }
+      pair.classList.add("film-said");
+      var reader = window.TargumReader;
+      if (reader && reader.draw) reader.draw(pair);
+      copyLine(pair);
+      var said = plainOf(pair).length;
+      sub.setAttribute("data-long", said > 170 ? "2" : said > 85 ? "1" : "0");
+      var tr = pair.querySelector(".tr");
+      if (subTr) subTr.textContent = tr ? tr.textContent.replace(/[⁦-⁩]/g, "").trim() : "";
+      if (subBefore) subBefore.textContent = plainOf(neighbour(id, -1));
+      if (subAfter) subAfter.textContent = plainOf(neighbour(id, 1));
+      if (window.MutationObserver) {
+        var pending = false;
+        subWatch = new MutationObserver(function () {
+          if (pending) return;
+          pending = true;
+          requestAnimationFrame(function () {
+            pending = false;
+            if (subFor === pair) copyLine(pair);
+          });
+        });
+        Array.prototype.forEach.call(pair.querySelectorAll(".src"), function (cell) {
+          subWatch.observe(cell, { childList: true });
+        });
+      }
+    };
+    var subId = null;
+    filmCaption = function (id) {
+      // The transcript lights the line held as well, paused or playing: moving the voice
+      // with the picture up moves the lit line with it.
+      if (id && filmUp() && !playing) mark(id);
+      if (id === subId) return;
+      subId = id;
+      drawSub(id);
+    };
+
+    /* --- the word being said ----------------------------------------------------- */
+
+    /* Lit where the recording was aligned word by word, in the transcript and in the
+       line under the picture at once, read off the clocks every frame while it plays:
+       `timeupdate` comes four times a second and would light a short word late or not
+       at all. Where there are no clocks, or no words, nothing is lit. */
+    var tLit = null;
+    var subLit = null;
+    var ticking = 0;
+    var loopSpan = null;
+
+    var unlightFilm = function () {
+      if (tLit) tLit.classList.remove("voiced-now");
+      if (subLit) subLit.classList.remove("voiced-now");
+      tLit = null;
+      subLit = null;
+    };
+    var wordNow = function (now) {
+      var id = saidAt(now);
+      if (!id) return null;
+      var rows = wordClocks[id];
+      if (!rows) return null;
+      for (var i = 0; i < rows.length; i++) {
+        if (now >= rows[i][2] && now < rows[i][3]) return { id: id, from: rows[i][0], to: rows[i][1] };
+      }
+      return null;
+    };
+    var inCopy = function (from, to) {
+      if (!subNow) return null;
+      var words = subNow.querySelectorAll(".w[data-bare]");
+      for (var i = 0; i < words.length; i++) {
+        var bare = words[i].getAttribute("data-bare").split(",");
+        if (parseInt(bare[0], 10) < to && parseInt(bare[1], 10) > from) return words[i];
+      }
+      return null;
+    };
+    var tick = function () {
+      ticking = 0;
+      if (!filmUp() || audio.paused) {
+        unlightFilm();
+        return;
+      }
+      var now = audio.currentTime;
+      // Loop this line: back to its start the moment the voice leaves it.
+      if (loopSpan && (now >= loopSpan[1] || now < loopSpan[0] - 0.5)) {
+        try {
+          audio.currentTime = loopSpan[0];
+        } catch (e) {}
+        now = loopSpan[0];
+      }
+      var at = wordNow(now);
+      var t = at ? wordAt(at.id, at.from, at.to) : null;
+      var c = at && subFor && subFor.getAttribute("data-id") === at.id ? inCopy(at.from, at.to) : null;
+      if (t !== tLit) {
+        if (tLit) tLit.classList.remove("voiced-now");
+        tLit = t;
+        if (tLit) tLit.classList.add("voiced-now");
+      }
+      if (c !== subLit) {
+        if (subLit) subLit.classList.remove("voiced-now");
+        subLit = c;
+        if (subLit) subLit.classList.add("voiced-now");
+      }
+      ticking = requestAnimationFrame(tick);
+    };
+    var startTicking = function () {
+      if (!ticking && window.requestAnimationFrame) ticking = requestAnimationFrame(tick);
+    };
+
+    /* --- the row under the picture ---------------------------------------------- */
+
+    filmPaint = function (now, length) {
+      if (filmFill) filmFill.style.inlineSize = (now / length) * 100 + "%";
+      if (filmAt) filmAt.textContent = clocked(now);
+      if (filmLength) filmLength.textContent = clocked(length);
+      if (filmLengthSaid && !filmLengthSaid.textContent) filmLengthSaid.textContent = clocked(length);
+      // The faint band on the line is the line being said — or held, while it loops.
+      var id = loopSpan ? null : heldAt(now);
+      var band = loopSpan || (id && spans[id]) || null;
+      if (filmLine) {
+        filmLine.hidden = !band;
+        if (band) {
+          filmLine.style.insetInlineStart = (band[0] / length) * 100 + "%";
+          filmLine.style.inlineSize = (Math.max(0, band[1] - band[0]) / length) * 100 + "%";
+        }
+      }
+    };
+
+    var loop = function (on) {
+      if (on) {
+        var id = heldAt(audio.currentTime);
+        loopSpan = id && spans[id] ? spans[id].slice() : null;
+        if (!loopSpan) on = false;
+      } else {
+        loopSpan = null;
+      }
+      if (loopKey) loopKey.setAttribute("aria-pressed", on ? "true" : "false");
+      say(on ? S.t("reader.film.looping", "Looping this line.") : S.t("reader.film.not-looping", "Not looping."));
+      if (on && !audio.paused) startTicking();
+      paint();
+    };
+    if (loopKey) {
+      loopKey.addEventListener("click", function () {
+        loop(loopKey.getAttribute("aria-pressed") !== "true");
+      });
+    }
+
+    // The speed's six picks, from "1× ▾". The panel shuts itself and hands focus back.
+    ratePicks.forEach(function (pick) {
+      pick.addEventListener("click", function () {
+        setRate(pick.getAttribute("data-rate"), true);
+        var shut = document.querySelector('[data-pop-close="rates"]');
+        if (shut) shut.click();
+      });
+    });
+
+    /* --- how it stands ------------------------------------------------------------ */
+
+    /* The transcript follows the voice. Beside, the line being said is kept in the top
+       third of the column, so what is coming is under it; on a phone, in the top third of
+       what the picture leaves. Only when it has left that stretch: a reader who scrolled
+       to look back is not pulled away for every line, only once the voice has gone on
+       past what they can see. Under a large picture with the transcript put away there
+       is nothing to scroll. */
+    var stepped = false;
+    filmFollow = function (pair) {
+      if (!filmUp()) return false;
+      if (view === "theatre" && !panel && wideFilm.matches) return true;
+      // Only a voice that is running, or a line stepped to: a reader paging through the
+      // transcript with nothing playing keeps their place when the picture comes up.
+      if (audio.paused && !stepped) return true;
+      var top = 0;
+      var bar = document.querySelector(".bar");
+      if (bar) top = bar.getBoundingClientRect().bottom;
+      if (!wideFilm.matches) top = Math.max(top, videoBox.getBoundingClientRect().bottom);
+      if (panel && panelHead && !panelHead.hidden) top = Math.max(top, panelHead.getBoundingClientRect().bottom);
+      var room = window.innerHeight - top;
+      var box = pair.getBoundingClientRect();
+      if (box.top >= top + 8 && box.bottom <= top + room * 0.72) return true;
+      var to = window.scrollY + box.top - top - room * 0.22;
+      window.scrollTo({ top: Math.max(0, to), behavior: behaviour() });
+      return true;
+    };
+
+    var place = function (held) {
+      var up = filmUp();
+      // A phone has one way of standing, the picture above its transcript, whatever was
+      // chosen on a wide window; the choice waits for the window to be wide again.
+      var standing = wideFilm.matches ? view : "beside";
+      body.classList.toggle("film", up);
+      body.classList.toggle("film-beside", up && standing === "beside");
+      body.classList.toggle("film-theatre", up && standing === "theatre");
+      body.classList.toggle("film-panel", up && standing === "theatre" && panel);
+      viewKeys.forEach(function (key) {
+        key.setAttribute("aria-pressed", key.getAttribute("data-film-view") === view ? "true" : "false");
+      });
+      if (transcriptKey) transcriptKey.setAttribute("aria-pressed", panel ? "true" : "false");
+      if (panelHead) panelHead.hidden = !(up && standing === "theatre" && panel);
+      fit();
+      relay(held);
+      look();
+      watchList();
+      // The line being said, brought into what can now be seen of the transcript.
+      var now = marked || (subFor && subFor.parentNode ? subFor : null);
+      if (up && now && filmFollow) filmFollow(now);
+    };
+
+    var setView = function (name, chosen) {
+      if (VIEWS.indexOf(name) < 0) return;
+      view = name;
+      if (view !== "theatre") panel = false;
       if (chosen) {
         try {
-          // The store records the departure, and the departure is watching now.
-          if (watching) targumKeep(WATCH_STORE, "1");
-          else targumForget(WATCH_STORE);
+          targumKeep(VIEW_STORE, view);
         } catch (e) {}
-        var reader = window.TargumReader;
-        if (reader && reader.say) reader.say(watching ? "Watching." : "Reading.");
+        say(view === "theatre" ? S.t("reader.film.theatre-said", "Theatre.") : S.t("reader.film.beside-said", "Beside."));
       }
-      // The subtitle is written by the clock, and the clock has not moved: ask for it
-      // again so a mode entered mid-sentence opens with the sentence on it.
-      saidNow = null;
-      caption(saidAt(audio.currentTime));
-      applyPlace();
-      revideo();
+      place();
     };
-
-    var setCorner = function (name, chosen) {
-      CORNERS.forEach(function (each) {
-        videoBox.classList.toggle("dock-" + each, each === name);
-      });
-      if (cornerKey) cornerKey.setAttribute("data-corner", name);
-      if (chosen) {
-        try { targumKeep(CORNER_STORE, name); } catch (e) {}
-        var reader = window.TargumReader;
-        if (reader && reader.say) reader.say(SAID_CORNER[name] || "");
-      }
-      applyPlace();
-      revideo();
+    var setPanel = function (open) {
+      if (view !== "theatre") return;
+      panel = !!open;
+      place();
+      say(panel ? S.t("reader.film.transcript-said", "Transcript.") : S.t("reader.film.transcript-shut", "Transcript closed."));
     };
-
-    /* Picked up (design.md §12, 2026-09-13). On a wide window the picture can be moved
-       anywhere by its grip and sized from its corner, and both are kept per device, like
-       the corner. Kept as fractions of the window rather than pixels, so a window made
-       smaller keeps the picture on it, and clamped each time they are drawn, so a
-       window made smaller still never loses it off an edge.
-
-       The dock stays the default and the start: nothing here is written until a reader
-       moves something, and the corner key clears the place and docks again. A picture
-       that has been put somewhere floats over the page and takes no room from it — the
-       reader put it where the text is not, and `room()` cutting the pages around a spot
-       they chose would be the layout second-guessing them. The size is kept through a
-       dock: a reader who wants a bigger picture wants it in the corner too.
-
-       Not on a phone. There the panel is full-bleed in the band and pulled down to
-       close; a drag would be a second meaning for the same thumb. The stores are left
-       alone there, so the window that grows wide again finds the picture where it was. */
-    var PLACE_STORE = "targum:video-place";
-    var SIZE_STORE = "targum:video-size";
-    var EDGE = 8;
-    var SMALLEST = 260;
-    var wide = window.matchMedia("(min-width: 60.01rem)");
-    var grip = videoBox.querySelector(".video-grip");
-    var sizer = videoBox.querySelector(".video-size");
-    var place = null;
-    var size = null;
-
-    var viewW = function () { return document.documentElement.clientWidth || window.innerWidth; };
-    var viewH = function () { return document.documentElement.clientHeight || window.innerHeight; };
-    var placeable = function () { return wide.matches && !watching; };
-    var rtl = function () { return getComputedStyle(videoBox).direction === "rtl"; };
-
-    /* Where the panel stands, written as logical insets from its physical box so the
-       page's direction mirrors it the way it mirrors the dock. Clamped to the window. */
-    var standAt = function (left, top) {
-      var box = videoBox.getBoundingClientRect();
-      var w = viewW();
-      var h = viewH();
-      left = Math.max(EDGE, Math.min(left, w - box.width - EDGE));
-      top = Math.max(EDGE, Math.min(top, h - box.height - EDGE));
-      var start = rtl() ? w - left - box.width : left;
-      videoBox.classList.add("free");
-      videoBox.style.insetInline = Math.round(start) + "px auto";
-      videoBox.style.insetBlock = Math.round(top) + "px auto";
-      return { start: start, top: top };
-    };
-
-    /* A width the window can hold: no narrower than a picture worth watching, no wider
-       than nine tenths of the window, and never taller than it. */
-    var sizeTo = function (width) {
-      var w = viewW();
-      var most = Math.min(w * 0.9, w - 2 * EDGE);
-      width = Math.max(Math.min(SMALLEST, most), Math.min(width, most));
-      videoBox.style.inlineSize = Math.round(width) + "px";
-      var box = videoBox.getBoundingClientRect();
-      var over = Math.max(0, EDGE - box.top) + Math.max(0, box.bottom - (viewH() - EDGE));
-      if (over && box.height) {
-        width = Math.max(Math.min(SMALLEST, most), width - (over * box.width) / box.height);
-        videoBox.style.inlineSize = Math.round(width) + "px";
-      }
-      return width;
-    };
-
-    var applyPlace = function () {
-      var style = videoBox.style;
-      if (!placeable()) {
-        videoBox.classList.remove("free");
-        style.insetInline = "";
-        style.insetBlock = "";
-        style.inlineSize = "";
-        return;
-      }
-      if (size) sizeTo(size * viewW());
-      else style.inlineSize = "";
-      if (!place) {
-        videoBox.classList.remove("free");
-        style.insetInline = "";
-        style.insetBlock = "";
-        return;
-      }
-      if (videoBox.hidden) {
-        videoBox.classList.add("free");
-        return;
-      }
-      var w = viewW();
-      var width = videoBox.getBoundingClientRect().width;
-      var start = place.x * w;
-      standAt(rtl() ? w - start - width : start, place.y * viewH());
-    };
-
-    var keepPlace = function () {
-      if (!place) return;
-      try { targumKeep(PLACE_STORE, JSON.stringify(place)); } catch (e) {}
-    };
-    var keepSize = function () {
-      if (!size) return;
-      try { targumKeep(SIZE_STORE, String(size)); } catch (e) {}
-    };
-    var placeFrom = function (at) {
-      place = { x: at.start / viewW(), y: at.top / viewH() };
-    };
-
-    /* While a pointer holds it, it follows the pointer and nothing else (§12,
-       2026-09-04): no transition is on it on a wide window, and the page is laid out
-       again only when it is let go of. */
-    var held = null;
-    var pickUp = function (event, kind) {
-      if (!placeable() || held) return;
-      if (event.pointerType === "mouse" && event.button !== 0) return;
-      var box = videoBox.getBoundingClientRect();
-      var handle = event.currentTarget.getBoundingClientRect();
-      held = {
-        kind: kind,
-        id: event.pointerId,
-        x: event.clientX,
-        y: event.clientY,
-        box: box,
-        // Which physical side the size key is on decides which way a pull widens.
-        pullsRight: handle.left + handle.width / 2 > box.left + box.width / 2,
-        moved: false,
-        on: event.currentTarget,
-      };
-      try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
-      videoBox.classList.add("moving");
-      event.preventDefault();
-    };
-    var follow = function (event) {
-      if (!held || event.pointerId !== held.id) return;
-      var dx = event.clientX - held.x;
-      var dy = event.clientY - held.y;
-      if (!held.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
-      held.moved = true;
-      if (held.kind === "move") standAt(held.box.left + dx, held.box.top + dy);
-      else sizeTo(held.box.width + (held.pullsRight ? dx : -dx));
-    };
-    var letGo = function (event) {
-      if (!held || event.pointerId !== held.id) return;
-      var was = held;
-      held = null;
-      videoBox.classList.remove("moving");
-      try { was.on.releasePointerCapture(event.pointerId); } catch (e) {}
-      if (!was.moved) return;
-      settle(was.kind);
-    };
-    var settle = function (kind) {
-      var box = videoBox.getBoundingClientRect();
-      if (kind === "move" || place) {
-        var w = viewW();
-        placeFrom({ start: rtl() ? w - box.right : box.left, top: box.top });
-        keepPlace();
-      }
-      if (kind === "size") {
-        size = box.width / viewW();
-        keepSize();
-      }
-      revideo();
-    };
-
-    [[grip, "move"], [sizer, "size"]].forEach(function (pair) {
-      var handle = pair[0];
-      if (!handle) return;
-      handle.addEventListener("pointerdown", function (event) { pickUp(event, pair[1]); });
-      handle.addEventListener("pointermove", follow);
-      handle.addEventListener("pointerup", letGo);
-      handle.addEventListener("pointercancel", letGo);
-      /* And by keyboard: the arrows move it, or size it, 16px a press and 64 with
-         Shift. Stopped here, so the page's own arrows do not turn a page as well. */
-      handle.addEventListener("keydown", function (event) {
-        var step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
-        if (!step || !placeable() || event.metaKey || event.ctrlKey || event.altKey) return;
-        event.preventDefault();
-        event.stopPropagation();
-        var by = event.shiftKey ? 64 : 16;
-        var box = videoBox.getBoundingClientRect();
-        if (pair[1] === "move") {
-          standAt(box.left + step[0] * by, box.top + step[1] * by);
-        } else {
-          // Right and up grow it, left and down shrink it, whichever corner it is in.
-          sizeTo(box.width + (step[0] || -step[1]) * by);
-        }
-        settle(pair[1]);
+    viewKeys.forEach(function (key) {
+      key.addEventListener("click", function () {
+        setView(key.getAttribute("data-film-view"), true);
       });
     });
+    if (transcriptKey) {
+      transcriptKey.addEventListener("click", function () {
+        setPanel(!panel);
+      });
+    }
+    if (panelShut) {
+      panelShut.addEventListener("click", function () {
+        setPanel(false);
+        if (transcriptKey && transcriptKey.getClientRects().length) transcriptKey.focus({ preventScroll: true });
+      });
+    }
 
-    var replace = function () {
-      applyPlace();
-      revideo();
+    // The word list opening or closing changes the room the picture has.
+    var listWatched = false;
+    var watchList = function () {
+      if (listWatched || !window.MutationObserver) return;
+      listWatched = true;
+      var was = body.classList.contains("list-open");
+      new MutationObserver(function () {
+        var now = body.classList.contains("list-open");
+        if (now === was) return;
+        was = now;
+        fit();
+      }).observe(body, { attributes: true, attributeFilter: ["class"] });
     };
-    if (wide.addEventListener) wide.addEventListener("change", replace);
-    else if (wide.addListener) wide.addListener(replace);
+    if (wideFilm.addEventListener) wideFilm.addEventListener("change", place);
+    else if (wideFilm.addListener) wideFilm.addListener(place);
+    var fitting = false;
     window.addEventListener("resize", function () {
-      if (placeable() && (place || size)) applyPlace();
+      if (fitting) return;
+      fitting = true;
+      requestAnimationFrame(function () {
+        fitting = false;
+        fit();
+      });
     });
+    videoEl.addEventListener("loadedmetadata", fit);
 
+    /* The picture up, or put away. Putting it away never stops the sound — the page
+       becomes the audio reader, and the strip comes up for a voice that is still
+       talking — and bringing it back puts the strip away again. */
     var showVideo = function (out, chosen) {
       if (videoDead) out = false;
+      var held = !out && !videoBox.hidden && !wideFilm.matches ? lineUnder() : null;
       videoBox.hidden = !out;
       flips.forEach(function (button) {
         button.setAttribute("aria-pressed", out ? "true" : "false");
       });
-      var reader = window.TargumReader;
-      if (out && reader && reader.occupy) reader.occupy("video");
-      if (!out && reader && reader.vacate) reader.vacate("video");
       if (chosen) {
         try {
           if (out) targumForget(VIDEO_STORE);
           else targumKeep(VIDEO_STORE, "1");
         } catch (e) {}
       }
-      // A picture that is not on the page is not being watched. The stored mode is left
-      // alone: putting the picture away and bringing it back should bring back the mode
-      // it was in, not the default.
-      if (!out && watching) showWatch(false, false);
-      applyPlace();
-      revideo();
-    };
-
-    /* How the band puts the picture away when something else takes its place, and how
-       the `v` key reaches a mode that lives inside this closure. */
-    window.TargumVideo = {
-      hide: function () { showVideo(false, false); },
-      /* The mirror of `hide`, for the band to give the picture back with. `chosen` is
-         false in both, so neither writes the store: a picture the band moved aside was
-         never a picture the reader closed, and it must not come back looking like one.
-         Refused if the film is dead or the reader really did shut it — `VIDEO_STORE`
-         holds that, and it outranks anything the band remembers. */
-      show: function () {
-        if (videoDead) return;
-        try {
-          /* Read the way the page reads it at load — there is no `targumRead`, and a
-             helper invented for one call is a helper nobody else will find. */
-          if (localStorage.getItem(VIDEO_STORE) === "1") return;
-        } catch (e) {}
-        showVideo(true, false);
-      },
-      /* Between the two modes. On a page whose picture is put away this brings it back
-         and watches — pressing "watch" and being told the picture is closed would be
-         the page refusing a thing it just offered. */
-      watch: function () {
-        if (videoDead) return false;
-        if (videoBox.hidden) {
-          showVideo(true, true);
-          showWatch(true, true);
-          return true;
+      if (player) {
+        if (out && !player.hidden) {
+          player.hidden = true;
+          body.classList.remove("has-player");
+        } else if (!out && !audio.paused && window.TargumPlayer && window.TargumPlayer.show) {
+          window.TargumPlayer.show();
         }
-        showWatch(!watching, true);
-        return true;
-      },
+      }
+      if (!out) {
+        unlightFilm();
+        quiet(false);
+      }
+      place(held);
     };
 
     flips.forEach(function (button) {
@@ -11921,39 +12026,142 @@ var targumReader = function () {
         showVideo(videoBox.hidden, true);
       });
     });
-    var shutVideo = videoBox.querySelector(".video-close");
-    if (shutVideo) {
-      shutVideo.addEventListener("click", function () { showVideo(false, true); });
-    }
-    if (modeKey) {
-      modeKey.addEventListener("click", function () { showWatch(!watching, true); });
-    }
-    if (cornerKey) {
-      cornerKey.addEventListener("click", function () {
-        /* Four corners on a window that has four. A phone has two: the panel is
-           full-bleed there, so `bottom-end` and `bottom-start` draw in exactly the same
-           place, and so do the two at the top — every second press moved nothing and the
-           button looked broken. Cycling only what the window can actually show means
-           every press does something the reader can see, which is the whole promise of a
-           toggle. The stored corner is untouched: a phone that becomes a wide window
-           again finds the corner it left. */
-        var ring = window.matchMedia("(min-width: 60.01rem)").matches
-          ? CORNERS
-          : ["bottom-end", "top-start"];
-        var at = ring.indexOf(cornerKey.getAttribute("data-corner"));
-        /* A picture that was picked up goes back to the corner it came from, and is
-           docked again: the first press is the way home, the next ones the ring. */
-        if (place && placeable()) {
-          place = null;
-          try { targumForget(PLACE_STORE); } catch (e) {}
-          setCorner(ring[Math.max(0, at)], true);
-          return;
+
+    /* --- C: it steps back while it plays ---------------------------------------- */
+
+    /* Playing, the bar and the controls fade, and what is left is the picture, a hairline
+       of where the voice is and the line being said. A pause brings them back, and so
+       does the pointer moving, a touch or a key; and nothing steps back while a panel or
+       a word's card is out, or while the keyboard is in the controls. `prefers-reduced-
+       motion` keeps the change and drops the fade. */
+    var QUIET_AFTER = 2500;
+    var quietWait = 0;
+    var keyboardIn = function () {
+      var on = document.activeElement;
+      if (!on || on === document.body) return false;
+      if (!videoBox.contains(on) && !(on.closest && on.closest(".bar"))) return false;
+      try {
+        return on.matches(":focus-visible");
+      } catch (e) {
+        return true;
+      }
+    };
+    var mayQuiet = function () {
+      if (!filmUp() || audio.paused) return false;
+      if (body.classList.contains("pop-open")) return false;
+      if (card && !card.hidden) return false;
+      if (filmCtl && filmCtl.matches(":hover")) return false;
+      return !keyboardIn();
+    };
+    var quiet = function (on) {
+      body.classList.toggle("film-quiet", !!on && mayQuiet());
+    };
+    var settle = function () {
+      clearTimeout(quietWait);
+      quietWait = setTimeout(function () {
+        quietWait = 0;
+        quiet(true);
+      }, QUIET_AFTER);
+    };
+    var wake = function () {
+      if (body.classList.contains("film-quiet")) body.classList.remove("film-quiet");
+      clearTimeout(quietWait);
+      quietWait = 0;
+      if (filmUp() && !audio.paused) settle();
+    };
+    ["pointermove", "pointerdown", "keydown", "touchstart", "wheel"].forEach(function (name) {
+      document.addEventListener(name, wake, { passive: true, capture: true });
+    });
+    document.addEventListener("targum:pop", wake);
+
+    /* --- a word, tapped -------------------------------------------------------- */
+
+    /* A word pressed while the voice runs stops it there: the card opens over the paused
+       frame, and the frame dims under it in Theatre (C). Captured, so the voice has
+       stopped before the card is drawn. */
+    document.addEventListener(
+      "click",
+      function (event) {
+        if (!filmUp() || audio.paused) return;
+        var word = event.target && event.target.closest ? event.target.closest(".w") : null;
+        if (!word) return;
+        if (!(sub && sub.contains(word)) && !word.closest("#reader")) return;
+        toggleScene();
+      },
+      true
+    );
+    if (card && window.MutationObserver) {
+      new MutationObserver(function () {
+        var up = !card.hidden && filmUp();
+        body.classList.toggle("film-card", up);
+        if (up) wake();
+        // The word stays marked in the line while its card is up, and lets go with it.
+        if (!up && subNow) {
+          Array.prototype.forEach.call(subNow.querySelectorAll(".w.looked-up"), function (w) {
+            w.classList.remove("looked-up");
+          });
         }
-        /* A corner the ring does not hold — a wide window's `top-end` met on a phone —
-           steps to the first rather than nowhere: `indexOf` gives -1, and -1 + 1 is 0. */
-        setCorner(ring[(at + 1) % ring.length], true);
-      });
+      }).observe(card, { attributes: true, attributeFilter: ["hidden"] });
     }
+
+    /* --- the keys ------------------------------------------------------------- */
+
+    /* A line at a time, from the keyboard: ↑ the line before, ↓ the line after, from
+       wherever the voice is, playing or not. In Theatre with the transcript put away
+       there are no words to walk, so ← → step lines as well, the way the page reads. */
+    var stepLine = function (by) {
+      if (!order.length) return;
+      var id = heldAt(audio.currentTime);
+      var i = 0;
+      for (var n = 0; n < order.length; n++) {
+        if (order[n].id === id) {
+          i = n;
+          break;
+        }
+      }
+      // Back from the middle of a line is the top of that line, as a player's back is.
+      if (by < 0 && audio.currentTime - order[i].start > 1.5) by = 0;
+      var to = order[Math.max(0, Math.min(order.length - 1, i + by))];
+      if (loopSpan) loopSpan = spans[to.id] ? spans[to.id].slice() : loopSpan;
+      stepped = true;
+      seek(to.start + 0.01);
+      if (!following) mark(to.id);
+      stepped = false;
+      var pair = document.querySelector('#reader .pair[data-id="' + CSS.escape(to.id) + '"]');
+      say(plainOf(pair));
+    };
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        if (!filmUp() || event.metaKey || event.ctrlKey || event.altKey) return;
+        var on = document.activeElement;
+        if (on && /^(INPUT|SELECT|TEXTAREA)$/.test(on.tagName)) return;
+        if (on && (on.isContentEditable || on.getAttribute("role") === "slider")) return;
+        if (body.classList.contains("pop-open")) return;
+        var by = 0;
+        if (event.key === "ArrowUp") by = -1;
+        else if (event.key === "ArrowDown") by = 1;
+        else if (view === "theatre" && !panel && wideFilm.matches && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+          var rtl = (document.documentElement.getAttribute("dir") || "ltr") === "rtl";
+          by = (event.key === "ArrowLeft") === rtl ? 1 : -1;
+        }
+        if (!by) return;
+        event.preventDefault();
+        event.stopPropagation();
+        stepLine(by);
+      },
+      true
+    );
+
+    /* The voice starts and stops. */
+    audio.addEventListener("play", function () {
+      startTicking();
+      if (filmUp()) settle();
+    });
+    audio.addEventListener("pause", function () {
+      unlightFilm();
+      wake();
+    });
 
     /* The sidecar did not travel — a reader folder copied without its video/, or a
        page opened somewhere the file is not. The player swaps to the inlined audio
@@ -11978,32 +12186,37 @@ var targumReader = function () {
       whenKnown(resume);
     });
 
-    /* On unless this reader put it away here before, and reading unless they asked for
-       full screen here before (design.md §12, 2026-09-17). Not `chosen` in either case,
-       so opening a text never writes a preference the reader did not express. The corner
-       is a fact about the reader and comes from wherever they last set it, on any text. */
+    /* How the `v` key reaches the switch, and how the playlist's end reaches the
+       transcript. */
+    window.TargumVideo = {
+      hide: function () {
+        showVideo(false, false);
+      },
+      turn: function () {
+        if (!filmUp()) return false;
+        setView(view === "beside" ? "theatre" : "beside", true);
+        return true;
+      },
+      view: function () {
+        return filmUp() ? view : "";
+      },
+      transcript: function (open) {
+        if (filmUp() && view === "theatre") setPanel(open);
+      },
+    };
+
+    /* On unless this reader put it away here before, and standing the way they last
+       chose on any text. Not `chosen`, so opening a text never writes a preference the
+       reader did not express. Inside a playlist the picture is the item (design.md §12,
+       2026-09-23): a reader who swiped into a reel came to watch it, so it opens in
+       Theatre whatever was kept, and writes nothing; `go` is the swipe that brought them
+       here, which was the press. Opened any other way, nothing plays. */
     var putAway = false;
-    var wantsFullScreen = false;
-    var where = CORNERS[0];
     try {
       putAway = localStorage.getItem(VIDEO_STORE) === "1";
-      wantsFullScreen = localStorage.getItem(WATCH_STORE) === "1";
-      var stored = localStorage.getItem(CORNER_STORE);
-      if (CORNERS.indexOf(stored) >= 0) where = stored;
-      /* Read with suspicion: a row from a later build, or a hand, may hold anything,
-         and a picture placed at NaN is a picture nobody can find. */
-      var kept = JSON.parse(localStorage.getItem(PLACE_STORE) || "null");
-      if (kept && isFinite(kept.x) && isFinite(kept.y)) {
-        place = { x: Math.min(1, Math.max(0, +kept.x)), y: Math.min(1, Math.max(0, +kept.y)) };
-      }
-      var keptSize = parseFloat(localStorage.getItem(SIZE_STORE));
-      if (keptSize > 0 && keptSize <= 1) size = keptSize;
+      var keptView = localStorage.getItem(VIEW_STORE);
+      if (VIEWS.indexOf(keptView) >= 0) view = keptView;
     } catch (e) {}
-    /* Inside a playlist the picture is the item (design.md §12, 2026-09-23): a reader
-       who swiped into a reel came to watch it. So it opens watching, whatever this
-       text's own stores say — and writes neither of them, so the text opened on its own
-       later still opens the way its reader left it. `go` is the swipe that brought the
-       reader here, which was the press; opened any other way, nothing plays. */
     var inList = false;
     var swipedHere = false;
     try {
@@ -12011,9 +12224,13 @@ var targumReader = function () {
       inList = /^https?:$/.test(location.protocol) && /^\d+$/.test(listed.get("list") || "");
       swipedHere = inList && listed.get("go") === "1";
     } catch (e) {}
-    setCorner(where, false);
+    if (inList) view = "theatre";
     showVideo(inList || !putAway, false);
-    showWatch(inList || (!putAway && wantsFullScreen), false);
+    drawSub(heldAt(audio.currentTime || 0));
+    subId = subFor ? subFor.getAttribute("data-id") : null;
+    whenKnown(function () {
+      paint();
+    });
     if (swipedHere) toggleScene();
   }
 
@@ -12023,30 +12240,30 @@ var targumReader = function () {
      The address is fixed in the markup and only the time is decided, at the click
      rather than on every tick, because an address that changes forty times a minute
      is one nobody can copy. The spans are into this part's own cut, which begins
-     `offset` seconds into the whole video; the two are added here. */
-  var home = document.querySelector("[data-home]");
+     `offset` seconds into the whole video; the two are added here. Two links since
+     #422: the row in ⋯, and "Watch on YouTube" under the picture. */
+  var homeOffset = Number(speech.offset) || 0;
+  var homeAt = function () {
+    // The line being spoken, then the one line playing, then the sentence in front
+    // of the reader — and failing all three, the whole video from its start.
+    var pair = marked || (playing && playing.closest(".pair"));
+    if (!pair) {
+      var reader = window.TargumReader;
+      pair = reader && reader.inFront ? reader.inFront() : null;
+    }
+    var id = pair ? pair.getAttribute("data-id") : "";
+    if (id && spans[id]) return homeOffset + spans[id][0];
+    return audio.currentTime ? homeOffset + audio.currentTime : 0;
+  };
   // Only an address that takes a time is given one. The "at" mark is YouTube's, and an
   // Instagram reel with `&t=` on the end is an address Instagram does not answer.
-  if (home && home.getAttribute("data-home") === "at") {
+  Array.prototype.forEach.call(document.querySelectorAll("[data-home=at]"), function (home) {
     var homeBase = home.getAttribute("href");
-    var homeOffset = Number(speech.offset) || 0;
-    var homeAt = function () {
-      // The line being spoken, then the one line playing, then the sentence in front
-      // of the reader — and failing all three, the whole video from its start.
-      var pair = marked || (playing && playing.closest(".pair"));
-      if (!pair) {
-        var reader = window.TargumReader;
-        pair = reader && reader.inFront ? reader.inFront() : null;
-      }
-      var id = pair ? pair.getAttribute("data-id") : "";
-      if (id && spans[id]) return homeOffset + spans[id][0];
-      return audio.currentTime ? homeOffset + audio.currentTime : 0;
-    };
     home.addEventListener("click", function () {
       var seconds = Math.max(0, Math.floor(homeAt()));
       home.href = homeBase + (seconds ? "&t=" + seconds + "s" : "");
     });
-  }
+  });
 
   /* Leaving the page mid-sentence should not leave a voice talking into an empty room. */
   document.addEventListener("visibilitychange", function () {

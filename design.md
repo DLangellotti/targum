@@ -351,6 +351,63 @@ the code back to a rule that was already retired. (The count this line used to g
 fallen behind the entries by half; the dates are the index.)
 
 
+### A video stands beside its transcript, or large — 2026-10-05
+
+A video text was a picture in a corner of the reading page — picked up, moved and sized
+by hand — with the strip floating under it as its transport and a black full-screen mode
+of its own. David chose three changes from mockups on the Kan driving-licence clip
+(targum-internal#422, part of #409), building on the one-row bar above:
+
+- **A · Beside.** The picture at the left, no chrome on it. One thin row under it: play
+  and pause, the time, a hairline of where the voice is with a faint leaf band for the
+  line being said, the length, the speed ("1× ▾", the six speeds as one of the bar's
+  panels, under its press) and Loop this line. Under that what it is and whose: the
+  title, the English title, the credit, the licence, the part and "Watch on YouTube". The
+  transcript beside it follows the voice, the line being said lit with the band a chanted
+  verse has, English under each line, words tappable with the reader's levels; the word
+  being said is §8's selection chip where the recording was aligned word by word. The
+  picture holds the left whichever way the text reads, as in the mockups — a Hebrew
+  transcript's lines then begin at the window's right edge — so this one layout names the
+  side per direction rather than by the reading direction.
+- **B · Theatre.** The picture large, and under its row the line being said set large:
+  it is the transcript's own line, copied in as the clock reaches it, so its words are
+  tappable, carry their levels and light as they are said; the English small under it,
+  the lines either side faded. It is a line of the transcript, not a caption over a
+  film, so between two sentences it holds the one just said (the full-screen subtitle
+  went dark between lines; that mode is gone). A long line is set smaller rather than run
+  off the window. Transcript opens the transcript as a panel at the right and the
+  picture grows smaller for it.
+- **The switch.** "Beside | Theatre" in the bar, kept per reader (`targum:film-view`),
+  like the speed, and `v` turns between them. Listen is not in the bar while the picture
+  is up: the row under it plays it.
+- **C · It steps back.** While it plays the bar and the row fade, and what is left is
+  the picture, the hairline (the picture's width now) and the line being said. A pause,
+  the pointer, a touch or a key brings them back; nothing steps back while a panel or a
+  word's card is out, or while the keyboard is in the row. A word tapped while it plays
+  stops it, so its card opens over the paused frame, which steps down under it, and the
+  word stays marked in the line. `prefers-reduced-motion` keeps the change, not the fade.
+- **On a phone**, one way of standing: the picture the window's width (an upright one
+  held to under half the window, in the middle), its row, and the transcript under them,
+  the picture staying at the top under the bar as the transcript scrolls. No switch.
+- **Keys.** Space plays and pauses as on every text; ↑ ↓ the line before and after, and
+  in Theatre with the transcript put away ← → as well; Escape shuts a panel or a card and
+  brings the row back. The speed panel takes focus from the keyboard and gives it back.
+
+What stays: the picture is put away and brought back from ⋯, still kept per text
+(`targum:video-shut:`), and put away the page is the audio reader — Listen, the strip
+once pressed, and the strip's toggle to bring the picture back. ⋯ carries Hear first, the
+step either side and the file while the picture is up, because the strip that carried
+them is not on the page. Full screen is the browser's, under ⋯, as on every text. The
+picture comes from the reader's own folder and nothing is fetched. Inside a playlist a
+video opens in Theatre, writing nothing; its end opens the transcript, where the end is.
+
+What it overturns: "The picture can be picked up" (2026-09-13), "The picture's keys say
+what they do" (2026-09-14) and the docked half of "A video text opens as its transcript"
+(2026-09-17) — there is no corner, grip, size key or full-screen frame any more, and the
+stores of the corner, the place, the size and full screen are no longer read. The
+picture also left the phone's band: it stands at the top and is never put away by a
+word's card. The 44px list in `test_brand.py` names the new presses.
+
 ### The reader's bar is one row — 2026-10-05
 
 The bar had grown to about fifteen controls on two rows of dark filled pills, and the text
@@ -408,8 +465,9 @@ portions:
   first where it applies, the picture where there is one, the file, and ×. Its × puts it
   away and hands focus back to Listen; nothing is remembered, so the next text opens the
   same way. On a phone the file and the credit are in ⋯, as they were. A text with video
-  keeps its strip standing: it opens as its picture (§1), and the strip is the picture's
-  transport and the way the picture comes back once it is put away.
+  kept its strip standing for a day, as the picture's transport; since the video viewer
+  below (#422) the row under the picture is its transport, and the strip is what a video
+  text has once its picture is put away — waiting for Listen like any other.
 
 What it does not overturn: the strip is still the transport, with every control it had;
 the keyboard's letters are unchanged; §8's 44px reach holds for every new press, and
@@ -2425,6 +2483,11 @@ Built under targum-internal#317.
 
 ### A video text opens as its transcript, and a vertical one is vertical — 2026-09-17
 
+*Amended 2026-10-05 by "A video stands beside its transcript, or large" (#422): it still
+opens with its transcript on the page and the picture on, but beside it or large rather
+than docked, and there is no full-screen mode of its own. A vertical film is still
+vertical, by the same `--film`.*
+
 This reverses "A video text opens as video" below, which is a fortnight old and came from
 the first stranger session. That session is still the evidence, so it is worth being exact
 about what it proved and what it did not.
@@ -2642,6 +2705,10 @@ decision already recorded here or in a test.
 
 ### The picture can be picked up — 2026-09-13
 
+*Superseded 2026-10-05 by "A video stands beside its transcript, or large" (#422): the
+picture no longer stands in a corner, and has neither grip, size key nor a full-screen
+mode of its own.*
+
 The entry below dated 2026-09-03 said *the picture is never dragged; it docks*, and
 argued that a corner solves for good what a drag solves once. David reversed it. It is
 the third time a draggable picture has been asked for, this time by the owner directly,
@@ -2796,6 +2863,10 @@ Nothing about the sheet's comfort changes: it is still the reader, working, at t
 it was left.
 
 ### The picture's keys say what they do — 2026-09-14
+
+*Superseded 2026-10-05 by "A video stands beside its transcript, or large" (#422): the
+picture no longer stands in a corner, and has neither grip, size key nor a full-screen
+mode of its own.*
 
 David, looking at a docked video: the controls "don't make it obvious you can drag it or
 resize it", and full screen "it's not obvious you can minimise, and it's not obvious how
