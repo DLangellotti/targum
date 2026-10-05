@@ -2863,6 +2863,14 @@ body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-press {
    mark of its own: a reader already reads that band as "this one", and a third meaning for
    a fourth colour would be spending the ration on bookkeeping. */
 .pair.voiced.now { background: var(--paper-raised); }
+/* …except while the voice is going. Then the band has to mean one thing, the line being
+   said, or a line the pointer rests on reads as the voice having jumped there (#420, from
+   filming Bereshit). The pointer still says where it is, more quietly: an outline in the
+   reader's 1px rule (§8) and the translation lifted to ink as ever, but no band. */
+body.voicing .pair:hover:not(.now):not(.here):not(.practising):not(:focus-visible) {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
 /* The word the voice is on, while a line plays on its own (targum-internal#265, step 2):
    an underline in the accent, low enough to clear the points, so it never covers a
    word's level — that is the wash and the inset line — and nothing slides. */

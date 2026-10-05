@@ -1013,6 +1013,42 @@ def test_the_card_never_ends_up_over_its_own_word(page) -> None:
         assert now["cardOnScreen"], f"the card was not on the screen at {size}"
 
 
+#: Where the word card stands in the window, or null when it is not up.
+CARD_BOX = """
+() => {
+  const card = document.getElementById('gloss-card');
+  if (!card || card.hidden) return null;
+  const box = card.getBoundingClientRect();
+  return { left: box.left, top: box.top, width: box.width, height: box.height };
+}
+"""
+
+
+@pytest.mark.parametrize("step", ["1", "2", "3", "known", "ignore"])
+def test_a_level_pressed_on_the_card_leaves_it_where_it_was(page, step: str) -> None:
+    """A level pressed on the card rebuilds it, so every step agrees which one is set,
+    and then lets it fade where it stands. The rebuild seated it against the span the
+    card was opened for — which the redraw that showed the new level had just replaced,
+    so it had no rectangle, and the card jumped from beside the word to the top-left
+    corner of the page for the moment before it went (targum-internal#420, found
+    filming Bereshit at 1280×800)."""
+    was = page.evaluate(TAP_ABOVE)
+    assert was, "no word in the top half of the window to tap"
+    before = page.evaluate(CARD_BOX)
+    assert before, "the card did not open"
+
+    page.locator("#gloss-card .level", has_text=step).first.click()
+    after = page.evaluate(CARD_BOX)
+    assert after, "the card shut at once instead of lingering with the level on it"
+    moved = max(abs(after["left"] - before["left"]), abs(after["top"] - before["top"]))
+    assert moved <= SLACK, f"the card moved from {before} to {after} when {step} was pressed"
+    # And the card is still about the word that was tapped: its level says so.
+    level = page.evaluate(
+        "() => document.querySelector('#gloss-card .level[aria-pressed=\"true\"]')?.textContent"
+    )
+    assert level == step, f"the rebuilt card shows {level!r} pressed, not {step!r}"
+
+
 #: A word looked up: what the card says it means, and whether it is still offering to
 #: find out. A reader who has already asked should meet the answer, not the button.
 CARD = """

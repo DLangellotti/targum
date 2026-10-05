@@ -416,6 +416,55 @@ def test_listening_steps_the_bar_back_and_a_pause_brings_it(browser, tmp_path, m
     context.close()
 
 
+#: The band on the line being said, and on the line under the pointer.
+BANDS = """
+() => {
+  const now = document.querySelector('.pair.voiced.now');
+  const hovered = [...document.querySelectorAll('.pair')].find((p) => p.matches(':hover'));
+  const band = (el) => el && getComputedStyle(el).backgroundColor;
+  return { now: band(now), hovered: band(hovered), same: !!now && now === hovered };
+}
+"""
+
+
+def test_a_line_under_the_pointer_does_not_read_as_the_line_being_said(
+    browser, tmp_path, monkeypatch
+) -> None:
+    """While the voice goes, the raised band is where it is. A hovered line wearing the
+    same band read as the voice having jumped there (targum-internal#420); paused, the
+    pointer has its band back."""
+    monkeypatch.setenv("TARGUM_RECORDING_DIR", str(tmp_path / "recordings"))
+    reader = recorded(tmp_path / "recordings", tmp_path / "reader")
+    context, page = open_page(browser, reader, scrolling=True)
+    page.click(".listen-play")
+    page.wait_for_function("() => document.body.classList.contains('voicing')")
+    page.wait_for_selector(".pair.voiced.now")
+    other = page.evaluate(
+        """() => {
+          const now = document.querySelector('.pair.voiced.now');
+          const other = [...document.querySelectorAll('.pair.voiced')].find((p) => {
+            const box = p.getBoundingClientRect();
+            return p !== now && box.top > 120 && box.bottom < window.innerHeight - 160;
+          });
+          const box = other.getBoundingClientRect();
+          return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        }"""
+    )
+    page.mouse.move(other["x"], other["y"])
+    page.wait_for_timeout(100)
+    playing = page.evaluate(BANDS)
+    assert playing["hovered"] and not playing["same"], playing
+    assert playing["hovered"] != playing["now"], f"the hovered line wears the band: {playing}"
+
+    page.keyboard.press("Space")
+    page.wait_for_function("() => !document.body.classList.contains('voicing')")
+    page.mouse.move(other["x"], other["y"] + 1)
+    page.wait_for_timeout(100)
+    paused = page.evaluate(BANDS)
+    assert paused["hovered"] == playing["now"], f"paused, the pointer has its band back: {paused}"
+    context.close()
+
+
 # -- the strip waits for Listen (David, 2026-10-05) ----------------------------------
 
 

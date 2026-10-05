@@ -3832,6 +3832,45 @@ var targumReader = function () {
   var FADE = 220;
   var fading = null;
 
+  // A hold on a word that outlives the redraw. `markSegment` sets its cell's markup
+  // again, so after `redraw()` the span a card was opened for is detached: it has no
+  // rectangle, and a card seated against it went to the top-left corner of the page
+  // (targum-internal#420). The cell itself stays, so the hold is the cell and the word's
+  // place among the cell's words — the same word, not merely the first with its lemma,
+  // which in a verse that says a word twice is the other one, and in an Onkelos or
+  // Rashi column is not in the cell that `wordIn` looks in at all.
+  function holdWord(word) {
+    var cell = word ? word.parentNode : null;
+    while (cell && cell.__targumHTML === undefined) cell = cell.parentNode;
+    var at = cell ? Array.prototype.indexOf.call(cell.querySelectorAll(".w"), word) : -1;
+    var lemma = word ? word.getAttribute("data-lemma") : null;
+    var bare = word ? word.getAttribute("data-bare") : null;
+    return function () {
+      if (!word) return null;
+      if (word.isConnected) return word;
+      if (!cell || !cell.isConnected) return null;
+      var now = cell.querySelectorAll(".w")[at];
+      if (now && now.getAttribute("data-lemma") === lemma && now.getAttribute("data-bare") === bare) {
+        return now;
+      }
+      return cell.querySelector('.w[data-lemma="' + lemma + '"]');
+    };
+  }
+
+  // The card rebuilt for the same word, standing where it stood. Placed by the rule it
+  // was first placed by, then its near edge put back: the rebuild can change its size —
+  // the first card ever carries a line the second does not — and a card centred again on
+  // its word slid sideways under the pointer that had just pressed it. The edge nearest
+  // the word stays (`placeNear` keeps that one) and the inline start stays here.
+  function showCardInPlace(word) {
+    var was = card && !card.hidden && roomy.matches ? card.getBoundingClientRect() : null;
+    showCard(word);
+    if (!was || card.hidden || !roomy.matches) return;
+    var box = card.getBoundingClientRect();
+    var left = Math.max(12, Math.min(was.left, window.innerWidth - box.width - 12));
+    card.style.left = left + window.scrollX + "px";
+  }
+
   function spendCard() {
     if (!card || card.hidden) return;
     stopFade();
@@ -4422,6 +4461,7 @@ var targumReader = function () {
       // a detached word for its sentence answers null, and the card shut itself on every
       // word marked with a pointer.
       var pair = word.closest ? word.closest(".pair, .film-pair") : null;
+      var held = holdWord(word);
       redraw();
       // The card asked what the word means and the level is an answer, so it is spent:
       // it fades where it stands rather than being carried on to the next word. See
@@ -4452,16 +4492,12 @@ var targumReader = function () {
         return true;
       }
       // `redraw()` rebuilds the spans, so the element the card was opened for is gone.
-      // Find its replacement by lemma in the same sentence rather than holding a
-      // reference to a node that is no longer in the page.
-      var again =
-        pair && pair.parentNode
-          ? wordIn(pair, '.w[data-lemma="' + index + '"]')
-          : null;
+      // Its replacement, in the same cell and at the same place — see `holdWord`.
+      var again = held();
       // Rebuilt before it is spent, so what the reader watches leave is the card with
       // the level they just said on it rather than the question it answered.
       if (again) {
-        showCard(again);
+        showCardInPlace(again);
         spendCard();
       } else hideCard();
       return true;
@@ -4487,11 +4523,16 @@ var targumReader = function () {
       // accessible name, and "Enter text" was the one label on the card that was not.
       placeholder: t("reader.card.own-meaning", "Your own meaning"),
       onStatus: function (value) {
+        // Held before the redraw, which replaces the span the card stands beside.
+        var held = holdWord(lookedUp);
         setStatus(index, surface, band, value);
         redraw();
         // Rebuilt rather than patched, so every button in the row agrees about which
-        // one is now set.
-        if (lookedUp) showCard(lookedUp);
+        // one is now set — and seated against the word's new span, so it stays beside
+        // the word it was opened for rather than going to the corner (#420).
+        var again = held();
+        if (again) showCardInPlace(again);
+        else if (lookedUp) hideCard();
         // And then spent, exactly as the same level said with a key is. A level answers
         // the question the card was opened to ask, whichever way it was said — but only
         // the keyboard path knew that, so a level tapped on a phone left the card
@@ -10620,6 +10661,9 @@ var targumReader = function () {
       button.setAttribute("aria-pressed", on ? "true" : "false");
     });
     if (player) player.classList.toggle("playing", !!on);
+    // The page, too: while a voice is going, the band on a line is where the voice is,
+    // and a line the pointer is only passing over must not wear it (#420).
+    document.body.classList.toggle("voicing", !!on);
     if (listenBox) {
       listenBox.classList.toggle("playing", !!on);
       if (on) listenBox.classList.add("placed");

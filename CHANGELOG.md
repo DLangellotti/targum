@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A level pressed on a word's card (1, 2, 3, known or ignore) leaves the card beside the
+  word while it lingers and fades (targum-internal#420). The card was rebuilt against
+  the span the redraw had just replaced, which has no rectangle, so it jumped to the
+  page's top-left corner and lost the lines read off the word (its pronunciation, its
+  form). The card is now rebuilt for the word's new span, found in the same cell at
+  the same place (`holdWord`), and keeps its inline start (`showCardInPlace`). The
+  keyboard's levels find the word the same way, rather than the first word in the
+  verse with its lemma.
+- While a voice plays, a line under the pointer no longer wears the band of the line
+  being said: it takes a 1px rule outline instead (`body.voicing`, design.md §8).
 - The PDF's foot sets the mark and the address on one line, centred on each other
   (targum-internal#415). The mark was a margin box's image, which sits on the text's
   baseline and stood above the address; the foot is now a running element (`.foot`,
