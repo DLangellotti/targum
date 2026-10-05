@@ -52,7 +52,7 @@
     {#- The English beside the Hebrew, its own element so the two directions never share
         a string; gone on a phone, where the row has no room, while the document title
         keeps both. -#}
-    {% if english %}<span class="bar-english" lang="en" dir="ltr">{{ english }}</span>{% endif %}
+    {% if english %}<span class="bar-english" lang="{{ english_lang|default('en') }}" dir="ltr">{{ english }}</span>{% endif %}
     {#- How much of this text you can already read. Filled in by the reader from the
         words it has, and hidden outright on a text that carries none. It stays when the
         bar steps back: it is the one figure a reader glances up for. -#}
@@ -67,7 +67,7 @@
     {% if spoken_audio %}
     <div class="listen" id="listen" role="group" aria-label="{{ t("reader.page.listen", "Listen") }}">
       <button type="button" class="listen-play" data-play-scene aria-pressed="false"
-              title="Play {{ spoken_label }} and follow along" aria-label="Play {{ spoken_label }}">
+              title="{{ t("reader.page.play-and-follow", "Play {what} and follow along", what=spoken_label) }}" aria-label="{{ t("reader.page.play-what", "Play {what}", what=spoken_label) }}">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path class="play" d="M5 3.2 12.8 8 5 12.8Z"></path>
           <path class="pause" d="M5.5 3.8v8.4M10.5 3.8v8.4"></path>
@@ -225,7 +225,7 @@
           <div class="group practice" id="practice" role="group" aria-label="{{ t("reader.page.shnayim-mikra", "Shnayim mikra") }}" data-what="Shnayim mikra">
             <button type="button" class="practice-key on" data-practice="" aria-pressed="true" title="{{ t("reader.page.read-as-usual", "Read as usual") }}" hidden>{{ t("reader.page.read", "Read") }}</button>
             <button type="button" class="practice-key" data-practice="verse" aria-pressed="false" title="{{ t("reader.page.each-verse-twice-in-hebrew-then-once", "Each verse twice in Hebrew, then once in Onkelos") }}">{{ t("reader.page.by-verse", "By verse") }}</button>
-            <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="The whole {{ practice }} twice in Hebrew, then once in Onkelos">By {{ practice }}</button>
+            <button type="button" class="practice-key" data-practice="section" aria-pressed="false" title="{% if practice == "aliyah" %}{{ t("reader.page.whole-aliyah-twice", "The whole aliyah twice in Hebrew, then once in Onkelos") }}{% else %}{{ t("reader.page.whole-chapter-twice", "The whole chapter twice in Hebrew, then once in Onkelos") }}{% endif %}">{% if practice == "aliyah" %}{{ t("reader.page.by-aliyah", "By aliyah") }}{% else %}{{ t("reader.page.by-chapter", "By chapter") }}{% endif %}</button>
           </div>
         </div>
       </div>
@@ -652,7 +652,7 @@
     </svg>
   </button>
   <span class="player-body">
-    <span class="player-said" dir="ltr">{% if spoken_video %}Watch the video{% else %}Listen to {{ spoken_label }}{% endif %}</span>
+    <span class="player-said" dir="ltr">{% if spoken_video %}{{ t("reader.page.watch-the-video", "Watch the video") }}{% else %}{{ t("reader.page.listen-to", "Listen to {what}", what=spoken_label) }}{% endif %}</span>
     {#- A control, not a readout. It was drawn as decoration for as long as the only way
         through a recording was to press a line, and a reader who wanted the middle of a
         sentence had nowhere to press. `aria-valuetext` is the clock rather than the
@@ -1050,7 +1050,7 @@
     <dt>m</dt><dd>{{ t("reader.page.mark-words-as-you-read", "highlight the words you haven't learned") }}</dd>
     <dt>b</dt><dd>{{ t("reader.page.pages-or-one-long-scroll", "pages, or one long scroll") }}</dd>
     <dt>f</dt><dd>{{ t("reader.page.full-screen-and-out-of-it", "full screen, and out of it") }}</dd>
-    {% if spoken_audio %}<dt>Space</dt><dd>play {{ spoken_label }}, and pause it where it is</dd>
+    {% if spoken_audio %}<dt>Space</dt><dd>{{ t("reader.page.key-space", "play {what}, and pause it where it is", what=spoken_label) }}</dd>
     <dt>&lt; &gt;</dt><dd>{{ t("reader.page.slower-faster", "slower, faster") }}</dd>{% endif %}
     {#- Real keys the card never listed (targum-internal#341, 2026-09-20): the recording's
         track is a slider and answers like one, and the picture's grip and its size handle
@@ -1065,7 +1065,7 @@
     <dt>?</dt><dd>{{ t("reader.page.these-keys", "these keys") }}</dd>{% endif %}
     {% if cases %}<dt>c</dt><dd>{{ t("reader.page.one-case-at-a-time", "one case at a time") }}</dd>{% endif %}
     {% if said %}<dt>n</dt><dd>{{ t("said.key", "the French as said") }}</dd>{% endif %}
-    {% if has_nikkud %}<dt>n</dt><dd>{{ "stress marks" if stress_marks else "vowel points" }}</dd>{% endif %}
+    {% if has_nikkud %}<dt>n</dt><dd>{% if stress_marks %}{{ t("reader.page.key-stress-marks", "stress marks") }}{% else %}{{ t("reader.page.key-vowel-points", "vowel points") }}{% endif %}</dd>{% endif %}
     {% if has_taamim %}<dt>a</dt><dd>{{ t("reader.page.the-chanting-marks-with-the-vowels-on", "the chanting marks, with the vowels on") }}</dd>{% endif %}
     <dt>p</dt><dd>{{ t("reader.page.parallel-2", "parallel") }}</dd>
     <dt>l</dt><dd>{{ t("reader.page.interlinear-the-translation-under-each-line", "interlinear — the translation under each line") }}</dd>

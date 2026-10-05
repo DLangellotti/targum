@@ -481,22 +481,76 @@ def _page_language(language: str) -> str:
 COMPANIONS_OFF: frozenset[str] = frozenset({"rashi-en"})
 
 
-def _companion_label(translation: Translation, source_language: str) -> str:
-    """What a companion's own switch says: "Onkelos", "Rashi", "Rashi · English".
+def _language_said(tag: str, chrome: str = "en") -> str:
+    """A language's name as the reader's own words say it: "English" on a reader built
+    in English, «Английский» on one built in Russian (QA, 2026-10-05). English is
+    `language_name`, exactly as it was."""
+    from ..strings import SOURCE, catalogue
+
+    code = (chrome or SOURCE).split("-")[0].lower()
+    if code != SOURCE:
+        said = catalogue(code).get(f"language.{tag.split('-')[0].lower()}")
+        if said:
+            return said
+    return language_name(tag)
+
+
+#: The few words about a section's sound that the page assembles rather than says whole —
+#: what the sound is ("the reading") and who made it ("Chanted by") — by their English,
+#: which is what `Spoken` carries, to the keys that say them in another language (QA,
+#: 2026-10-05). The name of the sound is said in the accusative, the case every sentence
+#: it goes into wants in Russian: «Слушать чтение», «включить сцену».
+_SOUND_WORDS = {
+    "the reading": "reader.sound.the-reading",
+    "the scene": "reader.sound.the-scene",
+    "the recording": "reader.sound.the-recording",
+    "the video": "reader.sound.the-video",
+    "Read by": "reader.credit.read-by",
+    "Chanted by": "reader.credit.chanted-by",
+    "Video by": "reader.credit.video-by",
+}
+
+
+def _sound_said(english: str, chrome: str = "en") -> str:
+    """One of `_SOUND_WORDS` in the reader's own language; English, and anything the table
+    does not hold, exactly as it was."""
+    from ..strings import SOURCE, catalogue
+
+    code = (chrome or SOURCE).split("-")[0].lower()
+    key = _SOUND_WORDS.get(english)
+    if code == SOURCE or key is None:
+        return english
+    return catalogue(code).get(key) or english
+
+
+def _companion_label(translation: Translation, source_language: str, chrome: str = "en") -> str:
+    """What a companion's own switch says: "Onkelos", "Rashi", "Rashi · English" — and
+    «Онкелос», «Раши», «Раши · английский» on a reader built in Russian.
 
     By the work rather than the language. Beside the verse a reader turns on a work —
     the targum, the commentary — and "Aramaic" names neither the targum nor which one.
     """
     from ..renderings import commentator
+    from ..strings import SOURCE, catalogue
+
+    code = (chrome or SOURCE).split("-")[0].lower()
+    said = catalogue(code) if code != SOURCE else {}
+
+    def work(name: str) -> str:
+        return said.get(f"reader.companion.{name.lower()}") or name
 
     who = commentator(translation.name)
     if who:
         own = translation.target_language.split("-")[0] == source_language.split("-")[0]
-        return who if own else f"{who} · {language_name(translation.target_language)}"
+        if own:
+            return work(who)
+        language = _language_said(translation.target_language, code)
+        # Inside a name a language is lower case in Russian: «Раши · английский».
+        return f"{work(who)} · {language if code == SOURCE else language.lower()}"
     named = translation.name or ""
     if "onkelos" in named.lower() or "אונקלוס" in named:
-        return "Onkelos"
-    return language_name(translation.target_language)
+        return work("Onkelos")
+    return _language_said(translation.target_language, code)
 
 
 def _commentary_named(name: str) -> bool:
@@ -2992,11 +3046,27 @@ def parasha_page(
     always said; the frame is drawn only where `haftarah_readable` says a reader was
     built behind it.
     """
-    from ..parasha.build import COLLECTION_ID
+    from ..parasha.build import COLLECTION_ID, served_as
     from ..parasha.models import neighbours
-    from ..strings import said_hebrew_date, said_on, said_reference, text
+    from ..strings import said_hebrew_date, said_on, said_portion, said_reference, text
 
-    said = said_on(shabbat, language) if shabbat is not None else "Shabbat"
+    # "Shabbat" with no date is a portion asked for by name, read on a different one
+    # every year — «читают в субботу» in Russian, not «читают Shabbat» (QA, 2026-10-05).
+    said = (
+        said_on(shabbat, language)
+        if shabbat is not None
+        else text("parasha.page.on-shabbat", language)
+    )
+    # The portion's name and its books as the page's language writes them: «Берешит»,
+    # «Бытие». English is the calendar's own, untouched.
+    named = said_portion(portion.slug, portion.name, language)
+    books = " · ".join(said_reference(book, language) for book in portion.books)
+    # The reader the frame opens: the one built in the page's language where there is
+    # one (`parasha.build.ALSO_IN`), so a Russian page frames a Russian reader — its
+    # words, and the Russian column beside the verse — rather than the English one.
+    code = language.split("-")[0].lower()
+    reading = served_as(portion.folder, code)
+    russian_beside = reading != portion.folder and code == "ru"
     # The range as the page's language names the book — «Числа 4:21-7:89» — and the
     # Hebrew date as it names the month (#188). English is left exactly as Hebcal wrote it.
     ranged = said_reference(portion.summary, language)
@@ -3019,7 +3089,7 @@ def parasha_page(
     if signed_in:
         all_href = f"/library#parasha-{mine.slug}" if mine else f"/library#group:{COLLECTION_ID}"
     else:
-        all_href = "/parasha#sources"
+        all_href = f"/parasha?lang={asked}#sources" if asked else "/parasha#sources"
     # The week's sheet as a PDF (targum-internal#415): this week's haftarah on the
     # schedule the page is showing, and the language a visitor pressed for.
     asking = [("schedule", "israel")] if shabbat is not None and schedule.value == "israel" else []
@@ -3050,22 +3120,28 @@ def parasha_page(
             # a query. The chapter range is what a reader searching the name wants to see
             # confirmed, and it is different for all fifty-four.
             title=(
-                text("parasha.head.this-week", language, name=portion.name)
+                text("parasha.head.this-week", language, name=named)
                 if shabbat is not None
-                else f"{portion.name} — {ranged} — targum"
+                else f"{named} — {ranged} — targum"
                 if portion.summary
-                else text("parasha.head.a-portion", language, name=portion.name)
+                else text("parasha.head.a-portion", language, name=named)
             ),
             # The opening words go in the description because they are how somebody
             # who knows the portion recognises it — a search result that leads with
             # אתם נצבים says which reading this is faster than the chapter numbers do.
             description=(
-                f"{portion.name} — {portion.opening} — {ranged}. "
+                f"{named} — {portion.opening} — {ranged}. "
                 + text("parasha.head.description", language)
             ).replace(" —  — ", " — "),
             canonical=here,
             alternates=alternates,
             portion=portion,
+            portion_named=named,
+            books=books,
+            # Any portion's name, for the list at the foot.
+            name_of=lambda one: said_portion(one.slug, one.name, language),
+            reading=reading,
+            haftarah_reading=served_as(haftarah.folder, code) if haftarah is not None else "",
             ref=lambda said: said_reference(said, language),
             schedule=schedule,
             other=other,
@@ -3086,7 +3162,14 @@ def parasha_page(
             all_href=all_href,
             taamim=taamim,
             shabbat_said=said,
-            translation_said=text("parasha.page.metsudah-linear", language),
+            # Whose words stand beside the verse in the frame: the Russian Torah where
+            # the frame is the reader built in Russian, the Metsudah everywhere else.
+            translation_said=text(
+                "parasha.page.russian-translation"
+                if russian_beside
+                else "parasha.page.metsudah-linear",
+                language,
+            ),
         )
     )
 
@@ -3424,12 +3507,16 @@ def cover_name(document: Document) -> str:
     return entry.id if entry else ""
 
 
-def english_title(document: Document) -> str:
+def english_title(document: Document, language: str = "en") -> str:
     """The title in English, for a catalogue text; nothing for anything else.
 
     Render-time context, like the cover: it reaches every reader on the next rebuild and
     touches no cache key, and an upload — which has no English title anywhere — shows
     its Hebrew one alone.
+
+    In `language` where the reader is built in another (QA, 2026-10-05): the row's own
+    name in it, or a portion's from the catalogue's `portion.name.*` — «Берешит» beside
+    בְּרֵאשִׁית on the reader built in Russian, not "Bereshit".
     """
     from .. import catalogue as catalogue_module
 
@@ -3438,7 +3525,17 @@ def english_title(document: Document) -> str:
     entry = catalogue_module.matching(document.source) or next(
         (e for e in catalogue_module.CATALOGUE if e.source == document.source), None
     )
-    return entry.english if entry else ""
+    if entry is None:
+        return ""
+    code = (language or "en").split("-")[0].lower()
+    if code != "en":
+        from ..strings import said_portion
+
+        if entry.named.get(code):
+            return entry.named[code]
+        if entry.id.startswith("parasha-"):
+            return said_portion(entry.id.removeprefix("parasha-"), entry.english, code)
+    return entry.english
 
 
 def render(
@@ -3798,7 +3895,12 @@ def render(
         "document": document,
         "siblings": siblings or [],
         "title": document.title or "targum",
-        "english": english_title(document),
+        "english": english_title(document, chrome),
+        # And the language it is in, for its `lang`: a reader built in Russian names the
+        # text in Russian where the catalogue has the name, and in English where not.
+        "english_lang": chrome.split("-")[0].lower()
+        if english_title(document, chrome) != english_title(document)
+        else "en",
         # The whole tile, once, on the page that lists the chapters.
         "cover": cover_uri(covers, drawn),
         "sections": sections,
@@ -3852,9 +3954,9 @@ def render(
                 # the rendering's own name where two are in the same language, since
                 # "English | English" says nothing. The full name is the button's title.
                 "label": (
-                    _companion_label(translation, segmented.language)
+                    _companion_label(translation, segmented.language, chrome)
                     if with_companions and is_companion(translation, BESIDE)
-                    else language_name(translation.target_language)
+                    else _language_said(translation.target_language, chrome)
                     if into.count(translation.target_language) == 1
                     else translation.name
                 ),
@@ -4409,7 +4511,7 @@ def render(
                 {
                     "key": taken.voice,
                     "credit": taken.credit,
-                    "credited": taken.credited,
+                    "credited": _sound_said(taken.credited, chrome),
                     "licence": taken.licence,
                     "licence_url": taken.licence_url,
                 }
@@ -4431,9 +4533,9 @@ def render(
             # time, which only YouTube's does — an Instagram reel opens at its start.
             spoken_home_named=video_hosts.named(spoken.home),
             spoken_home_timed=spoken.home.startswith(video_hosts.YOUTUBE.home),
-            spoken_label=spoken.label,
+            spoken_label=_sound_said(spoken.label, chrome),
             speech_credit=spoken.credit,
-            speech_credited=spoken.credited,
+            speech_credited=_sound_said(spoken.credited, chrome),
             speech_licence=spoken.licence,
             speech_licence_url=spoken.licence_url,
             target_language=drawing.target_language,
@@ -4456,7 +4558,7 @@ def render(
                 {
                     "id": f"t{index}",
                     "key": companion_key(translation, segmented.language, BESIDE),
-                    "label": _companion_label(translation, segmented.language),
+                    "label": _companion_label(translation, segmented.language, chrome),
                     "language": translation.target_language,
                     "direction": direction_for(translation.target_language),
                     "commented": _commentary_named(translation.name),

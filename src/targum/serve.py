@@ -5176,7 +5176,9 @@ class Handler(BaseHTTPRequestHandler):
             # Chanukah the congregation reads the special one, and a page that named the
             # portion's own would be naming the wrong thing to prepare.
             haftarah, haftarah_reason = index.haftarah_on(shabbat.isoformat(), schedule)
-            parts = self._parasha_week(portion, haftarah, shabbat, readable)
+            parts = self._parasha_week(
+                portion, haftarah, shabbat, readable, self._public_language()
+            )
 
         page = parasha_page(
             portion,
@@ -5221,12 +5223,19 @@ class Handler(BaseHTTPRequestHandler):
         # Blanks kept: `with=` is the text alone, not the default.
         query = parse_qs(urlparse(self.path).query, keep_blank_values=True)
         person = self._person()
+        # Pressed in the reader built in Russian, whose address names the portion as
+        # `bereshit-ru`: the sheet is Bereshit's, and is said in Russian.
+        from .parasha import build as corpus
+
+        slug, language = corpus.read_as(slug, corpus.readable())
         try:
             made = sheet.make(
                 slug,
                 store=self.store if person is not None else None,
                 person_id=person.id if person is not None else None,
-                language=self._public_language(),
+                language=self._asked()
+                or (language if language != "en" else "")
+                or self._public_language(),
                 israel=query.get("schedule", [""])[0] == "israel",
                 view=sheet.view_from(query),
             )
@@ -5258,7 +5267,7 @@ class Handler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _parasha_week(
-        portion: Any, haftarah: Any, shabbat: date, readable: set[str]
+        portion: Any, haftarah: Any, shabbat: date, readable: set[str], language: str = "en"
     ) -> dict[str, Any] | None:
         """What the page needs to say which parts of this week's reading are read.
 
@@ -5267,10 +5276,11 @@ class Handler(BaseHTTPRequestHandler):
         server's week and keeps no clock of its own (targum-internal#203). None where the
         reading's reader has no document to find, which a page draws as no list.
         """
-        from .parasha.build import document_of
+        from .parasha.build import document_of, served_as
         from .parasha.calendar import week_began
         from .parasha.cut import ALIYOT, HAFTARAH
 
+        reading = served_as(portion.folder, language)
         document, sections = document_of(portion.folder)
         if not document:
             return None
@@ -5278,7 +5288,7 @@ class Handler(BaseHTTPRequestHandler):
         # read when that page is.
         whole = {
             "name": portion.hebrew or portion.name,
-            "href": f"/parasha/read/{portion.folder}/reader/index.html",
+            "href": f"/parasha/read/{reading}/reader/index.html",
             "frame": "reading",
             "document": document,
             "section": 0,
@@ -5287,7 +5297,7 @@ class Handler(BaseHTTPRequestHandler):
         parts = [
             {
                 "name": ALIYOT[n - 1] if n <= len(ALIYOT) else str(n),
-                "href": f"/parasha/read/{portion.folder}/reader/sec-{n:04d}.html",
+                "href": f"/parasha/read/{reading}/reader/sec-{n:04d}.html",
                 "frame": "reading",
                 "document": document,
                 "section": n,
@@ -5302,7 +5312,10 @@ class Handler(BaseHTTPRequestHandler):
                 parts.append(
                     {
                         "name": HAFTARAH,
-                        "href": f"/parasha/read/{haftarah.folder}/reader/{haftarah.opens}",
+                        "href": (
+                            f"/parasha/read/{served_as(haftarah.folder, language)}"
+                            f"/reader/{haftarah.opens}"
+                        ),
                         "frame": "haftarah",
                         "document": kept,
                         "section": 0,
@@ -5427,13 +5440,18 @@ class Handler(BaseHTTPRequestHandler):
         what makes a name carrying a dot-dot a 404 rather than a way out of the corpus.
         """
         from .parasha import build as corpus
-        from .parasha.calendar import root as corpus_root
 
         if not parasha_is_indexed():
             self._robots_tag = "noindex"
-        if folder not in corpus.readable():
+        readable = corpus.readable()
+        # `bereshit-ru` is Bereshit's reader built in Russian (`corpus.ALSO_IN`), whose
+        # recordings are the first build's and are kept once, in `reader/audio/`.
+        folder, language = corpus.read_as(folder, readable)
+        if folder not in readable:
             return self._send(404, b"not found", "text/plain")
-        base = (corpus_root() / "read" / folder / "reader").resolve()
+        base = corpus.reader_dir(folder, language).resolve()
+        if name and name.startswith("audio/"):
+            base = corpus.reader_dir(folder).resolve()
         target = (base / (name or "index.html")).resolve()
         if not target.is_file() or base not in target.parents:
             return self._send(404, b"not found", "text/plain")
@@ -5461,17 +5479,23 @@ class Handler(BaseHTTPRequestHandler):
             if query.get("schedule", ["diaspora"])[0] == "israel"
             else Schedule.diaspora
         )
-        if folder not in corpus.readable():
+        readable = corpus.readable()
+        # Asked from the reader built in Russian, the answer is in Russian too: its name,
+        # and the next reading's reader in Russian where it has one.
+        folder, language = corpus.read_as(folder, readable)
+        if folder not in readable:
             return self._send(404, b"not found", "text/plain")
         after = corpus.following(folder, schedule)
         if after is None:
             return self._json({"next": None})
+        from .strings import said_portion
+
         answer: dict[str, Any] = {
             "slug": after.slug,
-            "name": after.name,
+            "name": said_portion(after.slug, after.name, language),
             "hebrew": after.hebrew or after.name,
-            "href": corpus.reader_href(after),
-            "page": f"/parasha/{after.slug}",
+            "href": corpus.reader_href(after, language=language),
+            "page": f"/parasha/{after.slug}" + (f"?lang={language}" if language != "en" else ""),
         }
         if self._authorised():
             words = corpus.lemmas_of(after)

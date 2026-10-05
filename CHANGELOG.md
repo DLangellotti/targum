@@ -6,6 +6,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian portion page frames a Russian reader (QA, 2026-10-05). A reader's own
+  words and the column it opens on are written in when it is built, in its first
+  rendering's language, so `/parasha/bereshit?lang=ru` framed the English one: Listen,
+  Chanted, "0 of 99 known" and the English beside the verse. `targum parasha build` now
+  builds a reading with a Russian rendering twice (`parasha.build.ALSO_IN`): `reader/`
+  as before and `reader-ru/` with the Russian first, served at
+  `/parasha/read/<folder>-ru/reader/…`, whose recordings are the first build's and are
+  not kept twice. The Russian page frames it, and its week list, next Shabbat's offer and
+  print link stay in it. The haftarot have no Russian rendering and keep the reader they
+  have. The companions, the sound's name and its credit line, and the bar's name beside
+  the Hebrew are said in the reader's language. **The corpus has to be rebuilt and
+  shipped for the box to have the Russian readers**; until then the Russian page frames
+  the English one, as before.
+- The Russian portion page says the book («Бытие», not "GENESIS"), «читают в субботу»
+  rather than «читают Shabbat», and every portion's name in Russian («Берешит»), from
+  `portion.name.<slug>`. A language pressed for (`?lang=ru`) rides on the links that stay
+  on the parasha pages. The credit names the Russian Torah (Gerstein and Gordon, 1875)
+  where the frame shows it. «· читать» on a part read this week is «· прочитано», and the
+  haftarah is «Гафтара» throughout.
+- Download PDF on the portion page says «Готовим PDF…» / "Preparing PDF…" until the file
+  arrives, and the one-sentence refusal under the button if the box cannot make it. With
+  no script it is still a plain GET form.
 - A level pressed on a word's card (1, 2, 3, known or ignore) leaves the card beside the
   word while it lingers and fades (targum-internal#420). The card was rebuilt against
   the span the redraw had just replaced, which has no rectangle, so it jumped to the

@@ -22,6 +22,10 @@
     the waitlist as the one call to action. -#}
 {% with home = '/', here = '/parasha' if this_week else '/parasha/' ~ portion.slug %}{% include '_front_bar.html.j2' %}{% endwith %}
 <main class="sheet weekly parasha">
+{#- A language the visitor pressed for rides on every link that stays on these pages,
+    as `_asked` promises: a Russian reader who chose Russian is not handed the next
+    portion in English (QA, 2026-10-05). -#}
+{%- set kept = ('lang=' ~ asked) if asked else '' %}
 
   {#- The hero, as the front door draws it (2026-09-27): the headline and the waitlist on
       one side, the picture on the other as a card on the desk.
@@ -39,13 +43,13 @@
       {#- On the page that means "this Shabbat" the eyebrow says so; on a portion asked
           for by name it says where in the Torah it is, because that page is not about a
           week. Either way it is not the same words as the label further down. -#}
-      <p class="eyebrow">{% if this_week %}{{ t("parasha.page.this-shabbat", "This Shabbat") }}{% else %}{{ portion.books | join(' · ') }}{% endif %}</p>
+      <p class="eyebrow">{% if this_week %}{{ t("parasha.page.this-shabbat", "This Shabbat") }}{% else %}{{ books }}{% endif %}</p>
       {#- The headline names what the page is actually showing. On a portion asked for
           by name, "this week's parasha" was a lie — and fifty-two pages sharing one
           headline is also fifty-two pages a search engine cannot tell apart. -#}
-      <h1>{% if this_week %}{{ t("parasha.page.pitch-this-week", "This week's parasha, every word explained.") }}{% else %}{{ t("daily.page.pitch", "{name}, every word explained.", name=portion.name) }}{% endif %}</h1>
+      <h1>{% if this_week %}{{ t("parasha.page.pitch-this-week", "This week's parasha, every word explained.") }}{% else %}{{ t("daily.page.pitch", "{name}, every word explained.", name=portion_named) }}{% endif %}</h1>
       {% if portion.hebrew or portion.name %}
-      <span class="named" {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</span>
+      <span class="named" {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="{{ page_language }}" dir="ltr"{% endif %}>{{ portion.hebrew or portion_named }}</span>
       {% endif %}
       <p class="lede">
         {{ t("parasha.page.the-hebrew-as-the-masorah-wrote-it", "The Hebrew as the Masorah wrote it, with the chanting marks or without, a
@@ -61,7 +65,7 @@
           appears: without that the bidi algorithm drags the surrounding punctuation to
           the wrong end and the button reads backwards. -#}
       <p class="actions">
-        <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ portion.hebrew or portion.name }}</bdi></a>
+        <a class="btn {{ 'cta' if signed_in else 'tonal' }}" href="#embed">{{ t("parasha.page.read", "Read") }} <bdi {% if portion.hebrew %}lang="he" dir="rtl"{% else %}lang="{{ page_language }}" dir="ltr"{% endif %}>{{ portion.hebrew or portion_named }}</bdi></a>
       </p>
       {#- The week's sheet on paper (targum-internal#415), set on the box when pressed. A
           stranger here has no reader open to say how they read, so the few choices that
@@ -117,7 +121,7 @@
         The counts go through `tn`, because Russian has three plural forms and the teens
         are the trap: 21 стих, 22 стиха, 11 стихов. -#}
     {%- set named -%}
-      {{ portion.name }}{% if portion.hebrew %} (<bdi class="named" lang="he" dir="rtl">{{ portion.hebrew }}</bdi>){% endif %}
+      {{ portion_named }}{% if portion.hebrew %} (<bdi class="named" lang="he" dir="rtl">{{ portion.hebrew }}</bdi>){% endif %}
     {%- endset -%}
     {{ t("parasha.page.dateline", "{name} is read on {when} — {summary}, {verses} in {aliyot}.",
           name=named,
@@ -152,12 +156,12 @@
       the page works with no JavaScript at all; `parasha.js` upgrades them to a switch
       that changes the reader in place. -#}
   <nav class="ladder taamim" aria-label="{{ t("parasha.page.the-chanting-marks", "The chanting marks") }}">
-    <a href="?taamim=on" data-taamim="on"{% if taamim %} class="here" aria-current="page"{% endif %}>
+    <a href="?taamim=on{{ '&' ~ kept if kept }}" data-taamim="on"{% if taamim %} class="here" aria-current="page"{% endif %}>
       <b>{{ t("parasha.page.with-the-te-amim", "With the te'amim") }}</b>
       <span class="figure">{{ t("parasha.page.as-it-is-chanted", "as it is chanted") }}</span>
       <span class="what">{{ t("parasha.page.every-mark-the-masorah-wrote-the-vowels", "Every mark the Masorah wrote: the vowels, and the cantillation the reading is sung to.") }}</span>
     </a>
-    <a href="?taamim=off" data-taamim="off"{% if not taamim %} class="here" aria-current="page"{% endif %}>
+    <a href="?taamim=off{{ '&' ~ kept if kept }}" data-taamim="off"{% if not taamim %} class="here" aria-current="page"{% endif %}>
       <b>{{ t("parasha.page.vowels-only", "Vowels only") }}</b>
       <span class="figure">{{ t("parasha.page.easier-to-read", "easier to read") }}</span>
       <span class="what">{{ t("parasha.page.the-chanting-marks-taken-off-the-vowels", "The chanting marks taken off, the vowels left where they were — the plainer page for reading rather than leyning.") }}</span>
@@ -176,10 +180,10 @@
     {% if apart %}
     <span class="apart">{{ t("parasha.page.israel-and-the-diaspora-are-reading-different", "Israel and the diaspora are reading different portions this week.") }}</span>
     {% endif %}
-    <a class="schedule{% if schedule.value == 'diaspora' %} here{% endif %}"{% if schedule.value == 'diaspora' %} aria-current="page"{% endif %} href="/parasha?schedule=diaspora">
+    <a class="schedule{% if schedule.value == 'diaspora' %} here{% endif %}"{% if schedule.value == 'diaspora' %} aria-current="page"{% endif %} href="/parasha?schedule=diaspora{{ '&' ~ kept if kept }}">
       {{ t("parasha.page.diaspora", "Diaspora") }}{% if apart %} · <bdi lang="he" dir="rtl">{{ diaspora.hebrew }}</bdi>{% endif %}
     </a>
-    <a class="schedule{% if schedule.value == 'israel' %} here{% endif %}"{% if schedule.value == 'israel' %} aria-current="page"{% endif %} href="/parasha?schedule=israel">
+    <a class="schedule{% if schedule.value == 'israel' %} here{% endif %}"{% if schedule.value == 'israel' %} aria-current="page"{% endif %} href="/parasha?schedule=israel{{ '&' ~ kept if kept }}">
       {{ t("parasha.page.israel", "Israel") }}{% if apart %} · <bdi lang="he" dir="rtl">{{ israel.hebrew }}</bdi>{% endif %}
     </a>
   </p>
@@ -194,8 +198,8 @@
         press away inside it. -#}
     <iframe
       name="reading"
-      src="/parasha/read/{{ portion.folder }}/reader/sec-0001.html"
-      title="{{ portion.name }}"
+      src="/parasha/read/{{ reading }}/reader/sec-0001.html"
+      title="{{ portion_named }}"
       loading="lazy"></iframe>
   </div>
 
@@ -227,7 +231,7 @@
     <button type="button" class="handle" aria-expanded="false">{{ t("parasha.page.full-screen", "Full screen") }}</button>
     <iframe
       name="haftarah"
-      src="/parasha/read/{{ haftarah.folder }}/reader/{{ haftarah.opens }}"
+      src="/parasha/read/{{ haftarah_reading }}/reader/{{ haftarah.opens }}"
       title="{{ t("parasha.page.haftarah-title", "The haftarah, {summary}", summary=ref(haftarah.summary)) }}"
       loading="lazy"></iframe>
   </div>
@@ -240,11 +244,11 @@
       the whole list. -#}
   <nav class="portions" aria-label="{{ t("parasha.page.the-other-portions", "The other portions") }}">
     {% if previous %}
-    <a class="prev" href="/parasha/{{ previous.slug }}"><span class="which">{{ t("parasha.page.previous", "Previous") }}</span> <bdi {% if previous.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ previous.hebrew or previous.name }}</bdi></a>
+    <a class="prev" href="/parasha/{{ previous.slug }}{{ '?' ~ kept if kept }}"><span class="which">{{ t("parasha.page.previous", "Previous") }}</span> <bdi {% if previous.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ previous.hebrew or previous.name }}</bdi></a>
     {% endif %}
     <a class="all" href="{{ all_href }}">{{ t("parasha.page.all-portions", "All portions") }}</a>
     {% if following %}
-    <a class="next" href="/parasha/{{ following.slug }}"><span class="which">{{ t("parasha.page.next", "Next") }}</span> <bdi {% if following.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ following.hebrew or following.name }}</bdi></a>
+    <a class="next" href="/parasha/{{ following.slug }}{{ '?' ~ kept if kept }}"><span class="which">{{ t("parasha.page.next", "Next") }}</span> <bdi {% if following.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ following.hebrew or following.name }}</bdi></a>
     {% endif %}
   </nav>
 
@@ -312,9 +316,9 @@
       <ul class="portions">
         {%- for one in listed %}
         <li>
-          <a class="story" href="/parasha/{{ one.slug }}" {% if one.hebrew %}lang="he" dir="rtl"{% else %}lang="en" dir="ltr"{% endif %}>{{ one.hebrew or one.name }}</a>
+          <a class="story" href="/parasha/{{ one.slug }}{{ '?' ~ kept if kept }}" {% if one.hebrew %}lang="he" dir="rtl"{% else %}lang="{{ page_language }}" dir="ltr"{% endif %}>{{ one.hebrew or name_of(one) }}</a>
           <span class="row">
-            <span class="outlets" lang="en" dir="ltr">{{ one.name }}</span>
+            <span class="outlets" lang="{{ page_language }}" dir="ltr">{{ name_of(one) }}</span>
             <span class="licence">{{ ref(one.summary) }}</span>
           </span>
         </li>
