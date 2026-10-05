@@ -396,7 +396,9 @@ def test_a_meaning_fits_above_its_word() -> None:
     assert printed.gloss_of("(absolutely) to create; to choose") == "to create"
     assert printed.gloss_of("[marks the direct object]") == ""
     assert printed.gloss_of("heavens, sky") == "heavens"
-    assert printed.gloss_of("something waited for eagerly") == "something…"
+    # Two short lines over the word hold a meaning of up to 26 characters (2026-10-05).
+    assert printed.gloss_of("something waited for") == "something waited for"
+    assert printed.gloss_of("something waited for so eagerly") == "something waited for so…"
 
 
 def test_a_mark_takes_the_whole_word_it_stands_in() -> None:

@@ -235,7 +235,7 @@ class Mark:
 Marker = Callable[[Token, "Glossary | None"], "Mark | None"]
 
 
-def gloss_of(meaning: str, most: int = 16) -> str:
+def gloss_of(meaning: str, most: int = 26) -> str:
     """A meaning as it fits above a word: its first sense, without what a dictionary
     puts in brackets, up to its first comma, and no longer than `most` characters. ""
     where nothing is left — `[marks the direct object]` is a grammar note, not a word."""

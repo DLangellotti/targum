@@ -285,9 +285,9 @@ body {
    no light.
 
    The word and its meaning are one box whose baseline is the word's, as wide as the
-   wider of the two, so a meaning longer than its word moves the next word along rather
-   than printing over the next meaning (they collided at Genesis 1:2, "a vacuity" over
-   "chaos", while a meaning could hang past its word). And every line of the text is
+   word and never narrower than a short meaning needs, and a longer meaning wraps to a
+   second short line inside it: it neither prints over the next meaning (they collided
+   at Genesis 1:2, "a vacuity" over "chaos") nor spreads the Hebrew apart (2026-10-05). And every line of the text is
    set at one height that already holds a meaning above it, glossed or not, so the
    column keeps one rhythm: a line was taller wherever it carried one. The height is the
    reading line plus a meaning's line, and the box inside is set close so it never
@@ -299,6 +299,7 @@ body {
 .lit.s3 { background: var(--leaf-3); }
 .g {
   display: inline-block;
+  min-width: 3.2em;
   text-align: center;
   line-height: 1;
 }
@@ -309,7 +310,11 @@ body {
   line-height: 1.1;
   letter-spacing: 0.01em;
   color: var(--ink-soft);
-  white-space: nowrap;
+  /* As wide as its word and no wider: a long meaning wraps to a second short line
+     rather than spreading the Hebrew apart (2026-10-05). */
+  width: 0;
+  min-width: 100%;
+  white-space: normal;
   /* A hair of room on each side, so two meanings side by side never touch. */
   padding-inline: 0.2em;
 }

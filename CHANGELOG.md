@@ -10,6 +10,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (targum-internal#415). The mark was a margin box's image, which sits on the text's
   baseline and stood above the address; the foot is now a running element (`.foot`,
   `content: element(foot)`) laid out with flex, and the address no longer wraps.
+- A long meaning over a word wraps to a second short line instead of widening the word's
+  slot and spreading the Hebrew line apart, and a meaning keeps up to 26 characters
+  (it was cut at 16: "something…" is now "something waited for").
 
 ### Added
 - Next Shabbat's portion at the end of the last aliyah (targum-internal#416): "Next
