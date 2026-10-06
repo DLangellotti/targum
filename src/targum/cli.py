@@ -109,6 +109,20 @@ def fail(error: TargumError) -> NoReturn:
     raise typer.Exit(1)
 
 
+def journal_logging() -> None:
+    """Send INFO and above to stderr, which systemd writes to the journal.
+
+    Nothing configured logging until 2026-10-06, so Python kept its default of WARNING and
+    dropped every `log.info` the server wrote, including the connector's per-tool timings
+    (`mcp_http._call`), which were added so a slow tool could be found. Hosted only: the
+    local server talks to somebody at a terminal, and the lines below are for the box.
+    No timestamp, because the journal stamps each line itself.
+    """
+    import logging
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+
 @app.command()
 def serve(
     port: Annotated[int, typer.Option("--port", help="Port to listen on.")] = 8420,
@@ -168,6 +182,9 @@ def serve(
             f"[dim]Spending is capped at ${max_cost:.2f} per text and ${budget:.2f} this "
             f"session. You see the price before anything is spent.[/dim]"
         )
+
+    if hosted:
+        journal_logging()
 
     if hosted and not os.environ.get("TARGUM_SMTP_HOST", "").strip():
         # Otherwise the door is shut and there is no way to knock: every route asks
